@@ -61,23 +61,33 @@ dans [`assets/logo/`](../assets/logo/) :
 | --- | --- |
 | `watchoo.svg` | Logo de référence, fond sombre (README, en-tête des pages) ; tous les autres fichiers en sont tirés |
 | `watchoo-light.svg` | Variante pour fond clair |
+| `watchoo-nom.svg` | Nom « watchoo » à gauche du logo, pour fond clair (en-tête des pages, documents) |
+| `watchoo-nom-light.svg` | Même chose, pour fond sombre |
 | `favicon.ico` | Favicon : 16, 32 et 48 px |
 | `apple-touch-icon.png` | Raccourci sur l'écran d'accueil iOS (180 px) |
 | `icon-192.png`, `icon-512.png` | Manifeste web |
 
 Couleurs : fond `#0f172a` (variante claire : `#e2e8f0`), tête `#f8fafc` (variante claire : `#0f172a`),
-pupilles `#22c55e`, le vert de l'état Actif. Ces fichiers seront copiés dans `internal/web/static/` et
+pupilles `#22c55e`, le vert de l'état Actif. Dans les versions avec le nom, les lettres sont des tracés
+géométriques (aucune police requise) et les deux « o » portent un point vert, comme les yeux. Ces fichiers seront copiés dans `internal/web/static/` et
 embarqués avec `embed` lorsque l'interface web sera écrite.
 
 ### Versions texte (CLI et TUI)
 
-Le même hibou existe en trois versions texte, choisies selon la situation :
+Le même hibou existe en trois versions texte, chacune seule ou avec le nom à gauche, choisies selon la
+situation et la largeur du terminal :
 
 | Fichier | Taille | Usage |
 | --- | --- | --- |
 | `ascii-blocs.txt` | 16 × 8, blocs Unicode | `watchoo --version`, écran d'accueil du TUI |
+| `ascii-blocs-nom.txt` | 53 × 8, blocs Unicode | Idem, avec le nom |
 | `ascii-mini.txt` | 8 × 3, blocs Unicode | En-tête du TUI |
+| `ascii-mini-nom.txt` | 44 × 4, blocs Unicode | En-tête du TUI, avec le nom |
 | `ascii.txt` | 16 × 8, ASCII pur | Repli si le terminal ne gère pas l'Unicode |
+| `ascii-nom.txt` | 53 × 8, ASCII pur | Idem, avec le nom |
+
+Les versions avec le nom tiennent dans 80 colonnes ; si le terminal est plus étroit que la version avec le
+nom, on affiche la version sans nom.
 
 Le hibou prend la couleur du texte du terminal et ses yeux celle du fond : il s'adapte seul aux terminaux
 clairs et sombres. Dans le TUI, les pupilles sont colorées en vert avec lipgloss ; sans couleur
