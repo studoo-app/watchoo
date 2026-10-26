@@ -75,3 +75,8 @@ Puis, dans le répertoire d'un groupe à superviser (ex. `~/supervision/licence-
 - [AGENTS.md](AGENTS.md) : consignes pour les agents de code qui travaillent sur le projet.
 
 Watchoo est écrit en Go : un seul binaire, sans dépendance à installer.
+
+## Licence
+
+Watchoo est distribué sous la [licence Apache 2.0](LICENSE). Le nom « Watchoo » et le logo du hibou n'en
+font pas partie : une version modifiée et redistribuée doit porter un autre nom (voir [NOTICE](NOTICE)).
