@@ -1,11 +1,9 @@
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="assets/logo/watchoo-light.svg">
-  <img src="assets/logo/watchoo.svg" alt="Logo de Watchoo : un hibou géométrique" width="96">
-</picture>
+<p align="center">
+  <img src="assets/logo/watchoo-nom.svg" alt="Logo de Watchoo : un hibou géométrique" width="400">
+</p>
 
-# Watchoo
-
-**Qui a travaillé, sur quoi, et quand ?** Watchoo surveille une liste de dépôts GitHub et vous montre
+## **Qui a travaillé, sur quoi, et quand ?** 
+Watchoo surveille une liste de dépôts GitHub et vous montre
 d'un coup d'œil leur activité : les nouveaux commits, les contributeurs, et les dépôts qui ne bougent plus.
 
 > 🚧 **Projet en conception.** Le code n'est pas encore écrit : ce dépôt contient pour l'instant la
