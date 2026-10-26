@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "skills": {
+    "goland": {
+      "source": "g1joshi/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/tools/goland/SKILL.md",
+      "computedHash": "6dbdc51197bee32bbffe2d374314103082d6624d06cc6ae7f7bc67e02e35727d"
+    },
+    "semver": {
+      "source": "lelborn/skills",
+      "sourceType": "github",
+      "skillPath": "skills/commits/semver/SKILL.md",
+      "computedHash": "079147cc601299b01211dd7a9a81e152647929c77aaef0dac9e82235ebb46ab7"
+    },
+    "semver-changelog": {
+      "source": "prulloac/agent-skills",
+      "sourceType": "github",
+      "skillPath": ".agents/skills/semver-changelog/SKILL.md",
+      "computedHash": "bbb405b973ffba743fd03b08b7174d8b621eb664fcea19c72e08a3ebbfe5e362"
+    }
+  }
+}
