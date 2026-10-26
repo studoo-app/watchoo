@@ -17,7 +17,7 @@ VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 export WATCHOO_VERSION := $(VERSION)
 
 .DEFAULT_GOAL := help
-.PHONY: help build test vet fmt-check sqlc sqlc-check check clean
+.PHONY: help build test vet fmt-check sqlc sqlc-check logo check clean
 
 help: ## Liste les cibles disponibles
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F ':.*## ' '{printf "  %-11s %s\n", $$1, $$2}'
@@ -54,6 +54,12 @@ sqlc-check: ## Échoue si le code généré par sqlc n'est pas à jour
 		echo "le code généré par sqlc n'était pas à jour : il vient d'être régénéré, commitez internal/store/db" >&2; \
 		exit 1; \
 	fi
+
+# go:embed ne remonte pas hors du package : internal/logo/art/ garde une copie des versions texte du
+# logo, identique à assets/logo/*.txt (un test de « make test » le vérifie).
+logo: ## Recopie les versions texte du logo (assets/logo/*.txt) dans internal/logo/art/
+	rm -f internal/logo/art/*.txt
+	cp assets/logo/*.txt internal/logo/art/
 
 check: fmt-check vet test sqlc-check build ## Lance tous les contrôles (comme la CI)
 

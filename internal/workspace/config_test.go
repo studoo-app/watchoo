@@ -12,8 +12,11 @@ import (
 	"testing"
 	"time"
 	_ "time/tzdata" // fuseaux IANA disponibles même sans base système (CI minimale)
+	"unicode/utf8"
 
 	"github.com/spf13/viper"
+
+	"github.com/studoo-app/watchoo/internal/logo"
 )
 
 var update = flag.Bool("update", false, "réécrit config.example.yaml à partir de ConfigTemplate")
@@ -675,6 +678,53 @@ func TestConfigTemplateIsCommentedInFrench(t *testing.T) {
 			t.Errorf("seule la clé name doit être active, ligne trouvée : %q", line)
 		}
 	}
+}
+
+// Le fichier commence par la carte d'en-tête en commentaires (hibou mini en blocs, « Watchoo » sans
+// version, sous-titre, sans astuce ni couleur, 80 colonnes au plus), suivie d'une ligne « # » puis de
+// l'en-tête des réglages. Le nom de l'espace n'est pas dans la carte.
+func TestConfigTemplateStartsWithCard(t *testing.T) {
+	want := strings.Join([]string{
+		"# ╭─────────────────────────────────────────────────╮",
+		"# │  █▄    ▄█  Watchoo                              │",
+		"# │  █ ●██● █  Réglages de l'espace de supervision  │",
+		"# │  ▀██▙▟██▀                                       │",
+		"# ╰─────────────────────────────────────────────────╯",
+		"#",
+		"# Réglages de l'espace de supervision Watchoo.",
+		"",
+	}, "\n")
+	for _, name := range trickyNames {
+		tpl := ConfigTemplate(name)
+		if !strings.HasPrefix(tpl, want) {
+			t.Errorf("ConfigTemplate(%q) ne commence pas par la carte :\n%s", name, tpl)
+		}
+	}
+	header := configHeader()
+	if header != strings.Join(strings.SplitAfter(want, "\n")[:5], "") {
+		t.Errorf("configHeader =\n%s", header)
+	}
+	if header != commentLines(logo.Card(logo.CardOptions{Title: "Watchoo", Subtitle: configHeaderSubtitle,
+		Width: 80, Unicode: true})) {
+		t.Errorf("configHeader n'est pas la carte de logo.Card en commentaires :\n%s", header)
+	}
+	if strings.Contains(header, "\x1b") {
+		t.Errorf("séquence d'échappement dans l'en-tête :\n%q", header)
+	}
+	for line := range strings.Lines(header) {
+		if n := utf8.RuneCountInString(strings.TrimPrefix(strings.TrimSuffix(line, "\n"), "# ")); n > 80 {
+			t.Errorf("ligne de %d colonnes, plus de 80 : %q", n, line)
+		}
+	}
+}
+
+// commentLines précède chaque ligne de s de « # ».
+func commentLines(s string) string {
+	var b strings.Builder
+	for line := range strings.Lines(s) {
+		b.WriteString("# " + line)
+	}
+	return b.String()
 }
 
 func TestConfigExampleFile(t *testing.T) {

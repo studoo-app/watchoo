@@ -67,6 +67,20 @@ licence-projet/
   seul l'utilisateur peut les lire. Les données viennent de dépôts privés et contiennent des noms et des
   e-mails d'étudiants.
 - Le `.gitignore` interne évite de pousser la base sur GitHub si l'espace se trouve dans un dépôt Git.
+- `config.yaml` commence par la carte d'en-tête de Watchoo, en commentaires YAML : le hibou en petit
+  format, « Watchoo » et « Réglages de l'espace de supervision », dans un cadre (le nom de l'espace n'y
+  figure pas). Suivent les réglages, commentés en français ; seul le nom de l'espace est actif. Le fichier
+  [`config.example.yaml`](../config.example.yaml) montre ce contenu :
+
+  ```yaml
+  # ╭─────────────────────────────────────────────────╮
+  # │  █▄    ▄█  Watchoo                              │
+  # │  █ ●██● █  Réglages de l'espace de supervision  │
+  # │  ▀██▙▟██▀                                       │
+  # ╰─────────────────────────────────────────────────╯
+  #
+  # Réglages de l'espace de supervision Watchoo.
+  ```
 - **Nom de l'espace** : par défaut le nom du répertoire (`licence-projet`), modifiable dans
   `config.yaml`. Il est affiché dans le titre du web, du TUI et dans `watchoo status`.
 
@@ -91,6 +105,9 @@ trouvé est utilisé.
 3. **Refuse** si le répertoire est déjà un espace, pour ne jamais écraser des données.
 4. **Prévient** si un espace parent existe déjà (ex. `init` lancé dans `~/supervision/licence-projet/groupe-a`
    alors que `licence-projet` est un espace) : on crée alors un espace imbriqué, indépendant du parent.
+
+Sur un terminal, le compte rendu de `init` commence par la [carte d'en-tête](05-cli.md#carte-den-tête) ;
+redirigé ou avec `--json`, il reste du texte simple ou du JSON.
 
 Le token n'est **pas** propre à l'espace : tous les espaces utilisent le compte `gh` de l'utilisateur
 (ou celui défini par `github.user` dans la config de l'espace).

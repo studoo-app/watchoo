@@ -125,6 +125,12 @@ func runInit(ctx context.Context, deps Deps, opts *options) error {
 	if opts.json {
 		return writeJSON(deps.Stdout, report)
 	}
+	if term, ok := cardTerminal(deps, opts); ok {
+		subtitle := fmt.Sprintf("Espace de supervision « %s » créé", report.Name)
+		if card := renderCard(term, subtitle, tipInitDone); card != "" {
+			return writeInitCard(deps.Stdout, term, card, report)
+		}
+	}
 	return writeInitText(deps.Stdout, report)
 }
 
@@ -229,17 +235,21 @@ func initWarnings(deps Deps, opts *options, root, parent string) []string {
 	return warnings
 }
 
-// writeInitText affiche le résumé de init en texte.
+// writeInitText affiche le résumé de init en texte, hors terminal (sur un terminal : writeInitCard).
 func writeInitText(w io.Writer, r initReport) error {
-	scopes := "droits non indiqués par gh"
-	if len(r.GitHub.Scopes) > 0 {
-		scopes = "droits : " + strings.Join(r.GitHub.Scopes, ", ")
-	}
 	_, err := fmt.Fprintf(w, `Espace de supervision « %s » créé.
   répertoire  %s
   réglages    %s
   base        %s
   compte gh   %s sur %s (%s)
-`, r.Name, r.Root, r.ConfigFile, r.Database, r.GitHub.Login, r.GitHub.Host, scopes)
+`, r.Name, r.Root, r.ConfigFile, r.Database, r.GitHub.Login, r.GitHub.Host, scopesText(r.GitHub.Scopes))
 	return err
+}
+
+// scopesText décrit les droits du token gh pour le résumé de init.
+func scopesText(scopes []string) string {
+	if len(scopes) == 0 {
+		return "droits non indiqués par gh"
+	}
+	return "droits : " + strings.Join(scopes, ", ")
 }

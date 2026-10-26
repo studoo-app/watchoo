@@ -211,6 +211,16 @@ func TestTokenNeverInOutput(t *testing.T) {
 		}
 	}
 
+	// Sur un terminal : carte d'en-tête et lignes d'état (compte gh, chemins).
+	for _, scenario := range []string{"logged-in", "env-token", "token-rotation"} {
+		h := newHarness(t)
+		useFakeGH(t, h, scenario)
+		onTerminal(h, wideTerminal)
+		check(h.run("init"))
+		check(h.run("--help"))
+		check(h.run("version"))
+	}
+
 	// gh introuvable.
 	h := newHarness(t)
 	h.Client = nil

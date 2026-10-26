@@ -16,6 +16,8 @@ import (
 	"time"
 
 	"github.com/spf13/viper"
+
+	"github.com/studoo-app/watchoo/internal/logo"
 )
 
 // Valeurs par défaut et bornes des réglages (voir documentation/03-architecture.md et
@@ -711,9 +713,33 @@ func toStringSlice(raw any) ([]string, error) {
 	return nil, fmt.Errorf("liste attendue (ex. [\"dependabot/*\"]), reçu %s", describe(raw))
 }
 
+// configHeaderSubtitle est le sous-titre de la carte d'en-tête des fichiers de configuration.
+const configHeaderSubtitle = "Réglages de l'espace de supervision"
+
+// configHeader renvoie la carte d'en-tête des fichiers de configuration, en commentaires YAML : la carte
+// de logo.Card (hibou mini en blocs Unicode, titre « Watchoo » sans version, sous-titre
+// configHeaderSubtitle, sans astuce ni couleur, 80 colonnes au plus), chaque ligne précédée de « # ».
+// Le fichier est déjà en UTF-8 (accents, « »). Le nom de l'espace n'y figure pas : il pourrait contenir
+// un saut de ligne, qui ferait sortir la suite du commentaire.
+func configHeader() string {
+	card := logo.Card(logo.CardOptions{
+		Title:    "Watchoo",
+		Subtitle: configHeaderSubtitle,
+		Width:    logo.MaxCardWidth,
+		Unicode:  true,
+	})
+	var b strings.Builder
+	for line := range strings.Lines(card) {
+		b.WriteString("# ")
+		b.WriteString(line)
+	}
+	return b.String()
+}
+
 // ConfigTemplate renvoie le contenu du config.yaml écrit par Init pour un espace nommé name.
 //
-// Le fichier est commenté en français. Seule la clé name y est active (valeur écrite comme une chaîne
+// Le fichier commence par la carte d'en-tête de Watchoo, en commentaires (voir configHeader). Il est
+// commenté en français. Seule la clé name y est active (valeur écrite comme une chaîne
 // YAML entre guillemets, correctement échappée, pour supporter « : », « # », guillemets…). Tous les
 // autres réglages y figurent en commentaire, avec leur valeur par défaut et une explication, afin que
 // les réglages de l'utilisateur ($XDG_CONFIG_HOME/watchoo/config.yaml, sinon ~/.config/watchoo/config.yaml)
@@ -736,7 +762,9 @@ func ConfigTemplate(name string) string {
 		fmt.Fprintf(&b, "%-28s # %s\n", "# "+line, comment)
 	}
 
+	b.WriteString(configHeader())
 	text(
+		"#",
 		"# Réglages de l'espace de supervision Watchoo.",
 		"#",
 		"# Seul le nom de l'espace est actif. Les autres réglages sont en commentaire,",
