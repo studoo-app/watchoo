@@ -10,11 +10,11 @@ pas de token. Tout ce qui sort du binaire est simulé.
 | Ce qui est testé | Comment | Où |
 | --- | --- | --- |
 | Commande `gh` (token, état de connexion) | **Mock de `gh`** : interface + faux binaire (voir ci-dessous) | `internal/auth/` |
-| API GitHub | Serveur HTTP simulé avec `httptest` | `internal/provider/github/` |
+| API GitHub | Faux serveur GitHub programmable (`githubtest`, sur `httptest`) | `internal/provider/github/` |
 | Espaces de supervision | Répertoires temporaires : `init`, refus si déjà initialisé, recherche dans les parents, `-C`, `WATCHOO_DIR`, espace imbriqué, droits `0700`/`0600` | `internal/workspace/` |
 | Base SQLite et requêtes sqlc | Base SQLite temporaire par test, migrations goose appliquées | `internal/store/` |
 | Import groupé | Fichiers CSV et texte de test : ligne mal formée, doublons, dépôt inaccessible (`404`), relance idempotente, `--dry-run` sans écriture | `internal/cli/` + `internal/sync/` |
-| Moteur de synchro | Provider simulé + base temporaire | `internal/sync/` |
+| Moteur de synchro | Faux Provider en mémoire (`providertest`) + base temporaire | `internal/sync/` |
 | CLI | Exécution des commandes cobra, vérification de la sortie texte et JSON | `internal/cli/` |
 | Web | `httptest` sur le routeur chi, vérification des pages et fragments | `internal/web/` |
 | TUI | Tests du modèle Bubble Tea : messages envoyés, état et rendu obtenus | `internal/tui/` |
@@ -69,11 +69,39 @@ Règles :
 
 ## API GitHub simulée
 
-- Serveur `httptest` qui rejoue des réponses JSON enregistrées dans `testdata/`.
-- Cas couverts : pagination, réponses `304` avec ETag, quota épuisé (en-têtes de rate limit), `404` sur
-  un dépôt privé sans accès, `403` lié au SSO, dépôt renommé ou transféré.
+Deux faux, écrits en phase 2 et réutilisés par les phases suivantes :
+
+| Faux | Package | Sert à tester |
+| --- | --- | --- |
+| Serveur GitHub programmable | `internal/provider/github/githubtest` | Le vrai provider GitHub (transport, cache ETag, quota, erreurs) ; en phase 3, le moteur de synchro de bout en bout |
+| `Provider` en mémoire | `internal/provider/providertest` | Le moteur de synchro, la CLI, le web et le TUI, sans HTTP |
+
+- **`githubtest`** : serveur `httptest` sur `127.0.0.1` qui simule les routes utilisées (dépôt, branches,
+  commits, commit avec statistiques, compare, `/rate_limit`) à partir d'un état préparé par le test :
+  dépôts, graphe de commits (merges compris), branches, force-push, renommage ou transfert (`301`), accès
+  refusé (`404`) ou SSO (`403`), dépôt vide (`409`). Il reproduit le format JSON de GitHub, la pagination
+  (en-tête `Link`), les ETag et les `304` (sans quota), le quota (en-têtes `X-RateLimit-*`, épuisement,
+  remise à zéro), les limites secondaires (`Retry-After`), et tient un journal des requêtes reçues (sans
+  la valeur de `Authorization`). Une réponse peut aussi être imposée pour un chemin donné.
+- **`providertest`** : implémente `provider.Provider` avec la même sémantique que le provider GitHub
+  (validation, ordre des commits, `Stop`, `Since`, `Limit`, dépôt vide, `ErrUnknownBase`, renommages),
+  plus l'injection d'erreurs, le comptage des appels et un quota simulé.
+- `internal/provider/github/testdata/` : quelques réponses JSON factices au format exact de GitHub, pour
+  les tests de conversion des types.
+- **Scénarios** (le vrai provider contre `githubtest`, `internal/provider/github/scenario_test.go`) :
+  pagination des branches et des commits ; synchro incrémentale (premier import par la liste des
+  commits, nouvelle branche par compare depuis la tête de la branche par défaut, y compris une branche
+  qui a fusionné `main`, compare entre l'ancienne et la nouvelle tête, y compris un merge qui apporte des
+  commits plus anciens que l'ancienne tête, et la perte de commits que provoquerait l'arrêt au premier
+  SHA connu) ; force-push (`ErrUnknownBase`, puis repli) ; réponses `304` avec ETag (quota non décompté, cache
+  partagé entre deux providers du même token et vidé par un autre token) ; quota épuisé ; limite
+  secondaire ; `404` sur un dépôt privé sans accès ; `403` lié au SSO ; `401` ; dépôt renommé ou
+  transféré ; dépôt vide ; dépôt archivé ; 4 dépôts synchronisés en parallèle (sous `-race`).
 - **Test de lecture seule** : le serveur simulé fait échouer le test dès qu'il reçoit une requête
-  `POST`, `PATCH`, `PUT` ou `DELETE`.
+  `POST`, `PATCH`, `PUT` ou `DELETE`, et un test vérifie que le transport du provider les refuse avant
+  l'envoi.
+- **Test de fuite** : dans tous ces scénarios, les logs (capturés au niveau Debug) et les erreurs ne
+  contiennent ni le faux token, ni en-tête `Authorization`, ni message de commit, nom ou e-mail.
 
 ## En CI
 

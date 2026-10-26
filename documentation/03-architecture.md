@@ -33,7 +33,7 @@ flowchart TD
 | --- | --- | --- |
 | Langage | Go, dernière version stable (fixée dans `go.mod`) | Binaire statique, cross-compilation simple, concurrence native |
 | CLI | `spf13/cobra` + `spf13/viper` | Standard de fait, sous-commandes, config YAML / variables d'env |
-| API GitHub | `google/go-github` + `golang.org/x/oauth2` | Client complet, gestion du token |
+| API GitHub | `google/go-github` (dernière version majeure), sans `golang.org/x/oauth2` | Client complet et typé ; le token est posé dans l'en-tête `Authorization` par le transport HTTP interne du provider, qui assure aussi la lecture seule, le cache ETag et le suivi du quota |
 | Stockage | SQLite via `modernc.org/sqlite` (sans CGO) | Fichier unique, zéro installation, cross-compile facile |
 | Accès BDD | `sqlc` (code généré sur `database/sql`) + migrations `pressly/goose` | Requêtes vérifiées contre le schéma, code Go typé généré, schéma versionné |
 | Serveur web | `net/http` + routeur `go-chi/chi` | Léger, 100 % compatible `net/http`, groupes de routes et middlewares prêts à l'emploi |
@@ -47,7 +47,7 @@ flowchart TD
 ### Décisions techniques
 
 Tous les choix de stack sont tranchés ; leur détail figure dans les « Points d'attention » ci-dessous.
-La signature exacte de l'interface `Provider` sera fixée en phase 2.
+L'interface `Provider` est fixée depuis la phase 2 (voir [Interface `Provider`](#interface-provider)).
 
 ## Organisation du code (cible)
 
@@ -59,7 +59,8 @@ watchoo/
   internal/web/        handlers, templates, static (embed)
   internal/workspace/  espaces de supervision : init, recherche de .watchoo/, réglages
   internal/auth/       accès à gh (token, état de connexion) + faux gh pour les tests
-  internal/provider/   interface Provider + github/
+  internal/provider/   interface Provider, types et erreurs ; providertest/ (faux Provider en mémoire)
+    github/            implémentation GitHub, seul import de go-github ; githubtest/ (faux serveur)
   internal/sync/       moteur de synchronisation
   internal/store/      SQLite, accès aux données
     migrations/        migrations goose (servent aussi de schéma à sqlc)
@@ -72,14 +73,44 @@ watchoo/
 
 ## Interface `Provider`
 
-Abstraction qui isole toute forge. Elle doit au minimum permettre de :
+Abstraction qui isole toute forge, définie dans `internal/provider`, sans dépendance à GitHub ni à
+go-github. L'implémentation GitHub (`internal/provider/github`) est la seule du MVP et le seul endroit où
+go-github est importé. Signature fixée en phase 2 (détail dans `internal/provider/provider.go`) :
 
-- obtenir les métadonnées d'un dépôt (branche par défaut, étoiles, issues ouvertes, URL) ;
-- lister les branches d'un dépôt ;
-- lister les commits d'une branche depuis une date / jusqu'à un SHA connu, avec pagination ;
-- exposer l'état du quota API (restant, date de reset).
+| Méthode | Rôle |
+| --- | --- |
+| `Name()` | Identifiant de la forge (`github`) |
+| `Repository(ctx, owner, name)` | Métadonnées d'un dépôt : identifiant numérique, owner et nom actuels, branche par défaut, URL, étoiles, issues ouvertes, archivé, privé, dernier push. Suit un renommage ou un transfert |
+| `RepositoryByID(ctx, id)` | Les mêmes métadonnées, par l'identifiant numérique, qui ne change jamais |
+| `Branches(ctx, owner, name)` | Toutes les branches (nom, SHA de tête), toutes les pages |
+| `ListCommits(ctx, owner, name, opts)` | Commits d'une branche (ou d'un SHA), du plus récent au plus ancien (ordre chronologique, pas celui du graphe). Options : `Branch`, `Since`, `Stop` (arrêt au premier SHA pour lequel elle renvoie vrai, exclu, sans page suivante ; pas pour s'arrêter au premier SHA connu, voir [Synchronisation incrémentale](#synchronisation-incrémentale)), `Limit` |
+| `CompareCommits(ctx, owner, name, base, head)` | Commits atteignables depuis `head` mais pas depuis `base` (comme `git log base..head`), merges compris, du plus récent au plus ancien |
+| `CommitStats(ctx, owner, name, sha)` | Lignes ajoutées et supprimées par un commit (une requête par commit, une seule page de fichiers, jamais mise en cache) |
+| `RateLimit(ctx)` | État du quota (`GET /rate_limit`, gratuit) |
+| `LastRateLimit()` | Dernier état du quota observé sur les réponses, sans requête |
 
-L'implémentation GitHub est la seule du MVP. La signature exacte sera fixée en phase 2.
+Règles communes :
+
+- les arguments (owner, nom de dépôt, branche, SHA complet, identifiant) sont validés avant toute
+  requête : une valeur invalide donne `ErrInvalidRef`, sans appel réseau ;
+- dates en UTC, listes vides non nil ; plafonds internes (10 000 commits, 1 000 branches) contre une
+  pagination sans fin ;
+- erreurs de type `*APIError` (opération, méthode, chemin de l'API, code HTTP), à tester avec
+  `errors.Is` / `errors.As` : `ErrNotFound` (`404` : dépôt introuvable ou compte sans accès),
+  `ErrUnauthorized` (`401` : conseiller `gh auth login`), `ErrForbidden` et `*SSORequiredError` (`403`,
+  SSO imposé par l'organisation), `*RateLimitError` (quota épuisé ou limite secondaire, avec le moment où
+  réessayer), `ErrEmptyRepository` (dépôt vide), `ErrUnknownBase` (base d'une comparaison disparue),
+  `ErrUnavailable` (réseau, délai, `5xx`), `ErrUnexpected`, `ErrWriteForbidden`. Leurs messages sont en
+  français et ne citent jamais le token, un corps de réponse, un message de commit, un nom ni un e-mail ;
+- sûr pour un usage concurrent : 4 dépôts synchronisés en parallèle avec la même instance.
+
+Construction : `github.New(token, Options)` est légère (aucune requête). Le moteur de synchro en construit
+un à chaque synchro, avec le token redemandé à `gh`, et lui passe le même cache ETag (`Cache`) et le même
+état du quota (`Quota`), qui durent d'une synchro à l'autre. Autres options : `BaseURL` (tests),
+`UserAgent` (`watchoo/<version>`), `Transport`, `Timeout` (30 s par requête par défaut), `Logger`.
+
+Faux pour les tests : `providertest` (Provider en mémoire) et `githubtest` (serveur GitHub simulé), voir
+[Tests](09-tests.md#api-github-simulée).
 
 ## Configuration
 
@@ -101,7 +132,26 @@ L'implémentation GitHub est la seule du MVP. La signature exacte sera fixée en
 ### Quota de l'API GitHub
 - 5 000 requêtes / heure avec token.
 - Utiliser les **ETag** (`If-None-Match`) : une réponse `304 Not Modified` ne consomme pas de quota.
-- Si le quota est épuisé : attendre le reset plutôt qu'échouer en boucle.
+- **Cache ETag en mémoire**, par processus, jamais sur disque. La clé est l'URL complète de la requête
+  (pages comprises ; `per_page=100` toujours, pour des clés stables) ; une réponse `304` est servie comme
+  la réponse `200` en cache. Le cache est lié à une empreinte du token (SHA-256, en mémoire seulement) :
+  un autre compte `gh` le vide, aucune réponse d'un compte n'est servie à un autre. Il est borné
+  (1 024 réponses de 1 Mio au plus). `serve` et `tui`, qui tournent longtemps, en profitent d'une synchro
+  à l'autre ; une commande ponctuelle (`watchoo sync`) repart d'un cache vide.
+- Les statistiques d'un commit (`GET /repos/{owner}/{repo}/commits/{sha}`) ne demandent qu'une page de
+  fichiers (`per_page=1`) : seuls les totaux servent, et ils couvrent tout le commit quelle que soit la
+  page. Sans ce paramètre, GitHub renverrait jusqu'à 300 fichiers avec leur patch, c'est-à-dire le code du
+  dépôt privé. Ces réponses ne sont pas mises en cache : chaque commit n'est demandé qu'une fois.
+- L'état du quota est lu sur les en-têtes `X-RateLimit-*` de chaque réponse (`304` comprises) et
+  partagé d'une synchro à l'autre.
+- Quota épuisé (`403` ou `429` avec `X-RateLimit-Remaining: 0`) ou limite secondaire (`403` ou `429` avec
+  `Retry-After` ou un message « secondary rate limit ») : le provider renvoie une `RateLimitError` qui
+  donne le moment où réessayer (`X-RateLimit-Reset` ; pour une limite secondaire, `Retry-After`, sinon
+  une minute, comme le recommande GitHub). Un quota épuisé l'emporte sur un `Retry-After` reçu dans la
+  même réponse. D'ici là, il refuse les requêtes suivantes sans les envoyer (`GET /rate_limit` reste
+  permis), avec la même erreur ; si un quota épuisé et une limite secondaire sont tous deux en cours,
+  c'est la plus lointaine des deux échéances qui est donnée. Il n'attend jamais lui-même : c'est le
+  moteur de synchro qui attend le reset plutôt qu'échouer en boucle.
 
 ### Fréquence de synchronisation
 - **Décision** : intervalle de **30 min par défaut**, **15 min minimum**. Une valeur plus courte (config ou
@@ -136,15 +186,46 @@ L'implémentation GitHub est la seule du MVP. La signature exacte sera fixée en
   l'activité.
 - **Branche supprimée sur GitHub** : elle cesse d'être suivie (`tracked = false`), mais son historique reste
   en base.
-- **Coût** : chaque branche suivie coûte une requête par synchro, gratuite si rien n'a changé (`304`). Une
-  branche déjà synchronisée s'arrête au premier SHA connu, et les commits partagés entre branches ne sont
-  enregistrés qu'une fois (table `commit_branches`). `watchoo status` indique le nombre de branches suivies
-  et la consommation de quota par synchro.
+- **Coût** : la liste des branches coûte une requête par dépôt et par synchro, gratuite si rien n'a
+  changé (`304`). Une branche dont la tête n'a pas bougé ne coûte rien de plus ; une branche qui a bougé
+  coûte une comparaison (voir [Synchronisation incrémentale](#synchronisation-incrémentale)). Les commits
+  partagés entre branches ne sont enregistrés qu'une fois (table `commit_branches`). `watchoo status`
+  indique le nombre de branches suivies et la consommation de quota par synchro.
 
 ### Synchronisation incrémentale
-- Paramètre `since` sur la liste des commits.
-- Arrêt de la pagination dès qu'un SHA déjà connu est rencontré.
-- Parallélisme borné avec `errgroup` : **4 dépôts synchronisés en parallèle maximum**.
+- **Règle** : la liste des commits (`ListCommits`) suit l'ordre **chronologique**, pas celui du graphe.
+  Après un merge, des commits apportés par la branche fusionnée peuvent venir **après** un commit déjà en
+  base : arrêter la liste au premier SHA connu (option `Stop`) les perdrait, sans aucune erreur, et la
+  perte serait définitive (la synchro suivante compare depuis la nouvelle tête). Dès que le dépôt a des
+  commits en base, le moteur s'appuie donc sur la comparaison (`CompareCommits`), seule méthode exacte,
+  et jamais sur l'arrêt au premier SHA connu.
+- **Premier import d'un dépôt** (aucun commit en base) : liste des commits de la branche de référence
+  (`ListCommits`, sans `Stop` : rien n'est encore connu), du plus récent au plus ancien. `Since` ou
+  `Limit` peuvent borner l'historique. La branche de référence est la branche par défaut si elle est
+  suivie, sinon la première branche suivie ; elle est synchronisée en premier à chaque synchro.
+- **Nouvelle branche d'un dépôt déjà synchronisé** (y compris les autres branches lors du premier
+  import) : comparaison entre la tête de la branche de référence et la tête de la nouvelle branche.
+  Elle donne exactement les commits propres à la branche, y compris ceux apportés par un merge. Cas
+  courant chez les étudiants : `main` est en base (M0 puis M1) ; une branche partie de M0 reçoit F1, puis
+  un merge de `main` (X). La liste des commits de la branche donne X, M1, F1, M0 : l'arrêt au premier
+  SHA connu (M1) perdrait F1, alors que la comparaison M1...X donne X et F1.
+- **Branche déjà synchronisée** : comparaison entre l'ancienne tête (`branches.head_sha`) et la nouvelle,
+  merges compris (même s'ils apportent des commits plus anciens que l'ancienne tête). Tête inchangée :
+  aucune requête.
+- **Historique réécrit** (force-push) ou sans ancêtre commun : la comparaison renvoie `ErrUnknownBase`. Le
+  moteur la retente depuis la tête de la branche de référence (si la branche n'est pas elle-même la
+  branche de référence). À défaut, il relit la liste des commits **sans `Stop`**, bornée comme au premier
+  import (`Since` ou `Limit`), et ignore les SHA déjà en base (ni réenregistrés, ni statistiques
+  redemandées). Ce repli relit des pages déjà connues : il reste réservé à ce cas rare.
+- **Dépôt vide** (dépôt d'étudiant tout juste créé, auquel GitHub répond `409`) : branches et commits
+  vides, sans erreur.
+- **Dépôt renommé ou transféré** : GitHub répond `301` vers `/repositories/{id}` ; le provider suit la
+  redirection et renvoie les owner et nom actuels. `RepositoryByID` permet de suivre un dépôt par son
+  identifiant numérique, qui ne change jamais.
+- **Lecture seule** : le transport HTTP du provider refuse toute méthode autre que `GET` et `HEAD` avant
+  l'envoi (`ErrWriteForbidden`).
+- Parallélisme borné avec `errgroup` : **4 dépôts synchronisés en parallèle maximum**. Le provider, son
+  cache ETag et l'état du quota sont sûrs pour cet usage concurrent.
 
 ### Authentification : `gh` imposé
 - **Décision** : la CLI GitHub **`gh` est un prérequis obligatoire**. C'est la **seule** source du token :
@@ -168,6 +249,8 @@ L'implémentation GitHub est la seule du MVP. La signature exacte sera fixée en
   token.
 - **Jamais** de token en clair dans les logs, l'interface web ou le TUI ; la sortie de `gh auth token` n'est
   jamais journalisée.
+- Le token n'est posé dans l'en-tête `Authorization` que par le transport du provider, et seulement vers
+  l'hôte de l'API : une redirection vers un autre hôte est refusée.
 - Docker et CI : `gh` est inclus dans l'image Docker. Sans session interactive, `gh` lit son token dans
   la variable `GH_TOKEN`. Vérifié en phase 1 (gh 2.103) : sans `--user`, `gh auth token` renvoie bien le
   token de `GH_TOKEN`, et `gh auth status` présente ce compte comme le compte actif ; avec `--user`, `gh`
@@ -186,10 +269,12 @@ Les dépôts suivis sont principalement **privés**. Conséquences :
   - il couvre **tous les propriétaires** auxquels le compte a accès (compte perso et organisations) : un
     seul token suffit, la question des tokens multiples ne se pose plus ;
   - il porte par défaut le droit `repo`, qui permet **lecture et écriture**. Watchoo reste en lecture seule :
-    le code n'appelle **aucune** route GitHub en écriture (POST, PATCH, PUT, DELETE), et un test le vérifie ;
+    le code n'appelle **aucune** route GitHub en écriture (POST, PATCH, PUT, DELETE), le transport du
+    provider les refuse avant l'envoi, et un test le vérifie ;
   - une organisation peut restreindre l'accès des applications OAuth tierces, ou imposer le SSO : il faut
     alors autoriser l'application GitHub CLI pour cette organisation. `init` et `status` le signalent quand
-    un dépôt de l'organisation répond `404` ou `403`.
+    un dépôt de l'organisation répond `404` ou `403`. Le provider distingue le SSO : une réponse `403` avec
+    l'en-tête `X-GitHub-SSO` donne une `SSORequiredError` (organisation et lien d'autorisation).
 - **Données locales confidentielles** : la base SQLite contient des messages de commit, des noms et des
   e-mails issus de dépôts privés.
   - Fichier de base et fichier de config créés avec les droits **`0600`** (lisibles par l'utilisateur seul).

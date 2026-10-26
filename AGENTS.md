@@ -9,9 +9,12 @@ trois questions : qu'est-ce qui a bougé, quand, et qui l'a fait. Il propose une
 (`watchoo tui`) et une interface web locale (`watchoo serve`). Chaque groupe supervisé (ex. les projets des
 étudiants d'une promotion) vit dans son propre répertoire, initialisé par `watchoo init`.
 
-**État actuel : phase 1 (fondations) en place.** `watchoo init` crée un espace de supervision (réglages,
-base SQLite migrée, droits `0700`/`0600`) après avoir vérifié `gh` ; `watchoo version` affiche la version.
-La prochaine étape est la phase 2 de la [roadmap](documentation/07-roadmap.md) (provider GitHub).
+**État actuel : phases 1 (fondations) et 2 (provider GitHub) en place.** `watchoo init` crée un espace de
+supervision (réglages, base SQLite migrée, droits `0700`/`0600`) après avoir vérifié `gh` ; `watchoo version`
+affiche la version. `internal/provider` définit l'interface `Provider`, implémentée pour GitHub dans
+`internal/provider/github` (go-github, cache ETag en mémoire, quota, lecture seule), avec ses faux pour les
+tests (`githubtest`, `providertest`) ; aucune commande ne s'en sert encore. La prochaine étape est la
+phase 3 de la [roadmap](documentation/07-roadmap.md) (moteur de synchro + CLI).
 
 ## Documentation de référence
 
@@ -43,7 +46,7 @@ mainteneur, puis dans le code.
 
 ## Stack (résumé)
 
-Go (dernière version stable, fixée dans `go.mod`) · cobra + viper · go-github · SQLite via
+Go (dernière version stable, fixée dans `go.mod`) · cobra + viper · go-github (sans x/oauth2) · SQLite via
 `modernc.org/sqlite` (sans CGO) · migrations goose · requêtes sqlc · net/http + go-chi/chi ·
 html/template + HTMX + DaisyUI (CSS généré par la CLI autonome Tailwind) · Chart.js embarqué ·
 Bubble Tea + bubbles + lipgloss · log/slog · errgroup. Détail et justifications :
@@ -58,7 +61,8 @@ internal/tui/         mode interactif Bubble Tea (affichage seulement)
 internal/web/         handlers chi, templates, static (embed)
 internal/workspace/   espaces de supervision : init, recherche de .watchoo/, réglages
 internal/auth/        accès à gh (token, état de connexion)
-internal/provider/    interface Provider + github/
+internal/provider/    interface Provider, types, erreurs ; providertest/ (faux Provider)
+                      github/ : implémentation GitHub ; github/githubtest/ (faux serveur GitHub)
 internal/sync/        moteur de synchronisation (cœur métier)
 internal/store/       SQLite : migrations/, queries/ (sqlc), db/ (généré)
 internal/model/       structs métier
@@ -85,7 +89,7 @@ make css          # (phase 4) CSS DaisyUI généré par la CLI autonome Tailwind
 
 - **Aucune logique métier** dans `cli`, `tui` ou `web` : ces couches appellent le cœur métier.
 - Tout accès à GitHub passe par l'interface `Provider` ; rien de spécifique à GitHub hors de
-  `internal/provider/github/`.
+  `internal/provider/github/`, seul package qui importe go-github.
 - Les types générés par sqlc ne sortent pas de `internal/store/` ; ils sont convertis vers `internal/model`.
 - Les handlers web restent des `http.Handler` standard.
 - Synchro **incrémentale** : ne jamais re-télécharger un commit déjà en base ; utiliser les ETag ;
@@ -99,7 +103,8 @@ make css          # (phase 4) CSS DaisyUI généré par la CLI autonome Tailwind
 - Le token GitHub vient **uniquement** de `gh auth token`. Ne jamais lire `GITHUB_TOKEN` ni stocker le
   token (config, base, fichier, trousseau).
 - Le token n'apparaît **jamais** dans les logs, les erreurs, la sortie CLI, le TUI ou le web.
-- **Lecture seule** : aucun appel GitHub en `POST`, `PATCH`, `PUT` ou `DELETE`.
+- **Lecture seule** : aucun appel GitHub en `POST`, `PATCH`, `PUT` ou `DELETE` (le transport du provider
+  les refuse avant l'envoi).
 - Les données viennent de dépôts privés et contiennent des données personnelles d'étudiants :
   `.watchoo/` en `0700`, fichiers en `0600` ; **ni message de commit ni e-mail dans les logs**.
 - Web : écoute sur `127.0.0.1` par défaut ; authentification obligatoire sur toute autre adresse.
@@ -108,8 +113,9 @@ make css          # (phase 4) CSS DaisyUI généré par la CLI autonome Tailwind
 
 - Tout code nouveau ou modifié a ses tests.
 - **Aucun service extérieur** dans les tests ni en CI : `gh` est mocké (interface Go + faux binaire dans
-  `internal/auth/testdata/fakegh/`, chemin réglable par `github.gh_path`), l'API GitHub est simulée avec
-  `httptest`, la base est une SQLite temporaire.
+  `internal/auth/testdata/fakegh/`, chemin réglable par `github.gh_path`), l'API GitHub est simulée par le
+  faux serveur `githubtest` (sur `httptest`), le provider par `providertest`, la base est une SQLite
+  temporaire.
 - Détail des scénarios : [09-tests.md](documentation/09-tests.md).
 
 ## Style

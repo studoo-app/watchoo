@@ -6,9 +6,10 @@
 Watchoo surveille une liste de dépôts GitHub et vous montre
 d'un coup d'œil leur activité : les nouveaux commits, les contributeurs, et les dépôts qui ne bougent plus.
 
-> 🚧 **Projet en développement.** Les fondations (phase 1 de la [roadmap](documentation/07-roadmap.md))
-> sont en place : `watchoo init` crée un espace de supervision. Le suivi des dépôts arrive dans les
-> phases suivantes ; la [documentation](documentation/README.md) définit l'outil complet.
+> 🚧 **Projet en développement.** Les phases 1 et 2 de la [roadmap](documentation/07-roadmap.md) sont en
+> place : `watchoo init` crée un espace de supervision, et le provider GitHub (lecture des dépôts, branches
+> et commits, cache ETag, gestion du quota) est prêt et testé. Les commandes de suivi des dépôts arrivent
+> avec la phase 3 ; la [documentation](documentation/README.md) définit l'outil complet.
 
 ## Pour qui ?
 

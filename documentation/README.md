@@ -2,7 +2,8 @@
 
 > Document de définition du projet — version du 26 octobre 2026 · Benoit
 >
-> Statut : **conception**. Aucun code n'est encore écrit ; ces pages décrivent ce qui doit être construit.
+> Statut : **en développement**. Les phases 1 (fondations) et 2 (provider GitHub) de la
+> [roadmap](07-roadmap.md) sont réalisées ; ces pages décrivent l'outil complet, construit phase par phase.
 
 Watchoo est un binaire Go unique qui surveille une liste de dépôts GitHub et répond à trois questions :
 **qu'est-ce qui a bougé, quand, et qui l'a fait.** Il s'utilise en ligne de commande (CLI) ou via une

@@ -1,0 +1,18 @@
+[
+  {
+    "name": "dev",
+    "commit": {
+      "sha": "c2e09fb4a95488767c48bcc67e2fe0fc4f375fcc",
+      "url": "https://api.github.com/repos/promo-2026/projet-alice/commits/c2e09fb4a95488767c48bcc67e2fe0fc4f375fcc"
+    },
+    "protected": false
+  },
+  {
+    "name": "feature/login",
+    "commit": {
+      "sha": "e7de2cd0585ecc3729db8117ba1e93e306e4866b",
+      "url": "https://api.github.com/repos/promo-2026/projet-alice/commits/e7de2cd0585ecc3729db8117ba1e93e306e4866b"
+    },
+    "protected": false
+  }
+]
