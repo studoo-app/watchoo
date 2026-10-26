@@ -22,6 +22,7 @@ interface web locale servie par le même binaire.
 | 8 | [Prompt pour agent de code](08-prompt-agent.md) | Consigne prête à coller pour faire construire le projet phase par phase |
 | 9 | [Stratégie de tests](09-tests.md) | Mock de `gh`, API GitHub simulée, tests par couche, CI sans service extérieur |
 | 10 | [Espaces de supervision](10-espaces-de-supervision.md) | `watchoo init`, un répertoire par groupe supervisé, scénario « étudiants de licence » |
+| 11 | [Skills des agents de code](11-skills.md) | Skills installés via skills.sh, organisation dans le dépôt, règles |
 | — | [Glossaire](glossaire.md) | Vocabulaire du projet |
 
 ## En une image

@@ -50,6 +50,7 @@ bon schéma ; les autres commandes retrouvent l'espace.
 - Graphiques d'activité.
 - Sortie `--json`.
 - Makefile, binaires multi-plateformes via GoReleaser, image Docker, README.
+- Versions SemVer et `CHANGELOG.md` tenus avec les skills `semver` et `semver-changelog` (voir [Skills](11-skills.md)).
 
 **Livrable** : MVP distribuable.
 

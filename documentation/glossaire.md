@@ -18,4 +18,5 @@
 | **Inactivité** | Durée écoulée depuis le dernier commit d'un dépôt, toutes branches suivies confondues |
 | **Actif / Flemme / Dead** | États d'activité d'un dépôt : 0 à 5 j, 6 à 15 j, plus de 15 j depuis le dernier commit (seuils réglables) |
 | **Sync run** | Une exécution de synchronisation d'un dépôt, journalisée dans `sync_runs` |
+| **Skill** | Savoir-faire réutilisable pour un agent de code (instructions, références), installé depuis skills.sh |
 | **HTMX** | Bibliothèque permettant de rafraîchir des fragments HTML sans JavaScript applicatif |

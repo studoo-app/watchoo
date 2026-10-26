@@ -55,6 +55,12 @@ Respect de NO_COLOR.
 Tableau de bord (carte par dépôt + fil des derniers commits), détail d'un dépôt (historique,
 filtres, graphique 90 jours), page contributeurs, page réglages (ajout de dépôt, synchro manuelle, quota API).
 
+## Skills
+Les skills du projet sont installés depuis skills.sh (npx skills add), dans .agents/skills/ avec des liens
+dans .claude/skills/ et .vibe/skills/, verrouillés par skills-lock.json. Utilise goland pour le Go,
+semver et semver-changelog pour les versions et le CHANGELOG. N'installe aucun skill sans accord.
+Voir documentation/11-skills.md.
+
 ## Méthode de travail
 - Avance par phases : 1) fondations, 2) provider GitHub, 3) synchro + CLI + TUI, 4) web, 5) finitions.
 - À chaque phase : code, tests (httptest pour simuler l'API GitHub), go vet, puis résumé de ce qui marche.
