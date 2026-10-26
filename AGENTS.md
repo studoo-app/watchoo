@@ -66,6 +66,7 @@ internal/provider/    interface Provider, types, erreurs ; providertest/ (faux P
 internal/sync/        moteur de synchronisation (cœur métier)
 internal/store/       SQLite : migrations/, queries/ (sqlc), db/ (généré)
 internal/model/       structs métier
+internal/logo/        hibou en versions texte (copie de assets/logo/) et carte d'en-tête
 ```
 
 ## Commandes
@@ -79,11 +80,13 @@ make sqlc         # sqlc generate
 make sqlc-check   # échoue si internal/store/db n'est pas à jour
 make check        # tous les contrôles, comme la CI (.github/workflows/ci.yml)
 make css          # (phase 4) CSS DaisyUI généré par la CLI autonome Tailwind
+make logo         # recopie assets/logo/*.txt dans internal/logo/art/ (copie embarquée)
 ```
 
 - `sqlc generate` après toute modification de `internal/store/queries/` ou des migrations ; le code
   généré (`internal/store/db/`) est commité et **jamais modifié à la main**.
 - `make css` après toute modification des templates ; `internal/web/static/app.css` est commité.
+- `make logo` après toute modification de `assets/logo/*.txt` ; un test vérifie que la copie est à jour.
 
 ## Règles d'architecture
 

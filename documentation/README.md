@@ -46,3 +46,9 @@ flowchart LR
 3. **Sobriété vis-à-vis de l'API GitHub** : synchronisation incrémentale, ETag, respect du rate limit.
 4. **Extensible** : l'accès aux forges passe par une interface `Provider` (GitHub d'abord, GitLab/Gitea ensuite).
 5. **Livrer par phases** : chaque phase produit quelque chose d'utilisable de bout en bout.
+
+## Licence
+
+Code sous [licence Apache 2.0](../LICENSE) ; le nom et le logo restent réservés (voir [NOTICE](../NOTICE)).
+Les dépendances (cobra, viper, go-github, SQLite modernc, goose, chi, Bubble Tea, DaisyUI, HTMX, Chart.js)
+sont sous des licences compatibles (Apache 2.0, MIT, BSD).

@@ -22,7 +22,7 @@ uniquement avec `gh auth token` et ne le stocke jamais (voir
 | Commande | Effet | Version |
 | --- | --- | --- |
 | `watchoo init` | Fait du répertoire courant un espace de supervision : vérifie `gh`, puis crée `.watchoo/` avec la config et la base SQLite. Refuse si l'espace existe déjà | MVP |
-| `watchoo version` | Affiche la version de Watchoo, de Go et la plateforme. Fonctionne hors d'un espace et sans `gh` | MVP |
+| `watchoo version` | Affiche la version de Watchoo, de Go et la plateforme (`watchoo --version` fait de même). Fonctionne hors d'un espace et sans `gh` | MVP |
 | `watchoo repo add owner/repo [--branch main,dev,release/*] [--label "Alice Martin"]` | Ajoute un dépôt à surveiller (toutes ses branches par défaut), avec un nom affiché facultatif | MVP |
 | `watchoo repo import fichier.csv [--dry-run]` | Ajoute d'un coup une liste de dépôts (ex. ceux d'une promotion), vérifie l'accès à chacun et affiche un bilan | MVP |
 | `watchoo repo add-org mon-org` | Ajoute tous les dépôts d'une organisation | V2 |
@@ -46,6 +46,62 @@ uniquement avec `gh auth token` et ne le stocke jamais (voir
 - **`serve`** écoute sur `127.0.0.1` par défaut (voir [Interface web](06-interface-web.md)).
 - `watchoo help [commande]` et l'option `-h` / `--help` affichent l'aide en français. Il n'y a pas de
   commande `completion` (celle que `cobra` ajoute d'office est désactivée : son aide est en anglais).
+- **`--version`**, option de `watchoo` seul (`watchoo init --version` est refusée), a le même effet que
+  `watchoo version`, `--json` compris.
+
+## Carte d'en-tête
+
+Sur un terminal, l'aide générale, `watchoo version` et le compte rendu de `watchoo init` commencent par une
+**carte d'en-tête** : un cadre aux coins arrondis avec, à gauche, le hibou en petit format
+(`ascii-mini.txt`, voir [Logo et icônes](06-interface-web.md#versions-texte-cli-et-tui)) et, à sa droite,
+« Watchoo », la version et un sous-titre ; dessous, parfois, une astuce. Des lignes d'état précédées
+d'un `●` peuvent suivre la carte. Exemple, `watchoo` lancé dans un espace :
+
+```
+╭───────────────────────────────────────────────────────────────╮
+│  █▄    ▄█  Watchoo v0.1.0                                     │
+│  █ ●██● █  Qui a travaillé, sur quoi, et quand ?              │
+│  ▀██▙▟██▀                                                     │
+│                                                               │
+│  Astuce : « watchoo help <commande> » détaille une commande.  │
+╰───────────────────────────────────────────────────────────────╯
+
+● Espace : licence-projet (~/supervision/licence-projet)
+
+Watchoo supervise des dépôts GitHub, surtout privés, et répond à trois questions :
+…
+```
+
+| Sortie | Sous-titre et astuce de la carte | Après la carte |
+| --- | --- | --- |
+| Aide générale : `watchoo`, `watchoo help`, `watchoo --help` / `-h` | « Qui a travaillé, sur quoi, et quand ? » ; astuce « `watchoo init` fait de ce répertoire un espace de supervision » si aucun espace n'est trouvé, sinon « `watchoo help <commande>` détaille une commande » | Une ligne vide, la ligne d'état de l'espace, une ligne vide, puis l'aide habituelle |
+| `watchoo version`, `watchoo --version` | Version de Go et plateforme (`go1.27.3 · darwin/arm64`) ; pas d'astuce | Rien |
+| `watchoo init` réussi | « Espace de supervision « nom » créé » ; astuce « `watchoo help` liste les commandes » | Une ligne vide, puis le compte rendu en lignes d'état : espace, réglages, base, compte `gh` et ses droits |
+
+- **Scripts** : la carte n'est affichée que si la sortie standard est un terminal, et jamais avec `--json`.
+  Une sortie redirigée (fichier, tube) reste identique : aide sans carte, `watchoo version` sur une seule
+  ligne (`watchoo v0.1.0 (go1.27.3, darwin/arm64)`), compte rendu habituel de `init`. La sortie d'erreur
+  (erreurs, avertissements) n'a jamais de carte, l'aide des sous-commandes (`watchoo help init`) non plus.
+- **Ligne d'état de l'espace** (aide générale) : `● Espace : <nom> (<racine>)`, avec `~` pour le
+  répertoire personnel, ou `● Aucun espace de supervision ici`. L'espace est cherché comme le feraient les
+  autres commandes (répertoire courant et ses parents, `-C`, `WATCHOO_DIR`), localement, sans lancer
+  `gh`. La recherche ne fait jamais échouer l'aide : une erreur (réglages invalides, répertoire de `-C`
+  inexistant…) est résumée sur la ligne d'état, `● Espace : <message>`.
+- **Largeur** : celle du contenu, sans dépasser 80 colonnes ni la largeur du terminal (variable `COLUMNS`
+  si c'est un entier positif, sinon celle que donne le système). Un texte trop long est coupé sur les
+  espaces. Sur un terminal de moins de 40 colonnes, pas de carte : la sortie est celle d'une sortie
+  redirigée. Une lettre accentuée occupe une colonne, qu'elle soit précomposée (`é`) ou décomposée (`e`
+  suivi d'un accent combinant, forme fréquente dans les noms de répertoires créés sous macOS, donc dans
+  le nom par défaut d'un espace).
+- **Unicode** : si la locale est en UTF-8 (première variable non vide parmi `LC_ALL`, `LC_CTYPE` et
+  `LANG`) ou dans Windows Terminal (`WT_SESSION`). Sinon, la carte et les lignes d'état sont en ASCII pur :
+  bordures `+`, `-` et `|`, hibou `ascii-mini-pur.txt`, guillemets droits au lieu de « », accents
+  retirés, puce `*`.
+- **Couleurs** : bordure, version, sous-titre et lignes d'état en gris, « Watchoo » en gras, pupilles du
+  hibou en vert, commande citée dans l'astuce en cyan. Pas de couleur si `NO_COLOR` est définie et non
+  vide, si `TERM=dumb`, ni sous Windows dans une console qui n'accepte pas les séquences ANSI.
+- **Version** : un numéro reçoit le préfixe `v` (`0.1.0` devient `v0.1.0`) ; `v0.1.0` ou `dev` (binaire
+  compilé sans version) sont affichés tels quels.
 
 ## Import groupé : `watchoo repo import`
 

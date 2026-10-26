@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"io"
 	"runtime"
 
 	"github.com/spf13/cobra"
@@ -29,18 +30,37 @@ func newVersionCmd(deps Deps, opts *options) *cobra.Command {
 		Short: "Affiche la version de Watchoo",
 		Args:  noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			report := versionReport{
-				Version: Version,
-				Go:      runtime.Version(),
-				OS:      runtime.GOOS,
-				Arch:    runtime.GOARCH,
-			}
-			if opts.json {
-				return writeJSON(deps.Stdout, report)
-			}
-			_, err := fmt.Fprintf(deps.Stdout, "watchoo %s (%s, %s/%s)\n",
-				report.Version, report.Go, report.OS, report.Arch)
-			return err
+			return runVersion(deps, opts)
 		},
 	}
+}
+
+// runVersion affiche la version : un objet JSON avec --json ; sur un terminal, la carte d'en-tête
+// (version de Watchoo, puis celles de Go et de la plateforme en sous-titre) et rien d'autre ; sinon
+// (sortie redirigée, ou terminal trop étroit pour la carte), une seule ligne de texte. C'est aussi
+// l'effet de « watchoo --version ».
+func runVersion(deps Deps, opts *options) error {
+	report := versionReport{
+		Version: Version,
+		Go:      runtime.Version(),
+		OS:      runtime.GOOS,
+		Arch:    runtime.GOARCH,
+	}
+	if opts.json {
+		return writeJSON(deps.Stdout, report)
+	}
+	if term, ok := cardTerminal(deps, opts); ok {
+		subtitle := fmt.Sprintf("%s · %s/%s", report.Go, report.OS, report.Arch)
+		if card := renderCard(term, subtitle, ""); card != "" {
+			if _, err := io.WriteString(deps.Stdout, card); err != nil {
+				return fmt.Errorf("affichage de la version : %w", err)
+			}
+			return nil
+		}
+	}
+	if _, err := fmt.Fprintf(deps.Stdout, "watchoo %s (%s, %s/%s)\n",
+		report.Version, report.Go, report.OS, report.Arch); err != nil {
+		return fmt.Errorf("affichage de la version : %w", err)
+	}
+	return nil
 }

@@ -29,10 +29,15 @@ type Deps struct {
 	// Getwd renvoie le répertoire courant (os.Getwd en production). La CLI l'utilise pour init et le
 	// passe à workspace.ResolveFrom pour les autres commandes.
 	Getwd func() (string, error)
+	// Terminal décrit la sortie standard (terminal ou non, largeur, Unicode, couleur), pour décider d'y
+	// afficher la carte d'en-tête (voir cardTerminal). Elle n'est appelée qu'en sortie texte, au moment
+	// d'afficher la carte. Par défaut, DetectTerminal appliquée à Stdout : un Stdout qui n'est pas un
+	// fichier (tampon des tests) n'est jamais un terminal.
+	Terminal func() TermInfo
 }
 
 // DefaultDeps renvoie les dépendances de production : os.Stdout, os.Stderr, auth.GH construit depuis
-// la configuration, os.Getwd.
+// la configuration, os.Getwd, DetectTerminal(os.Stdout).
 func DefaultDeps() Deps {
 	return Deps{
 		Stdout: os.Stdout,
@@ -40,11 +45,13 @@ func DefaultDeps() Deps {
 		NewAuthClient: func(cfg workspace.Config) auth.Client {
 			return auth.GH{Path: cfg.GitHub.GHPath, User: cfg.GitHub.User}
 		},
-		Getwd: os.Getwd,
+		Getwd:    os.Getwd,
+		Terminal: func() TermInfo { return DetectTerminal(os.Stdout) },
 	}
 }
 
-// withDefaults complète les dépendances non renseignées avec celles de production.
+// withDefaults complète les dépendances non renseignées avec celles de production. Sans Terminal, la
+// sortie décrite est le Stdout retenu, pas forcément os.Stdout.
 func (d Deps) withDefaults() Deps {
 	def := DefaultDeps()
 	if d.Stdout == nil {
@@ -59,21 +66,30 @@ func (d Deps) withDefaults() Deps {
 	if d.Getwd == nil {
 		d.Getwd = def.Getwd
 	}
+	if d.Terminal == nil {
+		stdout := d.Stdout
+		d.Terminal = func() TermInfo { return DetectTerminal(stdout) }
+	}
 	return d
 }
 
-// options regroupe les options globales (persistantes), communes à toutes les sous-commandes.
+// options regroupe les options globales (persistantes), communes à toutes les sous-commandes, et
+// l'option --version de la commande racine.
 type options struct {
 	workspaceDir string // -C / --workspace : répertoire de l'espace à utiliser
 	json         bool   // --json : sortie JSON au lieu du texte
+	version      bool   // --version (watchoo seul) : même effet que « watchoo version »
 }
 
 // NewRootCmd construit la commande racine « watchoo » et ses sous-commandes (init, version).
 //
 // Options globales (persistantes) : --json (sortie JSON) et -C / --workspace <répertoire> (espace à
-// utiliser au lieu de celui trouvé depuis le répertoire courant). Les erreurs ne sont pas affichées
-// par cobra (SilenceErrors) ni accompagnées de l'usage (SilenceUsage) : c'est Run qui les affiche, une
-// seule fois, sur deps.Stderr. Les dépendances non renseignées prennent leur valeur de production.
+// utiliser au lieu de celui trouvé depuis le répertoire courant). La commande racine a aussi l'option
+// --version, qui fait comme « watchoo version ». Sur un terminal, l'aide générale (« watchoo »,
+// « watchoo help », « watchoo --help ») commence par la carte d'en-tête et la ligne d'état de l'espace
+// (voir writeHelpHeader) ; l'aide des sous-commandes, non. Les erreurs ne sont pas affichées par cobra
+// (SilenceErrors) ni accompagnées de l'usage (SilenceUsage) : c'est Run qui les affiche, une seule
+// fois, sur deps.Stderr. Les dépendances non renseignées prennent leur valeur de production.
 func NewRootCmd(deps Deps) *cobra.Command {
 	deps = deps.withDefaults()
 	opts := &options{}
@@ -88,10 +104,17 @@ Chaque groupe de dépôts suivis vit dans son propre espace de supervision, cré
 ou ses parents, comme Git, ou dans celui donné par -C ou la variable WATCHOO_DIR.
 
 Prérequis : la CLI GitHub gh, installée et connectée (« gh auth login »).`,
-		// Sans sous-commande : l'aide. Avec un mot inconnu : une erreur en français (le message de
-		// cobra serait en anglais).
+		// Sans sous-commande : l'aide, ou la version avec --version. Avec un mot inconnu : une erreur
+		// en français (le message de cobra serait en anglais).
 		Args: cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if opts.version {
+				if len(args) > 0 {
+					return fmt.Errorf("« %s --version » ne prend pas d'argument (reçu : %s)",
+						cmd.CommandPath(), strings.Join(args, " "))
+				}
+				return runVersion(deps, opts)
+			}
 			if len(args) > 0 {
 				return unknownCommandError(cmd, args[0])
 			}
@@ -106,7 +129,20 @@ Prérequis : la CLI GitHub gh, installée et connectée (« gh auth login »).`,
 		"affiche le résultat au format JSON, pour les scripts")
 	root.PersistentFlags().StringVarP(&opts.workspaceDir, "workspace", "C", "",
 		"travaille sur l'espace situé à ce `chemin` au lieu de celui trouvé depuis le répertoire courant")
+	// Option locale, sans lettre courte : « watchoo init --version » est une option inconnue.
+	root.Flags().BoolVar(&opts.version, "version", false, "affiche la version de Watchoo (comme « watchoo version »)")
 	localize(root)
+	// La carte en haut de l'aide générale seulement : la fonction d'aide de la racine est aussi celle
+	// des sous-commandes, qui en héritent.
+	defaultHelp := root.HelpFunc()
+	root.SetHelpFunc(func(c *cobra.Command, args []string) {
+		if c == root {
+			// cobra n'attend pas d'erreur de l'aide ; une sortie standard en échec fera aussi
+			// échouer l'aide qui suit.
+			_ = writeHelpHeader(deps, opts)
+		}
+		defaultHelp(c, args)
+	})
 
 	root.AddCommand(
 		newInitCmd(deps, opts),

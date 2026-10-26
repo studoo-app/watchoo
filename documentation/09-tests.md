@@ -103,6 +103,15 @@ Deux faux, écrits en phase 2 et réutilisés par les phases suivantes :
 - **Test de fuite** : dans tous ces scénarios, les logs (capturés au niveau Debug) et les erreurs ne
   contiennent ni le faux token, ni en-tête `Authorization`, ni message de commit, nom ou e-mail.
 
+## Logo et carte d'en-tête
+
+- Les copies embarquées dans `internal/logo/art/` sont identiques octet pour octet à `assets/logo/*.txt`
+  (sinon : `make logo`).
+- Carte : toutes les lignes ont la même largeur affichée (accents, « », caractères de bloc), coupure de
+  l'astuce, borne de 80 colonnes, pas de carte sous 40, repli 100 % ASCII, couleurs seulement si permises.
+- CLI : carte affichée seulement sur un terminal simulé, jamais avec `--json`, sur stderr ni dans une sortie
+  redirigée (la sortie de `watchoo version` hors terminal ne change pas).
+
 ## En CI
 
 À chaque push et chaque pull request :

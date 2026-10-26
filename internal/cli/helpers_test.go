@@ -18,10 +18,11 @@ import (
 	"github.com/studoo-app/watchoo/internal/workspace"
 )
 
-// isolateEnv isole un test de l'environnement du développeur : HOME et XDG_CONFIG_HOME pointent vers
-// des répertoires temporaires vides, et les variables WATCHOO_* (WATCHOO_DIR compris), GH_TOKEN et
-// GITHUB_TOKEN sont retirées. Elle renvoie le chemin du fichier de réglages utilisateur, qui n'existe
-// pas encore. Les tests qui l'appellent ne peuvent pas être parallèles (t.Setenv).
+// isolateEnv isole un test de l'environnement du développeur : HOME (et USERPROFILE sous Windows) et
+// XDG_CONFIG_HOME pointent vers des répertoires temporaires vides, et les variables WATCHOO_*
+// (WATCHOO_DIR compris), GH_TOKEN et GITHUB_TOKEN sont retirées. Elle renvoie le chemin du fichier de
+// réglages utilisateur, qui n'existe pas encore. Les tests qui l'appellent ne peuvent pas être parallèles
+// (t.Setenv).
 func isolateEnv(t *testing.T) string {
 	t.Helper()
 	base := t.TempDir()
@@ -33,6 +34,9 @@ func isolateEnv(t *testing.T) string {
 		}
 	}
 	t.Setenv("HOME", home)
+	if runtime.GOOS == "windows" {
+		t.Setenv("USERPROFILE", home) // répertoire personnel selon os.UserHomeDir (« ~ » des chemins affichés)
+	}
 	t.Setenv("XDG_CONFIG_HOME", xdg)
 	for _, kv := range os.Environ() {
 		name, _, _ := strings.Cut(kv, "=")
@@ -47,11 +51,15 @@ func isolateEnv(t *testing.T) string {
 }
 
 // harness exécute la CLI avec des dépendances de test : sorties capturées, répertoire courant
-// simulé, accès à gh fourni par Client (un authtest.Fake par défaut).
+// simulé, accès à gh fourni par Client (un authtest.Fake par défaut), sortie standard décrite par
+// Terminal.
 type harness struct {
 	t      *testing.T
 	cwd    string      // répertoire courant renvoyé par Getwd
 	Client auth.Client // accès à gh renvoyé par NewAuthClient ; nil = auth.GH réel (DefaultDeps)
+	// Terminal décrit la sortie standard ; nil = valeur par défaut (DetectTerminal du tampon qui
+	// capture la sortie : jamais un terminal).
+	Terminal func() TermInfo
 	// configs reçoit la Config passée à chaque appel de NewAuthClient.
 	configs []workspace.Config
 }
@@ -108,7 +116,8 @@ func (h *harness) runContext(ctx context.Context, args ...string) result {
 			}
 			return h.Client
 		},
-		Getwd: func() (string, error) { return h.cwd, nil },
+		Getwd:    func() (string, error) { return h.cwd, nil },
+		Terminal: h.Terminal,
 	}
 	code := Run(ctx, deps, args)
 	return result{code: code, stdout: stdout.String(), stderr: stderr.String()}

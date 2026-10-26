@@ -74,24 +74,38 @@ embarqués avec `embed` lorsque l'interface web sera écrite.
 
 ### Versions texte (CLI et TUI)
 
-Le même hibou existe en trois versions texte, chacune seule ou avec le nom à gauche, choisies selon la
-situation et la largeur du terminal :
+Le même hibou existe en plusieurs versions texte, choisies selon la situation et le terminal :
 
 | Fichier | Taille | Usage |
 | --- | --- | --- |
-| `ascii-blocs.txt` | 16 × 8, blocs Unicode | `watchoo --version`, écran d'accueil du TUI |
-| `ascii-blocs-nom.txt` | 53 × 8, blocs Unicode | Idem, avec le nom |
-| `ascii-mini.txt` | 8 × 3, blocs Unicode | En-tête du TUI |
+| `ascii-mini.txt` | 8 × 3, blocs Unicode | [Carte d'en-tête](05-cli.md#carte-den-tête) de la CLI, en-tête des fichiers de configuration (`config.yaml`), en-tête du TUI |
+| `ascii-mini-pur.txt` | 8 × 3, ASCII pur | Carte d'en-tête de la CLI si le terminal ne gère pas l'Unicode |
 | `ascii-mini-nom.txt` | 44 × 4, blocs Unicode | En-tête du TUI, avec le nom |
-| `ascii.txt` | 16 × 8, ASCII pur | Repli si le terminal ne gère pas l'Unicode |
+| `ascii-blocs.txt` | 16 × 8, blocs Unicode | Écran d'accueil du TUI |
+| `ascii-blocs-nom.txt` | 53 × 8, blocs Unicode | Idem, avec le nom |
+| `ascii.txt` | 16 × 8, ASCII pur | Écran d'accueil du TUI si le terminal ne gère pas l'Unicode |
 | `ascii-nom.txt` | 53 × 8, ASCII pur | Idem, avec le nom |
+
+La version mini, en ASCII pur :
+
+```
+|\    /|
+| o##o |
+\##\/##/
+```
 
 Les versions avec le nom tiennent dans 80 colonnes ; si le terminal est plus étroit que la version avec le
 nom, on affiche la version sans nom.
 
 Le hibou prend la couleur du texte du terminal et ses yeux celle du fond : il s'adapte seul aux terminaux
-clairs et sombres. Dans le TUI, les pupilles sont colorées en vert avec lipgloss ; sans couleur
-(`NO_COLOR`, sortie redirigée), le dessin reste lisible en monochrome.
+clairs et sombres. Dans la carte d'en-tête de la CLI, les pupilles sont colorées en vert (séquences ANSI) ;
+dans le TUI, avec lipgloss ; sans couleur (`NO_COLOR`, sortie redirigée), le dessin reste lisible en
+monochrome.
+
+Ces fichiers sont embarqués dans le binaire par le package `internal/logo`. `go:embed` ne pouvant pas
+remonter hors du package, `internal/logo/art/` en garde une copie : après une modification de
+`assets/logo/*.txt`, `make logo` refait la copie, et un test vérifie qu'elle est identique, octet pour
+octet.
 
 ## Synchronisation en arrière-plan
 

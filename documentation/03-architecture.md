@@ -68,6 +68,7 @@ watchoo/
     db/                code Go généré par sqlc (ne pas éditer)
   sqlc.yaml            configuration de sqlc
   internal/model/      structs métier
+  internal/logo/       hibou en versions texte et carte d'en-tête (CLI, config.yaml)
   config.example.yaml
 ```
 
