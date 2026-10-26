@@ -1,3 +1,8 @@
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/logo/watchoo-light.svg">
+  <img src="assets/logo/watchoo.svg" alt="Logo de Watchoo : un hibou géométrique" width="96">
+</picture>
+
 # Watchoo
 
 **Qui a travaillé, sur quoi, et quand ?** Watchoo surveille une liste de dépôts GitHub et vous montre

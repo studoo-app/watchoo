@@ -51,6 +51,38 @@ flowchart LR
     CONTRIB --> REPO
 ```
 
+## Logo et icônes
+
+Le logo est un hibou (« watch-hoo ») géométrique : une tête pleine aux oreilles pointues, dont les yeux et le
+bec sont découpés dans la forme, sur un carré arrondi. Il reste lisible jusqu'à 16 px. Les fichiers sont
+dans [`assets/logo/`](../assets/logo/) :
+
+| Fichier | Usage |
+| --- | --- |
+| `watchoo.svg` | Logo de référence, fond sombre (README, en-tête des pages) ; tous les autres fichiers en sont tirés |
+| `watchoo-light.svg` | Variante pour fond clair |
+| `favicon.ico` | Favicon : 16, 32 et 48 px |
+| `apple-touch-icon.png` | Raccourci sur l'écran d'accueil iOS (180 px) |
+| `icon-192.png`, `icon-512.png` | Manifeste web |
+
+Couleurs : fond `#0f172a` (variante claire : `#e2e8f0`), tête `#f8fafc` (variante claire : `#0f172a`),
+pupilles `#22c55e`, le vert de l'état Actif. Ces fichiers seront copiés dans `internal/web/static/` et
+embarqués avec `embed` lorsque l'interface web sera écrite.
+
+### Versions texte (CLI et TUI)
+
+Le même hibou existe en trois versions texte, choisies selon la situation :
+
+| Fichier | Taille | Usage |
+| --- | --- | --- |
+| `ascii-blocs.txt` | 16 × 8, blocs Unicode | `watchoo --version`, écran d'accueil du TUI |
+| `ascii-mini.txt` | 8 × 3, blocs Unicode | En-tête du TUI |
+| `ascii.txt` | 16 × 8, ASCII pur | Repli si le terminal ne gère pas l'Unicode |
+
+Le hibou prend la couleur du texte du terminal et ses yeux celle du fond : il s'adapte seul aux terminaux
+clairs et sombres. Dans le TUI, les pupilles sont colorées en vert avec lipgloss ; sans couleur
+(`NO_COLOR`, sortie redirigée), le dessin reste lisible en monochrome.
+
 ## Synchronisation en arrière-plan
 
 `watchoo serve` lance aussi la synchro périodique (`--interval`, **30 min** par défaut, **15 min** minimum,
