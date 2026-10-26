@@ -9,8 +9,9 @@ trois questions : qu'est-ce qui a bougé, quand, et qui l'a fait. Il propose une
 (`watchoo tui`) et une interface web locale (`watchoo serve`). Chaque groupe supervisé (ex. les projets des
 étudiants d'une promotion) vit dans son propre répertoire, initialisé par `watchoo init`.
 
-**État actuel : conception.** Aucun code n'est encore écrit. La prochaine étape est la phase 1 de la
-[roadmap](documentation/07-roadmap.md).
+**État actuel : phase 1 (fondations) en place.** `watchoo init` crée un espace de supervision (réglages,
+base SQLite migrée, droits `0700`/`0600`) après avoir vérifié `gh` ; `watchoo version` affiche la version.
+La prochaine étape est la phase 2 de la [roadmap](documentation/07-roadmap.md) (provider GitHub).
 
 ## Documentation de référence
 
@@ -63,14 +64,17 @@ internal/store/       SQLite : migrations/, queries/ (sqlc), db/ (généré)
 internal/model/       structs métier
 ```
 
-## Commandes (prévues, à créer en phase 1)
+## Commandes
 
 ```bash
-go build ./cmd/watchoo
-go test -race ./...
-go vet ./...
-sqlc generate
-make css
+make build        # bin/watchoo, sans CGO, version injectée par -ldflags
+make test         # go test -race ./...
+make vet          # go vet ./... (et le faux gh des tests, ignoré par ./...)
+make fmt-check    # échoue si gofmt -l trouve un fichier
+make sqlc         # sqlc generate
+make sqlc-check   # échoue si internal/store/db n'est pas à jour
+make check        # tous les contrôles, comme la CI (.github/workflows/ci.yml)
+make css          # (phase 4) CSS DaisyUI généré par la CLI autonome Tailwind
 ```
 
 - `sqlc generate` après toute modification de `internal/store/queries/` ou des migrations ; le code

@@ -3,8 +3,9 @@
 **Qui a travaillé, sur quoi, et quand ?** Watchoo surveille une liste de dépôts GitHub et vous montre
 d'un coup d'œil leur activité : les nouveaux commits, les contributeurs, et les dépôts qui ne bougent plus.
 
-> 🚧 **Projet en conception.** Le code n'est pas encore écrit : ce dépôt contient pour l'instant la
-> [documentation](documentation/README.md) qui définit l'outil.
+> 🚧 **Projet en développement.** Les fondations (phase 1 de la [roadmap](documentation/07-roadmap.md))
+> sont en place : `watchoo init` crée un espace de supervision. Le suivi des dépôts arrive dans les
+> phases suivantes ; la [documentation](documentation/README.md) définit l'outil complet.
 
 ## Pour qui ?
 
@@ -53,6 +54,17 @@ projets perso… Les données ne se mélangent jamais.
 
 - La [CLI GitHub `gh`](https://cli.github.com/), installée et connectée (`gh auth login`). Watchoo l'utilise
   pour accéder à GitHub et ne stocke jamais votre token.
+
+## Compiler depuis les sources
+
+Avec Go (version indiquée dans `go.mod`) :
+
+```bash
+make build    # produit bin/watchoo, à copier dans un répertoire du PATH
+make check    # gofmt, go vet, tests, code sqlc à jour, compilation
+```
+
+Puis, dans le répertoire d'un groupe à superviser (ex. `~/supervision/licence-projet`) : `watchoo init`.
 
 ## En savoir plus
 

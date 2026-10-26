@@ -150,7 +150,10 @@ doublon et sans séparer l'historique.
 - Stockées en **texte ISO 8601, en UTC**, avec un format strictement fixe à la seconde près :
   `2006-01-02T15:04:05Z` (ex. `2026-10-26T14:03:00Z`). Un format fixe se trie correctement comme du texte,
   donc les index sur `committed_at` fonctionnent.
-- C'est le format renvoyé par l'API GitHub. Le driver `modernc` et sqlc le convertissent en `time.Time`.
+- C'est le format renvoyé par l'API GitHub. Les colonnes de date sont déclarées `TEXT` (sqlc génère donc
+  des `string` ou `sql.NullString`) : la conversion `string` ↔ `time.Time` est faite explicitement dans
+  `internal/store` (`FormatTime` / `ParseTime`), car le driver `modernc` n'écrit pas ce format tout seul.
+  Le format est aussi vérifié en base par une contrainte `CHECK`.
 - **Conversion en heure locale à l'affichage seulement** (CLI, TUI, web) : dates relatives (« il y a 2 h »)
   ou date et heure locales.
 - **Regroupements « par jour / semaine »** (graphiques, statistiques) : selon le **fuseau de

@@ -9,8 +9,9 @@
 | `--json` | Sortie JSON pour rendre toutes les commandes scriptables |
 | `-C <répertoire>` / `--workspace <répertoire>` | Travaille sur l'espace de ce répertoire au lieu de celui trouvé à partir du répertoire courant |
 
-Toutes les commandes sauf `init` travaillent sur un **espace de supervision** : le répertoire `.watchoo/`
-trouvé dans le répertoire courant ou ses parents (voir [Espaces de supervision](10-espaces-de-supervision.md)).
+Toutes les commandes sauf `init` et `version` travaillent sur un **espace de supervision** : le répertoire
+`.watchoo/` trouvé dans le répertoire courant ou ses parents (voir
+[Espaces de supervision](10-espaces-de-supervision.md)).
 
 **Prérequis : la CLI GitHub `gh`, installée et connectée** (`gh auth login`). Watchoo obtient le token
 uniquement avec `gh auth token` et ne le stocke jamais (voir
@@ -21,6 +22,7 @@ uniquement avec `gh auth token` et ne le stocke jamais (voir
 | Commande | Effet | Version |
 | --- | --- | --- |
 | `watchoo init` | Fait du répertoire courant un espace de supervision : vérifie `gh`, puis crée `.watchoo/` avec la config et la base SQLite. Refuse si l'espace existe déjà | MVP |
+| `watchoo version` | Affiche la version de Watchoo, de Go et la plateforme. Fonctionne hors d'un espace et sans `gh` | MVP |
 | `watchoo repo add owner/repo [--branch main,dev,release/*] [--label "Alice Martin"]` | Ajoute un dépôt à surveiller (toutes ses branches par défaut), avec un nom affiché facultatif | MVP |
 | `watchoo repo import fichier.csv [--dry-run]` | Ajoute d'un coup une liste de dépôts (ex. ceux d'une promotion), vérifie l'accès à chacun et affiche un bilan | MVP |
 | `watchoo repo add-org mon-org` | Ajoute tous les dépôts d'une organisation | V2 |
@@ -42,6 +44,8 @@ uniquement avec `gh auth token` et ne le stocke jamais (voir
 - **`--since`** accepte une durée relative (`7d`, `30d`, `12h`).
 - **`log -n`** limite le nombre de commits affichés (20 par défaut).
 - **`serve`** écoute sur `127.0.0.1` par défaut (voir [Interface web](06-interface-web.md)).
+- `watchoo help [commande]` et l'option `-h` / `--help` affichent l'aide en français. Il n'y a pas de
+  commande `completion` (celle que `cobra` ajoute d'office est désactivée : son aide est en anglais).
 
 ## Import groupé : `watchoo repo import`
 

@@ -54,7 +54,10 @@ Scénarios couverts :
 | Connecté | `auth status` réussit, `auth token` renvoie un faux token | Utiliser le token |
 | Non connecté | `auth status` échoue avec le message de `gh` | `init` et `status` indiquent `gh auth login` |
 | `gh` absent | Chemin inexistant | Message clair : installer `gh` |
-| Plusieurs comptes | `auth token --user X` renvoie un token différent | Respecter `github.user` |
+| Plusieurs comptes | `auth token --user X` renvoie un token différent | Respecter `github.user` ; refuser un `github.user` écrit avec une autre casse (`--user` distingue les majuscules) |
+| `GH_TOKEN` seul (Docker, CI) | `auth status` ne connaît le compte que par `GH_TOKEN` ; `auth token` sans `--user` renvoie ce token, `auth token --user X` échoue | Utiliser le token sans `--user` ; refuser un `github.user` que `gh` ne connaît que par `GH_TOKEN` |
+| Token refusé | `auth status` donne l'état `error` avec `HTTP 401: Bad credentials` | `init` et `status` indiquent `gh auth login` |
+| GitHub injoignable | `auth status` donne l'état `error` (erreur réseau) ou `timeout` | Erreur claire, sans conseiller `gh auth login` |
 | Token changé entre deux synchros | Deux appels renvoient deux tokens différents | Utiliser le nouveau token sans redémarrer |
 | Sortie inattendue / délai dépassé | Sortie vide, ou `gh` qui ne répond pas | Erreur claire, délai maximum appliqué |
 

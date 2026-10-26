@@ -99,7 +99,7 @@ Le token n'est **pas** propre à l'espace : tous les espaces utilisent le compte
 
 | Niveau | Fichier | Contenu |
 | --- | --- | --- |
-| Utilisateur (facultatif) | `~/.config/watchoo/config.yaml` | Valeurs par défaut communes à tous les espaces (fuseau, seuils, intervalle…) |
+| Utilisateur (facultatif) | `$XDG_CONFIG_HOME/watchoo/config.yaml`, sinon `~/.config/watchoo/config.yaml` | Valeurs par défaut communes à tous les espaces (fuseau, seuils, intervalle…) |
 | Espace | `.watchoo/config.yaml` | Réglages propres au groupe ; ils remplacent ceux de l'utilisateur |
 | Ligne de commande / environnement | options et variables `WATCHOO_*` | Remplacent tout le reste, pour une exécution |
 

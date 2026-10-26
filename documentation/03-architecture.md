@@ -88,8 +88,9 @@ L'implémentation GitHub est la seule du MVP. La signature exacte sera fixée en
   d'étudiants) a le sien. Détail complet : [Espaces de supervision](10-espaces-de-supervision.md).
 - L'espace est trouvé comme Git : répertoire courant, puis parents. `-C <répertoire>` ou `WATCHOO_DIR`
   désignent un autre espace.
-- Trois niveaux de réglages, chargés par viper : `~/.config/watchoo/config.yaml` (facultatif, valeurs
-  communes), puis `.watchoo/config.yaml` (l'espace), puis options et variables `WATCHOO_*`.
+- Trois niveaux de réglages, chargés par viper : `$XDG_CONFIG_HOME/watchoo/config.yaml`, sinon
+  `~/.config/watchoo/config.yaml` (facultatif, valeurs communes), puis `.watchoo/config.yaml` (l'espace),
+  puis options et variables `WATCHOO_*`.
 - Modèle de fichier : `config.example.yaml`, à créer en phase 1.
 - Paramètres attendus : nom de l'espace, intervalle de synchro, adresse d'écoute web, seuils d'activité,
   branches exclues, parallélisme de synchro, fuseau horaire d'affichage (par défaut celui du système),
@@ -154,15 +155,25 @@ L'implémentation GitHub est la seule du MVP. La signature exacte sera fixée en
 - Le token est redemandé à `gh` **au début de chaque synchro** et gardé en mémoire seulement le temps de
   la synchro. Si l'utilisateur se reconnecte ou change de compte dans `gh`, Watchoo suit sans redémarrer.
 - `watchoo init` vérifie que `gh` est installé et connecté (`gh auth status`). Sinon il s'arrête et
-  indique quoi faire (`gh auth login`). Il ne demande aucun token.
+  indique quoi faire (`gh auth login`). Il ne demande aucun token. Si `gh` n'a pas pu joindre GitHub pour
+  vérifier le token (réseau coupé, proxy, panne de GitHub), `init` le dit sans conseiller `gh auth login`,
+  qui n'y changerait rien.
 - Plusieurs comptes dans `gh` : par défaut, le compte actif de `gh` pour `github.com`. Une option de
-  config (`github.user`) permet d'en choisir un autre (`gh auth token --user …`).
+  config (`github.user`) permet d'en choisir un autre (`gh auth token --user …`). `gh` distingue les
+  majuscules et `--user` ne lit que les comptes enregistrés (trousseau ou fichier de `gh`) : `github.user`
+  doit donc reprendre le login exact d'un compte enregistré. Sinon `init` le refuse, en donnant le login
+  connu de `gh` ou en demandant de vider le réglage, au lieu d'accepter un compte dont la synchro ne
+  pourrait pas lire le token.
 - `watchoo status` indique le compte `gh` utilisé et les droits (scopes) du token, sans jamais afficher le
   token.
 - **Jamais** de token en clair dans les logs, l'interface web ou le TUI ; la sortie de `gh auth token` n'est
   jamais journalisée.
 - Docker et CI : `gh` est inclus dans l'image Docker. Sans session interactive, `gh` lit son token dans
-  la variable `GH_TOKEN`. _À vérifier en phase 1 : `gh auth token` renvoie bien ce token._
+  la variable `GH_TOKEN`. Vérifié en phase 1 (gh 2.103) : sans `--user`, `gh auth token` renvoie bien le
+  token de `GH_TOKEN`, et `gh auth status` présente ce compte comme le compte actif ; avec `--user`, `gh`
+  ignore `GH_TOKEN` (« no oauth token found for github.com account … »). Il faut donc **laisser
+  `github.user` vide** quand le token vient de `GH_TOKEN` ; `init` refuse un `github.user` que `gh` ne
+  connaît que par cette variable.
 
 ### Dépôts privés
 
