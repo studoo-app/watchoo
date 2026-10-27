@@ -184,6 +184,8 @@ func (e *Engine) SyncAll(ctx context.Context, opts SyncOptions) (Report, error) 
 //   - statistiques (CommitStats) seulement si le dépôt avait déjà des commits avant cette synchro,
 //     pour les commits absents de la base (store.ExistingCommitSHAs), au plus MaxStatsPerRepo, et
 //     jamais quand le quota restant est sous QuotaReservePercent ; sinon additions / deletions à 0 ;
+//   - pull requests (depuis la plus récente date de modification en base), releases et tags (V2,
+//     voir fetchExtras) : un échec devient un avertissement (RepoReport.Warnings), le dépôt réussit ;
 //   - écriture : store.ApplyRepoSync (une transaction).
 func (e *Engine) SyncRepo(ctx context.Context, repoID int64, opts SyncOptions) (Report, error) {
 	repo, err := e.store.GetRepository(ctx, repoID)

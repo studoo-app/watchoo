@@ -28,3 +28,4 @@ sql:
           avatar_url: "AvatarURL"
           sha: "SHA"
           head_sha: "HeadSHA"
+          commit_url: "CommitURL"

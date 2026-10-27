@@ -78,8 +78,19 @@ type RepoSyncWrite struct {
 	// Commits sont les commits vus pendant la synchro, dans n'importe quel ordre ; un SHA peut y
 	// figurer plusieurs fois (les Branches sont alors réunies). Un commit déjà en base n'est ni
 	// réenregistré ni modifié : seules ses lignes commit_branches manquantes sont ajoutées.
-	Commits  []CommitWrite
-	SyncedAt time.Time // fin de la synchro : repositories.last_synced_at et sync_runs.finished_at
+	Commits []CommitWrite
+	// PullRequests sont les pull requests lues pendant la synchro (modifiées depuis la précédente) :
+	// chacune est créée ou mise à jour en entier (RepoID ignoré). Les autres PR du dépôt ne changent pas.
+	PullRequests []model.PullRequest
+	// ReplaceReleases indique que la liste des releases a été lue : celles du dépôt sont alors
+	// remplacées par Releases (liste vide = aucune ; RepoID ignoré). Faux : releases inchangées (liste
+	// non lue, en échec, ou non disponible pour cette source).
+	ReplaceReleases bool
+	Releases        []model.Release
+	// ReplaceTags et Tags : de même pour les tags.
+	ReplaceTags bool
+	Tags        []model.Tag
+	SyncedAt    time.Time // fin de la synchro : repositories.last_synced_at et sync_runs.finished_at
 }
 
 // RepoSyncResult est le résultat de ApplyRepoSync.
@@ -156,4 +167,68 @@ type RepositorySummary struct {
 	LastCommit CommitView
 	// LastRun est le dernier sync_run du dépôt (started_at le plus récent, puis id) ; ID 0 si aucun.
 	LastRun model.SyncRun
+	// OpenPullRequests est le nombre de pull requests ouvertes en base (V2).
+	OpenPullRequests int
+	// LatestRelease est la release publiée (hors brouillons) la plus récente (publication, sinon
+	// création) ; valeur zéro (ProviderID 0) si aucune (V2).
+	LatestRelease model.Release
+}
+
+// PullRequestFilter règle ListPullRequests. Sa valeur zéro liste toutes les pull requests.
+type PullRequestFilter struct {
+	RepoID int64 // dépôt ; 0 = tous
+	// Status filtre sur l'état affiché (model.PullRequestStatus…) ; vide = tous.
+	Status model.PullRequestStatus
+	Limit  int // nombre maximum de lignes ; 0 ou négatif = pas de limite
+}
+
+// RepoRef désigne le dépôt d'une ligne de vue (pull request, release, tag).
+type RepoRef struct {
+	RepoOwner string // propriétaire actuel du dépôt
+	RepoName  string // nom actuel du dépôt
+	RepoLabel string // nom affiché du dépôt (vide = owner/name)
+}
+
+// RepoFullName renvoie « owner/name ».
+func (r RepoRef) RepoFullName() string { return r.RepoOwner + "/" + r.RepoName }
+
+// RepoDisplayName renvoie le nom affiché du dépôt (RepoLabel, sinon owner/name).
+func (r RepoRef) RepoDisplayName() string {
+	if r.RepoLabel != "" {
+		return r.RepoLabel
+	}
+	return r.RepoFullName()
+}
+
+// PullRequestView est une ligne de la vue des pull requests : la PR et son dépôt.
+type PullRequestView struct {
+	model.PullRequest
+	RepoRef
+}
+
+// PullRequestCounts compte les pull requests d'un dépôt par état affiché.
+type PullRequestCounts struct {
+	Open   int // ouvertes (brouillons compris)
+	Merged int // mergées
+	Closed int // fermées sans merge
+}
+
+// ReleaseFilter règle ListReleases et ListTags. Sa valeur zéro liste tout.
+type ReleaseFilter struct {
+	RepoID int64 // dépôt ; 0 = tous
+	Limit  int   // nombre maximum de lignes ; 0 ou négatif = pas de limite
+}
+
+// ReleaseView est une ligne de la vue des releases : la release et son dépôt.
+type ReleaseView struct {
+	model.Release
+	RepoRef
+}
+
+// TagView est une ligne de la vue des tags : le tag, son dépôt et le commit visé s'il est en base.
+type TagView struct {
+	model.Tag
+	RepoRef
+	CommittedAt time.Time // date du commit visé ; zéro s'il n'est pas en base
+	CommitURL   string    // lien vers le commit visé ; vide s'il n'est pas en base
 }

@@ -29,7 +29,8 @@ erreurs (500…) : pages en français, sans détail interne (le détail est dans
 
 ### 1. Tableau de bord
 - Une **carte par dépôt** : nom affiché (`label`, ex. « Alice Martin ») ou `owner/repo` (rappelé sous le
-  label), première ligne du dernier commit, auteur, ancienneté, nombre de commits et de branches suivies.
+  label), première ligne du dernier commit, auteur, ancienneté, nombre de commits et de branches suivies,
+  et nombre de pull requests ouvertes s'il y en a (V2).
 - **Pastille d'état** (voir [règles](02-fonctionnalites.md#règles-fonctionnelles)) : Actif en vert
   (`badge-success`), Flemme en orange (`badge-warning`), Dead en rouge (`badge-error`) ; jamais
   synchronisé, en erreur, archivé, arrêté ou vide en gris (`badge-neutral`). Libellés identiques à la
@@ -81,10 +82,21 @@ erreurs (500…) : pages en français, sans détail interne (le détail est dans
   avec le dépôt). Toujours affiché : sans commit d'auteur connu sur la période, le résumé le dit
   (« Aucun commit d'auteur connu depuis le … ») et la table aussi ; le graphique se remplit à la fin
   d'une synchro, sans recharger la page. Voir [Graphiques d'activité](#graphiques-dactivité).
+- **Pull requests, releases et tags** (V2, fragment `repo-pulls`) : deux cartes côte à côte (l'une sous
+  l'autre sur un écran étroit).
+  - **Pull requests** : toutes les PR ouvertes (brouillons marqués), puis les 10 dernières mergées ;
+    pour chacune, numéro et titre (première ligne, liés à la PR sur GitHub), auteur (login), branches
+    (`tête → base`) et date relative (ouverture pour une PR ouverte, merge sinon). Compteurs en tête
+    (ouvertes, mergées, fermées sans merge).
+  - **Releases et tags** : les 10 dernières releases (tag, titre, pastille `pré-release` ou
+    `brouillon`, date de publication, liées à la release sur GitHub), puis les 15 derniers tags (nom,
+    SHA court lié au commit sur GitHub s'il est en base, date de ce commit).
+  - Sans donnée : « Aucune pull request en base » / « Aucune release ni aucun tag en base » (dépôt qui
+    n'en a pas, ou pas encore synchronisé).
 - Bouton **« Synchroniser ce dépôt »** (absent si le suivi est arrêté).
 - Fragments : `/repos/{id}/commits` (historique) ; `/repos/{id}` avec l'en-tête `HX-Target`
-  `repo-overview` ou `repo-contributors` renvoie l'en-tête ou les contributeurs seuls. Tous se
-  rechargent à la fin d'une synchro.
+  `repo-overview`, `repo-contributors` ou `repo-pulls` renvoie l'en-tête, les contributeurs ou les pull
+  requests et releases seuls. Tous se rechargent à la fin d'une synchro.
 
 ### 3. Contributeurs
 - Classement global (commits, part du total, lignes ajoutées / retirées ; « — » si les statistiques n'ont

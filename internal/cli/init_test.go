@@ -71,7 +71,7 @@ func TestInitCreatesWorkspace(t *testing.T) {
 		t.Errorf("config.yaml différent de ConfigTemplate(\"licence-projet\") :\n%s", got)
 	}
 
-	// Base migrée : les 7 tables du modèle, plus la table de version de goose.
+	// Base migrée : les 10 tables du modèle, plus la table de version de goose.
 	want := slices.Sorted(slices.Values(append([]string{"goose_db_version"}, migratedTables...)))
 	if got := tables(t, filepath.Join(dir, "watchoo.db")); !reflect.DeepEqual(got, want) {
 		t.Errorf("tables = %v, attendu %v", got, want)
@@ -86,8 +86,8 @@ func TestInitCreatesWorkspace(t *testing.T) {
 	if err := st.DB().QueryRowContext(ctx, `SELECT MAX(version_id) FROM goose_db_version`).Scan(&version); err != nil {
 		t.Fatal(err)
 	}
-	if version != 2 {
-		t.Errorf("version du schéma = %d, attendu 2 (00002_branch_patterns)", version)
+	if version != 3 {
+		t.Errorf("version du schéma = %d, attendu 3 (00003_pull_requests_releases_tags)", version)
 	}
 	if repos, err := st.ListRepositories(ctx); err != nil || len(repos) != 0 {
 		t.Errorf("ListRepositories = %v, %v ; attendu une liste vide", repos, err)

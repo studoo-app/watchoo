@@ -11,6 +11,18 @@ un changement incompatible fait monter MINOR et tout changement compatible fait 
 
 ### Ajouté
 
+- **Pull requests et releases** : chaque synchro lit aussi les pull requests (de façon incrémentale :
+  seulement celles modifiées depuis la synchro précédente), les releases et les tags de chaque dépôt ;
+  quand rien n'a changé, GitHub répond `304` et ces lectures ne coûtent rien. Nouvelles commandes
+  `watchoo prs [--repo X] [--state open|merged|closed|all] [-n 20]` et `watchoo releases [--repo X]
+  [-n 20]` (releases puis tags, avec la date du commit visé), en texte et en `--json` (clés
+  `pull_requests`, `releases` et `tags`). La page d'un dépôt de l'interface web gagne les cartes « Pull
+  requests » (ouvertes, dernières mergées, liens vers GitHub) et « Releases et tags » ; le tableau de
+  bord indique les PR ouvertes de chaque dépôt, et le détail d'un dépôt du TUI ses PR ouvertes et sa
+  dernière release. Un échec sur ces listes ne fait pas échouer la synchro des commits : il devient un
+  avertissement (colonne DÉTAIL de `watchoo sync`, clé `warnings` de chaque dépôt en `--json`, bilan du
+  TUI). La base passe à 10 tables (migration `00003`, appliquée automatiquement).
+
 - **Seuils d'activité par dépôt** : un dépôt peut avoir ses propres seuils Flemme et Dead à la place de
   ceux de l'espace (`activity.*`). `watchoo repo add owner/repo --flemme 3 --dead 10` (`0` revient au
   seuil de l'espace), colonnes facultatives `flemme` et `dead` du fichier de `watchoo repo import`

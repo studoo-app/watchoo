@@ -71,6 +71,9 @@ const (
 	MethodListCommits    Method = "ListCommits"
 	MethodCompareCommits Method = "CompareCommits"
 	MethodCommitStats    Method = "CommitStats"
+	MethodPullRequests   Method = "PullRequests"
+	MethodReleases       Method = "Releases"
+	MethodTags           Method = "Tags"
 	MethodRateLimit      Method = "RateLimit"
 )
 
@@ -78,7 +81,7 @@ const (
 func (m Method) valid() bool {
 	switch m {
 	case MethodRepository, MethodRepositoryByID, MethodBranches, MethodListCommits, MethodCompareCommits,
-		MethodCommitStats, MethodRateLimit:
+		MethodCommitStats, MethodPullRequests, MethodReleases, MethodTags, MethodRateLimit:
 		return true
 	}
 	return false
@@ -87,7 +90,7 @@ func (m Method) valid() bool {
 // Call est un appel reçu par le Fake (CallLog). Seuls les champs utiles à la méthode sont remplis.
 type Call struct {
 	Method Method
-	Owner  string // owner tel que passé (Repository, Branches, ListCommits, CompareCommits, CommitStats)
+	Owner  string // owner tel que passé (toutes les méthodes portant sur un dépôt nommé)
 	Name   string // nom tel que passé
 	ID     int64  // RepositoryByID
 	// Opts reprend les options de ListCommits, sauf Stop (toujours nil ici) ; StopSet indique si un
@@ -97,6 +100,8 @@ type Call struct {
 	Base    string // CompareCommits
 	Head    string // CompareCommits
 	SHA     string // CommitStats
+	// PullOpts reprend les options de PullRequests.
+	PullOpts provider.PullRequestsOptions
 }
 
 // Fake est un provider.Provider en mémoire. Construire avec New.
@@ -122,6 +127,9 @@ type fakeRepo struct {
 	seq      int               // nombre de commits ajoutés depuis la création (ordre d'ajout)
 	branches map[string]string // nom → SHA de tête
 	stats    map[string]provider.CommitStats
+	pulls    map[int]provider.PullRequest // numéro → pull request (SetPullRequests)
+	releases []provider.Release           // SetReleases
+	tags     []provider.Tag               // SetTags, dans l'ordre donné
 }
 
 // fakeCommit est un commit en mémoire et son rang d'ajout. Il n'est plus jamais modifié après
@@ -188,6 +196,7 @@ func (f *Fake) AddRepository(r provider.Repository) {
 		commits:  make(map[string]*fakeCommit),
 		branches: make(map[string]string),
 		stats:    make(map[string]provider.CommitStats),
+		pulls:    make(map[int]provider.PullRequest),
 	}
 	f.repos[r.ID] = repo
 	f.names[key] = r.ID
@@ -408,6 +417,62 @@ func (f *Fake) SetStats(repoID int64, sha string, s provider.CommitStats) {
 	repo.stats[sha] = s
 }
 
+// SetPullRequests ajoute ou remplace (par numéro) des pull requests du dépôt repoID. Les dates sont
+// converties en UTC et tronquées à la seconde. Numéro <= 0, état autre que provider.PullRequestOpen ou
+// provider.PullRequestClosed, UpdatedAt nul ou dépôt inconnu : panique.
+func (f *Fake) SetPullRequests(repoID int64, pulls ...provider.PullRequest) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	repo := f.repoLocked("providertest.SetPullRequests", repoID)
+	for _, pr := range pulls {
+		switch {
+		case pr.Number <= 0:
+			panic(fmt.Sprintf("providertest.SetPullRequests : numéro %d invalide", pr.Number))
+		case pr.State != provider.PullRequestOpen && pr.State != provider.PullRequestClosed:
+			panic(fmt.Sprintf("providertest.SetPullRequests : état %q invalide", pr.State))
+		case pr.UpdatedAt.IsZero():
+			panic(fmt.Sprintf("providertest.SetPullRequests : PR n° %d sans UpdatedAt", pr.Number))
+		}
+		pr.CreatedAt, pr.UpdatedAt = utcSecond(pr.CreatedAt), utcSecond(pr.UpdatedAt)
+		pr.ClosedAt, pr.MergedAt = utcSecond(pr.ClosedAt), utcSecond(pr.MergedAt)
+		repo.pulls[pr.Number] = pr
+	}
+}
+
+// SetReleases remplace les releases du dépôt repoID (dates en UTC à la seconde). Identifiant <= 0,
+// tag vide ou dépôt inconnu : panique.
+func (f *Fake) SetReleases(repoID int64, releases ...provider.Release) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	repo := f.repoLocked("providertest.SetReleases", repoID)
+	out := make([]provider.Release, 0, len(releases))
+	for _, r := range releases {
+		if r.ID <= 0 || r.TagName == "" {
+			panic(fmt.Sprintf("providertest.SetReleases : release %d (tag %q) invalide", r.ID, r.TagName))
+		}
+		r.CreatedAt, r.PublishedAt = utcSecond(r.CreatedAt), utcSecond(r.PublishedAt)
+		out = append(out, r)
+	}
+	repo.releases = out
+}
+
+// SetTags remplace les tags du dépôt repoID, renvoyés par Tags dans cet ordre. Nom vide, SHA invalide
+// (provider.ValidateSHA) ou dépôt inconnu : panique (le commit visé n'a pas besoin d'exister).
+func (f *Fake) SetTags(repoID int64, tags ...provider.Tag) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	repo := f.repoLocked("providertest.SetTags", repoID)
+	for _, t := range tags {
+		if t.Name == "" {
+			panic("providertest.SetTags : tag sans nom")
+		}
+		if err := provider.ValidateSHA(t.SHA); err != nil {
+			panic("providertest.SetTags : " + err.Error())
+		}
+	}
+	repo.tags = slices.Clone(tags)
+}
+
 // SHA renvoie un SHA-1 factice et déterministe (40 hex minuscules) dérivé de seed.
 func SHA(seed string) string {
 	sum := sha1.Sum([]byte(seed))
@@ -494,7 +559,7 @@ func (f *Fake) ResetCalls() {
 // SetRateLimit active le quota simulé avec l'état rl (Reset en UTC, tronqué à la seconde ; zéro =
 // maintenant + 1 h ; Limit nul ou négatif = 5 000 ; Used = Limit - Remaining si Used vaut 0 ;
 // Remaining négatif : panique). Dès lors, chaque appel de Repository, RepositoryByID, Branches,
-// ListCommits, CompareCommits ou CommitStats, après les étapes 1 à 5 :
+// ListCommits, CompareCommits, CommitStats, PullRequests, Releases ou Tags, après les étapes 1 à 5 :
 //   - si maintenant >= Reset : nouvelle fenêtre (Remaining = Limit, Used = 0, Reset avancé d'heure en
 //     heure jusqu'à dépasser maintenant) ;
 //   - si Remaining == 0 : erreur *provider.RateLimitError{Reset} (errors.Is ErrRateLimited), dans un
@@ -958,6 +1023,112 @@ func (f *Fake) CommitStats(ctx context.Context, owner, name, sha string) (provid
 		return provider.CommitStats{}, apiError(op, path, statusNotFound, provider.ErrNotFound)
 	}
 	return repo.stats[sha], nil
+}
+
+// PullRequests implémente provider.Provider : pull requests posées par SetPullRequests, triées par
+// UpdatedAt décroissant (à date égale, numéro décroissant), coupées à la première modifiée strictement
+// avant opts.UpdatedSince tronqué à la seconde (exclue) et à la limite effective (Limit, au plus
+// provider.MaxPullRequests) ; dépôt inconnu → provider.ErrNotFound. Un dépôt vide (aucune branche)
+// renvoie ses PR comme les autres (GitHub répond 200).
+func (f *Fake) PullRequests(ctx context.Context, owner, name string, opts provider.PullRequestsOptions) ([]provider.PullRequest, error) {
+	if err := f.begin(ctx, Call{Method: MethodPullRequests, Owner: owner, Name: name, PullOpts: opts}); err != nil {
+		return nil, err
+	}
+	if err := provider.ValidateRepo(owner, name); err != nil {
+		return nil, err
+	}
+	op, path := fmt.Sprintf("liste des pull requests de %s/%s", owner, name), repoPath(owner, name)+"/pulls"
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if err := f.prepare(MethodPullRequests, owner, name, op, path); err != nil {
+		return nil, err
+	}
+	repo := f.lookup(owner, name)
+	if repo == nil {
+		return nil, apiError(op, path, statusNotFound, provider.ErrNotFound)
+	}
+	all := make([]provider.PullRequest, 0, len(repo.pulls))
+	for _, pr := range repo.pulls {
+		all = append(all, pr)
+	}
+	slices.SortFunc(all, func(a, b provider.PullRequest) int {
+		return cmp.Or(b.UpdatedAt.Compare(a.UpdatedAt), cmp.Compare(b.Number, a.Number))
+	})
+	limit := opts.Limit
+	if limit <= 0 || limit > provider.MaxPullRequests {
+		limit = provider.MaxPullRequests
+	}
+	since := utcSecond(opts.UpdatedSince)
+	out := make([]provider.PullRequest, 0, min(limit, len(all)))
+	for _, pr := range all {
+		if len(out) == limit || (!since.IsZero() && pr.UpdatedAt.Before(since)) {
+			break
+		}
+		out = append(out, pr)
+	}
+	return out, nil
+}
+
+// Releases implémente provider.Provider : releases posées par SetReleases, triées par CreatedAt
+// décroissant (à date égale, identifiant décroissant), au plus provider.MaxReleases ; dépôt inconnu →
+// provider.ErrNotFound.
+func (f *Fake) Releases(ctx context.Context, owner, name string) ([]provider.Release, error) {
+	if err := f.begin(ctx, Call{Method: MethodReleases, Owner: owner, Name: name}); err != nil {
+		return nil, err
+	}
+	if err := provider.ValidateRepo(owner, name); err != nil {
+		return nil, err
+	}
+	op, path := fmt.Sprintf("liste des releases de %s/%s", owner, name), repoPath(owner, name)+"/releases"
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if err := f.prepare(MethodReleases, owner, name, op, path); err != nil {
+		return nil, err
+	}
+	repo := f.lookup(owner, name)
+	if repo == nil {
+		return nil, apiError(op, path, statusNotFound, provider.ErrNotFound)
+	}
+	out := slices.Clone(repo.releases)
+	if out == nil {
+		out = []provider.Release{}
+	}
+	slices.SortStableFunc(out, func(a, b provider.Release) int {
+		return cmp.Or(b.CreatedAt.Compare(a.CreatedAt), cmp.Compare(b.ID, a.ID))
+	})
+	if len(out) > provider.MaxReleases {
+		out = out[:provider.MaxReleases]
+	}
+	return out, nil
+}
+
+// Tags implémente provider.Provider : tags posés par SetTags, dans leur ordre, au plus
+// provider.MaxTags ; dépôt inconnu → provider.ErrNotFound.
+func (f *Fake) Tags(ctx context.Context, owner, name string) ([]provider.Tag, error) {
+	if err := f.begin(ctx, Call{Method: MethodTags, Owner: owner, Name: name}); err != nil {
+		return nil, err
+	}
+	if err := provider.ValidateRepo(owner, name); err != nil {
+		return nil, err
+	}
+	op, path := fmt.Sprintf("liste des tags de %s/%s", owner, name), repoPath(owner, name)+"/tags"
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if err := f.prepare(MethodTags, owner, name, op, path); err != nil {
+		return nil, err
+	}
+	repo := f.lookup(owner, name)
+	if repo == nil {
+		return nil, apiError(op, path, statusNotFound, provider.ErrNotFound)
+	}
+	out := slices.Clone(repo.tags)
+	if out == nil {
+		out = []provider.Tag{}
+	}
+	if len(out) > provider.MaxTags {
+		out = out[:provider.MaxTags]
+	}
+	return out, nil
 }
 
 // RateLimit implémente provider.Provider (voir SetRateLimit) ; ne consomme pas de quota. Seules les

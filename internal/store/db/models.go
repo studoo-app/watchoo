@@ -49,6 +49,37 @@ type ContributorEmail struct {
 	ContributorID int64
 }
 
+type PullRequest struct {
+	RepoID           int64
+	Number           int64
+	Title            string
+	State            string
+	Merged           bool
+	Draft            bool
+	AuthorLogin      string
+	AuthorProviderID int64
+	URL              string
+	BaseBranch       string
+	HeadBranch       string
+	CreatedAt        string
+	UpdatedAt        string
+	ClosedAt         sql.NullString
+	MergedAt         sql.NullString
+}
+
+type Release struct {
+	RepoID      int64
+	ProviderID  int64
+	TagName     string
+	Name        string
+	Draft       bool
+	Prerelease  bool
+	AuthorLogin string
+	URL         string
+	CreatedAt   string
+	PublishedAt sql.NullString
+}
+
 type Repository struct {
 	ID              int64
 	Provider        string
@@ -77,4 +108,10 @@ type SyncRun struct {
 	NewCommits int64
 	Status     string
 	Error      string
+}
+
+type Tag struct {
+	RepoID int64
+	Name   string
+	SHA    string
 }

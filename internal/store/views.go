@@ -155,6 +155,28 @@ func (s *Store) repositorySummaries(ctx context.Context, id int64) ([]Repository
 			runs[r.RepoID] = r
 		}
 
+		openRows, err := q.CountOpenPullRequestsByRepo(ctx, filter)
+		if err != nil {
+			return fmt.Errorf("pull requests ouvertes : %w", err)
+		}
+		openPulls := make(map[int64]int, len(openRows))
+		for _, o := range openRows {
+			openPulls[o.RepoID] = int(o.OpenPulls)
+		}
+
+		releaseRows, err := q.LatestReleaseByRepo(ctx, filter)
+		if err != nil {
+			return fmt.Errorf("dernière release : %w", err)
+		}
+		latest := make(map[int64]model.Release, len(releaseRows))
+		for _, row := range releaseRows {
+			r, err := releaseFromDB(row)
+			if err != nil {
+				return err
+			}
+			latest[r.RepoID] = r
+		}
+
 		summaries = make([]RepositorySummary, 0, len(repos))
 		for _, row := range repos {
 			repo, err := repositoryFromDB(row)
@@ -162,9 +184,11 @@ func (s *Store) repositorySummaries(ctx context.Context, id int64) ([]Repository
 				return err
 			}
 			summary := RepositorySummary{
-				Repository:      repo,
-				Commits:         commits[repo.ID],
-				TrackedBranches: branches[repo.ID],
+				Repository:       repo,
+				Commits:          commits[repo.ID],
+				TrackedBranches:  branches[repo.ID],
+				OpenPullRequests: openPulls[repo.ID],
+				LatestRelease:    latest[repo.ID],
 			}
 			if c, ok := lastCommits[repo.ID]; ok {
 				commit, err := commitFromDB(db.Commit{

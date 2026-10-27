@@ -12,7 +12,7 @@ import (
 func TestSentinelsAreDistinct(t *testing.T) {
 	all := []error{
 		ErrNotFound, ErrUnauthorized, ErrForbidden, ErrRateLimited, ErrEmptyRepository, ErrUnknownBase,
-		ErrWriteForbidden, ErrInvalidRef, ErrUnavailable, ErrUnexpected,
+		ErrWriteForbidden, ErrInvalidRef, ErrUnavailable, ErrUnexpected, ErrUnsupported,
 	}
 	for i, a := range all {
 		if a.Error() == "" {

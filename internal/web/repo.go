@@ -10,6 +10,8 @@ package web
 //     par GET /repos/{id} quand la requête HTMX vise #repo-overview (en-tête HX-Target) ;
 //   - « repo-contributors » (id repo-contributors) : auteurs des commits du dépôt, servi de même
 //     quand la requête vise #repo-contributors ;
+//   - « repo-pulls » (id repo-pulls, V2) : pull requests ouvertes et dernières mergées, releases et
+//     tags, servi de même quand la requête vise #repo-pulls ;
 //   - « repo-commits » (id repo-commits) : filtres branche et auteur, historique paginé
 //     (repoCommitsPerPage par page), liens précédent / suivant. Il est servi par GET
 //     /repos/{id}/commits.
@@ -48,11 +50,20 @@ import (
 // repoCommitsPerPage est la taille d'une page de l'historique d'un dépôt.
 const repoCommitsPerPage = 50
 
+// Tailles des listes du fragment « repo-pulls » (V2) : dernières PR mergées, dernières releases,
+// derniers tags. Les PR ouvertes sont toutes affichées.
+const (
+	repoMergedPulls = 10
+	repoReleases    = 10
+	repoTags        = 15
+)
+
 // Identifiants HTML des fragments et du formulaire de filtres (cibles HTMX, en-têtes HX-Target et
 // HX-Trigger).
 const (
 	repoOverviewID     = "repo-overview"
 	repoContributorsID = "repo-contributors"
+	repoPullsID        = "repo-pulls"
 	repoFiltersID      = "repo-filters"
 )
 
@@ -80,6 +91,17 @@ type RepoView struct {
 	Commits RepoCommitsView
 	// Thresholds : formulaire des seuils propres au dépôt (repo_thresholds.go).
 	Thresholds thresholdsForm
+	// Pulls : pull requests, releases et tags du dépôt (V2, fragment « repo-pulls »).
+	Pulls RepoPullsView
+}
+
+// RepoPullsView est la partie « pull requests, releases et tags » de la page (fragment « repo-pulls »).
+type RepoPullsView struct {
+	Counts   store.PullRequestCounts
+	Open     []store.PullRequestView // toutes les PR ouvertes, la plus récemment modifiée d'abord
+	Merged   []store.PullRequestView // les repoMergedPulls dernières PR mergées
+	Releases []store.ReleaseView     // les repoReleases dernières releases
+	Tags     []store.TagView         // les repoTags derniers tags (commit le plus récent d'abord)
 }
 
 // RepoCommitsView est la partie « historique » de la page (fragment « repo-commits »).
@@ -123,7 +145,7 @@ func (s *server) handleRepo(w http.ResponseWriter, r *http.Request) {
 	data := s.page(r, view.Repo.DisplayName(), "", view)
 	if isHTMX(r) && !isHistoryRestore(r) {
 		switch target := r.Header.Get("HX-Target"); target {
-		case repoOverviewID, repoContributorsID:
+		case repoOverviewID, repoContributorsID, repoPullsID:
 			s.renderFragment(w, r, http.StatusOK, pageRepo, target, data)
 			return
 		}
@@ -207,6 +229,9 @@ func (s *server) repoView(r *http.Request, id int64, overview bool) (RepoView, e
 		}
 		view.ContributorsChart = buildContributorChart(contributors, authors, now, activity.ContributorWeeks,
 			contributorChartTop, s.loc)
+		if view.Pulls, err = s.repoPulls(r, id); err != nil {
+			return RepoView{}, err
+		}
 	}
 
 	c := RepoCommitsView{RepoID: id, Branch: queryValue(r, "branch"), Author: queryValue(r, "author")}
@@ -222,6 +247,31 @@ func (s *server) repoView(r *http.Request, id int64, overview bool) (RepoView, e
 	}
 	view.Commits = c
 	return view, nil
+}
+
+// repoPulls lit les pull requests, releases et tags du dépôt id (fragment « repo-pulls »).
+func (s *server) repoPulls(r *http.Request, id int64) (RepoPullsView, error) {
+	ctx := r.Context()
+	var v RepoPullsView
+	var err error
+	if v.Counts, err = s.store.PullRequestCounts(ctx, id); err != nil {
+		return v, err
+	}
+	if v.Open, err = s.store.ListPullRequests(ctx, store.PullRequestFilter{RepoID: id,
+		Status: model.PullRequestStatusOpen}); err != nil {
+		return v, err
+	}
+	if v.Merged, err = s.store.ListPullRequests(ctx, store.PullRequestFilter{RepoID: id,
+		Status: model.PullRequestStatusMerged, Limit: repoMergedPulls}); err != nil {
+		return v, err
+	}
+	if v.Releases, err = s.store.ListReleases(ctx, store.ReleaseFilter{RepoID: id, Limit: repoReleases}); err != nil {
+		return v, err
+	}
+	if v.Tags, err = s.store.ListTags(ctx, store.ReleaseFilter{RepoID: id, Limit: repoTags}); err != nil {
+		return v, err
+	}
+	return v, nil
 }
 
 // branchOptions renvoie les choix du filtre branche : branches suivies, puis les autres. La branche

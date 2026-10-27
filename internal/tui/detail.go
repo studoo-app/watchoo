@@ -1,7 +1,7 @@
 package tui
 
 // Détail d'un dépôt (« entrée » sur un dépôt ou un commit) : métadonnées, état d'activité, dernière
-// synchro, derniers commits et principaux contributeurs, avec leurs commits par semaine sur
+// synchro, pull requests ouvertes et dernière release (V2), derniers commits et principaux contributeurs, avec leurs commits par semaine sur
 // activity.ContributorWeeks semaines (total et courbe d'une ligne, activity.Sparkline).
 
 import (
@@ -82,6 +82,7 @@ func (m Model) detailLines() []string {
 		extra += ", suivi arrêté"
 	}
 	lines = append(lines, field("Sur GitHub", extra))
+	lines = append(lines, field("Pull requests", m.pullsText(r.OpenPullRequests, r.LatestRelease)))
 
 	lines = append(lines, "", m.st.Header.Render("Derniers commits"))
 	switch {
@@ -116,6 +117,20 @@ func (m Model) detailLines() []string {
 		lines = append(lines, m.renderTable(cols, rows, -1, 0, len(rows), false)...)
 	}
 	return lines
+}
+
+// pullsText décrit les pull requests ouvertes et la dernière release publiée d'un dépôt (V2) :
+// « 2 ouvertes, dernière release v1.0 (il y a 3 j) ».
+func (m Model) pullsText(open int, latest model.Release) string {
+	text := plural(open, "ouverte", "ouvertes")
+	if open == 0 {
+		text = "aucune ouverte"
+	}
+	if latest.ProviderID == 0 {
+		return text + ", aucune release"
+	}
+	return text + ", dernière release " + clean(latest.TagName) + " (" +
+		activity.Relative(latest.Date(), m.now(), m.deps.Location, m.deps.Unicode) + ")"
 }
 
 // lastRunText décrit le dernier sync_run d'un dépôt.

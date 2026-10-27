@@ -32,6 +32,8 @@ uniquement avec `gh auth token` et ne le stocke jamais (voir
 | `watchoo sync [owner/repo]` | Synchronise tout ou un seul dépôt | MVP |
 | `watchoo log [--repo X] [--author Y] [--branch B] [--since 7d] [-n 20]` | Derniers commits filtrés | MVP |
 | `watchoo contributors [--repo X] [--since 30d \| --weeks 12]` | Classement des contributeurs ; avec `--weeks`, leurs commits semaine par semaine | MVP (`--weeks` : V2) |
+| `watchoo prs [--repo X] [--state open\|merged\|closed\|all] [-n 20]` | Pull requests des dépôts suivis, de la plus récemment modifiée à la plus ancienne | V2 |
+| `watchoo releases [--repo X] [-n 20]` | Releases des dépôts suivis, puis leurs tags | V2 |
 | `watchoo status` | Résumé : dépôts à jour, inactifs, en erreur, quota API restant, compte `gh` utilisé et ses droits (sans afficher le token) | MVP |
 | `watchoo serve [--addr 127.0.0.1:8080] [--interval 30m]` | Lance l'interface web et la synchro périodique (30 min par défaut, 15 min minimum) | MVP |
 | `watchoo tui [--interval 30m]` | Ouvre le mode interactif dans le terminal | MVP |
@@ -64,7 +66,9 @@ uniquement avec `gh auth token` et ne le stocke jamais (voir
 - **`sync`** affiche un tableau par dépôt (statut `ok`, `erreur`, `ignoré` s'il est déjà en cours de
   synchronisation, `reporté` si le quota est bas, avec l'heure de reprise en heure locale), le bilan et le
   quota restant. `watchoo sync owner/repo` synchronise ce dépôt même si son suivi est arrêté. Code de
-  retour non nul si un dépôt est en erreur.
+  retour non nul si un dépôt est en erreur. Un dépôt synchronisé dont les pull requests, releases ou
+  tags n'ont pas pu être lus reste `ok` : l'avertissement est dans la colonne DÉTAIL (et `warnings` en
+  JSON), et ne change pas le code de retour.
 - **`--since`** accepte une durée relative : un entier suivi de `d` (jours), `h` (heures) ou `m`
   (minutes), par exemple `7d`, `30d`, `12h`.
 - **`log -n`** (ou `--limit`) limite le nombre de commits affichés (20 par défaut, `0` = tous). Un commit
@@ -81,6 +85,19 @@ uniquement avec `gh auth token` et ne le stocke jamais (voir
   ses commits semaine par semaine : en texte, une colonne par semaine (datée du lundi, « 12/10 ») puis
   le total ; en JSON, la clé `weekly`. Avec `--repo`, seuls les commits du dépôt comptent, chacun une
   fois quelle que soit sa branche. `--weeks` et `--since` ne vont pas ensemble (refus).
+- **`prs`** liste les pull requests enregistrées par les synchros (voir
+  [Synchronisation incrémentale](03-architecture.md#synchronisation-incrémentale)), de la plus récemment
+  modifiée à la plus ancienne : modification (date relative), dépôt, numéro, état (`ouverte`,
+  `brouillon`, `mergée`, `fermée` ; fermée = sans merge), auteur (login), titre (première ligne,
+  nettoyée comme un message de commit). `--state` filtre : `open` (ouvertes, brouillons compris),
+  `merged`, `closed` (fermées sans merge) ou `all` (par défaut). `-n` (ou `--limit`) : 20 par défaut,
+  `0` = toutes.
+- **`releases`** affiche deux tableaux : les **releases** (publication, ou création pour un brouillon,
+  en date relative ; dépôt, tag, titre, état `publiée`, `pré-release` ou `brouillon`, auteur), de la
+  plus récente à la plus ancienne, puis les **tags** (dépôt, tag, SHA court du commit visé et date de ce
+  commit s'il est en base, sinon `-`), du commit le plus récent au plus ancien. `-n` limite chaque
+  tableau (20 par défaut, `0` = tout). Les brouillons ne sont visibles que si le compte `gh` a le droit
+  d'écriture sur le dépôt (règle de GitHub).
 - **`status`** : compte `gh` et ses droits, quota restant (lecture gratuite), dépôts par état, dépôts en
   erreur, dernière synchro réussie, branches suivies. Sous 10 % de quota restant, le garde-fou est
   signalé (« Quota bas : synchros reportées jusqu'à HH:MM », `quota_low` en JSON), avec la même règle
@@ -145,9 +162,11 @@ Clés de premier niveau (la liste est vérifiée par un test, `internal/cli/json
 | `watchoo repo import` | `file`, `format`, `dry_run`, `summary`, `entries` | `format` : `csv` ou `list` ; `summary` : `added`, `already_tracked`, `updated`, `inaccessible`, `errors` ; chaque entrée : `line`, `repo`, `outcome`, `repository` (`null` si inaccessible ou en erreur), `error` |
 | `watchoo repo list` | `repositories` | Chaque élément : objet dépôt plus `activity`, `commits`, `tracked_branches`, `last_commit` (objet commit ou `null`), `last_sync` (`null` si aucune) |
 | `watchoo repo remove` | `action`, `repository`, `deleted_commits` | `action` : `deleted`, `stopped` ou `already_stopped` |
-| `watchoo sync` | `started_at`, `finished_at`, `summary`, `repositories`, `rate_limit` | `summary` : `repositories`, `success`, `error`, `locked`, `deferred`, `new_commits` ; chaque dépôt : `id`, `full_name`, `display_name`, `status`, `new_commits`, `tracked_branches`, `stats_fetched`, `duration_ms`, `error`, `resume_at` |
+| `watchoo sync` | `started_at`, `finished_at`, `summary`, `repositories`, `rate_limit` | `summary` : `repositories`, `success`, `error`, `locked`, `deferred`, `new_commits` ; chaque dépôt : `id`, `full_name`, `display_name`, `status`, `new_commits`, `tracked_branches`, `stats_fetched`, `duration_ms`, `error`, `resume_at`, `warnings` (messages en français : pull requests, releases ou tags non synchronisés alors que le dépôt a réussi ; `[]` sinon) |
 | `watchoo log` | `commits` | Du plus récent au plus ancien ; objets commit |
 | `watchoo contributors` | `contributors` | Chaque élément : `id`, `name`, `login`, `display_name`, `avatar_url`, `commits`, `additions`, `deletions`, `repositories`, `last_commit_at`, `weekly` (avec `--weeks N` : N objets `week` (lundi, `AAAA-MM-JJ`, fuseau d'affichage) et `count`, du plus ancien au plus récent ; `[]` sans `--weeks`) |
+| `watchoo prs` | `pull_requests` | De la plus récemment modifiée à la plus ancienne ; objets pull request |
+| `watchoo releases` | `releases`, `tags` | Objets release (du plus récent au plus ancien) et tag ; `-n` limite chaque liste |
 | `watchoo status` | `workspace`, `github`, `rate_limit`, `rate_limit_error`, `quota_low`, `repositories`, `errors`, `last_synced_at`, `tracked_branches` | `workspace` : `name`, `root` ; `github` : `ok`, `host`, `login`, `token_source`, `scopes`, `error` ; `repositories` : `total`, `active`, `flemme`, `dead`, `error`, `never_synced`, `archived`, `empty`, `stopped` ; chaque erreur : `repo`, `message` |
 | `watchoo config export` | `format`, `version`, `exported_at`, `watchoo_version`, `workspace`, `settings`, `repositories` | Le document de partage lui-même (voir [Partage de la configuration](#partage-de-la-configuration--watchoo-config)), avec ou sans `--json` ; avec `-o`, il va dans le fichier et la sortie standard ne reçoit qu'une ligne de confirmation en texte (rien avec `--json`) |
 | `watchoo config import` | `file`, `dry_run`, `applied`, `source`, `settings`, `repositories`, `summary`, `warnings` | `source` : `workspace_name`, `watchoo_version`, `exported_at` (tels qu'écrits dans le fichier) ; `settings` : `changes` (chacun `key`, `before`, `after`, `env_var`), `rewrite`, `written`, `backup_file` ; chaque dépôt : `index`, `repo`, `action` (`add`, `update`, `unchanged`, `inaccessible`, `error`), `reenable`, `before` (`label`, `branches`, `flemme_after_days`, `dead_after_days` (`null` = seuil de l'espace), `enabled` ; `null` pour un ajout), `after`, `outcome` (comme `repo import`, `""` tant que rien n'est appliqué), `error` ; `summary` : `added`, `already_tracked`, `updated`, `reenabled` (parmi `updated`), `inaccessible`, `errors` (prévus avec `--dry-run`, obtenus sinon) ; chaque avertissement : `code` (`env_override`, `comments_lost`), `key`, `message` |
@@ -166,6 +185,14 @@ Objets partagés :
 - **synchro** (`last_sync`) : `status` (`running`, `success`, `error`), `started_at`, `finished_at`,
   `new_commits`, `error` ;
 - **quota** (`rate_limit`, `null` si inconnu) : `limit`, `remaining`, `used`, `reset`.
+- **pull request** : `repository` (`id`, `full_name`, `display_name`), `number`, `title`, `state`
+  (`open`, `merged` ou `closed` : fermée sans merge), `draft`, `author` (`login`, `""` si inconnu),
+  `url`, `base_branch`, `head_branch`, `created_at`, `updated_at`, `closed_at`, `merged_at` (`null` si
+  sans objet) ;
+- **release** : `repository`, `id` (identifiant sur la forge), `tag_name`, `name`, `draft`,
+  `prerelease`, `author` (`login`), `url`, `created_at`, `published_at` (`null` pour un brouillon) ;
+- **tag** : `repository`, `name`, `sha`, `short_sha`, `commit_url` et `committed_at` (lien et date du
+  commit visé, `""` et `null` s'il n'est pas en base).
 
 ### Version
 
@@ -487,14 +514,16 @@ et les contributeurs au clavier, avec filtre et vue détail, et on peut y lancer
 - **Vues** : Dépôts (dépôt, dernier commit, auteur, branches, état), Commits (quand, dépôt, auteur, SHA
   court, première ligne du message ; les 200 derniers) et Contributeurs (nom, login, commits, `+/-`,
   dépôts, dernier commit). Le **détail d'un dépôt** montre l'URL, l'état et ses seuils, le dernier commit,
-  les branches, le nombre de commits, la dernière synchro (ou son erreur), étoiles et issues, les 15
+  les branches, le nombre de commits, la dernière synchro (ou son erreur), étoiles et issues, les pull
+  requests ouvertes et la dernière release publiée (V2), les 15
   derniers commits et les 5 premiers contributeurs, avec leurs commits sur les 12 dernières semaines
   (colonne « 12 SEM. ») et une courbe d'un caractère par semaine, la plus récente à droite (« PAR
   SEMAINE » : `▁` à `█`, ou `.` `-` `=` `#` sans Unicode ; `▁` ou `.` = aucun commit).
 - **En-tête** : hibou mini (pupilles vertes), version et espace, onglets, ligne de synchro (en cours avec
   la progression, dernière synchro, prochaine synchro automatique à HH:MM, ou « Synchro manuelle (s) »).
 - **Synchro** : une seule à la fois (une demande de plus est ignorée et signalée) ; à la fin, une ligne de
-  bilan (nouveaux commits, erreurs, dépôts ignorés ou reportés avec l'heure de reprise locale), puis les
+  bilan (nouveaux commits, erreurs, dépôts ignorés ou reportés avec l'heure de reprise locale,
+  avertissements sur les pull requests, releases ou tags), puis les
   vues sont relues. Une synchro automatique qui tombe pendant une synchro est sautée, la suivante reste
   planifiée. Quitter pendant une synchro l'annule : `watchoo tui` attend alors que le moteur ait clos
   ses synchros (« synchro annulée », quelques secondes au plus) avant de fermer la base, pour qu'aucun

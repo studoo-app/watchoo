@@ -5,6 +5,7 @@
     « repo-overview »     : en-tête, état, métadonnées, bouton de synchro (GET /repos/{id},
                             HX-Target: repo-overview) ;
     « repo-contributors » : contributeurs du dépôt (GET /repos/{id}, HX-Target: repo-contributors) ;
+    « repo-pulls »        : pull requests, releases et tags (V2 ; GET /repos/{id}, HX-Target: repo-pulls) ;
     « repo-commits »      : filtres, historique paginé (GET /repos/{id}/commits).
   Les graphiques (activité par jour ; activité par contributeur, template « contributors-chart » de
   partials.html) ne sont pas des fragments : HTMX retire les <script> des contenus échangés, données
@@ -41,6 +42,7 @@
     {{template "repo-contributors" .}}
   </div>
   {{template "contributors-chart" (dict "Chart" .Content.ContributorsChart "ID" "repo-contributors-chart" "RefreshURL" (repoPath $r.ID) "Title" (print "Activité par contributeur sur " .Content.ContributorsChart.Weeks " semaines") "Scope" " de ce dépôt" "Note" "Toutes les branches suivies ; un commit présent sur plusieurs branches n'est compté qu'une fois.")}}
+  {{template "repo-pulls" .}}
   {{template "repo-commits" .}}
 </div>
 {{end}}
@@ -160,6 +162,93 @@
     {{end}}
   </div>
 </section>
+{{end}}
+
+{{/* Pull requests, releases et tags (V2). Donnée : PageData (Content.Pulls, de type RepoPullsView). */}}
+{{define "repo-pulls"}}{{$p := .Content.Pulls}}
+<div id="repo-pulls" class="grid gap-6 lg:grid-cols-2"
+     hx-get="{{repoPath .Content.Repo.ID}}" hx-trigger="sync-finished from:body" hx-swap="outerHTML">
+  <section class="card bg-base-100 shadow-sm min-w-0" aria-labelledby="repo-pulls-title">
+    <div class="card-body p-4 md:p-6">
+      <div class="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 id="repo-pulls-title" class="card-title text-lg">Pull requests</h2>
+        <p class="text-sm text-base-content/70">{{plural $p.Counts.Open "ouverte" "ouvertes"}} · {{plural $p.Counts.Merged "mergée" "mergées"}} · {{plural $p.Counts.Closed "fermée sans merge" "fermées sans merge"}}</p>
+      </div>
+      {{if or $p.Open $p.Merged}}
+      {{if $p.Open}}
+      <h3 class="text-sm font-semibold mt-2">Ouvertes</h3>
+      <ul class="divide-y divide-base-200" role="list">{{range $p.Open}}{{template "pull-item" .}}{{end}}</ul>
+      {{end}}
+      {{if $p.Merged}}
+      <h3 class="text-sm font-semibold mt-2">Dernières mergées</h3>
+      <ul class="divide-y divide-base-200" role="list">{{range $p.Merged}}{{template "pull-item" .}}{{end}}</ul>
+      {{end}}
+      {{else}}
+      <p class="text-sm text-base-content/70">Aucune pull request en base pour ce dépôt.</p>
+      {{end}}
+    </div>
+  </section>
+  <section class="card bg-base-100 shadow-sm min-w-0" aria-labelledby="repo-releases-title">
+    <div class="card-body p-4 md:p-6">
+      <h2 id="repo-releases-title" class="card-title text-lg">Releases et tags</h2>
+      {{if or $p.Releases $p.Tags}}
+      {{if $p.Releases}}
+      <h3 class="text-sm font-semibold mt-2">Releases</h3>
+      <ul class="divide-y divide-base-200" role="list">
+        {{range $p.Releases}}
+        <li class="py-2 flex items-start justify-between gap-3 min-w-0">
+          <div class="min-w-0">
+            <p class="font-medium break-words">
+              {{if .URL}}<a href="{{.URL}}" class="link link-hover" target="_blank" rel="noopener noreferrer">{{clean .TagName}}</a>{{else}}{{clean .TagName}}{{end}}
+              {{- if .Name}} <span class="font-normal text-base-content/70">· {{firstLine .Name}}</span>{{end}}
+            </p>
+            <p class="text-xs text-base-content/60">{{if .AuthorLogin}}{{clean .AuthorLogin}} · {{end}}{{template "rel-time" .Date}}</p>
+          </div>
+          {{if .Draft}}<span class="badge badge-ghost badge-sm whitespace-nowrap">brouillon</span>
+          {{- else if .Prerelease}}<span class="badge badge-warning badge-sm whitespace-nowrap">pré-release</span>{{end}}
+        </li>
+        {{end}}
+      </ul>
+      {{end}}
+      {{if $p.Tags}}
+      <h3 class="text-sm font-semibold mt-2">Tags</h3>
+      <ul class="divide-y divide-base-200" role="list">
+        {{range $p.Tags}}
+        <li class="py-2 flex items-center justify-between gap-3 min-w-0">
+          <span class="font-medium truncate" title="{{clean .Name}}">{{clean .Name}}</span>
+          <span class="text-xs text-base-content/60 whitespace-nowrap">
+            {{- if not .CommittedAt.IsZero}}{{template "rel-time" .CommittedAt}} · {{end -}}
+            {{if .CommitURL}}<a href="{{.CommitURL}}" class="badge badge-ghost font-mono link-hover" target="_blank" rel="noopener noreferrer" title="Voir le commit du tag sur GitHub">{{shortSHA .SHA}}</a>
+            {{- else}}<span class="badge badge-ghost font-mono">{{shortSHA .SHA}}</span>{{end}}
+          </span>
+        </li>
+        {{end}}
+      </ul>
+      {{end}}
+      {{else}}
+      <p class="text-sm text-base-content/70">Aucune release ni aucun tag en base pour ce dépôt.</p>
+      {{end}}
+    </div>
+  </section>
+</div>
+{{end}}
+
+{{/* Une pull request de la liste. Donnée : store.PullRequestView. */}}
+{{define "pull-item"}}
+<li class="py-2 flex items-start justify-between gap-3 min-w-0">
+  <div class="min-w-0">
+    <p class="font-medium break-words">
+      {{if .URL}}<a href="{{.URL}}" class="link link-hover" target="_blank" rel="noopener noreferrer">#{{.Number}} {{firstLine .Title}}</a>
+      {{- else}}#{{.Number}} {{firstLine .Title}}{{end}}
+    </p>
+    <p class="text-xs text-base-content/60 break-all">
+      {{- if .AuthorLogin}}{{clean .AuthorLogin}} · {{end -}}
+      {{if .HeadBranch}}<code>{{truncate 30 .HeadBranch}}</code> → <code>{{truncate 30 .BaseBranch}}</code> · {{end -}}
+      {{if .MergedAt.IsZero}}ouverte {{template "rel-time" .CreatedAt}}{{else}}mergée {{template "rel-time" .MergedAt}}{{end}}
+    </p>
+  </div>
+  {{if .Draft}}<span class="badge badge-ghost badge-sm whitespace-nowrap">brouillon</span>{{end}}
+</li>
 {{end}}
 
 {{/* Filtres et historique paginé. Donnée : PageData (Content.Commits, de type RepoCommitsView).

@@ -279,7 +279,8 @@ func assertMode(t *testing.T, path string, want fs.FileMode) {
 
 // migratedTables est la liste des tables créées par les migrations (hors table de goose).
 var migratedTables = []string{
-	"branches", "commit_branches", "commits", "contributor_emails", "contributors", "repositories", "sync_runs",
+	"branches", "commit_branches", "commits", "contributor_emails", "contributors", "pull_requests", "releases",
+	"repositories", "sync_runs", "tags",
 }
 
 // tables renvoie les tables de la base path, triées, hors tables internes de SQLite. La base est

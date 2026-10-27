@@ -17,14 +17,16 @@ import (
 	"github.com/studoo-app/watchoo/internal/store/migrations"
 )
 
-// expectedTables sont les 7 tables du modèle de données (documentation/04-modele-donnees.md).
+// expectedTables sont les 10 tables du modèle de données (documentation/04-modele-donnees.md) : les 7
+// du MVP et les 3 de la V2 (migration 00003).
 var expectedTables = []string{
 	"repositories", "branches", "contributors", "contributor_emails", "commits", "commit_branches",
-	"sync_runs",
+	"sync_runs", "pull_requests", "releases", "tags",
 }
 
-// expectedIndexes sont les index créés explicitement par la migration initiale.
+// expectedIndexes sont les index créés explicitement par les migrations.
 var expectedIndexes = []string{
+	"pull_requests_repo_id_updated_at",
 	"commits_repo_id_committed_at",
 	"commits_author_id_committed_at",
 	"commit_branches_branch_id",

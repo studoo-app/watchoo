@@ -649,3 +649,27 @@ func TestDetailOwnThresholds(t *testing.T) {
 	l.until(func(m Model) bool { return m.detail.open && !m.detail.loading })
 	mustContain(t, l.screen(), "seuils : Flemme après 1 j, Dead après 15 j (propres au dépôt)")
 }
+
+// Détail d'un dépôt : pull requests ouvertes et dernière release (V2) ; avertissements dans le bilan.
+func TestDetailPullsAndRelease(t *testing.T) {
+	data := newFakeData()
+	data.repos[0].OpenPullRequests = 2
+	data.repos[0].LatestRelease = model.Release{ProviderID: 1, TagName: "v1.0\x1b[2J",
+		PublishedAt: data.repos[0].LastCommitAt}
+	l := newLoop(t, testDeps(data, &fakeSyncer{}))
+	l.press("enter")
+	l.until(func(m Model) bool { return m.detail.open && !m.detail.loading })
+	screen := l.screen()
+	mustContain(t, screen, "Pull requests", "2 ouvertes, dernière release v1.0 (il y a 2 h)")
+	mustNotContain(t, screen, "\x1b[2J")
+
+	if got := l.m.pullsText(0, model.Release{}); got != "aucune ouverte, aucune release" {
+		t.Errorf("pullsText sans rien = %q", got)
+	}
+	text, bad := l.m.summarize(wsync.Report{Repos: []wsync.RepoReport{
+		{DisplayName: "a", Status: wsync.StatusSuccess, Warnings: []string{"tags non synchronisés : x"}},
+		{DisplayName: "b", Status: wsync.StatusSuccess}}})
+	if text != "synchro terminée : 2 dépôts, 0 nouveau commit, 1 avertissement (pull requests, releases ou tags)" || bad {
+		t.Errorf("summarize avec avertissement = %q, %v", text, bad)
+	}
+}

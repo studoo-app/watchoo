@@ -337,7 +337,7 @@ func assertNoLeak(t *testing.T, what, s string) {
 func assertReportNoLeak(t *testing.T, rep wsync.Report) {
 	t.Helper()
 	for _, r := range rep.Repos {
-		assertNoLeak(t, "rapport "+r.FullName, r.Error+" "+r.FullName+" "+r.DisplayName)
+		assertNoLeak(t, "rapport "+r.FullName, r.Error+" "+r.FullName+" "+r.DisplayName+" "+strings.Join(r.Warnings, " "))
 	}
 }
 

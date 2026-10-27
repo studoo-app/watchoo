@@ -27,6 +27,8 @@ type syncRepoJSON struct {
 	DurationMS      int64            `json:"duration_ms"`
 	Error           string           `json:"error"`     // vide pour un succès
 	ResumeAt        *time.Time       `json:"resume_at"` // deferred : quand réessayer ; null sinon
+	// Warnings : pull requests, releases ou tags non synchronisés d'un dépôt réussi ; [] sinon.
+	Warnings []string `json:"warnings"`
 }
 
 // syncSummary compte les résultats d'une synchro.
@@ -130,6 +132,7 @@ func runSync(ctx context.Context, deps Deps, opts *options, ref string) (err err
 				DurationMS:      r.Duration.Milliseconds(),
 				Error:           r.Error,
 				ResumeAt:        timeJSON(r.ResumeAt),
+				Warnings:        append([]string{}, r.Warnings...),
 			})
 		}
 		if report.RateLimitKnown {
@@ -190,6 +193,9 @@ func (s *session) syncText(st textStyle, report wsync.Report, sum syncSummary) s
 	if sum.Deferred > 0 {
 		parts = append(parts, fmt.Sprintf("%d reporté%s", sum.Deferred, plural(sum.Deferred)))
 	}
+	if n := report.Warnings(); n > 0 {
+		parts = append(parts, countText(n, "avertissement", "avertissements"))
+	}
 	fmt.Fprintf(&b, "\nSynchro terminée en %s : %s.\n",
 		durationText(report.FinishedAt.Sub(report.StartedAt)), strings.Join(parts, ", "))
 	if report.RateLimitKnown {
@@ -223,6 +229,9 @@ func (s *session) syncDetail(r wsync.RepoReport) string {
 			reason = "quota bas"
 		}
 		return fmt.Sprintf("reporté : %s jusqu'à %s", reason, s.clockText(r.ResumeAt))
+	}
+	if r.Status == wsync.StatusSuccess && len(r.Warnings) > 0 {
+		return strings.Join(r.Warnings, " ; ")
 	}
 	return r.Error
 }

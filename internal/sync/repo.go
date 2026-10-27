@@ -20,6 +20,9 @@ type repoOutcome struct {
 	displayName string // label, sinon owner/name actuels
 	result      store.RepoSyncResult
 	stats       int // appels CommitStats faits
+	pulls       int // pull requests lues (créées ou mises à jour)
+	// warnings : listes (pull requests, releases, tags) non synchronisées, en français.
+	warnings []string
 }
 
 // repoSync accumule les commits vus pendant la synchro d'un dépôt.
@@ -104,6 +107,11 @@ func (e *Engine) syncRepository(ctx context.Context, prov provider.Provider, h *
 		}
 	}
 
+	x, err := s.fetchExtras(ctx, h, repo.ID)
+	if err != nil {
+		return repoOutcome{}, err
+	}
+
 	states := make([]store.BranchState, len(tracked))
 	for i, b := range tracked {
 		states[i] = store.BranchState{Name: b.Name, HeadSHA: b.HeadSHA}
@@ -120,9 +128,14 @@ func (e *Engine) syncRepository(ctx context.Context, prov provider.Provider, h *
 			OpenIssues:    meta.OpenIssues,
 			Archived:      meta.Archived,
 		},
-		Branches: states,
-		Commits:  s.commits,
-		SyncedAt: e.now().UTC(),
+		Branches:        states,
+		Commits:         s.commits,
+		PullRequests:    x.pulls,
+		ReplaceReleases: x.replaceReleases,
+		Releases:        x.releases,
+		ReplaceTags:     x.replaceTags,
+		Tags:            x.tags,
+		SyncedAt:        e.now().UTC(),
 	})
 	if err != nil {
 		return repoOutcome{}, err
@@ -131,7 +144,8 @@ func (e *Engine) syncRepository(ctx context.Context, prov provider.Provider, h *
 	if display == "" {
 		display = s.full
 	}
-	return repoOutcome{fullName: s.full, displayName: display, result: res, stats: stats}, nil
+	return repoOutcome{fullName: s.full, displayName: display, result: res, stats: stats,
+		pulls: len(x.pulls), warnings: x.warnings}, nil
 }
 
 // lookupRepository lit les métadonnées actuelles du dépôt, par son identifiant de forge (suit

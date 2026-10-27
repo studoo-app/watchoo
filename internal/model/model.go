@@ -146,3 +146,84 @@ type SyncRun struct {
 	Status     SyncStatus // résultat
 	Error      string     // message d'erreur éventuel ; vide si aucun (jamais de token dedans)
 }
+
+// États d'une pull request (colonne pull_requests.state), comme sur la forge. Une PR mergée est fermée
+// (PullRequestClosed) avec une date de merge.
+const (
+	PullRequestOpen   = "open"
+	PullRequestClosed = "closed"
+)
+
+// PullRequestStatus est l'état affiché d'une pull request. Valeurs stables (sorties --json, option
+// --state de « watchoo prs »).
+type PullRequestStatus string
+
+// Valeurs de PullRequestStatus.
+const (
+	PullRequestStatusOpen   PullRequestStatus = "open"   // ouverte (brouillon compris)
+	PullRequestStatusMerged PullRequestStatus = "merged" // mergée
+	PullRequestStatusClosed PullRequestStatus = "closed" // fermée sans merge
+)
+
+// PullRequest est une pull request d'un dépôt (table pull_requests, V2). Clé : (RepoID, Number).
+//
+// L'auteur est gardé tel quel (login et identifiant du compte de forge), sans lien vers un
+// contributeur : un contributeur est l'auteur d'au moins un commit.
+type PullRequest struct {
+	RepoID           int64     // dépôt
+	Number           int       // numéro dans le dépôt
+	Title            string    // titre (texte venu du dépôt : jamais dans les logs)
+	State            string    // PullRequestOpen ou PullRequestClosed
+	Merged           bool      // mergée (fermée avec MergedAt)
+	Draft            bool      // brouillon
+	AuthorLogin      string    // login de l'auteur sur la forge ; vide si inconnu
+	AuthorProviderID int64     // identifiant du compte de l'auteur ; 0 si inconnu
+	URL              string    // lien vers la PR sur la forge
+	BaseBranch       string    // branche visée
+	HeadBranch       string    // branche proposée
+	CreatedAt        time.Time // ouverture, UTC
+	UpdatedAt        time.Time // dernière modification, UTC
+	ClosedAt         time.Time // fermeture, UTC ; zéro si ouverte
+	MergedAt         time.Time // merge, UTC ; zéro si non mergée
+}
+
+// Status renvoie l'état affiché : mergée, fermée sans merge ou ouverte.
+func (p PullRequest) Status() PullRequestStatus {
+	switch {
+	case p.Merged:
+		return PullRequestStatusMerged
+	case p.State == PullRequestClosed:
+		return PullRequestStatusClosed
+	default:
+		return PullRequestStatusOpen
+	}
+}
+
+// Release est une release d'un dépôt (table releases, V2). Clé : (RepoID, ProviderID).
+type Release struct {
+	RepoID      int64     // dépôt
+	ProviderID  int64     // identifiant de la release sur la forge
+	TagName     string    // tag
+	Name        string    // titre ; vide si aucun
+	Draft       bool      // brouillon
+	Prerelease  bool      // pré-release
+	AuthorLogin string    // login de l'auteur ; vide si inconnu
+	URL         string    // lien vers la release sur la forge
+	CreatedAt   time.Time // création, UTC
+	PublishedAt time.Time // publication, UTC ; zéro pour un brouillon
+}
+
+// Date renvoie la date affichée d'une release : sa publication, sinon sa création (brouillon).
+func (r Release) Date() time.Time {
+	if !r.PublishedAt.IsZero() {
+		return r.PublishedAt
+	}
+	return r.CreatedAt
+}
+
+// Tag est un tag d'un dépôt (table tags, V2). Clé : (RepoID, Name).
+type Tag struct {
+	RepoID int64  // dépôt
+	Name   string // nom du tag
+	SHA    string // SHA du commit visé
+}

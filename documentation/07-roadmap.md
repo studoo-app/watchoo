@@ -72,7 +72,9 @@ bon schéma ; les autres commandes retrouvent l'espace.
   quota interrompue journalisée en debug.
 
 ### Phase 6 — V2
-- Pull requests et releases.
+- Pull requests et releases : **en place** (pull requests lues de façon incrémentale, releases et tags,
+  `watchoo prs` et `watchoo releases`, cartes de la page d'un dépôt, PR ouvertes sur le tableau de bord
+  et dans le TUI ; échec isolé en avertissement, `ErrUnsupported` prévu pour le provider Git local).
 - **Dépôts Git locaux** : un dépôt peut être suivi depuis un clone local (`git clone`, puis `git fetch`
   périodique) qui fournit commits, branches et tags sans appel à l'API GitHub, donc sans consommer de
   quota. Alternative à l'API GitHub et à `gh` : si `gh` est installé et connecté, Watchoo l'utilise par

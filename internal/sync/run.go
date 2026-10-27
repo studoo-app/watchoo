@@ -249,8 +249,13 @@ func (e *Engine) syncOne(ctx context.Context, prov provider.Provider, redact fun
 	rep.NewCommits = res.result.NewCommits
 	rep.TrackedBranches = res.result.TrackedBranches
 	rep.StatsFetched = res.stats
+	rep.PullRequests = res.pulls
+	rep.Warnings = make([]string, 0, len(res.warnings))
+	for _, w := range res.warnings {
+		rep.Warnings = append(rep.Warnings, redact(w))
+	}
 	e.logger.Info("dépôt synchronisé", "repo", rep.FullName, "nouveaux_commits", rep.NewCommits,
-		"branches", rep.TrackedBranches, "statistiques", rep.StatsFetched,
-		"duree", rep.Duration.Round(time.Millisecond))
+		"branches", rep.TrackedBranches, "statistiques", rep.StatsFetched, "pull_requests", rep.PullRequests,
+		"avertissements", len(rep.Warnings), "duree", rep.Duration.Round(time.Millisecond))
 	return rep
 }

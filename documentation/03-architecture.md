@@ -95,6 +95,9 @@ go-github est importé. Signature fixée en phase 2 (détail dans `internal/prov
 | `ListCommits(ctx, owner, name, opts)` | Commits d'une branche (ou d'un SHA), du plus récent au plus ancien (ordre chronologique, pas celui du graphe). Options : `Branch`, `Since`, `Stop` (arrêt au premier SHA pour lequel elle renvoie vrai, exclu, sans page suivante ; pas pour s'arrêter au premier SHA connu, voir [Synchronisation incrémentale](#synchronisation-incrémentale)), `Limit` |
 | `CompareCommits(ctx, owner, name, base, head)` | Commits atteignables depuis `head` mais pas depuis `base` (comme `git log base..head`), merges compris, du plus récent au plus ancien |
 | `CommitStats(ctx, owner, name, sha)` | Lignes ajoutées et supprimées par un commit (une requête par commit, une seule page de fichiers, jamais mise en cache) |
+| `PullRequests(ctx, owner, name, opts)` (V2) | Pull requests du dépôt, tous états confondus (ouvertes, fermées, mergées), de la plus récemment modifiée à la plus ancienne. Options : `UpdatedSince` (arrêt à la première PR modifiée **avant** cette date, sans page suivante : synchro incrémentale), `Limit`. Numéro, titre, état, mergée, brouillon, auteur (login, identifiant), URL, branches de base et de tête, dates de création, de modification, de fermeture et de merge |
+| `Releases(ctx, owner, name)` (V2) | Releases du dépôt, de la plus récente à la plus ancienne : identifiant, tag, nom, brouillon, pré-release, auteur, URL, dates de création et de publication. Sur GitHub, les brouillons ne sont visibles que d'un compte qui a le droit d'écriture sur le dépôt |
+| `Tags(ctx, owner, name)` (V2) | Tags du dépôt (nom, SHA du commit visé), dans l'ordre de la forge |
 | `RateLimit(ctx)` | État du quota (`GET /rate_limit`, gratuit) |
 | `LastRateLimit()` | Dernier état du quota observé sur les réponses, sans requête |
 
@@ -102,14 +105,18 @@ Règles communes :
 
 - les arguments (owner, nom de dépôt, branche, SHA complet, identifiant) sont validés avant toute
   requête : une valeur invalide donne `ErrInvalidRef`, sans appel réseau ;
-- dates en UTC, listes vides non nil ; plafonds internes (10 000 commits, 1 000 branches) contre une
-  pagination sans fin ;
+- dates en UTC, listes vides non nil ; plafonds internes (10 000 commits, 1 000 branches, 1 000 pull
+  requests, 1 000 releases, 1 000 tags) contre une pagination sans fin ;
+- une source qui ne connaît pas une notion (le futur provider des [dépôts Git locaux](#dépôts-git-locaux-v2)
+  n'a ni pull requests ni releases) renvoie une erreur qui enveloppe `ErrUnsupported`, sans rien
+  demander : le moteur de synchro la traite comme « non disponible pour cette source », pas comme un
+  échec ;
 - erreurs de type `*APIError` (opération, méthode, chemin de l'API, code HTTP), à tester avec
   `errors.Is` / `errors.As` : `ErrNotFound` (`404` : dépôt introuvable ou compte sans accès),
   `ErrUnauthorized` (`401` : conseiller `gh auth login`), `ErrForbidden` et `*SSORequiredError` (`403`,
   SSO imposé par l'organisation), `*RateLimitError` (quota épuisé ou limite secondaire, avec le moment où
   réessayer), `ErrEmptyRepository` (dépôt vide), `ErrUnknownBase` (base d'une comparaison disparue),
-  `ErrUnavailable` (réseau, délai, `5xx`), `ErrUnexpected`, `ErrWriteForbidden`. Leurs messages sont en
+  `ErrUnavailable` (réseau, délai, `5xx`), `ErrUnexpected`, `ErrWriteForbidden`, `ErrUnsupported`. Leurs messages sont en
   français et ne citent jamais le token, un corps de réponse, un message de commit, un nom ni un e-mail ;
 - sûr pour un usage concurrent : 4 dépôts synchronisés en parallèle avec la même instance.
 
@@ -200,6 +207,10 @@ Faux pour les tests : `providertest` (Provider en mémoire) et `githubtest` (ser
   interrompue »). Un dépôt verrouillé est ignoré et signalé (« déjà en cours de synchronisation »).
 - Ordre de grandeur, dans le pire cas où tout a changé à chaque passage : 100 dépôts × 2 branches toutes
   les 30 min ≈ 800 requêtes / heure, loin des 5 000 du quota. Les réponses `304` ne coûtent rien.
+- **Pull requests, releases et tags** (V2) : trois listes de plus par dépôt et par synchro (première
+  page seulement dans le cas courant). Toutes passent par le cache ETag : quand rien n'a changé, elles
+  répondent `304` et ne coûtent rien. Dans le pire cas où tout change à chaque passage, 100 dépôts
+  ajoutent 3 × 2 × 100 = 600 requêtes / heure, soit environ 1 400 au total, toujours loin des 5 000.
 
 ### Branches suivies
 - **Décision** : sans `--branch`, Watchoo suit **toutes les branches** du dépôt, y compris celles créées
@@ -262,10 +273,32 @@ Faux pour les tests : `providertest` (Provider en mémoire) et `githubtest` (ser
   0. Un quota épuisé pendant les statistiques n'échoue pas le dépôt (ses commits sont enregistrés) mais
   reporte les dépôts suivants ; une autre erreur arrête les statistiques de ce dépôt seulement (un `404`
   ne saute que le commit concerné).
+- **Pull requests, releases et tags** (V2) : lus après les commits, à chaque synchro d'un dépôt (archivé
+  compris, comme les commits).
+  - **Pull requests** : liste triée par date de modification décroissante, tous états confondus. Au
+    premier passage (aucune PR en base), toute la liste (au plus 1 000) ; ensuite, seulement les PR
+    modifiées depuis la plus récente date de modification en base (`UpdatedSince` : arrêt à la première
+    PR modifiée **strictement avant** cette date ; celles de la même seconde sont relues, l'écriture
+    étant idempotente). Une PR est enregistrée une fois par dépôt et par numéro, mise à jour à chaque
+    changement (titre, état, merge…) ; jamais supprimée.
+  - **Releases et tags** : listes complètes (au plus 1 000 chacune), qui **remplacent** celles en base :
+    une release ou un tag supprimé sur la forge disparaît de Watchoo. Sans changement, la réponse `304`
+    ne coûte rien.
+  - **Garde-fou** : sous 10 % de quota restant (contrôlé avant ces listes), elles ne sont pas demandées.
+  - **Échec isolé** : une erreur sur l'une de ces listes (`404`, `5xx`, quota épuisé…) ne fait pas
+    échouer le dépôt : ses commits sont enregistrés, ce qui était en base pour cette liste est gardé, et
+    l'erreur devient un **avertissement** du rapport de synchro (`watchoo sync`, bilan du TUI, logs). La
+    synchro suivante réessaie (le point de reprise des PR n'avance pas). Un quota épuisé reporte en plus
+    les dépôts suivants, comme pour les statistiques. Seule l'annulation (Ctrl+C) fait échouer le dépôt.
+  - **Source sans cette notion** (`ErrUnsupported`, futur provider Git local) : la liste est ignorée
+    sans avertissement et rien n'est effacé.
+  - **Auteurs** : le login et l'identifiant de compte de l'auteur d'une PR ou d'une release sont gardés
+    tels quels, sans créer de contributeur (un contributeur est l'auteur d'au moins un commit).
 - **Commit sans date** : un commit sans date d'écriture ni de commit est ignoré (compté dans un log) ; une
   seule date manquante est complétée par l'autre.
 - **Écriture** : tout ce qu'une synchro de dépôt écrit (métadonnées, branches, commits, contributeurs,
-  `commit_branches`, `last_commit_at`, fin du `sync_run`) l'est dans **une transaction**.
+  `commit_branches`, `last_commit_at`, pull requests, releases, tags, fin du `sync_run`) l'est dans
+  **une transaction**.
 - **Dépôt vide** (dépôt d'étudiant tout juste créé, auquel GitHub répond `409`) : branches et commits
   vides, sans erreur.
 - **Dépôt renommé ou transféré** : GitHub répond `301` vers `/repositories/{id}` ; le provider suit la
@@ -367,7 +400,9 @@ Prévu en phase 6 ([Roadmap](07-roadmap.md#phase-6--v2)) ; rien n'est encore cod
   Aucun token dans une URL de clone, ni dans les logs.
 - **Ce que le mode local ne fournit pas** : pas de login GitHub (seulement nom et e-mail Git, donc une
   fusion d'identités moins sûre), pas d'étoiles, d'issues, d'état archivé, de pull requests ni de
-  releases ; les tags, eux, sont disponibles. Les écrans masquent ce qui manque.
+  releases ; les tags, eux, sont disponibles. Les écrans masquent ce qui manque. Le provider Git
+  implémente `Tags` et renvoie `ErrUnsupported` pour `PullRequests` et `Releases` : le moteur garde
+  alors ce qui est en base, sans avertissement.
 - **Distribution** : l'image Docker doit inclure `git`.
 - **Tests** : dépôts Git créés dans un répertoire temporaire et servis par le système de fichiers
   (`file://`), sans service extérieur.

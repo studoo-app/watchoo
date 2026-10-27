@@ -158,6 +158,8 @@ watchoo sync                              # récupère les commits
 watchoo repo list                         # qui est Actif, en Flemme ou Dead
 watchoo log --since 7d                    # les commits de la semaine
 watchoo contributors                      # qui contribue, et combien
+watchoo prs --state open                  # les pull requests ouvertes
+watchoo releases                          # releases et tags
 watchoo tui                               # naviguer au clavier
 watchoo serve                             # tableau de bord sur http://127.0.0.1:8080/
 ```

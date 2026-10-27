@@ -49,7 +49,7 @@ func TestSyncAll(t *testing.T) {
 	assertJSONKeys(t, r.stdout, "", "started_at", "finished_at", "summary", "repositories", "rate_limit")
 	assertJSONKeys(t, r.stdout, "summary", "repositories", "success", "error", "locked", "deferred", "new_commits")
 	assertJSONKeys(t, r.stdout, "repositories.0", "id", "full_name", "display_name", "status", "new_commits",
-		"tracked_branches", "stats_fetched", "duration_ms", "error", "resume_at")
+		"tracked_branches", "stats_fetched", "duration_ms", "error", "resume_at", "warnings")
 	assertJSONKeys(t, r.stdout, "rate_limit", "limit", "remaining", "used", "reset")
 
 	// Le token est redemandé à gh à chaque synchro.

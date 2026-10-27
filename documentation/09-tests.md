@@ -78,7 +78,7 @@ Deux faux, écrits en phase 2 et réutilisés par les phases suivantes :
 | `Provider` en mémoire | `internal/provider/providertest` | Le moteur de synchro, la CLI, le web et le TUI, sans HTTP |
 
 - **`githubtest`** : serveur `httptest` sur `127.0.0.1` qui simule les routes utilisées (dépôt, branches,
-  commits, commit avec statistiques, compare, `/rate_limit`) à partir d'un état préparé par le test :
+  commits, commit avec statistiques, compare, pull requests, releases, tags, `/rate_limit`) à partir d'un état préparé par le test :
   dépôts, graphe de commits (merges compris), branches, force-push, renommage ou transfert (`301`), accès
   refusé (`404`) ou SSO (`403`), dépôt vide (`409`). Il reproduit le format JSON de GitHub, la pagination
   (en-tête `Link`), les ETag et les `304` (sans quota), le quota (en-têtes `X-RateLimit-*`, épuisement,
@@ -129,6 +129,21 @@ Deux faux, écrits en phase 2 et réutilisés par les phases suivantes :
   période) ; détail du TUI (colonnes « 12 SEM. » et « PAR SEMAINE », faux `DataSource` et vraie base) ;
   `watchoo contributors --weeks` (texte, `--repo`, JSON `weekly`, `[]` sans l'option, bornes et refus
   avec `--since`, `TestContributorsWeeks`).
+- **Pull requests, releases et tags** (V2) : provider GitHub contre `githubtest` (conversion, ordre,
+  pagination et plafonds de 1 000, arrêt anticipé `UpdatedSince` sur une seule page, `Limit`, `304`
+  gratuits, dépôt vide, `409`, réponse inexploitable, `5xx`, `404`, arguments invalides sans requête ;
+  `pulls_test.go`), routes de `githubtest` (`state`, `sort`, `direction`, pagination) et faux
+  `providertest` (tri, `UpdatedSince`, erreur injectée `ErrUnsupported`, quota) ; schéma `00003`
+  (unicité, `CHECK`, cascades), écriture par `ApplyRepoSync` (création, mise à jour, remplacement des
+  releases et tags, conservation quand la liste n'est pas relue, refus d'une donnée invalide sans rien
+  écrire) et lectures (filtres d'état, tags datés par leur commit, résumé des dépôts) ; moteur
+  (`extras_test.go` : premier passage puis incrémental, échec isolé en avertissement avec commits gardés
+  et reprise au même point, `ErrUnsupported` sans avertissement ni effacement, quota bas et épuisé,
+  annulation) ; CLI (`watchoo prs` et `watchoo releases` en texte et en JSON, filtres, options
+  invalides, titres piégés neutralisés, avertissements de `watchoo sync`) ; web (cartes et fragment
+  `repo-pulls`, échappement d'un titre piégé, états vides, PR ouvertes sur le tableau de bord) ; TUI
+  (ligne « Pull requests » du détail, avertissements du bilan). Les deux tests de bout en bout lisent
+  aussi PR, releases et tags (`304` quand rien n'a changé).
 - **Moteur** (`internal/sync/`, `providertest` + base temporaire) : premier import, synchro
   incrémentale, tête inchangée (aucune requête de commits), nouvelle branche, merge qui apporte des
   commits plus anciens, force-push (branche et branche de référence), branche supprimée,

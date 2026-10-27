@@ -3,7 +3,8 @@
 [← Sommaire](README.md)
 
 Sept tables suffisent pour le MVP ; `commits` est la table centrale, reliée aux dépôts, aux branches (via
-`commit_branches`) et aux contributeurs. Le stockage est un fichier SQLite versionné par des migrations
+`commit_branches`) et aux contributeurs. La V2 en ajoute trois (migration `00003`) : `pull_requests`,
+`releases` et `tags`, soit **dix tables**. Le stockage est un fichier SQLite versionné par des migrations
 `goose`, avec **une base par espace de supervision** (`.watchoo/watchoo.db`, voir
 [Espaces de supervision](10-espaces-de-supervision.md)). Les tables ne connaissent donc pas la notion
 d'espace : deux espaces ne partagent jamais de données.
@@ -15,6 +16,9 @@ erDiagram
     repositories ||--o{ branches : "possède"
     repositories ||--o{ commits : "contient"
     repositories ||--o{ sync_runs : "journalise"
+    repositories ||--o{ pull_requests : "reçoit"
+    repositories ||--o{ releases : "publie"
+    repositories ||--o{ tags : "marque"
     commits ||--o{ commit_branches : "vu sur"
     branches ||--o{ commit_branches : "contient"
     contributors ||--o{ contributor_emails : "utilise"
@@ -142,6 +146,71 @@ Clé primaire : **`(repo_id, sha, branch_id)`**. Clé étrangère `(repo_id, sha
 Le dernier `sync_run` d'un dépôt donne l'état « en erreur ». Un `sync_run` `running` sert aussi de
 **verrou** : voir [Architecture](03-architecture.md#fréquence-de-synchronisation).
 
+### `pull_requests` — pull requests (V2)
+
+Clé primaire : **`(repo_id, number)`**. Une PR est enregistrée une fois par dépôt, puis mise à jour à
+chaque synchro qui la voit modifiée (voir
+[Synchronisation incrémentale](03-architecture.md#synchronisation-incrémentale)) ; elle n'est jamais
+supprimée, sauf avec son dépôt.
+
+| Colonne | Description |
+| --- | --- |
+| repo_id | Dépôt |
+| number | Numéro de la PR dans le dépôt (au moins 1) |
+| title | Titre (texte venu du dépôt : nettoyé à l'affichage, jamais dans les logs) |
+| state | `open` ou `closed`, comme sur la forge |
+| merged | Mergée (une PR mergée est aussi `closed`, avec `merged_at`) |
+| draft | Brouillon |
+| author_login | Login de l'auteur sur la forge ; vide si inconnu |
+| author_provider_id | Identifiant numérique du compte de l'auteur ; 0 si inconnu |
+| url | Lien vers la PR sur la forge |
+| base_branch | Branche visée |
+| head_branch | Branche proposée |
+| created_at | Date d'ouverture |
+| updated_at | Dernière modification (sert de point de reprise de la synchro suivante) |
+| closed_at | Date de fermeture ; vide si ouverte |
+| merged_at | Date de merge ; vide si non mergée. Une PR mergée a `state = closed` et `merged_at` renseigné |
+
+- **Auteur** : gardé tel quel (login et identifiant de compte), **sans lien** vers `contributors` : un
+  contributeur est l'auteur d'au moins un commit, et un auteur de PR sans commit ne doit pas apparaître
+  dans le classement. Le rapprochement reste possible par `author_provider_id` =
+  `contributors.provider_user_id`.
+- **État affiché** : « ouverte » (ou « brouillon »), « mergée » (`merged`) ou « fermée » (fermée sans
+  merge).
+
+### `releases` — releases (V2)
+
+Clé primaire : **`(repo_id, provider_id)`**. La liste d'un dépôt est **remplacée** à chaque synchro
+réussie de cette liste : une release supprimée sur la forge disparaît.
+
+| Colonne | Description |
+| --- | --- |
+| repo_id | Dépôt |
+| provider_id | Identifiant de la release sur la forge |
+| tag_name | Tag de la release |
+| name | Titre (peut être vide) |
+| draft | Brouillon (visible seulement d'un compte avec droit d'écriture sur le dépôt) |
+| prerelease | Pré-release |
+| author_login | Login de l'auteur ; vide si inconnu |
+| url | Lien vers la release sur la forge |
+| created_at | Date de création |
+| published_at | Date de publication ; vide pour un brouillon |
+
+### `tags` — tags (V2)
+
+Clé primaire : **`(repo_id, name)`**. Comme `releases`, la liste d'un dépôt est remplacée à chaque
+synchro réussie de cette liste.
+
+| Colonne | Description |
+| --- | --- |
+| repo_id | Dépôt |
+| name | Nom du tag |
+| sha | SHA du commit visé |
+
+La forge ne donne pas de date pour un tag : l'affichage reprend la date du commit visé quand il est en
+base (jointure sur `commits (repo_id, sha)`, sans clé étrangère : le commit peut être sur une branche
+non suivie).
+
 ## Index
 
 | Index | Usage |
@@ -149,6 +218,7 @@ Le dernier `sync_run` d'un dépôt donne l'état « en erreur ». Un `sync_run` 
 | `commits(repo_id, committed_at DESC)` | Vue « derniers commits » d'un dépôt |
 | `commits(author_id, committed_at DESC)` | Vue « activité d'un contributeur » |
 | `commit_branches(branch_id)` | Filtre « commits d'une branche » |
+| `pull_requests(repo_id, updated_at DESC)` | Point de reprise de la synchro des PR, liste des PR d'un dépôt |
 
 ## Fusion des identités
 

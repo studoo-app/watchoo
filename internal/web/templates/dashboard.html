@@ -70,7 +70,7 @@
         <p class="text-sm text-base-content/60">Aucun commit connu{{if .LastSyncedAt.IsZero}} : pas encore synchronisé{{end}}.</p>
         {{end}}
         <div class="card-actions justify-end text-xs text-base-content/60">
-          <span>{{plural .Commits "commit" "commits"}} · {{plural .TrackedBranches "branche suivie" "branches suivies"}}</span>
+          <span>{{plural .Commits "commit" "commits"}} · {{plural .TrackedBranches "branche suivie" "branches suivies"}}{{if .OpenPullRequests}} · {{plural .OpenPullRequests "PR ouverte" "PR ouvertes"}}{{end}}</span>
         </div>
       </div>
     </li>

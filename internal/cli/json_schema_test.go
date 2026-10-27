@@ -32,6 +32,8 @@ var jsonTopLevelKeys = map[string][]string{
 	"sync":         {"started_at", "finished_at", "summary", "repositories", "rate_limit"},
 	"log":          {"commits"},
 	"contributors": {"contributors"},
+	"prs":          {"pull_requests"},
+	"releases":     {"releases", "tags"},
 	"status": {"workspace", "github", "rate_limit", "rate_limit_error", "quota_low", "repositories", "errors",
 		"last_synced_at", "tracked_branches"},
 	"config export": {"format", "version", "exported_at", "watchoo_version", "workspace", "settings", "repositories"},
@@ -77,6 +79,8 @@ func TestJSONSchemaAllCommands(t *testing.T) {
 	outputs["repo list"] = h.run("repo", "list", "--json").mustSucceed(t).stdout
 	outputs["log"] = h.run("log", "--json").mustSucceed(t).stdout
 	outputs["contributors"] = h.run("contributors", "--json").mustSucceed(t).stdout
+	outputs["prs"] = h.run("prs", "--json").mustSucceed(t).stdout
+	outputs["releases"] = h.run("releases", "--json").mustSucceed(t).stdout
 	outputs["status"] = h.run("status", "--json").mustSucceed(t).stdout
 	outputs["repo remove"] = h.run("repo", "remove", "dave/projet", "--yes", "--json").mustSucceed(t).stdout
 	outputs["config export"] = h.run("config", "export", "--json").mustSucceed(t).stdout
@@ -92,6 +96,18 @@ func TestJSONSchemaAllCommands(t *testing.T) {
 		assertSingleJSONObject(t, cmd, out)
 		assertJSONKeys(t, out, "", keys...)
 	}
+	// Éléments de « prs » et « releases » (V2), et dépôts de « sync » (warnings).
+	assertJSONKeys(t, outputs["sync"], "repositories.0", "id", "full_name", "display_name", "status", "new_commits",
+		"tracked_branches", "stats_fetched", "duration_ms", "error", "resume_at", "warnings")
+	assertJSONKeys(t, outputs["prs"], "pull_requests.0", "repository", "number", "title", "state", "draft", "author",
+		"url", "base_branch", "head_branch", "created_at", "updated_at", "closed_at", "merged_at")
+	assertJSONKeys(t, outputs["prs"], "pull_requests.0.repository", "id", "full_name", "display_name")
+	assertJSONKeys(t, outputs["prs"], "pull_requests.0.author", "login")
+	assertJSONKeys(t, outputs["releases"], "releases.0", "repository", "id", "tag_name", "name", "draft", "prerelease",
+		"author", "url", "created_at", "published_at")
+	assertJSONKeys(t, outputs["releases"], "tags.0", "repository", "name", "sha", "short_sha", "commit_url",
+		"committed_at")
+	assertContains(t, "sync --json", outputs["sync"], `"warnings": []`)
 	// Éléments de « contributors » : weekly ([] sans --weeks, objets week / count avec).
 	assertJSONKeys(t, outputs["contributors"], "contributors.0", contributorKeys...)
 	weekly := h.run("contributors", "--weeks", "2", "--json").mustSucceed(t).stdout
@@ -206,6 +222,8 @@ func TestJSONSchemaEmptyWorkspace(t *testing.T) {
 		{[]string{"repo", "list"}, `"repositories": []`},
 		{[]string{"log"}, `"commits": []`},
 		{[]string{"contributors"}, `"contributors": []`},
+		{[]string{"prs"}, `"pull_requests": []`},
+		{[]string{"releases"}, `"tags": []`},
 		{[]string{"sync"}, `"repositories": []`},
 		{[]string{"status"}, `"errors": []`},
 	} {

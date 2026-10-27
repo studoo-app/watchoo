@@ -90,7 +90,9 @@ func existingCommitSHAs(ctx context.Context, q *db.Queries, repoID int64, shas [
 //  4. commit_branches : une ligne par (commit, branche de CommitWrite.Branches), commits déjà connus
 //     compris, sans doublon ; une branche absente de w.Branches est une erreur ;
 //  5. last_commit_at = max(committed_at) des commits liés à une branche suivie (NULL si aucun) ;
-//  6. sync_run w.RunID clos : status « success », finished_at = w.SyncedAt, new_commits.
+//  6. pull requests (V2) : chaque w.PullRequests créée ou mise à jour en entier ; releases et tags
+//     remplacés par w.Releases et w.Tags si w.ReplaceReleases / w.ReplaceTags (doublons ignorés) ;
+//  7. sync_run w.RunID clos : status « success », finished_at = w.SyncedAt, new_commits.
 //
 // Règles d'identité (auteur et committer) :
 //   - ProviderUserID != 0 : contributeur (provider du dépôt, provider_user_id) créé ou mis à jour
@@ -153,6 +155,10 @@ func (s *Store) ApplyRepoSync(ctx context.Context, w RepoSyncWrite) (RepoSyncRes
 					return fmt.Errorf("rattachement du commit %s à une branche : %w", shortSHA(c.SHA), err)
 				}
 			}
+		}
+
+		if err := writeExtras(ctx, q, w); err != nil {
+			return err
 		}
 
 		last, err := q.MaxTrackedCommittedAt(ctx, w.RepoID)
@@ -243,6 +249,9 @@ func prepareRepoSync(w RepoSyncWrite) ([]CommitWrite, error) {
 		c.Branches = slices.Clone(c.Branches)
 		merged = append(merged, c)
 	}
+	if err := checkExtras(w); err != nil {
+		return nil, err
+	}
 	for i := range merged {
 		slices.Sort(merged[i].Branches)
 		merged[i].Branches = slices.Compact(merged[i].Branches)
@@ -251,6 +260,90 @@ func prepareRepoSync(w RepoSyncWrite) ([]CommitWrite, error) {
 		return cmp.Or(a.CommittedAt.Compare(b.CommittedAt), strings.Compare(a.SHA, b.SHA))
 	})
 	return merged, nil
+}
+
+// checkExtras vérifie les pull requests, releases et tags de w (numéros, états, identifiants, dates).
+// Les messages ne citent que des numéros et des identifiants, jamais un titre ni un login.
+func checkExtras(w RepoSyncWrite) error {
+	for _, pr := range w.PullRequests {
+		switch {
+		case pr.Number <= 0:
+			return fmt.Errorf("pull request de numéro %d invalide", pr.Number)
+		case pr.State != model.PullRequestOpen && pr.State != model.PullRequestClosed:
+			return fmt.Errorf("pull request n° %d : état %q invalide", pr.Number, pr.State)
+		case pr.CreatedAt.IsZero() || pr.UpdatedAt.IsZero():
+			return fmt.Errorf("pull request n° %d sans date", pr.Number)
+		}
+	}
+	for _, r := range w.Releases {
+		if r.ProviderID <= 0 || r.TagName == "" || r.CreatedAt.IsZero() {
+			return fmt.Errorf("release %d invalide (identifiant, tag ou date absent)", r.ProviderID)
+		}
+	}
+	for _, t := range w.Tags {
+		if t.Name == "" || t.SHA == "" {
+			return fmt.Errorf("tag sans nom ou sans SHA (%s)", shortSHA(t.SHA))
+		}
+	}
+	return nil
+}
+
+// writeExtras écrit les pull requests (créées ou mises à jour), puis remplace releases et tags si
+// demandé.
+func writeExtras(ctx context.Context, q *db.Queries, w RepoSyncWrite) error {
+	for _, pr := range w.PullRequests {
+		if err := q.UpsertPullRequest(ctx, db.UpsertPullRequestParams{
+			RepoID:           w.RepoID,
+			Number:           int64(pr.Number),
+			Title:            pr.Title,
+			State:            pr.State,
+			Merged:           pr.Merged,
+			Draft:            pr.Draft,
+			AuthorLogin:      pr.AuthorLogin,
+			AuthorProviderID: pr.AuthorProviderID,
+			URL:              pr.URL,
+			BaseBranch:       pr.BaseBranch,
+			HeadBranch:       pr.HeadBranch,
+			CreatedAt:        FormatTime(pr.CreatedAt),
+			UpdatedAt:        FormatTime(pr.UpdatedAt),
+			ClosedAt:         nullTime(pr.ClosedAt),
+			MergedAt:         nullTime(pr.MergedAt),
+		}); err != nil {
+			return fmt.Errorf("enregistrement de la pull request n° %d : %w", pr.Number, err)
+		}
+	}
+	if w.ReplaceReleases {
+		if err := q.DeleteReleases(ctx, w.RepoID); err != nil {
+			return fmt.Errorf("remplacement des releases : %w", err)
+		}
+		for _, r := range w.Releases {
+			if err := q.InsertRelease(ctx, db.InsertReleaseParams{
+				RepoID:      w.RepoID,
+				ProviderID:  r.ProviderID,
+				TagName:     r.TagName,
+				Name:        r.Name,
+				Draft:       r.Draft,
+				Prerelease:  r.Prerelease,
+				AuthorLogin: r.AuthorLogin,
+				URL:         r.URL,
+				CreatedAt:   FormatTime(r.CreatedAt),
+				PublishedAt: nullTime(r.PublishedAt),
+			}); err != nil {
+				return fmt.Errorf("enregistrement de la release %d : %w", r.ProviderID, err)
+			}
+		}
+	}
+	if w.ReplaceTags {
+		if err := q.DeleteTags(ctx, w.RepoID); err != nil {
+			return fmt.Errorf("remplacement des tags : %w", err)
+		}
+		for _, t := range w.Tags {
+			if err := q.InsertTag(ctx, db.InsertTagParams{RepoID: w.RepoID, Name: t.Name, SHA: t.SHA}); err != nil {
+				return fmt.Errorf("enregistrement d'un tag (%s) : %w", shortSHA(t.SHA), err)
+			}
+		}
+	}
+	return nil
 }
 
 // writeRepoMetadata écrit les métadonnées du dépôt et last_synced_at.

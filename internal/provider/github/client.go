@@ -9,7 +9,8 @@
 //     logs) et type Cache ;
 //   - quota.go : état du quota partagé (type Quota), lecture des en-têtes de quota ;
 //   - errors.go : conversion des réponses et erreurs de go-github vers les erreurs de provider ;
-//   - repos.go, commits.go, ratelimit.go : appels d'API et conversion des types go-github.
+//   - repos.go, commits.go, pulls.go (pull requests, releases, tags), ratelimit.go : appels d'API et
+//     conversion des types go-github.
 //
 // # Token
 //

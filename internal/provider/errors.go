@@ -40,6 +40,10 @@ var (
 	ErrUnavailable = errors.New("GitHub est injoignable ou indisponible : réessayez plus tard")
 	// ErrUnexpected : réponse illisible (JSON invalide) ou code HTTP imprévu.
 	ErrUnexpected = errors.New("réponse inattendue de GitHub")
+	// ErrUnsupported : la source ne connaît pas la notion demandée (par exemple les pull requests ou
+	// les releases d'un dépôt suivi par clone Git local) ; aucune requête n'est partie. Le moteur de
+	// synchro la traite comme « non disponible pour cette source », pas comme un échec.
+	ErrUnsupported = errors.New("non disponible pour cette source")
 )
 
 // APIError est l'erreur renvoyée pour une requête à la forge qui a échoué (ou qui a été bloquée avant
