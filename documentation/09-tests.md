@@ -16,6 +16,7 @@ pas de token. Tout ce qui sort du binaire est simulé.
 | Base SQLite et requêtes sqlc | Base SQLite temporaire par test, migrations goose appliquées | `internal/store/` |
 | Import groupé | Fichiers CSV et texte de test : ligne mal formée, doublons, dépôt inaccessible (`404`), relance idempotente, `--dry-run` sans écriture | `internal/cli/` + `internal/sync/` |
 | Moteur de synchro | Faux Provider en mémoire (`providertest`) + base temporaire | `internal/sync/` |
+| Releases de Watchoo (mise à jour, 0.6.0) | Faux serveur de releases (`selfupdatetest`, sur `httptest`) : redirection de `/latest`, archives et sommes en mémoire | `internal/selfupdate/` |
 | CLI | Exécution des commandes cobra, vérification de la sortie texte et JSON | `internal/cli/` |
 | Web | `httptest` sur le routeur chi, vérification des pages et fragments | `internal/web/` |
 | TUI | Tests du modèle Bubble Tea : messages envoyés, état et rendu obtenus | `internal/tui/` |
@@ -384,6 +385,28 @@ vide, `GIT_CONFIG_NOSYSTEM`, pas d'entretien automatique). Le provider s'y branc
   l'astuce, borne de 80 colonnes, pas de carte sous 40, repli 100 % ASCII, couleurs seulement si permises.
 - CLI : carte affichée seulement sur un terminal simulé, jamais avec `--json`, sur stderr ni dans une sortie
   redirigée (la sortie de `watchoo version` hors terminal ne change pas).
+
+## Mise à jour de Watchoo (0.6.0)
+
+Aucun test ne joint GitHub : la racine des releases est celle d'un faux serveur `httptest`
+(`internal/selfupdate/selfupdatetest`), qui redirige `/latest` vers `/tag/vX.Y.Z` et sert des archives
+`tar.gz` / `zip` et un fichier de sommes construits en mémoire.
+
+- `internal/selfupdate` : dernière version lue dans la redirection (page de la release jamais
+  téléchargée), absence de release, tag invalide ou pré-version ignorés ; table de comparaison SemVer
+  (préfixe `v`, pré-versions, `dev`, pseudo-versions, version installée plus récente) ; somme SHA-256
+  fausse ou archive absente du fichier de sommes refusées ; archive sans binaire refusée ; taille
+  plafonnée ; remplacement d'un faux « exécutable » temporaire (contenu, droits `0755`, aucun fichier
+  temporaire oublié ; variante Windows avec `.old`) ; répertoire non accessible en écriture ; HTTP
+  refusé hors boucle locale, redirection vers HTTP refusée ; refus Docker et version de développement ;
+  `WATCHOO_NO_UPDATE_CHECK` ; `Monitor` (vérification immédiate, annonce unique, version gardée).
+- CLI : avis écrit sur stderr quand une version plus récente existe (terminal simulé), absent avec
+  `--json`, hors terminal, avec `WATCHOO_NO_UPDATE_CHECK`, pour `dev`, pour une version à jour, pour
+  `update` lui-même, et quand le serveur répond après le délai (la commande n'attend pas plus) ;
+  `update --check` en texte et en JSON (contrat de `json_schema_test.go`) ; `update` confirmé, refusé,
+  avec `--yes`, sans terminal ni `--yes`, déjà à jour, dans Docker, en version `dev`.
+- Web : bandeau présent sur les pages quand une nouvelle version est connue (texte Docker compris),
+  absent sinon et sur les pages d'erreur publiques.
 
 ## En CI
 

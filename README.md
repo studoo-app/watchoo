@@ -158,16 +158,24 @@ base est mise à niveau toute seule (migrations) à la première commande lancé
 Lisez d'abord le [journal des modifications](CHANGELOG.md) : en `0.y.z`, une version mineure peut changer
 l'interface.
 
+- **`watchoo update`** (le plus simple pour une installation par le script ou par un binaire de
+  release) : la commande affiche la version installée et la dernière, demande confirmation, télécharge
+  l'archive de la release, vérifie sa somme SHA-256 et remplace le binaire d'un bloc ;
+  `watchoo update --check` vérifie seulement. Si le répertoire du binaire n'est pas accessible en écriture
+  (installation dans `/usr/local/bin`, par exemple), relancez avec les droits nécessaires ou utilisez le
+  script d'installation ci-dessous. Chaque commande signale d'ailleurs, sur la sortie d'erreur, qu'une
+  nouvelle version est disponible ; posez `WATCHOO_NO_UPDATE_CHECK=1` pour couper cette vérification.
 - **Script d'installation** : relancez la même commande (avec le même `WATCHOO_INSTALL_DIR` si vous en
   aviez choisi un). Le binaire est remplacé d'un bloc ; un `watchoo serve` déjà lancé garde l'ancienne
   version jusqu'à son redémarrage.
 - **Binaires de release** : téléchargez et vérifiez la nouvelle archive comme ci-dessus, puis remplacez
   le binaire.
-- **Docker** : changez le tag de l'image (`ghcr.io/studoo-app/watchoo:<version>`), puis recréez le
+- **Docker** (`watchoo update` y est refusé, et la vérification des nouvelles versions coupée) : changez le tag de l'image (`ghcr.io/studoo-app/watchoo:<version>`), puis recréez le
   conteneur (`docker rm -f watchoo` puis le même `docker run -d …`) ; avec compose, changez le tag dans
   `docker-compose.yml` puis `docker compose pull && docker compose up -d`. Le volume est conservé.
 - **Depuis les sources** : `go install github.com/studoo-app/watchoo/cmd/watchoo@latest`, ou
-  `git pull && make build` dans le clone.
+  `git pull && make build` dans le clone (`watchoo update` refuse de remplacer une version de
+  développement).
 
 Vérifiez ensuite avec `watchoo version`. Les migrations ne vont que dans un sens : une base mise à
 niveau peut ne plus s'ouvrir avec une version plus ancienne. Pour pouvoir revenir en arrière, copiez

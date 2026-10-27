@@ -313,6 +313,18 @@ pour ses commits (`store.ContributorCommitTimes`), et empilé par semaine avec *
 - **Accessibilité** : chaque `<canvas>` a `role="img"` et un `aria-label` qui résume la série ; un résumé
   textuel est affiché à côté du titre.
 
+## Bandeau de nouvelle version (0.6.0)
+
+`watchoo serve` vérifie au démarrage, puis toutes les 24 h, si une version plus récente de Watchoo est
+publiée (voir [CLI](05-cli.md#mise-à-jour--watchoo-update)). Quand c'en est une, **toutes les pages**
+(sauf les pages d'erreur publiques, montrées avant authentification) affichent sous la barre de
+navigation un bandeau discret (alerte DaisyUI `alert-info alert-soft`, `role="status"`) :
+« Nouvelle version de Watchoo disponible : v0.5.0 → v0.6.0 », un lien « Notes de version » vers la page
+de la release (nouvel onglet) et la marche à suivre : `watchoo update` puis redémarrer `watchoo serve` ;
+dans l'image Docker, changer le tag de l'image. Pas de bandeau quand la vérification est coupée
+(`WATCHOO_NO_UPDATE_CHECK`, posée dans l'image Docker), échoue, ou que la version est à jour. Le bandeau
+ne fait aucune requête : la version connue est gardée en mémoire par le processus (`selfupdate.Monitor`).
+
 ## Navigation
 
 ```mermaid

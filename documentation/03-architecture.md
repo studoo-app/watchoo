@@ -73,6 +73,9 @@ watchoo/
   internal/configshare/ partage de la configuration d'un espace (export JSON, validation, aperçu et
                        application d'un import ; « watchoo config », page Réglages)
   internal/textclean/  nettoyage des textes affichés (séquences d'échappement, contrôles), CLI et TUI
+  internal/selfupdate/ mise à jour de Watchoo lui-même (0.6.0) : dernière version publiée, comparaison
+                       SemVer, téléchargement vérifié et remplacement du binaire, vérification
+                       périodique de « watchoo serve »
   internal/store/      SQLite, accès aux données
     migrations/        migrations goose (servent aussi de schéma à sqlc)
     queries/           requêtes SQL annotées pour sqlc
@@ -89,7 +92,9 @@ watchoo/
 Abstraction qui isole toute forge, définie dans `internal/provider`, sans dépendance à GitHub ni à
 go-github. Deux implémentations : l'API GitHub (`internal/provider/github`, seul endroit où go-github est
 importé) et, depuis la V2, les clones Git locaux (`internal/provider/git`, voir
-[Dépôts Git locaux](#dépôts-git-locaux-v2)). Signature fixée en phase 2 (détail dans
+[Dépôts Git locaux](#dépôts-git-locaux-v2)). Seule exception : `internal/selfupdate` lit les pages
+publiques des releases de Watchoo lui-même, sans token ni API (voir
+[Mise à jour de Watchoo](#mise-à-jour-de-watchoo-060)). Signature fixée en phase 2 (détail dans
 `internal/provider/provider.go`) :
 
 | Méthode | Rôle |
@@ -616,6 +621,62 @@ En place depuis la phase 6 ([Roadmap](07-roadmap.md#phase-6--v2)).
 - Avec les clones Git locaux (V2, sans `gh`), le login n'est jamais connu : les commits ne sont
   rattachés que par e-mail (deux e-mails d'une même personne font deux contributeurs tant qu'une synchro
   par l'API ne les a pas reliés à un même compte).
+
+### Mise à jour de Watchoo (0.6.0)
+
+Watchoo signale ses nouvelles versions et sait remplacer son propre binaire (`watchoo update`, voir
+[CLI](05-cli.md#mise-à-jour--watchoo-update)). Tout est dans `internal/selfupdate` ; `cli` et `web` ne
+font qu'afficher.
+
+- **Exception documentée** à la règle « rien de spécifique à GitHub hors de `internal/provider/github` et
+  `internal/provider/git` » : `internal/selfupdate` lit les **pages publiques des releases de Watchoo
+  lui-même** (`https://github.com/studoo-app/watchoo/releases`), sans rapport avec les dépôts suivis.
+  Il n'utilise **ni token** (ni celui de `gh`, ni aucun autre), **ni l'API GitHub** (donc aucun quota),
+  ni go-github : seulement `net/http` et la bibliothèque standard (`archive/tar`, `compress/gzip`,
+  `archive/zip`, `crypto/sha256`). Aucune requête n'écrit quoi que ce soit (GET seulement).
+- **Dernière version** : comme `install.sh`, Watchoo demande `…/releases/latest` et lit le tag dans la
+  redirection vers `…/releases/tag/vX.Y.Z` (la page elle-même n'est pas téléchargée). GitHub n'y
+  redirige que vers la dernière release publiée qui n'est pas une pré-version : une pré-version n'est
+  jamais proposée (un tag avec suffixe est ignoré par sécurité).
+- **Comparaison** : SemVer 2.0.0 (préfixe `v`, pré-versions moins prioritaires que la version finale).
+  Avis seulement si la dernière version est strictement plus récente ; une version installée plus récente
+  que la dernière publiée ne donne aucun avis. Une version `dev`, une pseudo-version de Go
+  (`v0.0.0-2026…-abcdef`) ou toute version avec suffixe n'est pas une version de release : ni avis ni
+  mise à jour automatique.
+- **Transport** : HTTPS seulement, redirections comprises (HTTP accepté uniquement vers la boucle locale,
+  pour le faux serveur des tests, comme `WATCHOO_RELEASES_URL` d'`install.sh`) ; `User-Agent`
+  `watchoo/<version>` ; tailles plafonnées (archive 100 Mo, fichier de sommes 1 Mo, binaire extrait
+  200 Mo). La racine des releases est injectable (tests : faux serveur `httptest`, jamais le réseau).
+- **Avis à chaque commande** : décision du mainteneur, la vérification a lieu à **chaque lancement**,
+  sans cache. Elle part dans une goroutine dès le début de la commande (`PersistentPreRun` de la
+  commande racine), avec un délai total de 1,5 s ; après la commande, l'avis est écrit sur la sortie
+  d'erreur si la réponse est déjà là ou arrive avant la fin de ce délai, compté depuis le début : une
+  commande n'est jamais retardée de plus de 1,5 s, et une commande longue (`sync`) pas du tout. Échec ou
+  absence de réseau : rien n'est affiché (log de niveau debug, visible avec `--verbose`). Pas de
+  vérification avec `--json`, quand la sortie d'erreur n'est pas un terminal, pour une version qui n'est
+  pas une version de release, pour `update` (qui vérifie de toute façon), `serve` (qui a sa propre
+  vérification), l'aide et `watchoo` seul, ni quand `WATCHOO_NO_UPDATE_CHECK` vaut autre chose que
+  vide, `0` ou `false`.
+- **`watchoo serve`** : vérification au démarrage puis toutes les 24 h (`selfupdate.Monitor`, tant que le
+  serveur tourne) ; une nouvelle version est annoncée une fois sur la sortie d'erreur et gardée en
+  mémoire, d'où l'interface web tire son bandeau.
+- **Remplacement du binaire** : archive `watchoo_<version>_<os>_<arch>.tar.gz` (`.zip` sous Windows) et
+  `watchoo_<version>_checksums.txt` de la release ; somme SHA-256 de l'archive comparée à celle du
+  fichier de sommes (refus sinon) ; binaire `watchoo` (`watchoo.exe`) extrait en mémoire. Le chemin du
+  binaire en cours est `os.Executable` suivi de `filepath.EvalSymlinks` ; le nouveau binaire est écrit
+  dans un fichier temporaire **du même répertoire**, passé en `0755`, puis renommé par-dessus l'ancien
+  (renommage atomique : un binaire n'est jamais à moitié écrit ; un processus déjà lancé garde
+  l'ancien). Sous Windows, où un exécutable lancé ne peut pas être remplacé, l'ancien est d'abord
+  renommé en `watchoo.exe.old`.
+- **Refus** (code de retour non nul, message qui dit quoi faire) : dans l'image Docker (variable
+  `WATCHOO_DOCKER`, posée par le `Dockerfile`, ou fichier `/.dockerenv`) : changer le tag de l'image ;
+  version de développement : `go install …@latest` ou `git pull && make build` ; répertoire du binaire
+  non accessible en écriture : droits, `sudo`, ou réinstallation par `install.sh` avec
+  `WATCHOO_INSTALL_DIR`.
+- **Après la mise à jour** : un `watchoo serve` déjà lancé garde l'ancienne version jusqu'à son
+  redémarrage ; la base de chaque espace est mise à niveau (migrations) à la prochaine commande.
+- **Image Docker** : `WATCHOO_NO_UPDATE_CHECK=1` et `WATCHOO_DOCKER=1` dans le `Dockerfile` (une image
+  se met à jour en changeant de tag, pas par `watchoo update`).
 
 ### Version de Go
 - **Décision** : on part de la **dernière version stable** de Go. Le numéro exact est fixé dans `go.mod`
