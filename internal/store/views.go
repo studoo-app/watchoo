@@ -23,6 +23,7 @@ import (
 func (s *Store) ListRecentCommits(ctx context.Context, f CommitFilter) ([]CommitView, error) {
 	params := db.ListRecentCommitsParams{
 		RepoID:    optionalID(f.RepoID),
+		AuthorID:  optionalID(f.AuthorID),
 		Since:     optionalTime(f.Since),
 		Branch:    optionalString(f.Branch),
 		RowLimit:  rowLimit(f.Limit),
@@ -65,6 +66,7 @@ func (s *Store) ContributorRanking(ctx context.Context, f ContributorFilter) ([]
 			Contributor: contributorFromDB(db.Contributor{
 				ID: row.ID, Provider: row.Provider, ProviderUserID: row.ProviderUserID,
 				ProviderLogin: row.ProviderLogin, Name: row.Name, AvatarURL: row.AvatarURL,
+				ProfileURL: row.ProfileURL,
 			}),
 			Commits:      int(row.Commits),
 			Additions:    int(row.Additions),
@@ -200,12 +202,13 @@ func (s *Store) repositorySummaries(ctx context.Context, id int64) ([]Repository
 					return err
 				}
 				summary.LastCommit = CommitView{
-					Commit:      commit,
-					RepoOwner:   repo.Owner,
-					RepoName:    repo.Name,
-					RepoLabel:   repo.Label,
-					AuthorName:  c.AuthorName,
-					AuthorLogin: c.AuthorLogin,
+					Commit:           commit,
+					RepoOwner:        repo.Owner,
+					RepoName:         repo.Name,
+					RepoLabel:        repo.Label,
+					AuthorName:       c.AuthorName,
+					AuthorLogin:      c.AuthorLogin,
+					AuthorProfileURL: c.AuthorProfileURL,
 				}
 			}
 			if r, ok := runs[repo.ID]; ok {
@@ -256,6 +259,7 @@ func contributorFromDB(row db.Contributor) model.Contributor {
 		ProviderLogin:  row.ProviderLogin,
 		Name:           row.Name,
 		AvatarURL:      row.AvatarURL,
+		ProfileURL:     row.ProfileURL,
 	}
 }
 

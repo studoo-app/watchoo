@@ -1,7 +1,7 @@
 package tui
 
 // Rendu de l'écran : en-tête, liste de la vue courante (dépôts, commits, contributeurs), détail d'un
-// dépôt ou aide, puis bas de l'écran (message, filtre, rappel des touches).
+// dépôt ou d'un contributeur, ou aide, puis bas de l'écran (message, filtre, rappel des touches).
 
 import (
 	"fmt"
@@ -60,6 +60,8 @@ func (m Model) render() string {
 		body = m.renderHelp()
 	case m.detail.open:
 		body = m.renderDetail()
+	case m.cdetail.open:
+		body = m.renderContribDetail()
 	default:
 		body = m.renderList()
 	}
@@ -89,7 +91,7 @@ func (m Model) renderFooter(w int) []string {
 		} else {
 			msg = text
 		}
-	case ls.filter != "" && !m.detail.open && !m.showHelp:
+	case ls.filter != "" && !m.detail.open && !m.cdetail.open && !m.showHelp:
 		msg = m.st.Muted.Render(truncate("Filtre : "+ls.filter+" (échap pour l'effacer)", w, m.ellipsis()))
 	}
 	var keys []string

@@ -34,7 +34,8 @@ func (s *Store) LatestPullRequestUpdate(ctx context.Context, repoID int64) (time
 // ancienne (puis dépôt, puis numéro décroissant) ; liste vide non nil si aucune. Un Status inconnu
 // est une erreur.
 func (s *Store) ListPullRequests(ctx context.Context, f PullRequestFilter) ([]PullRequestView, error) {
-	params := db.ListPullRequestsParams{RepoID: optionalID(f.RepoID), RowLimit: rowLimit(f.Limit)}
+	params := db.ListPullRequestsParams{RepoID: optionalID(f.RepoID),
+		AuthorProviderID: optionalID(f.AuthorProviderID), RowLimit: rowLimit(f.Limit)}
 	switch f.Status {
 	case "":
 	case model.PullRequestStatusOpen:

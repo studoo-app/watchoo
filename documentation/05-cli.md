@@ -533,6 +533,16 @@ et les contributeurs au clavier, avec filtre et vue détail, et on peut y lancer
   derniers commits et les 5 premiers contributeurs, avec leurs commits sur les 12 dernières semaines
   (colonne « 12 SEM. ») et une courbe d'un caractère par semaine, la plus récente à droite (« PAR
   SEMAINE » : `▁` à `█`, ou `.` `-` `=` `#` sans Unicode ; `▁` ou `.` = aucun commit).
+- **Détail d'un contributeur** (0.5.0, `entrée` dans la vue Contributeurs ; `échap` revient à la
+  liste) : nom, login (le TUI n'affiche pas d'adresse, ni celle du profil), nombre d'identités Git
+  rattachées (jamais les adresses) ; totaux (commits, lignes `+/-` ou `-` si inconnues, dépôts, premier
+  et dernier commit) ; activité sur 12 semaines (total et courbe d'un caractère par semaine, comme
+  ci-dessus) ; ses dépôts (commits, `+/-`, courbe par semaine, dernier commit, état du dépôt) ; ses 15
+  derniers commits (quand, dépôt, SHA court, `+/-`, première ligne du message). Les lignes ajoutées et
+  supprimées ne sont connues que pour les commits découverts après le premier import d'un dépôt (rappel
+  en bas du détail). Le détail défile avec `↑` `↓`. **Choix** : la table des principaux contributeurs du
+  détail d'un dépôt n'est pas sélectionnable (le détail défile, il n'a pas de curseur) ; on passe par la
+  vue Contributeurs (filtre `/`).
 - **En-tête** : hibou mini (pupilles vertes), version et espace, onglets, ligne de synchro (en cours avec
   la progression, dernière synchro, prochaine synchro automatique à HH:MM, ou « Synchro manuelle (s) »).
 - **Synchro** : une seule à la fois (une demande de plus est ignorée et signalée) ; à la fin, une ligne de
@@ -547,7 +557,7 @@ et les contributeurs au clavier, avec filtre et vue détail, et on peut y lancer
 | --- | --- |
 | `tab` / `maj+tab`, `1` `2` `3` | Vue suivante / précédente, vue Dépôts, Commits, Contributeurs |
 | `↑` `↓` ou `k` `j`, `pg.préc` `pg.suiv`, `g` `G` | Déplacer la sélection, par page, début et fin de la liste |
-| `entrée` | Détail du dépôt sélectionné (vue Dépôts ou Commits) |
+| `entrée` | Détail du dépôt sélectionné (vue Dépôts ou Commits) ou du contributeur sélectionné (vue Contributeurs, 0.5.0) |
 | `échap` | Retour, ou effacer le filtre |
 | `/` | Filtrer la vue (sous-chaîne, sans tenir compte de la casse) ; `entrée` garde le filtre, `ctrl+u` le vide |
 | `s` / `S` | Synchroniser tous les dépôts / le dépôt sélectionné |

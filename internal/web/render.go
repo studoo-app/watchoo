@@ -26,11 +26,12 @@ const (
 	pageDashboard    = "dashboard"
 	pageRepo         = "repo"
 	pageContributors = "contributors"
+	pageContributor  = "contributor"
 	pageSettings     = "settings"
 	pageErrors       = "errors"
 )
 
-var pageNames = []string{pageDashboard, pageRepo, pageContributors, pageSettings, pageSettingsImport, pageErrors}
+var pageNames = []string{pageDashboard, pageRepo, pageContributors, pageContributor, pageSettings, pageSettingsImport, pageErrors}
 
 // Entrées de la barre de navigation (PageData.Nav).
 const (

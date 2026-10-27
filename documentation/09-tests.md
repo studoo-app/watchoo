@@ -131,6 +131,20 @@ Deux faux, écrits en phase 2 et réutilisés par les phases suivantes :
   période) ; détail du TUI (colonnes « 12 SEM. » et « PAR SEMAINE », faux `DataSource` et vraie base) ;
   `watchoo contributors --weeks` (texte, `--repo`, JSON `weekly`, `[]` sans l'option, bornes et refus
   avec `--since`, `TestContributorsWeeks`).
+- **Page par contributeur** (0.5.0) : store (`TestContributorProfile` : totaux, identités comptées
+  sans adresse, contributeur sans commit, inconnu → `ErrNotFound` ; `TestContributorRepos` ; filtre
+  `AuthorID` de `ListRecentCommits` / `CommitPage` ; `ContributorCommitTimes` ; filtre
+  `AuthorProviderID` des pull requests) ; `activity.CountRepoWeeks` ; graphique par dépôt
+  (`buildRepoChart`) ; page web (`internal/web/contributor_test.go` : contenu, totaux et « — », dépôts
+  et pastilles, commits paginés, pull requests rapprochées par compte, carte absente sans compte,
+  contributeur sans commit, `404`, fragments HTMX, noms et messages hostiles échappés, aucune adresse
+  e-mail ni nom dans le journal, liens depuis le classement, la page d'un dépôt, l'historique et le
+  tableau de bord ; étape « 7 bis » du test de bout en bout web) ; TUI (ouverture par `entrée` dans la
+  vue Contributeurs, rendu, `échap`, aide, faux `DataSource` et vraie base).
+- **Liens vers les profils** (0.5.0) : `html_url` lu par le provider GitHub (`toPerson`), vide pour le
+  provider Git local ; colonne `profile_url` (migration `00005` sur une base existante, valeur gardée
+  quand une identité arrive sans adresse) ; lien « GitHub » présent avec un login connu, absent sans
+  compte, adresse non `https://` refusée (`profileURL`).
 - **Pull requests, releases et tags** (V2) : provider GitHub contre `githubtest` (conversion, ordre,
   pagination et plafonds de 1 000, arrêt anticipé `UpdatedSince` sur une seule page, `Limit`, `304`
   gratuits, dépôt vide, `409`, réponse inexploitable, `5xx`, `404`, arguments invalides sans requête ;

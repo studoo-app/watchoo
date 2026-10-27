@@ -40,8 +40,8 @@ const (
 //
 // Conversion (toCommit, utilisée aussi par CompareCommits) depuis *RepositoryCommit : SHA = sha ;
 // Message = commit.message ; URL = html_url ; Author = {commit.author.name, commit.author.email,
-// author.login, author.id, author.avatar_url} (author est nul quand aucun compte GitHub n'est lié à
-// l'e-mail : Login, ID et AvatarURL restent vides) ; Committer de même avec commit.committer et
+// author.login, author.id, author.avatar_url, author.html_url} (author est nul quand aucun compte
+// GitHub n'est lié à l'e-mail : Login, ID, AvatarURL et ProfileURL restent vides) ; Committer de même avec commit.committer et
 // committer ; AuthoredAt = commit.author.date et CommittedAt = commit.committer.date, en UTC ;
 // Parents = parents[].sha dans l'ordre (slice vide non nil pour un commit racine). Un commit sans SHA
 // complet (ou dont un parent n'en a pas) → p.unexpected.
@@ -316,14 +316,15 @@ func toCommit(rc *gogithub.RepositoryCommit) (provider.Commit, bool) {
 }
 
 // toPerson assemble l'identité Git (nom, e-mail, tirés de commit.author ou commit.committer) et le
-// compte GitHub lié (login, id, avatar, tirés de author ou committer), nil quand aucun compte n'est lié
+// compte GitHub lié (login, id, avatar, page de profil html_url, tirés de author ou committer), nil quand aucun compte n'est lié
 // à l'e-mail du commit.
 func toPerson(git *gogithub.CommitAuthor, account *gogithub.User) provider.Person {
 	return provider.Person{
-		Name:      git.GetName(),
-		Email:     git.GetEmail(),
-		Login:     account.GetLogin(),
-		ID:        account.GetID(),
-		AvatarURL: account.GetAvatarURL(),
+		Name:       git.GetName(),
+		Email:      git.GetEmail(),
+		Login:      account.GetLogin(),
+		ID:         account.GetID(),
+		AvatarURL:  account.GetAvatarURL(),
+		ProfileURL: account.GetHTMLURL(),
 	}
 }

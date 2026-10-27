@@ -9,6 +9,24 @@ un changement incompatible fait monter MINOR et tout changement compatible fait 
 
 ## [Unreleased]
 
+### Ajouté
+
+- **Page par contributeur** : l'interface web gagne la page `/contributors/{id}` : nom, login, avatar et
+  nombre d'identités Git connues (jamais les adresses), totaux (commits, lignes ajoutées et supprimées,
+  « — » si inconnues, dépôts, premier et dernier commit), commits par jour sur 90 jours, commits par
+  semaine et par dépôt sur 12 semaines (table des données repliable), ses dépôts (commits, lignes,
+  dernier commit, état du dépôt), ses commits paginés (50 par page) et ses pull requests, rapprochées par
+  son compte GitHub quand il est connu. Le nom d'un contributeur y mène depuis le classement des
+  contributeurs, les tables des graphiques par contributeur, les contributeurs de la page d'un dépôt,
+  l'auteur des commits des historiques et du tableau de bord. Dans le TUI, `entrée` sur la vue
+  Contributeurs ouvre le détail d'un contributeur (totaux, lignes `+/-`, courbe sur 12 semaines, ses
+  dépôts, ses derniers commits) ; `échap` revient à la liste.
+- **Lien vers le profil GitHub** des contributeurs dont le compte est connu, partout où l'interface web
+  en montre un (lien secondaire « GitHub », nouvel onglet). L'adresse est celle que donne l'API GitHub,
+  enregistrée dans la nouvelle colonne `contributors.profile_url` (migration `00005`, appliquée
+  automatiquement) ; pour les contributeurs déjà en base, elle arrive avec leur prochain commit lu par
+  l'API. Aucun lien pour un contributeur connu seulement par Git (clones Git locaux).
+
 ## [0.4.0] - 2026-10-27
 
 V2 : dépôts Git locaux sans `gh`, pull requests, releases et tags, seuils d'activité par dépôt et

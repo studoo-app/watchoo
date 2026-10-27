@@ -17,11 +17,13 @@ func TestTemplatesParseAndDefineFragments(t *testing.T) {
 		pageDashboard:    {"content", "dashboard-repos", "dashboard-feed"},
 		pageRepo:         {"content", "repo-commits", "scripts"},
 		pageContributors: {"content", "contributors-table"},
-		pageSettings:     {"content", "settings-quota"},
-		pageErrors:       {"content", "error-alert"},
+		pageContributor: {"content", "scripts", "contributor-overview", "contributor-repos", "contributor-pulls",
+			"contributor-commits"},
+		pageSettings: {"content", "settings-quota"},
+		pageErrors:   {"content", "error-alert"},
 	}
 	common := []string{"layout", "state-badge", "rel-time", "csrf-field", "avatar", "flash", "sync-status",
-		"sync-all-button", "sync-repo-button"}
+		"sync-all-button", "sync-repo-button", "profile-link", "contributor-link", "commit-item"}
 	for page, names := range want {
 		set, ok := e.server.pages[page]
 		if !ok {

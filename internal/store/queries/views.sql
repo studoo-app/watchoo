@@ -1,16 +1,18 @@
 -- name: ListRecentCommits :many
--- Derniers commits filtres (depot, auteur, branche, periode), du plus recent au plus ancien.
+-- Derniers commits filtres (depot, auteur, contributeur auteur, branche, periode), du plus recent au plus ancien.
 -- author_email doit etre deja en minuscules ; author est compare sans casse (ASCII) au login et au nom.
 -- row_limit negatif = pas de limite.
 SELECT c.repo_id, c.sha, c.author_id, c.committer_id, c.message, c.authored_at, c.committed_at,
        c.additions, c.deletions, c.url,
        r.owner AS repo_owner, r.name AS repo_name, r.label AS repo_label,
        CAST(COALESCE(a.name, '') AS TEXT) AS author_name,
-       CAST(COALESCE(a.provider_login, '') AS TEXT) AS author_login
+       CAST(COALESCE(a.provider_login, '') AS TEXT) AS author_login,
+       CAST(COALESCE(a.profile_url, '') AS TEXT) AS author_profile_url
 FROM commits c
 JOIN repositories r ON r.id = c.repo_id
 LEFT JOIN contributors a ON a.id = c.author_id
 WHERE (sqlc.narg(repo_id) IS NULL OR c.repo_id = sqlc.narg(repo_id))
+  AND (sqlc.narg(author_id) IS NULL OR c.author_id = sqlc.narg(author_id))
   AND (sqlc.narg(since) IS NULL OR c.committed_at >= sqlc.narg(since))
   AND (sqlc.narg(branch) IS NULL OR EXISTS (
         SELECT 1 FROM commit_branches cb
@@ -31,6 +33,7 @@ SELECT count(*)
 FROM commits c
 LEFT JOIN contributors a ON a.id = c.author_id
 WHERE (sqlc.narg(repo_id) IS NULL OR c.repo_id = sqlc.narg(repo_id))
+  AND (sqlc.narg(author_id) IS NULL OR c.author_id = sqlc.narg(author_id))
   AND (sqlc.narg(since) IS NULL OR c.committed_at >= sqlc.narg(since))
   AND (sqlc.narg(branch) IS NULL OR EXISTS (
         SELECT 1 FROM commit_branches cb
@@ -46,7 +49,7 @@ WHERE (sqlc.narg(repo_id) IS NULL OR c.repo_id = sqlc.narg(repo_id))
 -- name: ContributorRanking :many
 -- Classement des auteurs : commits decroissants, puis dernier commit le plus recent, puis id.
 -- row_limit negatif = pas de limite.
-SELECT ct.id, ct.provider, ct.provider_user_id, ct.provider_login, ct.name, ct.avatar_url,
+SELECT ct.id, ct.provider, ct.provider_user_id, ct.provider_login, ct.name, ct.avatar_url, ct.profile_url,
        count(*) AS commits,
        CAST(COALESCE(sum(c.additions), 0) AS INTEGER) AS additions,
        CAST(COALESCE(sum(c.deletions), 0) AS INTEGER) AS deletions,
@@ -79,7 +82,8 @@ GROUP BY repo_id;
 SELECT c.repo_id, c.sha, c.author_id, c.committer_id, c.message, c.authored_at, c.committed_at,
        c.additions, c.deletions, c.url,
        CAST(COALESCE(a.name, '') AS TEXT) AS author_name,
-       CAST(COALESCE(a.provider_login, '') AS TEXT) AS author_login
+       CAST(COALESCE(a.provider_login, '') AS TEXT) AS author_login,
+       CAST(COALESCE(a.profile_url, '') AS TEXT) AS author_profile_url
 FROM repositories r
 JOIN commits c ON c.repo_id = r.id AND c.sha = (
     SELECT c2.sha FROM commits c2
@@ -119,15 +123,27 @@ WHERE author_id IS NOT NULL
   AND (sqlc.narg(repo_id) IS NULL OR repo_id = sqlc.narg(repo_id))
   AND committed_at >= sqlc.arg(since);
 
+-- name: ContributorCommitTimesSince :many
+-- Depot (repo_id) et date de commit (committed_at) des commits dont le contributeur est l'auteur, depuis
+-- since, sans ordre garanti.
+SELECT repo_id, committed_at
+FROM commits
+WHERE author_id = sqlc.arg(contributor_id)
+  AND committed_at >= sqlc.arg(since);
+
 -- name: ContributorRepoBreakdown :many
--- Commits de chaque auteur par depot : nombre et dernier commit ; tri par auteur, commits decroissants, depot.
+-- Commits de chaque auteur (contributor_id NULL = tous) par depot : nombre, lignes et dernier commit ;
+-- tri par auteur, commits decroissants, depot.
 SELECT c.author_id AS contributor_id, c.repo_id,
        r.owner AS repo_owner, r.name AS repo_name, r.label AS repo_label,
        count(*) AS commits,
+       CAST(COALESCE(sum(c.additions), 0) AS INTEGER) AS additions,
+       CAST(COALESCE(sum(c.deletions), 0) AS INTEGER) AS deletions,
        CAST(max(c.committed_at) AS TEXT) AS last_commit_at
 FROM commits c
 JOIN repositories r ON r.id = c.repo_id
 WHERE c.author_id IS NOT NULL
+  AND (sqlc.narg(contributor_id) IS NULL OR c.author_id = sqlc.narg(contributor_id))
 GROUP BY c.author_id, c.repo_id
 ORDER BY c.author_id, commits DESC, c.repo_id;
 

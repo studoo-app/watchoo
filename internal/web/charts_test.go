@@ -290,3 +290,36 @@ func TestRepoContributorsChartEmpty(t *testing.T) {
 	w = e.get(repoPath(ids.Carol))
 	assertContains(t, w, "1 commit de 1 contributeur depuis le 10/08/2026")
 }
+
+// TestBuildRepoChart vérifie le graphique par dépôt de la page d'un contributeur : une série par dépôt
+// (lien vers sa page), les dépôts au-delà de top regroupés dans « Autres dépôts ».
+func TestBuildRepoChart(t *testing.T) {
+	now := time.Date(2026, 10, 27, 9, 0, 0, 0, time.UTC)
+	repos := []store.ContributorRepoStats{
+		{RepoID: 1, RepoOwner: "promo", RepoName: "a", RepoLabel: "Projet A"},
+		{RepoID: 2, RepoOwner: "promo", RepoName: "b"},
+		{RepoID: 3, RepoOwner: "promo", RepoName: "c"},
+	}
+	at := func(repo int64, ago time.Duration) model.RepoCommitTime {
+		return model.RepoCommitTime{RepoID: repo, CommittedAt: now.Add(-ago)}
+	}
+	times := []model.RepoCommitTime{at(2, time.Hour), at(2, 2*time.Hour), at(1, 8*24*time.Hour), at(3, time.Hour),
+		at(9, time.Hour)} // dépôt 9 : absent de la liste (lu entre deux lectures)
+	c := buildRepoChart(repos, times, now, 2, 2, time.UTC)
+	if c.Total != 5 || c.Weeks != 2 {
+		t.Fatalf("Total %d, Weeks %d", c.Total, c.Weeks)
+	}
+	names := make([]string, 0, len(c.Data.Series))
+	for _, s := range c.Data.Series {
+		names = append(names, s.Name)
+	}
+	if want := []string{"promo/b", "Projet A", otherReposLabel}; !slices.Equal(names, want) {
+		t.Errorf("séries = %v, attendu %v", names, want)
+	}
+	if s := c.Data.Series[0]; s.Path != repoPath(2) || s.Total != 2 || s.ProfileURL != "" {
+		t.Errorf("série du dépôt 2 = %+v", s)
+	}
+	if o := c.Data.Series[2]; !o.Other || o.Total != 2 || o.Path != "" {
+		t.Errorf("autres dépôts = %+v", o)
+	}
+}

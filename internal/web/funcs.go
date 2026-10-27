@@ -47,6 +47,8 @@ const maxFirstLine = 120
 //	plural n un plusieurs   « 1 commit », « 3 commits », « 0 commit »
 //	add a b, sub a b        entiers
 //	repoPath id      « /repos/12 »
+//	contribPath id   « /contributors/12 » (page d'un contributeur, 0.5.0)
+//	profileURL s     s si c'est une adresse https:// (page de profil donnée par le provider), sinon « »
 //	interval d       « 30 min », « 1 h », « 1 h 30 », « manuelle seule » (0)
 //	percent a b      a*100/b arrondi, entre 0 et 100 (0 si b <= 0)
 //	dict k1 v1 k2 v2…       map[string]any, pour passer plusieurs valeurs à un template
@@ -56,27 +58,29 @@ const maxFirstLine = 120
 //	                 sont pour lui des attributs de texte)
 func (s *server) funcs() template.FuncMap {
 	return template.FuncMap{
-		"relTime":    func(t time.Time) string { return activity.Relative(t, s.now(), s.loc, true) },
-		"localTime":  func(t time.Time) string { return s.formatLocal(t, "02/01/2006 à 15:04") },
-		"localDate":  func(t time.Time) string { return s.formatLocal(t, "02/01/2006") },
-		"localClock": func(t time.Time) string { return s.formatLocal(t, "15:04") },
-		"isoTime":    isoTime,
-		"badgeClass": badgeClass,
-		"stateText":  stateText,
-		"clean":      textclean.Clean,
-		"firstLine":  firstLine,
-		"truncate":   truncate,
-		"shortSHA":   shortSHA,
-		"initial":    initial,
-		"avatarURL":  avatarURL,
-		"plural":     pluralize,
-		"add":        func(a, b int) int { return a + b },
-		"sub":        func(a, b int) int { return a - b },
-		"repoPath":   repoPath,
-		"interval":   formatInterval,
-		"percent":    percent,
-		"dict":       dict,
-		"withQuery":  withQuery,
+		"relTime":     func(t time.Time) string { return activity.Relative(t, s.now(), s.loc, true) },
+		"localTime":   func(t time.Time) string { return s.formatLocal(t, "02/01/2006 à 15:04") },
+		"localDate":   func(t time.Time) string { return s.formatLocal(t, "02/01/2006") },
+		"localClock":  func(t time.Time) string { return s.formatLocal(t, "15:04") },
+		"isoTime":     isoTime,
+		"badgeClass":  badgeClass,
+		"stateText":   stateText,
+		"clean":       textclean.Clean,
+		"firstLine":   firstLine,
+		"truncate":    truncate,
+		"shortSHA":    shortSHA,
+		"initial":     initial,
+		"avatarURL":   avatarURL,
+		"plural":      pluralize,
+		"add":         func(a, b int) int { return a + b },
+		"sub":         func(a, b int) int { return a - b },
+		"repoPath":    repoPath,
+		"contribPath": contributorPath,
+		"profileURL":  profileURL,
+		"interval":    formatInterval,
+		"percent":     percent,
+		"dict":        dict,
+		"withQuery":   withQuery,
 	}
 }
 
@@ -165,6 +169,22 @@ func pluralize(n int, one, many string) string {
 
 func repoPath(id int64) string {
 	return "/repos/" + strconv.FormatInt(id, 10)
+}
+
+// contributorPath renvoie la page d'un contributeur (0.5.0).
+func contributorPath(id int64) string {
+	return "/contributors/" + strconv.FormatInt(id, 10)
+}
+
+// profileURL renvoie s, page de profil d'un compte telle que donnée par le provider et enregistrée en
+// base, si c'est une adresse https:// sans caractère suspect ; sinon « » (pas de lien). Aucune adresse
+// de forge n'est construite ici.
+func profileURL(s string) string {
+	u, err := url.Parse(s)
+	if err != nil || u.Scheme != "https" || u.Host == "" || u.User != nil || strings.ContainsAny(s, "\"'<> \\") {
+		return ""
+	}
+	return s
 }
 
 // formatInterval écrit un intervalle de synchro en français.

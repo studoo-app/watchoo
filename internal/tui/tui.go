@@ -6,10 +6,10 @@
 // règle métier ici.
 //
 // Vues : dépôts (nom, état, dernier commit, auteur), commits, contributeurs ; détail d'un dépôt ;
-// filtre ; aide des touches. En-tête : hibou mini (internal/logo) aux pupilles vertes.
+// détail d'un contributeur (0.5.0, contributor.go) ; filtre ; aide des touches. En-tête : hibou mini (internal/logo) aux pupilles vertes.
 //
 // Touches (voir keys.go) : tab / maj+tab ou 1, 2, 3 changent de vue ; ↑ ↓ (j k) déplacent la
-// sélection ; entrée ouvre le détail du dépôt, échap le ferme ; « / » filtre ; « s » synchronise tout ;
+// sélection ; entrée ouvre le détail du dépôt (ou du contributeur, vue Contributeurs), échap le ferme ; « / » filtre ; « s » synchronise tout ;
 // « S » synchronise le dépôt sélectionné ; « r » relit la base ; « ? » affiche l'aide ; « q » ou
 // ctrl+c quitte.
 //
@@ -44,6 +44,10 @@ type DataSource interface {
 	ListRecentCommits(ctx context.Context, f store.CommitFilter) ([]store.CommitView, error)
 	ContributorRanking(ctx context.Context, f store.ContributorFilter) ([]store.ContributorStats, error)
 	AuthorCommitTimes(ctx context.Context, repoID int64, since time.Time) ([]model.AuthorCommitTime, error)
+	// Détail d'un contributeur (0.5.0).
+	ContributorProfile(ctx context.Context, id int64) (store.ContributorProfile, error)
+	ContributorRepos(ctx context.Context, id int64) ([]store.ContributorRepoStats, error)
+	ContributorCommitTimes(ctx context.Context, id int64, since time.Time) ([]model.RepoCommitTime, error)
 }
 
 // Syncer lance les synchros ; *wsync.Engine le satisfait.

@@ -5,7 +5,8 @@
 Sept tables suffisent pour le MVP ; `commits` est la table centrale, reliée aux dépôts, aux branches (via
 `commit_branches`) et aux contributeurs. La V2 en ajoute trois (migration `00003`) : `pull_requests`,
 `releases` et `tags`, soit **dix tables** ; la migration `00004` rend `repositories.provider_id`
-facultatif (dépôts suivis par clones Git locaux). Le stockage est un fichier SQLite versionné par des migrations
+facultatif (dépôts suivis par clones Git locaux) ; la migration `00005` (0.5.0) ajoute
+`contributors.profile_url`. Le stockage est un fichier SQLite versionné par des migrations
 `goose`, avec **une base par espace de supervision** (`.watchoo/watchoo.db`, voir
 [Espaces de supervision](10-espaces-de-supervision.md)). Les tables ne connaissent donc pas la notion
 d'espace : deux espaces ne partagent jamais de données.
@@ -80,6 +81,14 @@ par son e-mail Git ; SQLite accepte plusieurs valeurs vides dans une colonne uni
 | provider_login | Login GitHub (si connu), mis à jour si la personne en change |
 | name | Nom affiché |
 | avatar_url | URL de l'avatar |
+| profile_url | Page de profil du compte sur la forge (`html_url` du compte GitHub), donnée par le provider ; vide si aucun compte n'est connu ou tant qu'elle n'a pas été lue. Ajoutée par la migration `00005` (0.5.0) |
+
+`profile_url` vient du provider (`provider.Person.ProfileURL`), jamais d'une adresse construite hors de
+`internal/provider/github/` : l'interface web n'y ajoute rien de propre à GitHub. Un contributeur déjà en
+base avant la migration `00005` a `profile_url` vide jusqu'à ce qu'une synchro par l'API voie un
+**nouveau** commit lié à son compte (les commits déjà en base ne sont pas relus) ; la migration ne
+devine aucune adresse. Comme le login et l'avatar, une adresse vide n'efface pas la valeur connue. Sans
+`gh` (clones Git locaux), elle reste vide.
 
 ### `contributor_emails` — rattachement des e-mails Git
 
@@ -239,8 +248,8 @@ Précisions :
 - seuls les commits **nouveaux** passent par ces règles : un commit déjà en base ne met pas à jour son
   contributeur ;
 - le nom Git d'un commit sans compte met à jour le nom d'un contributeur **sans compte** trouvé par
-  e-mail (le plus récent l'emporte), jamais celui d'un contributeur avec compte ; un login ou un avatar
-  vide n'efface pas la valeur connue ; lors d'une fusion, le contributeur avec compte reprend le nom du
+  e-mail (le plus récent l'emporte), jamais celui d'un contributeur avec compte ; un login, un avatar ou
+  une adresse de profil vide n'efface pas la valeur connue ; lors d'une fusion, le contributeur avec compte reprend le nom du
   contributeur absorbé s'il n'en a pas.
 
 Sans `gh` (clones Git locaux, V2), aucun commit n'est lié à un compte : seule la règle « commit sans

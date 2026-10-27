@@ -85,11 +85,13 @@ func TestListCommits(t *testing.T) {
 		URL:     "https://github.com/promo-2026/projet-alice/commit/" + apiC1,
 		Author: provider.Person{
 			Name: "Alice Martin", Email: "alice.martin@example.com", Login: "alice-martin-dev", ID: 51000001,
-			AvatarURL: "https://avatars.githubusercontent.com/u/51000001?v=4",
+			AvatarURL:  "https://avatars.githubusercontent.com/u/51000001?v=4",
+			ProfileURL: "https://github.com/alice-martin-dev",
 		},
 		Committer: provider.Person{
 			Name: "GitHub", Email: "noreply@github.com", Login: "web-flow", ID: 19864447,
-			AvatarURL: "https://avatars.githubusercontent.com/u/19864447?v=4",
+			AvatarURL:  "https://avatars.githubusercontent.com/u/19864447?v=4",
+			ProfileURL: "https://github.com/web-flow",
 		},
 		AuthoredAt:  time.Date(2026, 10, 20, 14, 3, 12, 0, time.UTC),
 		CommittedAt: time.Date(2026, 10, 20, 14, 3, 12, 0, time.UTC),

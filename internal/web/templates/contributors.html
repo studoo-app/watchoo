@@ -66,8 +66,11 @@
             <div class="flex items-center gap-3 min-w-40">
               {{template "avatar" (dict "Name" .DisplayName "URL" .AvatarURL "Size" "size-10")}}
               <div class="min-w-0">
-                <div class="font-semibold break-words">{{truncate 80 .DisplayName}}</div>
-                {{- if .ShowLogin}}<div class="text-sm text-base-content/60 break-all">@{{truncate 60 .ProviderLogin}}</div>{{end}}
+                <div class="font-semibold break-words"><a href="{{contribPath .ID}}" class="link link-hover">{{truncate 80 .DisplayName}}</a></div>
+                <div class="text-sm text-base-content/60 break-all flex flex-wrap items-center gap-1">
+                  {{- if .ShowLogin}}<span>@{{truncate 60 .ProviderLogin}}</span>{{end}}
+                  {{- template "profile-link" (dict "URL" .ProfileURL "Login" .ProviderLogin)}}
+                </div>
               </div>
             </div>
           </td>

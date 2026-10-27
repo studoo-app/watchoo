@@ -23,6 +23,8 @@ package web
 //	POST /repos/{id}/thresholds         handleRepoThresholds   repo_thresholds.go repo
 //	GET  /contributors                  handleContributors     contributors.go  contributors+settings
 //	GET  /fragments/contributors        handleContributorsTable contributors.go contributors+settings
+//	GET  /contributors/{id}             handleContributor      contributor.go   page d'un contributeur (0.5.0)
+//	GET  /contributors/{id}/commits     handleContributorCommits contributor.go page d'un contributeur (0.5.0)
 //	GET  /settings                      handleSettings         settings.go      contributors+settings
 //	POST /settings/repos                handleRepoAdd          settings.go      contributors+settings
 //	POST /settings/repos/{id}           handleRepoUpdate       settings.go      contributors+settings
@@ -54,7 +56,7 @@ import (
 // requestTimeout borne la durée d'un handler (lecture de la base, vérification d'accès d'un dépôt).
 const requestTimeout = 30 * time.Second
 
-// idPattern contraint l'identifiant d'un dépôt dans les routes : 1 à 18 chiffres (sinon 404).
+// idPattern contraint l'identifiant d'un dépôt ou d'un contributeur dans les routes : 1 à 18 chiffres (sinon 404).
 const idPattern = "{id:[0-9]{1,18}}"
 
 // routes construit le routeur.
@@ -75,6 +77,8 @@ func (s *server) routes() http.Handler {
 	get("/repos/"+idPattern+"/commits", s.handleRepoCommits)
 	get("/contributors", s.handleContributors)
 	get("/fragments/contributors", s.handleContributorsTable)
+	get("/contributors/"+idPattern, s.handleContributor)
+	get("/contributors/"+idPattern+"/commits", s.handleContributorCommits)
 	get("/settings", s.handleSettings)
 	get("/settings/repos/"+idPattern+"/remove", s.handleRepoRemoveConfirm)
 	get("/fragments/quota", s.handleQuota)

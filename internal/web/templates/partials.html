@@ -74,31 +74,34 @@
      Donnée : dict "Chart" contributorChart "ID" préfixe des identifiants (ID, ID-title, ID-summary,
      ID-table, ID-data) "RefreshURL" page complète à relire "Title" titre
      ["Scope" précision après « les plus actifs » (« de ce dépôt »)] ["Note" phrase ajoutée à la
-     légende]. */}}
-{{define "contributors-chart"}}{{$g := .Chart}}{{$id := .ID}}
+     légende] ["ByRepo" true : une série par dépôt d'un contributeur (page d'un contributeur, 0.5.0),
+     textes adaptés]. */}}
+{{define "contributors-chart"}}{{$g := .Chart}}{{$id := .ID}}{{$byRepo := .ByRepo}}
 <section class="card bg-base-100 shadow-sm min-w-0" aria-labelledby="{{$id}}-title">
   <div class="card-body p-4 md:p-6">
     <div class="flex flex-wrap items-baseline justify-between gap-2">
       <h2 id="{{$id}}-title" class="card-title text-lg">{{.Title}}</h2>
       <p class="text-sm text-base-content/70" id="{{$id}}-summary">
-        {{if $g.Total}}{{plural $g.Total "commit" "commits"}} de {{plural $g.Active "contributeur" "contributeurs"}} depuis le {{$g.Start}}
-        {{- else}}Aucun commit d'auteur connu depuis le {{$g.Start}}{{end}}
+        {{if $byRepo}}{{if $g.Total}}{{plural $g.Total "commit" "commits"}} dans {{plural $g.Active "dépôt" "dépôts"}} depuis le {{$g.Start}}
+        {{- else}}Aucun commit depuis le {{$g.Start}}{{end}}
+        {{- else}}{{if $g.Total}}{{plural $g.Total "commit" "commits"}} de {{plural $g.Active "contributeur" "contributeurs"}} depuis le {{$g.Start}}
+        {{- else}}Aucun commit d'auteur connu depuis le {{$g.Start}}{{end}}{{end}}
       </p>
     </div>
     <div class="relative h-64 md:h-72 w-full">
       <canvas id="{{$id}}" role="img" data-chart="weekly-stacked" data-source="{{$id}}-data"
               data-summary="{{$id}}-summary" data-table="{{$id}}-table" data-refresh-url="{{.RefreshURL}}"
-              aria-label="Commits par semaine des contributeurs les plus actifs{{.Scope}} sur les {{$g.Weeks}} dernières semaines : {{plural $g.Total "commit" "commits"}} au total"></canvas>
+              aria-label="Commits par semaine {{if $byRepo}}dans ses dépôts les plus actifs{{else}}des contributeurs les plus actifs{{end}}{{.Scope}} sur les {{$g.Weeks}} dernières semaines : {{plural $g.Total "commit" "commits"}} au total"></canvas>
     </div>
-    <p class="text-xs text-base-content/60">Commits par semaine (du lundi au dimanche, date de commit, fuseau d'affichage de l'espace) des {{$g.Top}} contributeurs les plus actifs{{.Scope}} sur la période ; les autres sont regroupés.{{with .Note}} {{.}}{{end}}</p>
+    <p class="text-xs text-base-content/60">Commits par semaine (du lundi au dimanche, date de commit, fuseau d'affichage de l'espace) {{if $byRepo}}dans les {{$g.Top}} dépôts où il en a le plus{{else}}des {{$g.Top}} contributeurs les plus actifs{{end}}{{.Scope}} sur la période ; les autres sont regroupés.{{with .Note}} {{.}}{{end}}</p>
     <details class="collapse collapse-arrow bg-base-200/40 rounded-box">
       <summary class="collapse-title text-sm font-medium min-h-0 py-2">Données du graphique</summary>
       <div class="collapse-content overflow-x-auto">
         <table class="table table-xs" id="{{$id}}-table">
-          <caption class="sr-only">Commits par semaine et par contributeur</caption>
+          <caption class="sr-only">Commits par semaine et par {{if $byRepo}}dépôt{{else}}contributeur{{end}}</caption>
           <thead>
             <tr>
-              <th scope="col">Contributeur</th>
+              <th scope="col">{{if $byRepo}}Dépôt{{else}}Contributeur{{end}}</th>
               {{- range $g.WeekLabels}}<th scope="col" class="text-right">{{.}}</th>{{end}}
               <th scope="col" class="text-right">Total</th>
             </tr>
@@ -106,7 +109,10 @@
           <tbody>
             {{- range $g.Data.Series}}
             <tr>
-              <th scope="row" class="font-medium{{if .Other}} italic{{end}}">{{.Name}}</th>
+              <th scope="row" class="font-medium{{if .Other}} italic{{end}}">
+                {{- if .Path}}<a href="{{.Path}}" class="link link-hover">{{.Name}}</a>{{else}}{{.Name}}{{end}}
+                {{- if .ProfileURL}} {{template "profile-link" (dict "URL" .ProfileURL "Login" .Login)}}{{end -}}
+              </th>
               {{- range .Counts}}<td class="text-right tabular-nums{{if not .}} text-base-content/40{{end}}">{{.}}</td>{{end}}
               <td class="text-right tabular-nums font-semibold">{{.Total}}</td>
             </tr>
@@ -120,4 +126,35 @@
   </div>
   <script type="application/json" id="{{$id}}-data">{{$g.Data}}</script>
 </section>
+{{end}}
+
+{{/* Lien secondaire vers la page de profil d'un contributeur sur la forge (0.5.0), à côté du lien
+     principal vers sa page. L'adresse est celle donnée par le provider (contributors.profile_url) :
+     rien n'est construit ici ; rien n'est affiché si elle est absente ou refusée (profileURL).
+     Donnée : dict "URL" page de profil "Login" login. */}}
+{{define "profile-link"}}{{$u := profileURL .URL}}{{if $u}}<a href="{{$u}}" class="badge badge-ghost badge-sm link-hover whitespace-nowrap" target="_blank" rel="noopener noreferrer" aria-label="Profil GitHub de {{if .Login}}{{clean .Login}}{{else}}ce contributeur{{end}}" title="Profil GitHub de {{if .Login}}{{clean .Login}}{{else}}ce contributeur{{end}}">GitHub</a>{{end}}{{end}}
+
+{{/* Nom d'un contributeur lié à sa page (0.5.0) ; texte simple sans contributeur connu (ID 0).
+     Donnée : dict "ID" contributors.id "Name" nom affiché ["Class" classes du lien]. */}}
+{{define "contributor-link"}}{{if .ID}}<a href="{{contribPath .ID}}" class="link link-hover {{.Class}}">{{clean .Name}}</a>{{else}}{{clean .Name}}{{end}}{{end}}
+
+{{/* Un commit d'un historique (page d'un dépôt, page d'un contributeur). Donnée : dict "Commit"
+     store.CommitView ["ShowRepo" true : dépôt du commit, lien vers sa page] ["ShowAuthor" true : auteur,
+     lien vers sa page et vers son profil]. Message nettoyé (firstLine), jamais d'e-mail. */}}
+{{define "commit-item"}}{{$c := .Commit}}
+<li class="py-3 flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-4 min-w-0">
+  <div class="min-w-0 flex-1">
+    <p class="font-medium break-words">{{firstLine $c.Message}}</p>
+    <p class="text-xs text-base-content/60">
+      {{- if .ShowRepo}}<a href="{{repoPath $c.RepoID}}" class="link link-hover font-medium">{{clean $c.RepoDisplayName}}</a> · {{end -}}
+      {{- if .ShowAuthor}}{{template "contributor-link" (dict "ID" $c.AuthorID "Name" $c.AuthorDisplayName)}}{{with $c.AuthorProfileURL}} {{template "profile-link" (dict "URL" . "Login" $c.AuthorLogin)}}{{end}} · {{end -}}
+      {{template "rel-time" $c.CommittedAt}}
+      {{- if or $c.Additions $c.Deletions}} · <span class="text-success">+{{$c.Additions}}</span> <span class="text-error">−{{$c.Deletions}}</span>{{end}}
+    </p>
+  </div>
+  <div class="shrink-0">
+    {{if $c.URL}}<a href="{{$c.URL}}" class="badge badge-ghost font-mono link-hover" target="_blank" rel="noopener noreferrer" title="Voir le commit sur GitHub">{{shortSHA $c.SHA}}</a>
+    {{- else}}<span class="badge badge-ghost font-mono">{{shortSHA $c.SHA}}</span>{{end}}
+  </div>
+</li>
 {{end}}

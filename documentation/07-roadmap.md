@@ -6,7 +6,8 @@ Six phases courtes, chacune livrant quelque chose d'utilisable. **On ne passe à
 la précédente marche de bout en bout.**
 
 **État** : phases 1 à 5 réalisées, MVP publié en **v0.1.0** (voir [CHANGELOG.md](../CHANGELOG.md)) ;
-critère de fin du MVP validé le 27 octobre 2026 ; phase 6 (V2) réalisée et publiée en **v0.4.0**.
+critère de fin du MVP validé le 27 octobre 2026 ; phase 6 (V2) réalisée et publiée en **v0.4.0** ;
+page par contributeur en place pour la 0.5.0 (non publiée).
 
 ```mermaid
 flowchart LR
@@ -93,6 +94,14 @@ bon schéma ; les autres commandes retrouvent l'espace.
 
 L'import d'une organisation entière et les alertes passent en V3 (voir
 [Fonctionnalités](02-fonctionnalites.md#v3)).
+
+### Après la phase 6 — 0.5.0 : page par contributeur
+- Page par contributeur (web `/contributors/{id}` et détail du TUI) : ses dépôts, ses commits (lignes
+  `+/-` comprises) et son activité dans le temps : **en place** (requêtes `store.ContributorProfile`,
+  `store.ContributorRepos`, `store.ContributorCommitTimes`, filtres `AuthorID` des commits et des pull
+  requests ; graphiques réutilisés ; liens depuis les listes de contributeurs et de commits).
+- Lien vers le profil de forge de chaque contributeur dont le compte est connu : **en place** (adresse
+  donnée par le provider, colonne `contributors.profile_url`, migration `00005`).
 
 ## Définition de « terminé » pour chaque phase
 

@@ -42,6 +42,7 @@ type Contributor struct {
 	ProviderLogin  string
 	Name           string
 	AvatarURL      string
+	ProfileURL     string
 }
 
 type ContributorEmail struct {

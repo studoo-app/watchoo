@@ -750,7 +750,7 @@ func TestAppendCommits(t *testing.T) {
 	start := time.Date(2026, 10, 1, 10, 0, 0, 700, time.FixedZone("CEST", 2*3600))
 	first := f.AppendCommits(5, "main", 2, start, time.Hour)
 	student := provider.Person{Name: "Étudiant Test", Email: "etudiant@example.test", Login: "etudiant-test", ID: 1001,
-		AvatarURL: "https://avatars.example.test/u/1001"}
+		AvatarURL: "https://avatars.example.test/u/1001", ProfileURL: "https://github.example.test/etudiant-test"}
 	want0 := provider.Commit{SHA: SHA("5/main/1"), Message: "commit 1", URL: "https://github.com/alice/projet/commit/" + SHA("5/main/1"),
 		Author: student, Committer: student, AuthoredAt: t0, CommittedAt: t0, Parents: []string{}}
 	if !reflect.DeepEqual(first[0], want0) {

@@ -37,7 +37,7 @@ func TestContributorsPage(t *testing.T) {
 
 	// Classement : Alice (2 commits, le plus récent), Bob (2 commits), Carol (1).
 	body := w.Body.String()
-	a, b, c := strings.Index(body, "Alice Martin</div>"), strings.Index(body, "Bob Durand</div>"), strings.Index(body, "Carol</div>")
+	a, b, c := strings.Index(body, "Alice Martin</a></div>"), strings.Index(body, "Bob Durand</a></div>"), strings.Index(body, "Carol</a></div>")
 	if a < 0 || b < 0 || c < 0 || a >= b || b >= c {
 		t.Errorf("ordre du classement inattendu : Alice %d, Bob %d, Carol %d", a, b, c)
 	}

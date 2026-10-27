@@ -144,3 +144,30 @@ func TestCountContributorWeeks(t *testing.T) {
 		t.Errorf("sans commit : %+v", empty)
 	}
 }
+
+func TestCountRepoWeeks(t *testing.T) {
+	paris := mustLoad(t, "Europe/Paris")
+	now := time.Date(2026, 10, 27, 9, 0, 0, 0, time.UTC)
+	at := func(repo int64, tm time.Time) model.RepoCommitTime {
+		return model.RepoCommitTime{RepoID: repo, CommittedAt: tm}
+	}
+	times := []model.RepoCommitTime{
+		at(7, time.Date(2026, 10, 25, 23, 30, 0, 0, time.UTC)), // lundi 26 à Paris
+		at(7, time.Date(2026, 10, 25, 22, 59, 0, 0, time.UTC)), // dimanche 25 à Paris
+		at(9, time.Date(2026, 10, 12, 0, 0, 0, 0, time.UTC)),
+		at(9, time.Date(2026, 10, 11, 21, 59, 0, 0, time.UTC)), // hors fenêtre
+	}
+	c := CountRepoWeeks(times, now, 3, paris)
+	if c.Total != 3 || len(c.Counts) != 2 {
+		t.Fatalf("Total %d, %d dépôts ; attendu 3 et 2 (%v)", c.Total, len(c.Counts), c.Counts)
+	}
+	if got := c.Of(7); !slices.Equal(got, []int{0, 1, 1}) {
+		t.Errorf("dépôt 7 : %v, attendu [0 1 1]", got)
+	}
+	if got := c.Of(9); !slices.Equal(got, []int{1, 0, 0}) {
+		t.Errorf("dépôt 9 : %v, attendu [1 0 0]", got)
+	}
+	if empty := CountRepoWeeks(nil, now, 2, paris); empty.Total != 0 || len(empty.Weeks) != 2 {
+		t.Errorf("aucun commit : %+v", empty)
+	}
+}

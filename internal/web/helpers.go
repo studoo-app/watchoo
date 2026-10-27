@@ -73,7 +73,7 @@ func redirect(w http.ResponseWriter, r *http.Request, path string) {
 	http.Redirect(w, r, path, http.StatusSeeOther)
 }
 
-// repoLookupError répond à l'échec de la lecture d'un dépôt : 404 si store.ErrNotFound, sinon 500.
+// repoLookupError répond à l'échec de la lecture d'un dépôt ou d'un contributeur : 404 si store.ErrNotFound, sinon 500.
 func (s *server) repoLookupError(w http.ResponseWriter, r *http.Request, err error) {
 	if errors.Is(err, store.ErrNotFound) {
 		s.notFound(w, r)

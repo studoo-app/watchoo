@@ -89,8 +89,50 @@ func (q *Queries) CommitTimesSince(ctx context.Context, arg CommitTimesSincePara
 	return items, nil
 }
 
+const contributorCommitTimesSince = `-- name: ContributorCommitTimesSince :many
+SELECT repo_id, committed_at
+FROM commits
+WHERE author_id = ?1
+  AND committed_at >= ?2
+`
+
+type ContributorCommitTimesSinceParams struct {
+	ContributorID sql.NullInt64
+	Since         string
+}
+
+type ContributorCommitTimesSinceRow struct {
+	RepoID      int64
+	CommittedAt string
+}
+
+// Depot (repo_id) et date de commit (committed_at) des commits dont le contributeur est l'auteur, depuis
+// since, sans ordre garanti.
+func (q *Queries) ContributorCommitTimesSince(ctx context.Context, arg ContributorCommitTimesSinceParams) ([]ContributorCommitTimesSinceRow, error) {
+	rows, err := q.db.QueryContext(ctx, contributorCommitTimesSince, arg.ContributorID, arg.Since)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ContributorCommitTimesSinceRow{}
+	for rows.Next() {
+		var i ContributorCommitTimesSinceRow
+		if err := rows.Scan(&i.RepoID, &i.CommittedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const contributorRanking = `-- name: ContributorRanking :many
-SELECT ct.id, ct.provider, ct.provider_user_id, ct.provider_login, ct.name, ct.avatar_url,
+SELECT ct.id, ct.provider, ct.provider_user_id, ct.provider_login, ct.name, ct.avatar_url, ct.profile_url,
        count(*) AS commits,
        CAST(COALESCE(sum(c.additions), 0) AS INTEGER) AS additions,
        CAST(COALESCE(sum(c.deletions), 0) AS INTEGER) AS deletions,
@@ -118,6 +160,7 @@ type ContributorRankingRow struct {
 	ProviderLogin  string
 	Name           string
 	AvatarURL      string
+	ProfileURL     string
 	Commits        int64
 	Additions      int64
 	Deletions      int64
@@ -143,6 +186,7 @@ func (q *Queries) ContributorRanking(ctx context.Context, arg ContributorRanking
 			&i.ProviderLogin,
 			&i.Name,
 			&i.AvatarURL,
+			&i.ProfileURL,
 			&i.Commits,
 			&i.Additions,
 			&i.Deletions,
@@ -166,10 +210,13 @@ const contributorRepoBreakdown = `-- name: ContributorRepoBreakdown :many
 SELECT c.author_id AS contributor_id, c.repo_id,
        r.owner AS repo_owner, r.name AS repo_name, r.label AS repo_label,
        count(*) AS commits,
+       CAST(COALESCE(sum(c.additions), 0) AS INTEGER) AS additions,
+       CAST(COALESCE(sum(c.deletions), 0) AS INTEGER) AS deletions,
        CAST(max(c.committed_at) AS TEXT) AS last_commit_at
 FROM commits c
 JOIN repositories r ON r.id = c.repo_id
 WHERE c.author_id IS NOT NULL
+  AND (?1 IS NULL OR c.author_id = ?1)
 GROUP BY c.author_id, c.repo_id
 ORDER BY c.author_id, commits DESC, c.repo_id
 `
@@ -181,12 +228,15 @@ type ContributorRepoBreakdownRow struct {
 	RepoName      string
 	RepoLabel     string
 	Commits       int64
+	Additions     int64
+	Deletions     int64
 	LastCommitAt  string
 }
 
-// Commits de chaque auteur par depot : nombre et dernier commit ; tri par auteur, commits decroissants, depot.
-func (q *Queries) ContributorRepoBreakdown(ctx context.Context) ([]ContributorRepoBreakdownRow, error) {
-	rows, err := q.db.QueryContext(ctx, contributorRepoBreakdown)
+// Commits de chaque auteur (contributor_id NULL = tous) par depot : nombre, lignes et dernier commit ;
+// tri par auteur, commits decroissants, depot.
+func (q *Queries) ContributorRepoBreakdown(ctx context.Context, contributorID interface{}) ([]ContributorRepoBreakdownRow, error) {
+	rows, err := q.db.QueryContext(ctx, contributorRepoBreakdown, contributorID)
 	if err != nil {
 		return nil, err
 	}
@@ -201,6 +251,8 @@ func (q *Queries) ContributorRepoBreakdown(ctx context.Context) ([]ContributorRe
 			&i.RepoName,
 			&i.RepoLabel,
 			&i.Commits,
+			&i.Additions,
+			&i.Deletions,
 			&i.LastCommitAt,
 		); err != nil {
 			return nil, err
@@ -257,21 +309,23 @@ SELECT count(*)
 FROM commits c
 LEFT JOIN contributors a ON a.id = c.author_id
 WHERE (?1 IS NULL OR c.repo_id = ?1)
-  AND (?2 IS NULL OR c.committed_at >= ?2)
-  AND (?3 IS NULL OR EXISTS (
+  AND (?2 IS NULL OR c.author_id = ?2)
+  AND (?3 IS NULL OR c.committed_at >= ?3)
+  AND (?4 IS NULL OR EXISTS (
         SELECT 1 FROM commit_branches cb
         JOIN branches b ON b.id = cb.branch_id
-        WHERE cb.repo_id = c.repo_id AND cb.sha = c.sha AND b.name = ?3))
-  AND (?4 IS NULL OR (c.author_id IS NOT NULL AND (
-        a.provider_login = ?4 COLLATE NOCASE
-        OR a.name = ?4 COLLATE NOCASE
+        WHERE cb.repo_id = c.repo_id AND cb.sha = c.sha AND b.name = ?4))
+  AND (?5 IS NULL OR (c.author_id IS NOT NULL AND (
+        a.provider_login = ?5 COLLATE NOCASE
+        OR a.name = ?5 COLLATE NOCASE
         OR EXISTS (
           SELECT 1 FROM contributor_emails e
-          WHERE e.contributor_id = c.author_id AND e.email = ?5))))
+          WHERE e.contributor_id = c.author_id AND e.email = ?6))))
 `
 
 type CountRecentCommitsParams struct {
 	RepoID      interface{}
+	AuthorID    interface{}
 	Since       interface{}
 	Branch      interface{}
 	Author      interface{}
@@ -282,6 +336,7 @@ type CountRecentCommitsParams struct {
 func (q *Queries) CountRecentCommits(ctx context.Context, arg CountRecentCommitsParams) (int64, error) {
 	row := q.db.QueryRowContext(ctx, countRecentCommits,
 		arg.RepoID,
+		arg.AuthorID,
 		arg.Since,
 		arg.Branch,
 		arg.Author,
@@ -332,7 +387,8 @@ const lastCommitByRepo = `-- name: LastCommitByRepo :many
 SELECT c.repo_id, c.sha, c.author_id, c.committer_id, c.message, c.authored_at, c.committed_at,
        c.additions, c.deletions, c.url,
        CAST(COALESCE(a.name, '') AS TEXT) AS author_name,
-       CAST(COALESCE(a.provider_login, '') AS TEXT) AS author_login
+       CAST(COALESCE(a.provider_login, '') AS TEXT) AS author_login,
+       CAST(COALESCE(a.profile_url, '') AS TEXT) AS author_profile_url
 FROM repositories r
 JOIN commits c ON c.repo_id = r.id AND c.sha = (
     SELECT c2.sha FROM commits c2
@@ -347,18 +403,19 @@ WHERE (?1 IS NULL OR r.id = ?1)
 `
 
 type LastCommitByRepoRow struct {
-	RepoID      int64
-	SHA         string
-	AuthorID    sql.NullInt64
-	CommitterID sql.NullInt64
-	Message     string
-	AuthoredAt  string
-	CommittedAt string
-	Additions   int64
-	Deletions   int64
-	URL         string
-	AuthorName  string
-	AuthorLogin string
+	RepoID           int64
+	SHA              string
+	AuthorID         sql.NullInt64
+	CommitterID      sql.NullInt64
+	Message          string
+	AuthoredAt       string
+	CommittedAt      string
+	Additions        int64
+	Deletions        int64
+	URL              string
+	AuthorName       string
+	AuthorLogin      string
+	AuthorProfileURL string
 }
 
 // Commit le plus recent de chaque depot sur ses branches suivies (egalite : SHA croissant), avec son auteur.
@@ -384,6 +441,7 @@ func (q *Queries) LastCommitByRepo(ctx context.Context, repoID interface{}) ([]L
 			&i.URL,
 			&i.AuthorName,
 			&i.AuthorLogin,
+			&i.AuthorProfileURL,
 		); err != nil {
 			return nil, err
 		}
@@ -460,28 +518,31 @@ SELECT c.repo_id, c.sha, c.author_id, c.committer_id, c.message, c.authored_at, 
        c.additions, c.deletions, c.url,
        r.owner AS repo_owner, r.name AS repo_name, r.label AS repo_label,
        CAST(COALESCE(a.name, '') AS TEXT) AS author_name,
-       CAST(COALESCE(a.provider_login, '') AS TEXT) AS author_login
+       CAST(COALESCE(a.provider_login, '') AS TEXT) AS author_login,
+       CAST(COALESCE(a.profile_url, '') AS TEXT) AS author_profile_url
 FROM commits c
 JOIN repositories r ON r.id = c.repo_id
 LEFT JOIN contributors a ON a.id = c.author_id
 WHERE (?1 IS NULL OR c.repo_id = ?1)
-  AND (?2 IS NULL OR c.committed_at >= ?2)
-  AND (?3 IS NULL OR EXISTS (
+  AND (?2 IS NULL OR c.author_id = ?2)
+  AND (?3 IS NULL OR c.committed_at >= ?3)
+  AND (?4 IS NULL OR EXISTS (
         SELECT 1 FROM commit_branches cb
         JOIN branches b ON b.id = cb.branch_id
-        WHERE cb.repo_id = c.repo_id AND cb.sha = c.sha AND b.name = ?3))
-  AND (?4 IS NULL OR (c.author_id IS NOT NULL AND (
-        a.provider_login = ?4 COLLATE NOCASE
-        OR a.name = ?4 COLLATE NOCASE
+        WHERE cb.repo_id = c.repo_id AND cb.sha = c.sha AND b.name = ?4))
+  AND (?5 IS NULL OR (c.author_id IS NOT NULL AND (
+        a.provider_login = ?5 COLLATE NOCASE
+        OR a.name = ?5 COLLATE NOCASE
         OR EXISTS (
           SELECT 1 FROM contributor_emails e
-          WHERE e.contributor_id = c.author_id AND e.email = ?5))))
+          WHERE e.contributor_id = c.author_id AND e.email = ?6))))
 ORDER BY c.committed_at DESC, c.sha
-LIMIT ?7 OFFSET ?6
+LIMIT ?8 OFFSET ?7
 `
 
 type ListRecentCommitsParams struct {
 	RepoID      interface{}
+	AuthorID    interface{}
 	Since       interface{}
 	Branch      interface{}
 	Author      interface{}
@@ -491,29 +552,31 @@ type ListRecentCommitsParams struct {
 }
 
 type ListRecentCommitsRow struct {
-	RepoID      int64
-	SHA         string
-	AuthorID    sql.NullInt64
-	CommitterID sql.NullInt64
-	Message     string
-	AuthoredAt  string
-	CommittedAt string
-	Additions   int64
-	Deletions   int64
-	URL         string
-	RepoOwner   string
-	RepoName    string
-	RepoLabel   string
-	AuthorName  string
-	AuthorLogin string
+	RepoID           int64
+	SHA              string
+	AuthorID         sql.NullInt64
+	CommitterID      sql.NullInt64
+	Message          string
+	AuthoredAt       string
+	CommittedAt      string
+	Additions        int64
+	Deletions        int64
+	URL              string
+	RepoOwner        string
+	RepoName         string
+	RepoLabel        string
+	AuthorName       string
+	AuthorLogin      string
+	AuthorProfileURL string
 }
 
-// Derniers commits filtres (depot, auteur, branche, periode), du plus recent au plus ancien.
+// Derniers commits filtres (depot, auteur, contributeur auteur, branche, periode), du plus recent au plus ancien.
 // author_email doit etre deja en minuscules ; author est compare sans casse (ASCII) au login et au nom.
 // row_limit negatif = pas de limite.
 func (q *Queries) ListRecentCommits(ctx context.Context, arg ListRecentCommitsParams) ([]ListRecentCommitsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listRecentCommits,
 		arg.RepoID,
+		arg.AuthorID,
 		arg.Since,
 		arg.Branch,
 		arg.Author,
@@ -544,6 +607,7 @@ func (q *Queries) ListRecentCommits(ctx context.Context, arg ListRecentCommitsPa
 			&i.RepoLabel,
 			&i.AuthorName,
 			&i.AuthorLogin,
+			&i.AuthorProfileURL,
 		); err != nil {
 			return nil, err
 		}

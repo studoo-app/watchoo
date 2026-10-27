@@ -93,6 +93,9 @@ type Contributor struct {
 	ProviderLogin  string // login sur la forge, s'il est connu (mis à jour s'il change)
 	Name           string // nom affiché
 	AvatarURL      string // URL de l'avatar
+	// ProfileURL est la page de profil du compte sur la forge (html_url sur GitHub), donnée par le
+	// provider ; vide si aucun compte n'est connu ou si elle n'a pas encore été lue (0.5.0).
+	ProfileURL string
 	// Emails liste les adresses e-mail Git rattachées (table contributor_emails), en minuscules.
 	// Elle n'est remplie que par les fonctions qui le précisent ; nil sinon.
 	Emails []string
@@ -134,6 +137,14 @@ type Commit struct {
 type AuthorCommitTime struct {
 	ContributorID int64     // auteur (contributors.id)
 	CommittedAt   time.Time // date du commit, UTC
+}
+
+// RepoCommitTime est le dépôt et la date de commit d'un commit : une lecture de la table commits (pas
+// une table), d'où sont calculées les séries d'activité d'un contributeur par dépôt
+// (activity.CountRepoWeeks, page d'un contributeur).
+type RepoCommitTime struct {
+	RepoID      int64     // dépôt
+	CommittedAt time.Time // date du commit, UTC
 }
 
 // SyncStatus est le résultat d'une synchronisation (colonne sync_runs.status).

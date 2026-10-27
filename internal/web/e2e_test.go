@@ -157,6 +157,16 @@ func TestWebEndToEnd(t *testing.T) {
 	assertStatus(t, w, http.StatusOK)
 	assertContains(t, w, "Alice Martin", "Bob Durand", "Carol", "Étudiant Test", repoPath(carolID))
 
+	// 7 bis. Page d'un contributeur (0.5.0) : liée depuis le classement, avec le profil donné par
+	// l'API GitHub (html_url du compte), ses dépôts et ses commits.
+	aliceContrib := e.contributorIDs()["Alice Martin"]
+	assertContains(t, w, `href="`+contributorPath(aliceContrib)+`"`)
+	w = e.get(contributorPath(aliceContrib))
+	assertStatus(t, w, http.StatusOK)
+	assertContains(t, w, `href="https://github.com/alice-gh"`, `aria-label="Profil GitHub de alice-gh"`,
+		repoPath(aliceID), "e2e-alice-tests")
+	assertNoLeak(t, "page d'un contributeur", w.Body.String())
+
 	// 8. Retrait depuis les réglages : arrêt du suivi (historique gardé), puis suppression.
 	w = e.get("/settings/repos/" + strconv.FormatInt(carolID, 10) + "/remove")
 	assertStatus(t, w, http.StatusOK)

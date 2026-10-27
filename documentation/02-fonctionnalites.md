@@ -27,6 +27,15 @@ Le MVP se limite à **suivre, synchroniser et afficher** ; tout le reste vient e
 | Pull requests et releases | PR ouvertes / mergées, tags, releases. **En place** (non publié) : lues à chaque synchro (PR de façon incrémentale, depuis la dernière modification connue ; releases et tags en entier, gratuits quand rien n'a changé), `watchoo prs [--repo X] [--state open\|merged\|closed\|all]` et `watchoo releases [--repo X]` (texte et `--json`), cartes « Pull requests » et « Releases et tags » sur la page d'un dépôt (web), PR ouvertes sur le tableau de bord, PR ouvertes et dernière release dans le détail du TUI. Un échec sur ces listes n'empêche pas la synchro des commits : il devient un avertissement |
 | Dépôts Git locaux | Suivre un dépôt depuis un clone local (`git clone`, puis `git fetch` périodique) : commits, branches et tags sans appel à l'API GitHub. Utilisé quand `gh` n'est pas installé ou connecté. **En place** (non publié) : choix refait à chaque synchro selon `gh` seulement ; clones avec copie de travail dans `repos/<name>` à la racine de l'espace (homonymes : `repos/<owner>-<name>` ; modifications locales des fichiers suivis écrasées à chaque synchro) (SSH par défaut, `git.protocol: https` possible), avec les identifiants Git de la machine, sans invite ; `watchoo init` sans `gh` prévient au lieu de s'arrêter ; source affichée par `watchoo status`, le bilan de `watchoo sync` et la page Réglages ; étoiles, issues, pull requests et releases masquées pour un dépôt jamais lu par l'API ; `repo remove` supprime le clone (`--keep-history` le garde) ; image Docker avec `git` |
 
+## 0.5.0
+
+Version suivante de la V2, décidée par le mainteneur : elle complète la vue contributeurs.
+
+| Fonctionnalité | Détail |
+| --- | --- |
+| Page par contributeur | Une page par contributeur : ses dépôts, ses commits et son activité dans le temps, sur le web et dans le TUI. **En place** (non publié) : page web `/contributors/{id}` (en-tête avec nom, login, avatar et nombre d'identités Git connues, sans aucune adresse ; totaux de commits, lignes `+/-`, dépôts, premier et dernier commit ; commits par jour sur 90 jours ; commits par semaine et par dépôt sur 12 semaines ; ses dépôts avec commits, lignes, dernier commit et état du dépôt ; ses commits paginés ; ses pull requests quand son compte de forge est connu), liens vers cette page depuis toutes les listes où un contributeur apparaît ; détail d'un contributeur dans le TUI (`entrée` dans la vue Contributeurs). Pas d'état Actif / Flemme / Dead pour une personne : ces états restent des règles de dépôt ; la page donne l'ancienneté du dernier commit et l'état de chacun de ses dépôts |
+| Lien vers le profil de forge | Partout où l'interface web montre un contributeur dont le compte de forge est connu, un lien secondaire « GitHub » ouvre son profil (adresse fournie par la forge, enregistrée dans `contributors.profile_url`). Aucun lien pour un contributeur connu seulement par son nom et son e-mail Git (clones Git locaux) |
+
 ## V3
 
 | Fonctionnalité | Détail |

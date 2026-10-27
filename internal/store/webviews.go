@@ -8,6 +8,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -44,9 +45,10 @@ func (s *Store) CommitPage(ctx context.Context, f CommitFilter, page, perPage in
 	var result CommitPage
 	err := s.readTx(ctx, func(q *db.Queries) error {
 		countParams := db.CountRecentCommitsParams{
-			RepoID: optionalID(f.RepoID),
-			Since:  optionalTime(f.Since),
-			Branch: optionalString(f.Branch),
+			RepoID:   optionalID(f.RepoID),
+			AuthorID: optionalID(f.AuthorID),
+			Since:    optionalTime(f.Since),
+			Branch:   optionalString(f.Branch),
 		}
 		if author := strings.TrimSpace(f.Author); author != "" {
 			countParams.Author = author
@@ -62,6 +64,7 @@ func (s *Store) CommitPage(ctx context.Context, f CommitFilter, page, perPage in
 
 		params := db.ListRecentCommitsParams{
 			RepoID:      countParams.RepoID,
+			AuthorID:    countParams.AuthorID,
 			Since:       countParams.Since,
 			Branch:      countParams.Branch,
 			Author:      countParams.Author,
@@ -95,12 +98,13 @@ func commitViewsFromRows(rows []db.ListRecentCommitsRow) ([]CommitView, error) {
 			return nil, err
 		}
 		views = append(views, CommitView{
-			Commit:      commit,
-			RepoOwner:   row.RepoOwner,
-			RepoName:    row.RepoName,
-			RepoLabel:   row.RepoLabel,
-			AuthorName:  row.AuthorName,
-			AuthorLogin: row.AuthorLogin,
+			Commit:           commit,
+			RepoOwner:        row.RepoOwner,
+			RepoName:         row.RepoName,
+			RepoLabel:        row.RepoLabel,
+			AuthorName:       row.AuthorName,
+			AuthorLogin:      row.AuthorLogin,
+			AuthorProfileURL: row.AuthorProfileURL,
 		})
 	}
 	return views, nil
@@ -160,6 +164,8 @@ type ContributorRepoStats struct {
 	RepoName      string    // nom actuel du dépôt
 	RepoLabel     string    // nom affiché du dépôt (vide = owner/name)
 	Commits       int       // commits dont il est l'auteur dans ce dépôt
+	Additions     int       // lignes ajoutées par ces commits (statistiques connues seulement)
+	Deletions     int       // lignes supprimées par ces commits
 	LastCommitAt  time.Time // son commit le plus récent dans ce dépôt (committed_at)
 }
 
@@ -176,9 +182,29 @@ func (c ContributorRepoStats) RepoDisplayName() string {
 // ne sont pas comptés. Liste vide non nil si aucun. La page des contributeurs regroupe ces lignes par
 // ContributorID pour compléter ContributorRanking.
 func (s *Store) ContributorRepoBreakdown(ctx context.Context) ([]ContributorRepoStats, error) {
-	rows, err := s.queries.ContributorRepoBreakdown(ctx)
+	out, err := s.contributorRepoBreakdown(ctx, 0)
 	if err != nil {
 		return nil, fmt.Errorf("commits des contributeurs par dépôt : %w", err)
+	}
+	return out, nil
+}
+
+// ContributorRepos renvoie les commits du contributeur id par dépôt (page d'un contributeur, 0.5.0),
+// commits décroissants puis RepoID ; liste vide non nil s'il n'est l'auteur d'aucun commit.
+func (s *Store) ContributorRepos(ctx context.Context, id int64) ([]ContributorRepoStats, error) {
+	out, err := s.contributorRepoBreakdown(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("dépôts du contributeur %d : %w", id, err)
+	}
+	return out, nil
+}
+
+// contributorRepoBreakdown lit les commits par auteur et par dépôt, de tous les auteurs (id = 0) ou du
+// seul contributeur id.
+func (s *Store) contributorRepoBreakdown(ctx context.Context, id int64) ([]ContributorRepoStats, error) {
+	rows, err := s.queries.ContributorRepoBreakdown(ctx, optionalID(id))
+	if err != nil {
+		return nil, err
 	}
 	out := make([]ContributorRepoStats, 0, len(rows))
 	for _, row := range rows {
@@ -194,6 +220,8 @@ func (s *Store) ContributorRepoBreakdown(ctx context.Context) ([]ContributorRepo
 			RepoName:      row.RepoName,
 			RepoLabel:     row.RepoLabel,
 			Commits:       int(row.Commits),
+			Additions:     int(row.Additions),
+			Deletions:     int(row.Deletions),
 			LastCommitAt:  last,
 		})
 	}
@@ -216,4 +244,62 @@ func (s *Store) LastSyncFinishedAt(ctx context.Context) (time.Time, error) {
 		return time.Time{}, fmt.Errorf("dernière synchro : %w", err)
 	}
 	return t, nil
+}
+
+// ContributorProfile renvoie la fiche du contributeur id : le contributeur, le nombre de ses adresses
+// e-mail (jamais les adresses) et les totaux des commits dont il est l'auteur (zéros s'il n'en a
+// aucun). Erreur enveloppant ErrNotFound s'il n'existe pas.
+func (s *Store) ContributorProfile(ctx context.Context, id int64) (ContributorProfile, error) {
+	row, err := s.queries.GetContributorProfile(ctx, id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return ContributorProfile{}, fmt.Errorf("contributeur %d : %w", id, ErrNotFound)
+	}
+	if err != nil {
+		return ContributorProfile{}, fmt.Errorf("contributeur %d : %w", id, err)
+	}
+	p := ContributorProfile{
+		Contributor: contributorFromDB(db.Contributor{
+			ID: row.ID, Provider: row.Provider, ProviderUserID: row.ProviderUserID,
+			ProviderLogin: row.ProviderLogin, Name: row.Name, AvatarURL: row.AvatarURL, ProfileURL: row.ProfileURL,
+		}),
+		Identities: int(row.Emails),
+		Commits:    int(row.Commits),
+		Additions:  int(row.Additions),
+		Deletions:  int(row.Deletions),
+		Repos:      int(row.Repos),
+	}
+	for _, d := range []struct {
+		raw string
+		dst *time.Time
+	}{{row.FirstCommitAt, &p.FirstCommitAt}, {row.LastCommitAt, &p.LastCommitAt}} {
+		if d.raw == "" {
+			continue
+		}
+		if *d.dst, err = ParseTime(d.raw); err != nil {
+			return ContributorProfile{}, fmt.Errorf("contributeur %d : %w", id, err)
+		}
+	}
+	return p, nil
+}
+
+// ContributorCommitTimes renvoie le dépôt et la date de chaque commit dont le contributeur id est
+// l'auteur, depuis since inclus, sans ordre garanti (graphiques de la page d'un contributeur :
+// activity.DailyCounts et activity.CountRepoWeeks).
+func (s *Store) ContributorCommitTimes(ctx context.Context, id int64, since time.Time) ([]model.RepoCommitTime, error) {
+	rows, err := s.queries.ContributorCommitTimesSince(ctx, db.ContributorCommitTimesSinceParams{
+		ContributorID: sql.NullInt64{Int64: id, Valid: true},
+		Since:         FormatTime(since),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("dates des commits du contributeur %d : %w", id, err)
+	}
+	out := make([]model.RepoCommitTime, 0, len(rows))
+	for _, row := range rows {
+		t, err := ParseTime(row.CommittedAt)
+		if err != nil {
+			return nil, fmt.Errorf("dates des commits du contributeur %d : %w", id, err)
+		}
+		out = append(out, model.RepoCommitTime{RepoID: row.RepoID, CommittedAt: t})
+	}
+	return out, nil
 }

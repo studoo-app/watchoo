@@ -487,21 +487,21 @@ func (r *identityResolver) resolveAccount(ctx context.Context, id Identity) (int
 			ProviderLogin:  id.Login,
 			Name:           id.Name,
 			AvatarURL:      id.AvatarURL,
+			ProfileURL:     id.ProfileURL,
 		})
 		if err != nil {
 			return 0, fmt.Errorf("création d'un contributeur : %w", err)
 		}
-		row.ProviderLogin, row.Name, row.AvatarURL = id.Login, id.Name, id.AvatarURL
+		row.ProviderLogin, row.Name, row.AvatarURL, row.ProfileURL = id.Login, id.Name, id.AvatarURL, id.ProfileURL
 	case err != nil:
 		return 0, fmt.Errorf("lecture d'un contributeur : %w", err)
 	default:
-		if err := r.updateProfile(ctx, row, cmp.Or(id.Login, row.ProviderLogin),
-			cmp.Or(id.Name, row.Name), cmp.Or(id.AvatarURL, row.AvatarURL)); err != nil {
+		next := profile{login: cmp.Or(id.Login, row.ProviderLogin), name: cmp.Or(id.Name, row.Name),
+			avatar: cmp.Or(id.AvatarURL, row.AvatarURL), url: cmp.Or(id.ProfileURL, row.ProfileURL)}
+		if err := r.updateProfile(ctx, row, next); err != nil {
 			return 0, err
 		}
-		row.ProviderLogin = cmp.Or(id.Login, row.ProviderLogin)
-		row.Name = cmp.Or(id.Name, row.Name)
-		row.AvatarURL = cmp.Or(id.AvatarURL, row.AvatarURL)
+		row.ProviderLogin, row.Name, row.AvatarURL, row.ProfileURL = next.login, next.name, next.avatar, next.url
 	}
 	if id.Email == "" {
 		return row.ID, nil
@@ -555,20 +555,32 @@ func (r *identityResolver) resolveEmail(ctx context.Context, id Identity) (int64
 	// Le nom Git le plus récent l'emporte, mais seulement pour un contributeur sans compte : le nom d'un
 	// compte vient des commits liés à ce compte.
 	if !row.ProviderUserID.Valid && id.Name != "" {
-		if err := r.updateProfile(ctx, row, row.ProviderLogin, id.Name, row.AvatarURL); err != nil {
+		next := profileOf(row)
+		next.name = id.Name
+		if err := r.updateProfile(ctx, row, next); err != nil {
 			return 0, err
 		}
 	}
 	return row.ID, nil
 }
 
-// updateProfile écrit login, nom et avatar du contributeur row s'ils ont changé.
-func (r *identityResolver) updateProfile(ctx context.Context, row db.Contributor, login, name, avatar string) error {
-	if row.ProviderLogin == login && row.Name == name && row.AvatarURL == avatar {
+// profile regroupe les champs d'un contributeur que met à jour updateProfile.
+type profile struct {
+	login, name, avatar, url string
+}
+
+// profileOf renvoie les champs actuels du contributeur row.
+func profileOf(row db.Contributor) profile {
+	return profile{login: row.ProviderLogin, name: row.Name, avatar: row.AvatarURL, url: row.ProfileURL}
+}
+
+// updateProfile écrit login, nom, avatar et page de profil du contributeur row s'ils ont changé.
+func (r *identityResolver) updateProfile(ctx context.Context, row db.Contributor, p profile) error {
+	if profileOf(row) == p {
 		return nil
 	}
 	if err := r.q.UpdateContributorProfile(ctx, db.UpdateContributorProfileParams{
-		ProviderLogin: login, Name: name, AvatarURL: avatar, ID: row.ID,
+		ProviderLogin: p.login, Name: p.name, AvatarURL: p.avatar, ProfileURL: p.url, ID: row.ID,
 	}); err != nil {
 		return fmt.Errorf("mise à jour d'un contributeur : %w", err)
 	}
@@ -594,7 +606,9 @@ func (r *identityResolver) merge(ctx context.Context, from, into db.Contributor)
 		return fmt.Errorf("fusion de contributeurs (adresses) : %w", err)
 	}
 	if into.Name == "" && from.Name != "" {
-		if err := r.updateProfile(ctx, into, into.ProviderLogin, from.Name, into.AvatarURL); err != nil {
+		next := profileOf(into)
+		next.name = from.Name
+		if err := r.updateProfile(ctx, into, next); err != nil {
 			return err
 		}
 	}

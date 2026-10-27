@@ -13,7 +13,7 @@ func TestHeadAcceptedWhereGetIs(t *testing.T) {
 	targets := []string{
 		"/", "/fragments/dashboard/repos", "/fragments/dashboard/feed",
 		repoPath(ids.Alice), repoPath(ids.Alice) + "/commits",
-		"/contributors", "/fragments/contributors",
+		"/contributors", "/fragments/contributors", "/contributors/1", "/contributors/1/commits",
 		"/settings", "/settings" + repoPath(ids.Alice) + "/remove", "/fragments/quota", "/fragments/sync",
 		"/static/app.js", "/favicon.ico", "/apple-touch-icon.png", "/manifest.webmanifest",
 	}

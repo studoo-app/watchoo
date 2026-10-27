@@ -28,8 +28,8 @@ func (q *Queries) AttachContributorEmail(ctx context.Context, arg AttachContribu
 }
 
 const createContributor = `-- name: CreateContributor :one
-INSERT INTO contributors (provider, provider_user_id, provider_login, name, avatar_url)
-VALUES (?, ?, ?, ?, ?)
+INSERT INTO contributors (provider, provider_user_id, provider_login, name, avatar_url, profile_url)
+VALUES (?, ?, ?, ?, ?, ?)
 RETURNING id
 `
 
@@ -39,6 +39,7 @@ type CreateContributorParams struct {
 	ProviderLogin  string
 	Name           string
 	AvatarURL      string
+	ProfileURL     string
 }
 
 // Ajoute un contributeur ; provider et provider_user_id sont NULL ensemble pour un contributeur sans compte.
@@ -49,6 +50,7 @@ func (q *Queries) CreateContributor(ctx context.Context, arg CreateContributorPa
 		arg.ProviderLogin,
 		arg.Name,
 		arg.AvatarURL,
+		arg.ProfileURL,
 	)
 	var id int64
 	err := row.Scan(&id)
@@ -67,7 +69,7 @@ func (q *Queries) DeleteContributor(ctx context.Context, id int64) error {
 }
 
 const getContributorByAccount = `-- name: GetContributorByAccount :one
-SELECT id, provider, provider_user_id, provider_login, name, avatar_url FROM contributors
+SELECT id, provider, provider_user_id, provider_login, name, avatar_url, profile_url FROM contributors
 WHERE provider = ? AND provider_user_id = ?
 `
 
@@ -87,12 +89,13 @@ func (q *Queries) GetContributorByAccount(ctx context.Context, arg GetContributo
 		&i.ProviderLogin,
 		&i.Name,
 		&i.AvatarURL,
+		&i.ProfileURL,
 	)
 	return i, err
 }
 
 const getContributorByEmail = `-- name: GetContributorByEmail :one
-SELECT c.id, c.provider, c.provider_user_id, c.provider_login, c.name, c.avatar_url FROM contributors c
+SELECT c.id, c.provider, c.provider_user_id, c.provider_login, c.name, c.avatar_url, c.profile_url FROM contributors c
 JOIN contributor_emails e ON e.contributor_id = c.id
 WHERE e.email = ?
 `
@@ -108,6 +111,63 @@ func (q *Queries) GetContributorByEmail(ctx context.Context, email string) (Cont
 		&i.ProviderLogin,
 		&i.Name,
 		&i.AvatarURL,
+		&i.ProfileURL,
+	)
+	return i, err
+}
+
+const getContributorProfile = `-- name: GetContributorProfile :one
+SELECT ct.id, ct.provider, ct.provider_user_id, ct.provider_login, ct.name, ct.avatar_url, ct.profile_url,
+       CAST((SELECT count(*) FROM contributor_emails e WHERE e.contributor_id = ct.id) AS INTEGER) AS emails,
+       count(c.sha) AS commits,
+       CAST(COALESCE(sum(c.additions), 0) AS INTEGER) AS additions,
+       CAST(COALESCE(sum(c.deletions), 0) AS INTEGER) AS deletions,
+       count(DISTINCT c.repo_id) AS repos,
+       CAST(COALESCE(min(c.committed_at), '') AS TEXT) AS first_commit_at,
+       CAST(COALESCE(max(c.committed_at), '') AS TEXT) AS last_commit_at
+FROM contributors ct
+LEFT JOIN commits c ON c.author_id = ct.id
+WHERE ct.id = ?1
+GROUP BY ct.id
+`
+
+type GetContributorProfileRow struct {
+	ID             int64
+	Provider       sql.NullString
+	ProviderUserID sql.NullInt64
+	ProviderLogin  string
+	Name           string
+	AvatarURL      string
+	ProfileURL     string
+	Emails         int64
+	Commits        int64
+	Additions      int64
+	Deletions      int64
+	Repos          int64
+	FirstCommitAt  string
+	LastCommitAt   string
+}
+
+// Contributeur et totaux de ses commits d'AUTEUR (zeros et chaines vides s'il n'en a aucun) ; le nombre
+// d'adresses e-mail rattachees, jamais les adresses. sql.ErrNoRows si le contributeur n'existe pas.
+func (q *Queries) GetContributorProfile(ctx context.Context, id int64) (GetContributorProfileRow, error) {
+	row := q.db.QueryRowContext(ctx, getContributorProfile, id)
+	var i GetContributorProfileRow
+	err := row.Scan(
+		&i.ID,
+		&i.Provider,
+		&i.ProviderUserID,
+		&i.ProviderLogin,
+		&i.Name,
+		&i.AvatarURL,
+		&i.ProfileURL,
+		&i.Emails,
+		&i.Commits,
+		&i.Additions,
+		&i.Deletions,
+		&i.Repos,
+		&i.FirstCommitAt,
+		&i.LastCommitAt,
 	)
 	return i, err
 }
@@ -131,7 +191,7 @@ func (q *Queries) MoveContributorEmails(ctx context.Context, arg MoveContributor
 
 const updateContributorProfile = `-- name: UpdateContributorProfile :exec
 UPDATE contributors
-SET provider_login = ?, name = ?, avatar_url = ?
+SET provider_login = ?, name = ?, avatar_url = ?, profile_url = ?
 WHERE id = ?
 `
 
@@ -139,15 +199,17 @@ type UpdateContributorProfileParams struct {
 	ProviderLogin string
 	Name          string
 	AvatarURL     string
+	ProfileURL    string
 	ID            int64
 }
 
-// Met a jour le login, le nom et l'avatar d'un contributeur.
+// Met a jour le login, le nom, l'avatar et la page de profil d'un contributeur.
 func (q *Queries) UpdateContributorProfile(ctx context.Context, arg UpdateContributorProfileParams) error {
 	_, err := q.db.ExecContext(ctx, updateContributorProfile,
 		arg.ProviderLogin,
 		arg.Name,
 		arg.AvatarURL,
+		arg.ProfileURL,
 		arg.ID,
 	)
 	return err

@@ -179,15 +179,17 @@ JOIN repositories r ON r.id = p.repo_id
 WHERE (?1 IS NULL OR p.repo_id = ?1)
   AND (?2 IS NULL OR p.state = ?2)
   AND (?3 IS NULL OR p.merged = ?3)
+  AND (?4 IS NULL OR p.author_provider_id = ?4)
 ORDER BY p.updated_at DESC, p.repo_id, p.number DESC
-LIMIT ?4
+LIMIT ?5
 `
 
 type ListPullRequestsParams struct {
-	RepoID   interface{}
-	State    interface{}
-	Merged   interface{}
-	RowLimit int64
+	RepoID           interface{}
+	State            interface{}
+	Merged           interface{}
+	AuthorProviderID interface{}
+	RowLimit         int64
 }
 
 type ListPullRequestsRow struct {
@@ -211,13 +213,14 @@ type ListPullRequestsRow struct {
 	RepoLabel        string
 }
 
-// Pull requests filtrees (depot, etat, merge), de la plus recemment modifiee a la plus ancienne.
+// Pull requests filtrees (depot, etat, merge, compte de l'auteur), de la plus recemment modifiee a la plus ancienne.
 // row_limit negatif = pas de limite.
 func (q *Queries) ListPullRequests(ctx context.Context, arg ListPullRequestsParams) ([]ListPullRequestsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listPullRequests,
 		arg.RepoID,
 		arg.State,
 		arg.Merged,
+		arg.AuthorProviderID,
 		arg.RowLimit,
 	)
 	if err != nil {

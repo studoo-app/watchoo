@@ -41,7 +41,7 @@ func defaultKeyMap() keyMap {
 		PageDown:     key.NewBinding(key.WithKeys("pgdown"), key.WithHelp("pg.suiv", "page suivante")),
 		Top:          key.NewBinding(key.WithKeys("home", "g"), key.WithHelp("g", "début de la liste")),
 		Bottom:       key.NewBinding(key.WithKeys("end", "G"), key.WithHelp("G", "fin de la liste")),
-		Open:         key.NewBinding(key.WithKeys("enter"), key.WithHelp("entrée", "détail du dépôt")),
+		Open:         key.NewBinding(key.WithKeys("enter"), key.WithHelp("entrée", "détail du dépôt ou du contributeur")),
 		Back:         key.NewBinding(key.WithKeys("esc"), key.WithHelp("échap", "retour, effacer le filtre")),
 		Filter:       key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "filtrer")),
 		SyncAll:      key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "synchroniser tout")),

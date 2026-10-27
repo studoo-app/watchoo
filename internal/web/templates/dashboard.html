@@ -64,7 +64,8 @@
         {{if .LastCommit.SHA}}
         <p class="text-sm truncate" title="{{firstLine .LastCommit.Message}}">{{firstLine .LastCommit.Message}}</p>
         <p class="text-xs text-base-content/70">
-          {{template "rel-time" .LastCommitAt}} · par <span class="font-medium">{{clean .LastCommit.AuthorDisplayName}}</span>
+          {{template "rel-time" .LastCommitAt}} · par {{template "contributor-link" (dict "ID" .LastCommit.AuthorID "Name" .LastCommit.AuthorDisplayName "Class" "font-medium")}}
+          {{- if .LastCommit.AuthorProfileURL}} {{template "profile-link" (dict "URL" .LastCommit.AuthorProfileURL "Login" .LastCommit.AuthorLogin)}}{{end}}
         </p>
         {{else}}
         <p class="text-sm text-base-content/60">Aucun commit connu{{if .LastSyncedAt.IsZero}} : pas encore synchronisé{{end}}.</p>
@@ -103,7 +104,7 @@
           <p class="text-sm truncate" title="{{firstLine .Message}}">{{firstLine .Message}}</p>
           <p class="text-xs text-base-content/70 truncate">
             <a href="{{repoPath .RepoID}}" class="link link-hover font-medium">{{clean .RepoDisplayName}}</a>
-            · {{clean .AuthorDisplayName}} · {{template "rel-time" .CommittedAt}}
+            · {{template "contributor-link" (dict "ID" .AuthorID "Name" .AuthorDisplayName)}}{{if .AuthorProfileURL}} {{template "profile-link" (dict "URL" .AuthorProfileURL "Login" .AuthorLogin)}}{{end}} · {{template "rel-time" .CommittedAt}}
           </p>
         </div>
         {{if .URL}}<a href="{{.URL}}" class="font-mono text-xs link link-hover text-base-content/60" target="_blank" rel="noopener noreferrer" title="Voir le commit sur la forge">{{shortSHA .SHA}}</a>

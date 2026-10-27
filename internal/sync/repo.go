@@ -289,6 +289,7 @@ func identity(p provider.Person) store.Identity {
 		Login:          p.Login,
 		ProviderUserID: p.ID,
 		AvatarURL:      p.AvatarURL,
+		ProfileURL:     p.ProfileURL,
 	}
 }
 
