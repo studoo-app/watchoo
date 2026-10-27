@@ -26,7 +26,8 @@ func newTUICmd(deps Deps, opts *options) *cobra.Command {
 contributeurs se parcourent au clavier, avec filtre et détail d'un dépôt.
 
 Touches principales : tab change de vue, ↑ ↓ déplacent la sélection, entrée ouvre le
-détail, / filtre, s synchronise tout, S le dépôt sélectionné, ? affiche l'aide, q quitte.
+détail, / filtre, s synchronise tout, S le dépôt sélectionné, a ajoute un dépôt à suivre
+(vue Dépôts, comme « watchoo repo add » sans option), ? affiche l'aide, q quitte.
 
 Tant qu'il est ouvert, le mode interactif synchronise automatiquement les dépôts toutes
 les sync.interval (30 min par défaut) si sync.auto est vrai. --interval remplace ce
@@ -71,6 +72,7 @@ func runTUI(ctx context.Context, deps Deps, opts *options, interval time.Duratio
 	return deps.RunTUI(ctx, tui.Deps{
 		Data:     s.store,
 		Syncer:   engine,
+		Adder:    engine,
 		Config:   s.ws.Config,
 		Location: s.loc,
 		Interval: auto,

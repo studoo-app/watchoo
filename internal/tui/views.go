@@ -77,8 +77,12 @@ func (m Model) render() string {
 	return strings.Join(lines, "\n")
 }
 
-// renderFooter renvoie le message (ou la saisie du filtre) et le rappel des touches.
+// renderFooter renvoie le message (ou la saisie du filtre) et le rappel des touches ; pendant la saisie
+// d'un dépôt, la saisie et son rappel (add.go).
 func (m Model) renderFooter(w int) []string {
+	if m.add.open {
+		return m.renderAddFooter(w)
+	}
 	var msg string
 	ls := m.lists[m.view]
 	switch {
@@ -144,7 +148,7 @@ func (m Model) emptyMessage() string {
 	}
 	switch m.view {
 	case viewRepos:
-		return "Aucun dépôt suivi. Ajoutez-en avec « watchoo repo add owner/repo », puis « s » pour synchroniser."
+		return "Aucun dépôt suivi. Ajoutez-en avec « a » (ou « watchoo repo add owner/repo »)."
 	case viewCommits:
 		return "Aucun commit en base. « s » lance une synchro."
 	default:
