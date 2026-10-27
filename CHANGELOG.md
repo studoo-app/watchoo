@@ -9,6 +9,23 @@ un changement incompatible fait monter MINOR et tout changement compatible fait 
 
 ## [Unreleased]
 
+### Ajouté
+
+- **Avis de nouvelle version** : à chaque commande, Watchoo vérifie en arrière-plan (1,5 s au plus, sans
+  jamais retarder davantage la commande) si une version plus récente est publiée, et l'annonce à la fin
+  sur la sortie d'erreur. Rien avec `--json`, hors terminal, pour une version de développement, ni si la
+  variable `WATCHOO_NO_UPDATE_CHECK` est posée (c'est le cas dans l'image Docker). `watchoo serve`
+  vérifie au démarrage puis toutes les 24 h, et l'interface web montre alors un bandeau discret sur
+  toutes les pages, avec le lien vers la release.
+- **Commande `watchoo update`** : affiche `v0.5.0 → v0.6.0` et le lien vers la release, demande
+  confirmation (`--yes` / `-y` pour s'en passer), télécharge l'archive de la release pour le système,
+  vérifie sa somme SHA-256 et remplace le binaire d'un bloc. `watchoo update --check` vérifie seulement
+  (`--json` : `current`, `latest`, `update_available`, `release_url`). Refus expliqué dans l'image
+  Docker (changer le tag), pour une version compilée depuis les sources et si le répertoire du binaire
+  n'est pas accessible en écriture. Seules les pages publiques des releases de Watchoo sont lues : ni
+  token, ni API GitHub, ni quota.
+- Image Docker : variables `WATCHOO_NO_UPDATE_CHECK=1` et `WATCHOO_DOCKER=1`.
+
 ## [0.5.0] - 2026-10-27
 
 Page par contributeur avec lien vers son profil GitHub, et lignes ajoutées et supprimées de tous les

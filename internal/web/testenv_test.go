@@ -88,6 +88,9 @@ type testEnv struct {
 	// newProvider remplace le faux Provider du moteur (nil = e.fake) : vrai provider GitHub sur
 	// githubtest pour le test de bout en bout.
 	newProvider func(token string) (provider.Provider, error)
+	// updates et updateDocker : bandeau de nouvelle version (0.6.0).
+	updates      UpdateSource
+	updateDocker bool
 }
 
 // envOption modifie l'environnement avant la construction du handler.
@@ -119,6 +122,11 @@ func withInterval(d time.Duration) envOption { return func(e *testEnv) { e.inter
 // githubtest…).
 func withProvider(f func(token string) (provider.Provider, error)) envOption {
 	return func(e *testEnv) { e.newProvider = f }
+}
+
+// withUpdates branche la source du bandeau de nouvelle version (docker : texte de l'image Docker).
+func withUpdates(src UpdateSource, docker bool) envOption {
+	return func(e *testEnv) { e.updates, e.updateDocker = src, docker }
 }
 
 // newTestEnv construit l'environnement, sans données (voir seed).
@@ -196,6 +204,7 @@ func newTestEnv(t *testing.T, opts ...envOption) *testEnv {
 		Store: st, Sync: e.coord, Repos: e.engine, Config: e.cfg, Location: time.UTC,
 		Now: clock, Logger: logger, Version: "v0.0.0-test", ListenAddr: e.listenAddr,
 		Auth: e.webAuth, TrustedProxy: e.trusted, AllowedHosts: e.allowedHosts,
+		Updates: e.updates, UpdateDocker: e.updateDocker,
 	})
 	if err != nil {
 		t.Fatalf("newServer : %v", err)

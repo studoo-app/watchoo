@@ -117,6 +117,11 @@ func runServe(ctx context.Context, deps Deps, opts *options, addr string, addrSe
 		}
 		return fmt.Errorf("écoute sur %s impossible : %w", cfg.Web.Addr, err)
 	}
+	monitor := newUpdateMonitor(deps, s.logger)
+	var updates web.UpdateSource // nil (et non un *Monitor nil) sans vérification
+	if monitor != nil {
+		updates = monitor
+	}
 	handler, err := web.New(web.Options{
 		Store:        s.store,
 		Sync:         coord,
@@ -131,6 +136,8 @@ func runServe(ctx context.Context, deps Deps, opts *options, addr string, addrSe
 		Auth:         auth,
 		TrustedProxy: cfg.Web.TrustedProxy,
 		AllowedHosts: cfg.Web.AllowedHosts,
+		Updates:      updates,
+		UpdateDocker: deps.InDocker(),
 	})
 	if err != nil {
 		_ = ln.Close()
@@ -143,6 +150,18 @@ func runServe(ctx context.Context, deps Deps, opts *options, addr string, addrSe
 	if err := writeServeBanner(deps, opts, cfg.Name, serveURL(ln.Addr()), auto); err != nil {
 		_ = ln.Close()
 		return err
+	}
+	if monitor != nil {
+		monitorCtx, stopMonitor := context.WithCancel(ctx)
+		monitorDone := make(chan struct{})
+		go func() {
+			defer close(monitorDone)
+			monitor.Run(monitorCtx)
+		}()
+		defer func() {
+			stopMonitor()
+			<-monitorDone
+		}()
 	}
 	if err := web.Serve(ctx, web.ServeOptions{Listener: ln, Handler: handler, Syncs: coord, Logger: s.logger}); err != nil {
 		return err

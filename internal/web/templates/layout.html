@@ -47,6 +47,15 @@
     {{template "sync-status" .}}
     {{end}}
   </header>
+  {{if and (not .Public) .Update}}
+  <div class="w-full max-w-7xl mx-auto px-4 md:px-6 pt-4" id="update-banner">
+    <div role="status" class="alert alert-info alert-soft text-sm">
+      <span>Nouvelle version de Watchoo disponible : <strong>{{.Update.Current}} → {{.Update.Latest}}</strong>.
+      {{if .Update.Docker}}Changez le tag de l'image Docker pour la mettre à jour.{{else}}Mettez-la à jour avec <code>watchoo update</code>, puis redémarrez <code>watchoo serve</code>.{{end}}
+      <a class="link" href="{{.Update.ReleaseURL}}" target="_blank" rel="noopener noreferrer">Notes de version</a></span>
+    </div>
+  </div>
+  {{end}}
   <main id="main" class="flex-1 w-full max-w-7xl mx-auto p-4 md:p-6">
     {{template "content" .}}
   </main>

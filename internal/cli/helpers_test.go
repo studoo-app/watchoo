@@ -21,6 +21,7 @@ import (
 	"github.com/studoo-app/watchoo/internal/provider"
 	gitprov "github.com/studoo-app/watchoo/internal/provider/git"
 	"github.com/studoo-app/watchoo/internal/provider/providertest"
+	"github.com/studoo-app/watchoo/internal/selfupdate"
 	"github.com/studoo-app/watchoo/internal/tui"
 	"github.com/studoo-app/watchoo/internal/workspace"
 )
@@ -96,6 +97,29 @@ type harness struct {
 	GitURL string
 	// GitMissing simule un git absent pour « watchoo init » sans gh.
 	GitMissing bool
+
+	// Mise à jour (0.6.0).
+
+	// Updater remplace le client des releases ; nil = un faux qui échoue (aucun test ne joint le
+	// réseau). Les tests de la mise à jour y branchent un selfupdate.Client sur selfupdatetest.
+	Updater Updater
+	// StderrTerminal dit si la sortie d'erreur est un terminal (avis de nouvelle version).
+	StderrTerminal bool
+	// Executable est le chemin du binaire renvoyé à « watchoo update » ; vide = erreur.
+	Executable string
+	// InDocker simule l'image Docker.
+	InDocker bool
+}
+
+// offlineUpdater est l'Updater par défaut des tests : toute requête échoue.
+type offlineUpdater struct{}
+
+func (offlineUpdater) Check(context.Context, string) (selfupdate.Status, error) {
+	return selfupdate.Status{}, errors.New("aucun accès réseau dans ce test")
+}
+
+func (offlineUpdater) Install(context.Context, string, string) error {
+	return errors.New("aucun accès réseau dans ce test")
 }
 
 // newHarness isole l'environnement et renvoie un harness dont le répertoire courant est un
@@ -183,6 +207,20 @@ func (h *harness) runContext(ctx context.Context, args ...string) result {
 		RunTUI:          h.RunTUI,
 		Listen:          h.Listen,
 		Logger:          slog.Default(), // testLogs (TestMain)
+		Updater:         h.Updater,
+		StderrIsTerminal: func() bool {
+			return h.StderrTerminal
+		},
+		Executable: func() (string, error) {
+			if h.Executable == "" {
+				return "", errors.New("aucun binaire dans ce test")
+			}
+			return h.Executable, nil
+		},
+		InDocker: func() bool { return h.InDocker },
+	}
+	if deps.Updater == nil {
+		deps.Updater = offlineUpdater{}
 	}
 	if deps.Listen == nil {
 		deps.Listen = func(string, string) (net.Listener, error) {
