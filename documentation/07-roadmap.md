@@ -72,11 +72,17 @@ bon schéma ; les autres commandes retrouvent l'espace.
   quota interrompue journalisée en debug.
 
 ### Phase 6 — V2
-- Pull requests, releases.
-- Import d'organisation.
-- Alertes Discord / Slack / e-mail.
+- Pull requests et releases.
+- **Dépôts Git locaux** : un dépôt peut être suivi depuis un clone local (`git clone`, puis `git fetch`
+  périodique) qui fournit commits, branches et tags sans appel à l'API GitHub, donc sans consommer de
+  quota. Alternative à l'API GitHub et à `gh` : si `gh` est installé et connecté, Watchoo l'utilise par
+  défaut ; sinon il passe par le clone local (voir
+  [Dépôts Git locaux](03-architecture.md#dépôts-git-locaux-v2)).
 - Seuils d'activité par dépôt (option de `repo add`, colonne de l'import, réglage web).
 - Activité par contributeur à l'intérieur d'un dépôt.
+
+L'import d'une organisation entière et les alertes passent en V3 (voir
+[Fonctionnalités](02-fonctionnalites.md#v3)).
 
 ## Définition de « terminé » pour chaque phase
 

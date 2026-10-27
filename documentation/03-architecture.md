@@ -41,7 +41,7 @@ flowchart TD
 | Graphiques | Chart.js, embarqué | Courbes d'activité simples, fonctionne hors ligne |
 | Affichage terminal | `charmbracelet/bubbletea` + `bubbles` (TUI) + `lipgloss` | Mode interactif navigable au clavier ; sortie texte statique (`lipgloss/table`) pour les pipes et les scripts |
 | Planification | `time.Ticker` + `errgroup` | Synchro périodique, parallélisme borné |
-| Authentification | CLI GitHub `gh` (prérequis) | Token obtenu avec `gh auth token`, jamais stocké par Watchoo ; un seul token pour tous les propriétaires |
+| Authentification | CLI GitHub `gh` (prérequis ; facultatif en V2) | Token obtenu avec `gh auth token`, jamais stocké par Watchoo ; un seul token pour tous les propriétaires |
 | Logs | `log/slog` | Logs structurés de la bibliothèque standard, sur la sortie d'erreur ; niveau `warn` par défaut, réglable par `WATCHOO_LOG_LEVEL` (`debug`, `info`, `warn`, `error`) ou `--verbose` (`debug`). Seulement des identifiants de dépôt, des SHA courts et des compteurs : jamais de token, de message de commit, de nom ni d'e-mail |
 
 ### Décisions techniques
@@ -280,12 +280,17 @@ Faux pour les tests : `providertest` (Provider en mémoire) et `githubtest` (ser
 - **Décision** : la CLI GitHub **`gh` est un prérequis obligatoire**. C'est la **seule** source du token :
   Watchoo l'obtient avec `gh auth token` et ne lit ni `GITHUB_TOKEN`, ni de trousseau en propre, ni de
   token saisi à la main.
+- **À partir de la V2** ([Dépôts Git locaux](#dépôts-git-locaux-v2)) : `gh` devient **facultatif**. Sans
+  `gh` installé et connecté, les dépôts sont suivis par clone local, sans token. `gh` reste la **seule**
+  source du token quand l'API GitHub est utilisée, et toutes les règles ci-dessous restent valables.
 - Watchoo **ne stocke jamais le token** : ni dans la config, ni dans la base, ni dans un trousseau.
   `gh` le garde déjà dans le trousseau du système.
 - Le token est redemandé à `gh` **au début de chaque synchro** et gardé en mémoire seulement le temps de
   la synchro. Si l'utilisateur se reconnecte ou change de compte dans `gh`, Watchoo suit sans redémarrer.
 - `watchoo init` vérifie que `gh` est installé et connecté (`gh auth status`). Sinon il s'arrête et
-  indique quoi faire (`gh auth login`). Il ne demande aucun token. Si `gh` n'a pas pu joindre GitHub pour
+  indique quoi faire (`gh auth login`). À partir de la V2, il ne s'arrête plus : il prévient que les
+  dépôts seront suivis par clone local (avec `git`, qui doit alors être installé) et rappelle
+  `gh auth login` pour passer par l'API. Il ne demande aucun token. Si `gh` n'a pas pu joindre GitHub pour
   vérifier le token (réseau coupé, proxy, panne de GitHub), `init` le dit sans conseiller `gh auth login`,
   qui n'y changerait rien.
 - Plusieurs comptes dans `gh` : par défaut, le compte actif de `gh` pour `github.com`. Une option de
@@ -335,6 +340,37 @@ Les dépôts suivis sont principalement **privés**. Conséquences :
   exposerait le contenu des dépôts privés : dans ce cas l'authentification devient **obligatoire** (voir
   [Interface web](06-interface-web.md#sécurité)).
 - **Quota** : identique pour les dépôts privés et publics (5 000 requêtes / heure par token).
+
+### Dépôts Git locaux (V2)
+
+Prévu en phase 6 ([Roadmap](07-roadmap.md#phase-6--v2)) ; rien n'est encore codé.
+
+- **But** : suivre un dépôt depuis un clone local, mis à jour par `git fetch` à chaque synchro, pour
+  limiter les appels à l'API GitHub (aucun quota consommé) et pouvoir suivre un dépôt privé sans `gh`.
+- **Choix de la source** : **uniquement** selon la présence de `gh`, sans réglage par dépôt ni par
+  espace. Si `gh` est installé et connecté, Watchoo utilise l'API GitHub comme aujourd'hui ; sinon il
+  passe par le clone local. Le choix est refait à chaque synchro : installer ou connecter `gh` fait
+  repasser par l'API, sans autre manipulation. `gh` cesse donc d'être un prérequis obligatoire (voir
+  [Authentification](#authentification--gh-imposé)).
+- **Un second `Provider`** dans `internal/provider/git/`, qui appelle le binaire `git` (aucune nouvelle
+  dépendance Go). Le moteur de synchro ne change pas de logique : il reçoit un autre `Provider`. Les
+  règles communes (validation, erreurs typées, dates UTC, usage concurrent) s'appliquent.
+- **Clones** : clones nus (`git clone --bare`) dans `.watchoo/repos/`, en `0700`, ignorés par le
+  `.gitignore` de l'espace. `repo remove` supprime le clone ; `repo remove --keep-history` le **garde**,
+  comme l'historique en base.
+- **Lecture seule** : Watchoo ne lance que `git clone`, `git fetch` et des commandes de lecture (`log`,
+  `for-each-ref`, `rev-list`…), jamais `push` ; il ne modifie pas un clone de l'utilisateur, seulement les
+  siens.
+- **Identifiants** : Watchoo ne lit, ne demande ni ne stocke aucun identifiant. `git` s'appuie sur ce que
+  l'utilisateur a déjà configuré (clé SSH, gestionnaire d'identifiants) ; `git` est lancé sans invite
+  interactive (`GIT_TERMINAL_PROMPT=0`), et un échec d'accès s'affiche comme « en erreur : accès refusé ».
+  Aucun token dans une URL de clone, ni dans les logs.
+- **Ce que le mode local ne fournit pas** : pas de login GitHub (seulement nom et e-mail Git, donc une
+  fusion d'identités moins sûre), pas d'étoiles, d'issues, d'état archivé, de pull requests ni de
+  releases ; les tags, eux, sont disponibles. Les écrans masquent ce qui manque.
+- **Distribution** : l'image Docker doit inclure `git`.
+- **Tests** : dépôts Git créés dans un répertoire temporaire et servis par le système de fichiers
+  (`file://`), sans service extérieur.
 
 ### Fusion des identités
 - Un même contributeur peut committer avec plusieurs e-mails.

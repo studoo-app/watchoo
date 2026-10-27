@@ -28,7 +28,7 @@ SQLite locale, et le restitue :
 | **Superviser** | Détecter les nouveaux commits sur toutes les branches suivies de chaque dépôt | MVP |
 | **Attribuer** | Identifier les contributeurs (auteur, committer, compte GitHub) et leur activité | MVP |
 | **Visualiser** | Tableau de bord : état de chaque dépôt, derniers commits, évolution dans le temps | MVP / V2 |
-| **Alerter** | Notifier quand un dépôt est mis à jour ou reste inactif trop longtemps | V2 |
+| **Alerter** | Notifier quand un dépôt est mis à jour ou reste inactif trop longtemps | V3 |
 
 ## Périmètre
 
@@ -36,8 +36,8 @@ SQLite locale, et le restitue :
   sont aussi pris en charge. Le token doit donc donner accès en lecture aux dépôts privés concernés, et les
   données locales sont traitées comme confidentielles (voir
   [Architecture](03-architecture.md#dépôts-privés)).
-- **Prévu dès la conception** : ajout ultérieur de GitLab, Gitea ou d'un dépôt Git brut, grâce à une
-  interface `Provider`. Aucun code spécifique à GitHub ne doit fuiter hors du provider GitHub.
+- **Prévu dès la conception** : ajout ultérieur d'un dépôt Git local (V2), de GitLab ou de Gitea (V3),
+  grâce à une interface `Provider`. Aucun code spécifique à GitHub ne doit fuiter hors du provider GitHub.
 
 ## Espaces de supervision
 
