@@ -9,6 +9,11 @@ un changement incompatible fait monter MINOR et tout changement compatible fait 
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-27
+
+V2 : dépôts Git locaux sans `gh`, pull requests, releases et tags, seuils d'activité par dépôt et
+activité par contributeur dans un dépôt. Fin du MVP.
+
 ### Ajouté
 
 - **Dépôts Git locaux** : `gh` devient facultatif. Sans `gh` installé et connecté, Watchoo suit les
@@ -153,6 +158,7 @@ Première version publiée : le MVP (phases 1 à 5 de la [roadmap](documentation
   `gh` est le binaire officiel vérifié par SHA-256 ; images de base et actions GitHub épinglées par
   empreinte.
 
-[Unreleased]: https://github.com/studoo-app/watchoo/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/studoo-app/watchoo/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/studoo-app/watchoo/compare/v0.2.0...v0.4.0
 [0.2.0]: https://github.com/studoo-app/watchoo/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/studoo-app/watchoo/releases/tag/v0.1.0

@@ -6,7 +6,7 @@ Six phases courtes, chacune livrant quelque chose d'utilisable. **On ne passe à
 la précédente marche de bout en bout.**
 
 **État** : phases 1 à 5 réalisées, MVP publié en **v0.1.0** (voir [CHANGELOG.md](../CHANGELOG.md)) ;
-critère de fin du MVP validé le 27 octobre 2026 ; phase 6 (V2) réalisée, pas encore publiée.
+critère de fin du MVP validé le 27 octobre 2026 ; phase 6 (V2) réalisée et publiée en **v0.4.0**.
 
 ```mermaid
 flowchart LR
