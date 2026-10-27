@@ -1,0 +1,40 @@
+# Exemple docker compose pour l'interface web de Watchoo (facultatif). À adapter, jamais à commiter avec
+# des secrets : GH_TOKEN et WATCHOO_WEB_PASSWORD viennent de l'environnement de l'hôte (ou d'un
+# fichier .env non suivi par Git), pas de ce fichier.
+#
+#   export GH_TOKEN=…               # token GitHub (de préférence fine-grained, en lecture seule)
+#   export WATCHOO_WEB_PASSWORD=…   # mot de passe de l'interface web
+#   docker compose run --rm watchoo init
+#   docker compose run --rm watchoo repo add owner/repo
+#   docker compose up -d
+#
+# Le volume watchoo-data contient la base de l'espace (messages de commit, noms et e-mails issus de
+# dépôts privés) : ne le partagez pas et ne le montez dans aucun autre conteneur.
+services:
+  watchoo:
+    image: ghcr.io/studoo-app/watchoo:0.1.0
+    # Pour construire l'image localement à la place : décommentez (make docker fait de même).
+    # build: .
+    restart: unless-stopped
+    environment:
+      GH_TOKEN: ${GH_TOKEN:?GH_TOKEN doit être défini}
+      WATCHOO_WEB_AUTH_USERNAME: ${WATCHOO_WEB_AUTH_USERNAME:-watchoo}
+      WATCHOO_WEB_PASSWORD: ${WATCHOO_WEB_PASSWORD:?WATCHOO_WEB_PASSWORD doit être défini}
+      # Fuseau d'affichage et de regroupement par jour ou par semaine.
+      WATCHOO_TIMEZONE: ${WATCHOO_TIMEZONE:-Europe/Paris}
+    volumes:
+      - watchoo-data:/data
+    ports:
+      # Publié sur la boucle locale de l'hôte seulement ; un reverse proxy TLS peut l'exposer.
+      - "127.0.0.1:8080:8080"
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp
+      - /home/nonroot:uid=65532,gid=65532,mode=0700
+
+volumes:
+  watchoo-data:

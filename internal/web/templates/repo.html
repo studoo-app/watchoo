@@ -28,7 +28,8 @@
           </p>
         </div>
         <div class="relative h-56 md:h-64 w-full">
-          <canvas id="activity-chart" role="img" data-refresh-url="{{repoPath $r.ID}}"
+          <canvas id="activity-chart" role="img" data-chart="daily" data-source="activity-data"
+                  data-summary="activity-summary" data-refresh-url="{{repoPath $r.ID}}"
                   aria-label="Commits par jour sur les {{.Content.ChartDays}} derniers jours : {{plural .Content.ChartTotal "commit" "commits"}} au total"></canvas>
         </div>
         <p class="text-xs text-base-content/60">Commits par jour (date de commit), dans le fuseau d'affichage de l'espace.</p>

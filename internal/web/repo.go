@@ -35,7 +35,6 @@ import (
 	"net/http"
 	"slices"
 	"strings"
-	"time"
 
 	"github.com/studoo-app/watchoo/internal/activity"
 	"github.com/studoo-app/watchoo/internal/model"
@@ -189,16 +188,8 @@ func (s *server) repoView(r *http.Request, id int64, overview bool) (RepoView, e
 		if err != nil {
 			return RepoView{}, err
 		}
-		view.Chart = activity.DailyCounts(times, now, activity.ChartDays, s.loc)
-		for _, d := range view.Chart {
-			view.ChartTotal += d.Count
-			if d.Count > view.ChartPeak.Count {
-				view.ChartPeak = d
-			}
-		}
-		if t, err := time.Parse(time.DateOnly, view.ChartPeak.Date); err == nil {
-			view.ChartPeakDate = t.Format("02/01/2006")
-		}
+		chart := newDailyChart(times, now, activity.ChartDays, s.loc)
+		view.Chart, view.ChartTotal, view.ChartPeak, view.ChartPeakDate = chart.Series, chart.Total, chart.Peak, chart.PeakDate
 	}
 
 	c := RepoCommitsView{RepoID: id, Branch: queryValue(r, "branch"), Author: queryValue(r, "author")}

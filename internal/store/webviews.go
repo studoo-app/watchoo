@@ -127,6 +127,32 @@ func (s *Store) CommitTimes(ctx context.Context, repoID int64, since time.Time) 
 	return times, nil
 }
 
+// AuthorCommitTime est la date de commit (committed_at, UTC) d'un commit dont l'auteur est connu.
+type AuthorCommitTime struct {
+	ContributorID int64     // auteur (contributors.id)
+	CommittedAt   time.Time // date du commit, en UTC
+}
+
+// AuthorCommitTimes renvoie l'auteur et la date de chaque commit d'auteur connu depuis since inclus,
+// tous dépôts confondus, sans ordre garanti ; chaque commit une seule fois. Sert à la série
+// d'activité par contributeur (graphique de la page des contributeurs), calculée en Go dans le
+// fuseau d'affichage.
+func (s *Store) AuthorCommitTimes(ctx context.Context, since time.Time) ([]AuthorCommitTime, error) {
+	rows, err := s.queries.AuthorCommitTimesSince(ctx, FormatTime(since))
+	if err != nil {
+		return nil, fmt.Errorf("dates des commits par auteur : %w", err)
+	}
+	out := make([]AuthorCommitTime, 0, len(rows))
+	for _, row := range rows {
+		t, err := ParseTime(row.CommittedAt)
+		if err != nil {
+			return nil, fmt.Errorf("dates des commits par auteur : %w", err)
+		}
+		out = append(out, AuthorCommitTime{ContributorID: row.AuthorID.Int64, CommittedAt: t})
+	}
+	return out, nil
+}
+
 // ContributorRepoStats est le nombre de commits d'un contributeur (AUTEUR) dans un dépôt.
 type ContributorRepoStats struct {
 	ContributorID int64     // contributeur (contributors.id)

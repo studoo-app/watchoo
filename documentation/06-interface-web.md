@@ -40,6 +40,9 @@ erreurs (500…) : pages en français, sans détail interne (le détail est dans
 - **Compteurs** par état (DaisyUI `stat`), avec les seuils de l'espace rappelés sous Flemme et Dead.
 - **Fil des 20 derniers commits**, tous dépôts confondus (initiale de l'auteur, message, dépôt, date ;
   SHA court lié au commit sur GitHub).
+- **Graphique d'activité de l'espace sur 90 jours** : commits par jour, tous dépôts confondus (voir
+  [Graphiques d'activité](#graphiques-dactivité)), avec son résumé (total, jour le plus chargé). Absent
+  tant qu'aucun dépôt n'est suivi.
 - Bouton **« Synchroniser maintenant »**. Sans aucun dépôt : un état vide renvoie vers les réglages.
 
 ### 2. Détail d'un dépôt
@@ -71,6 +74,12 @@ erreurs (500…) : pages en français, sans détail interne (le détail est dans
   pas encore été lues), avec trois compteurs (contributeurs, commits, dépôts).
 - Nombre de commits par dépôt (liens vers le détail).
 - Dernière activité.
+- **Graphique d'activité par contributeur sur 12 semaines** : barres empilées des commits par semaine
+  (du lundi au dimanche), une série par contributeur parmi les **8 plus actifs de la période** (égalités
+  départagées par le classement global), les autres regroupés dans « Autres contributeurs » (gris) ;
+  légende, infobulle par semaine (détail et total) et table « Données du graphique » repliable (vue
+  sans graphique). Absent tant qu'aucun auteur n'est connu. Voir
+  [Graphiques d'activité](#graphiques-dactivité).
 - Avatar GitHub. **Choix** : l'image est chargée depuis `avatars.githubusercontent.com`, seul hôte
   externe permis (CSP `img-src`) : c'est une requête vers un tiers, faite par le navigateur, qui révèle à
   GitHub qu'un avatar est affiché, mais sans en-tête `Referer` (`referrerpolicy="no-referrer"`), en
@@ -104,6 +113,39 @@ erreurs (500…) : pages en français, sans détail interne (le détail est dans
 - Les formulaires des réglages sont des `POST` classiques (redirection `303`, ou page réaffichée avec
   l'erreur), car HTMX ne remplace pas le contenu sur une réponse 4xx. La liste des dépôts n'est pas
   rechargée à la fin d'une synchro (seul le quota l'est).
+
+## Graphiques d'activité
+
+Trois graphiques (Chart.js 4, embarqué, chargé seulement sur les pages qui en ont un) : détail d'un
+dépôt et tableau de bord (commits par jour sur 90 jours, `activity.DailyCounts`), contributeurs
+(commits par semaine sur 12 semaines, `activity.WeeklyCounts`, séries construites par
+`buildContributorChart` dans `internal/web/charts.go`).
+
+- **Calcul en Go**, par des fonctions pures testées : jours et semaines (du lundi au dimanche) dans le
+  **fuseau d'affichage** de l'espace ([Dates](04-modele-donnees.md#dates)) ; dates lues par
+  `store.CommitTimes` (tous dépôts ou un seul) et `store.AuthorCommitTimes` (auteur et date) ; aucun
+  e-mail. Les noms de la légende sont nettoyés (`textclean`) et tronqués à 40 caractères.
+- **Transmission** : JSON dans un `<script type="application/json">` (échappé par `html/template`),
+  lu par `static/app.js` avec `JSON.parse` et validé ; aucune donnée dans du code JavaScript (CSP
+  stricte). Chaque `<canvas>` déclare sa forme (`data-chart` : `daily` ou `weekly-stacked`), ses
+  données (`data-source`), son résumé (`data-summary`), sa table éventuelle (`data-table`) et la page
+  à relire (`data-refresh-url`).
+- **Rafraîchissement** : les graphiques sont hors des fragments (HTMX retire leurs `<script>`) ; à la fin
+  d'une synchro (`sync-finished`), `app.js` relit la page (même origine), en extrait les données, le
+  résumé et la table avec `DOMParser` (qui n'exécute rien ; la table est recopiée par `importNode`,
+  jamais par `innerHTML`) et redessine.
+  Une carte de graphique n'est rendue que si l'espace a des données au chargement de la page (au
+  moins un dépôt suivi pour le tableau de bord, un auteur connu pour les contributeurs) : sur un espace
+  encore vide, elle n'apparaît qu'au rechargement de la page qui suit la première synchro (limite connue
+  de 0.1.0).
+- **Couleurs** : barres simples de la couleur primaire du thème ; séries des contributeurs dans une
+  palette catégorielle de 8 teintes en ordre fixe, avec une variante claire et une variante sombre
+  (vérifiées pour les daltonismes courants et le contraste sur le fond de chaque thème ; en thème clair,
+  trois teintes sont sous 3:1, d'où la légende et la table des données) ; « Autres contributeurs » en
+  gris ; jamais de couleur générée. Axes et grille reprennent le texte du thème. Redessiné au changement
+  de thème ; sans animation si le système demande moins de mouvement.
+- **Accessibilité** : chaque `<canvas>` a `role="img"` et un `aria-label` qui résume la série ; un résumé
+  textuel est affiché à côté du titre.
 
 ## Navigation
 
@@ -192,8 +234,11 @@ Fonctionnement (`wsync.Coordinator`, un seul par processus, qui réutilise le mo
   (`sync_runs`) date de plus d'un intervalle ; sinon, la première a lieu un intervalle après elle ;
 - **progression** : l'état des synchros (navbar) est un fragment qui se rafraîchit toutes les 2 s
   pendant une synchro (dépôts terminés / total, dépôt en cours), et toutes les 30 s sinon, pour voir
-  démarrer une synchro automatique. Quand il constate la fin d'une synchro, sa réponse porte l'en-tête
-  `HX-Trigger: sync-finished`, et les fragments des pages (cartes, fil, historique…) se rechargent.
+  démarrer une synchro automatique (ou lancée depuis un autre onglet). **Choix** : ce sondage à 30 s
+  continue une fois la synchro finie ; il ne coûte qu'une lecture en mémoire de l'état du coordinateur
+  (aucun appel GitHub, aucune requête en base) et un fragment de quelques centaines d'octets. Quand il
+  constate la fin d'une synchro, sa réponse porte l'en-tête `HX-Trigger: sync-finished`, et les
+  fragments des pages (cartes, fil, historique…) ainsi que les graphiques se rechargent.
   Une synchro lancée depuis l'interface et déjà terminée quand la réponse est rendue (échec immédiat
   du moteur, dépôt vite synchronisé) porte cet en-tête dès la réponse au `POST`. Les boutons de synchro
   (« Synchroniser maintenant », « Synchroniser ce dépôt ») et celui de la suppression d'un dépôt ne
@@ -238,7 +283,10 @@ Fonctionnement (`wsync.Coordinator`, un seul par processus, qui réutilise le mo
   fois : origine (`http.CrossOriginProtection` : `Sec-Fetch-Site`, sinon `Origin` comparé à `Host`) et
   jeton aléatoire (cookie `HttpOnly`, `SameSite=Strict`, nommé avec le port, renvoyé dans le champ
   `csrf_token` ou l'en-tête `X-CSRF-Token` que HTMX ajoute grâce à `hx-headers`). Échec : `403`, rien
-  n'est modifié.
+  n'est modifié. Le cookie n'est posé qu'avec une page ou un fragment HTML, jamais avec un fichier
+  statique (`/static/…`, icônes, manifeste).
+- **Méthodes** : `HEAD` est accepté partout où `GET` l'est (même réponse, sans corps) ; une autre méthode
+  sur une route connue donne `405`.
 - **En-têtes** : `Content-Security-Policy` stricte (`default-src 'self'` ; `img-src 'self'
   https://avatars.githubusercontent.com data:` ; `script-src 'self'` et `style-src 'self'`, sans
   `unsafe-inline` ni `unsafe-eval` ; `frame-ancestors 'none'`…), `X-Content-Type-Options: nosniff`,
@@ -251,6 +299,8 @@ Fonctionnement (`wsync.Coordinator`, un seul par processus, qui réutilise le mo
   textes venus de la base passent en plus par `textclean` (caractères de contrôle).
 - **Journal d'accès** (`slog`, niveau info) : méthode, motif de route (`/repos/{id}`), code, durée ;
   jamais la query string, une adresse IP, un en-tête ni une donnée personnelle.
+- **Journal** : une lecture du quota interrompue (page quittée, arrêt de `serve` : contexte annulé) est
+  journalisée en `debug` ; les autres échecs de lecture du quota, en avertissement.
 - **Limites** : délais du serveur (`ReadHeaderTimeout` 5 s…), corps de requête borné à 64 Kio,
   identifiants de dépôt validés par la route (1 à 18 chiffres).
 - Le token GitHub n'est jamais affiché ni renvoyé au navigateur.

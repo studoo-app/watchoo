@@ -7,9 +7,13 @@ package web
 //   - les compteurs par état (DaisyUI stat) : Actif, Flemme, Dead et états gris ;
 //   - une carte par dépôt : nom affiché, pastille d'état (activity.Evaluate, comme la CLI), dernier
 //     commit relatif et son auteur ; triées par sortDashboardRepos (Dead et Flemme d'abord) ;
-//   - le fil des 20 derniers commits, tous dépôts confondus (jamais d'e-mail).
+//   - le fil des 20 derniers commits, tous dépôts confondus (jamais d'e-mail) ;
+//   - le graphique d'activité de l'espace : commits par jour sur activity.ChartDays jours, tous dépôts
+//     confondus (charts.go, dessiné par static/app.js).
 //
-// Les deux blocs sont des fragments HTMX (« dashboard-repos » et « dashboard-feed ») rafraîchis à la
+// Le graphique est hors des fragments (HTMX retire les <script> des fragments) : à la fin d'une
+// synchro, app.js relit la page complète et en extrait les données. Les deux autres blocs sont des
+// fragments HTMX (« dashboard-repos » et « dashboard-feed ») rafraîchis à la
 // fin d'une synchro (hx-trigger="sync-finished from:body"). Aucune règle métier ici : les états
 // viennent de internal/activity, les données de internal/store.
 
@@ -37,6 +41,8 @@ type DashboardView struct {
 	// Thresholds sont les seuils de l'espace (activity.*), rappelés sous les compteurs ; un dépôt
 	// peut avoir les siens (repository_settings), appliqués par activity.Evaluate.
 	Thresholds activity.Thresholds
+	// Activity : commits par jour de l'espace (page complète seulement, pas les fragments).
+	Activity dailyChart
 }
 
 // DashboardRepo est une carte du tableau de bord : le résumé du dépôt et son état calculé.
@@ -164,7 +170,14 @@ func (s *server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
-	view := DashboardView{Repos: repos, Counts: countStates(repos), Feed: feed, Thresholds: s.dashboardThresholds()}
+	now := s.now()
+	times, err := s.store.CommitTimes(r.Context(), 0, activity.SeriesStart(now, activity.ChartDays, s.loc))
+	if err != nil {
+		s.serverError(w, r, fmt.Errorf("activité du tableau de bord : %w", err))
+		return
+	}
+	view := DashboardView{Repos: repos, Counts: countStates(repos), Feed: feed, Thresholds: s.dashboardThresholds(),
+		Activity: newDailyChart(times, now, activity.ChartDays, s.loc)}
 	s.render(w, r, http.StatusOK, pageDashboard, s.page(r, "Tableau de bord", navDashboard, view))
 }
 

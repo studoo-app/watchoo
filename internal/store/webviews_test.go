@@ -181,3 +181,51 @@ func TestLastSyncFinishedAt(t *testing.T) {
 		t.Errorf("LastSyncFinishedAt = %v, attendu %v", got, want)
 	}
 }
+
+func TestAuthorCommitTimes(t *testing.T) {
+	s := newTestStore(t)
+	ctx := t.Context()
+	viewFixture(t, s)
+	ranking, err := s.ContributorRanking(ctx, ContributorFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ids := map[string]int64{}
+	for _, c := range ranking {
+		ids[c.DisplayName()] = c.ID
+	}
+
+	got, err := s.AuthorCommitTimes(ctx, t0.Add(2*time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Commits 2 à 6 ; le 5 n'a pas d'auteur connu (identité vide) : absent.
+	byAuthor := map[int64][]time.Time{}
+	for _, a := range got {
+		if a.CommittedAt.Location() != time.UTC {
+			t.Errorf("date %v pas en UTC", a.CommittedAt)
+		}
+		byAuthor[a.ContributorID] = append(byAuthor[a.ContributorID], a.CommittedAt)
+	}
+	for _, list := range byAuthor {
+		slices.SortFunc(list, func(a, b time.Time) int { return a.Compare(b) })
+	}
+	at := func(n int) time.Time { return t0.Add(time.Duration(n) * time.Hour) }
+	want := map[int64][]time.Time{
+		ids["Alice"]: {at(2), at(6)},
+		ids["Bob"]:   {at(3), at(4)},
+	}
+	if len(byAuthor) != len(want) {
+		t.Fatalf("auteurs %v, attendu %v (ids %v)", byAuthor, want, ids)
+	}
+	for id, w := range want {
+		if !slices.EqualFunc(byAuthor[id], w, time.Time.Equal) {
+			t.Errorf("auteur %d : %v, attendu %v", id, byAuthor[id], w)
+		}
+	}
+
+	none, err := s.AuthorCommitTimes(ctx, t0.Add(100*time.Hour))
+	if err != nil || len(none) != 0 {
+		t.Errorf("AuthorCommitTimes(futur) = %v, %v ; attendu vide", none, err)
+	}
+}

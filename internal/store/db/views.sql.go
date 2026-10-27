@@ -10,6 +10,42 @@ import (
 	"database/sql"
 )
 
+const authorCommitTimesSince = `-- name: AuthorCommitTimesSince :many
+SELECT author_id, committed_at
+FROM commits
+WHERE author_id IS NOT NULL
+  AND committed_at >= ?1
+`
+
+type AuthorCommitTimesSinceRow struct {
+	AuthorID    sql.NullInt64
+	CommittedAt string
+}
+
+// Auteur (author_id) et date de commit (committed_at) des commits d'auteur connu depuis since, sans ordre garanti.
+func (q *Queries) AuthorCommitTimesSince(ctx context.Context, since string) ([]AuthorCommitTimesSinceRow, error) {
+	rows, err := q.db.QueryContext(ctx, authorCommitTimesSince, since)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AuthorCommitTimesSinceRow{}
+	for rows.Next() {
+		var i AuthorCommitTimesSinceRow
+		if err := rows.Scan(&i.AuthorID, &i.CommittedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const commitTimesSince = `-- name: CommitTimesSince :many
 SELECT committed_at
 FROM commits

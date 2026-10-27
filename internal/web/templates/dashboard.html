@@ -4,6 +4,8 @@
   Fragments HTMX, rafraîchis à la fin d'une synchro (événement sync-finished, syncview.go) :
     « dashboard-repos » : compteurs par état et cartes des dépôts (/fragments/dashboard/repos) ;
     « dashboard-feed »  : fil des 20 derniers commits (/fragments/dashboard/feed).
+  Graphique d'activité de l'espace (Content.Activity, charts.go) : hors des fragments (HTMX retire
+  leurs <script>) ; static/app.js le dessine et, à la fin d'une synchro, relit « / » pour ses données.
 */}}
 {{define "content"}}
 <div class="flex flex-wrap items-center justify-between gap-3 mb-6">
@@ -13,6 +15,7 @@
   </div>
   {{template "sync-all-button" .}}
 </div>
+{{if .Content.Repos}}{{template "dashboard-activity" .}}{{end}}
 <div class="grid gap-6 xl:grid-cols-3">
   <div class="xl:col-span-2 min-w-0">{{template "dashboard-repos" .}}</div>
   <div class="min-w-0">{{template "dashboard-feed" .}}</div>
@@ -114,3 +117,26 @@
   </div>
 </section>
 {{end}}
+
+{{/* Graphique d'activité de l'espace. Donnée : PageData (Content.Activity, dailyChart). */}}
+{{define "dashboard-activity"}}{{$a := .Content.Activity}}
+<section class="card bg-base-100 shadow-sm mb-6 min-w-0" aria-labelledby="workspace-activity-title">
+  <div class="card-body p-4 md:p-6">
+    <div class="flex flex-wrap items-baseline justify-between gap-2">
+      <h2 id="workspace-activity-title" class="card-title text-lg">Activité de l'espace sur {{$a.Days}} jours</h2>
+      <p class="text-sm text-base-content/70" id="workspace-activity-summary">
+        {{plural $a.Total "commit" "commits"}}{{if $a.Peak.Count}}, au plus {{$a.Peak.Count}} le {{$a.PeakDate}}{{end}}
+      </p>
+    </div>
+    <div class="relative h-48 md:h-56 w-full">
+      <canvas id="workspace-activity-chart" role="img" data-chart="daily" data-source="workspace-activity-data"
+              data-summary="workspace-activity-summary" data-refresh-url="/"
+              aria-label="Commits par jour sur les {{$a.Days}} derniers jours, tous dépôts confondus : {{plural $a.Total "commit" "commits"}} au total"></canvas>
+    </div>
+    <p class="text-xs text-base-content/60">Commits par jour (date de commit), tous dépôts confondus, dans le fuseau d'affichage de l'espace.</p>
+  </div>
+  <script type="application/json" id="workspace-activity-data">{{$a.Series}}</script>
+</section>
+{{end}}
+
+{{define "scripts"}}{{if .Content.Repos}}<script src="/static/vendor/chart-4.6.1.umd.min.js" defer></script>{{end}}{{end}}

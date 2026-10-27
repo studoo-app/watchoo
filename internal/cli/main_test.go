@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"runtime/debug"
 	"sync"
 	"testing"
 )
@@ -49,6 +50,10 @@ func runTests(m *testing.M) int {
 		fmt.Fprintf(os.Stderr, "compilation du faux gh : %v\n%s", err, out)
 		return 1
 	}
+
+	// Les informations de compilation du binaire de test ne doivent pas changer la version affichée :
+	// les tests de version les remplacent eux-mêmes.
+	readBuildInfo = func() (*debug.BuildInfo, bool) { return nil, false }
 
 	slog.SetDefault(slog.New(slog.NewTextHandler(&testLogs, &slog.HandlerOptions{Level: slog.LevelDebug})))
 	return m.Run()

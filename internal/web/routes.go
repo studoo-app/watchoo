@@ -10,6 +10,9 @@ package web
 // le CSRF ne laisse passer un POST qu'avec la bonne origine et le bon jeton. Aucune route ne modifie
 // quoi que ce soit en GET.
 //
+// HEAD est accepté partout où GET l'est (getHead) : même handler, même en-têtes, corps vide (net/http
+// n'envoie pas le corps d'une réponse à HEAD).
+//
 // Routes (handler, fichier, propriétaire) :
 //
 //	GET  /                              handleDashboard        dashboard.go     dashboard
@@ -31,9 +34,13 @@ package web
 //	GET  /fragments/sync                handleSyncStatus       syncview.go      socle
 //	GET  /static/*                      handleStatic           assets.go        socle
 //	GET  /favicon.ico, /manifest.webmanifest, /apple-touch-icon.png             socle
+//
+// Toute route GET accepte aussi HEAD.
 
 import (
 	"net/http"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -54,18 +61,20 @@ func (s *server) routes() http.Handler {
 	r.NotFound(s.notFound)
 	r.MethodNotAllowed(s.methodNotAllowed)
 
+	get := getHead(r)
+
 	// Pages et fragments.
-	r.Get("/", s.handleDashboard)
-	r.Get("/fragments/dashboard/repos", s.handleDashboardRepos)
-	r.Get("/fragments/dashboard/feed", s.handleDashboardFeed)
-	r.Get("/repos/"+idPattern, s.handleRepo)
-	r.Get("/repos/"+idPattern+"/commits", s.handleRepoCommits)
-	r.Get("/contributors", s.handleContributors)
-	r.Get("/fragments/contributors", s.handleContributorsTable)
-	r.Get("/settings", s.handleSettings)
-	r.Get("/settings/repos/"+idPattern+"/remove", s.handleRepoRemoveConfirm)
-	r.Get("/fragments/quota", s.handleQuota)
-	r.Get("/fragments/sync", s.handleSyncStatus)
+	get("/", s.handleDashboard)
+	get("/fragments/dashboard/repos", s.handleDashboardRepos)
+	get("/fragments/dashboard/feed", s.handleDashboardFeed)
+	get("/repos/"+idPattern, s.handleRepo)
+	get("/repos/"+idPattern+"/commits", s.handleRepoCommits)
+	get("/contributors", s.handleContributors)
+	get("/fragments/contributors", s.handleContributorsTable)
+	get("/settings", s.handleSettings)
+	get("/settings/repos/"+idPattern+"/remove", s.handleRepoRemoveConfirm)
+	get("/fragments/quota", s.handleQuota)
+	get("/fragments/sync", s.handleSyncStatus)
 
 	// Actions (POST seulement, protégées par le CSRF).
 	r.Post("/sync", s.handleSyncAll)
@@ -76,13 +85,30 @@ func (s *server) routes() http.Handler {
 	r.Post("/settings/interval", s.handleIntervalUpdate)
 
 	// Fichiers statiques.
-	r.Get("/static/*", s.handleStatic)
-	r.Get("/favicon.ico", func(w http.ResponseWriter, r *http.Request) { s.serveAsset(w, r, "favicon.ico") })
-	r.Get("/apple-touch-icon.png", func(w http.ResponseWriter, r *http.Request) {
-		s.serveAsset(w, r, "apple-touch-icon.png")
-	})
-	r.Get("/manifest.webmanifest", func(w http.ResponseWriter, r *http.Request) {
-		s.serveAsset(w, r, "manifest.webmanifest")
-	})
+	get("/static/*", s.handleStatic)
+	for _, name := range rootAssets {
+		get("/"+name, func(w http.ResponseWriter, r *http.Request) { s.serveAsset(w, r, name) })
+	}
 	return r
+}
+
+// rootAssets sont les fichiers statiques servis à la racine (en plus de /static/*), que les
+// navigateurs demandent d'eux-mêmes.
+var rootAssets = []string{"favicon.ico", "apple-touch-icon.png", "manifest.webmanifest"}
+
+// getHead renvoie une fonction qui enregistre un handler pour GET et pour HEAD.
+func getHead(r chi.Router) func(pattern string, h http.HandlerFunc) {
+	return func(pattern string, h http.HandlerFunc) {
+		r.Get(pattern, h)
+		r.Head(pattern, h)
+	}
+}
+
+// isAssetPath indique si path désigne un fichier statique (/static/…, ou un de rootAssets) : ni page
+// ni fragment HTML, donc pas de cookie CSRF à poser.
+func isAssetPath(path string) bool {
+	if strings.HasPrefix(path, "/static/") {
+		return true
+	}
+	return slices.Contains(rootAssets, strings.TrimPrefix(path, "/"))
 }

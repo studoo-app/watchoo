@@ -110,6 +110,13 @@ FROM commits
 WHERE (sqlc.narg(repo_id) IS NULL OR repo_id = sqlc.narg(repo_id))
   AND committed_at >= sqlc.arg(since);
 
+-- name: AuthorCommitTimesSince :many
+-- Auteur (author_id) et date de commit (committed_at) des commits d'auteur connu depuis since, sans ordre garanti.
+SELECT author_id, committed_at
+FROM commits
+WHERE author_id IS NOT NULL
+  AND committed_at >= sqlc.arg(since);
+
 -- name: ContributorRepoBreakdown :many
 -- Commits de chaque auteur par depot : nombre et dernier commit ; tri par auteur, commits decroissants, depot.
 SELECT c.author_id AS contributor_id, c.repo_id,

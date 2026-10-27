@@ -112,3 +112,28 @@ func TestNoActionInGet(t *testing.T) {
 func repoPathSettings(id int64) string {
 	return "/settings/repos/" + strings.TrimPrefix(repoPath(id), "/repos/")
 }
+
+// TestCSRFCookieOnlyOnHTML vérifie que le cookie CSRF n'est posé qu'avec une page ou un fragment
+// HTML, jamais avec un fichier statique.
+func TestCSRFCookieOnlyOnHTML(t *testing.T) {
+	e := newTestEnv(t)
+	for _, target := range []string{"/static/app.js", "/static/app.css", "/favicon.ico", "/apple-touch-icon.png",
+		"/manifest.webmanifest", "/static/inconnu.js"} {
+		for _, method := range []string{http.MethodGet, http.MethodHead} {
+			if w := e.do(e.request(method, target, nil)); len(w.Result().Cookies()) != 0 {
+				t.Errorf("%s %s : cookie posé %v", method, target, w.Result().Cookies())
+			}
+		}
+	}
+	for _, target := range []string{"/", "/contributors", "/fragments/sync", "/page-inconnue"} {
+		if w := e.get(target); len(w.Result().Cookies()) != 1 {
+			t.Errorf("GET %s : cookies %v, attendu le cookie CSRF", target, w.Result().Cookies())
+		}
+	}
+	// Un POST sur un chemin statique reste refusé (pas de jeton).
+	r := e.postRequest(nil, map[string]string{"Origin": testOrigin, "Sec-Fetch-Site": "same-origin"}, nil)
+	r.URL.Path = "/static/app.js"
+	if w := e.do(r); w.Code != http.StatusForbidden {
+		t.Errorf("POST /static/app.js : %d, attendu 403", w.Code)
+	}
+}

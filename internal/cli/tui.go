@@ -75,7 +75,7 @@ func runTUI(ctx context.Context, deps Deps, opts *options, interval time.Duratio
 		Location: s.loc,
 		Interval: auto,
 		Now:      deps.Now,
-		Version:  Version,
+		Version:  appVersion(),
 		Unicode:  term.Unicode,
 		Color:    term.Color,
 	}, tui.IO{In: deps.Stdin, Out: deps.Stdout})

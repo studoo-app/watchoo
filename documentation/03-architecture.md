@@ -428,7 +428,85 @@ Les dépôts suivis sont principalement **privés**. Conséquences :
   npm officiel (tarball vérifié contre l'intégrité `sha512` publiée par npm, puis fichier min extrait) ;
   version, origine et empreinte SHA-256 de chaque fichier dans `internal/web/tailwind/VERSIONS`.
   Fichiers versionnés servis avec un cache d'un an (`immutable`), les autres revalidés (`ETag`).
-  Chart.js n'est chargé que par la page de détail d'un dépôt.
+  Chart.js n'est chargé que par les pages qui ont un graphique : détail d'un dépôt, tableau de bord (au
+  moins un dépôt suivi) et contributeurs (au moins un auteur connu) ; voir
+  [Graphiques d'activité](06-interface-web.md#graphiques-dactivité).
 
 ### Distribution
-- Binaires multi-plateformes via GoReleaser, image Docker (phase 5).
+- Binaires multi-plateformes via GoReleaser, image Docker (phase 5, livrés en v0.1.0).
+- **Réalisation (phase 5)** : trois façons d'obtenir Watchoo, compilé partout avec les mêmes options
+  (`CGO_ENABLED=0`, `-trimpath`, `-ldflags "-s -w -X …/internal/cli.Version=… -X …/internal/cli.Commit=…
+  -X …/internal/cli.Date=…"`) : version avec son `v` (`v0.1.0`), SHA complet du commit, date du commit
+  en ISO 8601 UTC. Ces options sont écrites trois fois, à garder identiques : variable `LDFLAGS` du
+  `Makefile`, `builds.ldflags` de `.goreleaser.yaml` et étape `build` du `Dockerfile`.
+  - **Binaires de release** (`.goreleaser.yaml`, GoReleaser v2) : linux, darwin et windows en amd64 et
+    arm64 ; archives `watchoo_<version>_<os>_<arch>.tar.gz` (`.zip` pour Windows) avec `LICENSE`,
+    `NOTICE`, `README.md` et `config.example.yaml` ; fichier `watchoo_<version>_checksums.txt` (SHA-256) ;
+    date des fichiers = date du commit (binaires reproductibles). Le journal de GoReleaser est désactivé :
+    les notes viennent de `CHANGELOG.md` (skill `semver-changelog`), recopiées à la main dans la release.
+    La release GitHub est créée **en brouillon** (`draft: true`), relue puis publiée à la main ; une
+    version avec suffixe (`-rc.1`…) est marquée pré-version. En local : `make release-check`
+    (`goreleaser check`) et `make release-snapshot` (`goreleaser release --snapshot --clean`, tout dans
+    `dist/`, ignoré par Git, rien de publié).
+  - **Image Docker** (`Dockerfile` à la racine, `make docker` pour une image locale `watchoo:dev`) :
+    multi-étapes. Une étape télécharge le binaire officiel de `gh` (release GitHub `cli/cli`, version
+    fixée, 2.103.3 en 0.1.0) et vérifie son SHA-256 deux fois : contre l'empreinte écrite dans le
+    `Dockerfile` et contre le fichier `gh_<version>_checksums.txt` de la release. Une autre compile
+    Watchoo. Image finale `gcr.io/distroless/static-debian13:nonroot` (sans shell ni gestionnaire de
+    paquets, avec les certificats racine et la base des fuseaux horaires), épinglée par empreinte comme
+    l'image `golang:1.27.3-alpine3.24` de construction. Utilisateur `nonroot` (uid / gid 65532), jamais
+    root ; `WATCHOO_DIR=/data`, `WORKDIR /data` et `VOLUME /data` (créé en `0700`) ; `EXPOSE 8080` ;
+    `ENTRYPOINT watchoo`, commande par défaut `serve --addr 0.0.0.0:8080`. Multi-architecture
+    (linux/amd64 et linux/arm64) **sans émulation** : compilation et téléchargement tournent sur la
+    plateforme de construction pour la plateforme cible, l'étape finale ne lance aucune commande.
+    `.dockerignore` exclut `.watchoo/`, les bases, `bin/`, `dist/`, `.git/`, `.github/`, `.claude/`,
+    `.agents/`, `.vibe/`.
+  - **Depuis les sources** : `go install github.com/studoo-app/watchoo/cmd/watchoo@v0.1.0` (version
+    alors lue dans les informations de module, sans `-ldflags`) ou `make build` dans un clone.
+- **Docker à l'exécution** :
+  - Le token n'est **jamais dans l'image** : `GH_TOKEN` est donné à l'exécution, lu par `gh` (laisser
+    `github.user` vide, voir [Authentification](#authentification--gh-imposé)). Watchoo reste en lecture
+    seule, mais un token classique `repo` permet aussi d'écrire : un token *fine-grained* limité aux
+    dépôts suivis, en lecture seule (`Metadata`, `Contents`), réduit le risque en cas de fuite (non
+    vérifié de bout en bout en 0.1.0 ; une organisation peut exiger d'approuver ce type de token).
+  - Comme l'écoute n'est pas sur la boucle locale, `serve` **refuse de démarrer** sans authentification
+    (message clair) : `WATCHOO_WEB_AUTH_USERNAME` (réglage `web.auth.username`) et
+    `WATCHOO_WEB_PASSWORD`, ou `web.trusted_proxy: true` avec `web.allowed_hosts` derrière un reverse
+    proxy authentifiant.
+  - Exemple complet (volume nommé, port publié sur la boucle locale de l'hôte) :
+
+    ```bash
+    export GH_TOKEN=…  WATCHOO_WEB_PASSWORD=…
+    docker volume create watchoo-data
+    docker run --rm -e GH_TOKEN -v watchoo-data:/data ghcr.io/studoo-app/watchoo:0.1.0 init
+    docker run --rm -e GH_TOKEN -v watchoo-data:/data ghcr.io/studoo-app/watchoo:0.1.0 repo add owner/repo
+    docker run -d --name watchoo --restart unless-stopped \
+      -e GH_TOKEN -e WATCHOO_WEB_PASSWORD -e WATCHOO_WEB_AUTH_USERNAME=prof \
+      -e WATCHOO_TIMEZONE=Europe/Paris \
+      -v watchoo-data:/data -p 127.0.0.1:8080:8080 \
+      --read-only --tmpfs /tmp --tmpfs /home/nonroot:uid=65532,gid=65532,mode=0700 \
+      --cap-drop ALL --security-opt no-new-privileges:true \
+      ghcr.io/studoo-app/watchoo:0.1.0
+    ```
+
+    `docker-compose.yml` (racine) en donne l'équivalent pour `docker compose`. Avec un répertoire de
+    l'hôte au lieu d'un volume nommé, il doit appartenir à l'uid 65532 (ou lancer avec `--user`).
+  - Le volume contient la base de l'espace (messages de commit, noms et e-mails de dépôts privés) : **ne
+    pas le partager**, ne le monter dans aucun autre conteneur.
+  - Pas de `HEALTHCHECK` : l'image n'a ni shell ni client HTTP, toutes les routes exigent
+    l'authentification et Watchoo n'a pas de route de santé. Suite possible : une sous-commande ou une
+    route de santé sans données.
+- **Workflow de release** (`.github/workflows/release.yml`) : déclenché seulement par un tag `v*.*.*`
+  (vérifié SemVer), sans droits par défaut (`permissions: {}`), chaque job avec les siens. Job `check`
+  (`contents: read`, aucun token) : `make check` complet, avec sqlc et la CLI Tailwind comme la CI ;
+  puis, s'il réussit, job `release` (`contents: write`) : GoReleaser crée la release en brouillon ; et
+  job `docker` (`contents: read`, `packages: write`) : `docker/build-push-action` construit le même
+  `Dockerfile` pour linux/amd64 et linux/arm64 et pousse `ghcr.io/studoo-app/watchoo` avec les
+  étiquettes `0.1.0`, `0.1` et `latest` (pas `latest` pour une pré-version), attestation de provenance
+  et SBOM. Toutes les actions, ici comme dans la CI (`ci.yml`), sont épinglées par SHA de commit (version en
+  commentaire).
+  - **Choix** : l'image est construite par `docker/build-push-action` plutôt que par GoReleaser
+    (`dockers_v2`) : un seul `Dockerfile`, qui compile lui-même, sert à `make docker`, à la CI et à la
+    release ; il ne dépend pas de la disposition de `dist/` ni d'une émulation QEMU.
+- **Suites possibles** (hors 0.1.0) : formule Homebrew (tap), signature des archives et de l'image
+  (cosign, attestations GitHub), route de santé pour un `HEALTHCHECK`.

@@ -23,7 +23,7 @@ uniquement avec `gh auth token` et ne le stocke jamais (voir
 | Commande | Effet | Version |
 | --- | --- | --- |
 | `watchoo init` | Fait du répertoire courant un espace de supervision : vérifie `gh`, puis crée `.watchoo/` avec la config et la base SQLite. Refuse si l'espace existe déjà | MVP |
-| `watchoo version` | Affiche la version de Watchoo, de Go et la plateforme (`watchoo --version` fait de même). Fonctionne hors d'un espace et sans `gh` | MVP |
+| `watchoo version` | Affiche la version de Watchoo, le commit compilé et sa date, la version de Go et la plateforme (`watchoo --version` fait de même). Fonctionne hors d'un espace et sans `gh` | MVP |
 | `watchoo repo add owner/repo [--branch main,dev,release/*] [--label "Alice Martin"]` | Ajoute un dépôt à surveiller (toutes ses branches par défaut), avec un nom affiché facultatif | MVP |
 | `watchoo repo import fichier.csv [--dry-run]` | Ajoute d'un coup une liste de dépôts (ex. ceux d'une promotion), vérifie l'accès à chacun et affiche un bilan | MVP |
 | `watchoo repo add-org mon-org` | Ajoute tous les dépôts d'une organisation | V2 |
@@ -84,8 +84,9 @@ uniquement avec `gh auth token` et ne le stocke jamais (voir
   l'écran de l'enseignant. Le JSON garde le texte d'origine, échappé par l'encodeur.
 - **Labels** : `repo add --label` applique la même règle que l'import (UTF-8 valide, aucun caractère de
   contrôle, 200 caractères au plus) ; un label invalide est refusé avant tout appel à GitHub.
-- **`--json`** : chaque commande écrit un objet JSON stable (clés en anglais, `snake_case`, dates UTC
-  RFC 3339 ou `null`) ; son format est vérifié par les tests. Les erreurs vont sur la sortie d'erreur.
+- **`--json`** : chaque commande qui produit des données écrit un objet JSON stable (clés en anglais,
+  `snake_case`, dates UTC RFC 3339 ou `null`) ; ses clés sont listées dans [Sortie JSON](#sortie-json)
+  et vérifiées par les tests. Les erreurs vont sur la sortie d'erreur.
 - **Hors espace** : toutes les commandes sauf `init`, `version` et `help` s'arrêtent avec « aucun espace
   Watchoo ici, lancez « watchoo init » (ou indiquez un espace avec -C <répertoire>) ».
 - **`serve`** écoute sur `web.addr` (`127.0.0.1:8080` par défaut ; `--addr` le remplace) et affiche
@@ -102,6 +103,81 @@ uniquement avec `gh auth token` et ne le stocke jamais (voir
   commande `completion` (celle que `cobra` ajoute d'office est désactivée : son aide est en anglais).
 - **`--version`**, option de `watchoo` seul (`watchoo init --version` est refusée), a le même effet que
   `watchoo version`, `--json` compris.
+
+## Sortie JSON
+
+Avec `--json`, chaque commande qui produit des données écrit **un seul objet JSON** (indenté, suivi d'une
+fin de ligne) sur la sortie standard, et rien d'autre : ni carte d'en-tête, ni astuce. Avertissements,
+questions de confirmation et erreurs vont sur la sortie d'erreur ; en cas d'erreur, la sortie standard
+reste vide (sauf `repo import`, qui écrit son bilan puis rend un code non nul s'il reste des dépôts
+inaccessibles).
+
+Règles communes, qui forment un **contrat stable** pour les scripts (une clé n'est ni renommée ni
+retirée sans version incompatible : MINOR tant que Watchoo est en 0.y.z, MAJOR à partir de 1.0.0, voir
+[Skills](11-skills.md)) :
+
+- clés en anglais, en `snake_case` ; toutes les clés sont toujours présentes ;
+- dates en UTC, RFC 3339 à la seconde (`"2026-10-27T10:00:00Z"`), `null` si inconnues ;
+- listes vides écrites `[]`, jamais `null` ; un texte absent vaut `""` ;
+- textes venus des dépôts (messages, noms, labels) gardés tels quels, échappés par l'encodeur ;
+- jamais de token. `tui` et `serve` refusent `--json`.
+
+Clés de premier niveau (la liste est vérifiée par un test, `internal/cli/json_schema_test.go`) :
+
+| Commande | Clés de premier niveau | Notes |
+| --- | --- | --- |
+| `watchoo init` | `name`, `root`, `dir`, `config_file`, `database`, `parent_workspace`, `github`, `warnings` | `github` : `host`, `login`, `token_source`, `scopes` ; `parent_workspace` vide sans espace parent |
+| `watchoo version` | `version`, `commit`, `date`, `go`, `os`, `arch` | Voir ci-dessous |
+| `watchoo repo add` | `outcome`, `repository` | `outcome` : `added`, `already` ou `updated` ; `repository` : objet dépôt |
+| `watchoo repo import` | `file`, `format`, `dry_run`, `summary`, `entries` | `format` : `csv` ou `list` ; `summary` : `added`, `already_tracked`, `updated`, `inaccessible`, `errors` ; chaque entrée : `line`, `repo`, `outcome`, `repository` (`null` si inaccessible ou en erreur), `error` |
+| `watchoo repo list` | `repositories` | Chaque élément : objet dépôt plus `activity`, `commits`, `tracked_branches`, `last_commit` (objet commit ou `null`), `last_sync` (`null` si aucune) |
+| `watchoo repo remove` | `action`, `repository`, `deleted_commits` | `action` : `deleted`, `stopped` ou `already_stopped` |
+| `watchoo sync` | `started_at`, `finished_at`, `summary`, `repositories`, `rate_limit` | `summary` : `repositories`, `success`, `error`, `locked`, `deferred`, `new_commits` ; chaque dépôt : `id`, `full_name`, `display_name`, `status`, `new_commits`, `tracked_branches`, `stats_fetched`, `duration_ms`, `error`, `resume_at` |
+| `watchoo log` | `commits` | Du plus récent au plus ancien ; objets commit |
+| `watchoo contributors` | `contributors` | Chaque élément : `id`, `name`, `login`, `display_name`, `avatar_url`, `commits`, `additions`, `deletions`, `repositories`, `last_commit_at` |
+| `watchoo status` | `workspace`, `github`, `rate_limit`, `rate_limit_error`, `quota_low`, `repositories`, `errors`, `last_synced_at`, `tracked_branches` | `workspace` : `name`, `root` ; `github` : `ok`, `host`, `login`, `token_source`, `scopes`, `error` ; `repositories` : `total`, `active`, `flemme`, `dead`, `error`, `never_synced`, `archived`, `empty`, `stopped` ; chaque erreur : `repo`, `message` |
+
+Objets partagés :
+
+- **dépôt** : `id`, `full_name`, `owner`, `name`, `label`, `display_name`, `url`, `default_branch`,
+  `branch_patterns` (`[]` = toutes les branches), `enabled`, `archived`, `stars`, `open_issues`,
+  `last_synced_at`, `last_commit_at` ;
+- **commit** : `repository` (`id`, `full_name`, `display_name`), `sha`, `short_sha`, `message`, `url`,
+  `author` (`name`, `login`, `display_name`), `authored_at`, `committed_at`, `additions`, `deletions` ;
+- **activité** : `state` (`active`, `flemme`, `dead`, `stopped`, `error`, `never_synced`, `archived`,
+  `empty`), `state_label`, `gray`, `days_since_last_commit` (`null` sans commit), `flemme_after_days`,
+  `dead_after_days` ;
+- **synchro** (`last_sync`) : `status` (`running`, `success`, `error`), `started_at`, `finished_at`,
+  `new_commits`, `error` ;
+- **quota** (`rate_limit`, `null` si inconnu) : `limit`, `remaining`, `used`, `reset`.
+
+### Version
+
+`watchoo version --json` (ou `watchoo --version --json`) :
+
+```json
+{
+  "version": "v0.1.0",
+  "commit": "1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d",
+  "date": "2026-10-27T10:00:00Z",
+  "go": "go1.27.3",
+  "os": "linux",
+  "arch": "amd64"
+}
+```
+
+- `version`, `commit` (SHA complet) et `date` (date **du commit** compilé, pour des compilations
+  reproductibles) sont injectés à la compilation par `-ldflags` sur `internal/cli.Version`,
+  `internal/cli.Commit` et `internal/cli.Date` (Makefile, GoReleaser et Dockerfile, mêmes options ; voir
+  [Distribution](03-architecture.md#distribution)).
+- Sans ces options, ils viennent des informations de compilation de Go quand elles existent :
+  `go install github.com/studoo-app/watchoo/cmd/watchoo@v0.1.0` donne la version du module ; un
+  `go build` dans un dépôt Git donne le commit, sa date et la version du module (`v0.1.0` sur un tag,
+  une pseudo-version `v0.0.0-…` ailleurs, `dev` si l'arbre a des modifications non commitées). Sinon
+  `version` vaut `dev`, `commit` `""` et `date` `null`.
+- En texte : `watchoo v0.1.0 (commit 1a2b3c4, 2026-10-27, go1.27.3, linux/amd64)` ; commit et date sont
+  omis s'ils sont inconnus. La carte d'en-tête, le TUI, l'interface web et le `User-Agent` des appels
+  GitHub montrent la même version.
 
 ## Carte d'en-tête
 

@@ -60,6 +60,26 @@ watchoo/
 `semver` et `semver-changelog` servent dès la **phase 5** (GoReleaser, premières versions publiées) :
 chaque release a un numéro SemVer et une entrée dans `CHANGELOG.md`.
 
+## Versions et `CHANGELOG.md`
+
+- **Surface publique** sur laquelle se décide le numéro (skill `semver`) : commandes, options et codes de
+  sortie de la CLI, clés de la sortie `--json` ([CLI](05-cli.md#sortie-json)), réglages de
+  `config.yaml` et variables `WATCHOO_*`, schéma de la base `.watchoo/watchoo.db` (migrations), routes de
+  l'interface web.
+- **Première version : `v0.1.0`** (MVP, phases 1 à 5). Tant que Watchoo est en `0.y.z`, rien n'est
+  garanti stable ; selon le skill `semver`, un changement incompatible (clé `--json` renommée ou
+  retirée, option supprimée…) fait monter **MINOR** (`0.1.3` → `0.2.0`), et tout changement compatible,
+  fonctionnalité ou correction, fait monter **PATCH** (`0.1.0` → `0.1.1`). À partir de `1.0.0`, la règle
+  habituelle s'applique (incompatible → MAJOR).
+- **`CHANGELOG.md`** (racine) suit [Keep a Changelog 1.1.0](https://keepachangelog.com/fr/1.1.0/), en
+  français : rubriques Ajouté, Modifié, Obsolète, Retiré, Corrigé, Sécurité ; section `[Unreleased]`
+  tenue au fil des commits ; liens de comparaison GitHub en bas du fichier. Le skill `semver-changelog`
+  part du dernier tag SemVer (`git tag -l --sort=-v:refname`) et des commits depuis ce tag.
+- **Release** : on renomme `[Unreleased]` en `[X.Y.Z] - AAAA-MM-JJ`, on ajoute une section `[Unreleased]`
+  vide et les liens, on commite, puis on pousse le tag `vX.Y.Z` ; le workflow de release
+  ([Distribution](03-architecture.md#distribution)) fait le reste, et la section du `CHANGELOG.md` est
+  recopiée dans la release GitHub en brouillon avant sa publication.
+
 ## Règles
 
 - **Relire avant d'installer** : un skill est un ensemble d'instructions (et parfois de scripts) que

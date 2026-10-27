@@ -48,13 +48,18 @@ func newCSRFProtector(listenAddr string) *csrfProtector {
 }
 
 // middleware place le jeton du navigateur dans le contexte (en créant le cookie s'il manque ou est
-// invalide) et, pour toute méthode autre que GET, HEAD et OPTIONS, vérifie l'origine puis le jeton :
+// invalide, sauf pour un fichier statique : le cookie n'est posé qu'avec une page ou un fragment HTML,
+// isAssetPath) et, pour toute méthode autre que GET, HEAD et OPTIONS, vérifie l'origine puis le jeton :
 // échec → 403 (page d'erreur, rien n'est modifié).
 func (c *csrfProtector) middleware(s *server) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			token, fromCookie := c.cookieToken(r)
-			if !fromCookie {
+			switch {
+			case fromCookie:
+			case isAssetPath(r.URL.Path):
+				token = "" // aucun cookie posé : un POST sur ce chemin est refusé plus bas
+			default:
 				token = newCSRFToken()
 				http.SetCookie(w, &http.Cookie{
 					Name:     c.cookie,

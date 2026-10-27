@@ -16,6 +16,29 @@ VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 # interpréterait. Elle passe par l'environnement (WATCHOO_VERSION), et la recette n'en garde que les
 # caractères A-Z a-z 0-9 . _ + - (« dev » s'il ne reste rien).
 export WATCHOO_VERSION := $(VERSION)
+# Commit et date du commit (ISO 8601 UTC, format fixe 2006-01-02T15:04:05Z), injectés comme la version
+# et filtrés de la même façon (alphanumériques, « : » et « - » pour la date). Vides hors d'un dépôt Git.
+COMMIT ?= $(shell git rev-parse HEAD 2>/dev/null)
+DATE   ?= $(shell TZ=UTC0 git log -1 --format=%cd --date=format-local:%Y-%m-%dT%H:%M:%SZ 2>/dev/null)
+export WATCHOO_COMMIT := $(COMMIT)
+export WATCHOO_DATE := $(DATE)
+
+# Options -ldflags communes à « make build », à l'image Docker (Dockerfile, arguments VERSION, COMMIT
+# et DATE) et à GoReleaser (.goreleaser.yaml) : à garder identiques dans les trois. Les variables
+# shell $$version, $$commit et $$date sont posées par la recette (valeurs filtrées). Un -X vers une
+# variable absente du binaire est ignoré par l'éditeur de liens.
+LDFLAGS = -s -w -X $(PKG)/internal/cli.Version=$${version:-dev} \
+	-X $(PKG)/internal/cli.Commit=$$commit -X $(PKG)/internal/cli.Date=$$date
+# Pose $$version, $$commit et $$date à partir de l'environnement, sans jamais recopier les valeurs
+# dans le texte de la recette.
+SET_BUILD_VARS = version="$$(printf '%s' "$$WATCHOO_VERSION" | LC_ALL=C tr -cd '[:alnum:]._+-')"; \
+	commit="$$(printf '%s' "$$WATCHOO_COMMIT" | LC_ALL=C tr -cd '[:alnum:]')"; \
+	date="$$(printf '%s' "$$WATCHOO_DATE" | LC_ALL=C tr -cd '[:alnum:]:-')"
+
+GORELEASER ?= goreleaser
+DOCKER     ?= docker
+# Image construite par « make docker » (locale, jamais poussée par le Makefile).
+IMAGE      ?= watchoo:dev
 
 # Feuille de style de l'interface web : source Tailwind + DaisyUI (vendored) et CSS généré, commité.
 CSS_IN  := internal/web/tailwind/input.css
@@ -26,14 +49,15 @@ WEB_LOGOS := watchoo.svg watchoo-light.svg watchoo-nom.svg watchoo-nom-light.svg
 	apple-touch-icon.png icon-192.png icon-512.png
 
 .DEFAULT_GOAL := help
-.PHONY: help build test vet fmt-check sqlc sqlc-check css css-check css-check-if-available logo check clean
+.PHONY: help build test vet fmt-check sqlc sqlc-check css css-check css-check-if-available logo check \
+	release-check release-snapshot docker clean
 
 help: ## Liste les cibles disponibles
-	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F ':.*## ' '{printf "  %-11s %s\n", $$1, $$2}'
+	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F ':.*## ' '{printf "  %-17s %s\n", $$1, $$2}'
 
 build: ## Compile bin/watchoo (sans CGO, version injectée)
-	@version="$$(printf '%s' "$$WATCHOO_VERSION" | LC_ALL=C tr -cd '[:alnum:]._+-')"; set -x; \
-	CGO_ENABLED=0 $(GO) build -trimpath -ldflags "-s -w -X $(PKG)/internal/cli.Version=$${version:-dev}" -o $(BIN) ./cmd/watchoo
+	@$(SET_BUILD_VARS); set -x; \
+	CGO_ENABLED=0 $(GO) build -trimpath -ldflags "$(LDFLAGS)" -o $(BIN) ./cmd/watchoo
 
 test: ## Lance tous les tests avec le détecteur de concurrence
 	$(GO) test -race ./...
@@ -98,6 +122,21 @@ logo: ## Recopie le logo de assets/logo dans internal/logo/art/ (texte) et inter
 	cd assets/logo && cp $(WEB_LOGOS) ../../internal/web/static/
 
 check: fmt-check vet test sqlc-check css-check-if-available build ## Lance tous les contrôles (comme la CI)
+
+# GoReleaser (.goreleaser.yaml) : binaires linux / darwin / windows en amd64 et arm64, archives et
+# sommes SHA-256 dans dist/. Rien n'est publié : la release (brouillon) et l'image Docker sont faites
+# par .github/workflows/release.yml, sur un tag vX.Y.Z.
+release-check: ## Vérifie .goreleaser.yaml (goreleaser check)
+	$(GORELEASER) check
+
+release-snapshot: ## Construit une release locale dans dist/, sans rien publier
+	$(GORELEASER) release --snapshot --clean
+
+# Image Docker locale (Dockerfile) : watchoo compilé dans l'image avec les mêmes -ldflags, et gh.
+docker: ## Construit l'image Docker locale (IMAGE=watchoo:dev par défaut), sans la pousser
+	@$(SET_BUILD_VARS); set -x; \
+	$(DOCKER) build --build-arg VERSION="$${version:-dev}" --build-arg COMMIT="$$commit" \
+		--build-arg DATE="$$date" -t "$(IMAGE)" .
 
 clean: ## Supprime les binaires compilés
 	rm -rf bin dist

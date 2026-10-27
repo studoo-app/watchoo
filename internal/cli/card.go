@@ -43,7 +43,7 @@ func cardTerminal(deps Deps, opts *options) (TermInfo, bool) {
 func renderCard(term TermInfo, subtitle, tip string) string {
 	return logo.Card(logo.CardOptions{
 		Title:    cardTitle,
-		Version:  Version,
+		Version:  appVersion(),
 		Subtitle: subtitle,
 		Tip:      tip,
 		Width:    term.Width,

@@ -7,6 +7,10 @@ package web
 // commits par dépôt (store.ContributorRepoBreakdown, regroupé ici par contributeur). Les chiffres
 // viennent tous du store ; ce fichier ne fait que les rassembler pour l'affichage.
 //
+// La page complète porte aussi le graphique d'activité par contributeur (buildContributorChart,
+// charts.go : commits par semaine des plus actifs sur activity.ContributorWeeks semaines), hors du
+// fragment : à la fin d'une synchro, static/app.js relit la page et en extrait les données.
+//
 // Vie privée : le nom affiché est Contributor.DisplayName (nom, sinon login GitHub) ; aucun e-mail
 // n'est lu ni affiché. L'avatar (template « avatar ») n'est chargé que depuis
 // avatars.githubusercontent.com, sans Referer et en différé ; sinon, l'initiale du nom.
@@ -16,6 +20,7 @@ import (
 	"net/http"
 	"slices"
 
+	"github.com/studoo-app/watchoo/internal/activity"
 	"github.com/studoo-app/watchoo/internal/store"
 )
 
@@ -24,6 +29,8 @@ type contributorsView struct {
 	Rows         []contributorRow
 	TotalCommits int // somme des commits du classement (part de chacun)
 	Repos        int // nombre de dépôts distincts où au moins un auteur est connu
+	// Chart : graphique d'activité par contributeur (page complète seulement, pas le fragment).
+	Chart contributorChart
 }
 
 // contributorRow est une ligne du classement : statistiques globales et détail par dépôt.
@@ -65,8 +72,8 @@ func buildContributorRows(ranking []store.ContributorStats, breakdown []store.Co
 	return rows
 }
 
-// contributorsData lit la base et construit le Content de la page.
-func (s *server) contributorsData(r *http.Request) (contributorsView, error) {
+// contributorsData lit la base et construit le Content de la page ; withChart ajoute le graphique.
+func (s *server) contributorsData(r *http.Request, withChart bool) (contributorsView, error) {
 	ctx := r.Context()
 	ranking, err := s.store.ContributorRanking(ctx, store.ContributorFilter{})
 	if err != nil {
@@ -85,13 +92,21 @@ func (s *server) contributorsData(r *http.Request) (contributorsView, error) {
 		}
 	}
 	v.Repos = len(repos)
+	if withChart {
+		now := s.now()
+		times, err := s.store.AuthorCommitTimes(ctx, activity.WeeksStart(now, activity.ContributorWeeks, s.loc))
+		if err != nil {
+			return contributorsView{}, err
+		}
+		v.Chart = buildContributorChart(v.Rows, times, now, activity.ContributorWeeks, contributorChartTop, s.loc)
+	}
 	return v, nil
 }
 
 // handleContributors sert GET /contributors (page complète, Nav navContributors, titre
 // « Contributeurs »).
 func (s *server) handleContributors(w http.ResponseWriter, r *http.Request) {
-	v, err := s.contributorsData(r)
+	v, err := s.contributorsData(r, true)
 	if err != nil {
 		s.serverError(w, r, err)
 		return
@@ -102,7 +117,7 @@ func (s *server) handleContributors(w http.ResponseWriter, r *http.Request) {
 // handleContributorsTable sert GET /fragments/contributors (fragment « contributors-table »,
 // rechargé après chaque synchro).
 func (s *server) handleContributorsTable(w http.ResponseWriter, r *http.Request) {
-	v, err := s.contributorsData(r)
+	v, err := s.contributorsData(r, false)
 	if err != nil {
 		s.serverError(w, r, err)
 		return

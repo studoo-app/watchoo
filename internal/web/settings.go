@@ -455,7 +455,12 @@ func (s *server) handleQuota(w http.ResponseWriter, r *http.Request) {
 	var q quotaView
 	rl, err := s.repos.RateLimit(ctx)
 	if err != nil {
-		s.logger.Warn("quota GitHub illisible", "erreur", err)
+		if r.Context().Err() != nil || errors.Is(err, context.Canceled) {
+			// Requête abandonnée (page quittée) ou arrêt de « watchoo serve » : rien d'anormal.
+			s.logger.Debug("lecture du quota GitHub interrompue", "erreur", err)
+		} else {
+			s.logger.Warn("quota GitHub illisible", "erreur", err)
+		}
 		q.Error = textclean.Clean(err.Error())
 	} else {
 		q = quotaView{Known: true, Limit: rl.Limit, Remaining: rl.Remaining, Used: rl.Used, Reset: rl.Reset,

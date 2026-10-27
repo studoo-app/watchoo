@@ -5,6 +5,9 @@
 Six phases courtes, chacune livrant quelque chose d'utilisable. **On ne passe à la suivante que lorsque
 la précédente marche de bout en bout.**
 
+**État** : phases 1 à 5 réalisées, MVP publié en **v0.1.0** (voir [CHANGELOG.md](../CHANGELOG.md)) ;
+reste le critère de fin du MVP (usage réel d'une semaine), puis la phase 6.
+
 ```mermaid
 flowchart LR
     P1["1. Fondations"] --> P2["2. Provider GitHub"] --> P3["3. Synchro + CLI"] --> P4["4. Interface web"] --> P5["5. Finitions MVP"] --> P6["6. V2"]
@@ -53,6 +56,20 @@ bon schéma ; les autres commandes retrouvent l'espace.
 - Versions SemVer et `CHANGELOG.md` tenus avec les skills `semver` et `semver-changelog` (voir [Skills](11-skills.md)).
 
 **Livrable** : MVP distribuable.
+
+**Réalisé (v0.1.0)** :
+- Graphiques : activité de l'espace sur 90 jours (tableau de bord) et commits par semaine sur 12
+  semaines des 8 contributeurs les plus actifs (page contributeurs), calculés en Go dans le fuseau
+  d'affichage ([Graphiques d'activité](06-interface-web.md#graphiques-dactivité)).
+- `--json` sur toutes les commandes qui produisent des données, schéma documenté et vérifié par un test
+  ([Sortie JSON](05-cli.md#sortie-json)) ; `watchoo version` donne aussi le commit et sa date.
+- `make release-check`, `make release-snapshot`, `make docker` ; GoReleaser (linux, darwin, windows en
+  amd64 et arm64, archives et sommes SHA-256, release en brouillon) ; image Docker distroless non root
+  avec `gh` vérifié par SHA-256, publiée sur `ghcr.io/studoo-app/watchoo` ; workflow de release sur tag
+  ([Distribution](03-architecture.md#distribution)).
+- README complet, `CHANGELOG.md`, règles de version ([Skills](11-skills.md#versions-et-changelogmd)).
+- Retouches web : `HEAD` accepté partout où `GET` l'est, cookie CSRF limité aux pages HTML, lecture du
+  quota interrompue journalisée en debug.
 
 ### Phase 6 — V2
 - Pull requests, releases.

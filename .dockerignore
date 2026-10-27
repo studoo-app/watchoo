@@ -1,0 +1,23 @@
+# Contexte de construction de l'image Docker : seulement les sources utiles à la compilation.
+# Surtout pas d'espace de supervision (.watchoo/ : données personnelles), de binaire ni de secret.
+.watchoo
+**/.watchoo
+bin
+dist
+/watchoo
+.git
+.github
+.claude
+.agents
+.vibe
+.idea
+.vscode
+.DS_Store
+**/*.db
+**/*.db-*
+**/*.env
+.env*
+Dockerfile
+.dockerignore
+docker-compose.yml
+.goreleaser.yaml

@@ -1,0 +1,89 @@
+# Release de Watchoo avec GoReleaser v2 : binaires, archives et sommes SHA-256.
+#
+#   make release-check      # goreleaser check
+#   make release-snapshot   # goreleaser release --snapshot --clean : tout dans dist/, rien de publié
+#
+# La vraie release est lancée par .github/workflows/release.yml sur un tag vX.Y.Z : GoReleaser crée une
+# release GitHub en brouillon (draft), relue puis publiée à la main. L'image Docker n'est pas faite ici
+# mais par le même workflow (docker/build-push-action, avec le Dockerfile de la racine) : voir
+# documentation/03-architecture.md, « Distribution ».
+#
+# Pas de Homebrew tap ni de signature (cosign, GPG) pour l'instant : suites possibles, documentées.
+version: 2
+
+project_name: watchoo
+
+before:
+  hooks:
+    - go mod verify
+
+# Version des instantanés (make release-snapshot) : incpatch incrémente le PATCH du dernier tag, donc
+# « 0.1.1-SNAPSHOT-<commit court> » après le tag v0.1.0 et « 0.0.1-SNAPSHOT-<commit court> » sans aucun
+# tag (un instantané ne porte jamais le numéro d'une release déjà publiée). Le « v » est ajouté par les
+# ldflags, comme pour une release.
+snapshot:
+  version_template: "{{ incpatch .Version }}-SNAPSHOT-{{ .ShortCommit }}"
+
+builds:
+  - id: watchoo
+    main: ./cmd/watchoo
+    binary: watchoo
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    # Identiques à LDFLAGS du Makefile et au Dockerfile : version avec son « v » (v0.1.0, comme
+    # « git describe »), SHA complet du commit, date du commit en ISO 8601 UTC.
+    ldflags:
+      - -s -w
+      - -X github.com/studoo-app/watchoo/internal/cli.Version=v{{ .Version }}
+      - -X github.com/studoo-app/watchoo/internal/cli.Commit={{ .FullCommit }}
+      - -X github.com/studoo-app/watchoo/internal/cli.Date={{ .CommitDate }}
+    # Binaires reproductibles : date des fichiers = date du commit.
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - id: watchoo
+    ids:
+      - watchoo
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    # watchoo_0.1.0_linux_amd64.tar.gz, watchoo_0.1.0_windows_arm64.zip…
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE
+      - NOTICE
+      - README.md
+      - config.example.yaml
+
+checksum:
+  name_template: "{{ .ProjectName }}_{{ .Version }}_checksums.txt"
+  algorithm: sha256
+
+# Le journal des modifications est CHANGELOG.md (Keep a Changelog, skill semver-changelog), recopié à
+# la main dans la release en brouillon : GoReleaser n'en génère pas.
+changelog:
+  disable: true
+
+release:
+  github:
+    owner: studoo-app
+    name: watchoo
+  draft: true
+  # Une version avec un suffixe de pré-version (v0.2.0-rc.1…) est marquée « pré-version » sur GitHub.
+  prerelease: auto
+  name_template: "Watchoo {{ .Tag }}"
+  footer: |
+    Journal des modifications : [CHANGELOG.md](https://github.com/studoo-app/watchoo/blob/{{ .Tag }}/CHANGELOG.md).
+    Image Docker : `ghcr.io/studoo-app/watchoo:{{ .Version }}`.

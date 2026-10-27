@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"net/url"
@@ -391,5 +392,28 @@ func TestSettingsActionsRequireCSRF(t *testing.T) {
 	}
 	if e.coord.Interval() != 0 {
 		t.Error("intervalle modifié sans CSRF")
+	}
+}
+
+// TestSettingsQuotaCanceled vérifie qu'une lecture du quota interrompue (requête abandonnée, arrêt
+// de serve : contexte annulé) n'est journalisée qu'en debug.
+func TestSettingsQuotaCanceled(t *testing.T) {
+	e := newTestEnv(t)
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	r := e.request(http.MethodGet, "/fragments/quota", nil).WithContext(ctx)
+	r.Header.Set("HX-Request", "true")
+	e.do(r)
+	logs := e.logs.String()
+	if !strings.Contains(logs, `level=DEBUG msg="lecture du quota GitHub interrompue"`) ||
+		strings.Contains(logs, "quota GitHub illisible") {
+		t.Errorf("journal inattendu :\n%s", logs)
+	}
+
+	// Une vraie erreur reste un avertissement.
+	e.auth.SetTokenErr(errors.New("gh n'est pas connecté"))
+	e.htmx("/fragments/quota")
+	if !strings.Contains(e.logs.String(), `level=WARN msg="quota GitHub illisible"`) {
+		t.Errorf("avertissement absent :\n%s", e.logs.String())
 	}
 }

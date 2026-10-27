@@ -194,6 +194,35 @@ Deux faux, écrits en phase 2 et réutilisés par les phases suivantes :
   avertissement du reverse proxy, authentification basique, synchro au démarrage puis pas de nouvelle
   synchro après une synchro récente, arrêt propre (code 0).
 
+## Phase 5 : finitions du MVP
+
+- **Activité** (`internal/activity/series_weeks_test.go`) : commits par semaine du lundi au dimanche
+  (`WeeklyCounts`) dans le fuseau d'affichage (Paris, passages à l'heure d'hiver et d'été, fin d'année,
+  UTC+14, nombre de semaines invalide), résumé d'une série par jour (total, jour le plus chargé).
+- **Store** (`TestAuthorCommitTimes`) : auteur et date de chaque commit, auteur inconnu exclu, dates en
+  UTC, borne `since`.
+- **Graphiques web** (`internal/web/charts_test.go`) : séries des 8 contributeurs les plus actifs et
+  regroupement des autres (égalités, auteur hors classement, noms nettoyés et tronqués, `[]` plutôt que
+  `null`) ; JSON des pages tableau de bord et contributeurs, absent des fragments et d'un espace vide ;
+  nom contenant `</script>` échappé.
+- **Retouches web** : `HEAD` accepté sur toutes les routes `GET`, `405` sur les routes `POST`, `404` sur
+  une page inconnue (`routes_test.go`) ; cookie CSRF posé sur les pages HTML et jamais sur les fichiers
+  statiques (`TestCSRFCookieOnlyOnHTML`) ; lecture du quota interrompue par un contexte annulé journalisée
+  en debug, autres échecs en avertissement (`TestSettingsQuotaCanceled`).
+- **Sortie `--json`** (`internal/cli/json_schema_test.go`) : les 10 commandes qui produisent des données
+  écrivent un seul objet JSON avec exactement les clés attendues ; ces clés sont comparées au tableau de
+  [Sortie JSON](05-cli.md#sortie-json) (`TestJSONSchemaDocumented` lit `05-cli.md` : garder le format de
+  ses lignes) ; espace vide (`[]`, `null`), trois issues de `repo remove`, entrées en erreur.
+- **Version** (`TestVersionBuildMetadata`) : `-ldflags` complets, `-ldflags` prioritaires sur les
+  informations de compilation, `go install …@v0.1.0`, `go build` local, arbre modifié (`dev`), commit hors
+  tag (pseudo-version), date illisible ou hors UTC, rien de connu ; `--version --json` identique à
+  `version --json`, carte d'en-tête avec la même version.
+- **Distribution** (hors `go test`, vérifiée à la main avant la release, sans token réel) :
+  `make release-check`, `make release-snapshot` (6 archives et leur contenu, fichier de sommes,
+  `version --json` du binaire), `make docker` (utilisateur 65532, `WATCHOO_DIR=/data`, `gh --version`) et
+  un essai du conteneur avec le faux `gh` compilé pour Linux (`init`, refus de `serve` sans
+  authentification hors boucle locale, `401` sans identifiants puis `200`, arrêt propre).
+
 ## Logo et carte d'en-tête
 
 - Les copies embarquées dans `internal/logo/art/` sont identiques octet pour octet à `assets/logo/*.txt`
@@ -213,3 +242,6 @@ Deux faux, écrits en phase 2 et réutilisés par les phases suivantes :
    installée avec vérification SHA-256) : `app.css` commité est à jour.
 4. Aucune variable `GH_TOKEN` / `GITHUB_TOKEN` n'est fournie aux tests : un test qui aurait besoin du vrai
    GitHub échoue au lieu de passer en silence.
+
+Sur un tag `vX.Y.Z`, le workflow de release relance les mêmes contrôles (`make check`) avant GoReleaser
+et l'image Docker ([Distribution](03-architecture.md#distribution)).

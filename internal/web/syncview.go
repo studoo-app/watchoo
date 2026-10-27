@@ -5,7 +5,9 @@ package web
 // « sync-status »).
 //
 // Le fragment se rafraîchit toutes les 2 s pendant une synchro, toutes les 30 s sinon (pour voir
-// démarrer une synchro automatique). Quand il constate la fin d'une synchro qu'il a vue tourner (ou
+// démarrer une synchro automatique). Choix (documentation/06-interface-web.md) : le sondage à 30 s
+// continue une fois la synchro finie ; il ne lit que l'état en mémoire du coordinateur (ni GitHub ni
+// la base). Quand il constate la fin d'une synchro qu'il a vue tourner (ou
 // d'une synchro plus récente que celle qu'il affichait), sa réponse porte l'en-tête
 // « HX-Trigger: sync-finished » : les fragments des pages qui écoutent
 // hx-trigger="sync-finished from:body" se rechargent alors.

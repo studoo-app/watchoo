@@ -125,7 +125,7 @@ func runServe(ctx context.Context, deps Deps, opts *options, addr string, addrSe
 		Location:     s.loc,
 		Now:          deps.Now,
 		Logger:       s.logger,
-		Version:      Version,
+		Version:      appVersion(),
 		ListenAddr:   ln.Addr().String(),
 		Auth:         auth,
 		TrustedProxy: cfg.Web.TrustedProxy,

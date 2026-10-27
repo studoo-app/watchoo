@@ -75,8 +75,8 @@ func closeSession(s *session, err *error) {
 }
 
 // engine construit le moteur de synchro de l'espace : store de la session, deps.NewAuthClient(config),
-// deps.NewProvider (nil = provider GitHub par défaut), UserAgent « watchoo/<Version> », deps.Now,
-// logger de la session (deps.Logger, sinon newLogger sur la sortie d'erreur).
+// deps.NewProvider (nil = provider GitHub par défaut), UserAgent « watchoo/<version> » (appVersion),
+// deps.Now, logger de la session (deps.Logger, sinon newLogger sur la sortie d'erreur).
 func (s *session) engine() (*wsync.Engine, error) {
 	return s.engineWithLogger(s.logger)
 }
@@ -88,7 +88,7 @@ func (s *session) engineWithLogger(logger *slog.Logger) (*wsync.Engine, error) {
 		Auth:        s.deps.NewAuthClient(s.ws.Config),
 		Config:      s.ws.Config,
 		NewProvider: s.deps.NewProvider,
-		UserAgent:   "watchoo/" + Version,
+		UserAgent:   "watchoo/" + appVersion(),
 		Now:         s.deps.Now,
 		Logger:      logger,
 	})

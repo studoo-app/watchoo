@@ -9,18 +9,21 @@ trois questions : qu'est-ce qui a bougé, quand, et qui l'a fait. Il propose une
 (`watchoo tui`) et une interface web locale (`watchoo serve`). Chaque groupe supervisé (ex. les projets des
 étudiants d'une promotion) vit dans son propre répertoire, initialisé par `watchoo init`.
 
-**État actuel : phases 1 (fondations), 2 (provider GitHub), 3 (moteur de synchro, CLI, TUI) et 4
-(interface web) en place.** `watchoo init` crée un espace de supervision ; `repo add / import / list /
-remove`, `sync`, `log`, `contributors` et `status` fonctionnent en texte et en `--json` ; `watchoo tui`
-ouvre le mode interactif ; `watchoo serve` sert l'interface web locale (tableau de bord, détail d'un dépôt
-avec graphique d'activité, contributeurs, réglages) et synchronise en arrière-plan. Le cœur métier est
-dans `internal/sync` (moteur : synchro incrémentale, verrou, quota, ajout de dépôts ; `Coordinator` :
-une seule synchro à la fois dans un processus long), `internal/activity` (états Actif / Flemme / Dead et
-gris, série d'activité par jour) et `internal/repoimport` (références, motifs `--branch`, fichiers
-d'import) ; `internal/cli`, `internal/tui` et `internal/web` ne font qu'afficher. Deux tests de bout en
-bout enchaînent les commandes (`internal/cli/e2e_test.go`) et les pages web
-(`internal/web/e2e_test.go`) avec le faux `gh` et `githubtest`. La prochaine étape est la phase 5 de la
-[roadmap](documentation/07-roadmap.md) (finitions MVP : GoReleaser, Docker, `CHANGELOG.md`).
+**État actuel : MVP v0.1.0, phases 1 à 5 de la [roadmap](documentation/07-roadmap.md) en place.**
+`watchoo init` crée un espace de supervision ; `repo add / import / list / remove`, `sync`, `log`,
+`contributors`, `status` et `version` fonctionnent en texte et en `--json` (schéma stable, documenté dans
+[05-cli.md](documentation/05-cli.md#sortie-json) et vérifié par `internal/cli/json_schema_test.go`) ;
+`watchoo tui` ouvre le mode interactif ; `watchoo serve` sert l'interface web locale (tableau de bord et
+contributeurs avec graphiques d'activité, détail d'un dépôt, réglages) et synchronise en arrière-plan. Le
+cœur métier est dans `internal/sync` (moteur : synchro incrémentale, verrou, quota, ajout de dépôts ;
+`Coordinator` : une seule synchro à la fois dans un processus long), `internal/activity` (états Actif /
+Flemme / Dead et gris, séries d'activité par jour et par semaine) et `internal/repoimport` (références,
+motifs `--branch`, fichiers d'import) ; `internal/cli`, `internal/tui` et `internal/web` ne font
+qu'afficher. Deux tests de bout en bout enchaînent les commandes (`internal/cli/e2e_test.go`) et les
+pages web (`internal/web/e2e_test.go`) avec le faux `gh` et `githubtest`. Distribution : GoReleaser
+(`.goreleaser.yaml`), image Docker (`Dockerfile`, `docker-compose.yml`), workflow de release sur tag
+(`.github/workflows/release.yml`) ; historique dans [CHANGELOG.md](CHANGELOG.md). La prochaine étape est
+la phase 6 (V2), après le critère de fin du MVP.
 
 ## Documentation de référence
 
@@ -70,7 +73,7 @@ internal/auth/        accès à gh (token, état de connexion)
 internal/provider/    interface Provider, types, erreurs ; providertest/ (faux Provider)
                       github/ : implémentation GitHub ; github/githubtest/ (faux serveur GitHub)
 internal/sync/        moteur de synchronisation (cœur métier)
-internal/activity/    règles d'activité (Actif / Flemme / Dead, états gris), formats courts
+internal/activity/    règles d'activité (Actif / Flemme / Dead, états gris), séries, formats courts
 internal/repoimport/  références de dépôts, motifs --branch, fichiers d'import
 internal/textclean/   nettoyage des textes affichés (séquences d'échappement), CLI et TUI
 internal/store/       SQLite : migrations/, queries/ (sqlc), db/ (généré)
@@ -90,12 +93,20 @@ make sqlc-check   # échoue si internal/store/db n'est pas à jour
 make check        # tous les contrôles, comme la CI (.github/workflows/ci.yml)
 make css          # CSS DaisyUI généré par la CLI autonome Tailwind (make css-check : à jour ?)
 make logo         # recopie assets/logo dans internal/logo/art/ et internal/web/static/ (copies embarquées)
+make release-check    # goreleaser check (.goreleaser.yaml)
+make release-snapshot # goreleaser release --snapshot --clean : release locale dans dist/, rien de publié
+make docker           # image Docker locale (IMAGE=watchoo:dev), jamais poussée
 ```
 
 - `sqlc generate` après toute modification de `internal/store/queries/` ou des migrations ; le code
   généré (`internal/store/db/`) est commité et **jamais modifié à la main**.
 - `make css` après toute modification des templates ; `internal/web/static/app.css` est commité.
 - `make logo` après toute modification de `assets/logo/` ; des tests vérifient que les copies sont à jour.
+- Les `-ldflags` (`internal/cli.Version`, `Commit`, `Date`) sont écrits dans le `Makefile`, le
+  `.goreleaser.yaml` et le `Dockerfile` : les garder identiques.
+- Toute modification visible va dans la section `[Unreleased]` de `CHANGELOG.md` (skills `semver` et
+  `semver-changelog`, voir [11-skills.md](documentation/11-skills.md)). Aucun tag, release ni
+  `docker push` sans demande explicite.
 
 ## Règles d'architecture
 
