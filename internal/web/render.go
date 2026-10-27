@@ -49,9 +49,31 @@ type PageData struct {
 	Version   string   // version de Watchoo
 	CSRFToken string   // jeton CSRF de la requête (champ csrf_token, en-tête X-CSRF-Token)
 	Sync      SyncView // état des synchros (fragment « sync-status » de la navbar)
+	// Update est la nouvelle version de Watchoo connue (bandeau du layout) ; nil = aucune.
+	Update *UpdateView
 	// Public : page d'erreur montrée avant authentification ou sur un Host refusé : ni navigation, ni
 	// nom d'espace, ni état de synchro.
 	Public bool
+}
+
+// UpdateView est le bandeau de nouvelle version du layout (0.6.0).
+type UpdateView struct {
+	Current    string // version installée
+	Latest     string // dernière version publiée
+	ReleaseURL string // page de la release (lien « Notes de version »)
+	Docker     bool   // image Docker : changer le tag au lieu de « watchoo update »
+}
+
+// updateView renvoie le bandeau à afficher, ou nil sans nouvelle version connue.
+func (s *server) updateView() *UpdateView {
+	if s.updates == nil {
+		return nil
+	}
+	st, ok := s.updates.Available()
+	if !ok || !st.UpdateAvailable {
+		return nil
+	}
+	return &UpdateView{Current: st.Current, Latest: st.Latest, ReleaseURL: st.ReleaseURL, Docker: s.docker}
 }
 
 // ErrorView est le contenu de la page d'erreur (templates/errors.html).
@@ -71,6 +93,7 @@ func (s *server) page(r *http.Request, title, nav string, content any) PageData 
 		Version:   s.version,
 		CSRFToken: csrfToken(r),
 		Sync:      s.syncView(""),
+		Update:    s.updateView(),
 	}
 }
 

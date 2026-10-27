@@ -116,10 +116,14 @@ COPY --from=build --chown=65532:65532 /out/data /data
 # Espace de supervision dans le volume /data (base SQLite : données personnelles, à ne pas partager).
 # gh ne cherche pas de mise à jour (aucun appel réseau inutile). Sans gh connecté (pas de GH_TOKEN),
 # les dépôts sont suivis par clones Git dans /data/repos, avec une clé SSH montée dans
-# /home/nonroot/.ssh (voir « Distribution »).
+# /home/nonroot/.ssh (voir « Distribution »). L'image se met à jour en changeant de tag : Watchoo ne
+# cherche pas de nouvelle version (WATCHOO_NO_UPDATE_CHECK) et « watchoo update » y est refusé
+# (WATCHOO_DOCKER).
 ENV WATCHOO_DIR=/data \
     HOME=/home/nonroot \
-    GH_NO_UPDATE_NOTIFIER=1
+    GH_NO_UPDATE_NOTIFIER=1 \
+    WATCHOO_NO_UPDATE_CHECK=1 \
+    WATCHOO_DOCKER=1
 # Utilisateur nonroot (uid / gid 65532), jamais root.
 USER 65532:65532
 WORKDIR /data

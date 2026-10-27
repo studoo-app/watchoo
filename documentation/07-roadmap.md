@@ -103,6 +103,15 @@ L'import d'une organisation entière et les alertes passent en V3 (voir
 - Lien vers le profil de forge de chaque contributeur dont le compte est connu : **en place** (adresse
   donnée par le provider, colonne `contributors.profile_url`, migration `00005`).
 
+### 0.6.0 : mise à jour de Watchoo
+- Avis de nouvelle version à chaque commande (sur la sortie d'erreur, sans retarder la commande de plus
+  de 1,5 s), au démarrage et toutes les 24 h dans `watchoo serve` (bandeau dans l'interface web) :
+  **en place** (package `internal/selfupdate`, voir
+  [Architecture](03-architecture.md#mise-à-jour-de-watchoo-060)).
+- Commande `watchoo update` (`--check`, `--yes`) : **en place** (archive de la release vérifiée par
+  SHA-256, remplacement atomique du binaire ; refus expliqué dans Docker, pour une version de
+  développement ou un répertoire non accessible en écriture).
+
 ## Définition de « terminé » pour chaque phase
 
 - Code écrit et relu.

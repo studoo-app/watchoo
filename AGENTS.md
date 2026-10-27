@@ -11,7 +11,7 @@ trois questions : qu'est-ce qui a bougé, quand, et qui l'a fait. Il propose une
 
 **État actuel : v0.5.0 (MVP terminé, phases 1 à 6 de la [roadmap](documentation/07-roadmap.md) en place : MVP, partage de la configuration et V2, puis page par contributeur).**
 `watchoo init` crée un espace de supervision ; `repo add / import / list / remove`, `sync`, `log`,
-`contributors`, `prs`, `releases`, `status` et `version` fonctionnent en texte et en `--json` (schéma stable, documenté dans
+`contributors`, `prs`, `releases`, `status`, `version` et `update` fonctionnent en texte et en `--json` (schéma stable, documenté dans
 [05-cli.md](documentation/05-cli.md#sortie-json) et vérifié par `internal/cli/json_schema_test.go`) ;
 `watchoo tui` ouvre le mode interactif ; `watchoo serve` sert l'interface web locale (tableau de bord et
 contributeurs avec graphiques d'activité, détail d'un dépôt, page d'un contributeur, réglages) et synchronise en arrière-plan. Le
@@ -26,6 +26,9 @@ pages web (`internal/web/e2e_test.go`) avec le faux `gh` et `githubtest`. Distri
 par dépôt, activité par contributeur dans un dépôt, pull requests / releases / tags, et dépôts Git locaux
 (`internal/provider/git` : clones avec copie de travail dans `repos/` à la racine de l'espace, utilisés quand `gh` est absent ou non
 connecté). Le critère de fin du MVP (usage réel d'une semaine) est validé : le MVP est terminé.
+En cours (0.6.0, non publiée) : avis de nouvelle version à chaque commande et dans `watchoo serve`, et
+commande `watchoo update` (`internal/selfupdate`, seule exception documentée à la règle GitHub : pages
+publiques des releases de Watchoo, sans token ni API).
 
 ## Documentation de référence
 
@@ -81,6 +84,8 @@ internal/activity/    règles d'activité (Actif / Flemme / Dead, états gris), 
 internal/repoimport/  références de dépôts, motifs --branch, fichiers d'import
 internal/configshare/ partage de la configuration (export JSON, validation, aperçu, import)
 internal/textclean/   nettoyage des textes affichés (séquences d'échappement), CLI et TUI
+internal/selfupdate/  mise à jour de Watchoo lui-même : dernière release (redirection de /releases/latest),
+                      téléchargement vérifié (SHA-256), remplacement du binaire ; selfupdatetest/ (faux serveur)
 internal/store/       SQLite : migrations/, queries/ (sqlc), db/ (généré)
 internal/model/       structs métier
 internal/logo/        hibou en versions texte (copie de assets/logo/) et carte d'en-tête
@@ -118,7 +123,8 @@ make docker           # image Docker locale (IMAGE=watchoo:dev), jamais poussée
 - **Aucune logique métier** dans `cli`, `tui` ou `web` : ces couches appellent le cœur métier.
 - Tout accès à GitHub passe par l'interface `Provider` ; rien de spécifique à GitHub hors de
   `internal/provider/github/` (seul package qui importe go-github) et de `internal/provider/git/` (URL de
-  clone et de page des dépôts github.com).
+  clone et de page des dépôts github.com). Seule exception : `internal/selfupdate/` lit les pages
+  publiques des releases de Watchoo lui-même (bibliothèque standard, ni token ni API GitHub).
 - Les types générés par sqlc ne sortent pas de `internal/store/` ; ils sont convertis vers `internal/model`.
 - Les handlers web restent des `http.Handler` standard.
 - Synchro **incrémentale** : ne jamais re-télécharger un commit déjà en base ; utiliser les ETag ;

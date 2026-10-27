@@ -10,7 +10,7 @@
 | `-C <répertoire>` / `--workspace <répertoire>` | Travaille sur l'espace de ce répertoire au lieu de celui trouvé à partir du répertoire courant |
 | `--verbose` | Logs détaillés (niveau debug) sur la sortie d'erreur. Sans elle, le niveau vient de la variable `WATCHOO_LOG_LEVEL` (`debug`, `info`, `warn` par défaut, `error`). Pas de lettre courte : `-v` serait confondu avec `--version` |
 
-Toutes les commandes sauf `init` et `version` travaillent sur un **espace de supervision** : le répertoire
+Toutes les commandes sauf `init`, `version` et `update` travaillent sur un **espace de supervision** : le répertoire
 `.watchoo/` trouvé dans le répertoire courant ou ses parents (voir
 [Espaces de supervision](10-espaces-de-supervision.md)).
 
@@ -41,6 +41,7 @@ refait à chaque synchro (voir [Architecture](03-architecture.md#authentificatio
 | `watchoo serve [--addr 127.0.0.1:8080] [--interval 30m]` | Lance l'interface web et la synchro périodique (30 min par défaut, 15 min minimum) | MVP |
 | `watchoo tui [--interval 30m]` | Ouvre le mode interactif dans le terminal | MVP |
 | `watchoo config export [-o fichier] [--force]` | Écrit la configuration partageable de l'espace (dépôts suivis et réglages communs) dans un fichier JSON, pour les autres personnes qui supervisent le même groupe | Après MVP |
+| `watchoo update [--check] [--yes]` | Met Watchoo à jour depuis les releases GitHub après confirmation (archive vérifiée par SHA-256, binaire remplacé d'un bloc) ; `--check` vérifie seulement. Fonctionne hors d'un espace et sans `gh` (voir [Mise à jour](#mise-à-jour--watchoo-update)) | 0.6.0 |
 | `watchoo config import fichier [--dry-run] [--yes]` | Fusionne un fichier de configuration partagé dans l'espace, après un aperçu : ajoute les dépôts absents, met à jour les autres, réécrit les réglages communs ; ne retire jamais rien | Après MVP |
 
 ### Détails
@@ -140,7 +141,7 @@ refait à chaque synchro (voir [Architecture](03-architecture.md#authentificatio
 - **`--json`** : chaque commande qui produit des données écrit un objet JSON stable (clés en anglais,
   `snake_case`, dates UTC RFC 3339 ou `null`) ; ses clés sont listées dans [Sortie JSON](#sortie-json)
   et vérifiées par les tests. Les erreurs vont sur la sortie d'erreur.
-- **Hors espace** : toutes les commandes sauf `init`, `version` et `help` s'arrêtent avec « aucun espace
+- **Hors espace** : toutes les commandes sauf `init`, `version`, `update` et `help` s'arrêtent avec « aucun espace
   Watchoo ici, lancez « watchoo init » (ou indiquez un espace avec -C <répertoire>) ».
 - **`serve`** écoute sur `web.addr` (`127.0.0.1:8080` par défaut ; `--addr` le remplace) et affiche
   l'URL à ouvrir (carte d'en-tête sur un terminal). Hors boucle locale (`127.0.0.0/8`, `::1`,
@@ -191,6 +192,7 @@ Clés de premier niveau (la liste est vérifiée par un test, `internal/cli/json
 | `watchoo prs` | `pull_requests` | De la plus récemment modifiée à la plus ancienne ; objets pull request |
 | `watchoo releases` | `releases`, `tags` | Objets release (du plus récent au plus ancien) et tag ; `-n` limite chaque liste |
 | `watchoo status` | `workspace`, `github`, `source`, `rate_limit`, `rate_limit_error`, `quota_low`, `repositories`, `errors`, `last_synced_at`, `tracked_branches` | `workspace` : `name`, `root` ; `github` : `ok`, `host`, `login`, `token_source`, `scopes`, `error` ; `source` (V2) : `kind` (`api`, `git`, ou `""` si `gh` est en panne) et `reason` (pourquoi les clones Git locaux, ou l'erreur de `gh`) ; `repositories` : `total`, `active`, `flemme`, `dead`, `error`, `never_synced`, `archived`, `empty`, `stopped` ; chaque erreur : `repo`, `message` |
+| `watchoo update` | `current`, `latest`, `update_available`, `release_url` | Seulement avec `--check` (voir [Mise à jour](#mise-à-jour--watchoo-update)) ; `watchoo update --json` sans `--check` est refusé |
 | `watchoo config export` | `format`, `version`, `exported_at`, `watchoo_version`, `workspace`, `settings`, `repositories` | Le document de partage lui-même (voir [Partage de la configuration](#partage-de-la-configuration--watchoo-config)), avec ou sans `--json` ; avec `-o`, il va dans le fichier et la sortie standard ne reçoit qu'une ligne de confirmation en texte (rien avec `--json`) |
 | `watchoo config import` | `file`, `dry_run`, `applied`, `source`, `settings`, `repositories`, `summary`, `warnings` | `source` : `workspace_name`, `watchoo_version`, `exported_at` (tels qu'écrits dans le fichier) ; `settings` : `changes` (chacun `key`, `before`, `after`, `env_var`), `rewrite`, `written`, `backup_file` ; chaque dépôt : `index`, `repo`, `action` (`add`, `update`, `unchanged`, `inaccessible`, `error`), `reenable`, `before` (`label`, `branches`, `flemme_after_days`, `dead_after_days` (`null` = seuil de l'espace), `enabled` ; `null` pour un ajout), `after`, `outcome` (comme `repo import`, `""` tant que rien n'est appliqué), `error` ; `summary` : `added`, `already_tracked`, `updated`, `reenabled` (parmi `updated`), `inaccessible`, `errors` (prévus avec `--dry-run`, obtenus sinon) ; chaque avertissement : `code` (`env_override`, `comments_lost`), `key`, `message` |
 
@@ -301,6 +303,88 @@ Watchoo supervise des dépôts GitHub, surtout privés, et répond à trois ques
   vide, si `TERM=dumb`, ni sous Windows dans une console qui n'accepte pas les séquences ANSI.
 - **Version** : un numéro reçoit le préfixe `v` (`0.1.0` devient `v0.1.0`) ; `v0.1.0` ou `dev` (binaire
   compilé sans version) sont affichés tels quels.
+
+## Mise à jour : `watchoo update`
+
+Depuis la 0.6.0, Watchoo signale ses nouvelles versions et se met à jour lui-même, à partir des releases
+publiées sur GitHub (pages publiques, sans token ni API GitHub : voir
+[Architecture](03-architecture.md#mise-à-jour-de-watchoo-060)). Ni espace ni `gh` ne sont nécessaires.
+
+### Avis de nouvelle version
+
+À **chaque lancement** d'une commande, Watchoo vérifie en arrière-plan si une version plus récente que la
+sienne est publiée. À la fin de la commande, il écrit sur la **sortie d'erreur** :
+
+```
+Nouvelle version de Watchoo disponible : v0.5.0 → v0.6.0. Mettez-la à jour avec « watchoo update ».
+```
+
+- La vérification part dès le début de la commande et dispose de **1,5 s** au total : une commande n'est
+  jamais retardée de plus, et l'avis n'est pas écrit si la réponse n'est pas arrivée à temps. Sans
+  réseau, ou en cas d'erreur, rien n'est affiché (log de niveau debug avec `--verbose`).
+- Pas de vérification avec `--json`, quand la sortie d'erreur n'est pas un terminal (scripts, CI, tube),
+  pour une version qui n'est pas une version de release (`dev`, pseudo-version de `go install` ou
+  `go build`, pré-version), pour `watchoo update` lui-même, `watchoo serve` (qui a la sienne), l'aide et
+  `watchoo` seul.
+- **`WATCHOO_NO_UPDATE_CHECK`** : posée à une valeur non vide autre que `0` ou `false`, elle coupe toute
+  vérification (commandes et `serve`). L'image Docker la pose (`WATCHOO_NO_UPDATE_CHECK=1`) : elle se met
+  à jour en changeant de tag.
+- Une pré-version n'est jamais proposée ; une version installée plus récente que la dernière publiée ne
+  donne aucun avis.
+- **`watchoo serve`** vérifie au démarrage puis toutes les 24 h tant qu'il tourne ; une nouvelle version
+  est annoncée une fois sur la sortie d'erreur (même phrase) et l'interface web montre un bandeau (voir
+  [Interface web](06-interface-web.md#bandeau-de-nouvelle-version-060)).
+
+### `watchoo update --check`
+
+Vérifie seulement, sans rien installer : version installée, dernière version publiée et, s'il y en a une
+plus récente, le lien vers sa release. Code de retour 0 qu'une mise à jour existe ou non ; non nul si la
+dernière version n'a pas pu être lue (réseau). Avec une version de développement, la comparaison est
+impossible : la dernière version est affichée, `update_available` vaut `false`.
+
+```
+$ watchoo update --check
+Version installée : v0.5.0
+Dernière version : v0.6.0
+Nouvelle version disponible : https://github.com/studoo-app/watchoo/releases/tag/v0.6.0
+Mettez-la à jour avec « watchoo update ».
+```
+
+`watchoo update --check --json` :
+
+```json
+{
+  "current": "v0.5.0",
+  "latest": "v0.6.0",
+  "update_available": true,
+  "release_url": "https://github.com/studoo-app/watchoo/releases/tag/v0.6.0"
+}
+```
+
+### `watchoo update`
+
+1. Refuse tout de suite, avec un code non nul et un message qui dit quoi faire :
+   - dans l'**image Docker** (variable `WATCHOO_DOCKER` ou fichier `/.dockerenv`) : changer le tag de
+     l'image, ou `docker compose pull && docker compose up -d` ;
+   - pour une **version de développement** (`dev`, pseudo-version, pré-version : binaire compilé depuis
+     les sources) : `go install github.com/studoo-app/watchoo/cmd/watchoo@latest`, ou
+     `git pull && make build` dans le clone ;
+   - si le **répertoire du binaire** n'est pas accessible en écriture : droits du répertoire, `sudo`, ou
+     réinstallation par `install.sh` avec `WATCHOO_INSTALL_DIR` (voir le README).
+2. Lit la dernière version. Déjà à jour : « Watchoo v0.6.0 est à jour (dernière version publiée : v0.6.0). », code 0.
+3. Affiche `v0.5.0 → v0.6.0`, le lien vers la release et vers le `CHANGELOG.md` de cette version, puis
+   demande confirmation (`[o/N]`) sur la sortie d'erreur. Comme pour `repo remove`, `--yes` / `-y` saute
+   la question, et elle est **obligatoire** quand l'entrée standard n'est pas un terminal ; une autre
+   réponse que `o`, `oui`, `y` ou `yes` annule avec un code non nul, sans rien modifier.
+4. Télécharge l'archive de la release pour le système et l'architecture
+   (`watchoo_<version>_<os>_<arch>.tar.gz`, `.zip` sous Windows) et le fichier de sommes, **refuse** une
+   archive dont la somme SHA-256 ne correspond pas, extrait le binaire et remplace celui en cours d'un
+   bloc (fichier temporaire dans le même répertoire, puis renommage ; sous Windows, l'ancien est d'abord
+   renommé en `watchoo.exe.old`).
+5. Rappelle qu'un `watchoo serve` déjà lancé garde l'ancienne version jusqu'à son redémarrage, et que la
+   base de chaque espace est mise à niveau (migrations) à la prochaine commande.
+
+`--json` n'est accepté qu'avec `--check`.
 
 ## Import groupé : `watchoo repo import`
 

@@ -20,6 +20,7 @@ import (
 
 	"github.com/studoo-app/watchoo/internal/auth"
 	gitprov "github.com/studoo-app/watchoo/internal/provider/git"
+	"github.com/studoo-app/watchoo/internal/selfupdate"
 	wsync "github.com/studoo-app/watchoo/internal/sync"
 	"github.com/studoo-app/watchoo/internal/textclean"
 	"github.com/studoo-app/watchoo/internal/tui"
@@ -72,13 +73,30 @@ type Deps struct {
 	// niveau de WATCHOO_LOG_LEVEL (warn par défaut) ou debug avec --verbose (voir newLogger). Les tests
 	// y passent un logger qui capture tout, pour vérifier qu'aucun token n'y apparaît.
 	Logger *slog.Logger
+
+	// Dépendances de la mise à jour (0.6.0).
+
+	// StderrIsTerminal indique si Stderr est un terminal (avis de nouvelle version) ; nil = détection
+	// sur Stderr (isatty) : un tampon des tests n'en est jamais un.
+	StderrIsTerminal func() bool
+	// Updater lit les releases de Watchoo et installe une version ; nil = selfupdate.Client de
+	// production (releases de github.com/studoo-app/watchoo, User-Agent watchoo/<version>). Les tests y
+	// branchent un client sur le faux serveur selfupdatetest : aucun ne joint le réseau.
+	Updater Updater
+	// Executable renvoie le chemin réel du binaire en cours (« watchoo update ») ; nil =
+	// selfupdate.Executable.
+	Executable func() (string, error)
+	// InDocker indique si Watchoo tourne dans l'image Docker (« watchoo update » refusé, autre conseil
+	// dans les avis) ; nil = selfupdate.InDocker.
+	InDocker func() bool
 }
 
 // DefaultDeps renvoie les dépendances de production : os.Stdout, os.Stderr, auth.GH construit depuis
 // la configuration, os.Getwd, DetectTerminal(os.Stdout), time.Now, os.Stdin, tui.Run, net.Listen et
 // git.Check. NewGitProvider reste nil (clones dans repos/ à la racine de l'espace).
-// NewProvider et Logger restent nil (provider GitHub et logger de newLogger), StdinIsTerminal aussi
-// (détection sur Stdin par withDefaults).
+// NewProvider et Logger restent nil (provider GitHub et logger de newLogger), StdinIsTerminal et
+// StderrIsTerminal aussi (détection par withDefaults), comme Updater, Executable et InDocker
+// (production de internal/selfupdate, complétée par withDefaults).
 func DefaultDeps() Deps {
 	return Deps{
 		Stdout: os.Stdout,
@@ -135,6 +153,19 @@ func (d Deps) withDefaults() Deps {
 	if d.CheckGit == nil {
 		d.CheckGit = def.CheckGit
 	}
+	if d.StderrIsTerminal == nil {
+		stderr := d.Stderr
+		d.StderrIsTerminal = func() bool { return isTerminal(stderr) }
+	}
+	if d.Updater == nil {
+		d.Updater = selfupdate.New(selfupdate.Options{UserAgent: "watchoo/" + appVersion()})
+	}
+	if d.Executable == nil {
+		d.Executable = selfupdate.Executable
+	}
+	if d.InDocker == nil {
+		d.InDocker = selfupdate.InDocker
+	}
 	return d
 }
 
@@ -148,7 +179,7 @@ type options struct {
 }
 
 // NewRootCmd construit la commande racine « watchoo » et ses sous-commandes (init, version, repo,
-// sync, log, contributors, status, tui, serve, config).
+// sync, log, contributors, status, tui, serve, config, update).
 //
 // Options globales (persistantes) : --json (sortie JSON), -C / --workspace <répertoire> (espace à
 // utiliser au lieu de celui trouvé depuis le répertoire courant) et --verbose (logs détaillés sur
@@ -159,8 +190,16 @@ type options struct {
 // (SilenceErrors) ni accompagnées de l'usage (SilenceUsage) : c'est Run qui les affiche, une seule
 // fois, sur deps.Stderr. Les dépendances non renseignées prennent leur valeur de production.
 func NewRootCmd(deps Deps) *cobra.Command {
+	root, _ := newRootCmd(deps)
+	return root
+}
+
+// newRootCmd est NewRootCmd ; il renvoie aussi l'avis de nouvelle version, lancé au début de la
+// commande choisie (PersistentPreRun) et que Run termine après elle (updateNotice.finish).
+func newRootCmd(deps Deps) (*cobra.Command, *noticeSlot) {
 	deps = deps.withDefaults()
 	opts := &options{}
+	slot := &noticeSlot{}
 	root := &cobra.Command{
 		Use:   "watchoo",
 		Short: "Supervise des dépôts GitHub : ce qui a bougé, quand, et qui l'a fait",
@@ -190,6 +229,10 @@ Prérequis : la CLI GitHub gh, installée et connectée (« gh auth login »).`,
 		},
 		SilenceErrors: true,
 		SilenceUsage:  true,
+	}
+	// Héritée par toutes les sous-commandes (aucune ne définit la sienne).
+	root.PersistentPreRun = func(cmd *cobra.Command, args []string) {
+		slot.notice = startUpdateNotice(cmd.Context(), deps, opts, cmd, root)
 	}
 	root.SetOut(deps.Stdout)
 	root.SetErr(deps.Stderr)
@@ -228,26 +271,33 @@ Prérequis : la CLI GitHub gh, installée et connectée (« gh auth login »).`,
 		newTUICmd(deps, opts),
 		newServeCmd(deps, opts),
 		newConfigCmd(deps, opts),
+		newUpdateCmd(deps, opts),
 	)
-	return root
+	return root, slot
 }
 
 // Run exécute la CLI avec les arguments args (sans le nom du programme) et renvoie le code de sortie
 // du processus : 0 en cas de succès, 1 en cas d'erreur (message « erreur : … » sur deps.Stderr).
 func Run(ctx context.Context, deps Deps, args []string) int {
 	deps = deps.withDefaults()
-	cmd := NewRootCmd(deps)
+	cmd, slot := newRootCmd(deps)
 	if args == nil {
 		args = []string{} // sinon cobra lirait os.Args
 	}
 	cmd.SetArgs(args)
-	if err := cmd.ExecuteContext(ctx); err != nil {
+	err := cmd.ExecuteContext(ctx)
+	if err != nil {
 		if errors.Is(err, context.Canceled) && ctx.Err() != nil {
 			fmt.Fprintf(deps.Stderr, "erreur : commande interrompue (%v)\n", err)
+			slot.notice.abandon()
 			return 1
 		}
 		// Le message peut citer un texte de la forge ou de la base : nettoyé avant d'aller au terminal.
 		fmt.Fprintf(deps.Stderr, "erreur : %s\n", textclean.CleanLines(err.Error()))
+	}
+	// Après la commande (et son éventuelle erreur) : l'avis de nouvelle version, s'il est arrivé à temps.
+	slot.notice.finish(ctx, deps)
+	if err != nil {
 		return 1
 	}
 	return 0

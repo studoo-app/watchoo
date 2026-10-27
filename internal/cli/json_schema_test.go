@@ -18,6 +18,8 @@ import (
 	"time"
 
 	"github.com/studoo-app/watchoo/internal/model"
+	"github.com/studoo-app/watchoo/internal/selfupdate"
+	"github.com/studoo-app/watchoo/internal/selfupdate/selfupdatetest"
 )
 
 // jsonTopLevelKeys sont les clés de premier niveau de chaque commande, par nom de commande (sans
@@ -38,6 +40,7 @@ var jsonTopLevelKeys = map[string][]string{
 		"last_synced_at", "tracked_branches"},
 	"config export": {"format", "version", "exported_at", "watchoo_version", "workspace", "settings", "repositories"},
 	"config import": {"file", "dry_run", "applied", "source", "settings", "repositories", "summary", "warnings"},
+	"update":        {"current", "latest", "update_available", "release_url"},
 }
 
 // pendingJSONCommands sont documentées dans 05-cli.md mais pas encore implémentées (aucune
@@ -69,6 +72,9 @@ func TestJSONSchemaAllCommands(t *testing.T) {
 	r := h.run("init", "--json").mustSucceed(t)
 	outputs := map[string]string{"init": r.stdout}
 	outputs["version"] = h.run("version", "--json").mustSucceed(t).stdout
+	releases := selfupdatetest.New(t, "v0.6.0", runtime.GOOS, runtime.GOARCH)
+	h.Updater = selfupdate.New(selfupdate.Options{BaseURL: releases.URL})
+	outputs["update"] = h.run("update", "--check", "--json").mustSucceed(t).stdout
 
 	h = newWorkspace(t)
 	seedProvider(h.Provider)

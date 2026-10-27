@@ -53,6 +53,7 @@ import (
 
 	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/provider"
+	"github.com/studoo-app/watchoo/internal/selfupdate"
 	"github.com/studoo-app/watchoo/internal/store"
 	wsync "github.com/studoo-app/watchoo/internal/sync"
 	"github.com/studoo-app/watchoo/internal/workspace"
@@ -77,9 +78,16 @@ type RepoManager interface {
 	RateLimit(ctx context.Context) (provider.RateLimit, error)
 }
 
+// UpdateSource donne la nouvelle version de Watchoo connue du processus (bandeau de toutes les pages) ;
+// *selfupdate.Monitor la satisfait. Elle ne fait aucune requête : la vérification tourne ailleurs.
+type UpdateSource interface {
+	Available() (selfupdate.Status, bool)
+}
+
 var (
 	_ SyncController = (*wsync.Coordinator)(nil)
 	_ RepoManager    = (*wsync.Engine)(nil)
+	_ UpdateSource   = (*selfupdate.Monitor)(nil)
 )
 
 // Auth est l'authentification basique de l'interface ; sa valeur zéro n'en demande aucune. Password
@@ -119,6 +127,12 @@ type Options struct {
 	// AllowedHosts (web.allowed_hosts) : noms acceptés dans l'en-tête Host, quel que soit le port, en
 	// plus de localhost, 127.0.0.1, [::1] et de l'hôte écouté.
 	AllowedHosts []string
+	// Updates donne la nouvelle version de Watchoo connue (bandeau) ; nil = jamais de bandeau
+	// (vérification coupée ou version de développement).
+	Updates UpdateSource
+	// UpdateDocker : Watchoo tourne dans l'image Docker ; le bandeau conseille alors de changer le tag
+	// de l'image au lieu de « watchoo update ».
+	UpdateDocker bool
 }
 
 // server porte l'état partagé des handlers. Il est en lecture seule après New (sûr pour un usage
@@ -139,6 +153,8 @@ type server struct {
 	auth     Auth
 	hosts    *hostPolicy // valeurs acceptées de l'en-tête Host ; nil = pas de contrôle
 	listenAt string
+	updates  UpdateSource // nouvelle version connue ; nil = aucun bandeau
+	docker   bool         // image Docker (texte du bandeau)
 }
 
 // New vérifie les options, analyse les templates embarqués (erreur claire si l'un est invalide) et
@@ -174,6 +190,8 @@ func newServer(opts Options) (*server, error) {
 		version:  opts.Version,
 		auth:     opts.Auth,
 		listenAt: opts.ListenAddr,
+		updates:  opts.Updates,
+		docker:   opts.UpdateDocker,
 	}
 	if s.loc == nil {
 		s.loc = time.Local
