@@ -692,7 +692,8 @@ font qu'afficher.
   ne lancent jamais le TUI : elles affichent un tableau ou du JSON, puis rendent la main.
 - **Calendrier** : le TUI fait partie du MVP et se construit en **phase 3**, avec les commandes CLI.
 - Ce qui est attendu : parcourir les dépôts, les commits et les contributeurs au clavier (flèches,
-  défilement, sélection, filtre), ouvrir le détail d'un dépôt, et lancer une synchro.
+  défilement, sélection, filtre), ouvrir le détail d'un dépôt, lancer une synchro et ajouter un dépôt à
+  suivre (même cœur que `watchoo repo add` : `Engine.AddRepositories`, dans une commande Bubble Tea).
 - **Sortie statique** : toutes les commandes autres que `tui` affichent un tableau texte (`lipgloss/table`)
   ou du JSON (`--json`), puis rendent la main. Watchoo reste ainsi scriptable. Si on lance `watchoo tui`
   hors d'un terminal, la commande s'arrête avec un message clair.

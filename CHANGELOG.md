@@ -9,6 +9,14 @@ un changement incompatible fait monter MINOR et tout changement compatible fait 
 
 ## [Unreleased]
 
+### Ajouté
+
+- **Ajout d'un dépôt depuis le mode interactif** : dans `watchoo tui`, la touche `a` (vue Dépôts) ouvre
+  une saisie « Dépôt à suivre (owner/nom ou URL GitHub) : » ; `entrée` valide, `échap` annule. Mêmes
+  références, mêmes vérifications et mêmes messages que `watchoo repo add` (toutes les branches, sans
+  label ni seuils propres). Une fois le dépôt ajouté, la liste est relue, le dépôt sélectionné et sa
+  synchro lancée ; pendant une synchro, celle du nouveau dépôt démarre à la fin de la synchro en cours.
+
 ## [0.6.0] - 2026-10-27
 
 Avis de nouvelle version (CLI et interface web) et mise à jour de Watchoo en une commande,

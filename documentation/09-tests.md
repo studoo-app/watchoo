@@ -186,7 +186,12 @@ Deux faux, écrits en phase 2 et réutilisés par les phases suivantes :
 - **TUI** (`internal/tui/`) : `Init` / `Update` / `View` appelés directement (sans `teatest`), avec un
   faux `Syncer` qu'on peut suspendre et une vraie base temporaire : vues, modes ASCII et couleur,
   défilement, filtre, détail, synchro (progression, refus pendant une synchro, erreurs, report en heure
-  de Paris), synchro automatique, quitter pendant une synchro, aide. Un test lance `tui.Run` avec le
+  de Paris), synchro automatique, quitter pendant une synchro, aide ; ajout d'un dépôt (`a` : saisie
+  ouverte puis annulée par `échap`, référence invalide refusée sans appel au cœur, dépôt ajouté avec
+  message, relecture, sélection et synchro du dépôt, déjà suivi sans synchro, suivi repris, inaccessible
+  et erreur affichés comme `repo add`, ajout pendant une synchro : synchro du nouveau dépôt mise en
+  attente puis lancée, touche sans effet hors de la vue Dépôts) avec un faux ajout, et avec le vrai
+  moteur, une base temporaire et `providertest` (dépôt enregistré, synchronisé, affiché). Un test lance `tui.Run` avec le
   vrai moteur, une base temporaire et un provider bloquant : quitter pendant la synchro attend sa fin,
   le `sync_run` n'est plus `running` et le dépôt n'est pas verrouillé. `watchoo tui` : refus hors
   terminal, `--json`, valeurs de `--interval`.

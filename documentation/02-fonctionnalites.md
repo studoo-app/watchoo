@@ -8,7 +8,7 @@ Le MVP se limite à **suivre, synchroniser et afficher** ; tout le reste vient e
 
 | Fonctionnalité | Détail |
 | --- | --- |
-| Ajouter / retirer un dépôt suivi | Saisie `owner/repo` ou URL GitHub ; toutes les branches suivies par défaut, restreignables par liste ou motif |
+| Ajouter / retirer un dépôt suivi | Saisie `owner/repo` ou URL GitHub ; toutes les branches suivies par défaut, restreignables par liste ou motif. Ajout par `watchoo repo add`, l'import, la page Réglages du web ou la touche `a` du TUI (vue Dépôts : toutes les branches, synchro lancée tout de suite) |
 | Import groupé de dépôts | Fichier CSV (dépôt, nom affiché, branches) : toute une promotion d'un coup, accès vérifié, bilan, relançable sans doublon |
 | Synchronisation des commits | Récupération **incrémentale** depuis le dernier SHA connu |
 | Liste des derniers commits | Message, auteur, date, SHA court, lien GitHub ; filtres par dépôt, auteur, période |
