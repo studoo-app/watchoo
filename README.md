@@ -9,9 +9,11 @@
 Watchoo surveille une liste de dépôts GitHub et vous montre
 d'un coup d'œil leur activité : les nouveaux commits, les contributeurs, et les dépôts qui ne bougent plus.
 
-> **Statut : v0.2.0.** Les phases 1 à 5 de la [roadmap](documentation/07-roadmap.md) sont en place :
-> ligne de commande, mode interactif (`watchoo tui`), interface web locale (`watchoo serve`), sortie
-> `--json`, binaires et image Docker. Watchoo est en `0.y.z` : l'interface peut encore changer d'une
+> **Statut : MVP terminé (v0.2.0), V2 prête à publier.** Les phases 1 à 5 de la
+> [roadmap](documentation/07-roadmap.md) sont publiées : ligne de commande, mode interactif
+> (`watchoo tui`), interface web locale (`watchoo serve`), sortie `--json`, binaires et image Docker. La
+> V2 (phase 6) ajoute les seuils par dépôt, l'activité par contributeur dans un dépôt, les pull requests,
+> releases et tags, et le suivi par clones Git locaux sans `gh`. Watchoo est en `0.y.z` : l'interface peut encore changer d'une
 > version à l'autre (voir le [journal des modifications](CHANGELOG.md)).
 
 <p align="center">
@@ -30,9 +32,13 @@ Watchoo fonctionne avec les dépôts **privés**, et toutes les données restent
 
 - 📥 Récupère les nouveaux commits de chaque dépôt, sur toutes ses branches, sans jamais re-télécharger
   ce qu'il a déjà.
-- 👥 Montre qui contribue, et combien, avec des graphiques d'activité.
+- 👥 Montre qui contribue, et combien, avec des graphiques d'activité, pour tout l'espace ou dans un
+  dépôt.
 - 🚦 Donne un état à chaque dépôt : **Actif**, **Flemme** (plus de 5 jours sans commit), **Dead** (plus
-  de 15 jours) ; seuils réglables.
+  de 15 jours) ; seuils réglables pour l'espace ou pour chaque dépôt.
+- 🔀 Suit les pull requests (ouvertes, mergées), les releases et les tags.
+- 🌿 Fonctionne avec `gh` (API GitHub) ou, sans `gh`, avec des clones Git locaux qui ne consomment aucun
+  quota.
 - 🔄 Se met à jour automatiquement, ou à la demande.
 - 🔒 Lecture seule : Watchoo ne modifie jamais rien sur GitHub.
 
@@ -209,7 +215,7 @@ commande.
 | Réglage | Par défaut | Rôle |
 | --- | --- | --- |
 | `sync.interval` | `30m` | Synchro automatique de `serve` et `tui` (15 min minimum, `0` : manuelle) |
-| `activity.flemme_after_days` / `dead_after_days` | `5` / `15` | Seuils d'activité de l'espace (par dépôt : prévu en V2) |
+| `activity.flemme_after_days` / `dead_after_days` | `5` / `15` | Seuils d'activité de l'espace (par dépôt : `repo add --flemme / --dead`, colonnes de l'import, page du dépôt) |
 | `branches.exclude` | `[]` | Branches ignorées (ex. `dependabot/*`) |
 | `timezone` | fuseau du système | Fuseau d'affichage et de regroupement par jour ou semaine |
 | `web.addr` | `127.0.0.1:8080` | Adresse de l'interface web |
