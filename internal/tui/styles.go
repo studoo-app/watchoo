@@ -25,6 +25,7 @@ type styles struct {
 	Error     lipgloss.Style // messages d'erreur
 	OK        lipgloss.Style // messages de réussite
 	Key       lipgloss.Style // touches citées dans l'aide
+	Notice    lipgloss.Style // avis de nouvelle version, en jaune
 }
 
 // newStyles renvoie les styles, colorés seulement si color est vrai.
@@ -48,6 +49,7 @@ func newStyles(color bool) styles {
 		Error:     base.Foreground(lipgloss.Color("1")),
 		OK:        base.Foreground(lipgloss.Color("2")),
 		Key:       base.Foreground(lipgloss.Color("6")),
+		Notice:    base.Foreground(lipgloss.Color("3")),
 	}
 }
 

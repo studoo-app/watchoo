@@ -9,6 +9,12 @@ un changement incompatible fait monter MINOR et tout changement compatible fait 
 
 ## [Unreleased]
 
+### Corrigé
+
+- **Avis de nouvelle version** : il s'affiche maintenant aussi pour `watchoo` seul (après la carte et
+  l'aide) et dans `watchoo tui`, sur la ligne sous l'en-tête (« Quittez puis lancez « watchoo update ». ») ;
+  il n'est plus perdu, une fois sur deux, après une commande plus longue que 1,5 s (`sync`).
+
 ## [0.6.1] - 2026-10-27
 
 Ajout d'un dépôt depuis le TUI (touche `a`), lien « GitHub » rétabli pour les contributeurs connus

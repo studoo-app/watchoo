@@ -4,7 +4,9 @@ package cli
 // celles du faux serveur selfupdatetest : aucun accès au réseau.
 
 import (
+	"context"
 	"encoding/json"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -14,6 +16,7 @@ import (
 
 	"github.com/studoo-app/watchoo/internal/selfupdate"
 	"github.com/studoo-app/watchoo/internal/selfupdate/selfupdatetest"
+	"github.com/studoo-app/watchoo/internal/tui"
 )
 
 const wantNotice = "Nouvelle version de Watchoo disponible : v0.5.0 → v0.6.0. Mettez-la à jour avec « watchoo update »."
@@ -83,8 +86,8 @@ func TestUpdateNoticeSkipped(t *testing.T) {
 		{name: "pseudo-version", current: "v0.0.0-20261027100000-9412b2f170d8", latest: "v0.6.0", terminal: true, args: []string{"version"}},
 		{name: "à jour", current: "v0.6.0", latest: "v0.6.0", terminal: true, args: []string{"version"}},
 		{name: "plus récente", current: "v0.7.0", latest: "v0.6.0", terminal: true, args: []string{"version"}},
-		{name: "aide", current: "v0.5.0", latest: "v0.6.0", terminal: true, args: []string{}},
 		{name: "help", current: "v0.5.0", latest: "v0.6.0", terminal: true, args: []string{"help", "sync"}},
+		{name: "--help", current: "v0.5.0", latest: "v0.6.0", terminal: true, args: []string{"--help"}},
 		{name: "update --check", current: "v0.5.0", latest: "v0.6.0", terminal: true, args: []string{"update", "--check"}},
 	}
 	for _, tt := range tests {
@@ -114,6 +117,66 @@ func TestUpdateNoticeSkipped(t *testing.T) {
 		h.StderrTerminal = true
 		t.Setenv(selfupdate.EnvNoCheck, v)
 		assertContains(t, "WATCHOO_NO_UPDATE_CHECK="+v, h.run("version").mustSucceed(t).stderr, wantNotice)
+	}
+}
+
+// « watchoo » seul (carte et aide générale) a son avis, après l'aide ; un mot inconnu, non.
+func TestUpdateNoticeAfterRootHelp(t *testing.T) {
+	h, srv := newUpdateHarness(t, "v0.5.0", "v0.6.0")
+	h.StderrTerminal = true
+	r := h.run().mustSucceed(t)
+	assertContains(t, "stdout", r.stdout, "Commandes :", "Lancez « watchoo [commande] --help »")
+	if r.stderr != wantNotice+"\n" {
+		t.Errorf("stderr = %q, attendu l'avis", r.stderr)
+	}
+	r = h.run("inconnue").mustCode(t, 1)
+	assertNotContains(t, "stderr", r.stderr, "Nouvelle version")
+	if n := srv.Requests(); n != 1 {
+		t.Errorf("%d requêtes, attendu 1", n)
+	}
+}
+
+// Une réponse déjà arrivée l'emporte sur l'échéance passée : après une commande plus longue que le
+// délai, l'avis est toujours écrit (avant la correction, select choisissait au hasard).
+func TestUpdateNoticeAfterLongCommand(t *testing.T) {
+	for i := range 200 {
+		var stderr strings.Builder
+		n := &updateNotice{
+			done:     make(chan struct{}),
+			status:   selfupdate.Status{Current: "v0.5.0", Latest: "v0.6.0", UpdateAvailable: true},
+			deadline: time.Now().Add(-time.Second), // la commande a duré plus que le délai
+			cancel:   func() {},
+			logger:   slog.New(slog.DiscardHandler),
+		}
+		close(n.done)
+		n.finish(context.Background(), Deps{Stderr: &stderr})
+		if stderr.String() != wantNotice+"\n" {
+			t.Fatalf("essai %d : stderr = %q, attendu l'avis", i, stderr.String())
+		}
+	}
+}
+
+// Bout en bout : « watchoo log », rendue plus longue que le délai par une horloge lente, garde son avis
+// à chaque fois (avant la correction, une fois sur deux environ).
+func TestUpdateNoticeLongCommandEndToEnd(t *testing.T) {
+	original := updateNoticeTimeout
+	t.Cleanup(func() { updateNoticeTimeout = original })
+	updateNoticeTimeout = 300 * time.Millisecond
+
+	h := newWorkspace(t)
+	setBuildVars(t, "v0.5.0", "", "")
+	srv := selfupdatetest.New(t, "v0.6.0", runtime.GOOS, runtime.GOARCH)
+	h.Updater = selfupdate.New(selfupdate.Options{BaseURL: srv.URL, UserAgent: "watchoo/v0.5.0"})
+	h.StderrTerminal = true
+	h.Now = func() time.Time {
+		time.Sleep(400 * time.Millisecond) // la commande dure plus que le délai
+		return testNow
+	}
+	for i := range 6 {
+		r := h.run("log").mustSucceed(t)
+		if r.stderr != wantNotice+"\n" {
+			t.Fatalf("essai %d : stderr = %q, attendu l'avis", i, r.stderr)
+		}
 	}
 }
 
@@ -297,5 +360,59 @@ func TestServeUpdateCheckDisabled(t *testing.T) {
 	assertNotContains(t, "stderr", r.stderr, "Nouvelle version")
 	if n := srv.Requests(); n != 0 {
 		t.Errorf("%d requêtes, attendu 0", n)
+	}
+}
+
+// « watchoo tui » n'a pas d'avis sur la sortie d'erreur : il reçoit sa vérification (tui.Deps.UpdateCheck)
+// et l'annonce dans son en-tête.
+func TestTUIGetsUpdateCheck(t *testing.T) {
+	h := newWorkspace(t)
+	setBuildVars(t, "v0.5.0", "", "")
+	srv := selfupdatetest.New(t, "v0.6.0", runtime.GOOS, runtime.GOARCH)
+	h.Updater = selfupdate.New(selfupdate.Options{BaseURL: srv.URL, UserAgent: "watchoo/v0.5.0"})
+	h.StderrTerminal = true
+	call := onTUITerminal(h, nil)
+
+	r := h.run("tui").mustSucceed(t)
+	if r.stderr != "" {
+		t.Errorf("stderr = %q, attendu vide (avis dans le TUI seulement)", r.stderr)
+	}
+	if n := srv.Requests(); n != 0 {
+		t.Errorf("%d requêtes avant la vérification du TUI, attendu 0", n)
+	}
+	check := call.deps.UpdateCheck
+	if check == nil {
+		t.Fatal("UpdateCheck nil")
+	}
+	info, err := check(t.Context())
+	if err != nil || info != (tui.UpdateInfo{Current: "v0.5.0", Latest: "v0.6.0"}) {
+		t.Errorf("UpdateCheck = %+v, %v", info, err)
+	}
+	// Dans l'image Docker : signalé au TUI, qui adapte sa phrase.
+	h.InDocker = true
+	h.run("tui").mustSucceed(t)
+	if info, _ := call.deps.UpdateCheck(t.Context()); !info.Docker {
+		t.Errorf("UpdateCheck = %+v, attendu Docker", info)
+	}
+	// À jour : rien à annoncer.
+	setBuildVars(t, "v0.6.0", "", "")
+	h.run("tui").mustSucceed(t)
+	if info, err := call.deps.UpdateCheck(t.Context()); err != nil || info.Latest != "" {
+		t.Errorf("UpdateCheck = %+v, %v, attendu vide", info, err)
+	}
+	// Vérification coupée : pas de fonction.
+	for _, tt := range []struct {
+		name string
+		set  func()
+	}{
+		{"variable", func() { t.Setenv(selfupdate.EnvNoCheck, "1") }},
+		{"dev", func() { t.Setenv(selfupdate.EnvNoCheck, ""); setBuildVars(t, "dev", "", "") }},
+	} {
+		name := tt.name
+		tt.set()
+		h.run("tui").mustSucceed(t)
+		if call.deps.UpdateCheck != nil {
+			t.Errorf("%s : UpdateCheck renseigné, attendu nil", name)
+		}
 	}
 }

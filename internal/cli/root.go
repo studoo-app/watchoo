@@ -232,7 +232,7 @@ Prérequis : la CLI GitHub gh, installée et connectée (« gh auth login »).`,
 	}
 	// Héritée par toutes les sous-commandes (aucune ne définit la sienne).
 	root.PersistentPreRun = func(cmd *cobra.Command, args []string) {
-		slot.notice = startUpdateNotice(cmd.Context(), deps, opts, cmd, root)
+		slot.notice = startUpdateNotice(cmd.Context(), deps, opts, cmd, root, args)
 	}
 	root.SetOut(deps.Stdout)
 	root.SetErr(deps.Stderr)
