@@ -27,6 +27,33 @@ un changement incompatible fait monter MINOR et tout changement compatible fait 
   automatiquement) ; pour les contributeurs déjà en base, elle arrive avec leur prochain commit lu par
   l'API. Aucun lien pour un contributeur connu seulement par Git (clones Git locaux).
 
+### Modifié
+
+- **Toujours cloner** : avec `gh` aussi, chaque dépôt suivi a désormais son clone Git local dans
+  `repos/` (créé à la première synchro, mis à jour à chacune). L'API reste la source des commits, des
+  métadonnées, des logins, des pull requests, des releases et des tags ; le clone donne les **lignes
+  ajoutées et supprimées de tous les commits**, premier import compris, sans plafond ni quota
+  (`git diff-tree --numstat` par paquets). Le clone utilise les identifiants Git de la machine
+  (`git.protocol`), jamais le token de `gh` ; en HTTPS, `gh auth setup-git` permet à `git` de
+  réutiliser le compte de `gh`. Si le clone d'un dépôt est indisponible, la synchro du dépôt réussit
+  quand même : ses statistiques sont demandées à l'API comme avant (au plus 100 nouveaux commits par
+  synchro), avec un avertissement dans le bilan (`watchoo sync`, TUI, indicateur de synchro du web).
+  `repos/` occupe à peu près la taille des dépôts suivis, et la première synchro d'un dépôt est plus
+  lente (clone complet). Sans `gh`, rien ne change, sinon que les statistiques couvrent tous les
+  commits.
+- **Statistiques inconnues ou nulles** : la nouvelle colonne `commits.stats_known` (migration `00006`,
+  appliquée automatiquement) distingue un commit dont les lignes sont inconnues (« — ») d'un commit
+  réellement à `+0 −0` (merge sans changement, commit vide), qui affiche désormais ses zéros. Les
+  commits déjà en base sans statistiques sont calculés par le clone à la synchro suivante. `watchoo log
+  --json` (et le dernier commit de `repo list --json`) gagne `stats_known` pour chaque commit.
+- **Lignes par commit et totaux partout** : chaque liste de commits montre les lignes `+/-` du commit
+  (« — » si inconnues) : fil du tableau de bord, historique d'un dépôt, commits d'un contributeur, vue
+  Commits et détails du TUI, colonne `+/-` de `watchoo log`. Les totaux sont donnés par contributeur,
+  par dépôt (carte du tableau de bord, en-tête et contributeurs de la page d'un dépôt, détail du TUI)
+  et pour tout l'espace (compteur « Lignes » du tableau de bord), avec « (dont N commits non comptés) »
+  quand une partie des commits n'a pas encore de statistiques.
+- L'indicateur de synchro du web compte les **avertissements** du dernier bilan (détail en infobulle).
+
 ## [0.4.0] - 2026-10-27
 
 V2 : dépôts Git locaux sans `gh`, pull requests, releases et tags, seuils d'activité par dépôt et

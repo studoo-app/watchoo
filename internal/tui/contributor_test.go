@@ -20,13 +20,13 @@ import (
 func withContributorDetail(data *fakeData) {
 	data.profiles = map[int64]store.ContributorProfile{
 		1: {Contributor: model.Contributor{ID: 1, Name: "Alice", ProviderLogin: "alice-gh", ProviderUserID: 10,
-			ProfileURL: "https://github.com/alice-gh"}, Identities: 2, Commits: 5, Additions: 40, Deletions: 7, Repos: 2,
+			ProfileURL: "https://github.com/alice-gh"}, Identities: 2, Commits: 5, Additions: 40, Deletions: 7, KnownCommits: 3, Repos: 2,
 			FirstCommitAt: testNow.Add(-30 * 24 * time.Hour), LastCommitAt: testNow.Add(-2 * time.Hour)},
 		2: {Contributor: model.Contributor{ID: 2, Name: "Bob"}, Identities: 1},
 	}
 	data.contribRepos = map[int64][]store.ContributorRepoStats{
 		1: {{ContributorID: 1, RepoID: 1, RepoOwner: "promo", RepoName: "alice", RepoLabel: "Alice Martin", Commits: 4,
-			Additions: 40, Deletions: 7, LastCommitAt: testNow.Add(-2 * time.Hour)},
+			Additions: 40, Deletions: 7, KnownCommits: 4, LastCommitAt: testNow.Add(-2 * time.Hour)},
 			{ContributorID: 1, RepoID: 3, RepoOwner: "promo", RepoName: "chloe", Commits: 1,
 				LastCommitAt: testNow.Add(-42 * 24 * time.Hour)}},
 	}
@@ -35,7 +35,7 @@ func withContributorDetail(data *fakeData) {
 			{RepoID: 1, CommittedAt: testNow.Add(-14 * 24 * time.Hour)}},
 	}
 	data.commits[0].AuthorID = 1
-	data.commits[0].Additions, data.commits[0].Deletions = 12, 3
+	data.commits[0].Additions, data.commits[0].Deletions, data.commits[0].StatsKnown = 12, 3, true
 }
 
 func TestContributorDetail(t *testing.T) {
@@ -46,9 +46,9 @@ func TestContributorDetail(t *testing.T) {
 	l.until(func(m Model) bool { return m.cdetail.open && !m.cdetail.loading })
 	screen := l.screen()
 	mustContain(t, screen, "Alice (@alice-gh)", "échap pour revenir", "@alice-gh",
-		"2 adresses rattachées (non affichées)", "5 commits dans 2 dépôts, +40/-7", "il y a 30 j", "il y a 2 h",
+		"2 adresses rattachées (non affichées)", "5 commits dans 2 dépôts, +40/-7 (2 non comptés)", "il y a 30 j", "il y a 2 h",
 		"12 semaines", "3 commits", "Dépôts", "Alice Martin", "+40/-7", "promo/chloe",
-		"Derniers commits", "Ajoute la page d'accueil", "+12/-3", "Lignes +/- : connues seulement")
+		"Derniers commits", "Ajoute la page d'accueil", "+12/-3", "Lignes +/- : comptées dans le clone")
 	mustNotContain(t, screen, "rouge", "https://github.com/alice-gh", "@example")
 	// Courbe d'activité de tous ses dépôts : 2 commits cette semaine, 1 il y a deux semaines.
 	if line := lineWith(screen, "▁▁▁▁▁▁▁▁▁▅▁█"); !strings.Contains(line, "12 semaines") {
@@ -129,7 +129,7 @@ func TestContributorDetailWithRealStore(t *testing.T) {
 		Branches: []store.BranchState{{Name: "main", HeadSHA: sha}},
 		Commits: []store.CommitWrite{{SHA: sha, Message: "Premier rendu", Author: zoe, Committer: zoe,
 			AuthoredAt: testNow.Add(-3 * time.Hour), CommittedAt: testNow.Add(-3 * time.Hour),
-			Additions: 9, Deletions: 1, Branches: []string{"main"}}},
+			Additions: 9, Deletions: 1, StatsKnown: true, Branches: []string{"main"}}},
 		SyncedAt: testNow,
 	}); err != nil {
 		t.Fatal(err)
@@ -143,5 +143,23 @@ func TestContributorDetailWithRealStore(t *testing.T) {
 	mustNotContain(t, screen, "zoe@example.test", "https://github.com/zoe-gh")
 	if line := lineWith(screen, "Zoé Leroy"); !strings.Contains(line, "▁▁▁▁▁▁▁▁▁▁▁█") {
 		t.Errorf("ligne du dépôt = %q", line)
+	}
+}
+
+// Lignes d'un commit (« - » si inconnues, « +0/-0 » si nulles) et totaux (« (N non comptés) »).
+func TestLineFormats(t *testing.T) {
+	for _, tc := range []struct {
+		got, want string
+	}{
+		{commitLines(model.Commit{}), "-"},
+		{commitLines(model.Commit{StatsKnown: true}), "+0/-0"},
+		{commitLines(model.Commit{StatsKnown: true, Additions: 4, Deletions: 1}), "+4/-1"},
+		{lineTotals(model.LineTotals{Commits: 3}), "-"},
+		{lineTotals(model.LineTotals{Commits: 3, KnownCommits: 3, Additions: 5}), "+5/-0"},
+		{lineTotals(model.LineTotals{Commits: 3, KnownCommits: 1, Additions: 5, Deletions: 2}), "+5/-2 (2 non comptés)"},
+	} {
+		if tc.got != tc.want {
+			t.Errorf("%q, attendu %q", tc.got, tc.want)
+		}
 	}
 }

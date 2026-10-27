@@ -90,6 +90,7 @@
           {{- end}}
         </dd>
         <dd class="text-base-content/70">{{plural $r.Commits "commit en base" "commits en base"}}</dd>
+        {{if $r.Commits}}<dd class="text-base-content/70 tabular-nums">Lignes : {{template "line-totals" $r.Lines}}</dd>{{end}}
       </div>
       <div class="min-w-0">
         <dt class="text-base-content/60">Branches</dt>
@@ -157,6 +158,7 @@
             dernier commit {{template "rel-time" .LastCommitAt}}
           </p>
         </div>
+        <span class="text-xs tabular-nums whitespace-nowrap">{{template "line-totals" .Lines}}</span>
         <span class="badge badge-ghost whitespace-nowrap">{{plural .Commits "commit" "commits"}}</span>
       </li>
       {{end}}

@@ -126,9 +126,31 @@ type Commit struct {
 	Message     string    // message de commit (donnée personnelle : jamais dans les logs)
 	AuthoredAt  time.Time // date d'écriture, UTC
 	CommittedAt time.Time // date de commit, UTC
-	Additions   int       // lignes ajoutées
-	Deletions   int       // lignes supprimées
+	Additions   int       // lignes ajoutées (0 si inconnues)
+	Deletions   int       // lignes supprimées (0 si inconnues)
+	StatsKnown  bool      // Additions et Deletions calculées (même à 0) ; faux = inconnues
 	URL         string    // lien vers le commit sur la forge
+}
+
+// LineTotals additionne les lignes ajoutées et supprimées d'un ensemble de commits (un dépôt, l'espace).
+// Seuls les commits dont les statistiques sont connues (commits.stats_known) sont additionnés.
+type LineTotals struct {
+	Commits      int // commits de l'ensemble
+	KnownCommits int // commits dont les statistiques sont connues
+	Additions    int // lignes ajoutées par les commits connus
+	Deletions    int // lignes supprimées par les commits connus
+}
+
+// Known indique si au moins un commit a des statistiques connues (sinon les totaux s'affichent « — »).
+func (l LineTotals) Known() bool { return l.KnownCommits > 0 }
+
+// Uncounted renvoie le nombre de commits dont les statistiques sont encore inconnues.
+func (l LineTotals) Uncounted() int { return max(l.Commits-l.KnownCommits, 0) }
+
+// Add renvoie la somme de l et o.
+func (l LineTotals) Add(o LineTotals) LineTotals {
+	return LineTotals{Commits: l.Commits + o.Commits, KnownCommits: l.KnownCommits + o.KnownCommits,
+		Additions: l.Additions + o.Additions, Deletions: l.Deletions + o.Deletions}
 }
 
 // AuthorCommitTime est l'auteur et la date de commit d'un commit dont l'auteur est connu : une

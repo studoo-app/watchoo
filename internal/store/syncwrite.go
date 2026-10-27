@@ -76,6 +76,22 @@ func existingCommitSHAs(ctx context.Context, q *db.Queries, repoID int64, shas [
 	return known, nil
 }
 
+// UnknownStatsSHAs renvoie, par ordre croissant, au plus limit SHA (limit > 0) des commits du dépôt
+// repoID dont les statistiques sont inconnues (stats_known = 0), strictement après after (vide = depuis
+// le début) : pagination des commits à calculer par le clone Git local.
+func (s *Store) UnknownStatsSHAs(ctx context.Context, repoID int64, after string, limit int) ([]string, error) {
+	if limit <= 0 {
+		return nil, fmt.Errorf("commits sans statistiques du dépôt %d : limite %d invalide", repoID, limit)
+	}
+	shas, err := s.queries.ListUnknownStatsSHAs(ctx, db.ListUnknownStatsSHAsParams{
+		RepoID: repoID, AfterSha: after, RowLimit: int64(limit),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("commits sans statistiques du dépôt %d : %w", repoID, err)
+	}
+	return shas, nil
+}
+
 // ApplyRepoSync écrit une synchro réussie du dépôt w.RepoID dans UNE transaction (rien n'est écrit en
 // cas d'erreur) :
 //  1. repositories : owner, name, default_branch, url, stars, open_issues, archived (w.Metadata),
@@ -88,7 +104,8 @@ func existingCommitSHAs(ctx context.Context, q *db.Queries, repoID int64, shas [
 //     d'identité ci-dessous, les commits étant traités par CommittedAt croissant (puis SHA) pour que
 //     le nom le plus récent l'emporte ;
 //  4. commit_branches : une ligne par (commit, branche de CommitWrite.Branches), commits déjà connus
-//     compris, sans doublon ; une branche absente de w.Branches est une erreur ;
+//     compris, sans doublon ; une branche absente de w.Branches est une erreur ; puis statistiques
+//     w.Stats (additions, deletions, stats_known = 1) des commits en base, SHA inconnus ignorés ;
 //  5. last_commit_at = max(committed_at) des commits liés à une branche suivie (NULL si aucun) ;
 //  6. pull requests (V2) : chaque w.PullRequests créée ou mise à jour en entier ; releases et tags
 //     remplacés par w.Releases et w.Tags si w.ReplaceReleases / w.ReplaceTags (doublons ignorés) ;
@@ -154,6 +171,14 @@ func (s *Store) ApplyRepoSync(ctx context.Context, w RepoSyncWrite) (RepoSyncRes
 				}); err != nil {
 					return fmt.Errorf("rattachement du commit %s à une branche : %w", shortSHA(c.SHA), err)
 				}
+			}
+		}
+
+		for _, st := range w.Stats {
+			if _, err := q.SetCommitStats(ctx, db.SetCommitStatsParams{
+				Additions: int64(st.Additions), Deletions: int64(st.Deletions), RepoID: w.RepoID, SHA: st.SHA,
+			}); err != nil {
+				return fmt.Errorf("statistiques du commit %s : %w", shortSHA(st.SHA), err)
 			}
 		}
 
@@ -248,6 +273,14 @@ func prepareRepoSync(w RepoSyncWrite) ([]CommitWrite, error) {
 		index[c.SHA] = len(merged)
 		c.Branches = slices.Clone(c.Branches)
 		merged = append(merged, c)
+	}
+	for _, st := range w.Stats {
+		switch {
+		case st.SHA == "":
+			return nil, errors.New("statistiques d'un commit sans SHA")
+		case st.Additions < 0 || st.Deletions < 0:
+			return nil, fmt.Errorf("statistiques négatives pour le commit %s", shortSHA(st.SHA))
+		}
 	}
 	if err := checkExtras(w); err != nil {
 		return nil, err
@@ -427,6 +460,7 @@ func insertCommit(ctx context.Context, q *db.Queries, ids *identityResolver, rep
 		CommittedAt: FormatTime(c.CommittedAt),
 		Additions:   int64(c.Additions),
 		Deletions:   int64(c.Deletions),
+		StatsKnown:  c.StatsKnown,
 		URL:         c.URL,
 	})
 	if err != nil {

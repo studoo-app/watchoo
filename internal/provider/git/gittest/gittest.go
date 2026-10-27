@@ -107,6 +107,33 @@ func (r *Repo) Commit(branch, file, content, message string, who Author, when ti
 	return r.Head(branch)
 }
 
+// EmptyCommit ajoute à la branche branch un commit sans aucun changement (« --allow-empty »), publie
+// la branche et renvoie son SHA : un commit réellement à +0 −0.
+func (r *Repo) EmptyCommit(branch, message string, who Author, when time.Time) string {
+	r.s.t.Helper()
+	r.checkout(branch)
+	r.commitEnv(who, when, "commit", "--quiet", "--allow-empty", "--no-verify", "-m", message)
+	r.Push()
+	return r.Head(branch)
+}
+
+// ManyCommits ajoute à la branche branch n commits qui réécrivent chacun la ligne unique de file
+// (+1 −1 chacun), une minute d'écart à partir de start, puis publie la branche une seule fois.
+func (r *Repo) ManyCommits(branch, file string, n int, who Author, start time.Time) {
+	r.s.t.Helper()
+	r.checkout(branch)
+	path := filepath.Join(r.work, filepath.FromSlash(file))
+	for i := range n {
+		if err := os.WriteFile(path, []byte(fmt.Sprintf("ligne %d\n", i+1)), 0o600); err != nil {
+			r.s.t.Fatal(err)
+		}
+		r.git(r.work, "add", "--", file)
+		r.commitEnv(who, start.Add(time.Duration(i)*time.Minute), "commit", "--quiet", "--no-verify",
+			"-m", fmt.Sprintf("commit %d", i+1))
+	}
+	r.Push()
+}
+
 // Merge fusionne la branche from dans into (commit de merge, même sans conflit), publie into et
 // renvoie le SHA du merge.
 func (r *Repo) Merge(into, from, message string, who Author, when time.Time) string {

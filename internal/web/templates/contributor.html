@@ -73,8 +73,7 @@
       <div class="stat">
         <div class="stat-title">Lignes</div>
         <div class="stat-value text-2xl tabular-nums">
-          {{- if $v.HasLineStats}}<span class="text-success">+{{$p.Additions}}</span> <span class="text-error">−{{$p.Deletions}}</span>
-          {{- else}}<span class="text-base-content/40" title="Statistiques de lignes inconnues (pas encore lues sur GitHub) ou nulles">—</span>{{end}}
+          {{- template "line-totals" $p.Lines}}
         </div>
         <div class="stat-desc">ajoutées / supprimées</div>
       </div>
@@ -87,7 +86,7 @@
         <div class="stat-value text-lg">{{template "rel-time" $p.LastCommitAt}}</div>
       </div>
     </div>
-    <p class="text-xs text-base-content/60">Commits dont il ou elle est l'auteur. Les lignes ajoutées et supprimées ne sont connues que pour les commits découverts après le premier import d'un dépôt. Les états Actif, Flemme et Dead sont ceux des dépôts (liste ci-dessous) ; les adresses e-mail ne sont jamais affichées.</p>
+    <p class="text-xs text-base-content/60">Commits dont il ou elle est l'auteur. Les lignes ajoutées et supprimées sont comptées dans le clone Git local de chaque dépôt, pour tous ses commits ; « — » signale des lignes pas encore comptées (clone indisponible). Les états Actif, Flemme et Dead sont ceux des dépôts (liste ci-dessous) ; les adresses e-mail ne sont jamais affichées.</p>
   </div>
 </section>
 {{end}}
@@ -118,8 +117,7 @@
             <td>{{if .HasState}}{{template "state-badge" .State}}{{end}}</td>
             <td class="text-right tabular-nums font-semibold">{{.Commits}}</td>
             <td class="text-right tabular-nums whitespace-nowrap">
-              {{- if or .Additions .Deletions}}<span class="text-success">+{{.Additions}}</span> <span class="text-error">−{{.Deletions}}</span>
-              {{- else}}<span class="text-base-content/40" title="Statistiques de lignes inconnues (pas encore lues sur GitHub) ou nulles">—</span>{{end}}
+              {{- template "line-totals" .Lines}}
             </td>
             <td class="whitespace-nowrap">{{template "rel-time" .LastCommitAt}}</td>
           </tr>

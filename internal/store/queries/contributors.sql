@@ -46,6 +46,7 @@ SELECT ct.id, ct.provider, ct.provider_user_id, ct.provider_login, ct.name, ct.a
        count(c.sha) AS commits,
        CAST(COALESCE(sum(c.additions), 0) AS INTEGER) AS additions,
        CAST(COALESCE(sum(c.deletions), 0) AS INTEGER) AS deletions,
+       CAST(COALESCE(sum(c.stats_known), 0) AS INTEGER) AS known_commits,
        count(DISTINCT c.repo_id) AS repos,
        CAST(COALESCE(min(c.committed_at), '') AS TEXT) AS first_commit_at,
        CAST(COALESCE(max(c.committed_at), '') AS TEXT) AS last_commit_at

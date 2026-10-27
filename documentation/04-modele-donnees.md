@@ -6,7 +6,7 @@ Sept tables suffisent pour le MVP ; `commits` est la table centrale, reliée aux
 `commit_branches`) et aux contributeurs. La V2 en ajoute trois (migration `00003`) : `pull_requests`,
 `releases` et `tags`, soit **dix tables** ; la migration `00004` rend `repositories.provider_id`
 facultatif (dépôts suivis par clones Git locaux) ; la migration `00005` (0.5.0) ajoute
-`contributors.profile_url`. Le stockage est un fichier SQLite versionné par des migrations
+`contributors.profile_url` et la migration `00006` (0.5.0) `commits.stats_known`. Le stockage est un fichier SQLite versionné par des migrations
 `goose`, avec **une base par espace de supervision** (`.watchoo/watchoo.db`, voir
 [Espaces de supervision](10-espaces-de-supervision.md)). Les tables ne connaissent donc pas la notion
 d'espace : deux espaces ne partagent jamais de données.
@@ -117,12 +117,24 @@ soit le nombre de branches qui le contiennent.
 | committed_at | Date de commit |
 | additions | Lignes ajoutées (0 si inconnu, voir ci-dessous) |
 | deletions | Lignes supprimées (0 si inconnu) |
+| stats_known | `1` si `additions` et `deletions` ont été calculées (même à 0), `0` si elles sont encore inconnues. Ajoutée par la migration `00006` (0.5.0) |
 | url | Lien vers le commit sur la forge |
 
-- **Statistiques** (`additions`, `deletions`) : une requête par commit. Elles ne sont demandées que pour
-  les commits découverts **après le premier import** du dépôt, au plus **100 par dépôt et par synchro**,
-  et jamais quand le quota restant est sous 10 % ; sinon elles valent 0 (le premier import d'un dépôt
-  d'étudiant de plusieurs centaines de commits ne coûte donc pas des centaines de requêtes).
+- **Statistiques** (`additions`, `deletions`) : calculées dans le **clone Git local** du dépôt
+  (`git diff-tree --numstat`, sans quota), avec ou sans `gh`, pour **tous** les commits, premier import
+  compris ; chaque synchro reprend les commits dont `stats_known` vaut encore 0. Si le clone est
+  indisponible, la synchro par l'API se replie sur une requête par commit, seulement pour les commits
+  découverts après le premier import du dépôt, au plus 100 par dépôt et par synchro et jamais sous 10 %
+  de quota restant (voir [Synchronisation incrémentale](03-architecture.md#synchronisation-incrémentale)).
+- **Inconnu ou nul** : `stats_known` distingue un commit jamais calculé (`0`, affiché « — ») d'un commit
+  réellement à `+0 −0` (`1` : merge sans changement, commit vide), qui n'est jamais recalculé. Un total
+  (contributeur, dépôt) est affiché « — » seulement si **aucun** de ses commits n'a de statistiques
+  connues ; sinon il additionne les commits connus. La migration `00006` marque connus les commits déjà
+  en base dont `additions` ou `deletions` n'est pas nul (ils ont été lus par l'API) ; les autres
+  (`0`/`0`, impossibles à distinguer avant la migration) sont recalculés par le clone à la synchro
+  suivante, ce qui est sans coût. Un index partiel (`commits_stats_unknown`, sur `(repo_id, sha)` des
+  commits inconnus) sert à les retrouver. Retour arrière (`Down`) : index et colonne supprimés ; les
+  valeurs d'`additions` et `deletions` restent.
 - **Auteur et committer** : un commit dont l'e-mail Git est vide et qui n'est lié à aucun compte GitHub
   n'a pas de contributeur (`author_id` / `committer_id` vides) ; son nom Git est ignoré, faute
   d'identité fiable pour regrouper ces commits.

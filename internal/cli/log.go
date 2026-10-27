@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/studoo-app/watchoo/internal/activity"
+	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/provider"
 	"github.com/studoo-app/watchoo/internal/store"
 )
@@ -124,11 +125,21 @@ func runLog(ctx context.Context, deps Deps, opts *options, f logFlags) (err erro
 			c.RepoDisplayName(),
 			c.AuthorDisplayName(),
 			provider.ShortSHA(c.SHA),
+			commitLines(c.Commit),
 			st.truncate(c.Message, 60),
 		}
 	}
-	headers := []string{"Date", st.pick("Dépôt", "Depot"), "Auteur", "Commit", "Message"}
+	headers := []string{"Date", st.pick("Dépôt", "Depot"), "Auteur", "Commit", "+/-", "Message"}
 	return writeText(deps.Stdout, renderTable(st, headers, rows, nil))
+}
+
+// commitLines écrit les lignes ajoutées et supprimées d'un commit : « +12/-3 » (« +0/-0 » compris)
+// si elles sont connues, « - » sinon.
+func commitLines(c model.Commit) string {
+	if !c.StatsKnown {
+		return "-"
+	}
+	return fmt.Sprintf("+%d/-%d", c.Additions, c.Deletions)
 }
 
 // filterText décrit les filtres de « watchoo log » pour le message « aucun commit » : vide sans filtre.

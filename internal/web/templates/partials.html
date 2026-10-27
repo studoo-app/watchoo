@@ -39,6 +39,7 @@
   {{- if $v.LastError}} <span class="badge badge-error badge-sm" title="{{clean $v.LastError}}">échec</span>
   {{- else if $v.Errors}} <span class="badge badge-error badge-sm">{{plural $v.Errors "dépôt en erreur" "dépôts en erreur"}}</span>{{end}}
   {{- if $v.Deferred}} <span class="badge badge-warning badge-sm">{{plural $v.Deferred "dépôt reporté" "dépôts reportés"}}</span>{{end}}
+  {{- if $v.Warnings}} <span class="badge badge-warning badge-outline badge-sm" title="{{clean $v.WarningText}}">{{plural $v.Warnings "avertissement" "avertissements"}}</span>{{end}}
   {{- else}}
   <span class="text-base-content/60" title="Dernière synchro de chaque dépôt : page du dépôt et réglages">Aucune synchro depuis le lancement</span>
   {{- end}}
@@ -138,6 +139,15 @@
      Donnée : dict "ID" contributors.id "Name" nom affiché ["Class" classes du lien]. */}}
 {{define "contributor-link"}}{{if .ID}}<a href="{{contribPath .ID}}" class="link link-hover {{.Class}}">{{clean .Name}}</a>{{else}}{{clean .Name}}{{end}}{{end}}
 
+{{/* Lignes ajoutées et supprimées d'un commit (0.5.0) : « +a −d » si elles sont connues (même
+     +0 −0 : merge sans changement, commit vide), « — » sinon. Donnée : model.Commit (ou CommitView). */}}
+{{define "commit-lines"}}{{if .StatsKnown}}<span class="text-success">+{{.Additions}}</span> <span class="text-error">−{{.Deletions}}</span>{{else}}<span class="text-base-content/40" title="Lignes inconnues : pas encore comptées (clone Git local indisponible)">—</span>{{end}}{{end}}
+
+{{/* Totaux de lignes d'un ensemble de commits (contributeur, dépôt, espace) : « +a −d », suivi de
+     « (dont N commits non comptés) » si une partie des commits n'a pas encore de statistiques ; « — »
+     si aucun n'en a. Donnée : model.LineTotals. */}}
+{{define "line-totals"}}{{if .Known}}<span class="text-success">+{{.Additions}}</span> <span class="text-error">−{{.Deletions}}</span>{{if .Uncounted}} <span class="text-xs font-normal text-base-content/60" title="Commits dont les lignes ne sont pas encore comptées (clone Git local indisponible)">(dont {{plural .Uncounted "commit non compté" "commits non comptés"}})</span>{{end}}{{else}}<span class="text-base-content/40" title="Lignes inconnues : pas encore comptées (clone Git local indisponible)">—</span>{{end}}{{end}}
+
 {{/* Un commit d'un historique (page d'un dépôt, page d'un contributeur). Donnée : dict "Commit"
      store.CommitView ["ShowRepo" true : dépôt du commit, lien vers sa page] ["ShowAuthor" true : auteur,
      lien vers sa page et vers son profil]. Message nettoyé (firstLine), jamais d'e-mail. */}}
@@ -149,7 +159,7 @@
       {{- if .ShowRepo}}<a href="{{repoPath $c.RepoID}}" class="link link-hover font-medium">{{clean $c.RepoDisplayName}}</a> · {{end -}}
       {{- if .ShowAuthor}}{{template "contributor-link" (dict "ID" $c.AuthorID "Name" $c.AuthorDisplayName)}}{{with $c.AuthorProfileURL}} {{template "profile-link" (dict "URL" . "Login" $c.AuthorLogin)}}{{end}} · {{end -}}
       {{template "rel-time" $c.CommittedAt}}
-      {{- if or $c.Additions $c.Deletions}} · <span class="text-success">+{{$c.Additions}}</span> <span class="text-error">−{{$c.Deletions}}</span>{{end}}
+      · {{template "commit-lines" $c.Commit}}
     </p>
   </div>
   <div class="shrink-0">

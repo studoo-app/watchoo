@@ -15,6 +15,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/studoo-app/watchoo/internal/activity"
+	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/store"
 )
 
@@ -125,7 +126,7 @@ func (m Model) contribDetailLines() []string {
 	lines = append(lines, field("Identités Git", plural(p.Identities, "adresse rattachée", "adresses rattachées")+
 		m.st.Muted.Render(" (non affichées)")))
 	lines = append(lines, field("Commits", fmt.Sprintf("%s dans %s, %s",
-		plural(p.Commits, "commit", "commits"), plural(p.Repos, "dépôt", "dépôts"), lineStats(p.Additions, p.Deletions))))
+		plural(p.Commits, "commit", "commits"), plural(p.Repos, "dépôt", "dépôts"), lineTotals(p.Lines()))))
 	lines = append(lines, field("Premier commit", activity.Relative(p.FirstCommitAt, now, loc, uni)))
 	lines = append(lines, field("Dernier commit", activity.Relative(p.LastCommitAt, now, loc, uni)))
 	weeks := len(d.weekly.Weeks)
@@ -153,7 +154,7 @@ func (m Model) contribDetailLines() []string {
 				state, short, gray, col = res.State, res.Short(uni), res.State.Gray(), 6
 			}
 			rows = append(rows, row{cells: []string{clean(r.RepoDisplayName()), strconv.Itoa(r.Commits),
-				lineStats(r.Additions, r.Deletions), strconv.Itoa(d.weekly.TotalOf(r.RepoID)),
+				lineTotals(r.Lines()), strconv.Itoa(d.weekly.TotalOf(r.RepoID)),
 				activity.Sparkline(d.weekly.Of(r.RepoID), uni), activity.Relative(r.LastCommitAt, now, loc, uni), short},
 				gray: gray, stateCol: col, state: state})
 		}
@@ -169,20 +170,35 @@ func (m Model) contribDetailLines() []string {
 		rows := make([]row, 0, len(d.commits))
 		for _, c := range d.commits {
 			rows = append(rows, row{cells: []string{activity.Relative(c.CommittedAt, now, loc, uni),
-				clean(c.RepoDisplayName()), shortSHA(c.SHA), lineStats(c.Additions, c.Deletions), firstLine(c.Message)},
+				clean(c.RepoDisplayName()), shortSHA(c.SHA), commitLines(c.Commit), firstLine(c.Message)},
 				stateCol: -1})
 		}
 		lines = append(lines, m.renderTable(cols, rows, -1, 0, len(rows), false)...)
 	}
-	lines = append(lines, "", m.st.Muted.Render("Lignes +/- : connues seulement pour les commits découverts après le "+
-		"premier import d'un dépôt (« - » sinon)."))
+	lines = append(lines, "", m.st.Muted.Render("Lignes +/- : comptées dans le clone Git local de chaque dépôt "+
+		"(« - » : pas encore comptées, clone indisponible)."))
 	return lines
 }
 
-// lineStats écrit des lignes ajoutées et supprimées : « +12/-3 », ou « - » si aucune n'est connue.
-func lineStats(add, del int) string {
-	if add == 0 && del == 0 {
+// commitLines écrit les lignes ajoutées et supprimées d'un commit : « +12/-3 » (« +0/-0 » compris)
+// si elles sont connues, « - » sinon.
+func commitLines(c model.Commit) string {
+	if !c.StatsKnown {
 		return "-"
 	}
-	return fmt.Sprintf("+%d/-%d", add, del)
+	return fmt.Sprintf("+%d/-%d", c.Additions, c.Deletions)
+}
+
+// lineTotals écrit les totaux de lignes d'un ensemble de commits : « +12/-3 », suivi de
+// « (N non comptés) » si une partie des commits n'a pas encore de statistiques, ou « - » si aucun
+// n'en a.
+func lineTotals(t model.LineTotals) string {
+	if !t.Known() {
+		return "-"
+	}
+	s := fmt.Sprintf("+%d/-%d", t.Additions, t.Deletions)
+	if n := t.Uncounted(); n > 0 {
+		s += fmt.Sprintf(" (%d non comptés)", n)
+	}
+	return s
 }

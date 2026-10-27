@@ -165,7 +165,7 @@ func newFakeData() *fakeData {
 		},
 		contribs: []store.ContributorStats{
 			{Contributor: model.Contributor{ID: 1, Name: "Alice", ProviderLogin: "alice-gh"}, Commits: 5,
-				Additions: 10, Deletions: 2, Repos: 1, LastCommitAt: testNow.Add(-2 * time.Hour)},
+				Additions: 10, Deletions: 2, KnownCommits: 5, Repos: 1, LastCommitAt: testNow.Add(-2 * time.Hour)},
 			{Contributor: model.Contributor{ID: 2, Name: "Bob"}, Commits: 1, Repos: 1,
 				LastCommitAt: testNow.Add(-9 * 24 * time.Hour)},
 		},

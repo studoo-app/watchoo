@@ -61,7 +61,7 @@ licence-projet/
     config.yaml      réglages de l'espace (nom, intervalle, seuils, branches exclues…)
     watchoo.db       base SQLite : dépôts, commits, contributeurs, journal des synchros
     .gitignore       contient « * » : le contenu n'est jamais commité par erreur
-  repos/             clones Git des dépôts suivis sans gh (V2), créé au premier clone
+  repos/             clones Git des dépôts suivis, avec ou sans gh (V2), créé au premier clone
     projet-licence/      alice/projet-licence, avec sa copie de travail
     bob-projet-licence/  bob/projet-licence : homonyme ajouté après
 ```
@@ -73,15 +73,18 @@ licence-projet/
   Il ne couvre que `.watchoo/` : si la racine de l'espace est un dépôt Git, **`repos/` y apparaît**, à
   ajouter à votre propre `.gitignore` (Watchoo n'écrit rien hors de `.watchoo/` et `repos/`).
 - `repos/` (V2) est à la **racine de l'espace**, à côté de `.watchoo/`, créé en **`0700`** par Watchoo au
-  premier clone (dépôts suivis sans `gh`, voir [Dépôts Git locaux](03-architecture.md#dépôts-git-locaux-v2)) ;
-  le contenu des clones garde les droits posés par Git. Chaque dépôt y a son clone **avec copie de
+  premier clone. Depuis la 0.5.0, **chaque espace a son `repos/`**, avec ou sans `gh` : chaque dépôt
+  suivi y est cloné, pour lire les statistiques de lignes de tous ses commits (avec `gh`) ou tout son
+  historique (sans `gh`), voir [Dépôts Git locaux](03-architecture.md#dépôts-git-locaux-v2). Il occupe à
+  peu près la taille des dépôts suivis, et la première synchro d'un dépôt est plus lente (clone
+  complet). Le contenu des clones garde les droits posés par Git. Chaque dépôt y a son clone **avec copie de
   travail**, `repos/<name>` en minuscules ; deux dépôts de même nom (deux étudiants) : le premier ajouté
   garde `repos/<name>`, les suivants `repos/<owner>-<name>` (règle complète dans l'architecture).
 - **Ces clones appartiennent à Watchoo** : on peut y lire le code des étudiants, mais à chaque synchro la
   copie de travail est remise sur la branche par défaut du dépôt (`git checkout --force` puis
   `git reset --hard`) : **toute modification locale d'un fichier suivi est écrasée**, une autre branche
   extraite est quittée ; les fichiers non suivis sont gardés. `repo remove` supprime le clone,
-  `repo remove --keep-history` le garde ; repasser par l'API (`gh` connecté) laisse les clones en place.
+  `repo remove --keep-history` le garde ; avec ou sans `gh`, ce sont les mêmes clones, tenus à jour.
   Un répertoire de `repos/` que Watchoo n'a pas créé pour ce dépôt n'est jamais modifié ni supprimé.
 - `config.yaml` commence par la carte d'en-tête de Watchoo, en commentaires YAML : le hibou en petit
   format, « Watchoo » et « Réglages de l'espace de supervision », dans un cadre (le nom de l'espace n'y
@@ -115,8 +118,8 @@ trouvé est utilisé.
 ### Seuls les espaces de l'utilisateur sont acceptés
 
 Un enseignant clone souvent les dépôts qu'il supervise, parfois **dans** son espace
-(`~/supervision/licence-projet/alice-projet/`) ; sans `gh`, Watchoo le fait lui-même dans `repos/`
-(V2). Un étudiant peut y avoir commité un `.watchoo/` (`git add -f` contourne le `.gitignore`) :
+(`~/supervision/licence-projet/alice-projet/`) ; Watchoo le fait lui-même dans `repos/` (V2, avec ou
+sans `gh` depuis la 0.5.0). Un étudiant peut y avoir commité un `.watchoo/` (`git add -f` contourne le `.gitignore`) :
 lancée depuis ce clone, une commande le trouverait avant le vrai espace et lirait des réglages fournis
 par l'étudiant (base, `web.*`, `github.gh_path`…). Comme le `safe.directory` de Git, Watchoo ne fait donc confiance qu'aux espaces de l'utilisateur. Sous Linux
 et macOS, avant de lire les réglages d'un espace, il **refuse** :
@@ -228,8 +231,8 @@ modèle de `watchoo init` (mêmes commentaires), les réglages importés décomm
   `web.allowed_hosts` (noms publics du proxy acceptés dans l'en-tête `Host`). Deux `serve` sur
   la même machine gardent chacun leur jeton CSRF (cookie nommé avec le port).
 - Le quota GitHub est **partagé** entre tous les espaces, puisqu'ils utilisent le même compte `gh`.
-  Chaque espace affiche le quota restant réel (lu dans les réponses de GitHub). Sans `gh`, chaque espace
-  a ses propres clones (`repos/` à sa racine), sans quota.
+  Chaque espace affiche le quota restant réel (lu dans les réponses de GitHub). Avec ou sans `gh`, chaque
+  espace a ses propres clones (`repos/` à sa racine), qui ne consomment aucun quota.
 
 ## Données personnelles des étudiants
 

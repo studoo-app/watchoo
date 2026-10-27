@@ -16,6 +16,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 
 	wsync "github.com/studoo-app/watchoo/internal/sync"
 )
@@ -40,7 +41,14 @@ type SyncView struct {
 	Errors       int    // dépôts en erreur dans le dernier rapport
 	Deferred     int    // dépôts reportés (quota) dans le dernier rapport
 	NewCommits   int    // nouveaux commits du dernier rapport
+	Warnings     int    // avertissements du dernier rapport (listes non lues, clone Git local indisponible)
+	// WarningText reprend ces avertissements (« dépôt : message », séparés par « ; »), pour
+	// l'infobulle ; tronqué à maxWarningText caractères.
+	WarningText string
 }
+
+// maxWarningText borne le texte des avertissements de l'indicateur de synchro.
+const maxWarningText = 500
 
 // syncView renvoie l'état courant des synchros, avec un éventuel message.
 func (s *server) syncView(message string) SyncView {
@@ -50,6 +58,14 @@ func (s *server) syncView(message string) SyncView {
 		v.Errors = st.LastReport.Count(wsync.StatusError)
 		v.Deferred = st.LastReport.Count(wsync.StatusDeferred)
 		v.NewCommits = st.LastReport.NewCommits()
+		v.Warnings = st.LastReport.Warnings()
+		var parts []string
+		for _, r := range st.LastReport.Repos {
+			for _, w := range r.Warnings {
+				parts = append(parts, r.DisplayName+" : "+w)
+			}
+		}
+		v.WarningText = truncate(maxWarningText, strings.Join(parts, " ; "))
 		v.QuotaLow = st.LastReport.RateLimitKnown && wsync.QuotaLow(st.LastReport.RateLimit, s.now())
 	}
 	return v

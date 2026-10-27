@@ -166,7 +166,7 @@ func (h *harness) runContext(ctx context.Context, args ...string) result {
 		},
 		NewGitProvider: func(repos []gitprov.Ref) (provider.Provider, error) {
 			if h.GitURL == "" {
-				return nil, errors.New("aucun dépôt Git dans ce test")
+				return nil, nil // clones désactivés : sans gh, « répertoire des clones non renseigné »
 			}
 			return gitprov.New(gitprov.Options{Dir: filepath.Join(h.root, workspace.ReposDirName), Repos: repos,
 				BaseURL: h.GitURL, Logger: slog.Default()})

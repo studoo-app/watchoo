@@ -283,6 +283,9 @@ vide, `GIT_CONFIG_NOSYSTEM`, pas d'entretien automatique). Le provider s'y branc
   `Limit`, `Since`, `Stop`, branche inconnue `ErrNotFound`), message, identités, dates UTC et parents ;
   `CompareCommits` avec un merge, base égale à la tête, base inconnue (`ErrUnknownBase`) ; statistiques
   (`diff-tree --numstat` : commit simple, racine, merge par rapport au premier parent, commit inconnu) ;
+  `CommitStatsBatch` (0.5.0 : mêmes valeurs que `CommitStats` pour un commit simple, une racine, un
+  merge et un commit vide à `+0 −0`, SHA absent du clone omis, plus de 500 SHA en plusieurs paquets,
+  contexte annulé) ; `Prepare` qui extrait la branche par défaut donnée sans `ls-remote` ;
   tags (légers et annotés déréférencés) ; `fetch` qui suit une branche supprimée, un force-push, un tag
   ajouté et une nouvelle branche par défaut (une seule mise à jour par Provider) ; dépôt vide (listes
   vides non nil) ; références invalides refusées sans lancer `git` (`git` introuvable dans ce test) ;
@@ -308,6 +311,26 @@ vide, `GIT_CONFIG_NOSYSTEM`, pas d'entretien automatique). Le provider s'y branc
   contributeur sans login), synchro incrémentale avec statistiques, dépôt devenu inaccessible, retour de
   `gh` qui résout `provider_id` et les métadonnées ; dépôt connu par l'API synchronisé sans `gh` (étoiles,
   issues, archivé, URL et identifiant gardés, aucun appel à l'API).
+- **Statistiques par le clone** (0.5.0, `internal/sync/clonestats_test.go`, `providertest` pour l'API et
+  `gittest` pour le même historique, aux mêmes SHA) : avec `gh`, premier import dont **tous** les commits
+  ont leurs statistiques (merge au premier parent, commit vide connu à `+0 −0`), aucun appel
+  `CommitStats` à l'API, clone créé dans `repos/` sur la branche par défaut de l'API ; commits anciens
+  inconnus (base d'avant la migration `00006`) calculés à la synchro suivante, un commit `+0 −0` connu
+  jamais recalculé ; plus de 100 nouveaux commits d'un coup, tous calculés ; clone indisponible
+  (emplacement occupé ; `git` absent, provider des clones impossible) : dépôt réussi, avertissement,
+  repli sur l'API (premier import sans statistiques, puis les nouveaux commits), puis rattrapage quand
+  le clone revient ; sans `gh`,
+  statistiques de tous les commits dès le premier import ; annulation pendant le calcul.
+- **Migration `00006`** (`internal/store/migration_stats_known_test.go`) : base au schéma `00005` avec des
+  commits à statistiques non nulles et nulles ; `Up` marque connus les premiers seulement, `Down` retire
+  la colonne et l'index en gardant les lignes et les valeurs ; écriture (`ApplyRepoSync` : nouveau
+  commit connu ou non, statistiques d'un commit déjà en base) ; liste paginée des SHA inconnus.
+- **Lignes affichées** (`internal/web/lines_test.go`, `TestLineFormats` du TUI, `TestCommitLines` et
+  `stats_known` de `log --json` dans la CLI) : un commit inconnu affiche « — » (« - » en terminal), un
+  commit connu à `+0 −0` affiche ses zéros, partout où un commit est listé (historique d'un dépôt, fil
+  du tableau de bord, page d'un contributeur) ; totaux par dépôt, par contributeur et de l'espace avec
+  « (dont N commits non comptés) », « — » si aucun commit n'est connu ; badge des avertissements de
+  l'indicateur de synchro, détail en infobulle.
 - **CLI** (`internal/cli/gitsource_test.go` et tests d'`init`, `status`, `sync`, `repo`) : `repo add`
   sans clone, `sync` (texte et `--json`, `source: "git"`, pas de quota ; copie de travail dans
   `repos/projet`, `repos/` en `0700`), `log`, `status` (source), homonyme dans `repos/bob-projet` qui

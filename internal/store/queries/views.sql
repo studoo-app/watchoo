@@ -3,7 +3,7 @@
 -- author_email doit etre deja en minuscules ; author est compare sans casse (ASCII) au login et au nom.
 -- row_limit negatif = pas de limite.
 SELECT c.repo_id, c.sha, c.author_id, c.committer_id, c.message, c.authored_at, c.committed_at,
-       c.additions, c.deletions, c.url,
+       c.additions, c.deletions, c.stats_known, c.url,
        r.owner AS repo_owner, r.name AS repo_name, r.label AS repo_label,
        CAST(COALESCE(a.name, '') AS TEXT) AS author_name,
        CAST(COALESCE(a.provider_login, '') AS TEXT) AS author_login,
@@ -53,6 +53,7 @@ SELECT ct.id, ct.provider, ct.provider_user_id, ct.provider_login, ct.name, ct.a
        count(*) AS commits,
        CAST(COALESCE(sum(c.additions), 0) AS INTEGER) AS additions,
        CAST(COALESCE(sum(c.deletions), 0) AS INTEGER) AS deletions,
+       CAST(COALESCE(sum(c.stats_known), 0) AS INTEGER) AS known_commits,
        count(DISTINCT c.repo_id) AS repos,
        CAST(max(c.committed_at) AS TEXT) AS last_commit_at
 FROM commits c
@@ -64,8 +65,12 @@ ORDER BY commits DESC, last_commit_at DESC, ct.id
 LIMIT sqlc.arg(row_limit);
 
 -- name: CountCommitsByRepo :many
--- Nombre de commits par depot (repo_id NULL = tous les depots).
-SELECT repo_id, count(*) AS commits
+-- Nombre de commits par depot (repo_id NULL = tous les depots), avec les lignes ajoutees et supprimees
+-- (statistiques connues seulement) et le nombre de commits dont les statistiques sont connues.
+SELECT repo_id, count(*) AS commits,
+       CAST(COALESCE(sum(additions), 0) AS INTEGER) AS additions,
+       CAST(COALESCE(sum(deletions), 0) AS INTEGER) AS deletions,
+       CAST(COALESCE(sum(stats_known), 0) AS INTEGER) AS known_commits
 FROM commits
 WHERE (sqlc.narg(repo_id) IS NULL OR repo_id = sqlc.narg(repo_id))
 GROUP BY repo_id;
@@ -80,7 +85,7 @@ GROUP BY repo_id;
 -- name: LastCommitByRepo :many
 -- Commit le plus recent de chaque depot sur ses branches suivies (egalite : SHA croissant), avec son auteur.
 SELECT c.repo_id, c.sha, c.author_id, c.committer_id, c.message, c.authored_at, c.committed_at,
-       c.additions, c.deletions, c.url,
+       c.additions, c.deletions, c.stats_known, c.url,
        CAST(COALESCE(a.name, '') AS TEXT) AS author_name,
        CAST(COALESCE(a.provider_login, '') AS TEXT) AS author_login,
        CAST(COALESCE(a.profile_url, '') AS TEXT) AS author_profile_url
@@ -139,6 +144,7 @@ SELECT c.author_id AS contributor_id, c.repo_id,
        count(*) AS commits,
        CAST(COALESCE(sum(c.additions), 0) AS INTEGER) AS additions,
        CAST(COALESCE(sum(c.deletions), 0) AS INTEGER) AS deletions,
+       CAST(COALESCE(sum(c.stats_known), 0) AS INTEGER) AS known_commits,
        CAST(max(c.committed_at) AS TEXT) AS last_commit_at
 FROM commits c
 JOIN repositories r ON r.id = c.repo_id

@@ -136,6 +136,7 @@ SELECT ct.id, ct.provider, ct.provider_user_id, ct.provider_login, ct.name, ct.a
        count(*) AS commits,
        CAST(COALESCE(sum(c.additions), 0) AS INTEGER) AS additions,
        CAST(COALESCE(sum(c.deletions), 0) AS INTEGER) AS deletions,
+       CAST(COALESCE(sum(c.stats_known), 0) AS INTEGER) AS known_commits,
        count(DISTINCT c.repo_id) AS repos,
        CAST(max(c.committed_at) AS TEXT) AS last_commit_at
 FROM commits c
@@ -164,6 +165,7 @@ type ContributorRankingRow struct {
 	Commits        int64
 	Additions      int64
 	Deletions      int64
+	KnownCommits   int64
 	Repos          int64
 	LastCommitAt   string
 }
@@ -190,6 +192,7 @@ func (q *Queries) ContributorRanking(ctx context.Context, arg ContributorRanking
 			&i.Commits,
 			&i.Additions,
 			&i.Deletions,
+			&i.KnownCommits,
 			&i.Repos,
 			&i.LastCommitAt,
 		); err != nil {
@@ -212,6 +215,7 @@ SELECT c.author_id AS contributor_id, c.repo_id,
        count(*) AS commits,
        CAST(COALESCE(sum(c.additions), 0) AS INTEGER) AS additions,
        CAST(COALESCE(sum(c.deletions), 0) AS INTEGER) AS deletions,
+       CAST(COALESCE(sum(c.stats_known), 0) AS INTEGER) AS known_commits,
        CAST(max(c.committed_at) AS TEXT) AS last_commit_at
 FROM commits c
 JOIN repositories r ON r.id = c.repo_id
@@ -230,6 +234,7 @@ type ContributorRepoBreakdownRow struct {
 	Commits       int64
 	Additions     int64
 	Deletions     int64
+	KnownCommits  int64
 	LastCommitAt  string
 }
 
@@ -253,6 +258,7 @@ func (q *Queries) ContributorRepoBreakdown(ctx context.Context, contributorID in
 			&i.Commits,
 			&i.Additions,
 			&i.Deletions,
+			&i.KnownCommits,
 			&i.LastCommitAt,
 		); err != nil {
 			return nil, err
@@ -269,18 +275,25 @@ func (q *Queries) ContributorRepoBreakdown(ctx context.Context, contributorID in
 }
 
 const countCommitsByRepo = `-- name: CountCommitsByRepo :many
-SELECT repo_id, count(*) AS commits
+SELECT repo_id, count(*) AS commits,
+       CAST(COALESCE(sum(additions), 0) AS INTEGER) AS additions,
+       CAST(COALESCE(sum(deletions), 0) AS INTEGER) AS deletions,
+       CAST(COALESCE(sum(stats_known), 0) AS INTEGER) AS known_commits
 FROM commits
 WHERE (?1 IS NULL OR repo_id = ?1)
 GROUP BY repo_id
 `
 
 type CountCommitsByRepoRow struct {
-	RepoID  int64
-	Commits int64
+	RepoID       int64
+	Commits      int64
+	Additions    int64
+	Deletions    int64
+	KnownCommits int64
 }
 
-// Nombre de commits par depot (repo_id NULL = tous les depots).
+// Nombre de commits par depot (repo_id NULL = tous les depots), avec les lignes ajoutees et supprimees
+// (statistiques connues seulement) et le nombre de commits dont les statistiques sont connues.
 func (q *Queries) CountCommitsByRepo(ctx context.Context, repoID interface{}) ([]CountCommitsByRepoRow, error) {
 	rows, err := q.db.QueryContext(ctx, countCommitsByRepo, repoID)
 	if err != nil {
@@ -290,7 +303,13 @@ func (q *Queries) CountCommitsByRepo(ctx context.Context, repoID interface{}) ([
 	items := []CountCommitsByRepoRow{}
 	for rows.Next() {
 		var i CountCommitsByRepoRow
-		if err := rows.Scan(&i.RepoID, &i.Commits); err != nil {
+		if err := rows.Scan(
+			&i.RepoID,
+			&i.Commits,
+			&i.Additions,
+			&i.Deletions,
+			&i.KnownCommits,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -385,7 +404,7 @@ func (q *Queries) CountTrackedBranchesByRepo(ctx context.Context, repoID interfa
 
 const lastCommitByRepo = `-- name: LastCommitByRepo :many
 SELECT c.repo_id, c.sha, c.author_id, c.committer_id, c.message, c.authored_at, c.committed_at,
-       c.additions, c.deletions, c.url,
+       c.additions, c.deletions, c.stats_known, c.url,
        CAST(COALESCE(a.name, '') AS TEXT) AS author_name,
        CAST(COALESCE(a.provider_login, '') AS TEXT) AS author_login,
        CAST(COALESCE(a.profile_url, '') AS TEXT) AS author_profile_url
@@ -412,6 +431,7 @@ type LastCommitByRepoRow struct {
 	CommittedAt      string
 	Additions        int64
 	Deletions        int64
+	StatsKnown       bool
 	URL              string
 	AuthorName       string
 	AuthorLogin      string
@@ -438,6 +458,7 @@ func (q *Queries) LastCommitByRepo(ctx context.Context, repoID interface{}) ([]L
 			&i.CommittedAt,
 			&i.Additions,
 			&i.Deletions,
+			&i.StatsKnown,
 			&i.URL,
 			&i.AuthorName,
 			&i.AuthorLogin,
@@ -515,7 +536,7 @@ func (q *Queries) LastSyncRunByRepo(ctx context.Context, repoID interface{}) ([]
 
 const listRecentCommits = `-- name: ListRecentCommits :many
 SELECT c.repo_id, c.sha, c.author_id, c.committer_id, c.message, c.authored_at, c.committed_at,
-       c.additions, c.deletions, c.url,
+       c.additions, c.deletions, c.stats_known, c.url,
        r.owner AS repo_owner, r.name AS repo_name, r.label AS repo_label,
        CAST(COALESCE(a.name, '') AS TEXT) AS author_name,
        CAST(COALESCE(a.provider_login, '') AS TEXT) AS author_login,
@@ -561,6 +582,7 @@ type ListRecentCommitsRow struct {
 	CommittedAt      string
 	Additions        int64
 	Deletions        int64
+	StatsKnown       bool
 	URL              string
 	RepoOwner        string
 	RepoName         string
@@ -601,6 +623,7 @@ func (q *Queries) ListRecentCommits(ctx context.Context, arg ListRecentCommitsPa
 			&i.CommittedAt,
 			&i.Additions,
 			&i.Deletions,
+			&i.StatsKnown,
 			&i.URL,
 			&i.RepoOwner,
 			&i.RepoName,

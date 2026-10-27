@@ -281,12 +281,32 @@ Faux pour les tests : `providertest` (Provider en mémoire), `githubtest` (serve
   le moteur l'a vu (liste ou comparaison). Une branche partie de la branche de référence n'est donc
   rattachée qu'à ses commits propres : `watchoo log --branch dev` montre ce qui est propre à `dev`, pas
   l'historique partagé avec `main`.
-- **Statistiques des commits** (lignes ajoutées et supprimées, une requête par commit) : seulement pour
-  les commits découverts après le premier import du dépôt, au plus 100 par dépôt et par synchro, les plus
-  récents d'abord, et jamais quand le quota restant est sous 10 % (contrôlé avant chaque requête) ; sinon
-  0. Un quota épuisé pendant les statistiques n'échoue pas le dépôt (ses commits sont enregistrés) mais
-  reporte les dépôts suivants ; une autre erreur arrête les statistiques de ce dépôt seulement (un `404`
-  ne saute que le commit concerné).
+- **Statistiques des commits** (lignes ajoutées et supprimées) : **lues dans le clone Git local** du
+  dépôt (`repos/`, voir [Dépôts Git locaux](#dépôts-git-locaux-v2)), qui existe **avec ou sans `gh`**.
+  À chaque synchro, le moteur calcule celles de **tous** les commits du dépôt dont les statistiques sont
+  encore inconnues (`commits.stats_known = 0`) : nouveaux commits, **premier import compris**, et
+  commits plus anciens jamais calculés (base d'avant la 0.5.0, synchro faite sans clone). Ni plafond ni
+  quota : `git diff-tree --numstat` ne coûte aucune requête. Les SHA sont traités par paquets de 500
+  (une poignée de processus `git` par paquet, jamais un par commit), en mémoire bornée, et le calcul
+  s'arrête dès que la synchro est annulée. Un merge compte ce qu'il apporte à sa branche (comparaison
+  au premier parent), un commit racine tout son contenu, un fichier binaire rien. Un commit calculé
+  est marqué connu, même à `+0 −0` (merge sans changement, commit vide) : il n'est jamais recalculé. Un
+  commit absent du clone (historique réécrit entre la lecture de l'API et le `fetch`) reste inconnu et
+  sera repris à la synchro suivante. Les statistiques sont écrites dans la même transaction que le
+  reste de la synchro du dépôt.
+- **Repli sur l'API** (avec `gh` seulement) : si le clone d'un dépôt est **indisponible** (pas de clé
+  SSH ni d'identifiants Git pour ce dépôt, `git` absent, emplacement du clone occupé, réseau…), la
+  synchro du dépôt **n'échoue pas** : ses statistiques sont demandées à l'API comme avant la 0.5.0, une
+  requête par commit, seulement pour les commits découverts après le premier import du dépôt, au plus
+  100 par dépôt et par synchro, les plus récents d'abord, et jamais quand le quota restant est sous
+  10 % (contrôlé avant chaque requête) ; les autres restent inconnues. Un quota épuisé pendant ces
+  statistiques n'échoue pas le dépôt (ses commits sont enregistrés) mais reporte les dépôts suivants ;
+  une autre erreur arrête les statistiques de ce dépôt seulement (un `404` ne saute que le commit
+  concerné). Le rapport de synchro porte alors un **avertissement** pour ce dépôt (« clone Git local
+  indisponible, statistiques de lignes lues par l'API (limitées) : … »), affiché par `watchoo sync`,
+  le bilan du TUI et l'indicateur de synchro du web. Les commits restés inconnus sont calculés par le
+  clone dès qu'il redevient disponible. Sans `gh`, le clone est la source elle-même : son
+  indisponibilité fait échouer le dépôt, comme avant.
 - **Pull requests, releases et tags** (V2) : lus après les commits, à chaque synchro d'un dépôt (archivé
   compris, comme les commits).
   - **Pull requests** : liste triée par date de modification décroissante, tous états confondus. Au
@@ -311,8 +331,9 @@ Faux pour les tests : `providertest` (Provider en mémoire), `githubtest` (serve
     tels quels, sans créer de contributeur (un contributeur est l'auteur d'au moins un commit).
 - **Commit sans date** : un commit sans date d'écriture ni de commit est ignoré (compté dans un log) ; une
   seule date manquante est complétée par l'autre.
-- **Écriture** : tout ce qu'une synchro de dépôt écrit (métadonnées, branches, commits, contributeurs,
-  `commit_branches`, `last_commit_at`, pull requests, releases, tags, fin du `sync_run`) l'est dans
+- **Écriture** : tout ce qu'une synchro de dépôt écrit (métadonnées, branches, commits, statistiques des
+  commits, contributeurs, `commit_branches`, `last_commit_at`, pull requests, releases, tags, fin du
+  `sync_run`) l'est dans
   **une transaction**.
 - **Dépôt vide** (dépôt d'étudiant tout juste créé, auquel GitHub répond `409`) : branches et commits
   vides, sans erreur.
@@ -340,7 +361,17 @@ Faux pour les tests : `providertest` (Provider en mémoire), `githubtest` (serve
     (`401`, « reconnectez-vous avec gh auth login »).
 
   Installer ou connecter `gh` fait repasser par l'API à la synchro suivante, sans autre manipulation.
-  Aucun réglage par dépôt ni par espace ne choisit la source.
+  Aucun réglage par dépôt ni par espace ne choisit la source. Dans les deux cas, chaque dépôt suivi a
+  aussi son **clone Git local** (`repos/`), qui donne les statistiques de lignes des commits (voir
+  [Dépôts Git locaux](#dépôts-git-locaux-v2)).
+- **Clones et identifiants avec `gh`** : le clone est fait par `git`, jamais avec le token de `gh`.
+  Watchoo ne passe le token ni à `git`, ni dans une URL, ni dans l'environnement : `git` utilise les
+  identifiants de l'utilisateur selon `git.protocol`, comme sans `gh` (clé SSH par défaut ; en
+  `https`, son gestionnaire d'identifiants). Un utilisateur en `https` qui veut que `git` réutilise
+  le compte de `gh` lance lui-même `gh auth setup-git` (qui configure `gh` comme gestionnaire
+  d'identifiants de `git`) ; Watchoo ne le fait jamais. Sans identifiants Git, le clone est
+  indisponible : les statistiques de lignes reviennent à l'API, limitées (voir
+  [Synchronisation incrémentale](#synchronisation-incrémentale)), avec un avertissement.
 - Watchoo **ne stocke jamais le token** : ni dans la config, ni dans la base, ni dans un trousseau.
   `gh` le garde déjà dans le trousseau du système.
 - Le token est redemandé à `gh` **au début de chaque synchro** et gardé en mémoire seulement le temps de
@@ -409,12 +440,34 @@ Les dépôts suivis sont principalement **privés**. Conséquences :
 En place depuis la phase 6 ([Roadmap](07-roadmap.md#phase-6--v2)).
 
 - **But** : suivre un dépôt depuis un clone local, mis à jour par `git fetch` à chaque synchro, pour
-  pouvoir suivre des dépôts privés sans `gh` et sans consommer de quota de l'API GitHub. Le clone a une
-  **copie de travail** : l'enseignant peut y lire le code des étudiants.
-- **Choix de la source** : **uniquement** selon la présence de `gh`, sans réglage par dépôt ni par
-  espace, refait à chaque synchro (voir [Authentification](#authentification--gh-facultatif)). `gh`
-  installé et connecté : API GitHub ; sinon : clones Git locaux. Le choix est fait dans le cœur métier
-  (`wsync.Engine`, à partir de `auth.Client.Token`) : la CLI, le web et le TUI ne font que l'afficher.
+  pouvoir suivre des dépôts privés sans `gh` et sans consommer de quota de l'API GitHub, et lire les
+  statistiques de lignes de **tous** les commits sans coût. Le clone a une **copie de travail** :
+  l'enseignant peut y lire le code des étudiants.
+- **Décision « toujours cloner »** (0.5.0) : avec ou sans `gh`, **chaque dépôt suivi a son clone** dans
+  `repos/`, créé à sa première synchro puis mis à jour à chacune.
+- **Choix de la source** des commits et des métadonnées : **uniquement** selon la présence de `gh`, sans
+  réglage par dépôt ni par espace, refait à chaque synchro (voir
+  [Authentification](#authentification--gh-facultatif)). `gh` installé et connecté : API GitHub ; sinon :
+  clones Git locaux. Le choix est fait dans le cœur métier (`wsync.Engine`, à partir de
+  `auth.Client.Token`) : la CLI, le web et le TUI ne font que l'afficher.
+  - **Avec `gh`** : l'API reste la source de tout le reste (métadonnées, branches, commits, logins et
+    profils GitHub, pull requests, releases, tags), exactement comme avant ; le moteur ouvre **en plus**
+    le provider Git (`Options.NewGitProvider`, mêmes clones et même règle des homonymes) et, pour chaque
+    dépôt, crée ou met à jour son clone puis y lit les **statistiques de lignes** (voir
+    [Synchronisation incrémentale](#synchronisation-incrémentale)). La branche extraite dans la copie
+    de travail est la branche par défaut donnée par l'API (aucun `ls-remote` de plus). Le clone se fait
+    avec les identifiants Git de l'utilisateur, jamais avec le token (voir
+    [Authentification](#authentification--gh-facultatif)) ; un clone indisponible ne fait jamais
+    échouer le dépôt : repli sur les statistiques de l'API, limitées, et avertissement.
+  - **Sans `gh`** : le clone est la source de tout, comme avant ; seules les statistiques changent :
+    elles couvrent désormais tous les commits.
+  - Le clone et le `fetch` ne consomment aucun quota de l'API ; ils se font dans la goroutine du dépôt
+    (au plus 4 dépôts en parallèle, comme le reste de la synchro).
+- **Disque et premier passage** : comme le clone est obligatoire, `repos/` occupe à peu près la taille
+  des dépôts suivis (historique complet et copie de travail ; les fichiers LFS ne sont pas téléchargés).
+  La **première synchro** d'un dépôt est plus lente qu'avant la 0.5.0 : clone complet, puis
+  statistiques de tout l'historique (quelques secondes pour un dépôt d'étudiant, davantage pour un
+  gros dépôt) ; les suivantes ne font qu'un `fetch` et ne calculent que les nouveaux commits.
 - **Un second `Provider`** dans `internal/provider/git/`, qui lance le binaire `git` par `os/exec`
   (tableaux d'arguments, jamais de shell ; `--` avant les URL et les chemins, `--end-of-options` avant
   les références), sans nouvelle dépendance Go. Le moteur de synchro ne change pas de logique : il reçoit
@@ -465,7 +518,8 @@ En place depuis la phase 6 ([Roadmap](07-roadmap.md#phase-6--v2)).
      `+refs/heads/*:refs/remotes/origin/*` et `+refs/tags/*:refs/tags/*` : les branches du distant
      arrivent dans `origin/…`, un force-push, une branche ou un tag supprimé sont suivis ;
   2. la branche par défaut est celle de `git ls-remote --symref` (déjà lue par `Repository` dans la même
-     synchro) ; `origin/HEAD` la désigne (`git symbolic-ref`) ;
+     synchro) ou, avec `gh`, celle donnée par l'API (`Prepare`) ; `origin/HEAD` la désigne
+     (`git symbolic-ref`) ;
   3. `git checkout --force -B <défaut> origin/<défaut>` puis `git reset --hard origin/<défaut>` : la copie
      de travail est sur la branche par défaut, telle que sur GitHub. **Le clone appartient à Watchoo** :
      une modification locale d'un fichier suivi, une autre branche extraite, un merge en cours sont
@@ -481,11 +535,11 @@ En place depuis la phase 6 ([Roadmap](07-roadmap.md#phase-6--v2)).
   téléchargé (les pointeurs restent dans la copie de travail). `core.symlinks` garde sa valeur : Git
   refuse déjà tout chemin qui sortirait de la copie de travail. Les variables qui désigneraient un autre
   dépôt (`GIT_DIR`, `GIT_WORK_TREE`, `GIT_INDEX_FILE`…) sont retirées de l'environnement de `git`.
-- **Retrait** : `repo remove` supprime le clone (et déplace un homonyme, voir plus haut) ;
-  `repo remove --keep-history` le **garde**, comme l'historique en base. Repasser par l'API (`gh`
-  connecté) laisse les clones en place, sans les mettre à jour ; ils servent de nouveau si `gh` disparaît.
+- **Retrait** : `repo remove` supprime le clone (et déplace un homonyme, voir plus haut), avec ou sans
+  `gh` ; `repo remove --keep-history` le **garde**, comme l'historique en base. Passer de l'API aux
+  clones Git locaux ou inversement réutilise les mêmes clones, toujours tenus à jour.
 - **Lecture seule** : Watchoo ne lance que `git ls-remote`, `git fetch`, des commandes de lecture du clone
-  (`for-each-ref`, `rev-parse`, `log`, `diff-tree`) et, dans ses seuls clones, `git init`,
+  (`for-each-ref`, `rev-parse`, `rev-list`, `log`, `diff-tree`) et, dans ses seuls clones, `git init`,
   `symbolic-ref`, `checkout` et `reset` ; jamais `push`. Il désigne toujours le clone par `--git-dir`
   (et `--work-tree`), lancé depuis un répertoire neutre : `git` ne cherche jamais le dépôt depuis le
   répertoire courant, et ne peut donc pas travailler dans un dépôt de l'utilisateur (la racine de
@@ -530,7 +584,11 @@ En place depuis la phase 6 ([Roadmap](07-roadmap.md#phase-6--v2)).
     sans ancêtre commun donnent exactement les commits de la tête (GitHub répond `404`) ; un dépôt vide
     donne des listes vides ; une branche inconnue `ErrNotFound` ;
   - `CommitStats` lit `git diff-tree --numstat` (premier parent, ou arbre vide pour un commit racine ;
-    fichiers binaires non comptés) : pas de quota, mais la même limite de 100 commits par synchro ;
+    fichiers binaires non comptés). Le moteur ne l'appelle pas commit par commit : il utilise
+    `CommitStatsBatch` (propre au provider Git, avec ou sans `gh`), qui traite un paquet de SHA en deux
+    processus (`git rev-list --no-walk --parents --ignore-missing --stdin` pour les parents, puis
+    `git diff-tree --stdin --always --numstat` sur « commit premier-parent »), avec les mêmes règles ;
+    un SHA absent du clone est simplement omis du résultat ;
   - `Tags` lit `refs/tags/` (SHA du commit visé, tag annoté déréférencé) ;
   - pas de quota : `RateLimit` renvoie `ErrUnsupported` et `LastRateLimit` rien. Le garde-fou ne reporte
     jamais de dépôt, la lecture initiale du quota est sautée, `status` et la page Réglages affichent

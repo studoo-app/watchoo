@@ -48,6 +48,11 @@
       <div class="stat-value text-base-content/60">{{$c.Gray}}</div>
       <div class="stat-desc">jamais synchronisés, en erreur, archivés…</div>
     </div>
+    <div class="stat">
+      <div class="stat-title">Lignes</div>
+      <div class="stat-value text-lg tabular-nums">{{template "line-totals" $c.Lines}}</div>
+      <div class="stat-desc">ajoutées / supprimées, {{plural $c.Lines.Commits "commit" "commits"}}</div>
+    </div>
   </div>
   {{if .Content.Repos}}
   <ul class="grid gap-4 sm:grid-cols-2 2xl:grid-cols-3" role="list">
@@ -71,7 +76,7 @@
         <p class="text-sm text-base-content/60">Aucun commit connu{{if .LastSyncedAt.IsZero}} : pas encore synchronisé{{end}}.</p>
         {{end}}
         <div class="card-actions justify-end text-xs text-base-content/60">
-          <span>{{plural .Commits "commit" "commits"}} · {{plural .TrackedBranches "branche suivie" "branches suivies"}}{{if .OpenPullRequests}} · {{plural .OpenPullRequests "PR ouverte" "PR ouvertes"}}{{end}}</span>
+          <span>{{plural .Commits "commit" "commits"}}{{if .Commits}} · <span class="tabular-nums">{{template "line-totals" .Lines}}</span>{{end}} · {{plural .TrackedBranches "branche suivie" "branches suivies"}}{{if .OpenPullRequests}} · {{plural .OpenPullRequests "PR ouverte" "PR ouvertes"}}{{end}}</span>
         </div>
       </div>
     </li>
@@ -104,7 +109,7 @@
           <p class="text-sm truncate" title="{{firstLine .Message}}">{{firstLine .Message}}</p>
           <p class="text-xs text-base-content/70 truncate">
             <a href="{{repoPath .RepoID}}" class="link link-hover font-medium">{{clean .RepoDisplayName}}</a>
-            · {{template "contributor-link" (dict "ID" .AuthorID "Name" .AuthorDisplayName)}}{{if .AuthorProfileURL}} {{template "profile-link" (dict "URL" .AuthorProfileURL "Login" .AuthorLogin)}}{{end}} · {{template "rel-time" .CommittedAt}}
+            · {{template "contributor-link" (dict "ID" .AuthorID "Name" .AuthorDisplayName)}}{{if .AuthorProfileURL}} {{template "profile-link" (dict "URL" .AuthorProfileURL "Login" .AuthorLogin)}}{{end}} · {{template "rel-time" .CommittedAt}} · {{template "commit-lines" .Commit}}
           </p>
         </div>
         {{if .URL}}<a href="{{.URL}}" class="font-mono text-xs link link-hover text-base-content/60" target="_blank" rel="noopener noreferrer" title="Voir le commit sur la forge">{{shortSHA .SHA}}</a>

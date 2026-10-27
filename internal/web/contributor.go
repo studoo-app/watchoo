@@ -79,11 +79,6 @@ func (v ContributorView) ShowLogin() bool {
 	return v.Profile.ProviderLogin != "" && v.Profile.ProviderLogin != v.Profile.DisplayName()
 }
 
-// HasLineStats indique si des lignes ajoutées ou supprimées sont connues pour ses commits.
-func (v ContributorView) HasLineStats() bool {
-	return v.Profile.Additions != 0 || v.Profile.Deletions != 0
-}
-
 // handleContributor sert GET /contributors/{id} : la page complète, ou un fragment pour une requête
 // HTMX qui le vise (en-tête HX-Target : rafraîchissement après une synchro).
 func (s *server) handleContributor(w http.ResponseWriter, r *http.Request) {

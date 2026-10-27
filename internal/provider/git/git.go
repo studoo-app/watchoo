@@ -3,7 +3,8 @@
 // pour les homonymes), mis à jour à chaque synchro par « git fetch » puis remis sur la branche par
 // défaut, sans API ni token (documentation/03-architecture.md, « Dépôts Git locaux »).
 //
-// Le moteur de synchro l'utilise quand gh n'est pas installé ou pas connecté. Il implémente
+// Le moteur de synchro l'utilise comme source quand gh n'est pas installé ou pas connecté, et pour les
+// statistiques de lignes dans tous les cas (voir « Statistiques avec ou sans gh »). Il implémente
 // provider.Provider avec les mêmes conventions (validation avant tout appel, erreurs typées, dates en
 // UTC, listes vides non nil, usage concurrent). Name renvoie « github » : c'est la forge des dépôts,
 // git n'est que le moyen d'y accéder.
@@ -44,6 +45,12 @@
 // (nom et e-mail Git seulement), ni étoiles, issues, état archivé (Repository.Partial), ni pull
 // requests, ni releases (ErrUnsupported), ni quota (RateLimit : ErrUnsupported ; LastRateLimit :
 // false). Les tags et les statistiques des commits (« --numstat ») sont disponibles.
+//
+// # Statistiques avec ou sans gh
+//
+// Le moteur ouvre aussi ce Provider quand gh est utilisé (« toujours cloner ») : Prepare crée ou met à
+// jour le clone avec la branche par défaut donnée par l'API, puis CommitStatsBatch calcule les
+// statistiques de lignes d'un paquet de commits. Sans gh, il sert de source complète.
 //
 // # Logs
 //
@@ -301,6 +308,13 @@ func (p *Provider) userSSHCommand(ctx context.Context) bool {
 // result. Erreur si git n'a pas pu être lancé (ErrGitNotFound), si le délai a expiré
 // (provider.ErrUnavailable) ou si ctx est terminé (ctx.Err()).
 func (p *Provider) run(ctx context.Context, timeout time.Duration, gitDir, name string, args ...string) (result, error) {
+	return p.runInput(ctx, timeout, gitDir, name, nil, args...)
+}
+
+// runInput est run avec stdin pour entrée standard (nil = aucune) : listes de SHA des commandes
+// « --stdin » (rev-list, diff-tree).
+func (p *Provider) runInput(ctx context.Context, timeout time.Duration, gitDir, name string, stdin []byte,
+	args ...string) (result, error) {
 	full := make([]string, 0, len(args)+8)
 	// Lecture seule et sortie stable, quelle que soit la configuration de l'utilisateur.
 	full = append(full, "-c", "log.showSignature=false", "-c", "color.ui=false", "-c", "core.quotePath=false",
@@ -326,6 +340,9 @@ func (p *Provider) run(ctx context.Context, timeout time.Duration, gitDir, name 
 	// git lirait sa configuration, voire échouerait s'il est illisible.
 	cmd.Dir = os.TempDir()
 	cmd.Stdin = nil
+	if stdin != nil {
+		cmd.Stdin = bytes.NewReader(stdin)
+	}
 	cmd.Stdout = &stdout
 	cmd.Stderr = stderr
 	cmd.WaitDelay = waitDelay

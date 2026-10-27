@@ -6,7 +6,6 @@ package sync_test
 import (
 	"bytes"
 	"context"
-	"errors"
 	"log/slog"
 	"path/filepath"
 	"regexp"
@@ -106,6 +105,10 @@ type env struct {
 	gitURL   string
 	reposDir string
 	gitCalls int // Provider Git construits
+	// gitWrap, si non nil, enveloppe le provider Git construit (annulation, comptage…).
+	gitWrap func(*gitprov.Provider) provider.Provider
+	// mirrored : commits déjà recopiés du dépôt Git vers le faux Provider (mirror), par dépôt.
+	mirrored map[int64]map[string]bool
 }
 
 // withGit branche le provider des clones Git locaux sur le faux serveur Git srvURL (gittest).
@@ -198,9 +201,13 @@ func (e *env) newEngine(st *store.Store) *wsync.Engine {
 			defer e.mu.Unlock()
 			e.gitCalls++
 			if e.gitURL == "" {
-				return nil, errors.New("pas de dépôts Git locaux dans ce test")
+				return nil, nil // clones désactivés : sans gh, « répertoire des clones non renseigné »
 			}
-			return gitprov.New(gitprov.Options{Dir: e.reposDir, Repos: repos, BaseURL: e.gitURL, Logger: logger})
+			gp, err := gitprov.New(gitprov.Options{Dir: e.reposDir, Repos: repos, BaseURL: e.gitURL, Logger: logger})
+			if err != nil || e.gitWrap == nil {
+				return gp, err
+			}
+			return e.gitWrap(gp), nil
 		},
 		Now:    e.clock.Now,
 		Logger: logger,

@@ -92,7 +92,7 @@ func commitViewsFromRows(rows []db.ListRecentCommitsRow) ([]CommitView, error) {
 		commit, err := commitFromDB(db.Commit{
 			RepoID: row.RepoID, SHA: row.SHA, AuthorID: row.AuthorID, CommitterID: row.CommitterID,
 			Message: row.Message, AuthoredAt: row.AuthoredAt, CommittedAt: row.CommittedAt,
-			Additions: row.Additions, Deletions: row.Deletions, URL: row.URL,
+			Additions: row.Additions, Deletions: row.Deletions, StatsKnown: row.StatsKnown, URL: row.URL,
 		})
 		if err != nil {
 			return nil, err
@@ -166,7 +166,14 @@ type ContributorRepoStats struct {
 	Commits       int       // commits dont il est l'auteur dans ce dépôt
 	Additions     int       // lignes ajoutées par ces commits (statistiques connues seulement)
 	Deletions     int       // lignes supprimées par ces commits
+	KnownCommits  int       // commits dont les statistiques sont connues
 	LastCommitAt  time.Time // son commit le plus récent dans ce dépôt (committed_at)
+}
+
+// Lines renvoie les totaux de lignes de ces commits.
+func (c ContributorRepoStats) Lines() model.LineTotals {
+	return model.LineTotals{Commits: c.Commits, KnownCommits: c.KnownCommits, Additions: c.Additions,
+		Deletions: c.Deletions}
 }
 
 // RepoDisplayName renvoie le nom affiché du dépôt (RepoLabel, sinon owner/name).
@@ -222,6 +229,7 @@ func (s *Store) contributorRepoBreakdown(ctx context.Context, id int64) ([]Contr
 			Commits:       int(row.Commits),
 			Additions:     int(row.Additions),
 			Deletions:     int(row.Deletions),
+			KnownCommits:  int(row.KnownCommits),
 			LastCommitAt:  last,
 		})
 	}
@@ -262,11 +270,12 @@ func (s *Store) ContributorProfile(ctx context.Context, id int64) (ContributorPr
 			ID: row.ID, Provider: row.Provider, ProviderUserID: row.ProviderUserID,
 			ProviderLogin: row.ProviderLogin, Name: row.Name, AvatarURL: row.AvatarURL, ProfileURL: row.ProfileURL,
 		}),
-		Identities: int(row.Emails),
-		Commits:    int(row.Commits),
-		Additions:  int(row.Additions),
-		Deletions:  int(row.Deletions),
-		Repos:      int(row.Repos),
+		Identities:   int(row.Emails),
+		Commits:      int(row.Commits),
+		Additions:    int(row.Additions),
+		Deletions:    int(row.Deletions),
+		KnownCommits: int(row.KnownCommits),
+		Repos:        int(row.Repos),
 	}
 	for _, d := range []struct {
 		raw string

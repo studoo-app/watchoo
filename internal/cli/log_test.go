@@ -4,6 +4,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/studoo-app/watchoo/internal/model"
 )
 
 // commitMessages renvoie les messages des commits de la sortie JSON de « watchoo log ».
@@ -27,7 +29,7 @@ func TestLog(t *testing.T) {
 		t.Fatalf("log =\n%s", r.stdout)
 	}
 	if row := tableRow(t, r.stdout, "il y a 2 h"); !slices.Equal(row[1:], []string{"Alice Martin", "Alice Martin",
-		"b9f85da", "Ajoute les tests"}) {
+		"b9f85da", "-", "Ajoute les tests"}) { // lignes inconnues : premier import par l'API, sans clone
 		t.Errorf("ligne du commit a2 = %q", row)
 	}
 	assertNotContains(t, "log", r.stdout, "Détail du commit") // première ligne du message seulement
@@ -57,7 +59,7 @@ func TestLog(t *testing.T) {
 	r = h.run("log", "--json", "-n", "1").mustSucceed(t)
 	assertJSONKeys(t, r.stdout, "", "commits")
 	assertJSONKeys(t, r.stdout, "commits.0", "repository", "sha", "short_sha", "message", "url", "author",
-		"authored_at", "committed_at", "additions", "deletions")
+		"authored_at", "committed_at", "additions", "deletions", "stats_known")
 	assertJSONKeys(t, r.stdout, "commits.0.repository", "id", "full_name", "display_name")
 
 	r = h.run("log", "--author", "personne", "--since", "7d").mustSucceed(t)
@@ -84,10 +86,11 @@ func TestContributors(t *testing.T) {
 	h := newSyncedWorkspace(t)
 
 	r := h.run("contributors").mustSucceed(t)
+	// Lignes inconnues (« - ») : premier import par l'API, sans clone Git local dans ce test.
 	want := "CONTRIBUTEUR  LOGIN     COMMITS  AJOUTS  SUPPRESSIONS  DÉPÔTS  DERNIER COMMIT\n" +
-		"Bob Durand    -         2        +0      -0            2       il y a 1 h\n" +
-		"Alice Martin  alice-gh  2        +0      -0            1       il y a 2 h\n" +
-		"Dave Petit    dave-gh   1        +0      -0            1       il y a 42 j\n"
+		"Bob Durand    -         2        -       -             2       il y a 1 h\n" +
+		"Alice Martin  alice-gh  2        -       -             1       il y a 2 h\n" +
+		"Dave Petit    dave-gh   1        -       -             1       il y a 42 j\n"
 	if r.stdout != want {
 		t.Errorf("contributors =\n%s\nattendu :\n%s", r.stdout, want)
 	}
@@ -114,4 +117,23 @@ func TestContributors(t *testing.T) {
 
 	h.run("contributors", "--since", "un mois").mustFail(t, `--since "un mois" invalide`)
 	h.run("contributors", "--repo", "carol/projet").mustFail(t, "le dépôt carol/projet n'est pas suivi")
+}
+
+// Lignes d'un commit dans « watchoo log » : « - » si inconnues, « +0/-0 » si nulles.
+func TestCommitLines(t *testing.T) {
+	for _, tc := range []struct {
+		c    model.Commit
+		want string
+	}{
+		{model.Commit{}, "-"},
+		{model.Commit{StatsKnown: true}, "+0/-0"},
+		{model.Commit{StatsKnown: true, Additions: 12, Deletions: 3}, "+12/-3"},
+	} {
+		if got := commitLines(tc.c); got != tc.want {
+			t.Errorf("commitLines(%+v) = %q, attendu %q", tc.c, got, tc.want)
+		}
+	}
+	if knownLines(false, "+", 0) != "-" || knownLines(true, "-", 4) != "-4" {
+		t.Error("knownLines")
+	}
 }

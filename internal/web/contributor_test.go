@@ -38,9 +38,9 @@ func (e *testEnv) seedHostile(repoID int64, name string) (eve, onlyCommitter sto
 	zoe := store.Identity{Name: "Zoé", Email: "zoe@example.test"}
 	onlyCommitter = store.Identity{Name: "Fred Committer", Email: "fred@example.test"}
 	c1 := e.commitWrite(10, eve, 2*24*time.Hour, "travail d'Eve", "main")
-	c1.Additions, c1.Deletions = 10, 2
+	c1.Additions, c1.Deletions, c1.StatsKnown = 10, 2, true
 	c2 := e.commitWrite(11, eve, 24*time.Hour, "<b>suite</b>", "main")
-	c2.Additions = 5
+	c2.Additions, c2.StatsKnown = 5, true
 	c3 := e.commitWrite(12, zoe, 12*time.Hour, "commit de Zoé", "main")
 	c3.Committer = onlyCommitter
 	e.applySync(repoID, name, c1, c2, c3)
@@ -63,7 +63,7 @@ func TestContributorPage(t *testing.T) {
 		// Lien de profil : l'adresse enregistrée, en lien secondaire, nouvel onglet.
 		`href="https://github.com/alice-gh"`, `aria-label="Profil GitHub de alice-gh"`, `rel="noopener noreferrer"`,
 		// Totaux : 2 commits dans 1 dépôt, lignes inconnues.
-		`<div class="stat-value">2</div>`, "dans 1 dépôt", `title="Statistiques de lignes inconnues`,
+		`<div class="stat-value">2</div>`, "dans 1 dépôt", `title="Lignes inconnues : pas encore comptées`,
 		// Ses dépôts : lien, état du dépôt.
 		`href="`+repoPath(ids.Alice)+`"`, "badge-success",
 		// Ses commits : messages échappés, liens vers le dépôt.
