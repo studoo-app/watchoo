@@ -449,6 +449,15 @@ Les dépôts suivis sont principalement **privés**. Conséquences :
     version avec suffixe (`-rc.1`…) est marquée pré-version. En local : `make release-check`
     (`goreleaser check`) et `make release-snapshot` (`goreleaser release --snapshot --clean`, tout dans
     `dist/`, ignoré par Git, rien de publié).
+  - **Script d'installation** (`install.sh` à la racine, servi par
+    `https://raw.githubusercontent.com/studoo-app/watchoo/main/install.sh`) : `sh` POSIX, Linux et
+    macOS en amd64 et arm64. Il lit la dernière version dans la redirection de `…/releases/latest` (sans
+    l'API GitHub ni son quota), ou prend `WATCHOO_VERSION` ; télécharge l'archive et le fichier de
+    sommes avec curl (HTTPS seulement, redirections comprises) ou wget ; refuse une archive dont la somme
+    SHA-256 ne correspond pas ; installe dans `WATCHOO_INSTALL_DIR`, par défaut `~/.local/bin`, sans
+    sudo, par copie puis renommage. Il ne modifie ni le PATH ni la configuration et n'installe pas `gh`,
+    mais signale son absence. Tout le script est dans des fonctions appelées à la dernière ligne, pour
+    qu'un téléchargement interrompu n'exécute rien. Windows : archive `.zip` à la main.
   - **Image Docker** (`Dockerfile` à la racine, `make docker` pour une image locale `watchoo:dev`) :
     multi-étapes. Une étape télécharge le binaire officiel de `gh` (release GitHub `cli/cli`, version
     fixée, 2.103.3 en 0.1.0) et vérifie son SHA-256 deux fois : contre l'empreinte écrite dans le
