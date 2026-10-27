@@ -194,26 +194,31 @@ flowchart LR
 
 ## Logo et icônes
 
-Le logo est un hibou (« watch-hoo ») géométrique : une tête pleine aux oreilles pointues, dont les yeux et le
-bec sont découpés dans la forme, sur un carré arrondi. Il reste lisible jusqu'à 16 px. Les fichiers sont
-dans [`assets/logo/`](../assets/logo/) :
+Le logo est un hibou (« watch-hoo ») pixelisé, dessiné comme les versions texte : une tête pleine aux
+oreilles pointues, deux yeux carrés magenta aux pupilles vertes et un bec découpé dans la forme. Le nom
+« WATCHOO » est en lettres géométriques (aucune police requise), les deux « OO » en vert, comme les
+pupilles. Les fichiers sont dans [`assets/logo/`](../assets/logo/) ; les trois `watchoo-logo-final*.svg`
+sont la référence, tous les autres en sont tirés :
 
 | Fichier | Usage |
 | --- | --- |
-| `watchoo.svg` | Logo de référence, fond sombre (README, en-tête des pages) ; tous les autres fichiers en sont tirés |
-| `watchoo-light.svg` | Variante pour fond clair |
-| `watchoo-nom.svg` | Nom « watchoo » à gauche du logo, pour fond clair (en-tête des pages, documents) |
-| `watchoo-nom-light.svg` | Même chose, pour fond sombre |
+| `watchoo-logo-final.svg` | Hibou seul, pour fond clair (référence) |
+| `watchoo-logo-final-nom.svg` | Hibou et nom, pour fond clair (README, en-tête des pages en thème clair) (référence) |
+| `watchoo-logo-final-light-nom.svg` | Nom seul, pour fond clair (référence) |
+| `watchoo-logo-final-dark.svg` | Hibou seul, pour fond sombre |
+| `watchoo-logo-final-nom-dark.svg` | Hibou et nom, pour fond sombre (README, en-tête des pages en thème sombre) |
+| `watchoo-logo-final-light-nom-dark.svg` | Nom seul, pour fond sombre |
+| `watchoo-icone.svg` | Hibou sur un carré blanc arrondi : favicon SVG, manifeste web, source des icônes PNG et ICO |
 | `favicon.ico` | Favicon : 16, 32 et 48 px |
-| `apple-touch-icon.png` | Raccourci sur l'écran d'accueil iOS (180 px) |
+| `apple-touch-icon.png` | Raccourci sur l'écran d'accueil iOS (180 px, fond blanc opaque) |
 | `icon-192.png`, `icon-512.png` | Manifeste web |
 
-Couleurs : fond `#0f172a` (variante claire : `#e2e8f0`), tête `#f8fafc` (variante claire : `#0f172a`),
-pupilles `#22c55e`, le vert de l'état Actif. Dans les versions avec le nom, les lettres sont des tracés
-géométriques (aucune police requise) et les deux « o » portent un point vert, comme les yeux. Ces
-fichiers sont copiés dans `internal/web/static/` (`make logo`) et embarqués avec `embed` ; un test
-vérifie que les copies sont identiques. Un manifeste web minimal (`/manifest.webmanifest`) cite les
-icônes.
+Couleurs : tête et lettres `#000000` (variantes pour fond sombre : `#f8fafc`), yeux `#d500f9`, pupilles et
+« OO » `#00e676` (contour des pupilles `#19a53e`) ; fond des icônes `#ffffff`. L'en-tête des pages affiche
+la version qui suit le thème DaisyUI effectif (variante Tailwind `dark:` définie dans `input.css`, sur
+l'attribut `data-theme` ou `prefers-color-scheme`). Les fichiers utilisés par l'interface sont copiés
+dans `internal/web/static/` (`make logo`) et embarqués avec `embed` ; un test vérifie que les copies sont
+identiques. Un manifeste web minimal (`/manifest.webmanifest`) cite les icônes.
 
 ### Versions texte (CLI et TUI)
 

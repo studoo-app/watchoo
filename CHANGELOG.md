@@ -30,6 +30,11 @@ un changement incompatible fait monter MINOR et tout changement compatible fait 
 
 - Interface web : un formulaire dont le corps dépasse la limite reçoit maintenant `413` (corps trop
   gros) au lieu d'un `403` trompeur ; rien n'est appliqué dans les deux cas.
+- **Nouveau logo** : hibou pixelisé aux yeux magenta et pupilles vertes, avec le nom « WATCHOO »
+  (`assets/logo/watchoo-logo-final*.svg`, variantes pour fond sombre). L'en-tête de l'interface web
+  affiche le hibou et le nom, en version claire ou sombre selon le thème ; favicon, icônes du manifeste
+  et de l'écran d'accueil iOS refaits sur fond blanc ; README mis à jour. Les versions texte du hibou
+  (CLI, TUI, `config.yaml`) ne changent pas.
 
 ## [0.1.0] - 2026-10-27
 

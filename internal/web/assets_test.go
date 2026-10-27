@@ -21,7 +21,7 @@ func TestStaticAssets(t *testing.T) {
 		"/static/theme.js":                   {"text/javascript; charset=utf-8", cacheRevalidate},
 		"/static/" + htmxFile:                {"text/javascript; charset=utf-8", cacheImmutable},
 		"/static/" + chartFile:               {"text/javascript; charset=utf-8", cacheImmutable},
-		"/static/watchoo.svg":                {"image/svg+xml", cacheRevalidate},
+		"/static/watchoo-icone.svg":          {"image/svg+xml", cacheRevalidate},
 		"/static/icon-192.png":               {"image/png", cacheRevalidate},
 		"/favicon.ico":                       {"image/x-icon", cacheRevalidate},
 		"/apple-touch-icon.png":              {"image/png", cacheRevalidate},
@@ -97,7 +97,7 @@ func TestManifest(t *testing.T) {
 
 // TestLogoCopies vérifie que les logos embarqués sont identiques à assets/logo (sinon : make logo).
 func TestLogoCopies(t *testing.T) {
-	for _, name := range []string{"watchoo.svg", "watchoo-light.svg", "watchoo-nom.svg", "watchoo-nom-light.svg",
+	for _, name := range []string{"watchoo-icone.svg", "watchoo-logo-final-nom.svg", "watchoo-logo-final-nom-dark.svg",
 		"favicon.ico", "apple-touch-icon.png", "icon-192.png", "icon-512.png"} {
 		want, err := os.ReadFile(filepath.Join("..", "..", "assets", "logo", name))
 		if err != nil {
