@@ -25,15 +25,16 @@ Le MVP se limite à **suivre, synchroniser et afficher** ; tout le reste vient e
 | Activité par contributeur dans un dépôt | Graphique des commits de chaque contributeur à l'intérieur d'un même dépôt |
 | Seuils d'activité par dépôt | Régler les seuils Flemme / Dead d'un dépôt (option de `repo add`, colonne de l'import, réglage web) |
 | Pull requests et releases | PR ouvertes / mergées, tags, releases |
-| Suivi d'une organisation entière | Importer tous les dépôts d'un compte ou d'une organisation |
-| Alertes | Webhook Discord / Slack / e-mail, ou notification desktop |
+| Dépôts Git locaux | Suivre un dépôt depuis un clone local (`git clone`, puis `git fetch` périodique) : commits, branches et tags sans appel à l'API GitHub. Utilisé quand `gh` n'est pas installé ou connecté |
 
 ## V3
 
 | Fonctionnalité | Détail |
 | --- | --- |
+| Suivi d'une organisation entière | Importer tous les dépôts d'un compte ou d'une organisation |
+| Alertes | Webhook Discord / Slack / e-mail, ou notification desktop |
 | Webhooks GitHub entrants | Mise à jour en temps réel au lieu du polling |
-| Autres forges | GitLab, Gitea, dépôt Git local |
+| Autres forges | GitLab, Gitea |
 | Export | CSV / JSON pour rapports |
 
 ## Règles fonctionnelles

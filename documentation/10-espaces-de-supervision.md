@@ -121,7 +121,9 @@ dépendrait du répertoire d'où la commande est lancée.
 ## Comportement de `watchoo init`
 
 1. Vérifie que `gh` est installé et connecté (voir
-   [Architecture](03-architecture.md#authentification--gh-imposé)).
+   [Architecture](03-architecture.md#authentification--gh-imposé)). À partir de la V2, sans `gh`, `init`
+   continue et prévient que les dépôts seront suivis par clone local (voir
+   [Dépôts Git locaux](03-architecture.md#dépôts-git-locaux-v2)).
 2. Crée `.watchoo/` dans le **répertoire courant** (ou celui donné par `-C`), avec `config.yaml`,
    la base SQLite au bon schéma (migrations goose) et le `.gitignore`.
 3. **Refuse** si le répertoire est déjà un espace, pour ne jamais écraser des données.
