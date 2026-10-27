@@ -23,6 +23,7 @@ import (
 func (s *Store) ListRecentCommits(ctx context.Context, f CommitFilter) ([]CommitView, error) {
 	params := db.ListRecentCommitsParams{
 		RepoID:    optionalID(f.RepoID),
+		AuthorID:  optionalID(f.AuthorID),
 		Since:     optionalTime(f.Since),
 		Branch:    optionalString(f.Branch),
 		RowLimit:  rowLimit(f.Limit),
@@ -65,10 +66,12 @@ func (s *Store) ContributorRanking(ctx context.Context, f ContributorFilter) ([]
 			Contributor: contributorFromDB(db.Contributor{
 				ID: row.ID, Provider: row.Provider, ProviderUserID: row.ProviderUserID,
 				ProviderLogin: row.ProviderLogin, Name: row.Name, AvatarURL: row.AvatarURL,
+				ProfileURL: row.ProfileURL,
 			}),
 			Commits:      int(row.Commits),
 			Additions:    int(row.Additions),
 			Deletions:    int(row.Deletions),
+			KnownCommits: int(row.KnownCommits),
 			Repos:        int(row.Repos),
 			LastCommitAt: last,
 		})
@@ -123,9 +126,10 @@ func (s *Store) repositorySummaries(ctx context.Context, id int64) ([]Repository
 		if err != nil {
 			return fmt.Errorf("nombre de commits : %w", err)
 		}
-		commits := make(map[int64]int, len(commitCounts))
+		lines := make(map[int64]model.LineTotals, len(commitCounts))
 		for _, c := range commitCounts {
-			commits[c.RepoID] = int(c.Commits)
+			lines[c.RepoID] = model.LineTotals{Commits: int(c.Commits), KnownCommits: int(c.KnownCommits),
+				Additions: int(c.Additions), Deletions: int(c.Deletions)}
 		}
 
 		branchCounts, err := q.CountTrackedBranchesByRepo(ctx, filter)
@@ -185,7 +189,8 @@ func (s *Store) repositorySummaries(ctx context.Context, id int64) ([]Repository
 			}
 			summary := RepositorySummary{
 				Repository:       repo,
-				Commits:          commits[repo.ID],
+				Commits:          lines[repo.ID].Commits,
+				Lines:            lines[repo.ID],
 				TrackedBranches:  branches[repo.ID],
 				OpenPullRequests: openPulls[repo.ID],
 				LatestRelease:    latest[repo.ID],
@@ -194,18 +199,19 @@ func (s *Store) repositorySummaries(ctx context.Context, id int64) ([]Repository
 				commit, err := commitFromDB(db.Commit{
 					RepoID: c.RepoID, SHA: c.SHA, AuthorID: c.AuthorID, CommitterID: c.CommitterID,
 					Message: c.Message, AuthoredAt: c.AuthoredAt, CommittedAt: c.CommittedAt,
-					Additions: c.Additions, Deletions: c.Deletions, URL: c.URL,
+					Additions: c.Additions, Deletions: c.Deletions, StatsKnown: c.StatsKnown, URL: c.URL,
 				})
 				if err != nil {
 					return err
 				}
 				summary.LastCommit = CommitView{
-					Commit:      commit,
-					RepoOwner:   repo.Owner,
-					RepoName:    repo.Name,
-					RepoLabel:   repo.Label,
-					AuthorName:  c.AuthorName,
-					AuthorLogin: c.AuthorLogin,
+					Commit:           commit,
+					RepoOwner:        repo.Owner,
+					RepoName:         repo.Name,
+					RepoLabel:        repo.Label,
+					AuthorName:       c.AuthorName,
+					AuthorLogin:      c.AuthorLogin,
+					AuthorProfileURL: c.AuthorProfileURL,
 				}
 			}
 			if r, ok := runs[repo.ID]; ok {
@@ -243,6 +249,7 @@ func commitFromDB(row db.Commit) (model.Commit, error) {
 		CommittedAt: committedAt,
 		Additions:   int(row.Additions),
 		Deletions:   int(row.Deletions),
+		StatsKnown:  row.StatsKnown,
 		URL:         row.URL,
 	}, nil
 }
@@ -256,6 +263,7 @@ func contributorFromDB(row db.Contributor) model.Contributor {
 		ProviderLogin:  row.ProviderLogin,
 		Name:           row.Name,
 		AvatarURL:      row.AvatarURL,
+		ProfileURL:     row.ProfileURL,
 	}
 }
 

@@ -70,7 +70,7 @@ func (m Model) detailLines() []string {
 		branches += ", toutes les branches"
 	}
 	lines = append(lines, field("Branches", branches))
-	lines = append(lines, field("Commits en base", strconv.Itoa(r.Commits)))
+	lines = append(lines, field("Commits en base", strconv.Itoa(r.Commits)+", lignes "+lineTotals(r.Lines)))
 	lines = append(lines, field("Dernière synchro", m.lastRunText(r.LastRun)))
 
 	// Dépôt jamais lu par l'API (suivi par clone Git local, sans gh, V2) : étoiles, issues, état
@@ -102,11 +102,13 @@ func (m Model) detailLines() []string {
 	case len(m.detail.commits) == 0:
 		lines = append(lines, "  Aucun commit.")
 	default:
-		cols := []column{{title: "QUAND"}, {title: "AUTEUR", max: 18}, {title: "SHA"}, {title: "MESSAGE", flex: true}}
+		cols := []column{{title: "QUAND"}, {title: "AUTEUR", max: 18}, {title: "SHA"}, {title: "+/-", right: true},
+			{title: "MESSAGE", flex: true}}
 		rows := make([]row, 0, len(m.detail.commits))
 		for _, c := range m.detail.commits {
 			rows = append(rows, row{cells: []string{activity.Relative(c.CommittedAt, now, loc, uni),
-				clean(c.AuthorDisplayName()), shortSHA(c.SHA), firstLine(c.Message)}, stateCol: -1})
+				clean(c.AuthorDisplayName()), shortSHA(c.SHA), commitLines(c.Commit), firstLine(c.Message)},
+				stateCol: -1})
 		}
 		lines = append(lines, m.renderTable(cols, rows, -1, 0, len(rows), false)...)
 	}
@@ -116,11 +118,11 @@ func (m Model) detailLines() []string {
 		lines = append(lines, "", m.st.Header.Render("Principaux contributeurs")+
 			m.st.Muted.Render(fmt.Sprintf("  activité sur %d semaines, la plus récente à droite", weeks)))
 		cols := []column{{title: "CONTRIBUTEUR", flex: true}, {title: "COMMITS", right: true},
-			{title: fmt.Sprintf("%d SEM.", weeks), right: true}, {title: "PAR SEMAINE"}, {title: "DERNIER COMMIT"}}
+			{title: "+/-", right: true}, {title: fmt.Sprintf("%d SEM.", weeks), right: true}, {title: "PAR SEMAINE"}, {title: "DERNIER COMMIT"}}
 		rows := make([]row, 0, len(m.detail.contribs))
 		for _, c := range m.detail.contribs {
 			rows = append(rows, row{cells: []string{clean(c.DisplayName()), strconv.Itoa(c.Commits),
-				strconv.Itoa(m.detail.weekly.TotalOf(c.ID)), activity.Sparkline(m.detail.weekly.Of(c.ID), uni),
+				lineTotals(c.Lines()), strconv.Itoa(m.detail.weekly.TotalOf(c.ID)), activity.Sparkline(m.detail.weekly.Of(c.ID), uni),
 				activity.Relative(c.LastCommitAt, now, loc, uni)}, stateCol: -1})
 		}
 		lines = append(lines, m.renderTable(cols, rows, -1, 0, len(rows), false)...)

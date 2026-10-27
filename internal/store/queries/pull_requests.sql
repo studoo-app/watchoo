@@ -25,7 +25,7 @@ FROM pull_requests
 WHERE repo_id = ?;
 
 -- name: ListPullRequests :many
--- Pull requests filtrees (depot, etat, merge), de la plus recemment modifiee a la plus ancienne.
+-- Pull requests filtrees (depot, etat, merge, compte de l'auteur), de la plus recemment modifiee a la plus ancienne.
 -- row_limit negatif = pas de limite.
 SELECT p.repo_id, p.number, p.title, p.state, p.merged, p.draft, p.author_login, p.author_provider_id,
        p.url, p.base_branch, p.head_branch, p.created_at, p.updated_at, p.closed_at, p.merged_at,
@@ -35,6 +35,7 @@ JOIN repositories r ON r.id = p.repo_id
 WHERE (sqlc.narg(repo_id) IS NULL OR p.repo_id = sqlc.narg(repo_id))
   AND (sqlc.narg(state) IS NULL OR p.state = sqlc.narg(state))
   AND (sqlc.narg(merged) IS NULL OR p.merged = sqlc.narg(merged))
+  AND (sqlc.narg(author_provider_id) IS NULL OR p.author_provider_id = sqlc.narg(author_provider_id))
 ORDER BY p.updated_at DESC, p.repo_id, p.number DESC
 LIMIT sqlc.arg(row_limit);
 

@@ -9,7 +9,9 @@ package web
 //   - contributeurs (tous les dépôts) et détail d'un dépôt (ses seuls commits) : commits par semaine
 //     sur activity.ContributorWeeks semaines, une série par contributeur parmi les
 //     contributorChartTop plus actifs de la période, les autres regroupés dans « Autres
-//     contributeurs » (contributorChart, template partagé « contributors-chart » de partials.html).
+//     contributeurs » (contributorChart, template partagé « contributors-chart » de partials.html) ;
+//   - page d'un contributeur (0.5.0) : ses commits par jour (dailyChart) et par semaine, une série
+//     par dépôt (buildRepoChart, même template).
 //
 // Les jours et les semaines (du lundi au dimanche) suivent le fuseau d'affichage de l'espace.
 
@@ -34,6 +36,10 @@ const contributorNameMax = 40
 // otherContributorsLabel est le nom de la série qui regroupe les contributeurs hors du classement du
 // graphique.
 const otherContributorsLabel = "Autres contributeurs"
+
+// otherReposLabel est le nom de la série qui regroupe les dépôts hors du classement du graphique d'un
+// contributeur.
+const otherReposLabel = "Autres dépôts"
 
 // dailyChart est un graphique des commits par jour et son résumé textuel (accessibilité, absence de
 // JavaScript).
@@ -64,12 +70,19 @@ type contributorChartData struct {
 	Series []contributorSeries `json:"series"` // dans l'ordre d'empilement et de la légende
 }
 
-// contributorSeries est la série d'un contributeur (ou des « Autres contributeurs »).
+// contributorSeries est la série d'un contributeur (ou des « Autres contributeurs ») ; sur la page
+// d'un contributeur, celle d'un de ses dépôts (ou des « Autres dépôts »).
 type contributorSeries struct {
 	Name   string `json:"name"`            // nom affiché, nettoyé et tronqué ; jamais un e-mail
 	Counts []int  `json:"counts"`          // commits par semaine, alignés sur Weeks
 	Total  int    `json:"total"`           // commits de la période
 	Other  bool   `json:"other,omitempty"` // série des autres contributeurs (couleur neutre)
+	// Path, Login et ProfileURL servent seulement à la table des données (hors JSON) : page interne
+	// de la série (contributeur ou dépôt ; vide pour les autres), login et page de profil sur la forge
+	// d'un contributeur (vides sinon).
+	Path       string `json:"-"`
+	Login      string `json:"-"`
+	ProfileURL string `json:"-"`
 }
 
 // contributorChart est le graphique des contributeurs et son résumé textuel.
@@ -85,6 +98,16 @@ type contributorChart struct {
 	WeekLabels []string
 }
 
+// chartEntity est une série possible d'un graphique empilé par semaine : contributeur, ou dépôt
+// (page d'un contributeur).
+type chartEntity struct {
+	ID         int64  // clé des comptages (activity.ContributorWeekCounts)
+	Name       string // nom affiché (non nettoyé : truncate le nettoie)
+	Path       string // page interne
+	Login      string // login de forge (contributeur)
+	ProfileURL string // page de profil sur la forge (contributeur)
+}
+
 // buildContributorChart compte les commits de times (auteur et date ; ceux d'un dépôt pour la page
 // de ce dépôt) par contributeur et par semaine sur les weeks semaines qui se terminent par celle de
 // now, dans loc (activity.CountContributorWeeks). Les top contributeurs les plus actifs de la période
@@ -94,7 +117,32 @@ type contributorChart struct {
 // Sert à la page des contributeurs (tous les dépôts) et à celle d'un dépôt. Fonction pure.
 func buildContributorChart(ranking []store.ContributorStats, times []model.AuthorCommitTime, now time.Time,
 	weeks, top int, loc *time.Location) contributorChart {
-	wc := activity.CountContributorWeeks(times, now, weeks, loc)
+	order := make([]chartEntity, 0, len(ranking))
+	for _, row := range ranking {
+		order = append(order, chartEntity{ID: row.ID, Name: row.DisplayName(), Path: contributorPath(row.ID),
+			Login: row.ProviderLogin, ProfileURL: row.ProfileURL})
+	}
+	return buildStackedChart(order, activity.CountContributorWeeks(times, now, weeks, loc), top,
+		otherContributorsLabel)
+}
+
+// buildRepoChart compte les commits d'un contributeur (times : dépôt et date) par dépôt et par semaine
+// (activity.CountRepoWeeks), comme buildContributorChart : les top dépôts où il a le plus de commits
+// sur la période ont leur série (égalités départagées par l'ordre de repos), les autres sont regroupés
+// dans « Autres dépôts ». Page d'un contributeur (0.5.0). Fonction pure.
+func buildRepoChart(repos []store.ContributorRepoStats, times []model.RepoCommitTime, now time.Time,
+	weeks, top int, loc *time.Location) contributorChart {
+	order := make([]chartEntity, 0, len(repos))
+	for _, r := range repos {
+		order = append(order, chartEntity{ID: r.RepoID, Name: r.RepoDisplayName(), Path: repoPath(r.RepoID)})
+	}
+	return buildStackedChart(order, activity.CountRepoWeeks(times, now, weeks, loc), top, otherReposLabel)
+}
+
+// buildStackedChart construit le graphique empilé à partir des comptages wc : une série par entité
+// d'order qui a au moins un commit, les top plus fournies d'abord (égalités : ordre d'order), les
+// autres (et les clés absentes d'order) regroupées dans otherLabel. Fonction pure.
+func buildStackedChart(order []chartEntity, wc activity.ContributorWeekCounts, top int, otherLabel string) contributorChart {
 	keys := wc.Weeks
 	top = max(top, 0)
 	c := contributorChart{Weeks: len(keys), Top: top, Total: wc.Total, Active: len(wc.Counts),
@@ -109,20 +157,24 @@ func buildContributorChart(ranking []store.ContributorStats, times []model.Autho
 		}
 		c.WeekLabels = append(c.WeekLabels, t.Format("02/01"))
 	}
-	counts := wc.Counts
+	counts := make(map[int64][]int, len(wc.Counts))
+	for id, per := range wc.Counts {
+		counts[id] = per
+	}
 
 	type candidate struct {
-		rank   int // position dans ranking
+		rank   int // position dans order
 		series contributorSeries
 	}
 	var candidates []candidate
-	for i, row := range ranking {
-		per, ok := counts[row.ID]
+	for i, e := range order {
+		per, ok := counts[e.ID]
 		if !ok {
 			continue
 		}
-		delete(counts, row.ID)
-		s := contributorSeries{Name: truncate(contributorNameMax, row.DisplayName()), Counts: per}
+		delete(counts, e.ID)
+		s := contributorSeries{Name: truncate(contributorNameMax, e.Name), Counts: per, Path: e.Path,
+			Login: e.Login, ProfileURL: e.ProfileURL}
 		for _, n := range per {
 			s.Total += n
 		}
@@ -135,7 +187,7 @@ func buildContributorChart(ranking []store.ContributorStats, times []model.Autho
 		return cmp.Compare(a.rank, b.rank)
 	})
 
-	other := contributorSeries{Name: otherContributorsLabel, Counts: make([]int, len(keys)), Other: true}
+	other := contributorSeries{Name: otherLabel, Counts: make([]int, len(keys)), Other: true}
 	add := func(per []int) {
 		for i, n := range per {
 			other.Counts[i] += n
@@ -149,7 +201,7 @@ func buildContributorChart(ranking []store.ContributorStats, times []model.Autho
 			add(cand.series.Counts)
 		}
 	}
-	// Auteurs absents du classement (ajoutés entre les deux lectures, par une synchro en cours).
+	// Clés absentes d'order (auteurs ajoutés entre les deux lectures, par une synchro en cours).
 	for _, per := range counts {
 		add(per)
 	}

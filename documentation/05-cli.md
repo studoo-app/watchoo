@@ -75,12 +75,19 @@ refait à chaque synchro (voir [Architecture](03-architecture.md#authentificatio
   synchronisation, `reporté` si le quota est bas, avec l'heure de reprise en heure locale), le bilan et le
   quota restant. `watchoo sync owner/repo` synchronise ce dépôt même si son suivi est arrêté. Code de
   retour non nul si un dépôt est en erreur. Un dépôt synchronisé dont les pull requests, releases ou
-  tags n'ont pas pu être lus reste `ok` : l'avertissement est dans la colonne DÉTAIL (et `warnings` en
-  JSON), et ne change pas le code de retour. Sans `gh` (V2), le bilan se termine par « Source : clones
+  tags n'ont pas pu être lus, ou dont le clone Git local est indisponible avec `gh` (statistiques de
+  lignes alors lues par l'API, limitées), reste `ok` : l'avertissement est dans la colonne DÉTAIL (et
+  `warnings` en JSON), et ne change pas le code de retour. Sans `gh` (V2), le bilan se termine par « Source : clones
   Git locaux (gh absent ou non connecté ; « gh auth login » pour passer par l'API GitHub) » et ne
   donne pas de quota ; un dépôt que `git` ne peut pas lire est `erreur` avec « accès refusé ».
 - **`--since`** accepte une durée relative : un entier suivi de `d` (jours), `h` (heures) ou `m`
   (minutes), par exemple `7d`, `30d`, `12h`.
+- **`log`** affiche, pour chaque commit, la date, le dépôt, l'auteur, le SHA court, ses lignes (colonne
+  `+/-` : « +12/-3 », « +0/-0 » pour un commit réellement sans ligne, « - » si elles sont encore
+  inconnues ; 0.5.0) et la première ligne du message.
+- **Lignes `+/-` dans le TUI** (0.5.0) : par commit, « +12/-3 », « +0/-0 » ou « - » (inconnues) ; les
+  totaux (contributeur, dépôt) additionnent les commits connus et ajoutent « (N non comptés) » quand une
+  partie des commits n'en a pas encore, « - » si aucun n'en a.
 - **`log -n`** (ou `--limit`) limite le nombre de commits affichés (20 par défaut, `0` = tous). Un commit
   présent sur plusieurs branches n'apparaît qu'une fois.
 - **`log --author`** compare le login GitHub, le nom ou un e-mail de l'auteur, **à l'identique** (pas de
@@ -89,7 +96,10 @@ refait à chaque synchro (voir [Architecture](03-architecture.md#authentificatio
   partage avec la branche de référence (souvent `main`) n'y sont rattachés que s'ils ont été vus en la
   comparant (voir [Architecture](03-architecture.md#synchronisation-incrémentale)).
 - **`contributors`** classe les **auteurs** de commits par nombre de commits. Les lignes ajoutées et
-  supprimées ne sont connues que pour les commits découverts après le premier import d'un dépôt.
+  supprimées sont lues dans le clone Git local de chaque dépôt, pour tous les commits (premier import
+  compris) ; elles additionnent les commits dont les statistiques sont connues (voir
+  [Synchronisation incrémentale](03-architecture.md#synchronisation-incrémentale) : seul un clone
+  indisponible les laisse inconnues, sauf pour les 100 commits par synchro que l'API donne alors).
   **`--weeks N`** (1 à 52) limite la période aux N dernières semaines (du lundi au dimanche, dans le
   fuseau d'affichage, la semaine en cours comprise) et donne, pour chaque contributeur de cette période,
   ses commits semaine par semaine : en texte, une colonne par semaine (datée du lundi, « 12/10 ») puis
@@ -175,7 +185,7 @@ Clés de premier niveau (la liste est vérifiée par un test, `internal/cli/json
 | `watchoo repo import` | `file`, `format`, `dry_run`, `summary`, `entries` | `format` : `csv` ou `list` ; `summary` : `added`, `already_tracked`, `updated`, `inaccessible`, `errors` ; chaque entrée : `line`, `repo`, `outcome`, `repository` (`null` si inaccessible ou en erreur), `error` |
 | `watchoo repo list` | `repositories` | Chaque élément : objet dépôt plus `activity`, `commits`, `tracked_branches`, `last_commit` (objet commit ou `null`), `last_sync` (`null` si aucune) |
 | `watchoo repo remove` | `action`, `repository`, `deleted_commits` | `action` : `deleted`, `stopped` ou `already_stopped` |
-| `watchoo sync` | `started_at`, `finished_at`, `summary`, `repositories`, `rate_limit`, `source` | `source` : `api`, `git` (clones Git locaux, V2 ; `rate_limit` est alors `null`) ou `""` si la synchro n'a pas commencé ; `summary` : `repositories`, `success`, `error`, `locked`, `deferred`, `new_commits` ; chaque dépôt : `id`, `full_name`, `display_name`, `status`, `new_commits`, `tracked_branches`, `stats_fetched`, `duration_ms`, `error`, `resume_at`, `warnings` (messages en français : pull requests, releases ou tags non synchronisés alors que le dépôt a réussi ; `[]` sinon) |
+| `watchoo sync` | `started_at`, `finished_at`, `summary`, `repositories`, `rate_limit`, `source` | `source` : `api`, `git` (clones Git locaux, V2 ; `rate_limit` est alors `null`) ou `""` si la synchro n'a pas commencé ; `summary` : `repositories`, `success`, `error`, `locked`, `deferred`, `new_commits` ; chaque dépôt : `id`, `full_name`, `display_name`, `status`, `new_commits`, `tracked_branches`, `stats_fetched`, `duration_ms`, `error`, `resume_at`, `warnings` (messages en français : pull requests, releases ou tags non synchronisés, ou clone Git local indisponible avec `gh`, alors que le dépôt a réussi ; `[]` sinon) ; `stats_fetched` : statistiques de commits calculées dans le clone, ou demandées à l'API en repli |
 | `watchoo log` | `commits` | Du plus récent au plus ancien ; objets commit |
 | `watchoo contributors` | `contributors` | Chaque élément : `id`, `name`, `login`, `display_name`, `avatar_url`, `commits`, `additions`, `deletions`, `repositories`, `last_commit_at`, `weekly` (avec `--weeks N` : N objets `week` (lundi, `AAAA-MM-JJ`, fuseau d'affichage) et `count`, du plus ancien au plus récent ; `[]` sans `--weeks`) |
 | `watchoo prs` | `pull_requests` | De la plus récemment modifiée à la plus ancienne ; objets pull request |
@@ -191,7 +201,9 @@ Objets partagés :
   propres au dépôt, `null` = seuil de l'espace ; les seuils appliqués sont dans l'objet activité),
   `enabled`, `archived`, `stars`, `open_issues`, `last_synced_at`, `last_commit_at` ;
 - **commit** : `repository` (`id`, `full_name`, `display_name`), `sha`, `short_sha`, `message`, `url`,
-  `author` (`name`, `login`, `display_name`), `authored_at`, `committed_at`, `additions`, `deletions` ;
+  `author` (`name`, `login`, `display_name`), `authored_at`, `committed_at`, `additions`, `deletions`,
+  `stats_known` (0.5.0 : `true` si `additions` et `deletions` ont été calculées, même à 0 ; `false` si
+  elles sont encore inconnues, `additions` et `deletions` valant alors 0) ;
 - **activité** : `state` (`active`, `flemme`, `dead`, `stopped`, `error`, `never_synced`, `archived`,
   `empty`), `state_label`, `gray`, `days_since_last_commit` (`null` sans commit), `flemme_after_days`,
   `dead_after_days` ;
@@ -526,18 +538,29 @@ et les contributeurs au clavier, avec filtre et vue détail, et on peut y lancer
   refusé, comme un argument en trop ; la commande s'arrête aussi si l'entrée ou la sortie standard n'est
   pas un terminal.
 - **Vues** : Dépôts (dépôt, dernier commit, auteur, branches, état), Commits (quand, dépôt, auteur, SHA
-  court, première ligne du message ; les 200 derniers) et Contributeurs (nom, login, commits, `+/-`,
-  dépôts, dernier commit). Le **détail d'un dépôt** montre l'URL, l'état et ses seuils, le dernier commit,
-  les branches, le nombre de commits, la dernière synchro (ou son erreur), étoiles et issues, les pull
+  court, `+/-` du commit, première ligne du message ; les 200 derniers) et Contributeurs (nom, login,
+  commits, `+/-` totaux, dépôts, dernier commit). Le **détail d'un dépôt** montre l'URL, l'état et ses
+  seuils, le dernier commit, les branches, le nombre de commits et leurs lignes `+/-`, la dernière synchro (ou son erreur), étoiles et issues, les pull
   requests ouvertes et la dernière release publiée (V2), les 15
-  derniers commits et les 5 premiers contributeurs, avec leurs commits sur les 12 dernières semaines
+  derniers commits (avec leurs `+/-`) et les 5 premiers contributeurs, avec leurs lignes `+/-` dans le
+  dépôt et leurs commits sur les 12 dernières semaines
   (colonne « 12 SEM. ») et une courbe d'un caractère par semaine, la plus récente à droite (« PAR
   SEMAINE » : `▁` à `█`, ou `.` `-` `=` `#` sans Unicode ; `▁` ou `.` = aucun commit).
+- **Détail d'un contributeur** (0.5.0, `entrée` dans la vue Contributeurs ; `échap` revient à la
+  liste) : nom, login (le TUI n'affiche pas d'adresse, ni celle du profil), nombre d'identités Git
+  rattachées (jamais les adresses) ; totaux (commits, lignes `+/-` ou `-` si inconnues, dépôts, premier
+  et dernier commit) ; activité sur 12 semaines (total et courbe d'un caractère par semaine, comme
+  ci-dessus) ; ses dépôts (commits, `+/-`, courbe par semaine, dernier commit, état du dépôt) ; ses 15
+  derniers commits (quand, dépôt, SHA court, `+/-`, première ligne du message). Les lignes ajoutées et
+  supprimées sont lues dans le clone Git local de chaque dépôt ; `-` signale des statistiques encore
+  inconnues (clone indisponible), `+0/-0` un commit réellement sans ligne (rappel en bas du détail). Le détail défile avec `↑` `↓`. **Choix** : la table des principaux contributeurs du
+  détail d'un dépôt n'est pas sélectionnable (le détail défile, il n'a pas de curseur) ; on passe par la
+  vue Contributeurs (filtre `/`).
 - **En-tête** : hibou mini (pupilles vertes), version et espace, onglets, ligne de synchro (en cours avec
   la progression, dernière synchro, prochaine synchro automatique à HH:MM, ou « Synchro manuelle (s) »).
 - **Synchro** : une seule à la fois (une demande de plus est ignorée et signalée) ; à la fin, une ligne de
   bilan (nouveaux commits, erreurs, dépôts ignorés ou reportés avec l'heure de reprise locale,
-  avertissements sur les pull requests, releases ou tags), puis les
+  avertissements sur les pull requests, releases, tags ou un clone Git local indisponible), puis les
   vues sont relues. Une synchro automatique qui tombe pendant une synchro est sautée, la suivante reste
   planifiée. Quitter pendant une synchro l'annule : `watchoo tui` attend alors que le moteur ait clos
   ses synchros (« synchro annulée », quelques secondes au plus) avant de fermer la base, pour qu'aucun
@@ -547,7 +570,7 @@ et les contributeurs au clavier, avec filtre et vue détail, et on peut y lancer
 | --- | --- |
 | `tab` / `maj+tab`, `1` `2` `3` | Vue suivante / précédente, vue Dépôts, Commits, Contributeurs |
 | `↑` `↓` ou `k` `j`, `pg.préc` `pg.suiv`, `g` `G` | Déplacer la sélection, par page, début et fin de la liste |
-| `entrée` | Détail du dépôt sélectionné (vue Dépôts ou Commits) |
+| `entrée` | Détail du dépôt sélectionné (vue Dépôts ou Commits) ou du contributeur sélectionné (vue Contributeurs, 0.5.0) |
 | `échap` | Retour, ou effacer le filtre |
 | `/` | Filtrer la vue (sous-chaîne, sans tenir compte de la casse) ; `entrée` garde le filtre, `ctrl+u` le vide |
 | `s` / `S` | Synchroniser tous les dépôts / le dépôt sélectionné |

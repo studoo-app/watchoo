@@ -90,6 +90,7 @@
           {{- end}}
         </dd>
         <dd class="text-base-content/70">{{plural $r.Commits "commit en base" "commits en base"}}</dd>
+        {{if $r.Commits}}<dd class="text-base-content/70 tabular-nums">Lignes : {{template "line-totals" $r.Lines}}</dd>{{end}}
       </div>
       <div class="min-w-0">
         <dt class="text-base-content/60">Branches</dt>
@@ -151,12 +152,13 @@
       <li class="flex items-center gap-3 py-2 min-w-0">
         {{template "avatar" (dict "Name" .DisplayName "URL" .AvatarURL)}}
         <div class="min-w-0 flex-1">
-          <p class="font-medium truncate" title="{{clean .DisplayName}}">{{clean .DisplayName}}</p>
+          <p class="font-medium truncate" title="{{clean .DisplayName}}">{{template "contributor-link" (dict "ID" .ID "Name" .DisplayName)}}</p>
           <p class="text-xs text-base-content/60 truncate">
-            {{- if .ProviderLogin}}<a href="https://github.com/{{.ProviderLogin}}" class="link link-hover" target="_blank" rel="noopener noreferrer">@{{clean .ProviderLogin}}</a> · {{end -}}
+            {{- if .ProviderLogin}}@{{clean .ProviderLogin}} {{template "profile-link" (dict "URL" .ProfileURL "Login" .ProviderLogin)}} · {{end -}}
             dernier commit {{template "rel-time" .LastCommitAt}}
           </p>
         </div>
+        <span class="text-xs tabular-nums whitespace-nowrap">{{template "line-totals" .Lines}}</span>
         <span class="badge badge-ghost whitespace-nowrap">{{plural .Commits "commit" "commits"}}</span>
       </li>
       {{end}}
@@ -299,21 +301,7 @@
 
     {{if $p.Commits}}
     <ul class="divide-y divide-base-200" role="list">
-      {{range $p.Commits}}
-      <li class="py-3 flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-4 min-w-0">
-        <div class="min-w-0 flex-1">
-          <p class="font-medium break-words">{{firstLine .Message}}</p>
-          <p class="text-xs text-base-content/60">
-            {{clean .AuthorDisplayName}} · {{template "rel-time" .CommittedAt}}
-            {{- if or .Additions .Deletions}} · <span class="text-success">+{{.Additions}}</span> <span class="text-error">−{{.Deletions}}</span>{{end}}
-          </p>
-        </div>
-        <div class="shrink-0">
-          {{if .URL}}<a href="{{.URL}}" class="badge badge-ghost font-mono link-hover" target="_blank" rel="noopener noreferrer" title="Voir le commit sur GitHub">{{shortSHA .SHA}}</a>
-          {{- else}}<span class="badge badge-ghost font-mono">{{shortSHA .SHA}}</span>{{end}}
-        </div>
-      </li>
-      {{end}}
+      {{range $p.Commits}}{{template "commit-item" (dict "Commit" . "ShowAuthor" true)}}{{end}}
     </ul>
     {{else}}
     <p class="text-sm text-base-content/70 py-4">{{if $c.Filtered}}Aucun commit ne correspond à ces filtres.{{else}}Aucun commit en base pour ce dépôt : lancez une synchro.{{end}}</p>

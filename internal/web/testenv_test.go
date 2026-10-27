@@ -40,7 +40,8 @@ const (
 )
 
 // testEmails sont les e-mails des données factices : jamais dans une réponse ni dans le journal.
-var testEmails = []string{"alice@example.test", "bob@example.test", "carol@example.test", "etudiant@example.test"}
+var testEmails = []string{"alice@example.test", "bob@example.test", "carol@example.test", "etudiant@example.test",
+	"eve@example.test", "zoe@example.test", "fred@example.test", "prolifique@example.test"}
 
 // testNow est l'horloge des tests : 27 octobre 2026, 10 h UTC.
 var testNow = time.Date(2026, 10, 27, 10, 0, 0, 0, time.UTC)
@@ -211,14 +212,17 @@ type seededRepos struct {
 	Dave  int64 // promo/dave : jamais synchronisé
 }
 
-// seed remplit la base avec quatre dépôts et leurs commits (sans passer par le moteur).
+// seed remplit la base avec quatre dépôts et leurs commits (sans passer par le moteur). Contributeurs :
+// Alice (compte de forge 10, profil https://github.com/alice-gh), Bob (identité Git seule, sans compte),
+// Carol (compte 30, avatar d'un autre hôte et adresse de profil refusée, « javascript: »).
 func (e *testEnv) seed() seededRepos {
 	e.t.Helper()
 	alice := store.Identity{Name: "Alice Martin", Email: "alice@example.test", Login: "alice-gh",
-		ProviderUserID: 10, AvatarURL: "https://avatars.githubusercontent.com/u/10?v=4"}
+		ProviderUserID: 10, AvatarURL: "https://avatars.githubusercontent.com/u/10?v=4",
+		ProfileURL: "https://github.com/alice-gh"}
 	bob := store.Identity{Name: "Bob Durand", Email: "bob@example.test"}
 	carol := store.Identity{Name: "Carol", Email: "carol@example.test", Login: "carol-gh", ProviderUserID: 30,
-		AvatarURL: "https://evil.example.test/pixel.png"}
+		AvatarURL: "https://evil.example.test/pixel.png", ProfileURL: "javascript:alert(1)"}
 	ids := seededRepos{
 		Alice: e.addRepo(1, "alice", "Alice Martin"),
 		Bob:   e.addRepo(2, "bob", ""),

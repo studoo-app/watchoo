@@ -28,7 +28,7 @@ type RepoReport struct {
 	Status          RepoStatus    // résultat
 	NewCommits      int           // commits insérés
 	TrackedBranches int           // branches suivies après la synchro (0 si échec)
-	StatsFetched    int           // appels CommitStats faits
+	StatsFetched    int           // statistiques calculées par le clone, ou appels CommitStats (repli sur l'API)
 	PullRequests    int           // pull requests lues (nouvelles ou modifiées depuis la synchro précédente)
 	Duration        time.Duration // durée de la synchro du dépôt (0 si ignoré ou reporté)
 	// Error est le message d'échec en français (StatusError), « déjà en cours de synchronisation »
@@ -37,7 +37,9 @@ type RepoReport struct {
 	Error    string
 	ResumeAt time.Time // StatusDeferred : moment où réessayer (UTC) ; zéro sinon
 	// Warnings sont les avertissements d'un dépôt réussi (StatusSuccess) : pull requests, releases ou
-	// tags non synchronisés (« releases non synchronisées : … »), en français, sans donnée personnelle ;
+	// tags non synchronisés (« releases non synchronisées : … »), clone Git local indisponible
+	// (« clone Git local indisponible, statistiques de lignes lues par l'API (limitées) : … »), en
+	// français, sans donnée personnelle ;
 	// nil sinon. Ils ne changent pas le statut du dépôt.
 	Warnings []string
 }

@@ -27,6 +27,7 @@ type Commit struct {
 	Additions   int64
 	Deletions   int64
 	URL         string
+	StatsKnown  bool
 }
 
 type CommitBranch struct {
@@ -42,6 +43,7 @@ type Contributor struct {
 	ProviderLogin  string
 	Name           string
 	AvatarURL      string
+	ProfileURL     string
 }
 
 type ContributorEmail struct {

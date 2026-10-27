@@ -291,10 +291,10 @@ func TestDetail(t *testing.T) {
 	l.press("tab", "j", "enter")
 	l.until(func(m Model) bool { return m.detail.open && !m.detail.loading })
 	mustContain(t, l.screen(), "promo/bob", "Flemme (~ 9 j)")
-	// Entrée sur un contributeur ne fait rien.
+	// Entrée sur un contributeur ouvre son détail (0.5.0), pas celui d'un dépôt.
 	l.press("3", "enter")
-	if l.m.detail.open {
-		t.Error("entrée dans la vue contributeurs a ouvert un détail")
+	if l.m.detail.open || !l.m.cdetail.open {
+		t.Error("entrée dans la vue contributeurs n'a pas ouvert le détail du contributeur")
 	}
 }
 
@@ -504,7 +504,7 @@ func TestHelpScreen(t *testing.T) {
 	l := newLoop(t, testDeps(newFakeData(), &fakeSyncer{}))
 	l.press("?")
 	mustContain(t, l.screen(), "Aide des touches", "synchroniser tout", "synchroniser ce dépôt", "relire la base",
-		"quitter")
+		"quitter", "détail du dépôt ou du contributeur")
 	l.press("j") // ignoré
 	l.press("esc")
 	mustContain(t, l.screen(), "DERNIER COMMIT")

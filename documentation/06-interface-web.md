@@ -2,7 +2,7 @@
 
 [← Sommaire](README.md)
 
-Quatre pages servies par `watchoo serve`, rafraîchies par HTMX sans rechargement complet. Les templates
+Cinq pages servies par `watchoo serve`, rafraîchies par HTMX sans rechargement complet. Les templates
 (`html/template`) et les assets statiques sont embarqués dans le binaire (`embed`) : aucun build JavaScript.
 Le style repose sur [DaisyUI](https://daisyui.com/) : composants `card`, `badge`, `table`, `stat`,
 thèmes clair / sombre (voir [Architecture](03-architecture.md#css--daisyui)).
@@ -18,6 +18,7 @@ plusieurs espaces en même temps, on lance un `serve` par espace, chacun sur son
 | Tableau de bord | `/` | `/fragments/dashboard/repos`, `/fragments/dashboard/feed` |
 | Détail d'un dépôt | `/repos/{id}` (`?page=`, `?branch=`, `?author=`) | `/repos/{id}/commits` |
 | Contributeurs | `/contributors` | `/fragments/contributors` |
+| Page d'un contributeur (0.5.0) | `/contributors/{id}` (`?page=`) | `/contributors/{id}/commits` |
 | Réglages | `/settings` | `/fragments/quota` |
 
 Toutes les pages ont la même barre de navigation (DaisyUI `navbar`) : logo, nom de l'espace, liens,
@@ -27,10 +28,24 @@ liens puis l'état des synchros passent chacun sur leur propre ligne. Les dates 
 (« il y a 2 h »), avec l'heure locale (fuseau d'affichage) en infobulle. Page introuvable (404) et
 erreurs (500…) : pages en français, sans détail interne (le détail est dans le journal de `serve`).
 
+### Lignes ajoutées et supprimées (0.5.0)
+
+Partout où un commit est listé (fil du tableau de bord, historique d'un dépôt, commits d'un
+contributeur), il montre **ses** lignes : « +12 −3 », « +0 −0 » pour un commit réellement sans ligne
+(merge sans changement, commit vide), « — » si elles sont encore inconnues (`commits.stats_known = 0` :
+clone Git local indisponible). Template partagé `commit-lines`.
+
+Les **totaux** sont donnés par contributeur (classement, page d'un contributeur, ses dépôts), par
+dépôt (carte du tableau de bord, en-tête et contributeurs de la page d'un dépôt) et pour l'espace
+(compteur « Lignes » du tableau de bord), calculés par le store (`model.LineTotals`, requêtes
+agrégées) : ils additionnent les commits connus et ajoutent « (dont N commits non comptés) » quand une
+partie des commits n'en a pas encore ; « — » si aucun n'en a. Template partagé `line-totals`.
+
 ### 1. Tableau de bord
 - Une **carte par dépôt** : nom affiché (`label`, ex. « Alice Martin ») ou `owner/repo` (rappelé sous le
-  label), première ligne du dernier commit, auteur, ancienneté, nombre de commits et de branches suivies,
-  et nombre de pull requests ouvertes s'il y en a (V2).
+  label), première ligne du dernier commit, auteur, ancienneté, nombre de commits et leurs lignes
+  ajoutées / supprimées (0.5.0, voir [Lignes ajoutées et supprimées](#lignes-ajoutées-et-supprimées-050)),
+  nombre de branches suivies, et nombre de pull requests ouvertes s'il y en a (V2).
 - **Pastille d'état** (voir [règles](02-fonctionnalites.md#règles-fonctionnelles)) : Actif en vert
   (`badge-success`), Flemme en orange (`badge-warning`), Dead en rouge (`badge-error`) ; jamais
   synchronisé, en erreur, archivé, arrêté ou vide en gris (`badge-neutral`). Libellés identiques à la
@@ -38,9 +53,10 @@ erreurs (500…) : pages en français, sans détail interne (le détail est dans
 - **Tri** : Dead, puis Flemme, puis Actif, le dernier commit le plus ancien d'abord dans chaque groupe ;
   ensuite les dépôts en erreur (pour qu'ils se voient), puis les autres états gris ; égalités départagées
   par nom affiché.
-- **Compteurs** par état (DaisyUI `stat`), avec les seuils de l'espace rappelés sous Flemme et Dead.
-- **Fil des 20 derniers commits**, tous dépôts confondus (initiale de l'auteur, message, dépôt, date ;
-  SHA court lié au commit sur GitHub).
+- **Compteurs** par état (DaisyUI `stat`), avec les seuils de l'espace rappelés sous Flemme et Dead,
+  et un compteur **Lignes** (0.5.0) : lignes ajoutées / supprimées de tous les commits de l'espace.
+- **Fil des 20 derniers commits**, tous dépôts confondus (initiale de l'auteur, message, dépôt, date,
+  lignes `+/-` du commit ; SHA court lié au commit sur GitHub).
 - **Graphique d'activité de l'espace sur 90 jours** : commits par jour, tous dépôts confondus (voir
   [Graphiques d'activité](#graphiques-dactivité)), avec son résumé (total, jour le plus chargé). Absent
   tant qu'aucun dépôt n'est suivi.
@@ -49,7 +65,8 @@ erreurs (500…) : pages en français, sans détail interne (le détail est dans
 ### 2. Détail d'un dépôt
 - En-tête : état, seuils appliqués (chacun marqué « propre à ce dépôt » ou « de l'espace », lien
   « Modifier » vers le formulaire des seuils), dernier commit, dernière synchro et son résultat, nombre
-  de commits, branche par défaut, branches suivies et motifs, étoiles et issues.
+  de commits et leurs lignes ajoutées / supprimées (0.5.0), branche par défaut, branches suivies et
+  motifs, étoiles et issues.
 - **Seuils d'activité de ce dépôt** (bloc repliable sous l'en-tête, hors des fragments HTMX : une saisie
   en cours n'est pas effacée par le rafraîchissement d'après synchro) : deux champs, « Flemme après » et
   « Dead après », en jours sans commit, préremplis avec les seuils propres du dépôt ; vide (ou `0`) =
@@ -59,7 +76,8 @@ erreurs (500…) : pages en français, sans détail interne (le détail est dans
   redirection `303` vers `/repos/{id}?msg=thresholds#repo-thresholds` (bloc ouvert, message de
   confirmation, état recalculé). Saisie refusée : `400`, page réaffichée avec le message et la saisie ;
   dépôt inconnu : `404`.
-- Historique des commits **paginé** (50 par page, liens précédent / suivant, HTMX). Le numéro de page
+- Historique des commits **paginé** (50 par page, liens précédent / suivant, HTMX), chaque commit avec
+  ses lignes `+/-`. Le numéro de page
   hors bornes est ramené à la première ou à la dernière page.
 - Filtres par **branche** (branches suivies d'abord) et par **auteur** (login GitHub, sinon nom Git ;
   jamais un e-mail), appliqués par HTMX au changement et gardés d'une page à l'autre ; l'adresse de la
@@ -74,7 +92,8 @@ erreurs (500…) : pages en français, sans détail interne (le détail est dans
   (`allowScriptTags: false`) : le graphique est donc hors des fragments ; à la fin d'une synchro,
   `app.js` relit la page (même origine), extrait les données avec `DOMParser` (qui n'exécute rien) et
   redessine.
-- Liste des contributeurs du dépôt (avatar ou initiale, login, dernier commit).
+- Liste des contributeurs du dépôt (avatar ou initiale, nom lié à la page du contributeur, lien
+  secondaire vers son profil GitHub, dernier commit, ses lignes ajoutées / supprimées dans ce dépôt).
 - **Activité par contributeur sur 12 semaines** (V2) : le graphique de la page des contributeurs
   (barres empilées des commits par semaine, 8 contributeurs les plus actifs de la période, les autres
   regroupés, table « Données du graphique » repliable), restreint aux commits du dépôt : toutes les
@@ -105,8 +124,9 @@ erreurs (500…) : pages en français, sans détail interne (le détail est dans
   requests et releases seuls. Tous se rechargent à la fin d'une synchro.
 
 ### 3. Contributeurs
-- Classement global (commits, part du total, lignes ajoutées / retirées ; « — » si les statistiques n'ont
-  pas encore été lues), avec trois compteurs (contributeurs, commits, dépôts).
+- Classement global (commits, part du total, lignes ajoutées / retirées ; « — » si aucun de ses commits
+  n'a encore de statistiques connues, voir `commits.stats_known`), avec trois compteurs (contributeurs, commits, dépôts). Le nom de chaque
+  contributeur mène à sa page (0.5.0).
 - Nombre de commits par dépôt (liens vers le détail).
 - Dernière activité.
 - **Graphique d'activité par contributeur sur 12 semaines** : barres empilées des commits par semaine
@@ -121,7 +141,59 @@ erreurs (500…) : pages en français, sans détail interne (le détail est dans
   chargement différé (`loading="lazy"`) et sans aucun cookie de Watchoo. Une URL d'avatar d'un autre
   hôte n'est jamais affichée ; sans avatar, on montre l'initiale du nom. Aucun e-mail n'est affiché.
 
-### 4. Réglages
+### 4. Page d'un contributeur (0.5.0)
+
+`GET /contributors/{id}` (identifiant interne du contributeur, 1 à 18 chiffres ; inconnu : `404`).
+Fil d'Ariane « Contributeurs › nom ». Rien n'est propre à GitHub dans le handler ni les templates : le
+lien de profil est l'adresse enregistrée en base (voir [Liens vers les profils](#liens-vers-les-profils-050)).
+
+- **En-tête** (fragment `contributor-overview`) : avatar (même règle que la page des contributeurs),
+  nom affiché, login avec le lien « GitHub » vers son profil s'il est connu, nombre d'identités Git
+  rattachées (« 2 identités Git connues » : le **nombre** d'adresses e-mail, **jamais les adresses**).
+  Totaux : commits, lignes ajoutées / retirées (« — » si inconnues, comme le classement ; les lignes
+  sont lues dans le clone Git local de chaque dépôt, pour tous les commits, ce que rappelle une note :
+  « — » ne reste que si le clone est indisponible), dépôts, premier et dernier commit (dates relatives). **Choix** : aucun état Actif / Flemme /
+  Dead pour une personne : ces états sont des règles de dépôt (seuils par dépôt) ; la page donne
+  l'ancienneté du dernier commit, et l'état de chacun de ses dépôts dans la liste ci-dessous.
+- **Activité sur 90 jours** : commits par jour du contributeur, tous dépôts confondus (graphique
+  `daily`, comme le tableau de bord et la page d'un dépôt).
+- **Activité par dépôt sur 12 semaines** : le graphique empilé `contributors-chart` (même template, même
+  palette), une série par dépôt parmi les 8 où il a le plus de commits sur la période, les autres
+  regroupés dans « Autres dépôts », avec la table « Données du graphique » repliable (nom du dépôt lié
+  à sa page).
+- **Ses dépôts** (fragment `contributor-repos`) : pour chaque dépôt où il est auteur d'au moins un
+  commit, nom lié à la page du dépôt, pastille d'état du dépôt (règles et seuils du dépôt), ses commits,
+  ses lignes `+/-` (« — » si inconnues), son dernier commit dans ce dépôt ; tri par commits
+  décroissants, puis dernier commit le plus récent.
+- **Ses commits** (fragment `contributor-commits`) : historique paginé (50 par page, comme celui d'un
+  dépôt ; liens précédent / suivant HTMX, `?page=` poussé dans l'adresse), chaque commit avec la
+  première ligne du message (nettoyée), le dépôt (lien), la date, les lignes `+/-` (« — » si elles
+  sont inconnues) et le SHA
+  court lié au commit sur la forge. Même liste que l'historique d'un dépôt (template partagé
+  `commit-item`).
+- **Ses pull requests** (fragment `contributor-pulls`, V2) : les 20 plus récemment modifiées, tous
+  dépôts confondus (numéro, titre lié à la PR, dépôt, état : ouverte, brouillon, mergée, fermée).
+  Rapprochement par le **compte de forge** : `pull_requests.author_provider_id` =
+  `contributors.provider_user_id` (l'auteur d'une PR n'est pas un contributeur en base). Un
+  contributeur sans compte connu (clones Git locaux, e-mail non rattaché) n'a pas cette carte : la page
+  le dit en une ligne. Les **releases** ne sont pas rapprochées : seul le login de leur auteur est
+  gardé, et un login peut changer de titulaire.
+- Contributeur sans aucun commit d'auteur (il n'est que committer) : la page s'affiche, totaux à zéro,
+  graphiques vides et messages « Aucun commit… ».
+- Fragments rechargés à la fin d'une synchro (`sync-finished`) : `contributor-overview`,
+  `contributor-repos` et `contributor-pulls` (`GET /contributors/{id}` avec l'en-tête `HX-Target`),
+  `contributor-commits` (`GET /contributors/{id}/commits`, qui sert la page complète hors HTMX) ; les
+  deux graphiques relisent la page, comme ailleurs.
+- **Liens vers cette page** : nom de chaque ligne du classement des contributeurs et de la table de
+  données des graphiques par contributeur (page des contributeurs, page d'un dépôt), contributeurs de la
+  page d'un dépôt, auteur de chaque commit des historiques (dépôt, contributeur) et du fil du tableau de
+  bord, auteur du dernier commit des cartes du tableau de bord. Un commit sans auteur connu n'a pas de
+  lien.
+- Données personnelles : nom, login, avatar et messages de commit, comme le reste de l'interface ;
+  **aucune adresse e-mail** n'est lue pour cette page (seul leur nombre) ; le journal d'accès n'écrit que
+  le motif de route (`/contributors/{id}`), jamais l'identifiant, un nom ni un message.
+
+### 5. Réglages
 - Liste des dépôts suivis (état, branches, commits, dernière synchro).
 - Ajouter un dépôt (`owner/repo` ou URL, label, branches : mêmes vérifications que `watchoo repo add`,
   accès vérifié auprès de GitHub, ou par `git ls-remote` sans `gh` (V2), aucune synchro lancée). Un champ branches vide veut dire « non
@@ -186,6 +258,23 @@ erreurs (500…) : pages en français, sans détail interne (le détail est dans
   l'erreur), car HTMX ne remplace pas le contenu sur une réponse 4xx. La liste des dépôts n'est pas
   rechargée à la fin d'une synchro (seul le quota l'est).
 
+## Liens vers les profils (0.5.0)
+
+Partout où l'interface montre un contributeur (classement et table des données du graphique de la page
+des contributeurs, contributeurs et table du graphique de la page d'un dépôt, auteur des commits des
+historiques, du fil et des cartes du tableau de bord, page d'un contributeur), son nom mène à **sa page**
+(lien principal) ; si son compte de forge est connu, un **lien secondaire** « GitHub » ouvre son profil
+dans un nouvel onglet (`target="_blank"`, `rel="noopener noreferrer"`, comme les liens vers les commits
+et les dépôts), avec le libellé accessible « Profil GitHub de <login> ».
+
+- L'adresse vient du provider (`html_url` du compte, enregistrée dans `contributors.profile_url`, voir
+  [Modèle de données](04-modele-donnees.md#contributors--personnes-identifiées)) ; `internal/web` ne
+  construit aucune adresse de forge. Seule une adresse `https://` est affichée (fonction de template
+  `profileURL`), sinon pas de lien.
+- Pas de lien pour un contributeur connu seulement par son nom et son e-mail Git (clones Git locaux),
+  ni, après la mise à jour vers 0.5.0, pour un contributeur dont aucun nouveau commit n'a encore été lu
+  par l'API (l'adresse arrive avec son prochain commit).
+
 ## Graphiques d'activité
 
 Deux formes de graphique (Chart.js 4, embarqué, chargé seulement sur les pages qui en ont un) :
@@ -193,7 +282,9 @@ commits par jour sur 90 jours (`activity.DailyCounts`) pour le tableau de bord e
 dépôt ; commits par semaine et par contributeur sur 12 semaines (`activity.CountContributorWeeks`,
 séries construites par `buildContributorChart` dans `internal/web/charts.go`, template partagé
 `contributors-chart` de `partials.html`) pour la page des contributeurs (tous les dépôts) et le détail
-d'un dépôt (ses seuls commits).
+d'un dépôt (ses seuls commits). La page d'un contributeur (0.5.0) reprend les deux formes : par jour
+pour ses commits (`store.ContributorCommitTimes`), et empilé par semaine avec **une série par dépôt**
+(`buildRepoChart` ; mêmes comptages par `activity.CountRepoWeeks`).
 
 - **Calcul en Go**, par des fonctions pures testées : jours et semaines (du lundi au dimanche) dans le
   **fuseau d'affichage** de l'espace ([Dates](04-modele-donnees.md#dates)) ; dates lues par
@@ -231,6 +322,10 @@ flowchart LR
     DASH --> SET["Réglages"]
     REPO --> CONTRIB
     CONTRIB --> REPO
+    CONTRIB --> PERSON["Page d'un contributeur"]
+    REPO --> PERSON
+    DASH --> PERSON
+    PERSON --> REPO
 ```
 
 ## Logo et icônes
@@ -318,7 +413,9 @@ Fonctionnement (`wsync.Coordinator`, un seul par processus, qui réutilise le mo
   continue une fois la synchro finie ; il ne coûte qu'une lecture en mémoire de l'état du coordinateur
   (aucun appel GitHub, aucune requête en base) et un fragment de quelques centaines d'octets. Quand il
   constate la fin d'une synchro, sa réponse porte l'en-tête `HX-Trigger: sync-finished`, et les
-  fragments des pages (cartes, fil, historique…) ainsi que les graphiques se rechargent.
+  fragments des pages (cartes, fil, historique…) ainsi que les graphiques se rechargent. Hors synchro,
+  il donne le bilan de la dernière : dépôts en erreur, reportés, et nombre d'**avertissements** (pull
+  requests, releases ou tags non lus, clone Git local indisponible ; le détail est dans l'infobulle) ;
   Une synchro lancée depuis l'interface et déjà terminée quand la réponse est rendue (échec immédiat
   du moteur, dépôt vite synchronisé) porte cet en-tête dès la réponse au `POST`. Les boutons de synchro
   (« Synchroniser maintenant », « Synchroniser ce dépôt ») et celui de la suppression d'un dépôt ne
@@ -383,5 +480,6 @@ Fonctionnement (`wsync.Coordinator`, un seul par processus, qui réutilise le mo
   journalisée en `debug` ; les autres échecs de lecture du quota, en avertissement.
 - **Limites** : délais du serveur (`ReadHeaderTimeout` 5 s…), corps de requête borné à 64 Kio (1 Mio
   plus 64 Kio pour `POST /settings/import` et `POST /settings/import/apply`, qui portent un fichier ;
-  au-delà : `413`, rien n'est appliqué), identifiants de dépôt validés par la route (1 à 18 chiffres).
+  au-delà : `413`, rien n'est appliqué), identifiants de dépôt et de contributeur validés par la route
+  (1 à 18 chiffres).
 - Le token GitHub n'est jamais affiché ni renvoyé au navigateur.

@@ -117,7 +117,10 @@ func TestWebEndToEnd(t *testing.T) {
 	assertContains(t, w, "badge-success", "badge-warning", "badge-error", "Flemme · 9 j", "Dead · 42 j",
 		"&lt;script&gt;", "e2e-bob-essai-dev")
 	assertNotContains(t, w, xssMessage, "Jamais synchronisé")
+	// Contenu de la page seulement : l'indicateur de synchro (navbar) peut citer des dépôts dans
+	// l'infobulle de ses avertissements (clones Git locaux indisponibles dans ce test).
 	body := w.Body.String()
+	body = body[strings.Index(body, `id="main"`):]
 	if c, b, a := strings.Index(body, "carol/projet"), strings.Index(body, "bob/projet"),
 		strings.Index(body, "Alice Martin"); c < 0 || b < 0 || a < 0 || c > b || b > a {
 		t.Errorf("ordre des cartes : carol %d, bob %d, alice %d (Dead, Flemme, Actif attendu)", c, b, a)
@@ -157,6 +160,16 @@ func TestWebEndToEnd(t *testing.T) {
 	assertStatus(t, w, http.StatusOK)
 	assertContains(t, w, "Alice Martin", "Bob Durand", "Carol", "Étudiant Test", repoPath(carolID))
 
+	// 7 bis. Page d'un contributeur (0.5.0) : liée depuis le classement, avec le profil donné par
+	// l'API GitHub (html_url du compte), ses dépôts et ses commits.
+	aliceContrib := e.contributorIDs()["Alice Martin"]
+	assertContains(t, w, `href="`+contributorPath(aliceContrib)+`"`)
+	w = e.get(contributorPath(aliceContrib))
+	assertStatus(t, w, http.StatusOK)
+	assertContains(t, w, `href="https://github.com/alice-gh"`, `aria-label="Profil GitHub de alice-gh"`,
+		repoPath(aliceID), "e2e-alice-tests")
+	assertNoLeak(t, "page d'un contributeur", w.Body.String())
+
 	// 8. Retrait depuis les réglages : arrêt du suivi (historique gardé), puis suppression.
 	w = e.get("/settings/repos/" + strconv.FormatInt(carolID, 10) + "/remove")
 	assertStatus(t, w, http.StatusOK)
@@ -172,7 +185,9 @@ func TestWebEndToEnd(t *testing.T) {
 	w = e.get("/settings")
 	assertStatus(t, w, http.StatusOK)
 	assertContains(t, w, "Alice Martin", "carol/projet")
-	assertNotContains(t, w, "bob/projet")
+	if main := w.Body.String()[strings.Index(w.Body.String(), `id="main"`):]; strings.Contains(main, "bob/projet") {
+		t.Error("bob/projet encore dans les réglages après sa suppression")
+	}
 
 	// 9. Le faux GitHub n'a reçu que des lectures, toutes avec le token (jamais envoyé au navigateur).
 	for _, req := range srv.Requests() {

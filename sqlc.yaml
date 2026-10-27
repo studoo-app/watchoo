@@ -29,3 +29,5 @@ sql:
           sha: "SHA"
           head_sha: "HeadSHA"
           commit_url: "CommitURL"
+          profile_url: "ProfileURL"
+          author_profile_url: "AuthorProfileURL"

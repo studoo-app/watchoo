@@ -66,15 +66,18 @@ func (d DashboardRepo) Accent() string {
 	}
 }
 
-// DashboardCounts compte les dépôts par état ; Gray regroupe tous les états gris.
+// DashboardCounts compte les dépôts par état ; Gray regroupe tous les états gris. Lines additionne
+// les lignes ajoutées et supprimées de tous les commits de l'espace (store.RepositorySummary.Lines).
 type DashboardCounts struct {
 	Total, Active, Flemme, Dead, Gray int
+	Lines                             model.LineTotals
 }
 
 // countStates compte les dépôts de repos par état.
 func countStates(repos []DashboardRepo) DashboardCounts {
 	c := DashboardCounts{Total: len(repos)}
 	for _, r := range repos {
+		c.Lines = c.Lines.Add(r.Lines)
 		switch st := r.State.State; {
 		case st == activity.StateActive:
 			c.Active++

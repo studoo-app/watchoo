@@ -56,11 +56,18 @@ Au choix (la source est choisie à chaque synchro, sans réglage) :
 
 - **Recommandé** : la [CLI GitHub `gh`](https://cli.github.com/), installée et connectée (`gh auth login`),
   avec un compte qui a accès aux dépôts à suivre. Watchoo passe par l'API GitHub ; il demande le token à
-  `gh` (`gh auth token`) et ne le stocke jamais.
+  `gh` (`gh auth token`) et ne le stocke jamais. **[Git](https://git-scm.com/) est aussi recommandé avec
+  `gh`** : chaque dépôt suivi est cloné dans `repos/` (voir ci-dessous) pour compter les lignes
+  ajoutées et supprimées de tous les commits, sans quota. Le clone utilise vos identifiants Git (clé
+  SSH par défaut ; en HTTPS, `git.protocol: https`, et `gh auth setup-git` pour que `git` réutilise le
+  compte de `gh`), jamais le token. Sans clone possible, la synchro continue par l'API seule et les
+  lignes ne sont connues que pour 100 nouveaux commits par dépôt et par synchro (avertissement dans le
+  bilan).
 - **Sans `gh`** (pas encore publié) : [Git](https://git-scm.com/), avec une clé SSH (ou des identifiants
   Git en HTTPS, `git.protocol: https`) qui a accès aux dépôts. Watchoo les suit par clones locaux dans
   `repos/<name>`, à la racine de l'espace (homonymes : `repos/<owner>-<name>`), sans quota, mais sans
-  pull requests, releases ni étoiles. `github.com` doit être connu de SSH (`ssh -T git@github.com` une
+  pull requests, releases ni étoiles. Avec ou sans `gh`, `repos/` occupe à peu près la taille des
+  dépôts suivis, et la première synchro d'un dépôt le clone en entier. `github.com` doit être connu de SSH (`ssh -T git@github.com` une
   fois) : Watchoo ne laisse `git` rien demander. Ces clones ont une copie de travail, pour lire le code
   des étudiants, mais **ils appartiennent à Watchoo** : à chaque synchro, la copie de travail est remise
   sur la branche par défaut et toute modification locale d'un fichier suivi est **écrasée** (les
@@ -240,7 +247,8 @@ un `.watchoo/` commité dans le dépôt d'un étudiant que vous avez cloné n'es
   affiché dans les journaux, les erreurs ni les sorties. Sans `gh`, Watchoo ne lit ni ne stocke aucun
   identifiant : `git` utilise votre clé SSH ou votre gestionnaire d'identifiants, sans invite.
 - **Lecture seule** : Watchoo refuse tout appel GitHub qui modifierait quelque chose, avant même de
-  l'envoyer ; sans `gh`, il ne lance que `git clone`, `git fetch` et des lectures, jamais `push`.
+  l'envoyer ; côté `git`, il ne lance que `git fetch`, des lectures et la remise à jour de ses propres
+  clones, jamais `push`.
 - **Données locales** : tout reste dans `.watchoo/` (droits `0700`, fichiers `0600`), une base par espace.
   Elles viennent souvent de dépôts privés et contiennent des données personnelles d'étudiants : ne
   commitez pas `.watchoo/` (un `.gitignore` est créé), ne partagez pas la base ni le volume Docker. Ni

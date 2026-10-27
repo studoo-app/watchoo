@@ -14,7 +14,8 @@ trois questions : qu'est-ce qui a bougé, quand, et qui l'a fait. Il propose une
 `contributors`, `prs`, `releases`, `status` et `version` fonctionnent en texte et en `--json` (schéma stable, documenté dans
 [05-cli.md](documentation/05-cli.md#sortie-json) et vérifié par `internal/cli/json_schema_test.go`) ;
 `watchoo tui` ouvre le mode interactif ; `watchoo serve` sert l'interface web locale (tableau de bord et
-contributeurs avec graphiques d'activité, détail d'un dépôt, réglages) et synchronise en arrière-plan. Le
+contributeurs avec graphiques d'activité, détail d'un dépôt, page d'un contributeur (0.5.0, non
+publiée), réglages) et synchronise en arrière-plan. Le
 cœur métier est dans `internal/sync` (moteur : synchro incrémentale, verrou, quota, ajout de dépôts ;
 `Coordinator` : une seule synchro à la fois dans un processus long), `internal/activity` (états Actif /
 Flemme / Dead et gris, séries d'activité par jour et par semaine) et `internal/repoimport` (références,

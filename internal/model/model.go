@@ -93,6 +93,9 @@ type Contributor struct {
 	ProviderLogin  string // login sur la forge, s'il est connu (mis à jour s'il change)
 	Name           string // nom affiché
 	AvatarURL      string // URL de l'avatar
+	// ProfileURL est la page de profil du compte sur la forge (html_url sur GitHub), donnée par le
+	// provider ; vide si aucun compte n'est connu ou si elle n'a pas encore été lue (0.5.0).
+	ProfileURL string
 	// Emails liste les adresses e-mail Git rattachées (table contributor_emails), en minuscules.
 	// Elle n'est remplie que par les fonctions qui le précisent ; nil sinon.
 	Emails []string
@@ -123,9 +126,31 @@ type Commit struct {
 	Message     string    // message de commit (donnée personnelle : jamais dans les logs)
 	AuthoredAt  time.Time // date d'écriture, UTC
 	CommittedAt time.Time // date de commit, UTC
-	Additions   int       // lignes ajoutées
-	Deletions   int       // lignes supprimées
+	Additions   int       // lignes ajoutées (0 si inconnues)
+	Deletions   int       // lignes supprimées (0 si inconnues)
+	StatsKnown  bool      // Additions et Deletions calculées (même à 0) ; faux = inconnues
 	URL         string    // lien vers le commit sur la forge
+}
+
+// LineTotals additionne les lignes ajoutées et supprimées d'un ensemble de commits (un dépôt, l'espace).
+// Seuls les commits dont les statistiques sont connues (commits.stats_known) sont additionnés.
+type LineTotals struct {
+	Commits      int // commits de l'ensemble
+	KnownCommits int // commits dont les statistiques sont connues
+	Additions    int // lignes ajoutées par les commits connus
+	Deletions    int // lignes supprimées par les commits connus
+}
+
+// Known indique si au moins un commit a des statistiques connues (sinon les totaux s'affichent « — »).
+func (l LineTotals) Known() bool { return l.KnownCommits > 0 }
+
+// Uncounted renvoie le nombre de commits dont les statistiques sont encore inconnues.
+func (l LineTotals) Uncounted() int { return max(l.Commits-l.KnownCommits, 0) }
+
+// Add renvoie la somme de l et o.
+func (l LineTotals) Add(o LineTotals) LineTotals {
+	return LineTotals{Commits: l.Commits + o.Commits, KnownCommits: l.KnownCommits + o.KnownCommits,
+		Additions: l.Additions + o.Additions, Deletions: l.Deletions + o.Deletions}
 }
 
 // AuthorCommitTime est l'auteur et la date de commit d'un commit dont l'auteur est connu : une
@@ -134,6 +159,14 @@ type Commit struct {
 type AuthorCommitTime struct {
 	ContributorID int64     // auteur (contributors.id)
 	CommittedAt   time.Time // date du commit, UTC
+}
+
+// RepoCommitTime est le dépôt et la date de commit d'un commit : une lecture de la table commits (pas
+// une table), d'où sont calculées les séries d'activité d'un contributeur par dépôt
+// (activity.CountRepoWeeks, page d'un contributeur).
+type RepoCommitTime struct {
+	RepoID      int64     // dépôt
+	CommittedAt time.Time // date du commit, UTC
 }
 
 // SyncStatus est le résultat d'une synchronisation (colonne sync_runs.status).

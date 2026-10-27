@@ -29,6 +29,7 @@ type Identity struct {
 	Login          string // login du compte de forge lié ; vide si aucun
 	ProviderUserID int64  // identifiant numérique du compte lié ; 0 = aucun compte lié
 	AvatarURL      string // avatar du compte lié ; vide si aucun
+	ProfileURL     string // page de profil du compte lié (donnée par le provider) ; vide si aucun
 }
 
 // CommitWrite est un commit vu pendant une synchro (nouveau ou déjà en base).
@@ -40,11 +41,22 @@ type CommitWrite struct {
 	Committer   Identity  // committer
 	AuthoredAt  time.Time // date d'écriture (convertie par FormatTime)
 	CommittedAt time.Time // date de commit (convertie par FormatTime)
-	Additions   int       // lignes ajoutées ; 0 si les statistiques n'ont pas été demandées
-	Deletions   int       // lignes supprimées ; 0 si les statistiques n'ont pas été demandées
+	Additions   int       // lignes ajoutées ; 0 si les statistiques sont inconnues
+	Deletions   int       // lignes supprimées ; 0 si les statistiques sont inconnues
+	// StatsKnown : Additions et Deletions ont été calculées (même à 0) ; faux = inconnues
+	// (commits.stats_known = 0, reprises plus tard par RepoSyncWrite.Stats).
+	StatsKnown bool
 	// Branches sont les noms des branches (présentes dans RepoSyncWrite.Branches) sur lesquelles le
 	// commit a été vu pendant cette synchro : une ligne commit_branches par branche.
 	Branches []string
+}
+
+// CommitStatsWrite est la statistique d'un commit du dépôt calculée pendant une synchro (clone Git
+// local), pour un commit nouveau ou déjà en base dont les statistiques étaient inconnues.
+type CommitStatsWrite struct {
+	SHA       string // SHA complet
+	Additions int    // lignes ajoutées (>= 0)
+	Deletions int    // lignes supprimées (>= 0)
 }
 
 // BranchState est une branche suivie après filtrage, avec sa tête actuelle sur la forge.
@@ -86,6 +98,10 @@ type RepoSyncWrite struct {
 	// figurer plusieurs fois (les Branches sont alors réunies). Un commit déjà en base n'est ni
 	// réenregistré ni modifié : seules ses lignes commit_branches manquantes sont ajoutées.
 	Commits []CommitWrite
+	// Stats sont les statistiques calculées pendant la synchro, écrites APRÈS les commits (un SHA de
+	// Commits peut donc y figurer) : additions, deletions et stats_known = 1. Un SHA absent de la base
+	// est ignoré.
+	Stats []CommitStatsWrite
 	// PullRequests sont les pull requests lues pendant la synchro (modifiées depuis la précédente) :
 	// chacune est créée ou mise à jour en entier (RepoID ignoré). Les autres PR du dépôt ne changent pas.
 	PullRequests []model.PullRequest
@@ -110,6 +126,8 @@ type RepoSyncResult struct {
 // CommitFilter règle ListRecentCommits. Sa valeur zéro liste tous les commits, sans limite.
 type CommitFilter struct {
 	RepoID int64 // dépôt (identifiant interne) ; 0 = tous les dépôts
+	// AuthorID filtre sur le contributeur auteur (contributors.id, page d'un contributeur) ; 0 = tous.
+	AuthorID int64
 	// Author filtre sur l'auteur : login de forge, nom ou e-mail rattaché, comparés sans tenir compte
 	// de la casse (égalité, pas de sous-chaîne) ; vide = tous.
 	Author string
@@ -130,6 +148,8 @@ type CommitView struct {
 	RepoLabel   string // nom affiché du dépôt (vide = owner/name)
 	AuthorName  string // nom du contributeur auteur ; vide si inconnu
 	AuthorLogin string // login de forge de l'auteur ; vide si inconnu
+	// AuthorProfileURL est la page de profil de l'auteur sur la forge ; vide si inconnue.
+	AuthorProfileURL string
 }
 
 // RepoDisplayName renvoie le nom affiché du dépôt du commit (RepoLabel, sinon owner/name).
@@ -160,8 +180,24 @@ type ContributorStats struct {
 	Commits           int       // nombre de commits
 	Additions         int       // somme des lignes ajoutées (statistiques connues seulement)
 	Deletions         int       // somme des lignes supprimées
+	KnownCommits      int       // commits dont les statistiques sont connues
 	Repos             int       // nombre de dépôts distincts
 	LastCommitAt      time.Time // date du commit le plus récent (committed_at)
+}
+
+// Lines renvoie les totaux de lignes des commits du classement.
+func (c ContributorStats) Lines() model.LineTotals {
+	return model.LineTotals{Commits: c.Commits, KnownCommits: c.KnownCommits, Additions: c.Additions,
+		Deletions: c.Deletions}
+}
+
+// SumLines additionne les totaux de lignes des dépôts summaries (totaux de l'espace).
+func SumLines(summaries []RepositorySummary) model.LineTotals {
+	var t model.LineTotals
+	for _, s := range summaries {
+		t = t.Add(s.Lines)
+	}
+	return t
 }
 
 // RepositorySummary est une ligne de la vue « résumé par dépôt » (repo list, status, TUI).
@@ -169,6 +205,8 @@ type RepositorySummary struct {
 	model.Repository
 	Commits         int // nombre de commits en base
 	TrackedBranches int // branches à tracked = 1
+	// Lines additionne les lignes ajoutées et supprimées des commits du dépôt (Lines.Commits = Commits).
+	Lines model.LineTotals
 	// LastCommit est le commit le plus récent sur les branches suivies (celui de LastCommitAt ;
 	// égalité départagée par SHA croissant) ; valeur zéro (SHA vide) si aucun.
 	LastCommit CommitView
@@ -186,7 +224,10 @@ type PullRequestFilter struct {
 	RepoID int64 // dépôt ; 0 = tous
 	// Status filtre sur l'état affiché (model.PullRequestStatus…) ; vide = tous.
 	Status model.PullRequestStatus
-	Limit  int // nombre maximum de lignes ; 0 ou négatif = pas de limite
+	// AuthorProviderID filtre sur le compte de forge de l'auteur (pull_requests.author_provider_id,
+	// rapproché de contributors.provider_user_id) ; 0 = tous.
+	AuthorProviderID int64
+	Limit            int // nombre maximum de lignes ; 0 ou négatif = pas de limite
 }
 
 // RepoRef désigne le dépôt d'une ligne de vue (pull request, release, tag).
@@ -238,4 +279,26 @@ type TagView struct {
 	RepoRef
 	CommittedAt time.Time // date du commit visé ; zéro s'il n'est pas en base
 	CommitURL   string    // lien vers le commit visé ; vide s'il n'est pas en base
+}
+
+// Lines renvoie les totaux de lignes des commits du contributeur.
+func (p ContributorProfile) Lines() model.LineTotals {
+	return model.LineTotals{Commits: p.Commits, KnownCommits: p.KnownCommits, Additions: p.Additions,
+		Deletions: p.Deletions}
+}
+
+// ContributorProfile est la fiche d'un contributeur (page d'un contributeur, 0.5.0) : le contributeur
+// et les totaux des commits dont il est l'AUTEUR.
+type ContributorProfile struct {
+	model.Contributor // Emails reste nil : seul leur nombre est lu (Identities)
+	// Identities est le nombre d'adresses e-mail Git rattachées au contributeur ; les adresses ne
+	// sont jamais lues ici.
+	Identities    int
+	Commits       int       // commits dont il est l'auteur
+	Additions     int       // lignes ajoutées (statistiques connues seulement)
+	Deletions     int       // lignes supprimées
+	KnownCommits  int       // commits dont les statistiques sont connues
+	Repos         int       // dépôts distincts
+	FirstCommitAt time.Time // premier commit (committed_at) ; zéro si aucun
+	LastCommitAt  time.Time // dernier commit (committed_at) ; zéro si aucun
 }

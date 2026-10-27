@@ -190,10 +190,7 @@ func (m Model) handleSyncDone(msg syncDoneMsg) (tea.Model, tea.Cmd) {
 	}
 	m.loading = true
 	cmds := []tea.Cmd{m.loadCmd()}
-	if m.detail.open {
-		m.detail.loading = true
-		cmds = append(cmds, m.detailCmd(m.detail.repoID))
-	}
+	cmds = append(cmds, m.reloadDetails()...)
 	return m, tea.Batch(cmds...)
 }
 

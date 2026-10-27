@@ -35,6 +35,38 @@ type fakeData struct {
 	// authorTimes : auteur et date des commits, par dépôt (AuthorCommitTimes).
 	authorTimes map[int64][]model.AuthorCommitTime
 	authorReads []int64 // dépôts demandés à AuthorCommitTimes
+	// Détail d'un contributeur (0.5.0), par identifiant de contributeur.
+	profiles     map[int64]store.ContributorProfile
+	contribRepos map[int64][]store.ContributorRepoStats
+	repoTimes    map[int64][]model.RepoCommitTime
+}
+
+func (f *fakeData) ContributorProfile(_ context.Context, id int64) (store.ContributorProfile, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	p, ok := f.profiles[id]
+	if !ok && f.err == nil {
+		return p, store.ErrNotFound
+	}
+	return p, f.err
+}
+
+func (f *fakeData) ContributorRepos(_ context.Context, id int64) ([]store.ContributorRepoStats, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return slices.Clone(f.contribRepos[id]), f.err
+}
+
+func (f *fakeData) ContributorCommitTimes(_ context.Context, id int64, since time.Time) ([]model.RepoCommitTime, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var out []model.RepoCommitTime
+	for _, rt := range f.repoTimes[id] {
+		if !rt.CommittedAt.Before(since) {
+			out = append(out, rt)
+		}
+	}
+	return out, f.err
 }
 
 func (f *fakeData) RepositorySummaries(context.Context) ([]store.RepositorySummary, error) {
@@ -50,7 +82,7 @@ func (f *fakeData) ListRecentCommits(_ context.Context, flt store.CommitFilter) 
 	f.commitFilters = append(f.commitFilters, flt)
 	var out []store.CommitView
 	for _, c := range f.commits {
-		if flt.RepoID == 0 || c.RepoID == flt.RepoID {
+		if (flt.RepoID == 0 || c.RepoID == flt.RepoID) && (flt.AuthorID == 0 || c.AuthorID == flt.AuthorID) {
 			out = append(out, c)
 		}
 	}
@@ -133,7 +165,7 @@ func newFakeData() *fakeData {
 		},
 		contribs: []store.ContributorStats{
 			{Contributor: model.Contributor{ID: 1, Name: "Alice", ProviderLogin: "alice-gh"}, Commits: 5,
-				Additions: 10, Deletions: 2, Repos: 1, LastCommitAt: testNow.Add(-2 * time.Hour)},
+				Additions: 10, Deletions: 2, KnownCommits: 5, Repos: 1, LastCommitAt: testNow.Add(-2 * time.Hour)},
 			{Contributor: model.Contributor{ID: 2, Name: "Bob"}, Commits: 1, Repos: 1,
 				LastCommitAt: testNow.Add(-9 * 24 * time.Hour)},
 		},

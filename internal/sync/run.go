@@ -164,10 +164,11 @@ func (e *Engine) run(ctx context.Context, repos []model.Repository, opts SyncOpt
 		}
 	}
 
+	cl := e.openClones(ctx, prov, src)
 	report.Repos = make([]RepoReport, len(repos))
 	h := &halt{}
 	forEach(len(repos), e.cfg.Sync.Parallelism, func(i int) {
-		rep := e.syncOne(ctx, prov, redact, h, repos[i], prog)
+		rep := e.syncOne(ctx, prov, cl, src, redact, h, repos[i], prog)
 		report.Repos[i] = rep // indice propre à chaque goroutine
 		prog.send(EventRepoFinished, rep, true)
 	})
@@ -190,8 +191,8 @@ func (e *Engine) run(ctx context.Context, repos []model.Repository, opts SyncOpt
 
 // syncOne applique à un dépôt les contrôles de SyncAll (annulation, arrêt, garde-fou, verrou), puis
 // le synchronise et enregistre un éventuel échec dans sync_runs.
-func (e *Engine) syncOne(ctx context.Context, prov provider.Provider, redact func(string) string, h *halt,
-	repo model.Repository, prog *progress) RepoReport {
+func (e *Engine) syncOne(ctx context.Context, prov provider.Provider, cl clones, src Source,
+	redact func(string) string, h *halt, repo model.Repository, prog *progress) RepoReport {
 	rep := baseReport(repo)
 	if err := ctx.Err(); err != nil {
 		rep.Status, rep.Error = StatusError, errorMessage(err)
@@ -227,7 +228,7 @@ func (e *Engine) syncOne(ctx context.Context, prov provider.Provider, redact fun
 
 	prog.send(EventRepoStarted, rep, false)
 	start := e.now()
-	res, err := e.syncRepository(ctx, prov, h, repo, run)
+	res, err := e.syncRepository(ctx, prov, cl, src, h, repo, run)
 	rep.Duration = e.now().Sub(start)
 	if err != nil {
 		var rle *provider.RateLimitError

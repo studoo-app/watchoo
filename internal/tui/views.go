@@ -1,7 +1,7 @@
 package tui
 
 // Rendu de l'écran : en-tête, liste de la vue courante (dépôts, commits, contributeurs), détail d'un
-// dépôt ou aide, puis bas de l'écran (message, filtre, rappel des touches).
+// dépôt ou d'un contributeur, ou aide, puis bas de l'écran (message, filtre, rappel des touches).
 
 import (
 	"fmt"
@@ -60,6 +60,8 @@ func (m Model) render() string {
 		body = m.renderHelp()
 	case m.detail.open:
 		body = m.renderDetail()
+	case m.cdetail.open:
+		body = m.renderContribDetail()
 	default:
 		body = m.renderList()
 	}
@@ -89,7 +91,7 @@ func (m Model) renderFooter(w int) []string {
 		} else {
 			msg = text
 		}
-	case ls.filter != "" && !m.detail.open && !m.showHelp:
+	case ls.filter != "" && !m.detail.open && !m.cdetail.open && !m.showHelp:
 		msg = m.st.Muted.Render(truncate("Filtre : "+ls.filter+" (échap pour l'effacer)", w, m.ellipsis()))
 	}
 	var keys []string
@@ -175,12 +177,12 @@ func (m Model) tableData(v view) ([]column, []row) {
 		return cols, rows
 	case viewCommits:
 		cols := []column{{title: "QUAND"}, {title: "DÉPÔT", max: 24}, {title: "AUTEUR", max: 18},
-			{title: "SHA"}, {title: "MESSAGE", flex: true}}
+			{title: "SHA"}, {title: "+/-", right: true}, {title: "MESSAGE", flex: true}}
 		for _, i := range vis {
 			c := m.commits[i]
 			rows = append(rows, row{
 				cells: []string{activity.Relative(c.CommittedAt, now, loc, uni), clean(c.RepoDisplayName()),
-					clean(c.AuthorDisplayName()), shortSHA(c.SHA), firstLine(c.Message)},
+					clean(c.AuthorDisplayName()), shortSHA(c.SHA), commitLines(c.Commit), firstLine(c.Message)},
 				stateCol: -1,
 			})
 		}
@@ -197,7 +199,7 @@ func (m Model) tableData(v view) ([]column, []row) {
 			}
 			rows = append(rows, row{
 				cells: []string{clean(c.DisplayName()), login, strconv.Itoa(c.Commits),
-					fmt.Sprintf("+%d/-%d", c.Additions, c.Deletions), strconv.Itoa(c.Repos),
+					lineTotals(c.Lines()), strconv.Itoa(c.Repos),
 					activity.Relative(c.LastCommitAt, now, loc, uni)},
 				stateCol: -1,
 			})

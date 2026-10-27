@@ -90,6 +90,7 @@ type commitJSON struct {
 	CommittedAt *time.Time  `json:"committed_at"`
 	Additions   int         `json:"additions"` // 0 si les statistiques sont inconnues
 	Deletions   int         `json:"deletions"`
+	StatsKnown  bool        `json:"stats_known"` // additions et deletions calculées (même à 0)
 }
 
 // newCommitJSON convertit une ligne de la vue des commits.
@@ -113,6 +114,7 @@ func newCommitJSON(c store.CommitView) commitJSON {
 		CommittedAt: timeJSON(c.CommittedAt),
 		Additions:   c.Additions,
 		Deletions:   c.Deletions,
+		StatsKnown:  c.StatsKnown,
 	}
 }
 

@@ -14,7 +14,8 @@
 //
 // Source (V2, voir Source) : choisie à chaque fois, uniquement selon gh. Token lu : API GitHub. gh
 // introuvable ou connecté à aucun compte (auth.Absent) : clones Git locaux (NewGitProvider), sans
-// token. Toute autre erreur de gh (délai, réponse illisible) reste une erreur : elle ne fait pas
+// token. Dans les deux cas, chaque dépôt a son clone, qui donne les statistiques de lignes (voir
+// clonestats.go, « toujours cloner »). Toute autre erreur de gh (délai, réponse illisible) reste une erreur : elle ne fait pas
 // basculer vers git.
 //
 // Logs (slog, Options.Logger) : identifiants de dépôt (owner/name), SHA courts, compteurs et durées
@@ -48,7 +49,8 @@ const (
 	// QuotaReservePercent : sous ce pourcentage de quota restant (Remaining*100 < Limit*10), les
 	// dépôts restants sont reportés et aucune statistique de commit n'est demandée.
 	QuotaReservePercent = 10
-	// MaxStatsPerRepo : nombre maximum d'appels CommitStats par dépôt et par synchro.
+	// MaxStatsPerRepo : nombre maximum d'appels CommitStats par dépôt et par synchro (repli sur l'API
+	// quand le clone Git local est indisponible ; le clone n'a pas de plafond).
 	MaxStatsPerRepo = 100
 )
 
@@ -56,9 +58,12 @@ const (
 // synchro avec le token fraîchement lu ; le Provider ne vit que le temps de cette synchro.
 type ProviderFactory func(token string) (provider.Provider, error)
 
-// GitProviderFactory construit le Provider des clones Git locaux (V2), utilisé sans gh. Le moteur
-// l'appelle au début de chaque synchro faite sans gh, avec les dépôts de l'espace dans l'ordre de leur
-// ajout (CloneRefs) : ils fixent l'emplacement des clones (git.Options.Repos).
+// GitProviderFactory construit le Provider des clones Git locaux (V2). Le moteur l'appelle au début de
+// chaque synchro, avec les dépôts de l'espace dans l'ordre de leur ajout (CloneRefs) : ils fixent
+// l'emplacement des clones (git.Options.Repos). Sans gh, c'est la source de la synchro ; avec gh, il
+// sert aux statistiques de lignes (CloneStats, « toujours cloner ») : une erreur donne alors un
+// avertissement par dépôt et le repli sur l'API, et (nil, nil) désactive les clones sans
+// avertissement (tests sans répertoire des clones ; sans gh, (nil, nil) est une erreur).
 type GitProviderFactory func(repos []gitprov.Ref) (provider.Provider, error)
 
 // SourceKind est le moyen d'accès aux dépôts. Valeurs stables (sorties --json).
@@ -98,12 +103,14 @@ type Options struct {
 	// toutes les synchros de l'Engine (donc de tout le processus). Les tests y renvoient un
 	// providertest.Fake ou un provider GitHub branché sur githubtest.
 	NewProvider ProviderFactory
-	// NewGitProvider construit le Provider des clones Git locaux, utilisé quand gh n'est pas installé
-	// ou pas connecté ; nil = git.New(git.Options{Dir: ReposDir, Repos, Protocol: Config.Git.Protocol,
-	// Logger}). Les tests y branchent un provider Git sur gittest.
+	// NewGitProvider construit le Provider des clones Git locaux, source des synchros quand gh n'est pas
+	// installé ou pas connecté, et des statistiques de lignes dans tous les cas ; nil =
+	// git.New(git.Options{Dir: ReposDir, Repos, Protocol: Config.Git.Protocol, Logger}). Les tests y
+	// branchent un provider Git sur gittest.
 	NewGitProvider GitProviderFactory
 	// ReposDir est le répertoire des clones Git locaux de l'espace (workspace.Workspace.ReposDir), pour
-	// le provider Git par défaut ; vide (et NewGitProvider nil) = suivi sans gh impossible.
+	// le provider Git par défaut ; vide (et NewGitProvider nil) = suivi sans gh impossible, et
+	// clones désactivés avec gh (statistiques par l'API seule, sans avertissement).
 	ReposDir string
 	// UserAgent est passé au provider GitHub par défaut (« watchoo/<version> ») ; vide = défaut.
 	UserAgent string
@@ -155,7 +162,7 @@ func New(opts Options) (*Engine, error) {
 		dir, protocol := opts.ReposDir, opts.Config.Git.Protocol
 		newGit = func(repos []gitprov.Ref) (provider.Provider, error) {
 			if dir == "" {
-				return nil, errors.New("répertoire des clones Git locaux non renseigné")
+				return nil, nil // clones désactivés (voir GitProviderFactory)
 			}
 			return gitprov.New(gitprov.Options{Dir: dir, Repos: repos, Protocol: protocol, Logger: logger})
 		}
@@ -236,9 +243,12 @@ func (e *Engine) SyncAll(ctx context.Context, opts SyncOptions) (Report, error) 
 //   - ErrUnknownBase : nouvel essai depuis la tête de la branche de référence (si la branche n'est
 //     pas elle-même la référence), sinon ListCommits de la branche sans Stop ;
 //   - tête inchangée : aucune requête de commits ; dépôt vide : succès sans commit ;
-//   - statistiques (CommitStats) seulement si le dépôt avait déjà des commits avant cette synchro,
-//     pour les commits absents de la base (store.ExistingCommitSHAs), au plus MaxStatsPerRepo, et
-//     jamais quand le quota restant est sous QuotaReservePercent ; sinon additions / deletions à 0 ;
+//   - statistiques de lignes (voir lineStats) : par le clone Git local du dépôt, avec ou sans gh,
+//     pour tous les nouveaux commits (premier import compris) et tous les commits déjà en base dont
+//     les statistiques sont inconnues ; clone indisponible : avertissement et repli sur l'API
+//     (CommitStats), seulement si le dépôt avait déjà des commits avant cette synchro, pour les
+//     commits absents de la base, au plus MaxStatsPerRepo, et jamais quand le quota restant est sous
+//     QuotaReservePercent ; les autres restent inconnues (stats_known = 0) ;
 //   - pull requests (depuis la plus récente date de modification en base), releases et tags (V2,
 //     voir fetchExtras) : un échec devient un avertissement (RepoReport.Warnings), le dépôt réussit ;
 //   - écriture : store.ApplyRepoSync (une transaction).
@@ -309,6 +319,9 @@ func (e *Engine) openProvider(ctx context.Context) (provider.Provider, func(stri
 			return nil, nil, Source{}, err
 		}
 		prov, err := e.newGit(CloneRefs(all))
+		if err == nil && prov == nil {
+			err = errors.New("répertoire des clones Git locaux non renseigné")
+		}
 		if err != nil {
 			return nil, nil, Source{}, fmt.Errorf("dépôts Git locaux (gh absent ou non connecté) : %w", err)
 		}

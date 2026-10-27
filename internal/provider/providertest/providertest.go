@@ -305,7 +305,8 @@ func (f *Fake) addCommitLocked(repo *fakeRepo, c provider.Commit) {
 // (AuthoredAt = CommittedAt, UTC), de messages « commit <k> », d'URL
 // « https://github.com/<owner>/<name>/commit/<sha> », par l'auteur factice {Name: « Étudiant Test »,
 // Email: « etudiant@example.test », Login: « etudiant-test », ID: 1001, AvatarURL:
-// « https://avatars.example.test/u/1001 »} (Committer identique), puis place branch sur le dernier.
+// « https://avatars.example.test/u/1001 », ProfileURL: « https://github.example.test/etudiant-test »}
+// (Committer identique), puis place branch sur le dernier.
 // Renvoie les commits créés dans l'ordre de création (du plus ancien au plus récent ; slice vide non
 // nil si n vaut 0, sans toucher à la branche). n négatif ou branche invalide : panique.
 func (f *Fake) AppendCommits(repoID int64, branch string, n int, start time.Time, step time.Duration) []provider.Commit {
@@ -319,11 +320,12 @@ func (f *Fake) AppendCommits(repoID int64, branch string, n int, start time.Time
 	defer f.mu.Unlock()
 	repo := f.repoLocked("providertest.AppendCommits", repoID)
 	author := provider.Person{
-		Name:      "Étudiant Test",
-		Email:     "etudiant@example.test",
-		Login:     "etudiant-test",
-		ID:        1001,
-		AvatarURL: "https://avatars.example.test/u/1001",
+		Name:       "Étudiant Test",
+		Email:      "etudiant@example.test",
+		Login:      "etudiant-test",
+		ID:         1001,
+		AvatarURL:  "https://avatars.example.test/u/1001",
+		ProfileURL: "https://github.example.test/etudiant-test",
 	}
 	parent := repo.branches[branch]
 	out := make([]provider.Commit, 0, n)

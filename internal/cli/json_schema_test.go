@@ -108,6 +108,9 @@ func TestJSONSchemaAllCommands(t *testing.T) {
 	assertJSONKeys(t, outputs["releases"], "tags.0", "repository", "name", "sha", "short_sha", "commit_url",
 		"committed_at")
 	assertContains(t, "sync --json", outputs["sync"], `"warnings": []`)
+	// Éléments de « log » (stats_known : 0.5.0).
+	assertJSONKeys(t, outputs["log"], "commits.0", "repository", "sha", "short_sha", "message", "url", "author",
+		"authored_at", "committed_at", "additions", "deletions", "stats_known")
 	// Éléments de « contributors » : weekly ([] sans --weeks, objets week / count avec).
 	assertJSONKeys(t, outputs["contributors"], "contributors.0", contributorKeys...)
 	weekly := h.run("contributors", "--weeks", "2", "--json").mustSucceed(t).stdout

@@ -147,7 +147,8 @@ func WeeklyCounts(times []time.Time, now time.Time, weeks int, loc *time.Locatio
 }
 
 // ContributorWeekCounts est l'activité par semaine de chaque contributeur sur une fenêtre de semaines
-// (CountContributorWeeks).
+// (CountContributorWeeks), ou de chaque dépôt d'un contributeur (CountRepoWeeks : les clés sont alors
+// des identifiants de dépôt).
 type ContributorWeekCounts struct {
 	Weeks []string // lundis des semaines (2006-01-02), de la plus ancienne à la plus récente (WeekKeys)
 	// Counts : commits par semaine de chaque contributeur qui a au moins un commit dans la fenêtre,
@@ -179,21 +180,40 @@ func (c ContributorWeekCounts) TotalOf(id int64) int {
 // WeeksStart(now, weeks, loc). Fonction pure.
 func CountContributorWeeks(times []model.AuthorCommitTime, now time.Time, weeks int,
 	loc *time.Location) ContributorWeekCounts {
+	return countKeyedWeeks(len(times), func(i int) (int64, time.Time) {
+		return times[i].ContributorID, times[i].CommittedAt
+	}, now, weeks, loc)
+}
+
+// CountRepoWeeks compte les commits de times par dépôt et par semaine calendaire, avec les mêmes règles
+// que CountContributorWeeks : le résultat a la même forme, ses clés sont des identifiants de dépôt
+// (page d'un contributeur, 0.5.0 : ses commits par dépôt). Lire times avec la borne
+// WeeksStart(now, weeks, loc). Fonction pure.
+func CountRepoWeeks(times []model.RepoCommitTime, now time.Time, weeks int, loc *time.Location) ContributorWeekCounts {
+	return countKeyedWeeks(len(times), func(i int) (int64, time.Time) {
+		return times[i].RepoID, times[i].CommittedAt
+	}, now, weeks, loc)
+}
+
+// countKeyedWeeks compte n dates (at(i) : clé et date) par clé et par semaine calendaire.
+func countKeyedWeeks(n int, at func(i int) (int64, time.Time), now time.Time, weeks int,
+	loc *time.Location) ContributorWeekCounts {
 	keys := WeekKeys(now, weeks, loc)
 	index := make(map[string]int, len(keys))
 	for i, k := range keys {
 		index[k] = i
 	}
 	c := ContributorWeekCounts{Weeks: keys, Counts: make(map[int64][]int)}
-	for _, at := range times {
-		i, ok := index[WeekOf(at.CommittedAt, loc)]
+	for j := range n {
+		id, t := at(j)
+		i, ok := index[WeekOf(t, loc)]
 		if !ok {
 			continue
 		}
-		if c.Counts[at.ContributorID] == nil {
-			c.Counts[at.ContributorID] = make([]int, len(keys))
+		if c.Counts[id] == nil {
+			c.Counts[id] = make([]int, len(keys))
 		}
-		c.Counts[at.ContributorID][i]++
+		c.Counts[id][i]++
 		c.Total++
 	}
 	return c

@@ -19,9 +19,10 @@ type repoOutcome struct {
 	fullName    string // owner/name actuels
 	displayName string // label, sinon owner/name actuels
 	result      store.RepoSyncResult
-	stats       int // appels CommitStats faits
+	stats       int // statistiques calculées par le clone, ou appels CommitStats faits (repli sur l'API)
 	pulls       int // pull requests lues (créées ou mises à jour)
-	// warnings : listes (pull requests, releases, tags) non synchronisées, en français.
+	// warnings : listes (pull requests, releases, tags) non synchronisées, clone Git local
+	// indisponible, en français.
 	warnings []string
 }
 
@@ -39,8 +40,8 @@ type repoSync struct {
 
 // syncRepository synchronise repo avec le sync_run run déjà ouvert (verrou pris) ; en cas de succès,
 // le sync_run est clos par store.ApplyRepoSync. Voir SyncRepo pour la stratégie.
-func (e *Engine) syncRepository(ctx context.Context, prov provider.Provider, h *halt, repo model.Repository,
-	run model.SyncRun) (repoOutcome, error) {
+func (e *Engine) syncRepository(ctx context.Context, prov provider.Provider, cl clones, src Source, h *halt,
+	repo model.Repository, run model.SyncRun) (repoOutcome, error) {
 	meta, err := e.lookupRepository(ctx, prov, repo)
 	if err != nil {
 		return repoOutcome{}, err
@@ -100,16 +101,17 @@ func (e *Engine) syncRepository(ctx context.Context, prov provider.Provider, h *
 		e.logger.Warn("commits ignorés : date absente", "repo", s.full, "nombre", s.skipped)
 	}
 
-	stats := 0
-	if !firstImport {
-		if stats, err = s.fetchStats(ctx, h, repo.ID); err != nil {
-			return repoOutcome{}, err
-		}
+	stats, statsWrites, statsWarning, err := s.lineStats(ctx, h, repo.ID, firstImport, meta.DefaultBranch, cl, src)
+	if err != nil {
+		return repoOutcome{}, err
 	}
 
 	x, err := s.fetchExtras(ctx, h, repo.ID)
 	if err != nil {
 		return repoOutcome{}, err
+	}
+	if statsWarning != "" {
+		x.warnings = append([]string{statsWarning}, x.warnings...)
 	}
 
 	states := make([]store.BranchState, len(tracked))
@@ -132,6 +134,7 @@ func (e *Engine) syncRepository(ctx context.Context, prov provider.Provider, h *
 		},
 		Branches:        states,
 		Commits:         s.commits,
+		Stats:           statsWrites,
 		PullRequests:    x.pulls,
 		ReplaceReleases: x.replaceReleases,
 		Releases:        x.releases,
@@ -289,10 +292,12 @@ func identity(p provider.Person) store.Identity {
 		Login:          p.Login,
 		ProviderUserID: p.ID,
 		AvatarURL:      p.AvatarURL,
+		ProfileURL:     p.ProfileURL,
 	}
 }
 
-// fetchStats demande les statistiques (CommitStats) des commits absents de la base, dans l'ordre de
+// fetchStats (repli sur l'API quand le clone est indisponible, voir lineStats) demande les
+// statistiques (CommitStats) des commits absents de la base, dans l'ordre de
 // découverte (les plus récents de la branche de référence d'abord), au plus MaxStatsPerRepo, et
 // s'arrête dès que le quota restant passe sous QuotaReservePercent. Un quota épuisé arrête aussi les
 // dépôts suivants (h) sans faire échouer celui-ci ; une autre erreur arrête seulement les
@@ -341,7 +346,7 @@ func (s *repoSync) fetchStats(ctx context.Context, h *halt, repoID int64) (int, 
 				"erreur", err.Error())
 			break
 		}
-		c.Additions, c.Deletions = st.Additions, st.Deletions
+		c.Additions, c.Deletions, c.StatsKnown = st.Additions, st.Deletions, true
 	}
 	return calls, nil
 }

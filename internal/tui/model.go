@@ -106,8 +106,9 @@ type Model struct {
 	loadErr  error // erreur de la dernière lecture
 
 	detail    detailState
-	filtering bool // saisie du filtre en cours (« / »)
-	showHelp  bool // écran d'aide (« ? »)
+	cdetail   contribDetailState // détail d'un contributeur (0.5.0)
+	filtering bool               // saisie du filtre en cours (« / »)
+	showHelp  bool               // écran d'aide (« ? »)
 
 	sync     syncState
 	tracker  *syncTracker // goroutines de synchro, attendues par Run en quittant
@@ -279,6 +280,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.detail.loading = false
 		m.detail.commits, m.detail.contribs, m.detail.weekly, m.detail.err = msg.commits, msg.contribs, msg.weekly, msg.err
 		return m, nil
+	case contribDetailMsg:
+		if !m.cdetail.open || msg.id != m.cdetail.id {
+			return m, nil
+		}
+		m.cdetail.loading = false
+		m.cdetail.profile, m.cdetail.repos, m.cdetail.commits = msg.profile, msg.repos, msg.commits
+		m.cdetail.weekly, m.cdetail.err = msg.weekly, msg.err
+		return m, nil
 	case syncProgressMsg:
 		return m.handleSyncProgress(msg)
 	case syncDoneMsg:
@@ -352,11 +361,13 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		switch {
 		case m.detail.open:
 			m.detail = detailState{}
+		case m.cdetail.open:
+			m.cdetail = contribDetailState{}
 		case m.lists[m.view].filter != "":
 			m.setFilter("")
 		}
 	case key.Matches(msg, k.Filter):
-		if !m.detail.open {
+		if !m.detail.open && !m.cdetail.open {
 			m.filtering = true
 		}
 	case key.Matches(msg, k.SyncAll):
@@ -371,13 +382,23 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, k.Reload):
 		m.loading = true
 		cmds := []tea.Cmd{m.loadCmd()}
-		if m.detail.open {
-			m.detail.loading = true
-			cmds = append(cmds, m.detailCmd(m.detail.repoID))
-		}
+		cmds = append(cmds, m.reloadDetails()...)
 		return m, tea.Batch(cmds...)
 	}
 	return m, nil
+}
+
+// reloadDetails relit le détail ouvert (dépôt ou contributeur), s'il y en a un.
+func (m *Model) reloadDetails() []tea.Cmd {
+	switch {
+	case m.detail.open:
+		m.detail.loading = true
+		return []tea.Cmd{m.detailCmd(m.detail.repoID)}
+	case m.cdetail.open:
+		m.cdetail.loading = true
+		return []tea.Cmd{m.contribDetailCmd(m.cdetail.id)}
+	}
+	return nil
 }
 
 // handleFilterKey traite une touche pendant la saisie du filtre : le filtre s'applique au fil de la
@@ -426,6 +447,7 @@ func (m *Model) setError(s string) {
 func (m *Model) switchView(v view) {
 	m.view = v
 	m.detail = detailState{}
+	m.cdetail = contribDetailState{}
 	m.clamp(v)
 }
 
@@ -440,6 +462,10 @@ func (m *Model) setFilter(f string) {
 func (m *Model) move(delta int) {
 	if m.detail.open {
 		m.detail.offset = max(m.detail.offset+delta, 0) // borné à l'affichage
+		return
+	}
+	if m.cdetail.open {
+		m.cdetail.offset = max(m.cdetail.offset+delta, 0)
 		return
 	}
 	m.lists[m.view].cursor += delta
@@ -540,10 +566,14 @@ func (m Model) selectedRepoID() (int64, bool) {
 	return 0, false
 }
 
-// openDetail ouvre le détail du dépôt sélectionné.
+// openDetail ouvre le détail du dépôt sélectionné, ou du contributeur sélectionné dans la vue
+// Contributeurs.
 func (m Model) openDetail() (tea.Model, tea.Cmd) {
-	if m.view == viewContributors || m.detail.open {
+	if m.detail.open || m.cdetail.open {
 		return m, nil
+	}
+	if m.view == viewContributors {
+		return m.openContribDetail()
 	}
 	id, ok := m.selectedRepoID()
 	if !ok {

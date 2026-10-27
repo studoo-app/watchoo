@@ -6,6 +6,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -49,9 +50,9 @@ func newContributorsCmd(deps Deps, opts *options) *cobra.Command {
 		Long: `Classe les auteurs de commits par nombre de commits, tous dépôts confondus ou pour un
 seul dépôt, sur toute la période connue ou une période récente.
 
-Les lignes ajoutées et supprimées ne sont connues que pour les commits découverts
-après le premier import d'un dépôt (au plus 100 par dépôt et par synchro) : elles
-donnent un ordre de grandeur, pas un total exact.
+Les lignes ajoutées et supprimées sont comptées dans le clone Git local de chaque
+dépôt, pour tous ses commits. Elles additionnent les commits dont les statistiques
+sont connues ; « - » : aucune n'est encore connue (clone Git local indisponible).
 
 Avec --weeks N, la période est celle des N dernières semaines (du lundi au
 dimanche, dans le fuseau d'affichage, la semaine en cours comprise) et chaque
@@ -158,8 +159,8 @@ func runContributors(ctx context.Context, deps Deps, opts *options, repoRef, sin
 			c.DisplayName(),
 			login,
 			fmt.Sprint(c.Commits),
-			fmt.Sprintf("+%d", c.Additions),
-			fmt.Sprintf("-%d", c.Deletions),
+			knownLines(c.KnownCommits > 0, "+", c.Additions),
+			knownLines(c.KnownCommits > 0, "-", c.Deletions),
 			fmt.Sprint(c.Repos),
 			activity.Relative(c.LastCommitAt, now, s.loc, st.unicode()),
 		}
@@ -195,4 +196,12 @@ func weeklyContributorsTable(st textStyle, ranking []store.ContributorStats, wee
 		"Commits par semaine (du lundi au dimanche, colonnes datees du lundi, fuseau d'affichage) ; "+
 			"la derniere semaine est en cours.\n")
 	return renderTable(st, headers, rows, nil) + note
+}
+
+// knownLines écrit un total de lignes précédé de sign, ou « - » s'il est inconnu.
+func knownLines(known bool, sign string, n int) string {
+	if !known {
+		return "-"
+	}
+	return sign + strconv.Itoa(n)
 }

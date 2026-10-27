@@ -12,12 +12,26 @@ WHERE repo_id = sqlc.arg(repo_id) AND sha IN (sqlc.slice(shas));
 -- Insere un commit ; un commit deja en base n'est jamais modifie (0 ligne inseree).
 INSERT INTO commits (
     repo_id, sha, author_id, committer_id, message, authored_at, committed_at,
-    additions, deletions, url
+    additions, deletions, stats_known, url
 ) VALUES (
     ?, ?, ?, ?, ?, ?, ?,
-    ?, ?, ?
+    ?, ?, ?, ?
 )
 ON CONFLICT (repo_id, sha) DO NOTHING;
+
+-- name: SetCommitStats :execrows
+-- Enregistre les statistiques d'un commit deja en base et les marque connues.
+UPDATE commits
+SET additions = sqlc.arg(additions), deletions = sqlc.arg(deletions), stats_known = 1
+WHERE repo_id = sqlc.arg(repo_id) AND sha = sqlc.arg(sha);
+
+-- name: ListUnknownStatsSHAs :many
+-- SHA des commits du depot dont les statistiques sont inconnues, par ordre croissant, apres after_sha
+-- (pagination ; chaine vide = depuis le debut), au plus row_limit.
+SELECT sha FROM commits
+WHERE repo_id = sqlc.arg(repo_id) AND stats_known = 0 AND sha > sqlc.arg(after_sha)
+ORDER BY sha
+LIMIT sqlc.arg(row_limit);
 
 -- name: InsertCommitBranch :exec
 -- Rattache un commit a une branche, sans doublon.

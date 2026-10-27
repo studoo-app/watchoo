@@ -273,6 +273,9 @@ type Person struct {
 	Login     string // login du compte lié ; vide si aucun compte n'est lié à cet e-mail
 	ID        int64  // identifiant numérique du compte lié, qui ne change jamais ; 0 = aucun compte lié
 	AvatarURL string // avatar du compte lié ; vide si aucun compte
+	// ProfileURL est la page web du profil du compte lié (html_url sur GitHub) ; vide si aucun compte.
+	// Seul le provider sait la construire : l'interface l'affiche telle quelle.
+	ProfileURL string
 }
 
 // Commit est un commit tel que renvoyé par la forge (sans statistiques : voir CommitStats).

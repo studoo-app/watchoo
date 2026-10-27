@@ -72,10 +72,10 @@ func (q *Queries) ExistingCommitSHAs(ctx context.Context, arg ExistingCommitSHAs
 const insertCommit = `-- name: InsertCommit :execrows
 INSERT INTO commits (
     repo_id, sha, author_id, committer_id, message, authored_at, committed_at,
-    additions, deletions, url
+    additions, deletions, stats_known, url
 ) VALUES (
     ?, ?, ?, ?, ?, ?, ?,
-    ?, ?, ?
+    ?, ?, ?, ?
 )
 ON CONFLICT (repo_id, sha) DO NOTHING
 `
@@ -90,6 +90,7 @@ type InsertCommitParams struct {
 	CommittedAt string
 	Additions   int64
 	Deletions   int64
+	StatsKnown  bool
 	URL         string
 }
 
@@ -105,6 +106,7 @@ func (q *Queries) InsertCommit(ctx context.Context, arg InsertCommitParams) (int
 		arg.CommittedAt,
 		arg.Additions,
 		arg.Deletions,
+		arg.StatsKnown,
 		arg.URL,
 	)
 	if err != nil {
@@ -129,6 +131,44 @@ type InsertCommitBranchParams struct {
 func (q *Queries) InsertCommitBranch(ctx context.Context, arg InsertCommitBranchParams) error {
 	_, err := q.db.ExecContext(ctx, insertCommitBranch, arg.RepoID, arg.SHA, arg.BranchID)
 	return err
+}
+
+const listUnknownStatsSHAs = `-- name: ListUnknownStatsSHAs :many
+SELECT sha FROM commits
+WHERE repo_id = ?1 AND stats_known = 0 AND sha > ?2
+ORDER BY sha
+LIMIT ?3
+`
+
+type ListUnknownStatsSHAsParams struct {
+	RepoID   int64
+	AfterSha string
+	RowLimit int64
+}
+
+// SHA des commits du depot dont les statistiques sont inconnues, par ordre croissant, apres after_sha
+// (pagination ; chaine vide = depuis le debut), au plus row_limit.
+func (q *Queries) ListUnknownStatsSHAs(ctx context.Context, arg ListUnknownStatsSHAsParams) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, listUnknownStatsSHAs, arg.RepoID, arg.AfterSha, arg.RowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var sha string
+		if err := rows.Scan(&sha); err != nil {
+			return nil, err
+		}
+		items = append(items, sha)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const maxTrackedCommittedAt = `-- name: MaxTrackedCommittedAt :one
@@ -182,4 +222,31 @@ type ReassignCommitCommittersParams struct {
 func (q *Queries) ReassignCommitCommitters(ctx context.Context, arg ReassignCommitCommittersParams) error {
 	_, err := q.db.ExecContext(ctx, reassignCommitCommitters, arg.ToID, arg.FromID)
 	return err
+}
+
+const setCommitStats = `-- name: SetCommitStats :execrows
+UPDATE commits
+SET additions = ?1, deletions = ?2, stats_known = 1
+WHERE repo_id = ?3 AND sha = ?4
+`
+
+type SetCommitStatsParams struct {
+	Additions int64
+	Deletions int64
+	RepoID    int64
+	SHA       string
+}
+
+// Enregistre les statistiques d'un commit deja en base et les marque connues.
+func (q *Queries) SetCommitStats(ctx context.Context, arg SetCommitStatsParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, setCommitStats,
+		arg.Additions,
+		arg.Deletions,
+		arg.RepoID,
+		arg.SHA,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }

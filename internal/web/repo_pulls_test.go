@@ -29,7 +29,7 @@ func (e *testEnv) seedPulls(repoID int64, name, tagSHA string) {
 	at := e.now.Add(-2 * time.Hour)
 	pull := func(n int, state string, merged, draft bool, title string) model.PullRequest {
 		p := model.PullRequest{Number: n, Title: title, State: state, Merged: merged, Draft: draft,
-			AuthorLogin: "alice-gh", URL: "https://github.com/promo/" + name + "/pull/" + string(rune('0'+n)),
+			AuthorLogin: "alice-gh", AuthorProviderID: 10, URL: "https://github.com/promo/" + name + "/pull/" + string(rune('0'+n)),
 			BaseBranch: "main", HeadBranch: "feature-x", CreatedAt: at, UpdatedAt: at.Add(time.Duration(n) * time.Minute)}
 		if state == model.PullRequestClosed {
 			p.ClosedAt = p.UpdatedAt
