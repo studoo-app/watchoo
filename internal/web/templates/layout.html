@@ -15,7 +15,7 @@
   <meta name="htmx-config" content='{"includeIndicatorStyles":false,"allowEval":false,"allowScriptTags":false,"historyCacheSize":0,"refreshOnHistoryMiss":true,"selfRequestsOnly":true}'>
   <title>{{if .Public}}{{.Title}} · Watchoo{{else}}{{if .Title}}{{.Title}} · {{end}}{{.Workspace}} · Watchoo{{end}}</title>
   <link rel="icon" href="/favicon.ico" sizes="48x48">
-  <link rel="icon" href="/static/watchoo.svg" type="image/svg+xml">
+  <link rel="icon" href="/static/watchoo-icone.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="stylesheet" href="/static/app.css">
@@ -28,8 +28,8 @@
   <header class="navbar bg-base-100 shadow-sm flex-wrap gap-x-2 gap-y-1 px-4">
     <div class="flex-1 flex items-center gap-2 min-w-0 order-1">
       <a href="/" class="flex items-center gap-2 font-bold text-lg shrink-0" aria-label="Watchoo, tableau de bord">
-        <img src="/static/watchoo.svg" alt="" width="32" height="32" class="size-8 rounded-lg">
-        <span>Watchoo</span>
+        <img src="/static/watchoo-logo-final-nom.svg" alt="" width="177" height="36" class="h-9 w-auto dark:hidden">
+        <img src="/static/watchoo-logo-final-nom-dark.svg" alt="" width="177" height="36" class="h-9 w-auto hidden dark:block">
       </a>
       {{if not .Public}}<span class="badge badge-ghost truncate max-w-48 sm:max-w-xs" title="Espace de supervision">{{.Workspace}}</span>{{end}}
     </div>

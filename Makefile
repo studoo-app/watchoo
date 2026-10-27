@@ -45,7 +45,7 @@ CSS_IN  := internal/web/tailwind/input.css
 CSS_OUT := internal/web/static/app.css
 # Logos de l'interface web : copiés de assets/logo dans internal/web/static (go:embed ne remonte pas
 # hors du package).
-WEB_LOGOS := watchoo.svg watchoo-light.svg watchoo-nom.svg watchoo-nom-light.svg favicon.ico \
+WEB_LOGOS := watchoo-icone.svg watchoo-logo-final-nom.svg watchoo-logo-final-nom-dark.svg favicon.ico \
 	apple-touch-icon.png icon-192.png icon-512.png
 
 .DEFAULT_GOAL := help

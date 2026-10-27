@@ -19,3 +19,16 @@
   themes: light --default, dark --prefersdark;
   logs: false;
 }
+
+/* Variante dark: (logo de la barre de navigation) : suit le thème DaisyUI effectif, c.-à-d. l'attribut
+ * data-theme posé par theme.js, ou prefers-color-scheme sans choix enregistré. */
+@custom-variant dark {
+  &:where([data-theme="dark"], [data-theme="dark"] *) {
+    @slot;
+  }
+  @media (prefers-color-scheme: dark) {
+    &:where(:not([data-theme="light"], [data-theme="light"] *)) {
+      @slot;
+    }
+  }
+}

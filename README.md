@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="assets/logo/watchoo-nom.svg" alt="Logo de Watchoo : un hibou géométrique" width="400">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/logo/watchoo-logo-final-nom-dark.svg">
+    <img src="assets/logo/watchoo-logo-final-nom.svg" alt="Logo de Watchoo : un hibou pixelisé aux yeux magenta et pupilles vertes, et le nom WATCHOO" width="400">
+  </picture>
 </p>
 
 ## **Qui a travaillé, sur quoi, et quand ?**
