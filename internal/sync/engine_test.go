@@ -586,7 +586,12 @@ func TestParallelismeBorne(t *testing.T) {
 							break
 						}
 					}
-					time.Sleep(20 * time.Millisecond)
+					// Attend que tc.want dépôts soient là en même temps (ou 5 s au plus) : sur
+					// une machine lente, une simple pause ne suffit pas à les faire se chevaucher.
+					for deadline := time.Now().Add(5 * time.Second); cur.Load() < int32(tc.want) && time.Now().Before(deadline); {
+						time.Sleep(time.Millisecond)
+					}
+					time.Sleep(10 * time.Millisecond)
 					cur.Add(-1)
 				}
 				return nil
