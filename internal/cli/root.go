@@ -135,7 +135,7 @@ type options struct {
 }
 
 // NewRootCmd construit la commande racine « watchoo » et ses sous-commandes (init, version, repo,
-// sync, log, contributors, status, tui, serve).
+// sync, log, contributors, status, tui, serve, config).
 //
 // Options globales (persistantes) : --json (sortie JSON), -C / --workspace <répertoire> (espace à
 // utiliser au lieu de celui trouvé depuis le répertoire courant) et --verbose (logs détaillés sur
@@ -212,6 +212,7 @@ Prérequis : la CLI GitHub gh, installée et connectée (« gh auth login »).`,
 		newStatusCmd(deps, opts),
 		newTUICmd(deps, opts),
 		newServeCmd(deps, opts),
+		newConfigCmd(deps, opts),
 	)
 	return root
 }

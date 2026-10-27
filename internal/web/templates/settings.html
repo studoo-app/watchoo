@@ -110,6 +110,7 @@
         <p class="text-sm">Prochaine synchro : <time datetime="{{isoTime $c.NextAuto}}">{{localTime $c.NextAuto}}</time></p>
         {{- end}}
         <p class="text-sm text-base-content/70">Fichier config.yaml : {{if $c.FileAuto}}{{interval $c.FileInterval}}{{else}}synchro automatique désactivée (sync.auto){{end}}.
+          {{- if $c.FileChanged}} config.yaml a changé depuis le lancement de « watchoo serve » : cette valeur vaudra au prochain lancement.{{end}}
           {{- if $c.Overridden}} L'intervalle a été changé pour ce processus (option --interval ou cette page).{{end}}</p>
         {{template "flash" (dict "Message" $c.IntervalError "Error" true)}}
         <form method="post" action="/settings/interval" class="flex flex-wrap items-end gap-2">
@@ -129,7 +130,24 @@
           </datalist>
           <button type="submit" class="btn btn-sm">Appliquer</button>
         </form>
-        <p class="text-xs text-base-content/60">Le changement vaut jusqu'à l'arrêt de « watchoo serve » : config.yaml n'est jamais réécrit par l'interface. Pour un réglage durable, modifiez sync.interval dans le fichier.</p>
+        <p class="text-xs text-base-content/60">Le changement vaut jusqu'à l'arrêt de « watchoo serve » : ce formulaire ne réécrit jamais config.yaml. Pour un réglage durable, modifiez sync.interval dans le fichier ou importez une configuration partagée (ci-dessous).</p>
+      </div>
+    </section>
+
+    <section class="card bg-base-100 shadow-sm" aria-labelledby="share-heading">
+      <div class="card-body p-4">
+        <h2 id="share-heading" class="card-title text-lg">Partager la configuration</h2>
+        <p class="text-sm text-base-content/70">Un fichier JSON avec les dépôts suivis (noms affichés, branches) et les réglages communs, pour les autres personnes qui supervisent ce groupe. Ni commit, ni e-mail, ni token, ni réglage propre à cette machine.</p>
+        <a href="/settings/export" class="btn btn-sm w-full" download>Exporter</a>
+        <form method="post" action="/settings/import" enctype="multipart/form-data" class="space-y-2">
+          {{template "csrf-field" .}}
+          <label class="form-control w-full block">
+            <span class="label text-sm whitespace-normal mb-1">Importer un fichier (JSON, 1 Mio au plus)</span>
+            <input type="file" name="file" accept="application/json,.json" required class="file-input file-input-sm w-full">
+          </label>
+          <button type="submit" class="btn btn-sm w-full">Voir l'aperçu</button>
+        </form>
+        <p class="text-xs text-base-content/60">Un aperçu s'affiche d'abord : rien n'est appliqué sans votre confirmation. L'import ajoute et met à jour des dépôts, il n'en retire jamais. Le fichier peut révéler la liste des étudiants suivis : partagez-le seulement avec les personnes concernées.</p>
       </div>
     </section>
 

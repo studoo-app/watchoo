@@ -158,6 +158,11 @@ Chaque répertoire initialisé avec `watchoo init` est un groupe indépendant : 
 projets perso… Les données ne se mélangent jamais. Toutes les commandes qui produisent des données
 acceptent `--json` ([schéma](documentation/05-cli.md#sortie-json)).
 
+Vous supervisez à plusieurs ? `watchoo config export -o licence.json` écrit les dépôts suivis et les
+réglages communs dans un fichier JSON (sans commit, e-mail ni token) ; chez la collègue, `watchoo config
+import licence.json` montre un aperçu puis fusionne, sans rien retirer. Même chose sur la page Réglages
+de `watchoo serve` ([détail](documentation/05-cli.md#partage-de-la-configuration--watchoo-config)).
+
 ## Configuration
 
 Chaque espace a son fichier `.watchoo/config.yaml`, commenté (modèle :

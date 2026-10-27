@@ -16,6 +16,7 @@ import (
 	"crypto/rand"
 	"crypto/subtle"
 	"encoding/base64"
+	"errors"
 	"net"
 	"net/http"
 	"strings"
@@ -84,7 +85,14 @@ func (c *csrfProtector) middleware(s *server) func(http.Handler) http.Handler {
 			}
 			sent := r.Header.Get(CSRFHeader)
 			if sent == "" {
-				sent = r.PostFormValue(CSRFField) // corps déjà borné par limitBody
+				// Corps déjà borné par limitBody ; un corps trop gros (fichier importé) donne 413
+				// plutôt qu'un refus de jeton trompeur.
+				if err := parseBody(r); isTooLarge(err) {
+					s.renderError(w, r, http.StatusRequestEntityTooLarge, "Envoi trop volumineux",
+						"Le fichier envoyé dépasse la taille autorisée (1 Mio).")
+					return
+				}
+				sent = r.PostFormValue(CSRFField)
 			}
 			if !fromCookie || subtle.ConstantTimeCompare([]byte(sent), []byte(token)) != 1 {
 				s.logger.Warn("requête refusée : jeton CSRF absent ou invalide", "methode", r.Method)
@@ -95,6 +103,21 @@ func (c *csrfProtector) middleware(s *server) func(http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+// parseBody analyse le corps d'un POST : multipart/form-data (fichier de configuration importé, gardé
+// en mémoire : le corps est borné par limitBody) ou formulaire classique.
+func parseBody(r *http.Request) error {
+	if strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/form-data") {
+		return r.ParseMultipartForm(MaxImportBodyBytes)
+	}
+	return r.ParseForm()
+}
+
+// isTooLarge indique une lecture de corps arrêtée par http.MaxBytesReader.
+func isTooLarge(err error) bool {
+	var mbe *http.MaxBytesError
+	return errors.As(err, &mbe)
 }
 
 // cookieToken renvoie le jeton du cookie s'il est présent et bien formé.

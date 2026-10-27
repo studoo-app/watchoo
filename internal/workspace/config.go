@@ -372,6 +372,19 @@ func LoadUserConfig(root string) (Config, error) {
 // loadConfig fait le travail de Load et de LoadUserConfig : valeurs par défaut pour un espace dont la
 // racine est root, fichier utilisateur, puis workspaceFile s'il n'est pas vide, puis environnement.
 func loadConfig(root, workspaceFile string) (Config, error) {
+	cfg, err := loadLayers(root, workspaceFile, true)
+	if err != nil {
+		return Config{}, err
+	}
+	if err := cfg.Validate(); err != nil {
+		return Config{}, fmt.Errorf("réglages invalides : %w", err)
+	}
+	return cfg, nil
+}
+
+// loadLayers fusionne, sans valider, les valeurs par défaut d'un espace de racine root, le fichier
+// utilisateur, workspaceFile s'il n'est pas vide, puis, si withEnv, les variables WATCHOO_*.
+func loadLayers(root, workspaceFile string, withEnv bool) (Config, error) {
 	defaults := DefaultConfig(filepath.Base(root))
 	v := viper.New()
 	v.SetConfigType("yaml")
@@ -400,14 +413,18 @@ func loadConfig(root, workspaceFile string) (Config, error) {
 			errs = append(errs, fmt.Errorf("%s : fusion des réglages : %w", file, err))
 		}
 	}
-	errs = append(errs, checkEnv()...)
+	if withEnv {
+		errs = append(errs, checkEnv()...)
+	}
 	if err := errors.Join(errs...); err != nil {
 		return Config{}, err
 	}
 
-	v.SetEnvPrefix(EnvPrefix)
-	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
-	v.AutomaticEnv()
+	if withEnv {
+		v.SetEnvPrefix(EnvPrefix)
+		v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+		v.AutomaticEnv()
+	}
 
 	var cfg Config
 	for _, f := range settingFields(&cfg) {
@@ -417,9 +434,6 @@ func loadConfig(root, workspaceFile string) (Config, error) {
 	}
 	if err := errors.Join(errs...); err != nil {
 		return Config{}, fmt.Errorf("réglages de l'espace %s : %w", root, err)
-	}
-	if err := cfg.Validate(); err != nil {
-		return Config{}, fmt.Errorf("réglages invalides : %w", err)
 	}
 	return cfg, nil
 }
@@ -819,6 +833,33 @@ func configHeader() string {
 // config.example.yaml, à la racine du dépôt, est égal à ConfigTemplate("licence-projet") (un test le
 // vérifie ; « go test ./internal/workspace -run TestConfigExampleFile -update » le régénère).
 func ConfigTemplate(name string) string {
+	return renderConfig(name, map[string]any{"name": name})
+}
+
+// renderConfig écrit le config.yaml du modèle de Init pour un espace dont le nom par défaut est
+// defaultName, avec les réglages de active (clé complète → valeur typée : string, bool, int,
+// time.Duration ou []string) écrits ACTIFS, chacun à sa place dans le modèle ; les autres restent en
+// commentaire avec leur valeur par défaut. Une section (« sync: ») est décommentée dès qu'une de ses
+// clés est active. Les valeurs passent par FormatSettingValue (chaînes entre guillemets, échappées) :
+// aucune valeur ne peut créer une autre clé. Une clé de active inconnue du modèle est ignorée ici :
+// WriteSharedSettings relit le fichier écrit et le compare aux valeurs attendues.
+//
+// Sans « name » dans active, la ligne du nom est écrite en commentaire, avec defaultName.
+func renderConfig(defaultName string, active map[string]any) string {
+	defaults := DefaultConfig(defaultName)
+	defaultValues := map[string]any{}
+	for _, f := range settingFields(&defaults) {
+		defaultValues[f.key] = reflect.ValueOf(f.ptr).Elem().Interface()
+	}
+	sectionActive := func(prefix string) bool {
+		for key := range active {
+			if strings.HasPrefix(key, prefix+".") {
+				return true
+			}
+		}
+		return false
+	}
+
 	var b strings.Builder
 	text := func(lines ...string) {
 		for _, line := range lines {
@@ -826,9 +867,24 @@ func ConfigTemplate(name string) string {
 			b.WriteByte('\n')
 		}
 	}
-	// setting écrit une ligne de réglage en commentaire, avec son explication alignée à droite.
-	setting := func(line, comment string) {
-		fmt.Fprintf(&b, "%-28s # %s\n", "# "+line, comment)
+	// section écrit l'en-tête d'une section (« sync: »), actif si l'une de ses clés l'est.
+	section := func(indent, key string) {
+		leaf := key[strings.LastIndex(key, ".")+1:]
+		if sectionActive(key) {
+			text(indent + leaf + ":")
+			return
+		}
+		text("# " + strings.TrimPrefix(indent, "  ") + leaf + ":")
+	}
+	// setting écrit une ligne de réglage (en commentaire, ou active si la clé est dans active), avec son
+	// explication alignée à droite.
+	setting := func(indent, key, comment string) {
+		leaf := key[strings.LastIndex(key, ".")+1:]
+		if v, ok := active[key]; ok {
+			fmt.Fprintf(&b, "%-28s # %s\n", indent+leaf+": "+FormatSettingValue(v), comment)
+			return
+		}
+		fmt.Fprintf(&b, "%-28s # %s\n", "# "+indent+leaf+": "+FormatSettingValue(defaultValues[key]), comment)
 	}
 
 	b.WriteString(configHeader())
@@ -836,7 +892,13 @@ func ConfigTemplate(name string) string {
 		"#",
 		"# Réglages de l'espace de supervision Watchoo.",
 		"#",
-		"# Seul le nom de l'espace est actif. Les autres réglages sont en commentaire,",
+	)
+	if onlyName := len(active) == 0 || (len(active) == 1 && active["name"] != nil); onlyName {
+		text("# Seul le nom de l'espace est actif. Les autres réglages sont en commentaire,")
+	} else {
+		text("# Les réglages sans « # » s'appliquent à cet espace. Les autres sont en commentaire,")
+	}
+	text(
 		"# avec leur valeur par défaut : pour en changer un dans cet espace seulement,",
 		"# retirez le « # » devant sa section (ex. « sync: ») et devant sa ligne.",
 		"#",
@@ -853,31 +915,35 @@ func ConfigTemplate(name string) string {
 		"",
 		"# Nom de l'espace, affiché dans le web, le TUI et « watchoo status ».",
 		"# Par défaut : le nom du répertoire de l'espace.",
-		"name: "+strconv.Quote(name),
+	)
+	if v, ok := active["name"]; ok {
+		text("name: " + FormatSettingValue(v))
+	} else {
+		text("# name: " + FormatSettingValue(defaultName))
+	}
+	text(
 		"",
 		"# Synchronisation automatique, faite par « watchoo serve » et « watchoo tui ».",
 		"# « watchoo sync » reste possible à tout moment.",
-		"# sync:",
 	)
-	setting(fmt.Sprintf("  auto: %t", true), "false : synchro manuelle seule")
-	setting("  interval: "+shortDuration(DefaultSyncInterval),
+	section("", "sync")
+	setting("  ", "sync.auto", "false : synchro manuelle seule")
+	setting("  ", "sync.interval",
 		fmt.Sprintf("durée (15m, 1h…), au moins %s ; 0 : synchro manuelle seule", shortDuration(MinSyncInterval)))
-	setting(fmt.Sprintf("  parallelism: %d", DefaultSyncParallelism),
-		fmt.Sprintf("dépôts synchronisés en même temps, de 1 à %d", MaxSyncParallelism))
+	setting("  ", "sync.parallelism", fmt.Sprintf("dépôts synchronisés en même temps, de 1 à %d", MaxSyncParallelism))
 	text(
 		"",
 		"# Seuils d'activité de l'espace, en jours sans commit.",
-		"# activity:",
 	)
-	setting(fmt.Sprintf("  flemme_after_days: %d", DefaultFlemmeAfterDays), "au-delà : « Flemme » (au moins 1)")
-	setting(fmt.Sprintf("  dead_after_days: %d", DefaultDeadAfterDays),
-		"au-delà : « Dead » (plus grand que flemme_after_days)")
+	section("", "activity")
+	setting("  ", "activity.flemme_after_days", "au-delà : « Flemme » (au moins 1)")
+	setting("  ", "activity.dead_after_days", "au-delà : « Dead » (plus grand que flemme_after_days)")
 	text(
 		"",
 		"# Branches ignorées, par motifs (syntaxe de path.Match).",
-		"# branches:",
 	)
-	setting("  exclude: []", `ex. ["dependabot/*", "renovate/*"]`)
+	section("", "branches")
+	setting("  ", "branches.exclude", `ex. ["dependabot/*", "renovate/*"]`)
 	text(
 		"",
 		"# Interface web (« watchoo serve »). Écouter ailleurs que sur 127.0.0.1",
@@ -885,27 +951,57 @@ func ConfigTemplate(name string) string {
 		"# (auth.username et la variable "+WebPasswordEnv+", jamais dans ce fichier,",
 		"# ou trusted_proxy: true derrière un reverse proxy qui authentifie, avec ses noms",
 		"# publics dans allowed_hosts : l'en-tête Host est toujours contrôlé, contre le DNS rebinding).",
-		"# web:",
 	)
-	setting("  addr: "+strconv.Quote(DefaultWebAddr), "hôte:port")
-	setting(fmt.Sprintf("  trusted_proxy: %t", false), "true : un reverse proxy authentifiant protège l'accès")
-	setting("  allowed_hosts: []", `noms publics acceptés dans Host, ex. ["watchoo.example.org"]`)
-	text("#   auth:")
-	setting(`    username: ""`, "authentification basique ; mot de passe dans "+WebPasswordEnv)
+	section("", "web")
+	setting("  ", "web.addr", "hôte:port")
+	setting("  ", "web.trusted_proxy", "true : un reverse proxy authentifiant protège l'accès")
+	setting("  ", "web.allowed_hosts", `noms publics acceptés dans Host, ex. ["watchoo.example.org"]`)
+	if sectionActive("web.auth") {
+		text("  auth:")
+	} else {
+		text("#   auth:")
+	}
+	setting("    ", "web.auth.username", "authentification basique ; mot de passe dans "+WebPasswordEnv)
 	text(
 		"",
 		"# Fuseau horaire d'affichage et de regroupement par jour ou par semaine.",
 	)
-	setting(`timezone: ""`, `vide : fuseau du système ; sinon nom IANA, ex. "Europe/Paris"`)
+	setting("", "timezone", `vide : fuseau du système ; sinon nom IANA, ex. "Europe/Paris"`)
 	text(
 		"",
 		"# Accès à GitHub, uniquement par la CLI gh. Avec GH_TOKEN (Docker, CI), laissez",
 		"# user vide : « gh auth token --user » ignore GH_TOKEN.",
-		"# github:",
 	)
-	setting(`  user: ""`, "login exact d'un compte gh ; vide : compte actif de gh")
-	setting("  gh_path: "+strconv.Quote(DefaultGHPath), "chemin absolu, ou nom cherché dans le PATH")
+	section("", "github")
+	setting("  ", "github.user", "login exact d'un compte gh ; vide : compte actif de gh")
+	setting("  ", "github.gh_path", "chemin absolu, ou nom cherché dans le PATH")
 	return b.String()
+}
+
+// FormatSettingValue écrit une valeur de réglage (string, bool, int, time.Duration ou []string) comme
+// une valeur YAML sur une ligne, telle que config.yaml l'écrit : chaîne entre guillemets doubles et
+// échappée (strconv.Quote, dont les séquences sont aussi celles de YAML), liste en flux
+// (["a", "b"], [] si vide), durée courte (30m, 1h30m), booléen et entier tels quels. Sert aussi à
+// afficher les valeurs avant / après d'un import (internal/configshare).
+func FormatSettingValue(v any) string {
+	switch x := v.(type) {
+	case string:
+		return strconv.Quote(x)
+	case bool:
+		return strconv.FormatBool(x)
+	case int:
+		return strconv.Itoa(x)
+	case time.Duration:
+		return shortDuration(x)
+	case []string:
+		quoted := make([]string, len(x))
+		for i, s := range x {
+			quoted[i] = strconv.Quote(s)
+		}
+		return "[" + strings.Join(quoted, ", ") + "]"
+	default:
+		return fmt.Sprintf("%v", v)
+	}
 }
 
 // shortDuration écrit une durée sans les zéros inutiles : 30m plutôt que 30m0s, 1h plutôt que 1h0m0s.

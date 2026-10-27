@@ -223,6 +223,36 @@ Deux faux, écrits en phase 2 et réutilisés par les phases suivantes :
   un essai du conteneur avec le faux `gh` compilé pour Linux (`init`, refus de `serve` sans
   authentification hors boucle locale, `401` sans identifiants puis `200`, arrêt propre).
 
+## Partage de la configuration
+
+- **Cœur** (`internal/configshare`) : aller-retour export → import dans un autre espace (dépôts, labels,
+  branches, réglages) ; export sans dépôt arrêté, trié, sans token, e-mail, chemin ni clé `github` /
+  `web` ; chaque refus de validation (JSON invalide ou suivi d'un autre texte, plus de 1 Mio, `format`
+  absent ou différent, version plus récente ou nulle, clé inconnue à chaque niveau, `github` / `web`
+  dans `settings`, plus de 1 000 dépôts, doublon sans tenir compte de la casse, `repo` invalide,
+  `provider` autre que `github`, label invalide, motif invalide ou avec virgule, durée illisible,
+  réglages incohérents une fois fusionnés) ; aperçu : ajout, mise à jour (avant → après), inchangé,
+  dépôt arrêté à reprendre, réglages modifiés seulement, avertissements (variable `WATCHOO_*`,
+  commentaires perdus) ; aperçu sans écriture (base et `config.yaml` identiques octet pour octet) ;
+  application : dépôt inaccessible signalé sans bloquer les autres, réglages identiques non réécrits.
+- **Réécriture de `config.yaml`** (`internal/workspace`) : clés `name`, `github.*`, `web.*` et réglages
+  non importés conservés, `.bak` identique à l'ancien fichier, droits `0600`, idempotence (deux imports
+  donnent le même fichier), injection YAML impossible (fuseau et motifs avec guillemets, `#`, `:`, sauts
+  de ligne, `\n`), fichier relu égal aux valeurs attendues, échec sans modification, gabarit de
+  `watchoo init` inchangé.
+- **CLI** (`watchoo config`) : export sur la sortie standard et avec `-o` (`0600`, refus d'écraser sans
+  `--force`), import en texte et en `--json` (clés du tableau [Sortie JSON](05-cli.md#sortie-json)),
+  `--dry-run`, confirmation au terminal, `--yes` obligatoire sinon, code de retour non nul s'il reste des
+  dépôts inaccessibles.
+- **Web** : export (en-têtes, nom de fichier sûr, contenu, `GET` sans effet), aperçu sans écriture,
+  `apply` sans jeton CSRF refusé (`403`), document modifié entre l'aperçu et `apply` revalidé, taille
+  dépassée (`413`), aucun token dans les réponses.
+- **Bout en bout** (`internal/cli/e2e_config_test.go`, faux `gh` et `githubtest`) : espace A (`repo
+  add`, `config export -o`), espace B (`config import --dry-run` sans aucune écriture, refus hors
+  terminal sans `--yes`, `--yes` avec un dépôt inaccessible et code `1`, dépôts et `config.yaml`
+  vérifiés, `.bak`, synchro, réimport sans changement), espace C (aperçu puis « Appliquer » dans un vrai
+  `watchoo serve`, jeton CSRF et cookie compris) ; ni token ni e-mail dans les réponses et les logs.
+
 ## Logo et carte d'en-tête
 
 - Les copies embarquées dans `internal/logo/art/` sont identiques octet pour octet à `assets/logo/*.txt`

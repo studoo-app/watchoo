@@ -34,7 +34,13 @@ var jsonTopLevelKeys = map[string][]string{
 	"contributors": {"contributors"},
 	"status": {"workspace", "github", "rate_limit", "rate_limit_error", "quota_low", "repositories", "errors",
 		"last_synced_at", "tracked_branches"},
+	"config export": {"format", "version", "exported_at", "watchoo_version", "workspace", "settings", "repositories"},
+	"config import": {"file", "dry_run", "applied", "source", "settings", "repositories", "summary", "warnings"},
 }
+
+// pendingJSONCommands sont documentées dans 05-cli.md mais pas encore implémentées (aucune
+// aujourd'hui) : une commande ajoutée à la documentation avant son code y figure le temps de l'écrire.
+var pendingJSONCommands = map[string]bool{}
 
 // assertSingleJSONObject vérifie que stdout est exactement un objet JSON suivi d'une fin de ligne.
 func assertSingleJSONObject(t *testing.T, what, stdout string) {
@@ -73,6 +79,9 @@ func TestJSONSchemaAllCommands(t *testing.T) {
 	outputs["contributors"] = h.run("contributors", "--json").mustSucceed(t).stdout
 	outputs["status"] = h.run("status", "--json").mustSucceed(t).stdout
 	outputs["repo remove"] = h.run("repo", "remove", "dave/projet", "--yes", "--json").mustSucceed(t).stdout
+	outputs["config export"] = h.run("config", "export", "--json").mustSucceed(t).stdout
+	writeFile(t, filepath.Join(h.cwd, "partage.json"), outputs["config export"])
+	outputs["config import"] = h.run("config", "import", "partage.json", "--yes", "--json").mustSucceed(t).stdout
 
 	for cmd, keys := range jsonTopLevelKeys {
 		out, ok := outputs[cmd]
@@ -125,10 +134,41 @@ func TestJSONSchemaDocumented(t *testing.T) {
 		}
 	}
 	for cmd := range documented {
-		if _, ok := jsonTopLevelKeys[cmd]; !ok {
+		if _, ok := jsonTopLevelKeys[cmd]; !ok && !pendingJSONCommands[cmd] {
 			t.Errorf("05-cli.md : « watchoo %s » documentée mais absente du contrat testé", cmd)
 		}
 	}
+}
+
+// Sous-objets de « config import » (aperçu et bilan), avec un réglage modifié, un dépôt à mettre à
+// jour et un avertissement.
+func TestJSONSchemaConfigImport(t *testing.T) {
+	h := newSyncedWorkspace(t)
+	writeFile(t, filepath.Join(h.cwd, "partage.json"), `{"format":"watchoo-config","version":1,
+"exported_at":"2026-10-20T08:00:00Z","settings":{"sync":{"interval":"1h"}},
+"repositories":[{"repo":"bob/projet","label":"Bob D."}]}`)
+	for _, args := range [][]string{{"--dry-run"}, {"--yes"}} {
+		r := h.run(append([]string{"config", "import", "partage.json", "--json"}, args...)...).mustSucceed(t)
+		assertSingleJSONObject(t, "config import", r.stdout)
+		assertJSONKeys(t, r.stdout, "", jsonTopLevelKeys["config import"]...)
+		assertJSONKeys(t, r.stdout, "source", "workspace_name", "watchoo_version", "exported_at")
+		assertJSONKeys(t, r.stdout, "settings", "changes", "rewrite", "written", "backup_file")
+		assertJSONKeys(t, r.stdout, "settings.changes.0", "key", "before", "after", "env_var")
+		assertJSONKeys(t, r.stdout, "repositories.0", "index", "repo", "action", "reenable", "before", "after",
+			"outcome", "error")
+		assertJSONKeys(t, r.stdout, "repositories.0.before", "label", "branches", "enabled")
+		assertJSONKeys(t, r.stdout, "repositories.0.after", "label", "branches", "enabled")
+		assertJSONKeys(t, r.stdout, "summary", "added", "already_tracked", "updated", "reenabled", "inaccessible",
+			"errors")
+		assertJSONKeys(t, r.stdout, "warnings.0", "code", "key", "message")
+		assertContains(t, "config import "+args[0], r.stdout, `"workspace_name": ""`, `"branches": []`,
+			`"code": "comments_lost"`)
+	}
+	// Un ajout : before vaut null.
+	writeFile(t, filepath.Join(h.cwd, "ajout.json"), `{"format":"watchoo-config","version":1,
+"repositories":[{"repo":"carol/projet"}]}`)
+	r := h.run("config", "import", "ajout.json", "--json", "--dry-run").mustCode(t, 1)
+	assertContains(t, "ajout", r.stdout, `"before": null`, `"exported_at": null`, `"warnings": []`, `"changes": []`)
 }
 
 // Sous-objets de init et version.
