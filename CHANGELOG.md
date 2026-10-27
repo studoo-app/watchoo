@@ -9,6 +9,10 @@ un changement incompatible fait monter MINOR et tout changement compatible fait 
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-27
+
+Partage de la configuration entre superviseurs, script d'installation et nouveau logo.
+
 ### Ajouté
 
 - **Script d'installation** `install.sh` (Linux, macOS) : `curl -fsSL
@@ -100,5 +104,6 @@ Première version publiée : le MVP (phases 1 à 5 de la [roadmap](documentation
   `gh` est le binaire officiel vérifié par SHA-256 ; images de base et actions GitHub épinglées par
   empreinte.
 
-[Unreleased]: https://github.com/studoo-app/watchoo/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/studoo-app/watchoo/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/studoo-app/watchoo/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/studoo-app/watchoo/releases/tag/v0.1.0
