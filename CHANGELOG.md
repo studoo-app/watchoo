@@ -9,6 +9,11 @@ un changement incompatible fait monter MINOR et tout changement compatible fait 
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-27
+
+Avis de nouvelle version (CLI et interface web) et mise à jour de Watchoo en une commande,
+`watchoo update`.
+
 ### Ajouté
 
 - **Avis de nouvelle version** : à chaque commande, Watchoo vérifie en arrière-plan (1,5 s au plus, sans
@@ -228,7 +233,8 @@ Première version publiée : le MVP (phases 1 à 5 de la [roadmap](documentation
   `gh` est le binaire officiel vérifié par SHA-256 ; images de base et actions GitHub épinglées par
   empreinte.
 
-[Unreleased]: https://github.com/studoo-app/watchoo/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/studoo-app/watchoo/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/studoo-app/watchoo/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/studoo-app/watchoo/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/studoo-app/watchoo/compare/v0.2.0...v0.4.0
 [0.2.0]: https://github.com/studoo-app/watchoo/compare/v0.1.0...v0.2.0
