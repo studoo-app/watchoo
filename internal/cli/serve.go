@@ -122,6 +122,7 @@ func runServe(ctx context.Context, deps Deps, opts *options, addr string, addrSe
 		Sync:         coord,
 		Repos:        engine,
 		Config:       cfg,
+		Workspace:    s.ws,
 		Location:     s.loc,
 		Now:          deps.Now,
 		Logger:       s.logger,

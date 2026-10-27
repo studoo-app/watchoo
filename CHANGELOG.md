@@ -15,9 +15,21 @@ un changement incompatible fait monter MINOR et tout changement compatible fait 
   https://raw.githubusercontent.com/studoo-app/watchoo/main/install.sh | sh` télécharge la dernière
   release, vérifie sa somme SHA-256 et installe `watchoo` dans `~/.local/bin`, sans sudo
   (`WATCHOO_VERSION`, `WATCHOO_INSTALL_DIR`).
+- **Partage de la configuration** entre superviseurs d'un même groupe : `watchoo config export [-o
+  fichier] [--force]` écrit un fichier JSON versionné (`format: watchoo-config`, `version: 1`) avec les
+  dépôts suivis (nom affiché, branches) et les réglages communs (`sync.*`, `activity.*`,
+  `branches.exclude`, `timezone`), jamais `github.*`, `web.*`, token, e-mail ni commit ;
+  `watchoo config import fichier [--dry-run] [--yes]` le valide entièrement, affiche un aperçu, puis
+  fusionne sans rien retirer (dépôts ajoutés ou mis à jour comme avec `repo import`, `config.yaml`
+  réécrit depuis le modèle commenté avec copie `config.yaml.bak`). Même fonction sur la page Réglages
+  de l'interface web (export, aperçu, application).
+- **README** : section « Mise à jour » (script, binaires, Docker, sources ; migrations automatiques,
+  sauvegarde de la base avant de changer de version).
 
 ### Modifié
 
+- Interface web : un formulaire dont le corps dépasse la limite reçoit maintenant `413` (corps trop
+  gros) au lieu d'un `403` trompeur ; rien n'est appliqué dans les deux cas.
 - **Nouveau logo** : hibou pixelisé aux yeux magenta et pupilles vertes, avec le nom « WATCHOO »
   (`assets/logo/watchoo-logo-final*.svg`, variantes pour fond sombre). L'en-tête de l'interface web
   affiche le hibou et le nom, en version claire ou sombre selon le thème ; favicon, icônes du manifeste

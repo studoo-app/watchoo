@@ -1,11 +1,15 @@
 package web
 
 import (
+	"bytes"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
+
+	"github.com/studoo-app/watchoo/internal/configshare"
 )
 
 func TestSecurityHeaders(t *testing.T) {
@@ -106,8 +110,59 @@ func TestBodyLimit(t *testing.T) {
 	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	r.Header.Set("Origin", testOrigin)
 	r.AddCookie(ck)
-	// Le jeton ne peut pas être lu dans un corps trop gros : refus, rien n'est lancé.
-	assertStatus(t, e.do(r), http.StatusForbidden)
+	// Le jeton ne peut pas être lu dans un corps trop gros : refus (413), rien n'est lancé.
+	assertStatus(t, e.do(r), http.StatusRequestEntityTooLarge)
+	if e.coord.State().Generation != 0 {
+		t.Error("synchro lancée malgré un corps trop gros")
+	}
+}
+
+// multipartBody construit un formulaire multipart avec le jeton CSRF et un fichier de size octets.
+func multipartBody(t *testing.T, token string, size int) (*bytes.Buffer, string) {
+	t.Helper()
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	if err := mw.WriteField(CSRFField, token); err != nil {
+		t.Fatal(err)
+	}
+	fw, err := mw.CreateFormFile("file", "config.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := fw.Write(bytes.Repeat([]byte("a"), size)); err != nil {
+		t.Fatal(err)
+	}
+	if err := mw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return &buf, mw.FormDataContentType()
+}
+
+// Les routes d'import acceptent un fichier jusqu'à 1 Mio (au-delà de MaxBodyBytes) ; au-delà de
+// MaxImportBodyBytes : 413. Les autres routes gardent MaxBodyBytes, même en multipart.
+func TestImportBodyLimit(t *testing.T) {
+	e := newTestEnv(t)
+	ck := e.csrfCookie()
+	post := func(path string, size int) int {
+		body, ctype := multipartBody(t, ck.Value, size)
+		r := e.request(http.MethodPost, path, body)
+		r.Header.Set("Content-Type", ctype)
+		r.Header.Set("Origin", testOrigin)
+		r.AddCookie(ck)
+		return e.do(r).Code
+	}
+	for _, path := range []string{"/settings/import", "/settings/import/apply"} {
+		// Squelette : la requête passe la borne et le CSRF, le handler répond 501.
+		if code := post(path, configshare.MaxFileSize); code == http.StatusRequestEntityTooLarge || code == http.StatusForbidden {
+			t.Errorf("%s : fichier de 1 Mio refusé (%d)", path, code)
+		}
+		if code := post(path, MaxImportBodyBytes+1); code != http.StatusRequestEntityTooLarge {
+			t.Errorf("%s : corps trop gros, code %d au lieu de 413", path, code)
+		}
+	}
+	if code := post("/sync", MaxBodyBytes+1); code != http.StatusRequestEntityTooLarge {
+		t.Errorf("/sync : corps multipart trop gros, code %d au lieu de 413", code)
+	}
 	if e.coord.State().Generation != 0 {
 		t.Error("synchro lancée malgré un corps trop gros")
 	}

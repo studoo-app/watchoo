@@ -29,6 +29,9 @@ package web
 //	POST /settings/repos/{id}/remove    handleRepoRemove       settings.go      contributors+settings
 //	POST /settings/interval             handleIntervalUpdate   settings.go      contributors+settings
 //	GET  /fragments/quota               handleQuota            settings.go      contributors+settings
+//	GET  /settings/export               handleSettingsExport   settings_share.go partage
+//	POST /settings/import               handleSettingsImport   settings_share.go partage
+//	POST /settings/import/apply         handleSettingsImportApply settings_share.go partage
 //	POST /sync                          handleSyncAll          syncview.go      socle
 //	POST /repos/{id}/sync               handleSyncRepo         syncview.go      socle
 //	GET  /fragments/sync                handleSyncStatus       syncview.go      socle
@@ -74,6 +77,7 @@ func (s *server) routes() http.Handler {
 	get("/settings", s.handleSettings)
 	get("/settings/repos/"+idPattern+"/remove", s.handleRepoRemoveConfirm)
 	get("/fragments/quota", s.handleQuota)
+	get("/settings/export", s.handleSettingsExport)
 	get("/fragments/sync", s.handleSyncStatus)
 
 	// Actions (POST seulement, protégées par le CSRF).
@@ -83,6 +87,8 @@ func (s *server) routes() http.Handler {
 	r.Post("/settings/repos/"+idPattern, s.handleRepoUpdate)
 	r.Post("/settings/repos/"+idPattern+"/remove", s.handleRepoRemove)
 	r.Post("/settings/interval", s.handleIntervalUpdate)
+	r.Post("/settings/import", s.handleSettingsImport)
+	r.Post("/settings/import/apply", s.handleSettingsImportApply)
 
 	// Fichiers statiques.
 	get("/static/*", s.handleStatic)

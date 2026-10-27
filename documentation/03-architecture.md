@@ -66,6 +66,8 @@ watchoo/
                        coordinateur des synchros d'un processus long (Coordinator, « watchoo serve »)
   internal/activity/   règles d'activité (Actif / Flemme / Dead, états gris), formats courts
   internal/repoimport/ analyse des références de dépôts, de --branch et des fichiers d'import
+  internal/configshare/ partage de la configuration d'un espace (export JSON, validation, aperçu et
+                       application d'un import ; « watchoo config », page Réglages)
   internal/textclean/  nettoyage des textes affichés (séquences d'échappement, contrôles), CLI et TUI
   internal/store/      SQLite, accès aux données
     migrations/        migrations goose (servent aussi de schéma à sqlc)
@@ -133,6 +135,11 @@ Faux pour les tests : `providertest` (Provider en mémoire) et `githubtest` (ser
 - Paramètres attendus : nom de l'espace, intervalle de synchro, adresse d'écoute web, seuils d'activité,
   branches exclues, parallélisme de synchro, fuseau horaire d'affichage (par défaut celui du système),
   compte `gh` (`github.user`), chemin de `gh` (`github.gh_path`).
+- Partage entre superviseurs : `watchoo config export` / `import` (et la page Réglages) échangent un
+  fichier JSON versionné (`format: watchoo-config`, `version: 1`) avec les dépôts suivis et les réglages
+  communs, jamais `github.*` ni `web.*`. Le cœur est `internal/configshare` ; la réécriture de
+  `config.yaml` est faite par `internal/workspace` (`WriteSharedSettings`). Voir
+  [Partage de la configuration](05-cli.md#partage-de-la-configuration--watchoo-config).
 
 ## Points d'attention
 

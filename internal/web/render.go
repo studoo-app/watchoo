@@ -30,7 +30,7 @@ const (
 	pageErrors       = "errors"
 )
 
-var pageNames = []string{pageDashboard, pageRepo, pageContributors, pageSettings, pageErrors}
+var pageNames = []string{pageDashboard, pageRepo, pageContributors, pageSettings, pageSettingsImport, pageErrors}
 
 // Entrées de la barre de navigation (PageData.Nav).
 const (

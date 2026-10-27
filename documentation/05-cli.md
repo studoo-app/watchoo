@@ -35,6 +35,8 @@ uniquement avec `gh auth token` et ne le stocke jamais (voir
 | `watchoo status` | Résumé : dépôts à jour, inactifs, en erreur, quota API restant, compte `gh` utilisé et ses droits (sans afficher le token) | MVP |
 | `watchoo serve [--addr 127.0.0.1:8080] [--interval 30m]` | Lance l'interface web et la synchro périodique (30 min par défaut, 15 min minimum) | MVP |
 | `watchoo tui [--interval 30m]` | Ouvre le mode interactif dans le terminal | MVP |
+| `watchoo config export [-o fichier] [--force]` | Écrit la configuration partageable de l'espace (dépôts suivis et réglages communs) dans un fichier JSON, pour les autres personnes qui supervisent le même groupe | Après MVP |
+| `watchoo config import fichier [--dry-run] [--yes]` | Fusionne un fichier de configuration partagé dans l'espace, après un aperçu : ajoute les dépôts absents, met à jour les autres, réécrit les réglages communs ; ne retire jamais rien | Après MVP |
 
 ### Détails
 
@@ -109,8 +111,8 @@ uniquement avec `gh auth token` et ne le stocke jamais (voir
 Avec `--json`, chaque commande qui produit des données écrit **un seul objet JSON** (indenté, suivi d'une
 fin de ligne) sur la sortie standard, et rien d'autre : ni carte d'en-tête, ni astuce. Avertissements,
 questions de confirmation et erreurs vont sur la sortie d'erreur ; en cas d'erreur, la sortie standard
-reste vide (sauf `repo import`, qui écrit son bilan puis rend un code non nul s'il reste des dépôts
-inaccessibles).
+reste vide (sauf `repo import` et `config import`, qui écrivent leur bilan puis rendent un code non nul
+s'il reste des dépôts inaccessibles).
 
 Règles communes, qui forment un **contrat stable** pour les scripts (une clé n'est ni renommée ni
 retirée sans version incompatible : MINOR tant que Watchoo est en 0.y.z, MAJOR à partir de 1.0.0, voir
@@ -136,6 +138,8 @@ Clés de premier niveau (la liste est vérifiée par un test, `internal/cli/json
 | `watchoo log` | `commits` | Du plus récent au plus ancien ; objets commit |
 | `watchoo contributors` | `contributors` | Chaque élément : `id`, `name`, `login`, `display_name`, `avatar_url`, `commits`, `additions`, `deletions`, `repositories`, `last_commit_at` |
 | `watchoo status` | `workspace`, `github`, `rate_limit`, `rate_limit_error`, `quota_low`, `repositories`, `errors`, `last_synced_at`, `tracked_branches` | `workspace` : `name`, `root` ; `github` : `ok`, `host`, `login`, `token_source`, `scopes`, `error` ; `repositories` : `total`, `active`, `flemme`, `dead`, `error`, `never_synced`, `archived`, `empty`, `stopped` ; chaque erreur : `repo`, `message` |
+| `watchoo config export` | `format`, `version`, `exported_at`, `watchoo_version`, `workspace`, `settings`, `repositories` | Le document de partage lui-même (voir [Partage de la configuration](#partage-de-la-configuration--watchoo-config)), avec ou sans `--json` ; avec `-o`, il va dans le fichier et la sortie standard ne reçoit qu'une ligne de confirmation en texte (rien avec `--json`) |
+| `watchoo config import` | `file`, `dry_run`, `applied`, `source`, `settings`, `repositories`, `summary`, `warnings` | `source` : `workspace_name`, `watchoo_version`, `exported_at` (tels qu'écrits dans le fichier) ; `settings` : `changes` (chacun `key`, `before`, `after`, `env_var`), `rewrite`, `written`, `backup_file` ; chaque dépôt : `index`, `repo`, `action` (`add`, `update`, `unchanged`, `inaccessible`, `error`), `reenable`, `before` (`label`, `branches`, `enabled` ; `null` pour un ajout), `after`, `outcome` (comme `repo import`, `""` tant que rien n'est appliqué), `error` ; `summary` : `added`, `already_tracked`, `updated`, `reenabled` (parmi `updated`), `inaccessible`, `errors` (prévus avec `--dry-run`, obtenus sinon) ; chaque avertissement : `code` (`env_override`, `comments_lost`), `key`, `message` |
 
 Objets partagés :
 
@@ -292,6 +296,158 @@ IMPORT  licence-projet.csv
 - Code de retour non nul s'il reste des dépôts inaccessibles, pour les scripts.
 - L'import ne lance pas de synchro : on enchaîne avec `watchoo sync`.
 
+## Partage de la configuration : `watchoo config`
+
+Plusieurs personnes supervisent souvent le même groupe (enseignants d'une même promotion), chacune avec
+son propre espace sur sa machine. `watchoo config export` écrit la configuration **partageable** de
+l'espace dans un fichier JSON ; `watchoo config import` la fusionne dans un autre espace. On partage
+ainsi la liste des dépôts, leurs noms affichés et leurs branches, et les réglages communs, sans jamais
+partager de données d'étudiants ni de réglage propre à une machine.
+
+### Contenu du fichier
+
+```json
+{
+  "format": "watchoo-config",
+  "version": 1,
+  "exported_at": "2026-10-27T10:00:00Z",
+  "watchoo_version": "v0.1.0",
+  "workspace": {
+    "name": "licence-projet"
+  },
+  "settings": {
+    "sync": {
+      "auto": true,
+      "interval": "30m",
+      "parallelism": 4
+    },
+    "activity": {
+      "flemme_after_days": 5,
+      "dead_after_days": 15
+    },
+    "branches": {
+      "exclude": []
+    },
+    "timezone": ""
+  },
+  "repositories": [
+    {
+      "provider": "github",
+      "repo": "alice/projet-licence",
+      "label": "Alice Martin",
+      "branches": ["main", "release/*"]
+    }
+  ]
+}
+```
+
+| Clé | Contenu |
+| --- | --- |
+| `format` | Toujours `watchoo-config` (obligatoire) |
+| `version` | Version du format, `1` (obligatoire). Une version plus grande est refusée : « fichier créé par une version plus récente de Watchoo » |
+| `exported_at`, `watchoo_version` | Date d'export (UTC, RFC 3339) et version de Watchoo qui l'a fait ; informatifs, facultatifs |
+| `workspace.name` | Nom de l'espace exporté ; informatif : l'import ne renomme jamais l'espace |
+| `settings` | Réglages communs, valeurs **en vigueur** dans l'espace exporté (fichiers et variables `WATCHOO_*` compris) : `sync.auto`, `sync.interval` (durée Go entre guillemets : `"30m"`, `"1h30m"`, `"0"`), `sync.parallelism`, `activity.flemme_after_days`, `activity.dead_after_days`, `branches.exclude`, `timezone` |
+| `repositories` | Dépôts dont le suivi est actif (les dépôts arrêtés ne sont pas exportés), triés par `owner/repo` : `provider` (`github`), `repo` (`owner/repo`), `label` (nom affiché, `""` sans nom), `branches` (motifs suivis, `[]` = toutes les branches) |
+
+**Jamais exportés** : les réglages propres à la machine ou à la personne (`name` du fichier, `github.*` :
+compte `gh` et chemin de `gh`, qu'un fichier venu d'ailleurs ne doit jamais pouvoir changer ;
+`web.*` : adresse d'écoute, authentification, reverse proxy, noms acceptés), le token, les commits, les
+contributeurs, les e-mails, les dates de synchro et tout chemin local. Le fichier ne contient donc que
+des noms de dépôts, des noms affichés et des réglages ; il peut quand même révéler la liste des
+étudiants suivis : le partager seulement avec les personnes concernées.
+
+### `watchoo config export`
+
+- Sans `-o`, écrit le document sur la sortie standard (`watchoo config export > licence.json`), sans
+  carte d'en-tête ni astuce, avec ou sans `--json`.
+- `-o fichier` (`--output`) crée le fichier en `0600` et affiche une ligne de confirmation (dépôts et
+  réglages exportés) ; il **refuse d'écraser** un fichier existant sans `--force`. Avec `--json`, rien
+  n'est écrit sur la sortie standard : le fichier est le résultat.
+- Ne contacte ni `gh` ni GitHub : tout vient de la base et des réglages de l'espace.
+
+### `watchoo config import fichier`
+
+Le fichier vient d'une autre personne : c'est une **donnée non fiable**, entièrement validée avant de
+modifier quoi que ce soit.
+
+1. **Validation** (rien n'est modifié en cas d'erreur, le message dit pourquoi) : JSON valide, un seul
+   objet, 1 Mio au plus ; `format` présent et égal à `watchoo-config` ; `version` égale à 1 ; aucune clé
+   inconnue, à aucun niveau (une clé `github` ou `web` est donc refusée) ; 1 000 dépôts au plus ; chaque
+   dépôt : `provider` absent ou `github`, `repo` de la forme `owner/repo` (ou URL GitHub), présent une
+   seule fois (sans tenir compte de la casse), `label` valide (comme `repo add --label`), motifs de
+   branches valides (comme `--branch`, sans virgule) ; réglages valides une fois fusionnés avec ceux de
+   l'espace (mêmes règles que `config.yaml`, ex. `dead_after_days` plus grand que `flemme_after_days`),
+   y compris une fois les variables `WATCHOO_*` définies réappliquées : l'aperçu refuse donc tout ce que
+   l'écriture refuserait (ex. `WATCHOO_ACTIVITY_DEAD_AFTER_DAYS=10` et un import de
+   `flemme_after_days: 12`).
+   `settings` et `repositories` sont facultatifs, chaque réglage aussi : un fichier peut ne contenir que
+   des dépôts, ou qu'un fuseau.
+2. **Aperçu**, toujours affiché avant d'appliquer :
+   - dépôts **à ajouter**, **à mettre à jour** (nom affiché et branches, avant → après ; dépôt arrêté
+     **à reprendre**), **inchangés** ;
+   - réglages modifiés (clé, valeur actuelle → valeur importée) ; un réglage identique n'est pas listé.
+     Un réglage masqué par une variable `WATCHOO_*` définie est comparé à sa valeur **dans les
+     fichiers** (fichier utilisateur puis `config.yaml`), pas à celle de la variable : c'est elle que
+     l'import réécrit, et réimporter le même fichier ne change plus rien ;
+   - avertissements : chaque variable `WATCHOO_*` qui masque un réglage importé, qu'il change ou non (la
+     valeur est écrite dans `config.yaml`, ou y est déjà, mais la variable l'emporte tant qu'elle est
+     définie) ; `config.yaml` réécrit, donc
+     **ses commentaires personnels perdus** (copie gardée dans `config.yaml.bak`).
+3. **Confirmation** : sur un terminal, `Appliquer ces changements ? [o/N]` (mêmes réponses que
+   `repo remove`) ; sinon (script, tube, fichier lu sur l'entrée standard avec `-`) l'option
+   **`--yes` / `-y` est obligatoire** : sans elle, la commande s'arrête avant d'afficher quoi que ce
+   soit (l'aperçu s'obtient alors avec `--dry-run`). Sans confirmation, rien n'est modifié. Si l'aperçu
+   ne montre aucun changement, l'espace l'indique (« Rien à changer ») sans poser de question ni exiger
+   `--yes` en sortie texte (en `--json` sans `--dry-run`, `--yes` reste obligatoire).
+4. **Application**, dans cet ordre :
+   - **réglages** : si au moins un réglage change, `.watchoo/config.yaml` est **réécrit** à partir du
+     modèle commenté de `watchoo init`, réglages importés décommentés. Les clés propres à la machine
+     déjà présentes dans le fichier (`name`, `github.*`, `web.*`) et les réglages communs que le fichier
+     importé ne donne pas sont **gardés tels quels**. L'ancien fichier est copié dans
+     `.watchoo/config.yaml.bak` (`0600`, remplacé à chaque import). Le nouveau fichier est écrit à côté
+     (`0600`), relu et validé, et comparé aux valeurs attendues avant de remplacer l'ancien (écriture
+     atomique) : en cas d'écart, rien n'est changé. Si aucun réglage ne change, `config.yaml` n'est pas
+     touché ;
+   - **dépôts** : comme `repo import`. L'accès à chaque dépôt est vérifié auprès de GitHub ; un dépôt
+     absent est ajouté ; un dépôt déjà suivi (cherché par son identifiant GitHub puis par
+     `owner/repo`, donc renommage compris) reçoit le `label` et les `branches` du fichier, et son suivi
+     **reprend s'il était arrêté** (comme `repo add`). Un `label` vide garde le nom affiché existant ;
+     `branches` absent (ou `null`) garde les branches existantes, `[]` revient à toutes les branches.
+     Un dépôt inaccessible est signalé sans bloquer les autres. **Aucun dépôt n'est jamais retiré** et
+     aucune synchro n'est lancée.
+5. **Bilan** : réglages écrits (et copie `.bak`), puis dépôts ajoutés, déjà suivis, mis à jour,
+   inaccessibles, en erreur (ligne « dont repris » pour les dépôts arrêtés qui reprennent), avec le
+   détail de chaque dépôt en échec (`dépôt n° N  owner/repo : message`). Code de retour non nul s'il reste
+   des dépôts inaccessibles ou en erreur (relancer l'import une fois l'accès donné : il est sans risque).
+
+```
+IMPORT  licence.json  (espace « licence-projet », exporté le 27/10/2026 avec Watchoo v0.1.0)
+Réglages
+  sync.interval              30m → 1h
+  activity.dead_after_days   15 → 21
+Dépôts
+  à ajouter         18
+  à mettre à jour    1   bob/projet-licence (branches : toutes → main, dev)
+  à reprendre        1   carol/projet-licence
+  inchangés          3
+! config.yaml sera réécrit : ses commentaires personnels seront perdus (copie dans config.yaml.bak)
+Appliquer ces changements ? [o/N]
+```
+
+- **`--dry-run`** : validation et aperçu seulement, avec en plus la vérification d'accès de chaque dépôt
+  (comme `repo import --dry-run`) ; rien n'est écrit, ni la base ni `config.yaml` (octet pour octet).
+  L'aperçu sans `--dry-run` ne vérifie pas l'accès (cela se fait à l'application) : un dépôt renommé sur
+  GitHub peut y apparaître « à ajouter » et se révéler « déjà suivi ».
+- **`--json`** : aperçu (avec `--dry-run`) ou bilan au format JSON (voir [Sortie JSON](#sortie-json)) ;
+  sans `--dry-run`, `--yes` reste obligatoire et l'aperçu n'est pas écrit à part.
+- `-` à la place du fichier lit le document sur l'entrée standard (`--yes` obligatoire alors, l'entrée
+  standard n'étant plus disponible pour la question).
+- Les textes venus du fichier (nom de l'espace, labels, messages) sont nettoyés avant d'être affichés,
+  comme ceux des dépôts.
+- Les réglages réécrits valent pour les commandes lancées ensuite ; un `watchoo serve` ou `watchoo tui`
+  déjà ouvert les prend en compte à son prochain lancement.
+
 ## Mode interactif (TUI)
 
 `watchoo tui` ouvre un mode interactif dans le terminal (Bubble Tea). On y parcourt les dépôts, les commits
@@ -364,6 +520,15 @@ watchoo sync
 watchoo repo list
 watchoo contributors --since 7d
 watchoo serve
+```
+
+Partager la configuration avec une collègue, qui l'importe dans son propre espace :
+
+```bash
+watchoo config export -o licence.json          # chez soi
+watchoo config import licence.json --dry-run    # chez la collègue : aperçu
+watchoo config import licence.json              # puis application, après confirmation
+watchoo sync
 ```
 
 Depuis n'importe où, consulter un autre espace : `watchoo -C ~/supervision/master-projet status`.

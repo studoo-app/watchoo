@@ -13,6 +13,8 @@
 //	repo.go          templates/repo.html          repo_test.go          détail « /repos/{id} », static/app.js
 //	contributors.go  templates/contributors.html  contributors_test.go  classement « /contributors »
 //	settings.go      templates/settings.html      settings_test.go      réglages « /settings »
+//	settings_share.go templates/settings_import.html settings_share_test.go partage de la configuration
+//	                 (export, aperçu et application d'un import ; section de templates/settings.html)
 //
 // Tout le reste (web.go, routes.go, middleware.go, csrf.go, security.go, render.go, funcs.go,
 // helpers.go, syncview.go, assets.go, serve.go, templates/layout.html, templates/partials.html,
@@ -93,6 +95,11 @@ type Options struct {
 	Repos RepoManager    // ajout de dépôts et quota : le moteur (obligatoire)
 	// Config est la configuration de l'espace (nom, seuils d'activité, sync.*, web.*).
 	Config workspace.Config
+	// Workspace est l'espace servi (racine, .watchoo/) : export et import de la configuration
+	// (internal/configshare), qui réécrit .watchoo/config.yaml. nil = partage indisponible (les routes
+	// /settings/export et /settings/import* répondent 503). Config reste la configuration du processus :
+	// un import ne la change pas (prise en compte au prochain lancement).
+	Workspace *workspace.Workspace
 	// Location est le fuseau d'affichage (Config.Location) ; nil = time.Local.
 	Location *time.Location
 	Now      func() time.Time // horloge ; nil = time.Now
@@ -117,6 +124,7 @@ type server struct {
 	sync     SyncController
 	repos    RepoManager
 	cfg      workspace.Config
+	ws       *workspace.Workspace // espace servi (partage de la configuration) ; nil = indisponible
 	loc      *time.Location
 	now      func() time.Time
 	logger   *slog.Logger
@@ -155,6 +163,7 @@ func newServer(opts Options) (*server, error) {
 		sync:     opts.Sync,
 		repos:    opts.Repos,
 		cfg:      opts.Config,
+		ws:       opts.Workspace,
 		loc:      opts.Location,
 		now:      opts.Now,
 		logger:   opts.Logger,

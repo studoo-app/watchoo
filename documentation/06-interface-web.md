@@ -102,11 +102,45 @@ erreurs (500…) : pages en français, sans détail interne (le détail est dans
   suppression est refusée (`409`) pendant une synchro, pour que le moteur n'écrive pas dans un dépôt en
   cours de suppression ; l'arrêt du suivi reste possible. Un dépôt arrêté peut reprendre son suivi.
 - Import groupé depuis un fichier CSV (même format et même bilan que `watchoo repo import`) : V2.
-- Intervalle de synchronisation : valeur en vigueur, prochaine synchro et valeur de `config.yaml`. Il
-  peut être changé **pour la durée du processus seulement** (durée Go comme `45m` ou `1h30m`, nombre
-  entier de minutes, ou 0 ; 0 ou au moins 15 min) : `config.yaml` n'est jamais réécrit par
-  l'interface ; pour un changement durable, modifier `sync.interval` dans le fichier.
+- Intervalle de synchronisation : valeur en vigueur, prochaine synchro et valeur de `config.yaml`,
+  relue sur le disque à chaque affichage (si un import l'a changée depuis le lancement, la page dit
+  qu'elle vaudra au prochain lancement). Il peut être changé **pour la durée du processus seulement** (durée Go comme `45m` ou `1h30m`, nombre
+  entier de minutes, ou 0 ; 0 ou au moins 15 min) : ce réglage ne réécrit jamais `config.yaml` ;
+  pour un changement durable, modifier `sync.interval` dans le fichier (ou importer une configuration
+  partagée, ci-dessous).
 - Bouton **« Synchroniser maintenant »**.
+- **Partager la configuration** (même fichier JSON et mêmes règles que `watchoo config export` et
+  `watchoo config import`, voir [Partage de la configuration](05-cli.md#partage-de-la-configuration--watchoo-config)) :
+  - lien **« Exporter »** : `GET /settings/export`, sans effet de bord, renvoie le document en pièce
+    jointe (`Content-Type: application/json`, `Content-Disposition: attachment`, nom de fichier sûr
+    tiré du nom de l'espace : `watchoo-config-<nom>.json`, lettres ASCII, chiffres, `-` et `_`
+    seulement ; `Cache-Control: no-store`) ;
+  - formulaire **« Importer »** : `POST /settings/import` (`multipart/form-data`, champ `file`, CSRF,
+    1 Mio au plus) **valide et affiche l'aperçu sans rien appliquer** : dépôts à ajouter, à mettre à
+    jour (avant → après), à reprendre, inchangés ; réglages modifiés ; avertissements (variable
+    `WATCHOO_*` qui masque un réglage, commentaires de `config.yaml` perdus). L'aperçu ne vérifie pas
+    l'accès aux dépôts. Fichier invalide : `400` avec le message de validation ; trop gros : `413` ;
+  - bouton **« Appliquer »** : `POST /settings/import/apply` (CSRF) renvoie le contenu du fichier dans un
+    champ caché (`document`, formulaire `multipart/form-data`) ; le serveur le **revalide entièrement**
+    (l'aperçu n'est jamais pris pour acquis : un document modifié entre-temps est traité comme un
+    nouveau), l'applique comme la CLI (réglages, puis dépôts avec vérification d'accès), puis redirige
+    vers `/settings?msg=imported` avec un bilan construit par le serveur (nombres de dépôts ajoutés, mis
+    à jour, inaccessibles ; réglages écrits). Un document devenu invalide : `400`, rien n'est modifié ;
+  - **choix** : les réglages réécrits ne sont pris en compte par le `watchoo serve` en cours qu'**à son
+    prochain lancement** (le bilan le dit) : la configuration du processus n'est jamais changée à
+    chaud, l'intervalle compris (il reste modifiable pour la durée du processus, ci-dessus). Les
+    dépôts ajoutés sont, eux, visibles et synchronisés tout de suite. L'import reste possible pendant
+    une synchro, comme l'ajout d'un dépôt ;
+  - export, aperçu et application relisent `config.yaml` sur le disque à chaque requête (sans toucher
+    à la configuration du processus) : un export fait après un import reflète le nouveau fichier, et
+    réimporter le même fichier affiche « Rien à appliquer » ;
+  - **une seule application à la fois** par processus : une seconde, simultanée, reçoit `409` et ne
+    change rien ;
+  - le bilan donne le nombre de dépôts inaccessibles ou en erreur (bandeau rouge) ; leurs noms sont
+    écrits dans le journal du `serve` (`WARN`, `owner/repo` et l'erreur, jamais d'e-mail), et
+    `watchoo config import fichier --dry-run` les liste. Un fichier de plusieurs centaines de dépôts
+    peut dépasser le délai d'une requête (30 s) : les dépôts non traités sont comptés en erreur et
+    l'import se relance sans risque (ou se fait par la CLI).
 - État du **quota API** GitHub (restant, limite, remise à zéro en heure locale, « quota bas » sous
   10 %), lu par une requête gratuite (`GET /rate_limit`) dans un fragment chargé après la page et
   rechargé à la fin d'une synchro ; « quota inconnu » si `gh` ne donne pas de token.
@@ -306,6 +340,7 @@ Fonctionnement (`wsync.Coordinator`, un seul par processus, qui réutilise le mo
   jamais la query string, une adresse IP, un en-tête ni une donnée personnelle.
 - **Journal** : une lecture du quota interrompue (page quittée, arrêt de `serve` : contexte annulé) est
   journalisée en `debug` ; les autres échecs de lecture du quota, en avertissement.
-- **Limites** : délais du serveur (`ReadHeaderTimeout` 5 s…), corps de requête borné à 64 Kio,
-  identifiants de dépôt validés par la route (1 à 18 chiffres).
+- **Limites** : délais du serveur (`ReadHeaderTimeout` 5 s…), corps de requête borné à 64 Kio (1 Mio
+  plus 64 Kio pour `POST /settings/import` et `POST /settings/import/apply`, qui portent un fichier ;
+  au-delà : `413`, rien n'est appliqué), identifiants de dépôt validés par la route (1 à 18 chiffres).
 - Le token GitHub n'est jamais affiché ni renvoyé au navigateur.

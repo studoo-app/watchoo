@@ -78,9 +78,10 @@ type settingsView struct {
 	// Intervalle de synchro.
 	Interval      time.Duration // intervalle en vigueur dans ce processus ; 0 = manuelle seule
 	NextAuto      time.Time     // prochaine synchro automatique ; zéro si aucune
-	FileInterval  time.Duration // sync.interval du fichier de configuration
-	FileAuto      bool          // sync.auto du fichier de configuration
-	Overridden    bool          // l'intervalle en vigueur diffère de celui du fichier
+	FileInterval  time.Duration // sync.interval de config.yaml, relu sur le disque
+	FileAuto      bool          // sync.auto de config.yaml, relu sur le disque
+	FileChanged   bool          // config.yaml a changé depuis le lancement (import) : vaudra au prochain
+	Overridden    bool          // l'intervalle en vigueur diffère de celui du lancement
 	MinInterval   time.Duration // minimum accepté (hors 0)
 	IntervalInput string        // saisie réaffichée après une erreur
 	IntervalError string
@@ -194,6 +195,17 @@ func (s *server) settingsData(r *http.Request) (settingsView, error) {
 		fileEffective = 0
 	}
 	v.Overridden = v.Interval != fileEffective
+	// config.yaml peut avoir été réécrit depuis le lancement (import d'une configuration partagée) :
+	// la ligne « Fichier config.yaml » montre la valeur relue sur le disque, et la page signale
+	// qu'elle ne vaudra qu'au prochain lancement. Fichier illisible : valeur du lancement.
+	if s.ws != nil {
+		if ws, err := s.shareWorkspace(); err == nil {
+			v.FileInterval, v.FileAuto = ws.Config.Sync.Interval, ws.Config.Sync.Auto
+			v.FileChanged = v.FileInterval != s.cfg.Sync.Interval || v.FileAuto != s.cfg.Sync.Auto
+		} else {
+			s.logger.Warn("relecture de config.yaml impossible", "erreur", err)
+		}
+	}
 	for _, sum := range summaries {
 		v.Repos = append(v.Repos, settingsRepo{
 			RepositorySummary: sum,
@@ -265,6 +277,9 @@ func (s *server) handleSettings(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		v.Flash = flashMessage(msg, textclean.Clean(name))
+		if msg == msgImported {
+			v.Flash, v.FlashError = importFlash(r) // bilan d'un import (settings_share.go)
+		}
 	}
 	s.renderSettings(w, r, http.StatusOK, v)
 }
