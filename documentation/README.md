@@ -1,12 +1,15 @@
 # Documentation Watchoo
 
-> Document de définition du projet — version du 26 octobre 2026 · Benoit
+> Document de définition du projet — version du 27 octobre 2026 · Benoit
 >
-> Statut : **conception**. Aucun code n'est encore écrit ; ces pages décrivent ce qui doit être construit.
+> Statut : **MVP v0.1.0**. Les phases 1 (fondations), 2 (provider GitHub), 3 (moteur de synchro, CLI et
+> TUI), 4 (interface web) et 5 (finitions : graphiques, `--json`, binaires, image Docker, README,
+> versions) de la [roadmap](07-roadmap.md) sont réalisées ; la phase 6 (V2) reste à faire. Historique
+> des versions : [CHANGELOG.md](../CHANGELOG.md).
 
 Watchoo est un binaire Go unique qui surveille une liste de dépôts GitHub et répond à trois questions :
-**qu'est-ce qui a bougé, quand, et qui l'a fait.** Il s'utilise en ligne de commande (CLI) ou via une
-interface web locale servie par le même binaire.
+**qu'est-ce qui a bougé, quand, et qui l'a fait.** Il s'utilise en ligne de commande (CLI), en mode
+interactif dans le terminal (`watchoo tui`) ou via une interface web locale servie par le même binaire.
 
 ## Sommaire
 
@@ -30,8 +33,10 @@ interface web locale servie par le même binaire.
 ```mermaid
 flowchart LR
     U1["Utilisateur terminal"] --> CLI["watchoo (CLI)"]
+    U1 --> TUI["watchoo tui (interactif)"]
     U2["Utilisateur navigateur"] --> WEB["watchoo serve (web)"]
     CLI --> CORE["Cœur métier"]
+    TUI --> CORE
     WEB --> CORE
     CORE --> DB[("SQLite")]
     CORE --> GH["API GitHub"]
@@ -45,3 +50,9 @@ flowchart LR
 3. **Sobriété vis-à-vis de l'API GitHub** : synchronisation incrémentale, ETag, respect du rate limit.
 4. **Extensible** : l'accès aux forges passe par une interface `Provider` (GitHub d'abord, GitLab/Gitea ensuite).
 5. **Livrer par phases** : chaque phase produit quelque chose d'utilisable de bout en bout.
+
+## Licence
+
+Code sous [licence Apache 2.0](../LICENSE) ; le nom et le logo restent réservés (voir [NOTICE](../NOTICE)).
+Les dépendances (cobra, viper, go-github, SQLite modernc, goose, chi, Bubble Tea, DaisyUI, HTMX, Chart.js)
+sont sous des licences compatibles (Apache 2.0, MIT, BSD).

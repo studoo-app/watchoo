@@ -67,6 +67,20 @@ licence-projet/
   seul l'utilisateur peut les lire. Les données viennent de dépôts privés et contiennent des noms et des
   e-mails d'étudiants.
 - Le `.gitignore` interne évite de pousser la base sur GitHub si l'espace se trouve dans un dépôt Git.
+- `config.yaml` commence par la carte d'en-tête de Watchoo, en commentaires YAML : le hibou en petit
+  format, « Watchoo » et « Réglages de l'espace de supervision », dans un cadre (le nom de l'espace n'y
+  figure pas). Suivent les réglages, commentés en français ; seul le nom de l'espace est actif. Le fichier
+  [`config.example.yaml`](../config.example.yaml) montre ce contenu :
+
+  ```yaml
+  # ╭─────────────────────────────────────────────────╮
+  # │  █▄    ▄█  Watchoo                              │
+  # │  █ ●██● █  Réglages de l'espace de supervision  │
+  # │  ▀██▙▟██▀                                       │
+  # ╰─────────────────────────────────────────────────╯
+  #
+  # Réglages de l'espace de supervision Watchoo.
+  ```
 - **Nom de l'espace** : par défaut le nom du répertoire (`licence-projet`), modifiable dans
   `config.yaml`. Il est affiché dans le titre du web, du TUI et dans `watchoo status`.
 
@@ -82,6 +96,28 @@ trouvé est utilisé.
 | Variable `WATCHOO_DIR` | Même effet que `-C`, pratique pour Docker et les scripts |
 | Aucun espace trouvé | Erreur claire : « aucun espace Watchoo ici, lancez `watchoo init` » |
 
+### Seuls les espaces de l'utilisateur sont acceptés
+
+Un enseignant clone souvent les dépôts qu'il supervise, parfois **dans** son espace
+(`~/supervision/licence-projet/alice-projet/`). Un étudiant peut y avoir commité un `.watchoo/`
+(`git add -f` contourne le `.gitignore`) : lancée depuis ce clone, une commande le trouverait avant le
+vrai espace et lirait des réglages fournis par l'étudiant (base, `web.*`, `github.gh_path`…). Comme
+le `safe.directory` de Git, Watchoo ne fait donc confiance qu'aux espaces de l'utilisateur. Sous Linux
+et macOS, avant de lire les réglages d'un espace, il **refuse** :
+
+- un `.watchoo/` qui n'appartient pas à l'utilisateur courant, ou dont les droits dépassent `0700`
+  (lisible ou modifiable par le groupe ou les autres) ;
+- un `.watchoo/config.yaml` dans le même cas (propriétaire différent, droits au-delà de `0600`).
+
+`watchoo init` pose toujours ces droits ; Git, lui, ne les pose jamais (un clone crée des répertoires en
+`0755` et des fichiers en `0644`), si bien qu'un `.watchoo/` venu d'un dépôt est refusé. Le message cite
+le chemin et le remède : `chmod 700 …` (ou `chmod 600 …`) s'il s'agit bien de votre espace, sinon lancer
+la commande avec `-C <votre espace>` (ou `WATCHOO_DIR`). Sous Windows, ce contrôle n'est pas fait.
+
+En complément, `github.gh_path` doit être un **nom** cherché dans le `PATH` (`gh`) ou un **chemin
+absolu** : un chemin relatif avec un séparateur (`./outils/gh`, `.watchoo/gh`) est refusé, car il
+dépendrait du répertoire d'où la commande est lancée.
+
 ## Comportement de `watchoo init`
 
 1. Vérifie que `gh` est installé et connecté (voir
@@ -92,6 +128,9 @@ trouvé est utilisé.
 4. **Prévient** si un espace parent existe déjà (ex. `init` lancé dans `~/supervision/licence-projet/groupe-a`
    alors que `licence-projet` est un espace) : on crée alors un espace imbriqué, indépendant du parent.
 
+Sur un terminal, le compte rendu de `init` commence par la [carte d'en-tête](05-cli.md#carte-den-tête) ;
+redirigé ou avec `--json`, il reste du texte simple ou du JSON.
+
 Le token n'est **pas** propre à l'espace : tous les espaces utilisent le compte `gh` de l'utilisateur
 (ou celui défini par `github.user` dans la config de l'espace).
 
@@ -99,7 +138,7 @@ Le token n'est **pas** propre à l'espace : tous les espaces utilisent le compte
 
 | Niveau | Fichier | Contenu |
 | --- | --- | --- |
-| Utilisateur (facultatif) | `~/.config/watchoo/config.yaml` | Valeurs par défaut communes à tous les espaces (fuseau, seuils, intervalle…) |
+| Utilisateur (facultatif) | `$XDG_CONFIG_HOME/watchoo/config.yaml`, sinon `~/.config/watchoo/config.yaml` | Valeurs par défaut communes à tous les espaces (fuseau, seuils, intervalle…) |
 | Espace | `.watchoo/config.yaml` | Réglages propres au groupe ; ils remplacent ceux de l'utilisateur |
 | Ligne de commande / environnement | options et variables `WATCHOO_*` | Remplacent tout le reste, pour une exécution |
 
@@ -109,6 +148,11 @@ Le token n'est **pas** propre à l'espace : tous les espaces utilisent le compte
   `master-projet` en même temps.
 - Deux `serve` ne peuvent pas écouter sur le même port. Le port se règle par espace (`web.addr` dans
   `config.yaml`) ; si le port est déjà pris, `serve` s'arrête avec un message qui l'indique.
+- Réglages web de l'espace (clés `web.*`) : `web.addr` (adresse d'écoute), `web.auth.username`
+  (authentification basique ; le mot de passe n'est jamais dans un fichier : variable
+  `WATCHOO_WEB_PASSWORD`), `web.trusted_proxy` (reverse proxy authentifiant déclaré) et
+  `web.allowed_hosts` (noms publics du proxy acceptés dans l'en-tête `Host`). Deux `serve` sur
+  la même machine gardent chacun leur jeton CSRF (cookie nommé avec le port).
 - Le quota GitHub est **partagé** entre tous les espaces, puisqu'ils utilisent le même compte `gh`.
   Chaque espace affiche le quota restant réel (lu dans les réponses de GitHub).
 

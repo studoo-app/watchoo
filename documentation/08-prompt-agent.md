@@ -18,8 +18,9 @@ nouveaux commits, auteurs/contributeurs, date de dernière activité, évolution
 - Authentification : la CLI GitHub `gh` est un prérequis obligatoire. Le token est obtenu uniquement avec
   `gh auth token`, redemandé à chaque synchro, jamais stocké (ni config, ni base, ni logs). init vérifie
   `gh auth status`. Dépôts majoritairement privés : aucune route GitHub en écriture n'est appelée.
-- GitHub : google/go-github + oauth2. Pagination, ETag/If-None-Match, respect du rate limit
-  (attendre le reset si le quota est épuisé).
+- GitHub : google/go-github, sans golang.org/x/oauth2 (le token est posé par le transport HTTP du
+  provider). Pagination, ETag/If-None-Match (cache en mémoire), respect du rate limit (attendre le reset
+  si le quota est épuisé).
 - Stockage : SQLite via modernc.org/sqlite (pas de CGO), migrations avec pressly/goose,
   requêtes typées générées avec sqlc (schéma lu depuis les migrations goose, filtres optionnels via sqlc.narg).
 - Web : net/http + routeur go-chi/chi (groupes de routes, middlewares), html/template, HTMX, DaisyUI (Tailwind) avec CSS généré par la CLI autonome

@@ -1,0 +1,142 @@
+{{/*
+  Tableau de bord « / ». PROPRIÉTAIRE : agent dashboard. Donnée : PageData, Content de type
+  DashboardView (dashboard.go).
+  Fragments HTMX, rafraîchis à la fin d'une synchro (événement sync-finished, syncview.go) :
+    « dashboard-repos » : compteurs par état et cartes des dépôts (/fragments/dashboard/repos) ;
+    « dashboard-feed »  : fil des 20 derniers commits (/fragments/dashboard/feed).
+  Graphique d'activité de l'espace (Content.Activity, charts.go) : hors des fragments (HTMX retire
+  leurs <script>) ; static/app.js le dessine et, à la fin d'une synchro, relit « / » pour ses données.
+*/}}
+{{define "content"}}
+<div class="flex flex-wrap items-center justify-between gap-3 mb-6">
+  <div>
+    <h1 class="text-2xl font-bold">Tableau de bord</h1>
+    <p class="text-sm text-base-content/70">Ce qui a bougé, quand, et qui l'a fait, dans l'espace {{.Workspace}}.</p>
+  </div>
+  {{template "sync-all-button" .}}
+</div>
+{{if .Content.Repos}}{{template "dashboard-activity" .}}{{end}}
+<div class="grid gap-6 xl:grid-cols-3">
+  <div class="xl:col-span-2 min-w-0">{{template "dashboard-repos" .}}</div>
+  <div class="min-w-0">{{template "dashboard-feed" .}}</div>
+</div>
+{{end}}
+
+{{/* Compteurs et cartes. Donnée : PageData (Content.Repos, Content.Counts). */}}
+{{define "dashboard-repos"}}{{$c := .Content.Counts}}
+<section id="dashboard-repos" aria-labelledby="dashboard-repos-title"
+         hx-get="/fragments/dashboard/repos" hx-trigger="sync-finished from:body" hx-swap="outerHTML">
+  <h2 id="dashboard-repos-title" class="sr-only">Dépôts suivis</h2>
+  <div class="stats stats-vertical sm:stats-horizontal w-full bg-base-100 shadow-sm mb-6">
+    <div class="stat">
+      <div class="stat-title">Actifs</div>
+      <div class="stat-value text-success">{{$c.Active}}</div>
+      <div class="stat-desc">sur {{plural $c.Total "dépôt" "dépôts"}}</div>
+    </div>
+    <div class="stat">
+      <div class="stat-title">Flemme</div>
+      <div class="stat-value text-warning">{{$c.Flemme}}</div>
+      <div class="stat-desc">plus de {{plural .Content.Thresholds.FlemmeAfterDays "jour" "jours"}} sans commit</div>
+    </div>
+    <div class="stat">
+      <div class="stat-title">Dead</div>
+      <div class="stat-value text-error">{{$c.Dead}}</div>
+      <div class="stat-desc">plus de {{plural .Content.Thresholds.DeadAfterDays "jour" "jours"}} sans commit</div>
+    </div>
+    <div class="stat">
+      <div class="stat-title">Autres</div>
+      <div class="stat-value text-base-content/60">{{$c.Gray}}</div>
+      <div class="stat-desc">jamais synchronisés, en erreur, archivés…</div>
+    </div>
+  </div>
+  {{if .Content.Repos}}
+  <ul class="grid gap-4 sm:grid-cols-2 2xl:grid-cols-3" role="list">
+    {{range .Content.Repos}}
+    <li class="card bg-base-100 shadow-sm border-l-4 {{.Accent}}">
+      <div class="card-body p-4 gap-2">
+        <div class="flex items-start justify-between gap-2">
+          <h3 class="card-title text-base min-w-0">
+            <a href="{{repoPath .ID}}" class="link link-hover truncate" title="{{clean .FullName}}">{{clean .DisplayName}}</a>
+          </h3>
+          {{template "state-badge" .State}}
+        </div>
+        {{if .Label}}<p class="text-xs text-base-content/60 truncate">{{clean .FullName}}</p>{{end}}
+        {{if .LastCommit.SHA}}
+        <p class="text-sm truncate" title="{{firstLine .LastCommit.Message}}">{{firstLine .LastCommit.Message}}</p>
+        <p class="text-xs text-base-content/70">
+          {{template "rel-time" .LastCommitAt}} · par <span class="font-medium">{{clean .LastCommit.AuthorDisplayName}}</span>
+        </p>
+        {{else}}
+        <p class="text-sm text-base-content/60">Aucun commit connu{{if .LastSyncedAt.IsZero}} : pas encore synchronisé{{end}}.</p>
+        {{end}}
+        <div class="card-actions justify-end text-xs text-base-content/60">
+          <span>{{plural .Commits "commit" "commits"}} · {{plural .TrackedBranches "branche suivie" "branches suivies"}}</span>
+        </div>
+      </div>
+    </li>
+    {{end}}
+  </ul>
+  {{else}}
+  <div class="card bg-base-100 shadow-sm">
+    <div class="card-body items-center text-center">
+      <h3 class="card-title">Aucun dépôt suivi</h3>
+      <p class="text-base-content/70">Ajoutez un dépôt dans les réglages, ou avec « watchoo repo add ».</p>
+      <div class="card-actions"><a href="/settings" class="btn btn-primary btn-sm">Ajouter un dépôt</a></div>
+    </div>
+  </div>
+  {{end}}
+</section>
+{{end}}
+
+{{/* Fil des derniers commits. Donnée : PageData (Content.Feed). Aucun e-mail affiché. */}}
+{{define "dashboard-feed"}}
+<section id="dashboard-feed" class="card bg-base-100 shadow-sm" aria-labelledby="dashboard-feed-title"
+         hx-get="/fragments/dashboard/feed" hx-trigger="sync-finished from:body" hx-swap="outerHTML">
+  <div class="card-body p-4">
+    <h2 id="dashboard-feed-title" class="card-title text-lg">Derniers commits</h2>
+    {{if .Content.Feed}}
+    <ul class="list -mx-4" role="list">
+      {{range .Content.Feed}}
+      <li class="list-row items-start py-3">
+        {{template "avatar" (dict "Name" .AuthorDisplayName "URL" "")}}
+        <div class="min-w-0">
+          <p class="text-sm truncate" title="{{firstLine .Message}}">{{firstLine .Message}}</p>
+          <p class="text-xs text-base-content/70 truncate">
+            <a href="{{repoPath .RepoID}}" class="link link-hover font-medium">{{clean .RepoDisplayName}}</a>
+            · {{clean .AuthorDisplayName}} · {{template "rel-time" .CommittedAt}}
+          </p>
+        </div>
+        {{if .URL}}<a href="{{.URL}}" class="font-mono text-xs link link-hover text-base-content/60" target="_blank" rel="noopener noreferrer" title="Voir le commit sur la forge">{{shortSHA .SHA}}</a>
+        {{else}}<span class="font-mono text-xs text-base-content/60">{{shortSHA .SHA}}</span>{{end}}
+      </li>
+      {{end}}
+    </ul>
+    {{else}}
+    <p class="text-base-content/70">Aucun commit pour l'instant. Lancez une synchro pour remplir le fil.</p>
+    {{end}}
+  </div>
+</section>
+{{end}}
+
+{{/* Graphique d'activité de l'espace. Donnée : PageData (Content.Activity, dailyChart). */}}
+{{define "dashboard-activity"}}{{$a := .Content.Activity}}
+<section class="card bg-base-100 shadow-sm mb-6 min-w-0" aria-labelledby="workspace-activity-title">
+  <div class="card-body p-4 md:p-6">
+    <div class="flex flex-wrap items-baseline justify-between gap-2">
+      <h2 id="workspace-activity-title" class="card-title text-lg">Activité de l'espace sur {{$a.Days}} jours</h2>
+      <p class="text-sm text-base-content/70" id="workspace-activity-summary">
+        {{plural $a.Total "commit" "commits"}}{{if $a.Peak.Count}}, au plus {{$a.Peak.Count}} le {{$a.PeakDate}}{{end}}
+      </p>
+    </div>
+    <div class="relative h-48 md:h-56 w-full">
+      <canvas id="workspace-activity-chart" role="img" data-chart="daily" data-source="workspace-activity-data"
+              data-summary="workspace-activity-summary" data-refresh-url="/"
+              aria-label="Commits par jour sur les {{$a.Days}} derniers jours, tous dépôts confondus : {{plural $a.Total "commit" "commits"}} au total"></canvas>
+    </div>
+    <p class="text-xs text-base-content/60">Commits par jour (date de commit), tous dépôts confondus, dans le fuseau d'affichage de l'espace.</p>
+  </div>
+  <script type="application/json" id="workspace-activity-data">{{$a.Series}}</script>
+</section>
+{{end}}
+
+{{define "scripts"}}{{if .Content.Repos}}<script src="/static/vendor/chart-4.6.1.umd.min.js" defer></script>{{end}}{{end}}

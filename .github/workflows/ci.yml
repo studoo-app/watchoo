@@ -1,0 +1,80 @@
+# Intégration continue : à chaque push et chaque pull request.
+#
+# Aucun service extérieur (voir documentation/09-tests.md) : gh est simulé (faux binaire compilé par
+# les tests), l'API GitHub aussi. Aucun secret ni GH_TOKEN / GITHUB_TOKEN n'est fourni aux tests :
+# un test qui aurait besoin du vrai GitHub échoue au lieu de passer en silence.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: vet, gofmt, tests, sqlc, css
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: Aucun token GitHub dans l'environnement
+        run: |
+          if [ -n "${GH_TOKEN:-}${GITHUB_TOKEN:-}" ]; then
+            echo "GH_TOKEN ou GITHUB_TOKEN est défini : les tests ne doivent pas en recevoir" >&2
+            exit 1
+          fi
+
+      - name: go vet
+        run: make vet
+
+      - name: gofmt
+        run: make fmt-check
+
+      - name: Tests (avec -race)
+        run: make test
+
+      - uses: sqlc-dev/setup-sqlc@bac53b7fb28c039a6c7f5736fd1e89744021bdd6 # v5.0.0
+        with:
+          sqlc-version: '1.31.1'
+
+      - name: Code généré par sqlc à jour
+        run: |
+          make sqlc-check
+          # Ceinture et bretelles : rien ne doit avoir changé dans l'arbre suivi par Git.
+          git diff --exit-code -- internal/store/db
+          test -z "$(git status --porcelain -- internal/store/db)"
+
+      # CLI autonome de Tailwind CSS (sans Node ni npm), version et empreinte de
+      # internal/web/tailwind/VERSIONS, téléchargée depuis la release GitHub officielle.
+      - name: Installation de la CLI Tailwind CSS
+        env:
+          TAILWIND_VERSION: '4.3.3'
+          TAILWIND_SHA256: 'dc61b3ac6b8c9ca874c0cc4c57b2409791a64c5540404ca5f5367360babc313a'
+        run: |
+          mkdir -p "$RUNNER_TEMP/tailwind"
+          curl -fsSL --proto '=https' --tlsv1.2 -o "$RUNNER_TEMP/tailwind/tailwindcss" \
+            "https://github.com/tailwindlabs/tailwindcss/releases/download/v${TAILWIND_VERSION}/tailwindcss-linux-x64"
+          echo "${TAILWIND_SHA256}  $RUNNER_TEMP/tailwind/tailwindcss" | sha256sum --check --strict
+          chmod +x "$RUNNER_TEMP/tailwind/tailwindcss"
+          echo "$RUNNER_TEMP/tailwind" >> "$GITHUB_PATH"
+
+      - name: CSS de l'interface web à jour
+        run: |
+          make css-check
+          git diff --exit-code -- internal/web/static/app.css
+
+      - name: Compilation
+        run: make build

@@ -9,8 +9,21 @@ trois questions : qu'est-ce qui a bougé, quand, et qui l'a fait. Il propose une
 (`watchoo tui`) et une interface web locale (`watchoo serve`). Chaque groupe supervisé (ex. les projets des
 étudiants d'une promotion) vit dans son propre répertoire, initialisé par `watchoo init`.
 
-**État actuel : conception.** Aucun code n'est encore écrit. La prochaine étape est la phase 1 de la
-[roadmap](documentation/07-roadmap.md).
+**État actuel : MVP v0.1.0, phases 1 à 5 de la [roadmap](documentation/07-roadmap.md) en place.**
+`watchoo init` crée un espace de supervision ; `repo add / import / list / remove`, `sync`, `log`,
+`contributors`, `status` et `version` fonctionnent en texte et en `--json` (schéma stable, documenté dans
+[05-cli.md](documentation/05-cli.md#sortie-json) et vérifié par `internal/cli/json_schema_test.go`) ;
+`watchoo tui` ouvre le mode interactif ; `watchoo serve` sert l'interface web locale (tableau de bord et
+contributeurs avec graphiques d'activité, détail d'un dépôt, réglages) et synchronise en arrière-plan. Le
+cœur métier est dans `internal/sync` (moteur : synchro incrémentale, verrou, quota, ajout de dépôts ;
+`Coordinator` : une seule synchro à la fois dans un processus long), `internal/activity` (états Actif /
+Flemme / Dead et gris, séries d'activité par jour et par semaine) et `internal/repoimport` (références,
+motifs `--branch`, fichiers d'import) ; `internal/cli`, `internal/tui` et `internal/web` ne font
+qu'afficher. Deux tests de bout en bout enchaînent les commandes (`internal/cli/e2e_test.go`) et les
+pages web (`internal/web/e2e_test.go`) avec le faux `gh` et `githubtest`. Distribution : GoReleaser
+(`.goreleaser.yaml`), image Docker (`Dockerfile`, `docker-compose.yml`), workflow de release sur tag
+(`.github/workflows/release.yml`) ; historique dans [CHANGELOG.md](CHANGELOG.md). La prochaine étape est
+la phase 6 (V2), après le critère de fin du MVP.
 
 ## Documentation de référence
 
@@ -42,7 +55,7 @@ mainteneur, puis dans le code.
 
 ## Stack (résumé)
 
-Go (dernière version stable, fixée dans `go.mod`) · cobra + viper · go-github · SQLite via
+Go (dernière version stable, fixée dans `go.mod`) · cobra + viper · go-github (sans x/oauth2) · SQLite via
 `modernc.org/sqlite` (sans CGO) · migrations goose · requêtes sqlc · net/http + go-chi/chi ·
 html/template + HTMX + DaisyUI (CSS généré par la CLI autonome Tailwind) · Chart.js embarqué ·
 Bubble Tea + bubbles + lipgloss · log/slog · errgroup. Détail et justifications :
@@ -54,34 +67,52 @@ Bubble Tea + bubbles + lipgloss · log/slog · errgroup. Détail et justificatio
 cmd/watchoo/          point d'entrée
 internal/cli/         commandes cobra (affichage seulement)
 internal/tui/         mode interactif Bubble Tea (affichage seulement)
-internal/web/         handlers chi, templates, static (embed)
+internal/web/         handlers chi, templates, static (embed), tailwind/ (CSS DaisyUI, VERSIONS)
 internal/workspace/   espaces de supervision : init, recherche de .watchoo/, réglages
 internal/auth/        accès à gh (token, état de connexion)
-internal/provider/    interface Provider + github/
+internal/provider/    interface Provider, types, erreurs ; providertest/ (faux Provider)
+                      github/ : implémentation GitHub ; github/githubtest/ (faux serveur GitHub)
 internal/sync/        moteur de synchronisation (cœur métier)
+internal/activity/    règles d'activité (Actif / Flemme / Dead, états gris), séries, formats courts
+internal/repoimport/  références de dépôts, motifs --branch, fichiers d'import
+internal/textclean/   nettoyage des textes affichés (séquences d'échappement), CLI et TUI
 internal/store/       SQLite : migrations/, queries/ (sqlc), db/ (généré)
 internal/model/       structs métier
+internal/logo/        hibou en versions texte (copie de assets/logo/) et carte d'en-tête
 ```
 
-## Commandes (prévues, à créer en phase 1)
+## Commandes
 
 ```bash
-go build ./cmd/watchoo
-go test -race ./...
-go vet ./...
-sqlc generate
-make css
+make build        # bin/watchoo, sans CGO, version injectée par -ldflags
+make test         # go test -race ./...
+make vet          # go vet ./... (et le faux gh des tests, ignoré par ./...)
+make fmt-check    # échoue si gofmt -l trouve un fichier
+make sqlc         # sqlc generate
+make sqlc-check   # échoue si internal/store/db n'est pas à jour
+make check        # tous les contrôles, comme la CI (.github/workflows/ci.yml)
+make css          # CSS DaisyUI généré par la CLI autonome Tailwind (make css-check : à jour ?)
+make logo         # recopie assets/logo dans internal/logo/art/ et internal/web/static/ (copies embarquées)
+make release-check    # goreleaser check (.goreleaser.yaml)
+make release-snapshot # goreleaser release --snapshot --clean : release locale dans dist/, rien de publié
+make docker           # image Docker locale (IMAGE=watchoo:dev), jamais poussée
 ```
 
 - `sqlc generate` après toute modification de `internal/store/queries/` ou des migrations ; le code
   généré (`internal/store/db/`) est commité et **jamais modifié à la main**.
 - `make css` après toute modification des templates ; `internal/web/static/app.css` est commité.
+- `make logo` après toute modification de `assets/logo/` ; des tests vérifient que les copies sont à jour.
+- Les `-ldflags` (`internal/cli.Version`, `Commit`, `Date`) sont écrits dans le `Makefile`, le
+  `.goreleaser.yaml` et le `Dockerfile` : les garder identiques.
+- Toute modification visible va dans la section `[Unreleased]` de `CHANGELOG.md` (skills `semver` et
+  `semver-changelog`, voir [11-skills.md](documentation/11-skills.md)). Aucun tag, release ni
+  `docker push` sans demande explicite.
 
 ## Règles d'architecture
 
 - **Aucune logique métier** dans `cli`, `tui` ou `web` : ces couches appellent le cœur métier.
 - Tout accès à GitHub passe par l'interface `Provider` ; rien de spécifique à GitHub hors de
-  `internal/provider/github/`.
+  `internal/provider/github/`, seul package qui importe go-github.
 - Les types générés par sqlc ne sortent pas de `internal/store/` ; ils sont convertis vers `internal/model`.
 - Les handlers web restent des `http.Handler` standard.
 - Synchro **incrémentale** : ne jamais re-télécharger un commit déjà en base ; utiliser les ETag ;
@@ -95,7 +126,8 @@ make css
 - Le token GitHub vient **uniquement** de `gh auth token`. Ne jamais lire `GITHUB_TOKEN` ni stocker le
   token (config, base, fichier, trousseau).
 - Le token n'apparaît **jamais** dans les logs, les erreurs, la sortie CLI, le TUI ou le web.
-- **Lecture seule** : aucun appel GitHub en `POST`, `PATCH`, `PUT` ou `DELETE`.
+- **Lecture seule** : aucun appel GitHub en `POST`, `PATCH`, `PUT` ou `DELETE` (le transport du provider
+  les refuse avant l'envoi).
 - Les données viennent de dépôts privés et contiennent des données personnelles d'étudiants :
   `.watchoo/` en `0700`, fichiers en `0600` ; **ni message de commit ni e-mail dans les logs**.
 - Web : écoute sur `127.0.0.1` par défaut ; authentification obligatoire sur toute autre adresse.
@@ -104,8 +136,9 @@ make css
 
 - Tout code nouveau ou modifié a ses tests.
 - **Aucun service extérieur** dans les tests ni en CI : `gh` est mocké (interface Go + faux binaire dans
-  `internal/auth/testdata/fakegh/`, chemin réglable par `github.gh_path`), l'API GitHub est simulée avec
-  `httptest`, la base est une SQLite temporaire.
+  `internal/auth/testdata/fakegh/`, chemin réglable par `github.gh_path`), l'API GitHub est simulée par le
+  faux serveur `githubtest` (sur `httptest`), le provider par `providertest`, la base est une SQLite
+  temporaire.
 - Détail des scénarios : [09-tests.md](documentation/09-tests.md).
 
 ## Style

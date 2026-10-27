@@ -10,14 +10,15 @@ pas de token. Tout ce qui sort du binaire est simulé.
 | Ce qui est testé | Comment | Où |
 | --- | --- | --- |
 | Commande `gh` (token, état de connexion) | **Mock de `gh`** : interface + faux binaire (voir ci-dessous) | `internal/auth/` |
-| API GitHub | Serveur HTTP simulé avec `httptest` | `internal/provider/github/` |
+| API GitHub | Faux serveur GitHub programmable (`githubtest`, sur `httptest`) | `internal/provider/github/` |
 | Espaces de supervision | Répertoires temporaires : `init`, refus si déjà initialisé, recherche dans les parents, `-C`, `WATCHOO_DIR`, espace imbriqué, droits `0700`/`0600` | `internal/workspace/` |
 | Base SQLite et requêtes sqlc | Base SQLite temporaire par test, migrations goose appliquées | `internal/store/` |
 | Import groupé | Fichiers CSV et texte de test : ligne mal formée, doublons, dépôt inaccessible (`404`), relance idempotente, `--dry-run` sans écriture | `internal/cli/` + `internal/sync/` |
-| Moteur de synchro | Provider simulé + base temporaire | `internal/sync/` |
+| Moteur de synchro | Faux Provider en mémoire (`providertest`) + base temporaire | `internal/sync/` |
 | CLI | Exécution des commandes cobra, vérification de la sortie texte et JSON | `internal/cli/` |
 | Web | `httptest` sur le routeur chi, vérification des pages et fragments | `internal/web/` |
 | TUI | Tests du modèle Bubble Tea : messages envoyés, état et rendu obtenus | `internal/tui/` |
+| Bout en bout | La CLI complète avec le faux `gh`, le vrai provider contre `githubtest` et une base temporaire | `internal/cli/e2e_test.go` |
 
 ## Mock de la commande `gh`
 
@@ -54,7 +55,10 @@ Scénarios couverts :
 | Connecté | `auth status` réussit, `auth token` renvoie un faux token | Utiliser le token |
 | Non connecté | `auth status` échoue avec le message de `gh` | `init` et `status` indiquent `gh auth login` |
 | `gh` absent | Chemin inexistant | Message clair : installer `gh` |
-| Plusieurs comptes | `auth token --user X` renvoie un token différent | Respecter `github.user` |
+| Plusieurs comptes | `auth token --user X` renvoie un token différent | Respecter `github.user` ; refuser un `github.user` écrit avec une autre casse (`--user` distingue les majuscules) |
+| `GH_TOKEN` seul (Docker, CI) | `auth status` ne connaît le compte que par `GH_TOKEN` ; `auth token` sans `--user` renvoie ce token, `auth token --user X` échoue | Utiliser le token sans `--user` ; refuser un `github.user` que `gh` ne connaît que par `GH_TOKEN` |
+| Token refusé | `auth status` donne l'état `error` avec `HTTP 401: Bad credentials` | `init` et `status` indiquent `gh auth login` |
+| GitHub injoignable | `auth status` donne l'état `error` (erreur réseau) ou `timeout` | Erreur claire, sans conseiller `gh auth login` |
 | Token changé entre deux synchros | Deux appels renvoient deux tokens différents | Utiliser le nouveau token sans redémarrer |
 | Sortie inattendue / délai dépassé | Sortie vide, ou `gh` qui ne répond pas | Erreur claire, délai maximum appliqué |
 
@@ -66,11 +70,167 @@ Règles :
 
 ## API GitHub simulée
 
-- Serveur `httptest` qui rejoue des réponses JSON enregistrées dans `testdata/`.
-- Cas couverts : pagination, réponses `304` avec ETag, quota épuisé (en-têtes de rate limit), `404` sur
-  un dépôt privé sans accès, `403` lié au SSO, dépôt renommé ou transféré.
+Deux faux, écrits en phase 2 et réutilisés par les phases suivantes :
+
+| Faux | Package | Sert à tester |
+| --- | --- | --- |
+| Serveur GitHub programmable | `internal/provider/github/githubtest` | Le vrai provider GitHub (transport, cache ETag, quota, erreurs) ; en phase 3, le moteur de synchro de bout en bout |
+| `Provider` en mémoire | `internal/provider/providertest` | Le moteur de synchro, la CLI, le web et le TUI, sans HTTP |
+
+- **`githubtest`** : serveur `httptest` sur `127.0.0.1` qui simule les routes utilisées (dépôt, branches,
+  commits, commit avec statistiques, compare, `/rate_limit`) à partir d'un état préparé par le test :
+  dépôts, graphe de commits (merges compris), branches, force-push, renommage ou transfert (`301`), accès
+  refusé (`404`) ou SSO (`403`), dépôt vide (`409`). Il reproduit le format JSON de GitHub, la pagination
+  (en-tête `Link`), les ETag et les `304` (sans quota), le quota (en-têtes `X-RateLimit-*`, épuisement,
+  remise à zéro), les limites secondaires (`Retry-After`), et tient un journal des requêtes reçues (sans
+  la valeur de `Authorization`). Une réponse peut aussi être imposée pour un chemin donné.
+- **`providertest`** : implémente `provider.Provider` avec la même sémantique que le provider GitHub
+  (validation, ordre des commits, `Stop`, `Since`, `Limit`, dépôt vide, `ErrUnknownBase`, renommages),
+  plus l'injection d'erreurs, le comptage des appels et un quota simulé.
+- `internal/provider/github/testdata/` : quelques réponses JSON factices au format exact de GitHub, pour
+  les tests de conversion des types.
+- **Scénarios** (le vrai provider contre `githubtest`, `internal/provider/github/scenario_test.go`) :
+  pagination des branches et des commits ; synchro incrémentale (premier import par la liste des
+  commits, nouvelle branche par compare depuis la tête de la branche par défaut, y compris une branche
+  qui a fusionné `main`, compare entre l'ancienne et la nouvelle tête, y compris un merge qui apporte des
+  commits plus anciens que l'ancienne tête, et la perte de commits que provoquerait l'arrêt au premier
+  SHA connu) ; force-push (`ErrUnknownBase`, puis repli) ; réponses `304` avec ETag (quota non décompté, cache
+  partagé entre deux providers du même token et vidé par un autre token) ; quota épuisé ; limite
+  secondaire ; `404` sur un dépôt privé sans accès ; `403` lié au SSO ; `401` ; dépôt renommé ou
+  transféré ; dépôt vide ; dépôt archivé ; 4 dépôts synchronisés en parallèle (sous `-race`).
 - **Test de lecture seule** : le serveur simulé fait échouer le test dès qu'il reçoit une requête
-  `POST`, `PATCH`, `PUT` ou `DELETE`.
+  `POST`, `PATCH`, `PUT` ou `DELETE`, et un test vérifie que le transport du provider les refuse avant
+  l'envoi.
+- **Test de fuite** : dans tous ces scénarios, les logs (capturés au niveau Debug) et les erreurs ne
+  contiennent ni le faux token, ni en-tête `Authorization`, ni message de commit, nom ou e-mail.
+
+## Phase 3 : moteur, CLI et TUI
+
+- **Store** (`internal/store/`, base temporaire) : verrou de synchro (8 goroutines concurrentes, une
+  seule le prend ; `running` périmé clos « synchro interrompue »), écriture d'une synchro en une
+  transaction (annulée en entier sur erreur), `INSERT … ON CONFLICT DO NOTHING`, fusion des identités,
+  `last_commit_at` sur les branches suivies, vues de lecture (filtres dépôt, auteur, branche, période,
+  limite ; classement ; résumés).
+- **Activité et import** (`internal/activity/`, `internal/repoimport/`, sans base) : seuils globaux et par
+  dépôt, bornes 5/6 et 15/16 jours, jours calendaires (passage de minuit à Paris, heure d'été), priorité
+  des états gris ; CSV (BOM, CRLF, guillemets, colonnes dans le désordre), liste simple, commentaires,
+  doublons, chaque erreur avec son numéro de ligne, aucun identifiant de connexion dans les messages.
+- **Moteur** (`internal/sync/`, `providertest` + base temporaire) : premier import, synchro
+  incrémentale, tête inchangée (aucune requête de commits), nouvelle branche, merge qui apporte des
+  commits plus anciens, force-push (branche et branche de référence), branche supprimée,
+  `branch_patterns` et `branches.exclude`, branche par défaut changée ou renommée (ancienne supprimée),
+  motifs qui excluent après coup la branche par défaut (nouvelle référence relue en entier,
+  `last_commit_at` et état d'activité conservés), label invalide refusé, dépôt renommé, transféré ou vide,
+  `404` et SSO, quota bas avant et pendant la synchro, `RateLimitError`, limite secondaire, verrou (deux
+  moteurs sur la même base), parallélisme borné, règles des statistiques, token redemandé à chaque
+  synchro et masqué, annulation. Un scénario passe par le vrai provider et `githubtest`.
+- **CLI** (`internal/cli/`, `authtest` ou faux `gh`, `providertest`) : chaque commande en texte et en
+  `--json` (jeu de clés figé par les tests), hors espace, dépôt inconnu, arguments invalides, `--since`
+  et `-n`, import (`--dry-run`, bilan, code de retour, fichier invalide), dépôts verrouillés ou reportés,
+  `gh` déconnecté, carte de `status`, quota bas signalé par `status` (texte et `quota_low`),
+  confirmation de `repo remove` (`--yes` hors terminal), `repo add --label` avec un caractère de
+  contrôle refusé, sortie texte de `log`, `contributors` et `repo list` sans aucune séquence
+  d'échappement quand messages et noms Git en contiennent (`internal/textclean` testé à part).
+- **Bout en bout** (`internal/cli/e2e_test.go`) : vrai `auth.GH` avec le faux `gh`, vrai provider GitHub
+  contre `githubtest`, vrai moteur, base temporaire : `init` → `repo add` → `repo import` (avec
+  `--dry-run`, un dépôt déjà suivi et un inaccessible) → `sync` → `log` (filtres) → `contributors` →
+  `repo list` (Actif / Flemme / Dead) → `status` → nouveaux commits et synchro incrémentale (compare,
+  jamais la liste complète ; rien quand rien n'a changé ; uniquement des `GET`) → `repo remove`
+  (`--keep-history`, puis suppression). Ni token ni message de commit ni e-mail dans les logs.
+- **TUI** (`internal/tui/`) : `Init` / `Update` / `View` appelés directement (sans `teatest`), avec un
+  faux `Syncer` qu'on peut suspendre et une vraie base temporaire : vues, modes ASCII et couleur,
+  défilement, filtre, détail, synchro (progression, refus pendant une synchro, erreurs, report en heure
+  de Paris), synchro automatique, quitter pendant une synchro, aide. Un test lance `tui.Run` avec le
+  vrai moteur, une base temporaire et un provider bloquant : quitter pendant la synchro attend sa fin,
+  le `sync_run` n'est plus `running` et le dépôt n'est pas verrouillé. `watchoo tui` : refus hors
+  terminal, `--json`, valeurs de `--interval`.
+- **Fuites** : à chaque commande de la CLI, le harness vérifie que le faux token n'apparaît ni sur les
+  sorties ni dans les logs ; les tests du moteur vérifient aussi l'absence de nom, d'e-mail, de login et
+  de message de commit dans les logs et les rapports.
+
+## Phase 4 : interface web
+
+- **Store et activité** : historique paginé avec total (`CommitPage` : bornes, filtres), dates de commit
+  depuis une date (`CommitTimes`), commits par contributeur et par dépôt, fin de la dernière synchro ;
+  série d'activité par jour (`activity.DailyCounts` : 90 jours, fuseau, changement d'heure, dates hors
+  fenêtre).
+- **Coordinateur** (`internal/sync`, faux `Syncer` suspendu, minuterie simulée) : synchro au démarrage
+  seulement si la dernière date de plus d'un intervalle, synchro périodique, synchro manuelle refusée
+  pendant une synchro, progression, erreur globale, changement d'intervalle (bornes), arrêt qui annule
+  et attend la synchro, délai d'arrêt dépassé ; un scénario avec le vrai moteur.
+- **Web** (`internal/web/`, `httptest` sur le routeur complet, base temporaire remplie de données
+  factices, vrai moteur sur `providertest` et `authtest`) : chaque page (200, contenu clé, message de
+  commit contenant `<script>` échappé), 404 et 405 en français, pagination et filtres, fragments HTMX
+  (en-tête `HX-Request`), `POST` sans jeton CSRF, avec un mauvais jeton ou d'une origine étrangère
+  refusés (`403`, rien n'est modifié), aucun `GET` qui modifie, `Host` étranger refusé (`421`, page qui
+  ne montre rien de l'espace), y compris derrière `web.trusted_proxy` (noms de `web.allowed_hosts`
+  acceptés), authentification basique (bon et mauvais identifiants, statiques
+  compris), en-têtes de sécurité (CSP sans `unsafe-inline` ni `unsafe-eval`), journal d'accès sans
+  query string, corps trop gros, panique rattrapée, synchro manuelle concurrente refusée, progression et
+  `HX-Trigger: sync-finished` (aussi pour une synchro finie avant la réponse au `POST`), boutons de
+  synchro jamais désactivés au rendu, arrêt propre de `Serve` (synchro en cours annulée), fichiers statiques
+  (Content-Type, cache, `ETag` et `304`), copies des logos identiques à `assets/logo`, `app.css` présent
+  et à jour, empreintes de `tailwind/VERSIONS`, et ni token ni e-mail dans aucune réponse ni dans le
+  journal.
+- **Pages** : tableau de bord (tri Dead, Flemme, Actif puis gris, compteurs, fil limité à 20, URL de
+  commit en `javascript:` neutralisée, espace vide) ; détail (chaque état, suivi arrêté sans bouton de
+  synchro, pagination sur 120 commits avec bornes, filtres branche et auteur gardés d'une page à l'autre,
+  filtre contenant un e-mail ignoré, `HX-Push-Url`, données du graphique dans le fuseau d'affichage) ;
+  contributeurs (classement, commits par dépôt, avatar seulement depuis `avatars.githubusercontent.com`
+  avec `referrerpolicy` et `loading`, échappement) ; réglages (ajout, déjà suivi, saisies refusées sans
+  rien créer, dépôt inaccessible `422`, erreur GitHub `502` sans détail, modification, confirmation de
+  retrait en `GET` qui ne modifie rien, arrêt du suivi, reprise, suppression refusée pendant une
+  synchro, intervalle et ses bornes, fragment de quota, messages `?msg=` jamais recopiés).
+- **Bout en bout** (`internal/web/e2e_test.go`) : routeur complet, vrai moteur et vrai coordinateur,
+  vrai provider GitHub sur `githubtest`, faux `gh` (`authtest`) ; ajout de dépôts depuis les réglages
+  (`POST` avec CSRF ; dépôt caché refusé ; sans jeton : `403`), synchro manuelle par le bouton,
+  `HX-Trigger: sync-finished`, tableau de bord avec les trois états dans le bon ordre, détail avec
+  pagination et filtres, nouvelle synchro sans commit re-téléchargé, contributeurs, arrêt du suivi puis
+  suppression depuis les réglages ; uniquement des `GET` vers GitHub, et ni token ni e-mail dans les
+  réponses ou le journal.
+- **CLI** (`watchoo serve`) : `--json` et arguments refusés, `--interval` et `--addr` invalides, refus
+  hors boucle locale sans authentification (aucune écoute ouverte), règles du mot de passe, port déjà
+  pris, démarrage réel sur un port libre de `127.0.0.1` (fragment et CSS servis), carte d'en-tête,
+  avertissement du reverse proxy, authentification basique, synchro au démarrage puis pas de nouvelle
+  synchro après une synchro récente, arrêt propre (code 0).
+
+## Phase 5 : finitions du MVP
+
+- **Activité** (`internal/activity/series_weeks_test.go`) : commits par semaine du lundi au dimanche
+  (`WeeklyCounts`) dans le fuseau d'affichage (Paris, passages à l'heure d'hiver et d'été, fin d'année,
+  UTC+14, nombre de semaines invalide), résumé d'une série par jour (total, jour le plus chargé).
+- **Store** (`TestAuthorCommitTimes`) : auteur et date de chaque commit, auteur inconnu exclu, dates en
+  UTC, borne `since`.
+- **Graphiques web** (`internal/web/charts_test.go`) : séries des 8 contributeurs les plus actifs et
+  regroupement des autres (égalités, auteur hors classement, noms nettoyés et tronqués, `[]` plutôt que
+  `null`) ; JSON des pages tableau de bord et contributeurs, absent des fragments et d'un espace vide ;
+  nom contenant `</script>` échappé.
+- **Retouches web** : `HEAD` accepté sur toutes les routes `GET`, `405` sur les routes `POST`, `404` sur
+  une page inconnue (`routes_test.go`) ; cookie CSRF posé sur les pages HTML et jamais sur les fichiers
+  statiques (`TestCSRFCookieOnlyOnHTML`) ; lecture du quota interrompue par un contexte annulé journalisée
+  en debug, autres échecs en avertissement (`TestSettingsQuotaCanceled`).
+- **Sortie `--json`** (`internal/cli/json_schema_test.go`) : les 10 commandes qui produisent des données
+  écrivent un seul objet JSON avec exactement les clés attendues ; ces clés sont comparées au tableau de
+  [Sortie JSON](05-cli.md#sortie-json) (`TestJSONSchemaDocumented` lit `05-cli.md` : garder le format de
+  ses lignes) ; espace vide (`[]`, `null`), trois issues de `repo remove`, entrées en erreur.
+- **Version** (`TestVersionBuildMetadata`) : `-ldflags` complets, `-ldflags` prioritaires sur les
+  informations de compilation, `go install …@v0.1.0`, `go build` local, arbre modifié (`dev`), commit hors
+  tag (pseudo-version), date illisible ou hors UTC, rien de connu ; `--version --json` identique à
+  `version --json`, carte d'en-tête avec la même version.
+- **Distribution** (hors `go test`, vérifiée à la main avant la release, sans token réel) :
+  `make release-check`, `make release-snapshot` (6 archives et leur contenu, fichier de sommes,
+  `version --json` du binaire), `make docker` (utilisateur 65532, `WATCHOO_DIR=/data`, `gh --version`) et
+  un essai du conteneur avec le faux `gh` compilé pour Linux (`init`, refus de `serve` sans
+  authentification hors boucle locale, `401` sans identifiants puis `200`, arrêt propre).
+
+## Logo et carte d'en-tête
+
+- Les copies embarquées dans `internal/logo/art/` sont identiques octet pour octet à `assets/logo/*.txt`
+  (sinon : `make logo`).
+- Carte : toutes les lignes ont la même largeur affichée (accents, « », caractères de bloc), coupure de
+  l'astuce, borne de 80 colonnes, pas de carte sous 40, repli 100 % ASCII, couleurs seulement si permises.
+- CLI : carte affichée seulement sur un terminal simulé, jamais avec `--json`, sur stderr ni dans une sortie
+  redirigée (la sortie de `watchoo version` hors terminal ne change pas).
 
 ## En CI
 
@@ -78,6 +238,10 @@ Règles :
 
 1. `go vet` et les tests (`go test ./...`, avec le détecteur de concurrence `-race`).
 2. `sqlc generate` puis vérification qu'aucun fichier généré ne change (code commité à jour).
-3. `make css` puis vérification que `app.css` commité est à jour.
+3. `make css-check` (CLI autonome Tailwind de la version fixée dans `internal/web/tailwind/VERSIONS`,
+   installée avec vérification SHA-256) : `app.css` commité est à jour.
 4. Aucune variable `GH_TOKEN` / `GITHUB_TOKEN` n'est fournie aux tests : un test qui aurait besoin du vrai
    GitHub échoue au lieu de passer en silence.
+
+Sur un tag `vX.Y.Z`, le workflow de release relance les mêmes contrôles (`make check`) avant GoReleaser
+et l'image Docker ([Distribution](03-architecture.md#distribution)).

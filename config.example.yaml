@@ -1,0 +1,63 @@
+# ╭─────────────────────────────────────────────────╮
+# │  █▄    ▄█  Watchoo                              │
+# │  █ ●██● █  Réglages de l'espace de supervision  │
+# │  ▀██▙▟██▀                                       │
+# ╰─────────────────────────────────────────────────╯
+#
+# Réglages de l'espace de supervision Watchoo.
+#
+# Seul le nom de l'espace est actif. Les autres réglages sont en commentaire,
+# avec leur valeur par défaut : pour en changer un dans cet espace seulement,
+# retirez le « # » devant sa section (ex. « sync: ») et devant sa ligne.
+#
+# Ordre de priorité, du plus faible au plus fort :
+#   1. valeurs par défaut de Watchoo ;
+#   2. réglages de l'utilisateur, communs à tous ses espaces (facultatif) :
+#      $XDG_CONFIG_HOME/watchoo/config.yaml, sinon ~/.config/watchoo/config.yaml ;
+#   3. ce fichier ;
+#   4. variables d'environnement WATCHOO_<SECTION>_<CLÉ> (ex. WATCHOO_SYNC_INTERVAL=1h),
+#      puis options de la ligne de commande.
+#
+# Une clé inconnue est refusée, pour signaler les fautes de frappe.
+# Aucun token ici : Watchoo l'obtient de « gh auth token » et ne le stocke jamais.
+
+# Nom de l'espace, affiché dans le web, le TUI et « watchoo status ».
+# Par défaut : le nom du répertoire de l'espace.
+name: "licence-projet"
+
+# Synchronisation automatique, faite par « watchoo serve » et « watchoo tui ».
+# « watchoo sync » reste possible à tout moment.
+# sync:
+#   auto: true               # false : synchro manuelle seule
+#   interval: 30m            # durée (15m, 1h…), au moins 15m ; 0 : synchro manuelle seule
+#   parallelism: 4           # dépôts synchronisés en même temps, de 1 à 4
+
+# Seuils d'activité de l'espace, en jours sans commit.
+# activity:
+#   flemme_after_days: 5     # au-delà : « Flemme » (au moins 1)
+#   dead_after_days: 15      # au-delà : « Dead » (plus grand que flemme_after_days)
+
+# Branches ignorées, par motifs (syntaxe de path.Match).
+# branches:
+#   exclude: []              # ex. ["dependabot/*", "renovate/*"]
+
+# Interface web (« watchoo serve »). Écouter ailleurs que sur 127.0.0.1
+# exposerait les données des dépôts privés : l'authentification devient obligatoire
+# (auth.username et la variable WATCHOO_WEB_PASSWORD, jamais dans ce fichier,
+# ou trusted_proxy: true derrière un reverse proxy qui authentifie, avec ses noms
+# publics dans allowed_hosts : l'en-tête Host est toujours contrôlé, contre le DNS rebinding).
+# web:
+#   addr: "127.0.0.1:8080"   # hôte:port
+#   trusted_proxy: false     # true : un reverse proxy authentifiant protège l'accès
+#   allowed_hosts: []        # noms publics acceptés dans Host, ex. ["watchoo.example.org"]
+#   auth:
+#     username: ""           # authentification basique ; mot de passe dans WATCHOO_WEB_PASSWORD
+
+# Fuseau horaire d'affichage et de regroupement par jour ou par semaine.
+# timezone: ""               # vide : fuseau du système ; sinon nom IANA, ex. "Europe/Paris"
+
+# Accès à GitHub, uniquement par la CLI gh. Avec GH_TOKEN (Docker, CI), laissez
+# user vide : « gh auth token --user » ignore GH_TOKEN.
+# github:
+#   user: ""                 # login exact d'un compte gh ; vide : compte actif de gh
+#   gh_path: "gh"            # chemin absolu, ou nom cherché dans le PATH

@@ -1,0 +1,201 @@
+{{/*
+  Réglages « /settings ». PROPRIÉTAIRE : agent contributors+settings. Donnée : PageData, Content de
+  type settingsView (page et confirmation de retrait) ou quotaView (fragment « settings-quota »),
+  définis dans settings.go.
+  Toutes les actions sont des formulaires POST classiques avec le champ CSRF : la réponse est une
+  redirection vers /settings (message selon le code msg) ou la page réaffichée avec l'erreur.
+*/}}
+{{define "content"}}{{if .Content.Confirm}}{{template "settings-confirm" .}}{{else}}{{template "settings-main" .}}{{end}}{{end}}
+
+{{define "settings-main"}}{{$c := .Content}}{{$page := .}}
+<div class="flex flex-wrap items-end justify-between gap-3 mb-4">
+  <div>
+    <h1 class="text-2xl font-bold">Réglages</h1>
+    <p class="text-sm text-base-content/70">Dépôts suivis, synchronisation et quota de l'API GitHub. Rien n'est jamais écrit sur GitHub.</p>
+  </div>
+  {{template "sync-all-button" .}}
+</div>
+{{template "flash" (dict "Message" $c.Flash "Error" $c.FlashError)}}
+
+<div class="grid gap-6 lg:grid-cols-3">
+  <section class="lg:col-span-2 space-y-3" aria-labelledby="repos-heading">
+    <h2 id="repos-heading" class="text-lg font-semibold">Dépôts suivis <span class="badge badge-ghost align-middle">{{len $c.Repos}}</span></h2>
+    {{- if not $c.Repos}}
+    <div class="card bg-base-100 shadow-sm"><div class="card-body text-base-content/70">
+      <p>Aucun dépôt dans cet espace. Ajoutez-en un avec le formulaire « Ajouter un dépôt ».</p>
+    </div></div>
+    {{- end}}
+    <ul class="space-y-3">
+      {{- range $c.Repos}}
+      <li class="card bg-base-100 shadow-sm">
+        <div class="card-body p-4 gap-3">
+          <div class="flex flex-wrap items-start justify-between gap-2">
+            <div class="min-w-0">
+              <a href="{{repoPath .ID}}" class="link link-hover font-semibold text-base break-words">{{truncate 80 .DisplayName}}</a>
+              {{- if .Label}}<div class="text-sm text-base-content/60 break-all">{{.FullName}}</div>{{end}}
+            </div>
+            {{template "state-badge" .State}}
+          </div>
+          <dl class="grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-1 text-sm">
+            <div><dt class="inline text-base-content/60">Branches :</dt> <dd class="inline break-words">{{truncate 120 .BranchesText}}</dd></div>
+            <div><dt class="inline text-base-content/60">Commits :</dt> <dd class="inline tabular-nums">{{.Commits}}</dd></div>
+            <div><dt class="inline text-base-content/60">Synchro :</dt> <dd class="inline">{{template "rel-time" .LastSyncedAt}}</dd></div>
+          </dl>
+          <div class="flex flex-wrap items-start gap-2">
+            <details class="collapse collapse-arrow bg-base-200 flex-1 min-w-64"{{if .EditError}} open{{end}}>
+              <summary class="collapse-title text-sm font-medium min-h-0 py-2">Modifier le nom affiché et les branches</summary>
+              <div class="collapse-content">
+                <form method="post" action="/settings/repos/{{.ID}}" class="space-y-2">
+                  {{template "csrf-field" $page}}
+                  {{- if .EditError}}{{template "flash" (dict "Message" .EditError "Error" true)}}{{end}}
+                  <label class="form-control w-full block">
+                    <span class="label text-sm whitespace-normal mb-1">Nom affiché (vide : {{.FullName}})</span>
+                    <input type="text" name="label" value="{{.Edit.Label}}" maxlength="200" class="input input-sm w-full" autocomplete="off">
+                  </label>
+                  <label class="form-control w-full block">
+                    <span class="label text-sm whitespace-normal mb-1">Branches suivies, séparées par des virgules (vide : toutes)</span>
+                    <input type="text" name="branches" value="{{.Edit.Branches}}" maxlength="1000" placeholder="main, dev, release/*" class="input input-sm w-full" autocomplete="off" spellcheck="false">
+                  </label>
+                  <button type="submit" class="btn btn-sm btn-primary">Enregistrer</button>
+                </form>
+              </div>
+            </details>
+            <div class="flex flex-wrap gap-2">
+              {{- if not .Enabled}}
+              <form method="post" action="/settings/repos">
+                {{template "csrf-field" $page}}
+                <input type="hidden" name="repo" value="{{.FullName}}">
+                <button type="submit" class="btn btn-sm btn-outline btn-success" title="Vérifie l'accès auprès de GitHub et reprend le suivi">Reprendre le suivi</button>
+              </form>
+              {{- end}}
+              <a href="/settings/repos/{{.ID}}/remove" class="btn btn-sm btn-ghost text-error">Retirer…</a>
+            </div>
+          </div>
+        </div>
+      </li>
+      {{- end}}
+    </ul>
+  </section>
+
+  <div class="space-y-6">
+    <section class="card bg-base-100 shadow-sm" aria-labelledby="add-heading">
+      <div class="card-body p-4">
+        <h2 id="add-heading" class="card-title text-lg">Ajouter un dépôt</h2>
+        <p class="text-sm text-base-content/70">L'accès est vérifié auprès de GitHub avec le compte gh ; aucune synchro n'est lancée.</p>
+        {{template "flash" (dict "Message" $c.AddError "Error" true)}}
+        <form method="post" action="/settings/repos" class="space-y-2">
+          {{template "csrf-field" .}}
+          <label class="form-control w-full block">
+            <span class="label text-sm whitespace-normal mb-1">Dépôt (owner/repo ou URL GitHub)</span>
+            <input type="text" name="repo" value="{{$c.Add.Repo}}" required maxlength="300" placeholder="alice/projet-licence" class="input input-sm w-full" autocomplete="off" spellcheck="false">
+          </label>
+          <label class="form-control w-full block">
+            <span class="label text-sm whitespace-normal mb-1">Nom affiché (facultatif)</span>
+            <input type="text" name="label" value="{{$c.Add.Label}}" maxlength="200" placeholder="Alice Martin" class="input input-sm w-full" autocomplete="off">
+          </label>
+          <label class="form-control w-full block">
+            <span class="label text-sm whitespace-normal mb-1">Branches (facultatif, vide : toutes)</span>
+            <input type="text" name="branches" value="{{$c.Add.Branches}}" maxlength="1000" placeholder="main, dev, release/*" class="input input-sm w-full" autocomplete="off" spellcheck="false">
+          </label>
+          <button type="submit" class="btn btn-primary btn-sm w-full">Ajouter</button>
+        </form>
+      </div>
+    </section>
+
+    <section class="card bg-base-100 shadow-sm" aria-labelledby="interval-heading">
+      <div class="card-body p-4">
+        <h2 id="interval-heading" class="card-title text-lg">Synchronisation automatique</h2>
+        <p>Intervalle en vigueur : <strong>{{interval $c.Interval}}</strong></p>
+        {{- if not $c.NextAuto.IsZero}}
+        <p class="text-sm">Prochaine synchro : <time datetime="{{isoTime $c.NextAuto}}">{{localTime $c.NextAuto}}</time></p>
+        {{- end}}
+        <p class="text-sm text-base-content/70">Fichier config.yaml : {{if $c.FileAuto}}{{interval $c.FileInterval}}{{else}}synchro automatique désactivée (sync.auto){{end}}.
+          {{- if $c.Overridden}} L'intervalle a été changé pour ce processus (option --interval ou cette page).{{end}}</p>
+        {{template "flash" (dict "Message" $c.IntervalError "Error" true)}}
+        <form method="post" action="/settings/interval" class="flex flex-wrap items-end gap-2">
+          {{template "csrf-field" .}}
+          <label class="form-control grow block min-w-0">
+            <span class="label text-sm whitespace-normal mb-1">Nouvel intervalle (0 = manuelle seule, sinon au moins {{interval $c.MinInterval}})</span>
+            <input type="text" name="interval" value="{{$c.IntervalInput}}" required maxlength="20" list="interval-presets" placeholder="30m, 1h, 0" class="input input-sm w-full" autocomplete="off" spellcheck="false">
+          </label>
+          <datalist id="interval-presets">
+            <option value="0">manuelle seule</option>
+            <option value="15m">15 min</option>
+            <option value="30m">30 min</option>
+            <option value="1h">1 h</option>
+            <option value="2h">2 h</option>
+            <option value="6h">6 h</option>
+            <option value="24h">24 h</option>
+          </datalist>
+          <button type="submit" class="btn btn-sm">Appliquer</button>
+        </form>
+        <p class="text-xs text-base-content/60">Le changement vaut jusqu'à l'arrêt de « watchoo serve » : config.yaml n'est jamais réécrit par l'interface. Pour un réglage durable, modifiez sync.interval dans le fichier.</p>
+      </div>
+    </section>
+
+    <section class="card bg-base-100 shadow-sm" aria-labelledby="quota-heading">
+      <div class="card-body p-4">
+        <h2 id="quota-heading" class="card-title text-lg">Quota de l'API GitHub</h2>
+        <div id="settings-quota" hx-get="/fragments/quota" hx-trigger="load" hx-swap="outerHTML" aria-live="polite">
+          <p class="flex items-center gap-2 text-sm text-base-content/70"><span class="loading loading-dots loading-sm" aria-hidden="true"></span>Lecture du quota…</p>
+        </div>
+        <p class="text-xs text-base-content/60">Lecture gratuite (elle ne consomme pas de quota). Sous 10 % restants, les synchros sont reportées jusqu'à la remise à zéro.</p>
+      </div>
+    </section>
+  </div>
+</div>
+{{end}}
+
+{{/* Quota de l'API. Donnée : PageData avec Content de type quotaView. Rechargé après une synchro. */}}
+{{define "settings-quota"}}{{$q := .Content}}
+<div id="settings-quota" hx-get="/fragments/quota" hx-trigger="sync-finished from:body" hx-swap="outerHTML" aria-live="polite">
+  {{- if $q.Known}}
+  <div class="flex items-baseline justify-between gap-2">
+    <p><span class="text-2xl font-bold tabular-nums">{{$q.Remaining}}</span> <span class="text-base-content/70">/ {{$q.Limit}} requêtes restantes</span></p>
+    {{- if $q.Low}}<span class="badge badge-warning">quota bas</span>{{else}}<span class="badge badge-success badge-soft">{{$q.Percent}} %</span>{{end}}
+  </div>
+  <progress class="progress {{if $q.Low}}progress-warning{{else}}progress-success{{end}} w-full" value="{{$q.Percent}}" max="100" aria-label="Part du quota restante"></progress>
+  <p class="text-sm text-base-content/70">{{if not $q.Reset.IsZero}}Remise à zéro à <time datetime="{{isoTime $q.Reset}}" title="{{localTime $q.Reset}}">{{localClock $q.Reset}}</time>{{end}}{{if $q.Low}} ; synchros reportées jusque-là{{end}}.</p>
+  {{- else}}
+  <p><span class="badge badge-neutral">quota inconnu</span></p>
+  <p class="text-sm text-base-content/70 break-words">{{truncate 300 $q.Error}}</p>
+  {{- end}}
+</div>
+{{end}}
+
+{{/* Confirmation du retrait d'un dépôt (GET, ne modifie rien). Donnée : PageData, Content.Confirm. */}}
+{{define "settings-confirm"}}{{$r := .Content.Confirm}}
+<nav class="breadcrumbs text-sm mb-2" aria-label="Fil d'Ariane"><ul><li><a href="/settings">Réglages</a></li><li>Retirer un dépôt</li></ul></nav>
+<section class="card bg-base-100 shadow-sm max-w-2xl">
+  <div class="card-body">
+    <h1 class="card-title text-xl break-words">Retirer « {{truncate 80 $r.Repo.DisplayName}} » ?</h1>
+    <p class="text-sm text-base-content/70 break-all">{{$r.Repo.FullName}} · {{plural $r.Commits "commit" "commits"}} en base</p>
+    <p>Rien n'est modifié sur GitHub : seul le suivi par Watchoo change. Les contributeurs restent (ils peuvent avoir travaillé sur d'autres dépôts).</p>
+    <div class="grid gap-4 sm:grid-cols-2 mt-2">
+      <form method="post" action="/settings/repos/{{$r.Repo.ID}}/remove" class="card card-border p-4 gap-2">
+        {{template "csrf-field" .}}
+        <input type="hidden" name="keep_history" value="1">
+        <h2 class="font-semibold">Arrêter le suivi</h2>
+        <p class="text-sm text-base-content/70">L'historique reste consultable ; le dépôt n'est plus synchronisé (« Reprendre le suivi » le relance).</p>
+        {{- if $r.Repo.Enabled}}
+        <button type="submit" class="btn btn-warning btn-sm mt-auto">Arrêter le suivi, garder l'historique</button>
+        {{- else}}
+        <p class="badge badge-neutral mt-auto">suivi déjà arrêté</p>
+        {{- end}}
+      </form>
+      <form method="post" action="/settings/repos/{{$r.Repo.ID}}/remove" class="card card-border border-error/40 p-4 gap-2">
+        {{template "csrf-field" .}}
+        <h2 class="font-semibold text-error">Supprimer avec l'historique</h2>
+        <p class="text-sm text-base-content/70">Le dépôt, ses branches, les commits en base ({{plural $r.Commits "commit" "commits"}}) et le journal de ses synchros sont effacés de la base. Irréversible.</p>
+        {{- if $r.Running}}
+        <p class="text-sm text-warning">Une synchro était en cours à l'ouverture de cette page : tant qu'elle tourne, la suppression est refusée ; réessayez quand elle est terminée.</p>
+        {{- end}}
+        <button type="submit" class="btn btn-error btn-sm mt-auto">Supprimer le dépôt et son historique</button>
+      </form>
+    </div>
+    <div class="card-actions justify-end mt-2">
+      <a href="/settings" class="btn btn-ghost">Annuler</a>
+    </div>
+  </div>
+</section>
+{{end}}

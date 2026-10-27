@@ -1,0 +1,213 @@
+[
+  {
+    "sha": "0a934d3dea406ccab14c373d35d84c7b619d0e01",
+    "node_id": "C_kwDOAGd0a934d3dea406ccab14c",
+    "commit": {
+      "author": {
+        "name": "Alice Martin",
+        "email": "alice.martin@example.com",
+        "date": "2026-10-20T14:03:12Z"
+      },
+      "committer": {
+        "name": "GitHub",
+        "email": "noreply@github.com",
+        "date": "2026-10-20T14:03:12Z"
+      },
+      "message": "Merge pull request #3 from promo-2026/feature/login\n\nAjoute la page de connexion",
+      "tree": {
+        "sha": "27ac7702c6f9f3e0e22ff02e9a873d22d8a661c5",
+        "url": "https://api.github.com/repos/promo-2026/projet-alice/git/trees/27ac7702c6f9f3e0e22ff02e9a873d22d8a661c5"
+      },
+      "url": "https://api.github.com/repos/promo-2026/projet-alice/git/commits/0a934d3dea406ccab14c373d35d84c7b619d0e01",
+      "comment_count": 0,
+      "verification": {
+        "verified": true,
+        "reason": "valid",
+        "signature": "-----BEGIN PGP SIGNATURE-----\n\nwsBcBAABCAAQBQJmZmFrZQ==\n=fake\n-----END PGP SIGNATURE-----\n",
+        "payload": "tree 27ac7702c6f9f3e0e22ff02e9a873d22d8a661c5\n",
+        "verified_at": "2026-10-20T14:03:12Z"
+      }
+    },
+    "url": "https://api.github.com/repos/promo-2026/projet-alice/commits/0a934d3dea406ccab14c373d35d84c7b619d0e01",
+    "html_url": "https://github.com/promo-2026/projet-alice/commit/0a934d3dea406ccab14c373d35d84c7b619d0e01",
+    "comments_url": "https://api.github.com/repos/promo-2026/projet-alice/commits/0a934d3dea406ccab14c373d35d84c7b619d0e01/comments",
+    "author": {
+      "login": "alice-martin-dev",
+      "id": 51000001,
+      "node_id": "MDQ6VXNlcj51000001",
+      "avatar_url": "https://avatars.githubusercontent.com/u/51000001?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/alice-martin-dev",
+      "html_url": "https://github.com/alice-martin-dev",
+      "followers_url": "https://api.github.com/users/alice-martin-dev/followers",
+      "following_url": "https://api.github.com/users/alice-martin-dev/following{/other_user}",
+      "gists_url": "https://api.github.com/users/alice-martin-dev/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/alice-martin-dev/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/alice-martin-dev/subscriptions",
+      "organizations_url": "https://api.github.com/users/alice-martin-dev/orgs",
+      "repos_url": "https://api.github.com/users/alice-martin-dev/repos",
+      "events_url": "https://api.github.com/users/alice-martin-dev/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/alice-martin-dev/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "committer": {
+      "login": "web-flow",
+      "id": 19864447,
+      "node_id": "MDQ6VXNlcj19864447",
+      "avatar_url": "https://avatars.githubusercontent.com/u/19864447?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/web-flow",
+      "html_url": "https://github.com/web-flow",
+      "followers_url": "https://api.github.com/users/web-flow/followers",
+      "following_url": "https://api.github.com/users/web-flow/following{/other_user}",
+      "gists_url": "https://api.github.com/users/web-flow/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/web-flow/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/web-flow/subscriptions",
+      "organizations_url": "https://api.github.com/users/web-flow/orgs",
+      "repos_url": "https://api.github.com/users/web-flow/repos",
+      "events_url": "https://api.github.com/users/web-flow/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/web-flow/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "parents": [
+      {
+        "sha": "eca00f571cb2fc3b2a03707ea2929210e78596ac",
+        "url": "https://api.github.com/repos/promo-2026/projet-alice/commits/eca00f571cb2fc3b2a03707ea2929210e78596ac",
+        "html_url": "https://github.com/promo-2026/projet-alice/commit/eca00f571cb2fc3b2a03707ea2929210e78596ac"
+      },
+      {
+        "sha": "e7de2cd0585ecc3729db8117ba1e93e306e4866b",
+        "url": "https://api.github.com/repos/promo-2026/projet-alice/commits/e7de2cd0585ecc3729db8117ba1e93e306e4866b",
+        "html_url": "https://github.com/promo-2026/projet-alice/commit/e7de2cd0585ecc3729db8117ba1e93e306e4866b"
+      }
+    ]
+  },
+  {
+    "sha": "eca00f571cb2fc3b2a03707ea2929210e78596ac",
+    "node_id": "C_kwDOAGdeca00f571cb2fc3b2a03",
+    "commit": {
+      "author": {
+        "name": "Bob Durand",
+        "email": "bob.durand@example.org",
+        "date": "2026-10-19T21:47:05Z"
+      },
+      "committer": {
+        "name": "Bob Durand",
+        "email": "bob.durand@example.org",
+        "date": "2026-10-19T21:47:05Z"
+      },
+      "message": "Corrige le calcul de la moyenne",
+      "tree": {
+        "sha": "4fed7bee5a4fe86d9eb84787c4d16342dbf27875",
+        "url": "https://api.github.com/repos/promo-2026/projet-alice/git/trees/4fed7bee5a4fe86d9eb84787c4d16342dbf27875"
+      },
+      "url": "https://api.github.com/repos/promo-2026/projet-alice/git/commits/eca00f571cb2fc3b2a03707ea2929210e78596ac",
+      "comment_count": 0,
+      "verification": {
+        "verified": false,
+        "reason": "unsigned",
+        "signature": null,
+        "payload": null,
+        "verified_at": null
+      }
+    },
+    "url": "https://api.github.com/repos/promo-2026/projet-alice/commits/eca00f571cb2fc3b2a03707ea2929210e78596ac",
+    "html_url": "https://github.com/promo-2026/projet-alice/commit/eca00f571cb2fc3b2a03707ea2929210e78596ac",
+    "comments_url": "https://api.github.com/repos/promo-2026/projet-alice/commits/eca00f571cb2fc3b2a03707ea2929210e78596ac/comments",
+    "author": null,
+    "committer": null,
+    "parents": [
+      {
+        "sha": "aff84faa7810a6905be3df348543504a3a261e84",
+        "url": "https://api.github.com/repos/promo-2026/projet-alice/commits/aff84faa7810a6905be3df348543504a3a261e84",
+        "html_url": "https://github.com/promo-2026/projet-alice/commit/aff84faa7810a6905be3df348543504a3a261e84"
+      }
+    ]
+  },
+  {
+    "sha": "aff84faa7810a6905be3df348543504a3a261e84",
+    "node_id": "C_kwDOAGdaff84faa7810a6905be3",
+    "commit": {
+      "author": {
+        "name": "Carla Petit",
+        "email": "51000003+carla-petit@users.noreply.github.com",
+        "date": "2026-10-18T10:15:00Z"
+      },
+      "committer": {
+        "name": "Carla Petit",
+        "email": "51000003+carla-petit@users.noreply.github.com",
+        "date": "2026-10-18T10:20:30Z"
+      },
+      "message": "Ajoute le formulaire d'inscription\n\nValidation côté serveur.",
+      "tree": {
+        "sha": "3cb562a9ba1583fcd24b6abdb5c32c11500b947a",
+        "url": "https://api.github.com/repos/promo-2026/projet-alice/git/trees/3cb562a9ba1583fcd24b6abdb5c32c11500b947a"
+      },
+      "url": "https://api.github.com/repos/promo-2026/projet-alice/git/commits/aff84faa7810a6905be3df348543504a3a261e84",
+      "comment_count": 0,
+      "verification": {
+        "verified": false,
+        "reason": "unsigned",
+        "signature": null,
+        "payload": null,
+        "verified_at": null
+      }
+    },
+    "url": "https://api.github.com/repos/promo-2026/projet-alice/commits/aff84faa7810a6905be3df348543504a3a261e84",
+    "html_url": "https://github.com/promo-2026/projet-alice/commit/aff84faa7810a6905be3df348543504a3a261e84",
+    "comments_url": "https://api.github.com/repos/promo-2026/projet-alice/commits/aff84faa7810a6905be3df348543504a3a261e84/comments",
+    "author": {
+      "login": "carla-petit",
+      "id": 51000003,
+      "node_id": "MDQ6VXNlcj51000003",
+      "avatar_url": "https://avatars.githubusercontent.com/u/51000003?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/carla-petit",
+      "html_url": "https://github.com/carla-petit",
+      "followers_url": "https://api.github.com/users/carla-petit/followers",
+      "following_url": "https://api.github.com/users/carla-petit/following{/other_user}",
+      "gists_url": "https://api.github.com/users/carla-petit/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/carla-petit/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/carla-petit/subscriptions",
+      "organizations_url": "https://api.github.com/users/carla-petit/orgs",
+      "repos_url": "https://api.github.com/users/carla-petit/repos",
+      "events_url": "https://api.github.com/users/carla-petit/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/carla-petit/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "committer": {
+      "login": "carla-petit",
+      "id": 51000003,
+      "node_id": "MDQ6VXNlcj51000003",
+      "avatar_url": "https://avatars.githubusercontent.com/u/51000003?v=4",
+      "gravatar_id": "",
+      "url": "https://api.github.com/users/carla-petit",
+      "html_url": "https://github.com/carla-petit",
+      "followers_url": "https://api.github.com/users/carla-petit/followers",
+      "following_url": "https://api.github.com/users/carla-petit/following{/other_user}",
+      "gists_url": "https://api.github.com/users/carla-petit/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/carla-petit/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/carla-petit/subscriptions",
+      "organizations_url": "https://api.github.com/users/carla-petit/orgs",
+      "repos_url": "https://api.github.com/users/carla-petit/repos",
+      "events_url": "https://api.github.com/users/carla-petit/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/carla-petit/received_events",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "parents": [
+      {
+        "sha": "6ea33ad4236584499f2ebc29eb5cc14053030a70",
+        "url": "https://api.github.com/repos/promo-2026/projet-alice/commits/6ea33ad4236584499f2ebc29eb5cc14053030a70",
+        "html_url": "https://github.com/promo-2026/projet-alice/commit/6ea33ad4236584499f2ebc29eb5cc14053030a70"
+      }
+    ]
+  }
+]

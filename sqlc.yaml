@@ -1,0 +1,30 @@
+# Configuration de sqlc : génère du Go typé (database/sql) à partir des requêtes de
+# internal/store/queries/, vérifiées contre le schéma lu dans les migrations goose.
+# Après toute modification des requêtes ou des migrations : « sqlc generate ».
+# Le code généré (internal/store/db/) est commité et n'est jamais modifié à la main.
+#
+# Règles pour internal/store/queries/*.sql :
+#   - ASCII uniquement (ni accents ni guillemets « »), commentaires compris : sqlc calcule mal ses
+#     positions sur les caractères multi-octets quand il développe « SELECT * » / « RETURNING * »,
+#     ce qui casse la génération ;
+#   - pas de commentaire d'en-tête avant la première requête : sqlc le rattacherait à la documentation
+#     de la première fonction générée ;
+#   - chaque requête est nommée (« -- name: ListRepositories :many ») ; un commentaire placé juste après
+#     cette ligne devient la documentation de la fonction générée ;
+#   - dates en TEXT au format « 2006-01-02T15:04:05Z » (store.FormatTime / store.ParseTime) ;
+#   - filtres facultatifs : (sqlc.narg(x) IS NULL OR colonne = sqlc.narg(x)).
+version: "2"
+sql:
+  - engine: "sqlite"
+    schema: "internal/store/migrations"
+    queries: "internal/store/queries"
+    gen:
+      go:
+        package: "db"
+        out: "internal/store/db"
+        emit_empty_slices: true
+        rename:
+          url: "URL"
+          avatar_url: "AvatarURL"
+          sha: "SHA"
+          head_sha: "HeadSHA"

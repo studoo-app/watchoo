@@ -1,0 +1,164 @@
+# Release : seulement sur un tag vX.Y.Z (SemVer, voir documentation/11-skills.md), poussé à la main.
+#
+#   1. check   : tous les contrôles de la CI (make check, avec sqlc et la CLI Tailwind), sans token ;
+#   2. release : GoReleaser (.goreleaser.yaml) construit binaires, archives et sommes SHA-256 et crée
+#                une release GitHub en BROUILLON, relue puis publiée à la main ;
+#   3. docker  : image multi-architecture (linux/amd64, linux/arm64) construite avec le Dockerfile de
+#                la racine et poussée sur ghcr.io/studoo-app/watchoo.
+#
+# Chaque job n'a que les droits dont il a besoin ; les actions sont épinglées par SHA de commit (version
+# en commentaire). Aucun token n'est donné aux tests.
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions: {}
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/studoo-app/watchoo
+
+jobs:
+  check:
+    name: Contrôles (make check)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - name: Tag au format SemVer
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          if ! printf '%s' "$TAG" | grep -Eq '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?$'; then
+            echo "le tag « $TAG » n'est pas une version SemVer vX.Y.Z" >&2
+            exit 1
+          fi
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: Aucun token GitHub dans l'environnement
+        run: |
+          if [ -n "${GH_TOKEN:-}${GITHUB_TOKEN:-}" ]; then
+            echo "GH_TOKEN ou GITHUB_TOKEN est défini : les tests ne doivent pas en recevoir" >&2
+            exit 1
+          fi
+
+      - uses: sqlc-dev/setup-sqlc@bac53b7fb28c039a6c7f5736fd1e89744021bdd6 # v5.0.0
+        with:
+          sqlc-version: '1.31.1'
+
+      # Comme la CI : version et empreinte de internal/web/tailwind/VERSIONS.
+      - name: Installation de la CLI Tailwind CSS
+        env:
+          TAILWIND_VERSION: '4.3.3'
+          TAILWIND_SHA256: 'dc61b3ac6b8c9ca874c0cc4c57b2409791a64c5540404ca5f5367360babc313a'
+        run: |
+          mkdir -p "$RUNNER_TEMP/tailwind"
+          curl -fsSL --proto '=https' --tlsv1.2 -o "$RUNNER_TEMP/tailwind/tailwindcss" \
+            "https://github.com/tailwindlabs/tailwindcss/releases/download/v${TAILWIND_VERSION}/tailwindcss-linux-x64"
+          echo "${TAILWIND_SHA256}  $RUNNER_TEMP/tailwind/tailwindcss" | sha256sum --check --strict
+          chmod +x "$RUNNER_TEMP/tailwind/tailwindcss"
+          echo "$RUNNER_TEMP/tailwind" >> "$GITHUB_PATH"
+
+      - name: make check
+        run: make check
+
+  release:
+    name: Binaires et release en brouillon (GoReleaser)
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write # création de la release en brouillon et envoi des archives
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # GoReleaser lit les tags
+          persist-credentials: false
+
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
+        with:
+          distribution: goreleaser
+          version: '2.19.0'
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  docker:
+    name: Image Docker (ghcr.io)
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write # envoi de l'image sur ghcr.io
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Mêmes valeurs que le Makefile : version = tag, SHA complet, date du commit en ISO 8601 UTC.
+      - name: Version, commit et date
+        id: build
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          {
+            echo "version=$TAG"
+            echo "commit=$(git rev-parse HEAD)"
+            echo "date=$(TZ=UTC0 git log -1 --format=%cd --date=format-local:%Y-%m-%dT%H:%M:%SZ)"
+          } >> "$GITHUB_OUTPUT"
+
+      # Étiquettes : 0.1.0 et 0.1 pour le tag v0.1.0 ; latest seulement pour une version sans suffixe
+      # de pré-version.
+      - name: Étiquettes de l'image
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+          flavor: |
+            latest=auto
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Pas d'émulation (QEMU) : le Dockerfile compile pour la plateforme cible depuis la plateforme de
+      # construction, et l'étape finale ne lance aucune commande.
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ steps.build.outputs.version }}
+            COMMIT=${{ steps.build.outputs.commit }}
+            DATE=${{ steps.build.outputs.date }}
+          provenance: mode=max
+          sbom: true

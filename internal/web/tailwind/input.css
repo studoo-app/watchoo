@@ -1,0 +1,21 @@
+/*
+ * Feuille de style de l'interface web de Watchoo, compilée par la CLI autonome de Tailwind CSS
+ * (« make css », sans Node ni npm) vers internal/web/static/app.css, qui est commité.
+ *
+ * Détection automatique désactivée (source(none)) : seules les sources ci-dessous sont lues,
+ * jamais les bibliothèques vendored (Chart.js, HTMX), dont le texte ajouterait des classes au hasard.
+ * Les fichiers Go du package sont lus pour les classes écrites en Go (badgeClass dans funcs.go).
+ */
+@import "tailwindcss" source(none);
+
+@source "../templates";
+@source "../*.go";
+@source "../static/app.js";
+@source "../static/theme.js";
+
+/* DaisyUI 5 (bundle autonome vendored, voir VERSIONS) : thème clair par défaut, sombre si le
+ * système le préfère ; theme.js applique le choix enregistré (attribut data-theme). */
+@plugin "./daisyui.mjs" {
+  themes: light --default, dark --prefersdark;
+  logs: false;
+}

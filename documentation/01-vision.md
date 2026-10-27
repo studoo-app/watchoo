@@ -18,6 +18,7 @@ Un **binaire Go unique** qui surveille une liste de dépôts GitHub, stocke leur
 SQLite locale, et le restitue :
 
 - en **ligne de commande** (tableaux lisibles, sortie JSON scriptable) ;
+- en **mode interactif** dans le terminal (`watchoo tui`) : dépôts, commits et contributeurs au clavier ;
 - via une **interface web locale** servie par le même binaire (`watchoo serve`).
 
 ## Objectifs

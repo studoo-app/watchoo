@@ -1,1 +1,6 @@
 .claude/worktrees
+/watchoo
+/bin/
+/dist/
+.watchoo/
+.env
