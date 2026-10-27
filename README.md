@@ -15,8 +15,8 @@ d'un coup d'œil leur activité : les nouveaux commits, les contributeurs, et le
 > version à l'autre (voir le [journal des modifications](CHANGELOG.md)).
 
 <p align="center">
-  <img src="assets/screenshots/tableau-de-bord.png" alt="Tableau de bord de Watchoo : activité de l'espace sur 90 jours, compteurs Actif, Flemme et Dead, cartes des dépôts et derniers commits (données factices)" width="900">
-  <br><sub>Tableau de bord, avec des données factices.</sub>
+  <img src="assets/screenshots/contributeurs.png" alt="Tableau des activités de l'espace sur 90 jours, compteurs Actif, Flemme et Dead, cartes des dépôts et derniers commits (données factices)" width="900">
+  <br><sub>Tableau des activités ...</sub>
 </p>
 
 ## Pour qui ?
