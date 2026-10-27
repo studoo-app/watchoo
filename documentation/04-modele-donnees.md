@@ -81,14 +81,18 @@ par son e-mail Git ; SQLite accepte plusieurs valeurs vides dans une colonne uni
 | provider_login | Login GitHub (si connu), mis à jour si la personne en change |
 | name | Nom affiché |
 | avatar_url | URL de l'avatar |
-| profile_url | Page de profil du compte sur la forge (`html_url` du compte GitHub), donnée par le provider ; vide si aucun compte n'est connu ou tant qu'elle n'a pas été lue. Ajoutée par la migration `00005` (0.5.0) |
+| profile_url | Page de profil du compte sur la forge (`html_url` du compte GitHub), donnée par le provider ; vide si aucun login n'est connu. Ajoutée par la migration `00005` (0.5.0) ; complétée à partir du login pour les contributeurs déjà en base (0.6.1) |
 
-`profile_url` vient du provider (`provider.Person.ProfileURL`), jamais d'une adresse construite hors de
-`internal/provider/github/` : l'interface web n'y ajoute rien de propre à GitHub. Un contributeur déjà en
-base avant la migration `00005` a `profile_url` vide jusqu'à ce qu'une synchro par l'API voie un
-**nouveau** commit lié à son compte (les commits déjà en base ne sont pas relus) ; la migration ne
-devine aucune adresse. Comme le login et l'avatar, une adresse vide n'efface pas la valeur connue. Sans
-`gh` (clones Git locaux), elle reste vide.
+`profile_url` vient du provider, jamais d'une adresse construite hors de `internal/provider/` :
+l'interface web n'y ajoute rien de propre à GitHub. D'ordinaire, c'est le `html_url` du compte lié à un
+**nouveau** commit (`provider.Person.ProfileURL`). Un contributeur déjà en base avant la migration
+`00005` (les commits déjà en base ne sont pas relus, et la migration ne devine aucune adresse) a son
+adresse complétée par la **synchro suivante**, par l'API comme par les clones Git locaux : pour chaque
+contributeur de la forge avec un `provider_login` et un `profile_url` vide, le moteur écrit
+`Provider.ProfileURL(login)` (`https://github.com/<login>`, sans requête ; rien pour un login qui n'a
+pas la forme d'un login de compte, comme `dependabot[bot]`). Comme le login et l'avatar, une adresse
+vide n'efface pas la valeur connue, et une adresse connue n'est jamais remplacée par ce complément. Un
+contributeur sans login (connu seulement par les clones Git locaux) n'a pas d'adresse.
 
 ### `contributor_emails` — rattachement des e-mails Git
 

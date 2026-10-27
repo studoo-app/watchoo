@@ -145,7 +145,12 @@ Deux faux, écrits en phase 2 et réutilisés par les phases suivantes :
 - **Liens vers les profils** (0.5.0) : `html_url` lu par le provider GitHub (`toPerson`), vide pour le
   provider Git local ; colonne `profile_url` (migration `00005` sur une base existante, valeur gardée
   quand une identité arrive sans adresse) ; lien « GitHub » présent avec un login connu, absent sans
-  compte, adresse non `https://` refusée (`profileURL`).
+  compte, adresse non `https://` refusée (`profileURL`). Complément des adresses (0.6.1) :
+  `ProfileURL(login)` des providers GitHub, Git local et `providertest` (login normal, vide, caractères
+  interdits, bot ; aucune requête), `provider.ValidLogin` ; `store.BackfillProfileURLs` (seules les
+  adresses vides des contributeurs de la forge avec login sont complétées, adresses connues gardées,
+  second passage sans effet) ; synchro (adresse vidée comme avant la 0.5.0, complétée sans nouveau
+  commit par l'API puis par les clones Git locaux, aucun login dans les logs).
 - **Pull requests, releases et tags** (V2) : provider GitHub contre `githubtest` (conversion, ordre,
   pagination et plafonds de 1 000, arrêt anticipé `UpdatedSince` sur une seule page, `Limit`, `304`
   gratuits, dépôt vide, `409`, réponse inexploitable, `5xx`, `404`, arguments invalides sans requête ;
