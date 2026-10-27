@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -25,10 +26,10 @@ Commandes :{{range .Commands}}{{if (or .IsAvailableCommand (eq .Name "help"))}}
   {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}{{if .HasAvailableLocalFlags}}
 
 Options :
-{{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasAvailableInheritedFlags}}
+{{flagUsagesFR .LocalFlags | trimTrailingWhitespaces}}{{end}}{{if .HasAvailableInheritedFlags}}
 
 Options globales :
-{{.InheritedFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasAvailableSubCommands}}
+{{flagUsagesFR .InheritedFlags | trimTrailingWhitespaces}}{{end}}{{if .HasAvailableSubCommands}}
 
 Lancez « {{.CommandPath}} [commande] --help » pour l'aide d'une commande.{{end}}
 `
@@ -38,6 +39,52 @@ func init() {
 	cobra.AddTemplateFunc("useLineFR", func(line string) string {
 		return strings.Replace(line, "[flags]", "[options]", 1)
 	})
+	cobra.AddTemplateFunc("flagUsagesFR", flagUsagesFR)
+}
+
+// flagUsagesFR remplace pflag.FlagSet.FlagUsages dans l'aide, pour deux raisons : pflag ajoute
+// « (default …) » en anglais, et il aligne la colonne des descriptions en comptant des octets, ce qui
+// décale les options dont le nom de valeur a des accents (« dépôt », « période »). Ici la valeur par
+// défaut est écrite « (20 par défaut) » et l'alignement compte les caractères (runes). Une valeur par
+// défaut vide, nulle ou fausse n'est pas affichée, comme avec pflag. Les options cachées sont omises.
+func flagUsagesFR(fs *pflag.FlagSet) string {
+	type row struct{ left, usage string }
+	var rows []row
+	width := 0
+	fs.VisitAll(func(f *pflag.Flag) {
+		if f.Hidden {
+			return
+		}
+		left := "      --" + f.Name
+		if f.Shorthand != "" && f.ShorthandDeprecated == "" {
+			left = "  -" + f.Shorthand + ", --" + f.Name
+		}
+		varname, usage := pflag.UnquoteUsage(f)
+		if varname != "" {
+			left += " " + varname
+		}
+		if f.NoOptDefVal != "" && f.Value.Type() != "bool" {
+			left += "[=" + f.NoOptDefVal + "]"
+		}
+		if def := f.DefValue; def != "" && def != "0" && def != "false" && def != "[]" && def != "0s" {
+			if f.Value.Type() == "string" {
+				def = "« " + def + " »"
+			}
+			usage += " (" + def + " par défaut)"
+		}
+		if f.Deprecated != "" {
+			usage += " (obsolète : " + f.Deprecated + ")"
+		}
+		rows = append(rows, row{left, usage})
+		width = max(width, utf8.RuneCountInString(left))
+	})
+	var b strings.Builder
+	indent := "\n" + strings.Repeat(" ", width+3)
+	for _, r := range rows {
+		pad := strings.Repeat(" ", width-utf8.RuneCountInString(r.left))
+		fmt.Fprintf(&b, "%s%s   %s\n", r.left, pad, strings.ReplaceAll(r.usage, "\n", indent))
+	}
+	return b.String()
 }
 
 // localize traduit en français ce que cobra affiche par défaut en anglais : modèle d'usage, option

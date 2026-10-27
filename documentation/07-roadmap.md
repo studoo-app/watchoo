@@ -75,6 +75,8 @@ bon schéma ; les autres commandes retrouvent l'espace.
 - Pull requests, releases.
 - Import d'organisation.
 - Alertes Discord / Slack / e-mail.
+- Seuils d'activité par dépôt (option de `repo add`, colonne de l'import, réglage web).
+- Activité par contributeur à l'intérieur d'un dépôt.
 
 ## Définition de « terminé » pour chaque phase
 

@@ -157,15 +157,18 @@ commande.
 | Réglage | Par défaut | Rôle |
 | --- | --- | --- |
 | `sync.interval` | `30m` | Synchro automatique de `serve` et `tui` (15 min minimum, `0` : manuelle) |
-| `activity.flemme_after_days` / `dead_after_days` | `5` / `15` | Seuils d'activité (aussi par dépôt) |
+| `activity.flemme_after_days` / `dead_after_days` | `5` / `15` | Seuils d'activité de l'espace (par dépôt : prévu en V2) |
 | `branches.exclude` | `[]` | Branches ignorées (ex. `dependabot/*`) |
 | `timezone` | fuseau du système | Fuseau d'affichage et de regroupement par jour ou semaine |
 | `web.addr` | `127.0.0.1:8080` | Adresse de l'interface web |
 | `web.auth.username` | vide | Authentification basique (mot de passe dans `WATCHOO_WEB_PASSWORD`) |
 | `github.user` | compte actif de `gh` | Compte `gh` à utiliser (vide avec `GH_TOKEN`) |
+| `github.gh_path` | `gh` | Nom cherché dans le `PATH` ou chemin absolu de `gh` (pas de chemin relatif) |
 
 `watchoo -C <répertoire>` ou la variable `WATCHOO_DIR` choisissent l'espace sans s'y placer
-([Espaces de supervision](documentation/10-espaces-de-supervision.md)).
+([Espaces de supervision](documentation/10-espaces-de-supervision.md)). Sous Linux et macOS, Watchoo
+refuse un `.watchoo/` qui n'est pas à vous ou qui dépasse les droits `0700` (`config.yaml` : `0600`) :
+un `.watchoo/` commité dans le dépôt d'un étudiant que vous avez cloné n'est jamais utilisé.
 
 ## Sécurité et vie privée
 

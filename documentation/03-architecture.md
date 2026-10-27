@@ -314,8 +314,9 @@ Les dépôts suivis sont principalement **privés**. Conséquences :
     le code n'appelle **aucune** route GitHub en écriture (POST, PATCH, PUT, DELETE), le transport du
     provider les refuse avant l'envoi, et un test le vérifie ;
   - une organisation peut restreindre l'accès des applications OAuth tierces, ou imposer le SSO : il faut
-    alors autoriser l'application GitHub CLI pour cette organisation. `init` et `status` le signalent quand
-    un dépôt de l'organisation répond `404` ou `403`. Le provider distingue le SSO : une réponse `403` avec
+    alors autoriser l'application GitHub CLI pour cette organisation. `repo add`, `repo import` (et l'ajout
+    depuis le web) le signalent quand un dépôt de l'organisation répond `404` ou `403` ; la synchro le
+    consigne et `status` le reprend. Le provider distingue le SSO : une réponse `403` avec
     l'en-tête `X-GitHub-SSO` donne une `SSORequiredError` (organisation et lien d'autorisation).
 - **Données locales confidentielles** : la base SQLite contient des messages de commit, des noms et des
   e-mails issus de dépôts privés.

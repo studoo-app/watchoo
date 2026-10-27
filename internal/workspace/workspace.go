@@ -38,6 +38,9 @@ var (
 	ErrNotFound = errors.New("aucun espace Watchoo ici, lancez « watchoo init »")
 	// ErrAlreadyInitialized : le répertoire contient déjà un espace (.watchoo/ existe).
 	ErrAlreadyInitialized = errors.New("ce répertoire est déjà un espace Watchoo")
+	// ErrUntrusted : l'espace trouvé n'appartient pas à l'utilisateur courant ou est accessible à
+	// d'autres (droits au-delà de 0700 pour .watchoo/, 0600 pour config.yaml). Unix seulement.
+	ErrUntrusted = errors.New("espace Watchoo refusé")
 )
 
 // createFile crée un fichier qui ne doit pas exister encore. C'est une variable pour que les tests

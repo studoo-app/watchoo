@@ -43,8 +43,8 @@ Unicité : **`(provider, provider_id)`** et **`(provider, owner, name)`**.
 | last_synced_at | Date de la dernière synchronisation |
 | last_commit_at | Date du dernier commit connu, toutes branches suivies confondues |
 | archived | Dépôt archivé sur GitHub |
-| flemme_after_days | Seuil « Flemme » propre au dépôt (vide = valeur globale, 5 j par défaut) |
-| dead_after_days | Seuil « Dead » propre au dépôt (vide = valeur globale, 15 j par défaut) |
+| flemme_after_days | Seuil « Flemme » propre au dépôt (vide = valeur globale, 5 j par défaut ; aucune commande ne le règle encore en v0.1.0) |
+| dead_after_days | Seuil « Dead » propre au dépôt (vide = valeur globale, 15 j par défaut ; idem) |
 | enabled | Suivi actif, ou arrêté (`repo remove --keep-history` : historique gardé, plus de synchro ; `repo add` le réactive) |
 | branch_patterns | Branches à suivre (`--branch`, colonne `branches` de l'import) : noms et motifs `path.Match` séparés par des virgules (`main,dev,release/*`) ; vide = toutes les branches. Ajoutée par la migration `00002` |
 

@@ -96,6 +96,28 @@ trouvé est utilisé.
 | Variable `WATCHOO_DIR` | Même effet que `-C`, pratique pour Docker et les scripts |
 | Aucun espace trouvé | Erreur claire : « aucun espace Watchoo ici, lancez `watchoo init` » |
 
+### Seuls les espaces de l'utilisateur sont acceptés
+
+Un enseignant clone souvent les dépôts qu'il supervise, parfois **dans** son espace
+(`~/supervision/licence-projet/alice-projet/`). Un étudiant peut y avoir commité un `.watchoo/`
+(`git add -f` contourne le `.gitignore`) : lancée depuis ce clone, une commande le trouverait avant le
+vrai espace et lirait des réglages fournis par l'étudiant (base, `web.*`, `github.gh_path`…). Comme
+le `safe.directory` de Git, Watchoo ne fait donc confiance qu'aux espaces de l'utilisateur. Sous Linux
+et macOS, avant de lire les réglages d'un espace, il **refuse** :
+
+- un `.watchoo/` qui n'appartient pas à l'utilisateur courant, ou dont les droits dépassent `0700`
+  (lisible ou modifiable par le groupe ou les autres) ;
+- un `.watchoo/config.yaml` dans le même cas (propriétaire différent, droits au-delà de `0600`).
+
+`watchoo init` pose toujours ces droits ; Git, lui, ne les pose jamais (un clone crée des répertoires en
+`0755` et des fichiers en `0644`), si bien qu'un `.watchoo/` venu d'un dépôt est refusé. Le message cite
+le chemin et le remède : `chmod 700 …` (ou `chmod 600 …`) s'il s'agit bien de votre espace, sinon lancer
+la commande avec `-C <votre espace>` (ou `WATCHOO_DIR`). Sous Windows, ce contrôle n'est pas fait.
+
+En complément, `github.gh_path` doit être un **nom** cherché dans le `PATH` (`gh`) ou un **chemin
+absolu** : un chemin relatif avec un séparateur (`./outils/gh`, `.watchoo/gh`) est refusé, car il
+dépendrait du répertoire d'où la commande est lancée.
+
 ## Comportement de `watchoo init`
 
 1. Vérifie que `gh` est installé et connecté (voir

@@ -3,6 +3,7 @@ package cli
 // Confirmation interactive (« watchoo repo remove »).
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -19,14 +20,36 @@ var errNeedYes = errors.New("confirmation impossible : l'entrée standard n'est 
 // « y », « yes » (casse ignorée) = oui ; tout le reste, ou la fin de l'entrée, = non. Si l'entrée n'est
 // pas un terminal (deps.StdinIsTerminal), elle ne lit rien et renvoie une erreur qui demande l'option
 // --yes.
-func confirm(deps Deps, prompt string) (bool, error) {
+//
+// Si ctx est annulé pendant l'attente (Ctrl+C : Execute capte SIGINT et annule le contexte au lieu de
+// tuer le processus), confirm rend la main tout de suite avec « non », sans attendre Entrée : la
+// lecture, qui ne connaît pas ctx, se fait dans une goroutine abandonnée à l'annulation (le processus
+// se termine juste après).
+func confirm(ctx context.Context, deps Deps, prompt string) (bool, error) {
 	if !deps.StdinIsTerminal() {
 		return false, errNeedYes
 	}
 	if _, err := fmt.Fprintf(deps.Stderr, "%s [o/N] ", textclean.Clean(prompt)); err != nil {
 		return false, fmt.Errorf("affichage de la question : %w", err)
 	}
-	line, err := readLine(deps.Stdin)
+	type answer struct {
+		line string
+		err  error
+	}
+	read := make(chan answer, 1)
+	go func() {
+		line, err := readLine(deps.Stdin)
+		read <- answer{line, err}
+	}()
+	var line string
+	var err error
+	select {
+	case <-ctx.Done():
+		fmt.Fprintln(deps.Stderr) // la question n'a pas reçu de fin de ligne
+		return false, nil
+	case a := <-read:
+		line, err = a.line, a.err
+	}
 	if errors.Is(err, io.EOF) {
 		// Fin de l'entrée (ctrl+D) : le terminal n'a pas affiché de fin de ligne après la question.
 		fmt.Fprintln(deps.Stderr)

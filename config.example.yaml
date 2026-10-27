@@ -32,7 +32,7 @@ name: "licence-projet"
 #   interval: 30m            # durée (15m, 1h…), au moins 15m ; 0 : synchro manuelle seule
 #   parallelism: 4           # dépôts synchronisés en même temps, de 1 à 4
 
-# Seuils d'activité, en jours sans commit (chaque dépôt peut avoir les siens).
+# Seuils d'activité de l'espace, en jours sans commit.
 # activity:
 #   flemme_after_days: 5     # au-delà : « Flemme » (au moins 1)
 #   dead_after_days: 15      # au-delà : « Dead » (plus grand que flemme_after_days)
@@ -60,4 +60,4 @@ name: "licence-projet"
 # user vide : « gh auth token --user » ignore GH_TOKEN.
 # github:
 #   user: ""                 # login exact d'un compte gh ; vide : compte actif de gh
-#   gh_path: "gh"            # chemin ou nom de l'exécutable gh
+#   gh_path: "gh"            # chemin absolu, ou nom cherché dans le PATH

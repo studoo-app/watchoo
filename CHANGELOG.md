@@ -31,8 +31,8 @@ Première version publiée : le MVP (phases 1 à 5 de la [roadmap](documentation
 - **Commandes** `repo add`, `repo import` (fichier CSV ou liste, vérification d'accès, `--dry-run`,
   bilan), `repo list`, `repo remove`, `sync`, `log`, `contributors`, `status` et `version`.
 - **États d'activité** de chaque dépôt : Actif, Flemme (plus de 5 jours sans commit), Dead (plus de
-  15 jours), seuils réglables par espace et par dépôt, et états gris (jamais synchronisé, en erreur,
-  archivé, suivi arrêté).
+  15 jours), seuils réglables par espace (pas encore par dépôt), et états gris (jamais synchronisé, en
+  erreur, archivé, suivi arrêté, vide).
 - **Mode interactif** `watchoo tui` (Bubble Tea) : dépôts, commits, contributeurs, filtre et synchro au
   clavier.
 - **Interface web locale** `watchoo serve` (HTMX, DaisyUI, Chart.js embarqués) : tableau de bord, détail
@@ -59,6 +59,10 @@ Première version publiée : le MVP (phases 1 à 5 de la [roadmap](documentation
   journal, erreur ni sortie.
 - Lecture seule : le transport du provider refuse tout appel GitHub autre que `GET` ou `HEAD` avant
   l'envoi, et n'envoie le token qu'à l'origine de l'API.
+- Seuls les espaces de l'utilisateur sont acceptés (Linux, macOS) : un `.watchoo/` qui ne lui
+  appartient pas ou qui dépasse les droits `0700` (`config.yaml` : `0600`), comme celui qu'un étudiant
+  aurait commité dans son dépôt cloné, est refusé avant toute lecture de ses réglages ;
+  `github.gh_path` doit être un nom cherché dans le `PATH` ou un chemin absolu.
 - Ni message de commit ni e-mail dans les journaux ; textes venus des dépôts nettoyés des séquences
   d'échappement du terminal et échappés dans le web.
 - Interface web : écoute sur `127.0.0.1` par défaut, authentification obligatoire sur toute autre

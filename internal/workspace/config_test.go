@@ -146,6 +146,10 @@ func TestValidateRejectsInvalidValues(t *testing.T) {
 		{"fuseau inconnu", func(c *Config) { c.Timezone = "Mars/Olympus" },
 			[]string{"timezone", `"Mars/Olympus"`, "IANA"}},
 		{"chemin de gh vide", func(c *Config) { c.GitHub.GHPath = "" }, []string{"github.gh_path", "vide"}},
+		{"chemin de gh relatif", func(c *Config) { c.GitHub.GHPath = ".watchoo/gh" },
+			[]string{"github.gh_path", `".watchoo/gh"`, "relatif", "absolu"}},
+		{"chemin de gh relatif en ./", func(c *Config) { c.GitHub.GHPath = "./gh" },
+			[]string{"github.gh_path", "relatif"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

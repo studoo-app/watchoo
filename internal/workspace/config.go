@@ -71,7 +71,8 @@ type SyncConfig struct {
 }
 
 // ActivityConfig regroupe les seuils d'activité globaux, en jours entiers (clés activity.*).
-// Chaque dépôt peut les remplacer (colonnes flemme_after_days / dead_after_days).
+// La base prévoit des seuils par dépôt (colonnes flemme_after_days / dead_after_days, lus par
+// activity.ThresholdsFor), mais aucune commande ne les règle encore en v0.1.0.
 type ActivityConfig struct {
 	// FlemmeAfterDays : au-delà de ce nombre de jours sans commit, un dépôt passe en « Flemme »
 	// (défaut 5, au moins 1).
@@ -173,7 +174,8 @@ func DefaultConfig(name string) Config {
 //   - web.auth.username sans « : » (séparateur de l'authentification basique) ni caractère de
 //     contrôle, et sans espace autour ;
 //   - timezone vide ou accepté par time.LoadLocation ;
-//   - github.gh_path non vide.
+//   - github.gh_path non vide, et soit absolu, soit un simple nom sans séparateur (cherché dans le
+//     PATH) : un chemin relatif comme « .watchoo/gh » dépendrait du répertoire courant.
 func (c Config) Validate() error {
 	var errs []error
 	add := func(format string, args ...any) {
@@ -238,9 +240,14 @@ func (c Config) Validate() error {
 		}
 	}
 
-	if strings.TrimSpace(c.GitHub.GHPath) == "" {
-		add("github.gh_path : le chemin de gh est vide (reçu %q ; « gh » pour le chercher dans le PATH)",
-			c.GitHub.GHPath)
+	if p := c.GitHub.GHPath; strings.TrimSpace(p) == "" {
+		add("github.gh_path : le chemin de gh est vide (reçu %q ; « gh » pour le chercher dans le PATH)", p)
+	} else if seps := `/` + string(filepath.Separator); !filepath.IsAbs(p) &&
+		!strings.ContainsAny(p[:1], seps) && strings.ContainsAny(p, seps) {
+		// Relatif avec séparateur (« .watchoo/gh ») : refusé. Un chemin qui part de la racine (« \gh »
+		// sous Windows, sans lecteur) ne dépend pas du répertoire courant et reste accepté.
+		add("github.gh_path : chemin relatif %q refusé, il dépendrait du répertoire courant "+
+			"(chemin absolu, ou nom cherché dans le PATH comme « gh »)", p)
 	}
 
 	return errors.Join(errs...)
@@ -310,6 +317,10 @@ func UserConfigPath() (string, error) {
 // Load charge les réglages de ws et les place dans ws.Config, puis les valide (Config.Validate).
 // ws.Root et ws.Dir doivent être renseignés. En cas d'erreur, ws.Config n'est pas modifié.
 //
+// Sous Unix, Load refuse d'abord (erreur enveloppant ErrUntrusted) un espace qui n'appartient pas à
+// l'utilisateur courant ou dont .watchoo/ dépasse 0700 ou config.yaml 0600 : un .watchoo/ commité dans
+// un dépôt cloné ne doit jamais fournir ses réglages (github.gh_path, web.*…).
+//
 // Les valeurs par défaut puis les trois niveaux de réglages, du plus faible au plus fort, sont chargés
 // avec une instance viper locale (viper.New(), jamais l'instance globale) :
 //  1. DefaultConfig(filepath.Base(ws.Root)), déclarées une par une avec SetDefault (indispensable
@@ -332,6 +343,9 @@ func UserConfigPath() (string, error) {
 func Load(ws *Workspace) error {
 	if ws == nil || ws.Root == "" || ws.Dir == "" {
 		return errors.New("chargement des réglages : espace non renseigné")
+	}
+	if err := checkTrusted(ws); err != nil {
+		return err
 	}
 	cfg, err := loadConfig(ws.Root, ws.ConfigPath())
 	if err != nil {
@@ -852,7 +866,7 @@ func ConfigTemplate(name string) string {
 		fmt.Sprintf("dépôts synchronisés en même temps, de 1 à %d", MaxSyncParallelism))
 	text(
 		"",
-		"# Seuils d'activité, en jours sans commit (chaque dépôt peut avoir les siens).",
+		"# Seuils d'activité de l'espace, en jours sans commit.",
 		"# activity:",
 	)
 	setting(fmt.Sprintf("  flemme_after_days: %d", DefaultFlemmeAfterDays), "au-delà : « Flemme » (au moins 1)")
@@ -890,7 +904,7 @@ func ConfigTemplate(name string) string {
 		"# github:",
 	)
 	setting(`  user: ""`, "login exact d'un compte gh ; vide : compte actif de gh")
-	setting("  gh_path: "+strconv.Quote(DefaultGHPath), "chemin ou nom de l'exécutable gh")
+	setting("  gh_path: "+strconv.Quote(DefaultGHPath), "chemin absolu, ou nom cherché dans le PATH")
 	return b.String()
 }
 

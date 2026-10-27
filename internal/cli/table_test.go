@@ -2,12 +2,14 @@ package cli
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"io"
 	"log/slog"
 	"strings"
 	"testing"
 	"testing/iotest"
+	"time"
 
 	"github.com/studoo-app/watchoo/internal/auth"
 	"github.com/studoo-app/watchoo/internal/provider"
@@ -81,7 +83,7 @@ func TestConfirm(t *testing.T) {
 		}
 		in := strings.NewReader(input)
 		deps := Deps{Stderr: &stderr, Stdin: in, StdinIsTerminal: func() bool { return true }}
-		got, err := confirm(deps, "Continuer ?")
+		got, err := confirm(context.Background(), deps, "Continuer ?")
 		if err != nil || got != tt.want {
 			t.Errorf("confirm(%q) = %v, %v ; attendu %v", tt.input, got, err, tt.want)
 		}
@@ -98,16 +100,43 @@ func TestConfirm(t *testing.T) {
 	// Hors terminal : rien n'est lu ni demandé, --yes est exigé.
 	var stderr bytes.Buffer
 	in := strings.NewReader("o\n")
-	_, err := confirm(Deps{Stderr: &stderr, Stdin: in, StdinIsTerminal: func() bool { return false }}, "Continuer ?")
+	_, err := confirm(context.Background(), Deps{Stderr: &stderr, Stdin: in, StdinIsTerminal: func() bool { return false }}, "Continuer ?")
 	if !errors.Is(err, errNeedYes) || stderr.Len() != 0 || in.Len() != 2 {
 		t.Errorf("confirm hors terminal = %v (stderr %q, %d octets restants)", err, stderr.String(), in.Len())
 	}
 
 	// Erreur de lecture.
-	_, err = confirm(Deps{Stderr: io.Discard, Stdin: iotest.ErrReader(errors.New("panne")),
+	_, err = confirm(context.Background(), Deps{Stderr: io.Discard, Stdin: iotest.ErrReader(errors.New("panne")),
 		StdinIsTerminal: func() bool { return true }}, "?")
 	if err == nil || !strings.Contains(err.Error(), "lecture de la réponse : panne") {
 		t.Errorf("confirm sur une entrée en erreur = %v", err)
+	}
+}
+
+// TestConfirmCanceled vérifie qu'un Ctrl+C (contexte annulé) pendant la question rend la main tout de
+// suite avec « non », alors que la lecture de l'entrée reste bloquée (aucune réponse tapée).
+func TestConfirmCanceled(t *testing.T) {
+	pr, pw := io.Pipe() // entrée qui ne répond jamais
+	t.Cleanup(func() { _ = pw.Close() })
+	ctx, cancel := context.WithCancel(context.Background())
+	var stderr bytes.Buffer
+	type result struct {
+		ok  bool
+		err error
+	}
+	done := make(chan result, 1)
+	go func() {
+		ok, err := confirm(ctx, Deps{Stderr: &stderr, Stdin: pr, StdinIsTerminal: func() bool { return true }}, "Continuer ?")
+		done <- result{ok, err}
+	}()
+	cancel()
+	select {
+	case r := <-done:
+		if r.ok || r.err != nil {
+			t.Errorf("confirm annulé = %v, %v ; attendu false, nil", r.ok, r.err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("confirm reste bloqué malgré l'annulation du contexte")
 	}
 }
 

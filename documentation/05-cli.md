@@ -49,8 +49,8 @@ uniquement avec `gh auth token` et ne le stocke jamais (voir
   label s'il existe, sinon `owner/repo` ; l'auteur est celui du dernier commit. États gris : `arrêté`
   (suivi arrêté), `erreur`, `jamais` (jamais synchronisé), `archivé`, `vide` (synchronisé sans commit).
 - **`repo remove`** demande confirmation (`[o/N]`) quand l'entrée standard est un terminal ; sinon (script,
-  tube) l'option **`--yes` / `-y` est obligatoire**. Une réponse autre que `o`, `oui`, `y` ou `yes` annule
-  avec un code de retour non nul. Sans `--keep-history`, le dépôt, ses branches, commits et synchros sont
+  tube) l'option **`--yes` / `-y` est obligatoire**. Une réponse autre que `o`, `oui`, `y` ou `yes`, ou un
+  Ctrl+C pendant la question (pris en compte tout de suite), annule avec un code de retour non nul. Sans `--keep-history`, le dépôt, ses branches, commits et synchros sont
   supprimés de la base (les contributeurs restent) ; avec `--keep-history`, le suivi s'arrête (le dépôt
   n'est plus synchronisé par `watchoo sync`, il apparaît `arrêté`) et `repo add` le reprend.
 - **`sync`** affiche un tableau par dépôt (statut `ok`, `erreur`, `ignoré` s'il est déjà en cours de
@@ -211,7 +211,7 @@ Watchoo supervise des dépôts GitHub, surtout privés, et répond à trois ques
 
 - **Scripts** : la carte n'est affichée que si la sortie standard est un terminal, et jamais avec `--json`.
   Une sortie redirigée (fichier, tube) reste identique : aide sans carte, `watchoo version` sur une seule
-  ligne (`watchoo v0.1.0 (go1.27.3, darwin/arm64)`), compte rendu habituel de `init`. La sortie d'erreur
+  ligne (`watchoo v0.1.0 (commit 1a2b3c4, 2026-10-27, go1.27.3, darwin/arm64)`), compte rendu habituel de `init`. La sortie d'erreur
   (erreurs, avertissements) n'a jamais de carte, l'aide des sous-commandes (`watchoo help init`) non plus.
 - **Ligne d'état de l'espace** (aide générale) : `● Espace : <nom> (<racine>)`, avec `~` pour le
   répertoire personnel, ou `● Aucun espace de supervision ici`. L'espace est cherché comme le feraient les

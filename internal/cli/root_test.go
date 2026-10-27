@@ -10,7 +10,9 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
+	"github.com/spf13/cobra"
 	"github.com/studoo-app/watchoo/internal/auth"
 	"github.com/studoo-app/watchoo/internal/auth/authtest"
 	"github.com/studoo-app/watchoo/internal/workspace"
@@ -238,4 +240,77 @@ func TestTokenNeverInOutput(t *testing.T) {
 	if len(outputs) == 0 || len(testLogs.String()) == logsBefore {
 		t.Error("aucune sortie ni aucun log vérifié")
 	}
+}
+
+// TestHelpOptionsInFrenchAndAligned parcourt l'aide de toutes les commandes : aucune trace du
+// « (default …) » anglais de pflag, et, dans chaque bloc d'options, les descriptions commencent à la
+// même colonne (comptée en caractères, accents compris : « --repo dépôt » face à « --author auteur »).
+func TestHelpOptionsInFrenchAndAligned(t *testing.T) {
+	h := newHarness(t)
+	var visit func(c *cobra.Command)
+	var paths [][]string
+	visit = func(c *cobra.Command) {
+		if !c.IsAvailableCommand() && c.HasParent() {
+			return
+		}
+		parts := strings.Fields(c.CommandPath())[1:]
+		paths = append(paths, parts)
+		for _, sub := range c.Commands() {
+			visit(sub)
+		}
+	}
+	visit(NewRootCmd(Deps{}))
+	if len(paths) < 10 {
+		t.Fatalf("seulement %d commandes trouvées : %q", len(paths), paths)
+	}
+	for _, p := range paths {
+		r := h.run(append(p, "--help")...).mustSucceed(t)
+		if strings.Contains(r.stdout, "(default") {
+			t.Errorf("watchoo %q --help contient « (default » :\n%s", p, r.stdout)
+		}
+		for _, block := range optionBlocks(r.stdout) {
+			col := -1
+			for _, line := range block {
+				name := strings.TrimLeft(line, " ")
+				k := strings.Index(name, "   ")
+				if k < 0 {
+					t.Errorf("watchoo %q --help : ligne d'option sans description : %q", p, line)
+					continue
+				}
+				desc := strings.TrimLeft(name[k:], " ")
+				c := utf8.RuneCountInString(line) - utf8.RuneCountInString(desc)
+				if col == -1 {
+					col = c
+				} else if c != col {
+					t.Errorf("watchoo %q --help : description à la colonne %d au lieu de %d : %q", p, c, col, line)
+				}
+			}
+		}
+	}
+
+	r := h.run("log", "--help").mustSucceed(t)
+	if !strings.Contains(r.stdout, "0 = tous (20 par défaut)") {
+		t.Errorf("aide de log sans la valeur par défaut en français :\n%s", r.stdout)
+	}
+}
+
+// optionBlocks renvoie les lignes des blocs « Options : » et « Options globales : » d'une aide.
+func optionBlocks(help string) [][]string {
+	var blocks [][]string
+	var cur []string
+	in := false
+	for _, line := range strings.Split(help, "\n") {
+		switch {
+		case line == "Options :" || line == "Options globales :":
+			in, cur = true, nil
+		case in && strings.HasPrefix(line, "  "):
+			cur = append(cur, line)
+		case in:
+			blocks, in = append(blocks, cur), false
+		}
+	}
+	if in {
+		blocks = append(blocks, cur)
+	}
+	return blocks
 }

@@ -352,7 +352,7 @@ func runRepoRemove(ctx context.Context, deps Deps, opts *options, ref string, ke
 		if keepHistory {
 			prompt = fmt.Sprintf("Arrêter le suivi de %s (l'historique est gardé) ?", repo.FullName())
 		}
-		ok, err := confirm(deps, prompt)
+		ok, err := confirm(ctx, deps, prompt)
 		if err != nil {
 			return err
 		}

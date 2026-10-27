@@ -57,7 +57,7 @@ Filtres :
 	cmd.Flags().StringVar(&f.author, "author", "", "limite à un `auteur` (login, nom ou e-mail exact)")
 	cmd.Flags().StringVar(&f.branch, "branch", "", "limite à une `branche`")
 	cmd.Flags().StringVar(&f.since, "since", "", "limite à une `période` récente (ex. 7d, 12h, 30m)")
-	cmd.Flags().IntVarP(&f.limit, "limit", "n", defaultLogLimit, "`nombre` maximum de commits (0 = tous)")
+	cmd.Flags().IntVarP(&f.limit, "limit", "n", defaultLogLimit, "`nombre` maximum de commits, 0 = tous")
 	return cmd
 }
 
