@@ -315,7 +315,7 @@ pour ses commits (`store.ContributorCommitTimes`), et empilé par semaine avec *
 
 ## Bandeau de nouvelle version (0.6.0)
 
-`watchoo serve` vérifie au démarrage, puis toutes les 24 h, si une version plus récente de Watchoo est
+`watchoo serve` vérifie au démarrage, puis toutes les 30 min, si une version plus récente de Watchoo est
 publiée (voir [CLI](05-cli.md#mise-à-jour--watchoo-update)). Quand c'en est une, **toutes les pages**
 (sauf les pages d'erreur publiques, montrées avant authentification) affichent sous la barre de
 navigation un bandeau discret (alerte DaisyUI `alert-info alert-soft`, `role="status"`) :

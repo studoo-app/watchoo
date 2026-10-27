@@ -657,7 +657,7 @@ font qu'afficher.
   pas une version de release, pour `update` (qui vérifie de toute façon), `serve` (qui a sa propre
   vérification), l'aide et `watchoo` seul, ni quand `WATCHOO_NO_UPDATE_CHECK` vaut autre chose que
   vide, `0` ou `false`.
-- **`watchoo serve`** : vérification au démarrage puis toutes les 24 h (`selfupdate.Monitor`, tant que le
+- **`watchoo serve`** : vérification au démarrage puis toutes les 30 min (`selfupdate.Monitor`, tant que le
   serveur tourne) ; une nouvelle version est annoncée une fois sur la sortie d'erreur et gardée en
   mémoire, d'où l'interface web tire son bandeau.
 - **Remplacement du binaire** : archive `watchoo_<version>_<os>_<arch>.tar.gz` (`.zip` sous Windows) et
