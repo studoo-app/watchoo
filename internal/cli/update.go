@@ -151,7 +151,7 @@ func updateNoticeText(st selfupdate.Status, docker bool) string {
 }
 
 // newUpdateMonitor renvoie la vérification périodique de « watchoo serve » (au démarrage puis toutes
-// les 24 h), ou nil si elle est coupée (WATCHOO_NO_UPDATE_CHECK) ou si la version installée n'est pas
+// les 30 min), ou nil si elle est coupée (WATCHOO_NO_UPDATE_CHECK) ou si la version installée n'est pas
 // une version de release. Une nouvelle version est annoncée une fois sur la sortie d'erreur (même
 // phrase que l'avis des commandes) et journalisée (info).
 func newUpdateMonitor(deps Deps, logger *slog.Logger) *selfupdate.Monitor {

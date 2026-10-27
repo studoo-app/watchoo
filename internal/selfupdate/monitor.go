@@ -1,6 +1,6 @@
 package selfupdate
 
-// Vérification périodique de « watchoo serve » : au démarrage puis toutes les 24 h.
+// Vérification périodique de « watchoo serve » : au démarrage puis toutes les 30 min.
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 )
 
 // DefaultMonitorInterval est l'intervalle entre deux vérifications de « watchoo serve ».
-const DefaultMonitorInterval = 24 * time.Hour
+const DefaultMonitorInterval = 30 * time.Minute
 
 // defaultCheckTimeout borne chaque vérification du Monitor.
 const defaultCheckTimeout = 30 * time.Second

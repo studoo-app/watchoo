@@ -9,6 +9,11 @@ un changement incompatible fait monter MINOR et tout changement compatible fait 
 
 ## [Unreleased]
 
+### Modifié
+
+- `watchoo serve` vérifie s'il existe une nouvelle version de Watchoo toutes les 30 min (au lieu de
+  toutes les 24 h) : le bandeau de l'interface web apparaît peu après la publication d'une release.
+
 ## [0.6.0] - 2026-10-27
 
 Avis de nouvelle version (CLI et interface web) et mise à jour de Watchoo en une commande,
