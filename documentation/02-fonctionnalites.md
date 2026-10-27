@@ -22,7 +22,7 @@ Le MVP se limite à **suivre, synchroniser et afficher** ; tout le reste vient e
 
 | Fonctionnalité | Détail |
 | --- | --- |
-| Activité par contributeur dans un dépôt | Graphique des commits de chaque contributeur à l'intérieur d'un même dépôt |
+| Activité par contributeur dans un dépôt | Graphique des commits de chaque contributeur à l'intérieur d'un même dépôt. **En place** (non publié) : sur la page d'un dépôt (web), commits par semaine sur 12 semaines des 8 contributeurs les plus actifs du dépôt, comme la page des contributeurs ; total et courbe par semaine des principaux contributeurs dans le détail d'un dépôt du TUI ; `watchoo contributors [--repo X] --weeks N` (commits semaine par semaine, clé `weekly` en JSON). Toutes les branches suivies comptent, chaque commit une fois |
 | Seuils d'activité par dépôt | Régler les seuils Flemme / Dead d'un dépôt (option de `repo add`, colonne de l'import, réglage web). **En place** (non publié) : `repo add --flemme N --dead N`, colonnes `flemme` et `dead` de l'import, partage de la configuration, formulaire de la page d'un dépôt |
 | Pull requests et releases | PR ouvertes / mergées, tags, releases |
 | Dépôts Git locaux | Suivre un dépôt depuis un clone local (`git clone`, puis `git fetch` périodique) : commits, branches et tags sans appel à l'API GitHub. Utilisé quand `gh` n'est pas installé ou connecté |

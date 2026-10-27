@@ -185,7 +185,7 @@ func TestLastSyncFinishedAt(t *testing.T) {
 func TestAuthorCommitTimes(t *testing.T) {
 	s := newTestStore(t)
 	ctx := t.Context()
-	viewFixture(t, s)
+	aliceRepo, bobRepo := viewFixture(t, s)
 	ranking, err := s.ContributorRanking(ctx, ContributorFilter{})
 	if err != nil {
 		t.Fatal(err)
@@ -195,7 +195,7 @@ func TestAuthorCommitTimes(t *testing.T) {
 		ids[c.DisplayName()] = c.ID
 	}
 
-	got, err := s.AuthorCommitTimes(ctx, t0.Add(2*time.Hour))
+	got, err := s.AuthorCommitTimes(ctx, 0, t0.Add(2*time.Hour))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -224,8 +224,26 @@ func TestAuthorCommitTimes(t *testing.T) {
 		}
 	}
 
-	none, err := s.AuthorCommitTimes(ctx, t0.Add(100*time.Hour))
+	none, err := s.AuthorCommitTimes(ctx, 0, t0.Add(100*time.Hour))
 	if err != nil || len(none) != 0 {
 		t.Errorf("AuthorCommitTimes(futur) = %v, %v ; attendu vide", none, err)
+	}
+
+	// Filtre par dépôt : le commit 3, sur main et dev, n'est compté qu'une fois ; le commit 6 (autre
+	// dépôt) est exclu.
+	only, err := s.AuthorCommitTimes(ctx, aliceRepo, t0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	perAuthor := map[int64]int{}
+	for _, a := range only {
+		perAuthor[a.ContributorID]++
+	}
+	if len(only) != 4 || perAuthor[ids["Alice"]] != 2 || perAuthor[ids["Bob"]] != 2 {
+		t.Errorf("dépôt d'Alice : %v, attendu 2 commits d'Alice et 2 de Bob", only)
+	}
+	other, err := s.AuthorCommitTimes(ctx, bobRepo, t0)
+	if err != nil || len(other) != 1 || other[0].ContributorID != ids["Alice"] || !other[0].CommittedAt.Equal(at(6)) {
+		t.Errorf("dépôt de Bob : %v, %v ; attendu le seul commit 6 d'Alice", other, err)
 	}
 }

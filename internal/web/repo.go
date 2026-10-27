@@ -28,6 +28,10 @@ package web
 // fin d'une synchro, app.js relit donc la page complète par fetch (même origine), en extrait
 // #activity-data avec DOMParser (qui n'exécute rien) et met le graphique à jour.
 //
+// Le graphique d'activité par contributeur (buildContributorChart, charts.go : commits par semaine sur
+// activity.ContributorWeeks semaines, ceux du dépôt seulement, chaque commit une fois quelle que soit
+// sa branche) suit le même principe, avec #repo-contributors-chart-data, son résumé et sa table.
+//
 // Aucune règle métier ici : l'état vient de activity.Evaluate, les données de internal/store.
 
 import (
@@ -69,6 +73,9 @@ type RepoView struct {
 	ChartPeak  activity.DayCount
 	// ChartPeakDate : jour de ChartPeak au format « 26/10/2026 ».
 	ChartPeakDate string
+	// ContributorsChart : commits par semaine des contributeurs du dépôt sur activity.ContributorWeeks
+	// semaines (même graphique que la page des contributeurs, restreint au dépôt).
+	ContributorsChart contributorChart
 	// Historique : page courante et filtres actifs.
 	Commits RepoCommitsView
 	// Thresholds : formulaire des seuils propres au dépôt (repo_thresholds.go).
@@ -194,6 +201,12 @@ func (s *server) repoView(r *http.Request, id int64, overview bool) (RepoView, e
 		}
 		chart := newDailyChart(times, now, activity.ChartDays, s.loc)
 		view.Chart, view.ChartTotal, view.ChartPeak, view.ChartPeakDate = chart.Series, chart.Total, chart.Peak, chart.PeakDate
+		authors, err := s.store.AuthorCommitTimes(ctx, id, activity.WeeksStart(now, activity.ContributorWeeks, s.loc))
+		if err != nil {
+			return RepoView{}, err
+		}
+		view.ContributorsChart = buildContributorChart(contributors, authors, now, activity.ContributorWeeks,
+			contributorChartTop, s.loc)
 	}
 
 	c := RepoCommitsView{RepoID: id, Branch: queryValue(r, "branch"), Author: queryValue(r, "author")}

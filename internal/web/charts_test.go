@@ -49,21 +49,21 @@ func TestNewDailyChart(t *testing.T) {
 }
 
 // row fabrique une ligne du classement (contributeur id, nom name).
-func row(id int64, name string) contributorRow {
-	return contributorRow{ContributorStats: store.ContributorStats{Contributor: model.Contributor{ID: id, Name: name}}}
+func row(id int64, name string) store.ContributorStats {
+	return store.ContributorStats{Contributor: model.Contributor{ID: id, Name: name}}
 }
 
 func TestBuildContributorChart(t *testing.T) {
 	now := time.Date(2026, 10, 27, 10, 0, 0, 0, time.UTC) // mardi
 	week := 7 * 24 * time.Hour
-	at := func(id int64, ago time.Duration) store.AuthorCommitTime {
-		return store.AuthorCommitTime{ContributorID: id, CommittedAt: now.Add(-ago)}
+	at := func(id int64, ago time.Duration) model.AuthorCommitTime {
+		return model.AuthorCommitTime{ContributorID: id, CommittedAt: now.Add(-ago)}
 	}
-	rows := []contributorRow{
+	rows := []store.ContributorStats{
 		row(1, "Alice"), row(2, "Bob"), row(3, "Carol"), row(4, "Dave"), row(5, "Ève \x1b[31mrouge"),
 		row(6, strings.Repeat("n", 60)),
 	}
-	times := []store.AuthorCommitTime{
+	times := []model.AuthorCommitTime{
 		at(1, time.Hour), at(1, week), // Alice : 2 (cette semaine, la précédente)
 		at(2, time.Hour), at(2, 2*time.Hour), // Bob : 2 cette semaine (égalité avec Alice)
 		at(3, 2*week), at(3, 2*week), at(3, 2*week), // Carol : 3, il y a deux semaines
@@ -71,7 +71,7 @@ func TestBuildContributorChart(t *testing.T) {
 		at(5, time.Hour),  // Ève : 1
 		at(6, time.Hour),  // nom long : 1
 		at(99, time.Hour), // auteur hors du classement : « Autres »
-		store.AuthorCommitTime{ContributorID: 1, CommittedAt: now.Add(week)}, // futur : ignoré
+		model.AuthorCommitTime{ContributorID: 1, CommittedAt: now.Add(week)}, // futur : ignoré
 	}
 	c := buildContributorChart(rows, times, now, 3, 3, time.UTC)
 
@@ -223,4 +223,70 @@ func TestChartJSONEscaping(t *testing.T) {
 		data.Series[0].Name != evil.Name {
 		t.Errorf("données %+v, %v", data, err)
 	}
+}
+
+// Page d'un dépôt : graphique des contributeurs restreint au dépôt (commits des autres dépôts exclus,
+// commit présent sur deux branches compté une fois), hors des fragments HTMX.
+func TestRepoContributorsChart(t *testing.T) {
+	e := newTestEnv(t)
+	ids := e.seed()
+	path := repoPath(ids.Alice)
+	w := e.get(path)
+	assertStatus(t, w, http.StatusOK)
+	assertContains(t, w,
+		`<canvas id="repo-contributors-chart" role="img" data-chart="weekly-stacked" data-source="repo-contributors-chart-data"`,
+		`data-summary="repo-contributors-chart-summary" data-table="repo-contributors-chart-table" data-refresh-url="`+path+`"`,
+		"Activité par contributeur sur 12 semaines", "3 commits de 2 contributeurs depuis le 10/08/2026",
+		"contributeurs les plus actifs de ce dépôt sur les 12 dernières semaines : 3 commits au total",
+		"n&#39;est compté qu&#39;une fois",
+		`<table class="table table-xs" id="repo-contributors-chart-table">`, chartScript)
+
+	var data contributorChartData
+	if err := json.Unmarshal([]byte(jsonData(t, w, "repo-contributors-chart-data")), &data); err != nil {
+		t.Fatal(err)
+	}
+	if len(data.Weeks) != activity.ContributorWeeks || data.Weeks[11] != "2026-10-26" {
+		t.Errorf("semaines %v", data.Weeks)
+	}
+	got := map[string][]int{}
+	for _, s := range data.Series {
+		got[s.Name] = s.Counts
+	}
+	// Alice : 27/09 (semaine du 21/09, index 6) et 26/10 (index 11) ; Bob : 24/10 (index 10), son
+	// commit du dépôt bob exclu.
+	want := map[string][]int{
+		"Alice Martin": {0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1},
+		"Bob Durand":   {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0},
+	}
+	if len(got) != len(want) || len(data.Series) != 2 || data.Series[0].Name != "Alice Martin" {
+		t.Fatalf("séries %+v, attendu %v", data.Series, want)
+	}
+	for name, counts := range want {
+		if !slices.Equal(got[name], counts) {
+			t.Errorf("%s : %v, attendu %v", name, got[name], counts)
+		}
+	}
+
+	// Les fragments rechargés après une synchro ne portent pas le graphique.
+	for _, target := range []string{repoOverviewID, repoContributorsID} {
+		assertNotContains(t, e.htmxWith(path, map[string]string{"HX-Target": target}), "repo-contributors-chart")
+	}
+	assertNotContains(t, e.htmx(path+"/commits"), "repo-contributors-chart")
+}
+
+// Dépôt sans commit sur la période : le graphique reste en place (rempli à la prochaine synchro) avec
+// un résumé et une table qui le disent.
+func TestRepoContributorsChartEmpty(t *testing.T) {
+	e := newTestEnv(t)
+	ids := e.seed()
+	w := e.get(repoPath(ids.Dave))
+	assertStatus(t, w, http.StatusOK)
+	assertContains(t, w, `<canvas id="repo-contributors-chart"`,
+		"Aucun commit d'auteur connu depuis le 10/08/2026", "Aucun commit sur la période.", chartScript)
+	if raw := jsonData(t, w, "repo-contributors-chart-data"); !strings.Contains(raw, `"series":[]`) {
+		t.Errorf("données sans commit : %s", raw)
+	}
+	// Carol : un seul commit, il y a 40 jours, dans la fenêtre de 12 semaines.
+	w = e.get(repoPath(ids.Carol))
+	assertContains(t, w, "1 commit de 1 contributeur depuis le 10/08/2026")
 }

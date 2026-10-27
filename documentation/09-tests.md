@@ -121,6 +121,14 @@ Deux faux, écrits en phase 2 et réutilisés par les phases suivantes :
   l'import (`internal/cli`, état recalculé par `repo list`), export, aperçu et import du partage
   (`internal/configshare`), formulaire de la page d'un dépôt (`internal/web` : enregistrement, saisie
   refusée, `404`, CSRF).
+- **Activité par contributeur dans un dépôt** (V2) : commits par semaine et par contributeur
+  (`activity.CountContributorWeeks` : fuseau, bornes de la fenêtre, contributeur absent) et courbe d'une
+  ligne (`activity.Sparkline`, Unicode et ASCII) ; `store.AuthorCommitTimes` filtré par dépôt (commit
+  sur deux branches compté une fois, autres dépôts exclus) ; graphique de la page d'un dépôt
+  (`TestRepoContributorsChart` : séries du seul dépôt, absent des fragments ; dépôt sans commit sur la
+  période) ; détail du TUI (colonnes « 12 SEM. » et « PAR SEMAINE », faux `DataSource` et vraie base) ;
+  `watchoo contributors --weeks` (texte, `--repo`, JSON `weekly`, `[]` sans l'option, bornes et refus
+  avec `--since`, `TestContributorsWeeks`).
 - **Moteur** (`internal/sync/`, `providertest` + base temporaire) : premier import, synchro
   incrémentale, tête inchangée (aucune requête de commits), nouvelle branche, merge qui apporte des
   commits plus anciens, force-push (branche et branche de référence), branche supprimée,
@@ -206,7 +214,7 @@ Deux faux, écrits en phase 2 et réutilisés par les phases suivantes :
   (`WeeklyCounts`) dans le fuseau d'affichage (Paris, passages à l'heure d'hiver et d'été, fin d'année,
   UTC+14, nombre de semaines invalide), résumé d'une série par jour (total, jour le plus chargé).
 - **Store** (`TestAuthorCommitTimes`) : auteur et date de chaque commit, auteur inconnu exclu, dates en
-  UTC, borne `since`.
+  UTC, borne `since`, filtre par dépôt.
 - **Graphiques web** (`internal/web/charts_test.go`) : séries des 8 contributeurs les plus actifs et
   regroupement des autres (égalités, auteur hors classement, noms nettoyés et tronqués, `[]` plutôt que
   `null`) ; JSON des pages tableau de bord et contributeurs, absent des fragments et d'un espace vide ;

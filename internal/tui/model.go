@@ -11,6 +11,7 @@ import (
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/studoo-app/watchoo/internal/activity"
 	"github.com/studoo-app/watchoo/internal/store"
 )
 
@@ -62,8 +63,10 @@ type detailState struct {
 	loading  bool
 	commits  []store.CommitView
 	contribs []store.ContributorStats
-	err      error
-	offset   int // première ligne affichée (défilement)
+	// weekly : commits par semaine des contributeurs du dépôt sur activity.ContributorWeeks semaines.
+	weekly activity.ContributorWeekCounts
+	err    error
+	offset int // première ligne affichée (défilement)
 }
 
 // syncState est l'état de la synchro lancée par le TUI (une seule à la fois).
@@ -152,11 +155,13 @@ type (
 		contribs []store.ContributorStats
 		err      error
 	}
-	// detailMsg apporte les commits et contributeurs du dépôt détaillé.
+	// detailMsg apporte les commits et contributeurs du dépôt détaillé, et l'activité par semaine de
+	// ses contributeurs.
 	detailMsg struct {
 		repoID   int64
 		commits  []store.CommitView
 		contribs []store.ContributorStats
+		weekly   activity.ContributorWeekCounts
 		err      error
 	}
 	// autoSyncMsg déclenche la synchro automatique.
@@ -214,9 +219,10 @@ func (m Model) loadCmd() tea.Cmd {
 	}
 }
 
-// detailCmd lit les derniers commits et les principaux contributeurs du dépôt repoID.
+// detailCmd lit les derniers commits et les principaux contributeurs du dépôt repoID, avec les
+// commits par semaine de chacun sur activity.ContributorWeeks semaines.
 func (m Model) detailCmd(repoID int64) tea.Cmd {
-	ctx, data := m.ctx, m.deps.Data
+	ctx, data, now, loc := m.ctx, m.deps.Data, m.now(), m.deps.Location
 	return func() tea.Msg {
 		msg := detailMsg{repoID: repoID}
 		if data == nil {
@@ -228,8 +234,16 @@ func (m Model) detailCmd(repoID int64) tea.Cmd {
 			store.CommitFilter{RepoID: repoID, Limit: detailCommits}); msg.err != nil {
 			return msg
 		}
-		msg.contribs, msg.err = data.ContributorRanking(ctx,
-			store.ContributorFilter{RepoID: repoID, Limit: detailContributors})
+		if msg.contribs, msg.err = data.ContributorRanking(ctx,
+			store.ContributorFilter{RepoID: repoID, Limit: detailContributors}); msg.err != nil {
+			return msg
+		}
+		times, err := data.AuthorCommitTimes(ctx, repoID, activity.WeeksStart(now, activity.ContributorWeeks, loc))
+		if err != nil {
+			msg.err = err
+			return msg
+		}
+		msg.weekly = activity.CountContributorWeeks(times, now, activity.ContributorWeeks, loc)
 		return msg
 	}
 }
@@ -263,7 +277,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.detail.loading = false
-		m.detail.commits, m.detail.contribs, m.detail.err = msg.commits, msg.contribs, msg.err
+		m.detail.commits, m.detail.contribs, m.detail.weekly, m.detail.err = msg.commits, msg.contribs, msg.weekly, msg.err
 		return m, nil
 	case syncProgressMsg:
 		return m.handleSyncProgress(msg)

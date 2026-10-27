@@ -94,11 +94,11 @@ func (s *server) contributorsData(r *http.Request, withChart bool) (contributors
 	v.Repos = len(repos)
 	if withChart {
 		now := s.now()
-		times, err := s.store.AuthorCommitTimes(ctx, activity.WeeksStart(now, activity.ContributorWeeks, s.loc))
+		times, err := s.store.AuthorCommitTimes(ctx, 0, activity.WeeksStart(now, activity.ContributorWeeks, s.loc))
 		if err != nil {
 			return contributorsView{}, err
 		}
-		v.Chart = buildContributorChart(v.Rows, times, now, activity.ContributorWeeks, contributorChartTop, s.loc)
+		v.Chart = buildContributorChart(ranking, times, now, activity.ContributorWeeks, contributorChartTop, s.loc)
 	}
 	return v, nil
 }

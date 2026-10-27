@@ -1,8 +1,14 @@
 package activity
 
-// Série d'activité par jour (graphique de la page de détail d'un dépôt, interface web).
+// Séries d'activité : commits par jour (graphiques d'un dépôt et du tableau de bord, interface web),
+// par semaine, et par semaine pour chaque contributeur (graphiques des contributeurs d'un espace ou
+// d'un dépôt, TUI, « watchoo contributors --weeks »).
 
-import "time"
+import (
+	"time"
+
+	"github.com/studoo-app/watchoo/internal/model"
+)
 
 // ChartDays est la durée par défaut du graphique d'activité de l'interface web, en jours.
 const ChartDays = 90
@@ -65,8 +71,8 @@ func Summarize(series []DayCount) (total int, peak DayCount) {
 	return total, peak
 }
 
-// ContributorWeeks est la durée du graphique d'activité des contributeurs de l'interface web, en
-// semaines.
+// ContributorWeeks est la durée des séries d'activité par contributeur, en semaines : graphiques de
+// l'interface web (contributeurs, détail d'un dépôt) et détail d'un dépôt dans le TUI.
 const ContributorWeeks = 12
 
 // WeekCount est le nombre de commits d'une semaine calendaire (du lundi au dimanche) du fuseau
@@ -138,4 +144,57 @@ func WeeklyCounts(times []time.Time, now time.Time, weeks int, loc *time.Locatio
 		}
 	}
 	return out
+}
+
+// ContributorWeekCounts est l'activité par semaine de chaque contributeur sur une fenêtre de semaines
+// (CountContributorWeeks).
+type ContributorWeekCounts struct {
+	Weeks []string // lundis des semaines (2006-01-02), de la plus ancienne à la plus récente (WeekKeys)
+	// Counts : commits par semaine de chaque contributeur qui a au moins un commit dans la fenêtre,
+	// alignés sur Weeks.
+	Counts map[int64][]int
+	Total  int // commits de la fenêtre, tous contributeurs confondus
+}
+
+// Of renvoie les commits par semaine du contributeur id, alignés sur Weeks (que des zéros s'il n'a
+// aucun commit dans la fenêtre). La tranche renvoyée est une copie.
+func (c ContributorWeekCounts) Of(id int64) []int {
+	out := make([]int, len(c.Weeks))
+	copy(out, c.Counts[id])
+	return out
+}
+
+// TotalOf renvoie les commits du contributeur id dans la fenêtre.
+func (c ContributorWeekCounts) TotalOf(id int64) int {
+	n := 0
+	for _, v := range c.Counts[id] {
+		n += v
+	}
+	return n
+}
+
+// CountContributorWeeks compte les commits de times par contributeur et par semaine calendaire (lundi
+// → dimanche) dans loc (nil = time.Local), sur les weeks semaines qui se terminent par la semaine de
+// now (weeks < 1 ramené à 1). Les dates hors de cette fenêtre sont ignorées. Lire times avec la borne
+// WeeksStart(now, weeks, loc). Fonction pure.
+func CountContributorWeeks(times []model.AuthorCommitTime, now time.Time, weeks int,
+	loc *time.Location) ContributorWeekCounts {
+	keys := WeekKeys(now, weeks, loc)
+	index := make(map[string]int, len(keys))
+	for i, k := range keys {
+		index[k] = i
+	}
+	c := ContributorWeekCounts{Weeks: keys, Counts: make(map[int64][]int)}
+	for _, at := range times {
+		i, ok := index[WeekOf(at.CommittedAt, loc)]
+		if !ok {
+			continue
+		}
+		if c.Counts[at.ContributorID] == nil {
+			c.Counts[at.ContributorID] = make([]int, len(keys))
+		}
+		c.Counts[at.ContributorID][i]++
+		c.Total++
+	}
+	return c
 }

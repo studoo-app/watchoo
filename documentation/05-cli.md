@@ -31,7 +31,7 @@ uniquement avec `gh auth token` et ne le stocke jamais (voir
 | `watchoo repo remove owner/repo [--keep-history]` | Arrête le suivi et supprime l'historique du dépôt après confirmation (`--keep-history` pour le garder) | MVP |
 | `watchoo sync [owner/repo]` | Synchronise tout ou un seul dépôt | MVP |
 | `watchoo log [--repo X] [--author Y] [--branch B] [--since 7d] [-n 20]` | Derniers commits filtrés | MVP |
-| `watchoo contributors [--repo X] [--since 30d]` | Classement des contributeurs | MVP |
+| `watchoo contributors [--repo X] [--since 30d \| --weeks 12]` | Classement des contributeurs ; avec `--weeks`, leurs commits semaine par semaine | MVP (`--weeks` : V2) |
 | `watchoo status` | Résumé : dépôts à jour, inactifs, en erreur, quota API restant, compte `gh` utilisé et ses droits (sans afficher le token) | MVP |
 | `watchoo serve [--addr 127.0.0.1:8080] [--interval 30m]` | Lance l'interface web et la synchro périodique (30 min par défaut, 15 min minimum) | MVP |
 | `watchoo tui [--interval 30m]` | Ouvre le mode interactif dans le terminal | MVP |
@@ -76,6 +76,11 @@ uniquement avec `gh auth token` et ne le stocke jamais (voir
   comparant (voir [Architecture](03-architecture.md#synchronisation-incrémentale)).
 - **`contributors`** classe les **auteurs** de commits par nombre de commits. Les lignes ajoutées et
   supprimées ne sont connues que pour les commits découverts après le premier import d'un dépôt.
+  **`--weeks N`** (1 à 52) limite la période aux N dernières semaines (du lundi au dimanche, dans le
+  fuseau d'affichage, la semaine en cours comprise) et donne, pour chaque contributeur de cette période,
+  ses commits semaine par semaine : en texte, une colonne par semaine (datée du lundi, « 12/10 ») puis
+  le total ; en JSON, la clé `weekly`. Avec `--repo`, seuls les commits du dépôt comptent, chacun une
+  fois quelle que soit sa branche. `--weeks` et `--since` ne vont pas ensemble (refus).
 - **`status`** : compte `gh` et ses droits, quota restant (lecture gratuite), dépôts par état, dépôts en
   erreur, dernière synchro réussie, branches suivies. Sous 10 % de quota restant, le garde-fou est
   signalé (« Quota bas : synchros reportées jusqu'à HH:MM », `quota_low` en JSON), avec la même règle
@@ -142,7 +147,7 @@ Clés de premier niveau (la liste est vérifiée par un test, `internal/cli/json
 | `watchoo repo remove` | `action`, `repository`, `deleted_commits` | `action` : `deleted`, `stopped` ou `already_stopped` |
 | `watchoo sync` | `started_at`, `finished_at`, `summary`, `repositories`, `rate_limit` | `summary` : `repositories`, `success`, `error`, `locked`, `deferred`, `new_commits` ; chaque dépôt : `id`, `full_name`, `display_name`, `status`, `new_commits`, `tracked_branches`, `stats_fetched`, `duration_ms`, `error`, `resume_at` |
 | `watchoo log` | `commits` | Du plus récent au plus ancien ; objets commit |
-| `watchoo contributors` | `contributors` | Chaque élément : `id`, `name`, `login`, `display_name`, `avatar_url`, `commits`, `additions`, `deletions`, `repositories`, `last_commit_at` |
+| `watchoo contributors` | `contributors` | Chaque élément : `id`, `name`, `login`, `display_name`, `avatar_url`, `commits`, `additions`, `deletions`, `repositories`, `last_commit_at`, `weekly` (avec `--weeks N` : N objets `week` (lundi, `AAAA-MM-JJ`, fuseau d'affichage) et `count`, du plus ancien au plus récent ; `[]` sans `--weeks`) |
 | `watchoo status` | `workspace`, `github`, `rate_limit`, `rate_limit_error`, `quota_low`, `repositories`, `errors`, `last_synced_at`, `tracked_branches` | `workspace` : `name`, `root` ; `github` : `ok`, `host`, `login`, `token_source`, `scopes`, `error` ; `repositories` : `total`, `active`, `flemme`, `dead`, `error`, `never_synced`, `archived`, `empty`, `stopped` ; chaque erreur : `repo`, `message` |
 | `watchoo config export` | `format`, `version`, `exported_at`, `watchoo_version`, `workspace`, `settings`, `repositories` | Le document de partage lui-même (voir [Partage de la configuration](#partage-de-la-configuration--watchoo-config)), avec ou sans `--json` ; avec `-o`, il va dans le fichier et la sortie standard ne reçoit qu'une ligne de confirmation en texte (rien avec `--json`) |
 | `watchoo config import` | `file`, `dry_run`, `applied`, `source`, `settings`, `repositories`, `summary`, `warnings` | `source` : `workspace_name`, `watchoo_version`, `exported_at` (tels qu'écrits dans le fichier) ; `settings` : `changes` (chacun `key`, `before`, `after`, `env_var`), `rewrite`, `written`, `backup_file` ; chaque dépôt : `index`, `repo`, `action` (`add`, `update`, `unchanged`, `inaccessible`, `error`), `reenable`, `before` (`label`, `branches`, `flemme_after_days`, `dead_after_days` (`null` = seuil de l'espace), `enabled` ; `null` pour un ajout), `after`, `outcome` (comme `repo import`, `""` tant que rien n'est appliqué), `error` ; `summary` : `added`, `already_tracked`, `updated`, `reenabled` (parmi `updated`), `inaccessible`, `errors` (prévus avec `--dry-run`, obtenus sinon) ; chaque avertissement : `code` (`env_override`, `comments_lost`), `key`, `message` |
@@ -483,7 +488,9 @@ et les contributeurs au clavier, avec filtre et vue détail, et on peut y lancer
   court, première ligne du message ; les 200 derniers) et Contributeurs (nom, login, commits, `+/-`,
   dépôts, dernier commit). Le **détail d'un dépôt** montre l'URL, l'état et ses seuils, le dernier commit,
   les branches, le nombre de commits, la dernière synchro (ou son erreur), étoiles et issues, les 15
-  derniers commits et les 5 premiers contributeurs.
+  derniers commits et les 5 premiers contributeurs, avec leurs commits sur les 12 dernières semaines
+  (colonne « 12 SEM. ») et une courbe d'un caractère par semaine, la plus récente à droite (« PAR
+  SEMAINE » : `▁` à `█`, ou `.` `-` `=` `#` sans Unicode ; `▁` ou `.` = aucun commit).
 - **En-tête** : hibou mini (pupilles vertes), version et espace, onglets, ligne de synchro (en cours avec
   la progression, dernière synchro, prochaine synchro automatique à HH:MM, ou « Synchro manuelle (s) »).
 - **Synchro** : une seule à la fois (une demande de plus est ignorée et signalée) ; à la fin, une ligne de
@@ -533,6 +540,7 @@ watchoo repo add retardataire/projet-licence --label "Zoé Leroy"
 watchoo sync
 watchoo repo list
 watchoo contributors --since 7d
+watchoo contributors --repo retardataire/projet-licence --weeks 6
 watchoo serve
 ```
 

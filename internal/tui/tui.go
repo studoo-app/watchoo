@@ -32,6 +32,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/store"
 	wsync "github.com/studoo-app/watchoo/internal/sync"
 	"github.com/studoo-app/watchoo/internal/workspace"
@@ -42,6 +43,7 @@ type DataSource interface {
 	RepositorySummaries(ctx context.Context) ([]store.RepositorySummary, error)
 	ListRecentCommits(ctx context.Context, f store.CommitFilter) ([]store.CommitView, error)
 	ContributorRanking(ctx context.Context, f store.ContributorFilter) ([]store.ContributorStats, error)
+	AuthorCommitTimes(ctx context.Context, repoID int64, since time.Time) ([]model.AuthorCommitTime, error)
 }
 
 // Syncer lance les synchros ; *wsync.Engine le satisfait.

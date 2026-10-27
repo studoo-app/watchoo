@@ -81,7 +81,9 @@ bon schéma ; les autres commandes retrouvent l'espace.
 - Seuils d'activité par dépôt (option de `repo add`, colonne de l'import, réglage web) : **en place**
   (`--flemme` / `--dead`, colonnes `flemme` / `dead`, partage de la configuration, formulaire de la page
   d'un dépôt).
-- Activité par contributeur à l'intérieur d'un dépôt.
+- Activité par contributeur à l'intérieur d'un dépôt : **en place** (graphique des commits par semaine
+  des contributeurs sur la page d'un dépôt, total et courbe par semaine dans le détail du TUI,
+  `watchoo contributors --weeks N`).
 
 L'import d'une organisation entière et les alertes passent en V3 (voir
 [Fonctionnalités](02-fonctionnalites.md#v3)).

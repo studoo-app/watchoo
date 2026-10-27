@@ -92,7 +92,18 @@ func TestJSONSchemaAllCommands(t *testing.T) {
 		assertSingleJSONObject(t, cmd, out)
 		assertJSONKeys(t, out, "", keys...)
 	}
+	// Éléments de « contributors » : weekly ([] sans --weeks, objets week / count avec).
+	assertJSONKeys(t, outputs["contributors"], "contributors.0", contributorKeys...)
+	weekly := h.run("contributors", "--weeks", "2", "--json").mustSucceed(t).stdout
+	assertSingleJSONObject(t, "contributors --weeks", weekly)
+	assertJSONKeys(t, weekly, "", jsonTopLevelKeys["contributors"]...)
+	assertJSONKeys(t, weekly, "contributors.0", contributorKeys...)
+	assertJSONKeys(t, weekly, "contributors.0.weekly.0", "week", "count")
 }
+
+// contributorKeys sont les clés d'un élément de « contributors » (05-cli.md, Sortie JSON).
+var contributorKeys = []string{"id", "name", "login", "display_name", "avatar_url", "commits", "additions",
+	"deletions", "repositories", "last_commit_at", "weekly"}
 
 // Le contrat est documenté : la table « Sortie JSON » de 05-cli.md liste, pour chaque commande, les
 // mêmes clés de premier niveau que jsonTopLevelKeys.

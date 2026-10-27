@@ -1,7 +1,8 @@
 package tui
 
 // Détail d'un dépôt (« entrée » sur un dépôt ou un commit) : métadonnées, état d'activité, dernière
-// synchro, derniers commits et principaux contributeurs.
+// synchro, derniers commits et principaux contributeurs, avec leurs commits par semaine sur
+// activity.ContributorWeeks semaines (total et courbe d'une ligne, activity.Sparkline).
 
 import (
 	"fmt"
@@ -101,12 +102,15 @@ func (m Model) detailLines() []string {
 	}
 
 	if m.detail.err == nil && !m.detail.loading && len(m.detail.contribs) > 0 {
-		lines = append(lines, "", m.st.Header.Render("Principaux contributeurs"))
+		weeks := len(m.detail.weekly.Weeks)
+		lines = append(lines, "", m.st.Header.Render("Principaux contributeurs")+
+			m.st.Muted.Render(fmt.Sprintf("  activité sur %d semaines, la plus récente à droite", weeks)))
 		cols := []column{{title: "CONTRIBUTEUR", flex: true}, {title: "COMMITS", right: true},
-			{title: "DERNIER COMMIT"}}
+			{title: fmt.Sprintf("%d SEM.", weeks), right: true}, {title: "PAR SEMAINE"}, {title: "DERNIER COMMIT"}}
 		rows := make([]row, 0, len(m.detail.contribs))
 		for _, c := range m.detail.contribs {
 			rows = append(rows, row{cells: []string{clean(c.DisplayName()), strconv.Itoa(c.Commits),
+				strconv.Itoa(m.detail.weekly.TotalOf(c.ID)), activity.Sparkline(m.detail.weekly.Of(c.ID), uni),
 				activity.Relative(c.LastCommitAt, now, loc, uni)}, stateCol: -1})
 		}
 		lines = append(lines, m.renderTable(cols, rows, -1, 0, len(rows), false)...)

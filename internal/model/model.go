@@ -118,6 +118,14 @@ type Commit struct {
 	URL         string    // lien vers le commit sur la forge
 }
 
+// AuthorCommitTime est l'auteur et la date de commit d'un commit dont l'auteur est connu : une
+// lecture de la table commits (pas une table), d'où sont calculées les séries d'activité par
+// contributeur (activity.CountContributorWeeks).
+type AuthorCommitTime struct {
+	ContributorID int64     // auteur (contributors.id)
+	CommittedAt   time.Time // date du commit, UTC
+}
+
 // SyncStatus est le résultat d'une synchronisation (colonne sync_runs.status).
 type SyncStatus string
 

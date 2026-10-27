@@ -6,8 +6,9 @@
                             HX-Target: repo-overview) ;
     « repo-contributors » : contributeurs du dépôt (GET /repos/{id}, HX-Target: repo-contributors) ;
     « repo-commits »      : filtres, historique paginé (GET /repos/{id}/commits).
-  Le graphique n'est pas un fragment : HTMX retire les <script> des contenus échangés, données JSON
-  comprises ; static/app.js le met à jour lui-même (voir repo.go).
+  Les graphiques (activité par jour ; activité par contributeur, template « contributors-chart » de
+  partials.html) ne sont pas des fragments : HTMX retire les <script> des contenus échangés, données
+  JSON comprises ; static/app.js les met à jour lui-même (voir repo.go).
 */}}
 {{define "content"}}{{$r := .Content.Repo}}
 <div class="breadcrumbs text-sm mb-2">
@@ -39,6 +40,7 @@
     </section>
     {{template "repo-contributors" .}}
   </div>
+  {{template "contributors-chart" (dict "Chart" .Content.ContributorsChart "ID" "repo-contributors-chart" "RefreshURL" (repoPath $r.ID) "Title" (print "Activité par contributeur sur " .Content.ContributorsChart.Weeks " semaines") "Scope" " de ce dépôt" "Note" "Toutes les branches suivies ; un commit présent sur plusieurs branches n'est compté qu'une fois.")}}
   {{template "repo-commits" .}}
 </div>
 {{end}}

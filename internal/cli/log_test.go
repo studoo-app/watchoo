@@ -102,7 +102,7 @@ func TestContributors(t *testing.T) {
 	}
 	assertJSONKeys(t, r.stdout, "", "contributors")
 	assertJSONKeys(t, r.stdout, "contributors.0", "id", "name", "login", "display_name", "avatar_url", "commits",
-		"additions", "deletions", "repositories", "last_commit_at")
+		"additions", "deletions", "repositories", "last_commit_at", "weekly")
 
 	r = h.run("contributors", "--since", "30d", "--json").mustSucceed(t)
 	decodeStrict(t, r.stdout, &rep)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -258,7 +259,22 @@ func TestDetail(t *testing.T) {
 		"Derniers commits", "Ajoute la page d'accueil", "Principaux contributeurs")
 	mustNotContain(t, screen, "corrige") // commit d'un autre dépôt
 
+	// Activité par semaine des contributeurs du dépôt (12 semaines, la plus récente à droite) : Alice
+	// 3 commits (2 cette semaine, 1 il y a deux semaines) ; Bob, son seul commit hors fenêtre.
+	mustContain(t, screen, "activité sur 12 semaines, la plus récente à droite", "12 SEM.", "PAR SEMAINE")
+	alice := lineWith(screen, "▁▁▁▁▁▁▁▁▁▅▁█")
+	if !strings.Contains(alice, "Alice") || !strings.Contains(alice, " 3 ") {
+		t.Errorf("ligne d'Alice = %q ; attendu 3 commits sur 12 semaines et la courbe ▁▁▁▁▁▁▁▁▁▅▁█", alice)
+	}
+	bob := lineWith(screen, "▁▁▁▁▁▁▁▁▁▁▁▁")
+	if !strings.Contains(bob, "Bob") || !strings.Contains(bob, " 0 ") {
+		t.Errorf("ligne de Bob = %q ; attendu 0 commit sur 12 semaines", bob)
+	}
+
 	data.mu.Lock()
+	if !slices.Equal(data.authorReads, []int64{1}) {
+		t.Errorf("AuthorCommitTimes lu pour %v, attendu le seul dépôt 1", data.authorReads)
+	}
 	last := data.commitFilters[len(data.commitFilters)-1]
 	data.mu.Unlock()
 	if last.RepoID != 1 || last.Limit != detailCommits {
@@ -617,6 +633,10 @@ func TestWithRealStore(t *testing.T) {
 	l.until(func(m Model) bool { return m.detail.open && !m.detail.loading })
 	mustContain(t, l.screen(), "1 branche suivie, par défaut : main", "Premier rendu", "Principaux contributeurs")
 	mustNotContain(t, l.screen(), "zoe@example.test")
+	// Activité par semaine lue dans la vraie base : le commit de Zoé, cette semaine.
+	if line := lineWith(l.screen(), "▁▁▁▁▁▁▁▁▁▁▁█"); !strings.Contains(line, "Zoé") {
+		t.Errorf("ligne de Zoé = %q ; attendu la courbe ▁▁▁▁▁▁▁▁▁▁▁█", line)
+	}
 }
 
 // Seuils propres au dépôt : appliqués et signalés dans le détail.

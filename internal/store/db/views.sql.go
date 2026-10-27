@@ -14,17 +14,24 @@ const authorCommitTimesSince = `-- name: AuthorCommitTimesSince :many
 SELECT author_id, committed_at
 FROM commits
 WHERE author_id IS NOT NULL
-  AND committed_at >= ?1
+  AND (?1 IS NULL OR repo_id = ?1)
+  AND committed_at >= ?2
 `
+
+type AuthorCommitTimesSinceParams struct {
+	RepoID interface{}
+	Since  string
+}
 
 type AuthorCommitTimesSinceRow struct {
 	AuthorID    sql.NullInt64
 	CommittedAt string
 }
 
-// Auteur (author_id) et date de commit (committed_at) des commits d'auteur connu depuis since, sans ordre garanti.
-func (q *Queries) AuthorCommitTimesSince(ctx context.Context, since string) ([]AuthorCommitTimesSinceRow, error) {
-	rows, err := q.db.QueryContext(ctx, authorCommitTimesSince, since)
+// Auteur (author_id) et date de commit (committed_at) des commits d'auteur connu du depot (repo_id NULL = tous)
+// depuis since, sans ordre garanti.
+func (q *Queries) AuthorCommitTimesSince(ctx context.Context, arg AuthorCommitTimesSinceParams) ([]AuthorCommitTimesSinceRow, error) {
+	rows, err := q.db.QueryContext(ctx, authorCommitTimesSince, arg.RepoID, arg.Since)
 	if err != nil {
 		return nil, err
 	}

@@ -20,6 +20,14 @@ un changement incompatible fait monter MINOR et tout changement compatible fait 
   L'en-tête de la page et le détail du TUI disent si les seuils appliqués sont propres au dépôt ou ceux
   de l'espace. Les sorties `--json` gagnent les clés `flemme_after_days` et `dead_after_days` (`null` =
   seuil de l'espace) dans l'objet dépôt et dans l'aperçu de `config import`.
+- **Activité par contributeur dans un dépôt** : la page d'un dépôt de l'interface web montre les
+  commits par semaine sur 12 semaines de ses 8 contributeurs les plus actifs (barres empilées, les
+  autres regroupés, table des données repliable), comme la page des contributeurs mais pour ce seul
+  dépôt (toutes les branches suivies, chaque commit une fois). Le détail d'un dépôt du TUI donne, pour
+  ses principaux contributeurs, leurs commits sur 12 semaines et une courbe semaine par semaine.
+  `watchoo contributors --weeks N` (avec ou sans `--repo`) limite le classement aux N dernières semaines
+  et affiche les commits de chacun semaine par semaine ; la sortie `--json` gagne la clé `weekly`
+  (objets `week` / `count`, `[]` sans `--weeks`) dans chaque contributeur.
 
 ## [0.2.0] - 2026-10-27
 

@@ -74,6 +74,13 @@ erreurs (500…) : pages en français, sans détail interne (le détail est dans
   `app.js` relit la page (même origine), extrait les données avec `DOMParser` (qui n'exécute rien) et
   redessine.
 - Liste des contributeurs du dépôt (avatar ou initiale, login, dernier commit).
+- **Activité par contributeur sur 12 semaines** (V2) : le graphique de la page des contributeurs
+  (barres empilées des commits par semaine, 8 contributeurs les plus actifs de la période, les autres
+  regroupés, table « Données du graphique » repliable), restreint aux commits du dépôt : toutes les
+  branches suivies, un commit présent sur plusieurs branches compté une fois (`store.AuthorCommitTimes`
+  avec le dépôt). Toujours affiché : sans commit d'auteur connu sur la période, le résumé le dit
+  (« Aucun commit d'auteur connu depuis le … ») et la table aussi ; le graphique se remplit à la fin
+  d'une synchro, sans recharger la page. Voir [Graphiques d'activité](#graphiques-dactivité).
 - Bouton **« Synchroniser ce dépôt »** (absent si le suivi est arrêté).
 - Fragments : `/repos/{id}/commits` (historique) ; `/repos/{id}` avec l'en-tête `HX-Target`
   `repo-overview` ou `repo-contributors` renvoie l'en-tête ou les contributeurs seuls. Tous se
@@ -160,10 +167,12 @@ erreurs (500…) : pages en français, sans détail interne (le détail est dans
 
 ## Graphiques d'activité
 
-Trois graphiques (Chart.js 4, embarqué, chargé seulement sur les pages qui en ont un) : détail d'un
-dépôt et tableau de bord (commits par jour sur 90 jours, `activity.DailyCounts`), contributeurs
-(commits par semaine sur 12 semaines, `activity.WeeklyCounts`, séries construites par
-`buildContributorChart` dans `internal/web/charts.go`).
+Deux formes de graphique (Chart.js 4, embarqué, chargé seulement sur les pages qui en ont un) :
+commits par jour sur 90 jours (`activity.DailyCounts`) pour le tableau de bord et le détail d'un
+dépôt ; commits par semaine et par contributeur sur 12 semaines (`activity.CountContributorWeeks`,
+séries construites par `buildContributorChart` dans `internal/web/charts.go`, template partagé
+`contributors-chart` de `partials.html`) pour la page des contributeurs (tous les dépôts) et le détail
+d'un dépôt (ses seuls commits).
 
 - **Calcul en Go**, par des fonctions pures testées : jours et semaines (du lundi au dimanche) dans le
   **fuseau d'affichage** de l'espace ([Dates](04-modele-donnees.md#dates)) ; dates lues par
@@ -181,7 +190,8 @@ dépôt et tableau de bord (commits par jour sur 90 jours, `activity.DailyCounts
   Une carte de graphique n'est rendue que si l'espace a des données au chargement de la page (au
   moins un dépôt suivi pour le tableau de bord, un auteur connu pour les contributeurs) : sur un espace
   encore vide, elle n'apparaît qu'au rechargement de la page qui suit la première synchro (limite connue
-  de 0.1.0).
+  de 0.1.0). Les deux graphiques du détail d'un dépôt sont toujours rendus (vides, avec leur résumé,
+  jusqu'au premier commit) ; ils relisent la même page, une seule fois.
 - **Couleurs** : barres simples de la couleur primaire du thème ; séries des contributeurs dans une
   palette catégorielle de 8 teintes en ordre fixe, avec une variante claire et une variante sombre
   (vérifiées pour les daltonismes courants et le contraste sur le fond de chaque thème ; en thème clair,
