@@ -9,7 +9,7 @@ trois questions : qu'est-ce qui a bougé, quand, et qui l'a fait. Il propose une
 (`watchoo tui`) et une interface web locale (`watchoo serve`). Chaque groupe supervisé (ex. les projets des
 étudiants d'une promotion) vit dans son propre répertoire, initialisé par `watchoo init`.
 
-**État actuel : MVP v0.1.0, phases 1 à 5 de la [roadmap](documentation/07-roadmap.md) en place.**
+**État actuel : v0.2.0 (MVP, phases 1 à 5 de la [roadmap](documentation/07-roadmap.md) en place, plus le partage de la configuration).**
 `watchoo init` crée un espace de supervision ; `repo add / import / list / remove`, `sync`, `log`,
 `contributors`, `status` et `version` fonctionnent en texte et en `--json` (schéma stable, documenté dans
 [05-cli.md](documentation/05-cli.md#sortie-json) et vérifié par `internal/cli/json_schema_test.go`) ;
