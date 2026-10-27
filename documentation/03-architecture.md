@@ -111,6 +111,7 @@ publiques des releases de Watchoo lui-même, sans token ni API (voir
 | `Tags(ctx, owner, name)` (V2) | Tags du dépôt (nom, SHA du commit visé), dans l'ordre de la forge |
 | `RateLimit(ctx)` | État du quota (`GET /rate_limit`, gratuit) |
 | `LastRateLimit()` | Dernier état du quota observé sur les réponses, sans requête |
+| `ProfileURL(login)` (0.6.1) | Page web du profil d'un compte à partir de son login, sans requête (`https://github.com/<login>`, comme `html_url` du compte) ; chaîne vide pour un login vide ou qui n'a pas la forme d'un login de compte (`provider.ValidLogin` : caractère interdit, compte d'application `nom[bot]`). Sert à compléter la page de profil des contributeurs connus avant la 0.5.0 (voir [Synchronisation incrémentale](#synchronisation-incrémentale)) |
 
 Règles communes :
 
@@ -334,6 +335,14 @@ Faux pour les tests : `providertest` (Provider en mémoire), `githubtest` (serve
     effacé.
   - **Auteurs** : le login et l'identifiant de compte de l'auteur d'une PR ou d'une release sont gardés
     tels quels, sans créer de contributeur (un contributeur est l'auteur d'au moins un commit).
+- **Pages de profil** (0.6.1) : l'adresse du profil d'un contributeur vient d'ordinaire du compte lié à un
+  **nouveau** commit (`provider.Person.ProfileURL`). Les commits déjà en base n'étant pas relus, un
+  contributeur enregistré avant la 0.5.0 (migration `00005`) garderait sinon `profile_url` vide. Une fois
+  par synchro, après les dépôts et quelle que soit la source (API ou clones Git locaux), le moteur
+  complète donc, sans requête à la forge, l'adresse des contributeurs de la forge dont le login est connu
+  et l'adresse vide : `Provider.ProfileURL(login)`, écrit par `store.BackfillProfileURLs` en une
+  transaction. Seules ces lignes sont lues (coût négligeable après le premier passage) ; une adresse
+  connue n'est jamais remplacée. Un échec est journalisé (sans login) et n'échoue jamais la synchro.
 - **Commit sans date** : un commit sans date d'écriture ni de commit est ignoré (compté dans un log) ; une
   seule date manquante est complétée par l'autre.
 - **Écriture** : tout ce qu'une synchro de dépôt écrit (métadonnées, branches, commits, statistiques des
@@ -489,7 +498,8 @@ En place depuis la phase 6 ([Roadmap](07-roadmap.md#phase-6--v2)).
   avec la clé SSH de l'utilisateur) ; `https`, `https://github.com/owner/name.git` (gestionnaire
   d'identifiants de Git). L'URL est passée à chaque `fetch` (aucun remote enregistré n'est utilisé) : un
   changement de protocole s'applique à la synchro suivante. Aucun token ni identifiant dans une URL. Les
-  pages web (`https://github.com/owner/name`, `…/commit/<sha>`) sont construites par le provider Git :
+  pages web (`https://github.com/owner/name`, `…/commit/<sha>`, profil `https://github.com/<login>` par
+  `ProfileURL`) sont construites par le provider Git :
   ce qui est propre à GitHub reste dans `internal/provider`. `Options.BaseURL` remplace l'adresse pour
   les tests (`file://…/owner/name.git`).
 - **Clones** : clones **avec copie de travail** dans **`repos/<name>`, à la racine de l'espace** (le

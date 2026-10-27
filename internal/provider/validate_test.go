@@ -137,3 +137,24 @@ func TestRepositoryFullName(t *testing.T) {
 		t.Errorf("FullName = %q", got)
 	}
 }
+
+func TestValidLogin(t *testing.T) {
+	for login, want := range map[string]bool{
+		"etudiant-test":         true,
+		"A1":                    true,
+		strings.Repeat("a", 39): true,
+		"":                      false,
+		strings.Repeat("a", 40): false,
+		"-tiret":                false,
+		"dependabot[bot]":       false,
+		"a/b":                   false,
+		"../x":                  false,
+		"a b":                   false,
+		"élève":                 false,
+		"x?y=1":                 false,
+	} {
+		if got := ValidLogin(login); got != want {
+			t.Errorf("ValidLogin(%q) = %v, veut %v", login, got, want)
+		}
+	}
+}

@@ -172,6 +172,7 @@ func (e *Engine) run(ctx context.Context, repos []model.Repository, opts SyncOpt
 		report.Repos[i] = rep // indice propre à chaque goroutine
 		prog.send(EventRepoFinished, rep, true)
 	})
+	e.backfillProfiles(ctx, prov)
 	report.RateLimit, report.RateLimitKnown = prov.LastRateLimit()
 	finish()
 	e.logger.Info("synchro terminée",
@@ -261,4 +262,23 @@ func (e *Engine) syncOne(ctx context.Context, prov provider.Provider, cl clones,
 		"branches", rep.TrackedBranches, "statistiques", rep.StatsFetched, "pull_requests", rep.PullRequests,
 		"avertissements", len(rep.Warnings), "duree", rep.Duration.Round(time.Millisecond))
 	return rep
+}
+
+// backfillProfiles complète, sans requête à la forge, la page de profil des contributeurs dont le
+// login est connu mais l'adresse vide (contributeurs enregistrés avant la 0.5.0, que la synchro
+// incrémentale ne revoit pas) : Provider.ProfileURL, écrit par store.BackfillProfileURLs. Seules les
+// lignes à l'adresse vide sont lues : après le premier passage, le coût est négligeable. Un échec est
+// journalisé (sans login ni donnée personnelle) et n'échoue jamais la synchro.
+func (e *Engine) backfillProfiles(ctx context.Context, prov provider.Provider) {
+	if ctx.Err() != nil {
+		return
+	}
+	n, err := e.store.BackfillProfileURLs(ctx, prov.Name(), prov.ProfileURL)
+	if err != nil {
+		e.logger.Warn("complément des pages de profil impossible", "erreur", errorMessage(err))
+		return
+	}
+	if n > 0 {
+		e.logger.Info("pages de profil complétées", "contributeurs", n)
+	}
 }

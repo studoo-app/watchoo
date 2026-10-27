@@ -17,6 +17,13 @@ un changement incompatible fait monter MINOR et tout changement compatible fait 
   label ni seuils propres). Une fois le dépôt ajouté, la liste est relue, le dépôt sélectionné et sa
   synchro lancée ; pendant une synchro, celle du nouveau dépôt démarre à la fin de la synchro en cours.
 
+### Corrigé
+
+- **Lien « GitHub » absent** pour les contributeurs connus avant la 0.5.0 (login enregistré, adresse du
+  profil vide, car les commits déjà en base ne sont pas relus) : l'adresse est désormais complétée à
+  partir du login à la synchro suivante, par l'API comme par les clones Git locaux, sans requête
+  supplémentaire.
+
 ## [0.6.0] - 2026-10-27
 
 Avis de nouvelle version (CLI et interface web) et mise à jour de Watchoo en une commande,

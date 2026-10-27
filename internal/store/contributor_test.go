@@ -237,3 +237,61 @@ func TestMigrationProfileURL(t *testing.T) {
 		t.Errorf("retour arrière : %d contributeurs, attendu 2", got)
 	}
 }
+
+// BackfillProfileURLs complète seulement les adresses vides des contributeurs de la forge qui ont un
+// login ; les adresses connues, les contributeurs sans login et ceux d'une autre forge restent tels quels.
+func TestBackfillProfileURLs(t *testing.T) {
+	s := newTestStore(t)
+	ctx := t.Context()
+	insert := func(provider any, userID any, login, url string) int64 {
+		return mustExec(t, s, `INSERT INTO contributors (provider, provider_user_id, provider_login, name, profile_url)
+			VALUES (?, ?, ?, 'X', ?)`, provider, userID, login, url)
+	}
+	old := insert("github", 1, "ancien", "")
+	known := insert("github", 2, "connu", "https://github.com/connu-ailleurs")
+	bot := insert("github", 3, "dependabot[bot]", "")
+	noLogin := insert(nil, nil, "", "")
+	other := insert("autre", 4, "ailleurs", "")
+
+	build := func(login string) string {
+		if login == "dependabot[bot]" {
+			return ""
+		}
+		return "https://forge.example.test/" + login
+	}
+	n, err := s.BackfillProfileURLs(ctx, "github", build)
+	if err != nil || n != 1 {
+		t.Fatalf("BackfillProfileURLs = %d, %v ; attendu 1 contributeur complété", n, err)
+	}
+	urls := map[int64]string{}
+	rows, err := s.DB().QueryContext(ctx, "SELECT id, profile_url FROM contributors")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id int64
+		var url string
+		if err := rows.Scan(&id, &url); err != nil {
+			t.Fatal(err)
+		}
+		urls[id] = url
+	}
+	want := map[int64]string{
+		old:     "https://forge.example.test/ancien",
+		known:   "https://github.com/connu-ailleurs",
+		bot:     "",
+		noLogin: "",
+		other:   "",
+	}
+	for id, w := range want {
+		if urls[id] != w {
+			t.Errorf("contributeur %d : profile_url = %q, attendu %q", id, urls[id], w)
+		}
+	}
+
+	// Second passage : plus rien à compléter.
+	if n, err := s.BackfillProfileURLs(ctx, "github", build); err != nil || n != 0 {
+		t.Errorf("second passage = %d, %v ; attendu 0", n, err)
+	}
+}

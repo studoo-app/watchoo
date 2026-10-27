@@ -667,3 +667,37 @@ func shortSHA(sha string) string {
 	}
 	return sha
 }
+
+// BackfillProfileURLs complète la page de profil des contributeurs de la forge provider dont le login
+// est connu mais l'adresse vide (contributeurs enregistrés avant la migration 00005, que la synchro
+// incrémentale ne revoit pas) : profile_url = build(login), sauf si build renvoie une chaîne vide. Les
+// adresses déjà connues et les contributeurs sans login ne sont pas touchés. Une transaction ; renvoie
+// le nombre de contributeurs complétés. Le login n'apparaît dans aucune erreur.
+func (s *Store) BackfillProfileURLs(ctx context.Context, provider string, build func(login string) string) (int, error) {
+	if build == nil {
+		return 0, nil
+	}
+	filled := 0
+	err := s.writeTx(ctx, func(q *db.Queries) error {
+		rows, err := q.ListContributorsWithoutProfileURL(ctx, sql.NullString{String: provider, Valid: true})
+		if err != nil {
+			return fmt.Errorf("lecture des contributeurs sans page de profil : %w", err)
+		}
+		for _, row := range rows {
+			url := build(row.ProviderLogin)
+			if url == "" {
+				continue
+			}
+			n, err := q.SetContributorProfileURL(ctx, db.SetContributorProfileURLParams{ProfileURL: url, ID: row.ID})
+			if err != nil {
+				return fmt.Errorf("page de profil du contributeur %d : %w", row.ID, err)
+			}
+			filled += int(n)
+		}
+		return nil
+	})
+	if err != nil {
+		return 0, err
+	}
+	return filled, nil
+}

@@ -517,3 +517,13 @@ func (p *Provider) RateLimit(context.Context) (provider.RateLimit, error) {
 func (p *Provider) LastRateLimit() (provider.RateLimit, bool) {
 	return provider.RateLimit{}, false
 }
+
+// ProfileURL renvoie la page du profil GitHub du compte login (« https://github.com/<login> »), sans
+// commande ; vide si login n'a pas la forme d'un login (provider.ValidLogin). Les clones Git locaux ne
+// connaissent aucun compte, mais la base peut en contenir (synchros précédentes par l'API).
+func (p *Provider) ProfileURL(login string) string {
+	if !provider.ValidLogin(login) {
+		return ""
+	}
+	return WebBaseURL + "/" + login
+}
