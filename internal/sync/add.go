@@ -21,6 +21,10 @@ type AddRequest struct {
 	Label string         // nom affiché ; vide = non fourni
 	// BranchPatterns sont les motifs à suivre ; nil = non fourni (création : toutes les branches).
 	BranchPatterns []string
+	// FlemmeAfterDays et DeadAfterDays sont les seuils d'activité propres au dépôt ; nil = non fourni
+	// (création : valeurs globales ; dépôt suivi : seuils gardés), 0 = revenir à la valeur globale.
+	FlemmeAfterDays *int
+	DeadAfterDays   *int
 }
 
 // AddOutcome est le résultat de l'ajout d'un dépôt. Valeurs stables (sorties --json).
@@ -30,7 +34,7 @@ type AddOutcome string
 const (
 	OutcomeAdded          AddOutcome = "added"        // nouveau dépôt suivi
 	OutcomeAlreadyTracked AddOutcome = "already"      // déjà suivi, rien à changer
-	OutcomeUpdated        AddOutcome = "updated"      // déjà suivi : label et/ou motifs changés, ou suivi réactivé
+	OutcomeUpdated        AddOutcome = "updated"      // déjà suivi : label, motifs ou seuils changés, ou suivi réactivé
 	OutcomeInaccessible   AddOutcome = "inaccessible" // ErrNotFound, ErrForbidden (SSO compris) : dépôt introuvable ou sans accès
 	OutcomeError          AddOutcome = "error"        // autre échec (réseau, quota, base…)
 )
@@ -59,19 +63,22 @@ type AddOptions struct {
 //   - token lu une fois (Auth.Token) et Provider construit ; un échec ici est renvoyé comme erreur ;
 //   - accès refusé (ErrNotFound, ErrForbidden) : OutcomeInaccessible, sans bloquer les autres ;
 //     *RateLimitError : ce dépôt et les suivants en OutcomeError (message du quota) ;
-//   - dépôt déjà en base, cherché par provider_id puis par owner/name actuels : label et motifs mis à
-//     jour s'ils sont fournis et différents, suivi réactivé s'il était arrêté (OutcomeUpdated), sinon
-//     OutcomeAlreadyTracked ;
-//   - sinon création (store.CreateRepository) avec les métadonnées de la forge, Enabled, label et
-//     motifs fournis : OutcomeAdded ;
+//   - dépôt déjà en base, cherché par provider_id puis par owner/name actuels : label, motifs et seuils
+//     d'activité mis à jour s'ils sont fournis et différents, suivi réactivé s'il était arrêté
+//     (OutcomeUpdated), sinon OutcomeAlreadyTracked ;
+//   - sinon création (store.CreateRepository) avec les métadonnées de la forge, Enabled, label, motifs
+//     et seuils fournis : OutcomeAdded ;
 //   - DryRun : aucune écriture, les mêmes résultats sont calculés.
 //
-// Les labels sont d'abord vérifiés (repoimport.ValidateLabel) : un label invalide est une erreur,
-// avant tout appel à la forge. Aucune synchro n'est lancée. L'erreur renvoyée est réservée aux
-// échecs globaux (label invalide, token, ctx annulé).
+// Les labels et les seuils sont d'abord vérifiés (repoimport.ValidateLabel, ValidateThresholds) : une
+// valeur invalide est une erreur, avant tout appel à la forge. Aucune synchro n'est lancée. L'erreur
+// renvoyée est réservée aux échecs globaux (label ou seuil invalide, token, ctx annulé).
 func (e *Engine) AddRepositories(ctx context.Context, reqs []AddRequest, opts AddOptions) ([]AddResult, error) {
 	for _, req := range reqs {
 		if err := repoimport.ValidateLabel(req.Label); err != nil {
+			return nil, fmt.Errorf("ajout du dépôt %s : %w", req.Ref, err)
+		}
+		if err := repoimport.ValidateThresholds(req.FlemmeAfterDays, req.DeadAfterDays); err != nil {
 			return nil, fmt.Errorf("ajout du dépôt %s : %w", req.Ref, err)
 		}
 	}
@@ -134,18 +141,20 @@ func (e *Engine) addOne(ctx context.Context, prov provider.Provider, req AddRequ
 
 	if !found {
 		repo := model.Repository{
-			Provider:       prov.Name(),
-			ProviderID:     meta.ID,
-			Owner:          meta.Owner,
-			Name:           meta.Name,
-			Label:          req.Label,
-			DefaultBranch:  meta.DefaultBranch,
-			URL:            meta.URL,
-			Stars:          meta.Stars,
-			OpenIssues:     meta.OpenIssues,
-			Archived:       meta.Archived,
-			Enabled:        true,
-			BranchPatterns: slices.Clone(req.BranchPatterns),
+			Provider:        prov.Name(),
+			ProviderID:      meta.ID,
+			Owner:           meta.Owner,
+			Name:            meta.Name,
+			Label:           req.Label,
+			DefaultBranch:   meta.DefaultBranch,
+			URL:             meta.URL,
+			Stars:           meta.Stars,
+			OpenIssues:      meta.OpenIssues,
+			Archived:        meta.Archived,
+			Enabled:         true,
+			BranchPatterns:  slices.Clone(req.BranchPatterns),
+			FlemmeAfterDays: thresholdValue(req.FlemmeAfterDays, nil),
+			DeadAfterDays:   thresholdValue(req.DeadAfterDays, nil),
 		}
 		if dryRun {
 			planned[meta.ID] = repo
@@ -163,9 +172,13 @@ func (e *Engine) addOne(ctx context.Context, prov provider.Provider, req AddRequ
 	if req.BranchPatterns != nil && !slices.Equal(req.BranchPatterns, repo.BranchPatterns) {
 		repo.BranchPatterns, settingsChanged = slices.Clone(req.BranchPatterns), true
 	}
+	flemme := thresholdValue(req.FlemmeAfterDays, repo.FlemmeAfterDays)
+	dead := thresholdValue(req.DeadAfterDays, repo.DeadAfterDays)
+	thresholdsChanged := !equalThreshold(flemme, repo.FlemmeAfterDays) || !equalThreshold(dead, repo.DeadAfterDays)
+	repo.FlemmeAfterDays, repo.DeadAfterDays = flemme, dead
 	reenable := !repo.Enabled
 	repo.Enabled = true
-	if !settingsChanged && !reenable {
+	if !settingsChanged && !thresholdsChanged && !reenable {
 		return AddResult{Request: req, Outcome: OutcomeAlreadyTracked, Repo: repo}, nil
 	}
 	if dryRun {
@@ -177,6 +190,11 @@ func (e *Engine) addOne(ctx context.Context, prov provider.Provider, req AddRequ
 			return AddResult{}, err
 		}
 	}
+	if thresholdsChanged {
+		if repo, err = e.store.SetRepositoryThresholds(ctx, repo.ID, flemme, dead); err != nil {
+			return AddResult{}, err
+		}
+	}
 	if reenable {
 		if err := e.store.SetRepositoryEnabled(ctx, repo.ID, true); err != nil {
 			return AddResult{}, err
@@ -184,6 +202,28 @@ func (e *Engine) addOne(ctx context.Context, prov provider.Provider, req AddRequ
 		repo.Enabled = true
 	}
 	return AddResult{Request: req, Outcome: OutcomeUpdated, Repo: repo}, nil
+}
+
+// thresholdValue renvoie la valeur d'un seuil après une demande : current si req est nil (non fourni),
+// nil (valeur globale) si req vaut 0, sinon une copie de req.
+func thresholdValue(req, current *int) *int {
+	switch {
+	case req == nil:
+		return current
+	case *req == 0:
+		return nil
+	default:
+		v := *req
+		return &v
+	}
+}
+
+// equalThreshold compare deux seuils (nil = valeur globale).
+func equalThreshold(a, b *int) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return *a == *b
 }
 
 // findExisting cherche le dépôt meta en base : par identifiant de forge, puis par owner/name actuels.

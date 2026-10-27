@@ -83,9 +83,11 @@ type repoAddReport struct {
 	Repository repositoryJSON   `json:"repository"`
 }
 
-// newRepoAddCmd construit « watchoo repo add owner/repo [--branch main,dev,release/*] [--label X] ».
+// newRepoAddCmd construit « watchoo repo add owner/repo [--branch main,dev,release/*] [--label X]
+// [--flemme N] [--dead N] ».
 func newRepoAddCmd(deps Deps, opts *options) *cobra.Command {
 	var branch, label string
+	var flemme, dead int
 	cmd := &cobra.Command{
 		Use:   "add owner/repo",
 		Short: "Ajoute un dépôt à surveiller",
@@ -96,11 +98,16 @@ Sans --branch, toutes les branches du dépôt sont suivies, y compris celles cr�
 tard. --branch restreint le suivi à une liste de noms et de motifs (release/* par
 exemple) ; --branch "" revient à toutes les branches.
 
-Un dépôt déjà suivi n'est pas ajouté en double : son label et ses branches sont mis à
-jour s'ils sont donnés, et son suivi reprend s'il avait été arrêté. Aucune synchro
+--flemme et --dead règlent les seuils d'activité de ce dépôt, en jours sans commit, à la
+place de ceux de l'espace (activity.*) ; 0 revient au seuil de l'espace. Quand les deux
+sont donnés, --dead doit être plus grand que --flemme.
+
+Un dépôt déjà suivi n'est pas ajouté en double : son label, ses branches et ses seuils
+sont mis à jour s'ils sont donnés, et son suivi reprend s'il avait été arrêté. Aucune synchro
 n'est lancée : enchaînez avec « watchoo sync ».`,
 		Example: `  watchoo repo add alice/projet-licence --label "Alice Martin"
-  watchoo repo add https://github.com/mon-org/site-web --branch main,dev,release/*`,
+  watchoo repo add https://github.com/mon-org/site-web --branch main,dev,release/*
+  watchoo repo add alice/projet-licence --flemme 3 --dead 10`,
 		Args: exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ref, err := repoimport.ParseRef(args[0])
@@ -121,12 +128,25 @@ n'est lancée : enchaînez avec « watchoo sync ».`,
 				}
 				req.BranchPatterns = patterns
 			}
+			if cmd.Flags().Changed("flemme") {
+				req.FlemmeAfterDays = &flemme
+			}
+			if cmd.Flags().Changed("dead") {
+				req.DeadAfterDays = &dead
+			}
+			if err := repoimport.ValidateThresholds(req.FlemmeAfterDays, req.DeadAfterDays); err != nil {
+				return fmt.Errorf("--%w", err)
+			}
 			return runRepoAdd(cmd.Context(), deps, opts, req)
 		},
 	}
 	cmd.Flags().StringVar(&branch, "branch", "",
 		"`branches` à suivre, séparées par des virgules, motifs acceptés (ex. main,dev,release/*) ; défaut : toutes")
 	cmd.Flags().StringVar(&label, "label", "", "`nom` affiché à la place de owner/repo (ex. \"Alice Martin\")")
+	cmd.Flags().IntVar(&flemme, "flemme", 0,
+		"seuil Flemme de ce dépôt, en `jours` sans commit (0 = seuil de l'espace)")
+	cmd.Flags().IntVar(&dead, "dead", 0,
+		"seuil Dead de ce dépôt, en `jours` sans commit, plus grand que --flemme (0 = seuil de l'espace)")
 	return cmd
 }
 
@@ -170,6 +190,9 @@ func repoAddText(res wsync.AddResult) string {
 		details = append(details, fmt.Sprintf("label « %s »", textclean.Clean(repo.Label)))
 	}
 	details = append(details, branchesText(repo.BranchPatterns))
+	if t := thresholdsText(repo.FlemmeAfterDays, repo.DeadAfterDays); t != "" {
+		details = append(details, t)
+	}
 	var b strings.Builder
 	switch res.Outcome {
 	case wsync.OutcomeAdded:
@@ -186,6 +209,22 @@ func repoAddText(res wsync.AddResult) string {
 		b.WriteString("Lancez « watchoo sync » pour le synchroniser.\n")
 	}
 	return b.String()
+}
+
+// thresholdsText décrit les seuils propres à un dépôt (« seuils : flemme 3 j, dead 10 j »), ou "" s'il
+// n'en a aucun (seuils de l'espace).
+func thresholdsText(flemme, dead *int) string {
+	var parts []string
+	if flemme != nil {
+		parts = append(parts, fmt.Sprintf("flemme %d j", *flemme))
+	}
+	if dead != nil {
+		parts = append(parts, fmt.Sprintf("dead %d j", *dead))
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return "seuils : " + strings.Join(parts, ", ")
 }
 
 // writeText écrit s sur w, avec une erreur enveloppée.

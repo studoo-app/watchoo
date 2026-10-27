@@ -46,8 +46,18 @@ erreurs (500…) : pages en français, sans détail interne (le détail est dans
 - Bouton **« Synchroniser maintenant »**. Sans aucun dépôt : un état vide renvoie vers les réglages.
 
 ### 2. Détail d'un dépôt
-- En-tête : état, seuils, dernier commit, dernière synchro et son résultat, nombre de commits, branche par
-  défaut, branches suivies et motifs, étoiles et issues.
+- En-tête : état, seuils appliqués (chacun marqué « propre à ce dépôt » ou « de l'espace », lien
+  « Modifier » vers le formulaire des seuils), dernier commit, dernière synchro et son résultat, nombre
+  de commits, branche par défaut, branches suivies et motifs, étoiles et issues.
+- **Seuils d'activité de ce dépôt** (bloc repliable sous l'en-tête, hors des fragments HTMX : une saisie
+  en cours n'est pas effacée par le rafraîchissement d'après synchro) : deux champs, « Flemme après » et
+  « Dead après », en jours sans commit, préremplis avec les seuils propres du dépôt ; vide (ou `0`) =
+  seuil de l'espace, rappelé dans le texte et en indication des champs. `POST /repos/{id}/thresholds`
+  (CSRF) : mêmes règles que `repo add --flemme / --dead` (1 à 3 650 jours, Dead strictement supérieur
+  à Flemme quand les deux sont donnés), enregistrement par le moteur (`Engine.SetThresholds`), puis
+  redirection `303` vers `/repos/{id}?msg=thresholds#repo-thresholds` (bloc ouvert, message de
+  confirmation, état recalculé). Saisie refusée : `400`, page réaffichée avec le message et la saisie ;
+  dépôt inconnu : `404`.
 - Historique des commits **paginé** (50 par page, liens précédent / suivant, HTMX). Le numéro de page
   hors bornes est ramené à la première ou à la dernière page.
 - Filtres par **branche** (branches suivies d'abord) et par **auteur** (login GitHub, sinon nom Git ;
@@ -117,7 +127,7 @@ erreurs (500…) : pages en français, sans détail interne (le détail est dans
     seulement ; `Cache-Control: no-store`) ;
   - formulaire **« Importer »** : `POST /settings/import` (`multipart/form-data`, champ `file`, CSRF,
     1 Mio au plus) **valide et affiche l'aperçu sans rien appliquer** : dépôts à ajouter, à mettre à
-    jour (avant → après), à reprendre, inchangés ; réglages modifiés ; avertissements (variable
+    jour (avant → après : nom affiché, branches, seuils propres), à reprendre, inchangés ; réglages modifiés ; avertissements (variable
     `WATCHOO_*` qui masque un réglage, commentaires de `config.yaml` perdus). L'aperçu ne vérifie pas
     l'accès aux dépôts. Fichier invalide : `400` avec le message de validation ; trop gros : `413` ;
   - bouton **« Appliquer »** : `POST /settings/import/apply` (CSRF) renvoie le contenu du fichier dans un

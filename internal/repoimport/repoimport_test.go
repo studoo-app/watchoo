@@ -329,3 +329,69 @@ func TestQuoteTruncates(t *testing.T) {
 		t.Errorf("message trop long : %v", err)
 	}
 }
+
+func intp(n int) *int { return &n }
+
+func TestParseThreshold(t *testing.T) {
+	for in, want := range map[string]*int{"": nil, "  ": nil, "0": intp(0), " 7 ": intp(7), "3650": intp(3650)} {
+		got, err := ParseThreshold(in)
+		if err != nil || !reflect.DeepEqual(got, want) {
+			t.Errorf("ParseThreshold(%q) = %v, %v ; attendu %v", in, got, err, want)
+		}
+	}
+	for _, in := range []string{"-1", "abc", "1.5", "3651", "99999999999999999999"} {
+		if _, err := ParseThreshold(in); err == nil || !strings.Contains(err.Error(), "nombre entier de jours") {
+			t.Errorf("ParseThreshold(%q) : erreur %v", in, err)
+		}
+	}
+}
+
+func TestValidateThresholds(t *testing.T) {
+	ok := [][2]*int{{nil, nil}, {intp(3), nil}, {nil, intp(2)}, {intp(3), intp(4)}, {intp(0), intp(2)}, {intp(5), intp(0)}, {intp(0), intp(0)}}
+	for _, c := range ok {
+		if err := ValidateThresholds(c[0], c[1]); err != nil {
+			t.Errorf("ValidateThresholds(%v, %v) : %v", c[0], c[1], err)
+		}
+	}
+	bad := map[[2]*int]string{
+		{intp(5), intp(5)}:  "strictement supérieur",
+		{intp(10), intp(3)}: "strictement supérieur",
+		{intp(-1), nil}:     "seuil flemme",
+		{nil, intp(4000)}:   "seuil dead",
+	}
+	for c, want := range bad {
+		if err := ValidateThresholds(c[0], c[1]); err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("ValidateThresholds(%v, %v) : %v, attendu %q", c[0], c[1], err, want)
+		}
+	}
+}
+
+func TestParseCSVThresholds(t *testing.T) {
+	in := "repo,label,flemme,DEAD\n" +
+		"alice/projet,Alice,3,10\n" +
+		"bob/projet,,,\n" +
+		"carol/projet,,0,\n"
+	entries, _, err := parseString(t, in)
+	if err != nil {
+		t.Fatalf("Parse : %v", err)
+	}
+	want := []Entry{
+		{Line: 2, Ref: Ref{"alice", "projet"}, Label: "Alice", FlemmeAfterDays: intp(3), DeadAfterDays: intp(10)},
+		{Line: 3, Ref: Ref{"bob", "projet"}},
+		{Line: 4, Ref: Ref{"carol", "projet"}, FlemmeAfterDays: intp(0)},
+	}
+	if !reflect.DeepEqual(entries, want) {
+		t.Errorf("entrées :\n%#v\nattendu :\n%#v", entries, want)
+	}
+
+	_, _, err = parseString(t, "repo,flemme,dead\nalice/projet,x,\nbob/projet,10,5\ncarol/projet,2,-3\n")
+	var pe *ParseError
+	if !errors.As(err, &pe) || len(pe.Errors) != 3 {
+		t.Fatalf("erreurs : %v", err)
+	}
+	for i, want := range []string{"flemme : \"x\"", "strictement supérieur", "dead : \"-3\""} {
+		if !strings.Contains(pe.Errors[i].Msg, want) {
+			t.Errorf("erreur %d = %q, attendu %q", i, pe.Errors[i].Msg, want)
+		}
+	}
+}

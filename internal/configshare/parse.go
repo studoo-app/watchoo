@@ -51,6 +51,10 @@ type Entry struct {
 	// Branches sont les motifs (sans doublon, ordre gardé) ; nil = non fourni (branches existantes
 	// gardées, nouveau dépôt : toutes), vide non nil = toutes les branches.
 	Branches []string
+	// FlemmeAfterDays et DeadAfterDays sont les seuils d'activité du dépôt ; nil = non fourni (seuils
+	// existants gardés), 0 = revenir au seuil de l'espace.
+	FlemmeAfterDays *int
+	DeadAfterDays   *int
 }
 
 // Parse lit et valide un document (MaxFileSize octets au plus). Erreurs, toutes en français et
@@ -61,7 +65,8 @@ type Entry struct {
 //   - ErrInvalid : JSON invalide ou suivi d'un autre texte, version absente ou inférieure à 1, clé
 //     inconnue (à tout niveau, y compris github ou web dans settings), plus de MaxRepositories dépôts,
 //     provider autre que github, repo invalide (repoimport.ParseRef), doublon (sans tenir compte de la
-//     casse), label invalide (repoimport.ValidateLabel), motif de branche vide, avec virgule ou invalide,
+//     casse), label invalide (repoimport.ValidateLabel), seuils d'activité d'un dépôt invalides
+//     (repoimport.ValidateThresholds), motif de branche vide, avec virgule ou invalide,
 //     durée illisible, motif de branches.exclude ou fuseau avec caractère de contrôle, texte
 //     informatif invalide. Les problèmes sont tous cités (20 au plus).
 //
@@ -225,7 +230,12 @@ func validate(doc *Document) (*File, error) {
 			fail("%s : branches : %s", where, msg)
 			continue
 		}
-		f.Repositories = append(f.Repositories, Entry{Index: idx, Ref: ref, Label: r.Label, Branches: branches})
+		if err := repoimport.ValidateThresholds(r.FlemmeAfterDays, r.DeadAfterDays); err != nil {
+			fail("%s : %v", where, err)
+			continue
+		}
+		f.Repositories = append(f.Repositories, Entry{Index: idx, Ref: ref, Label: r.Label, Branches: branches,
+			FlemmeAfterDays: clonePtr(r.FlemmeAfterDays), DeadAfterDays: clonePtr(r.DeadAfterDays)})
 	}
 
 	if len(errs) > 0 {

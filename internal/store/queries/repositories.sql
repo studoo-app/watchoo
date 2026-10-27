@@ -43,6 +43,13 @@ SET label = ?, branch_patterns = ?
 WHERE id = ?
 RETURNING *;
 
+-- name: SetRepositoryThresholds :one
+-- Remplace les seuils d'activite propres au depot (NULL = valeur globale) et renvoie la ligne a jour.
+UPDATE repositories
+SET flemme_after_days = ?, dead_after_days = ?
+WHERE id = ?
+RETURNING *;
+
 -- name: SetRepositoryEnabled :execrows
 -- Active (1) ou arrete (0) le suivi du depot, sans toucher a son historique.
 UPDATE repositories

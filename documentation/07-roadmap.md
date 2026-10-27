@@ -78,7 +78,9 @@ bon schéma ; les autres commandes retrouvent l'espace.
   quota. Alternative à l'API GitHub et à `gh` : si `gh` est installé et connecté, Watchoo l'utilise par
   défaut ; sinon il passe par le clone local (voir
   [Dépôts Git locaux](03-architecture.md#dépôts-git-locaux-v2)).
-- Seuils d'activité par dépôt (option de `repo add`, colonne de l'import, réglage web).
+- Seuils d'activité par dépôt (option de `repo add`, colonne de l'import, réglage web) : **en place**
+  (`--flemme` / `--dead`, colonnes `flemme` / `dead`, partage de la configuration, formulaire de la page
+  d'un dépôt).
 - Activité par contributeur à l'intérieur d'un dépôt.
 
 L'import d'une organisation entière et les alertes passent en V3 (voir

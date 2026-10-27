@@ -24,7 +24,7 @@ uniquement avec `gh auth token` et ne le stocke jamais (voir
 | --- | --- | --- |
 | `watchoo init` | Fait du répertoire courant un espace de supervision : vérifie `gh`, puis crée `.watchoo/` avec la config et la base SQLite. Refuse si l'espace existe déjà | MVP |
 | `watchoo version` | Affiche la version de Watchoo, le commit compilé et sa date, la version de Go et la plateforme (`watchoo --version` fait de même). Fonctionne hors d'un espace et sans `gh` | MVP |
-| `watchoo repo add owner/repo [--branch main,dev,release/*] [--label "Alice Martin"]` | Ajoute un dépôt à surveiller (toutes ses branches par défaut), avec un nom affiché facultatif | MVP |
+| `watchoo repo add owner/repo [--branch main,dev,release/*] [--label "Alice Martin"] [--flemme 3] [--dead 10]` | Ajoute un dépôt à surveiller (toutes ses branches par défaut), avec un nom affiché et des seuils d'activité propres facultatifs | MVP (seuils : V2) |
 | `watchoo repo import fichier.csv [--dry-run]` | Ajoute d'un coup une liste de dépôts (ex. ceux d'une promotion), vérifie l'accès à chacun et affiche un bilan | MVP |
 | `watchoo repo add-org mon-org` | Ajoute tous les dépôts d'une organisation | V2 |
 | `watchoo repo list` | Tableau : dépôt, dernier commit, auteur, état (Actif / Flemme / Dead) | MVP |
@@ -44,9 +44,15 @@ uniquement avec `gh auth token` et ne le stocke jamais (voir
   du dépôt sont suivies, y compris celles créées plus tard. `--branch` restreint le suivi à une liste et à
   des motifs (`--branch main,dev,release/*`) ; une nouvelle branche qui correspond à un motif est suivie
   automatiquement. Voir [Architecture](03-architecture.md#branches-suivies).
-  `--branch ""` revient à toutes les branches. Un dépôt déjà suivi n'est pas ajouté en double : son
-  label et ses branches sont mis à jour s'ils sont donnés, et son suivi reprend s'il avait été arrêté.
-  L'accès est vérifié auprès de GitHub (une requête) ; `repo add` ne lance pas de synchro.
+  `--branch ""` revient à toutes les branches. `--flemme N` et `--dead N` fixent les **seuils
+  d'activité propres** au dépôt, en jours sans commit, à la place de ceux de l'espace
+  (`activity.flemme_after_days`, `activity.dead_after_days`) ; chacun est facultatif et indépendant,
+  `0` revient au seuil de l'espace. Un seuil vaut au plus 3 650 jours et, quand les deux sont donnés,
+  `--dead` doit être strictement supérieur à `--flemme` (sinon refus avant tout appel à GitHub). Un
+  dépôt déjà suivi n'est pas ajouté en double : son label, ses branches et ses seuils sont mis à jour
+  s'ils sont donnés, et son suivi reprend s'il avait été arrêté. Le compte rendu cite les seuils propres
+  (« seuils : flemme 3 j, dead 10 j »). L'accès est vérifié auprès de GitHub (une requête) ; `repo add`
+  ne lance pas de synchro.
 - **`repo list`** affiche tous les dépôts de l'espace, suivi arrêté compris. La colonne DÉPÔT montre le
   label s'il existe, sinon `owner/repo` ; l'auteur est celui du dernier commit. États gris : `arrêté`
   (suivi arrêté), `erreur`, `jamais` (jamais synchronisé), `archivé`, `vide` (synchronisé sans commit).
@@ -139,13 +145,14 @@ Clés de premier niveau (la liste est vérifiée par un test, `internal/cli/json
 | `watchoo contributors` | `contributors` | Chaque élément : `id`, `name`, `login`, `display_name`, `avatar_url`, `commits`, `additions`, `deletions`, `repositories`, `last_commit_at` |
 | `watchoo status` | `workspace`, `github`, `rate_limit`, `rate_limit_error`, `quota_low`, `repositories`, `errors`, `last_synced_at`, `tracked_branches` | `workspace` : `name`, `root` ; `github` : `ok`, `host`, `login`, `token_source`, `scopes`, `error` ; `repositories` : `total`, `active`, `flemme`, `dead`, `error`, `never_synced`, `archived`, `empty`, `stopped` ; chaque erreur : `repo`, `message` |
 | `watchoo config export` | `format`, `version`, `exported_at`, `watchoo_version`, `workspace`, `settings`, `repositories` | Le document de partage lui-même (voir [Partage de la configuration](#partage-de-la-configuration--watchoo-config)), avec ou sans `--json` ; avec `-o`, il va dans le fichier et la sortie standard ne reçoit qu'une ligne de confirmation en texte (rien avec `--json`) |
-| `watchoo config import` | `file`, `dry_run`, `applied`, `source`, `settings`, `repositories`, `summary`, `warnings` | `source` : `workspace_name`, `watchoo_version`, `exported_at` (tels qu'écrits dans le fichier) ; `settings` : `changes` (chacun `key`, `before`, `after`, `env_var`), `rewrite`, `written`, `backup_file` ; chaque dépôt : `index`, `repo`, `action` (`add`, `update`, `unchanged`, `inaccessible`, `error`), `reenable`, `before` (`label`, `branches`, `enabled` ; `null` pour un ajout), `after`, `outcome` (comme `repo import`, `""` tant que rien n'est appliqué), `error` ; `summary` : `added`, `already_tracked`, `updated`, `reenabled` (parmi `updated`), `inaccessible`, `errors` (prévus avec `--dry-run`, obtenus sinon) ; chaque avertissement : `code` (`env_override`, `comments_lost`), `key`, `message` |
+| `watchoo config import` | `file`, `dry_run`, `applied`, `source`, `settings`, `repositories`, `summary`, `warnings` | `source` : `workspace_name`, `watchoo_version`, `exported_at` (tels qu'écrits dans le fichier) ; `settings` : `changes` (chacun `key`, `before`, `after`, `env_var`), `rewrite`, `written`, `backup_file` ; chaque dépôt : `index`, `repo`, `action` (`add`, `update`, `unchanged`, `inaccessible`, `error`), `reenable`, `before` (`label`, `branches`, `flemme_after_days`, `dead_after_days` (`null` = seuil de l'espace), `enabled` ; `null` pour un ajout), `after`, `outcome` (comme `repo import`, `""` tant que rien n'est appliqué), `error` ; `summary` : `added`, `already_tracked`, `updated`, `reenabled` (parmi `updated`), `inaccessible`, `errors` (prévus avec `--dry-run`, obtenus sinon) ; chaque avertissement : `code` (`env_override`, `comments_lost`), `key`, `message` |
 
 Objets partagés :
 
 - **dépôt** : `id`, `full_name`, `owner`, `name`, `label`, `display_name`, `url`, `default_branch`,
-  `branch_patterns` (`[]` = toutes les branches), `enabled`, `archived`, `stars`, `open_issues`,
-  `last_synced_at`, `last_commit_at` ;
+  `branch_patterns` (`[]` = toutes les branches), `flemme_after_days` et `dead_after_days` (seuils
+  propres au dépôt, `null` = seuil de l'espace ; les seuils appliqués sont dans l'objet activité),
+  `enabled`, `archived`, `stars`, `open_issues`, `last_synced_at`, `last_commit_at` ;
 - **commit** : `repository` (`id`, `full_name`, `display_name`), `sha`, `short_sha`, `message`, `url`,
   `author` (`name`, `login`, `display_name`), `authored_at`, `committed_at`, `additions`, `deletions` ;
 - **activité** : `state` (`active`, `flemme`, `dead`, `stopped`, `error`, `never_synced`, `archived`,
@@ -259,6 +266,8 @@ mon-org/projet-groupe-3,Groupe 3 (Dan et Eva),
 | `repo` | oui | `owner/repo` ou URL GitHub |
 | `label` | non | Nom affiché à la place de `owner/repo` (nom de l'étudiant, du binôme, du groupe) |
 | `branches` | non | Branches à suivre, liste et motifs comme `--branch` ; vide = toutes les branches |
+| `flemme` | non | Seuil Flemme propre au dépôt, en jours sans commit, comme `--flemme` (`0` = seuil de l'espace) |
+| `dead` | non | Seuil Dead propre au dépôt, comme `--dead` ; plus grand que `flemme` sur la même ligne |
 
 Un simple fichier texte est aussi accepté : un dépôt par ligne, sans en-tête, lignes vides et lignes
 commençant par `#` ignorées.
@@ -285,9 +294,11 @@ IMPORT  licence-projet.csv
   lignes en erreur  0
 ```
 
-- Une cellule `label` ou `branches` **vide** veut dire « non fourni » : la valeur existante est gardée (un
-  import ne peut donc pas remettre un dépôt à « toutes les branches » ; utiliser `repo add owner/repo
-  --branch ""`).
+- Une cellule `label`, `branches`, `flemme` ou `dead` **vide** veut dire « non fourni » : la valeur
+  existante est gardée (un import ne peut donc pas remettre un dépôt à « toutes les branches » ; utiliser
+  `repo add owner/repo --branch ""`). Pour revenir au seuil de l'espace, écrire `0` dans `flemme` ou
+  `dead`. Un seuil illisible, négatif, au-delà de 3 650 jours, ou un `dead` inférieur ou égal au
+  `flemme` de la même ligne est une ligne en erreur.
 - `-` à la place du fichier lit la liste sur l'entrée standard.
 - Le bilan détaille ensuite chaque dépôt inaccessible ou en erreur, avec son numéro de ligne.
 - `--dry-run` : fait la validation et les vérifications d'accès, affiche le bilan (« à ajouter » au lieu
@@ -348,7 +359,7 @@ partager de données d'étudiants ni de réglage propre à une machine.
 | `exported_at`, `watchoo_version` | Date d'export (UTC, RFC 3339) et version de Watchoo qui l'a fait ; informatifs, facultatifs |
 | `workspace.name` | Nom de l'espace exporté ; informatif : l'import ne renomme jamais l'espace |
 | `settings` | Réglages communs, valeurs **en vigueur** dans l'espace exporté (fichiers et variables `WATCHOO_*` compris) : `sync.auto`, `sync.interval` (durée Go entre guillemets : `"30m"`, `"1h30m"`, `"0"`), `sync.parallelism`, `activity.flemme_after_days`, `activity.dead_after_days`, `branches.exclude`, `timezone` |
-| `repositories` | Dépôts dont le suivi est actif (les dépôts arrêtés ne sont pas exportés), triés par `owner/repo` : `provider` (`github`), `repo` (`owner/repo`), `label` (nom affiché, `""` sans nom), `branches` (motifs suivis, `[]` = toutes les branches) |
+| `repositories` | Dépôts dont le suivi est actif (les dépôts arrêtés ne sont pas exportés), triés par `owner/repo` : `provider` (`github`), `repo` (`owner/repo`), `label` (nom affiché, `""` sans nom), `branches` (motifs suivis, `[]` = toutes les branches), et, **seulement pour un dépôt qui en a**, `flemme_after_days` et `dead_after_days` (seuils propres, en jours). Ces deux clés sont facultatives dans la version 1 du format : un fichier sans seuil propre reste lisible par les versions de Watchoo qui ne les connaissent pas |
 
 **Jamais exportés** : les réglages propres à la machine ou à la personne (`name` du fichier, `github.*` :
 compte `gh` et chemin de `gh`, qu'un fichier venu d'ailleurs ne doit jamais pouvoir changer ;
@@ -376,7 +387,8 @@ modifier quoi que ce soit.
    inconnue, à aucun niveau (une clé `github` ou `web` est donc refusée) ; 1 000 dépôts au plus ; chaque
    dépôt : `provider` absent ou `github`, `repo` de la forme `owner/repo` (ou URL GitHub), présent une
    seule fois (sans tenir compte de la casse), `label` valide (comme `repo add --label`), motifs de
-   branches valides (comme `--branch`, sans virgule) ; réglages valides une fois fusionnés avec ceux de
+   branches valides (comme `--branch`, sans virgule), seuils propres valides (comme `--flemme` et
+   `--dead`) ; réglages valides une fois fusionnés avec ceux de
    l'espace (mêmes règles que `config.yaml`, ex. `dead_after_days` plus grand que `flemme_after_days`),
    y compris une fois les variables `WATCHOO_*` définies réappliquées : l'aperçu refuse donc tout ce que
    l'écriture refuserait (ex. `WATCHOO_ACTIVITY_DEAD_AFTER_DAYS=10` et un import de
@@ -384,8 +396,8 @@ modifier quoi que ce soit.
    `settings` et `repositories` sont facultatifs, chaque réglage aussi : un fichier peut ne contenir que
    des dépôts, ou qu'un fuseau.
 2. **Aperçu**, toujours affiché avant d'appliquer :
-   - dépôts **à ajouter**, **à mettre à jour** (nom affiché et branches, avant → après ; dépôt arrêté
-     **à reprendre**), **inchangés** ;
+   - dépôts **à ajouter**, **à mettre à jour** (nom affiché, branches et seuils propres, avant → après,
+     `espace` pour le seuil de l'espace ; dépôt arrêté **à reprendre**), **inchangés** ;
    - réglages modifiés (clé, valeur actuelle → valeur importée) ; un réglage identique n'est pas listé.
      Un réglage masqué par une variable `WATCHOO_*` définie est comparé à sa valeur **dans les
      fichiers** (fichier utilisateur puis `config.yaml`), pas à celle de la variable : c'est elle que
@@ -413,7 +425,9 @@ modifier quoi que ce soit.
      absent est ajouté ; un dépôt déjà suivi (cherché par son identifiant GitHub puis par
      `owner/repo`, donc renommage compris) reçoit le `label` et les `branches` du fichier, et son suivi
      **reprend s'il était arrêté** (comme `repo add`). Un `label` vide garde le nom affiché existant ;
-     `branches` absent (ou `null`) garde les branches existantes, `[]` revient à toutes les branches.
+     `branches` absent (ou `null`) garde les branches existantes, `[]` revient à toutes les branches ;
+     `flemme_after_days` ou `dead_after_days` absent (ou `null`) garde le seuil existant, `0` revient
+     au seuil de l'espace.
      Un dépôt inaccessible est signalé sans bloquer les autres. **Aucun dépôt n'est jamais retiré** et
      aucune synchro n'est lancée.
 5. **Bilan** : réglages écrits (et copie `.bak`), puis dépôts ajoutés, déjà suivis, mis à jour,

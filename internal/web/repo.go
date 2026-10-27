@@ -71,6 +71,8 @@ type RepoView struct {
 	ChartPeakDate string
 	// Historique : page courante et filtres actifs.
 	Commits RepoCommitsView
+	// Thresholds : formulaire des seuils propres au dépôt (repo_thresholds.go).
+	Thresholds thresholdsForm
 }
 
 // RepoCommitsView est la partie « historique » de la page (fragment « repo-commits »).
@@ -162,9 +164,11 @@ func (s *server) repoView(r *http.Request, id int64, overview bool) (RepoView, e
 	}
 	now := s.now()
 	view := RepoView{
-		Repo:  sum,
-		State: activity.Evaluate(sum.Repository, sum.LastRun, s.cfg.Activity, now, s.loc),
+		Repo:       sum,
+		State:      activity.Evaluate(sum.Repository, sum.LastRun, s.cfg.Activity, now, s.loc),
+		Thresholds: s.newThresholdsForm(sum.FlemmeAfterDays, sum.DeadAfterDays),
 	}
+	view.Thresholds.Saved = queryValue(r, "msg") == msgThresholds
 
 	branches, err := s.store.ListBranches(ctx, id)
 	if err != nil {

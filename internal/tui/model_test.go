@@ -618,3 +618,14 @@ func TestWithRealStore(t *testing.T) {
 	mustContain(t, l.screen(), "1 branche suivie, par défaut : main", "Premier rendu", "Principaux contributeurs")
 	mustNotContain(t, l.screen(), "zoe@example.test")
 }
+
+// Seuils propres au dépôt : appliqués et signalés dans le détail.
+func TestDetailOwnThresholds(t *testing.T) {
+	data := newFakeData()
+	flemme := 1
+	data.repos[0].FlemmeAfterDays = &flemme // Alice : dernier commit il y a 2 h, toujours Actif
+	l := newLoop(t, testDeps(data, &fakeSyncer{}))
+	l.press("enter")
+	l.until(func(m Model) bool { return m.detail.open && !m.detail.loading })
+	mustContain(t, l.screen(), "seuils : Flemme après 1 j, Dead après 15 j (propres au dépôt)")
+}

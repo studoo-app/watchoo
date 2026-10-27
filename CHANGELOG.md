@@ -9,6 +9,18 @@ un changement incompatible fait monter MINOR et tout changement compatible fait 
 
 ## [Unreleased]
 
+### Ajouté
+
+- **Seuils d'activité par dépôt** : un dépôt peut avoir ses propres seuils Flemme et Dead à la place de
+  ceux de l'espace (`activity.*`). `watchoo repo add owner/repo --flemme 3 --dead 10` (`0` revient au
+  seuil de l'espace), colonnes facultatives `flemme` et `dead` du fichier de `watchoo repo import`
+  (cellule vide = seuil gardé), clés `flemme_after_days` et `dead_after_days` des dépôts dans le
+  partage de la configuration (écrites seulement pour un dépôt qui en a), et formulaire « Seuils
+  d'activité de ce dépôt » sur la page d'un dépôt de l'interface web (champ vide = seuil de l'espace).
+  L'en-tête de la page et le détail du TUI disent si les seuils appliqués sont propres au dépôt ou ceux
+  de l'espace. Les sorties `--json` gagnent les clés `flemme_after_days` et `dead_after_days` (`null` =
+  seuil de l'espace) dans l'objet dépôt et dans l'aperçu de `config import`.
+
 ## [0.2.0] - 2026-10-27
 
 Partage de la configuration entre superviseurs, script d'installation et nouveau logo.

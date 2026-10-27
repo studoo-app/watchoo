@@ -287,6 +287,45 @@ func (q *Queries) SetRepositoryLastCommitAt(ctx context.Context, arg SetReposito
 	return err
 }
 
+const setRepositoryThresholds = `-- name: SetRepositoryThresholds :one
+UPDATE repositories
+SET flemme_after_days = ?, dead_after_days = ?
+WHERE id = ?
+RETURNING id, provider, provider_id, owner, name, label, default_branch, url, stars, open_issues, last_synced_at, last_commit_at, archived, flemme_after_days, dead_after_days, enabled, branch_patterns
+`
+
+type SetRepositoryThresholdsParams struct {
+	FlemmeAfterDays sql.NullInt64
+	DeadAfterDays   sql.NullInt64
+	ID              int64
+}
+
+// Remplace les seuils d'activite propres au depot (NULL = valeur globale) et renvoie la ligne a jour.
+func (q *Queries) SetRepositoryThresholds(ctx context.Context, arg SetRepositoryThresholdsParams) (Repository, error) {
+	row := q.db.QueryRowContext(ctx, setRepositoryThresholds, arg.FlemmeAfterDays, arg.DeadAfterDays, arg.ID)
+	var i Repository
+	err := row.Scan(
+		&i.ID,
+		&i.Provider,
+		&i.ProviderID,
+		&i.Owner,
+		&i.Name,
+		&i.Label,
+		&i.DefaultBranch,
+		&i.URL,
+		&i.Stars,
+		&i.OpenIssues,
+		&i.LastSyncedAt,
+		&i.LastCommitAt,
+		&i.Archived,
+		&i.FlemmeAfterDays,
+		&i.DeadAfterDays,
+		&i.Enabled,
+		&i.BranchPatterns,
+	)
+	return i, err
+}
+
 const updateRepositoryMetadata = `-- name: UpdateRepositoryMetadata :execrows
 UPDATE repositories
 SET owner = ?, name = ?, default_branch = ?, url = ?, stars = ?, open_issues = ?, archived = ?,

@@ -23,7 +23,7 @@ Le MVP se limite à **suivre, synchroniser et afficher** ; tout le reste vient e
 | Fonctionnalité | Détail |
 | --- | --- |
 | Activité par contributeur dans un dépôt | Graphique des commits de chaque contributeur à l'intérieur d'un même dépôt |
-| Seuils d'activité par dépôt | Régler les seuils Flemme / Dead d'un dépôt (option de `repo add`, colonne de l'import, réglage web) |
+| Seuils d'activité par dépôt | Régler les seuils Flemme / Dead d'un dépôt (option de `repo add`, colonne de l'import, réglage web). **En place** (non publié) : `repo add --flemme N --dead N`, colonnes `flemme` et `dead` de l'import, partage de la configuration, formulaire de la page d'un dépôt |
 | Pull requests et releases | PR ouvertes / mergées, tags, releases |
 | Dépôts Git locaux | Suivre un dépôt depuis un clone local (`git clone`, puis `git fetch` périodique) : commits, branches et tags sans appel à l'API GitHub. Utilisé quand `gh` n'est pas installé ou connecté |
 
@@ -49,10 +49,17 @@ Le MVP se limite à **suivre, synchroniser et afficher** ; tout le reste vient e
 
   - « Dernier commit » = le plus récent **sur toutes les branches suivies** du dépôt, pas seulement la
     branche par défaut.
-  - Les deux seuils (5 et 15 jours) se règlent **globalement** dans la config (utilisateur ou espace).
-    En v0.1.0, seuls ces seuils globaux se règlent : la base prévoit des seuils **par dépôt** (pour une
-    bibliothèque stable qui bouge rarement par exemple) et le calcul des états les prend déjà en compte,
-    mais aucune commande ne permet encore de les fixer (prévu en V2).
+  - Les deux seuils (5 et 15 jours) se règlent **globalement** dans la config (utilisateur ou espace),
+    et peuvent être remplacés **pour un dépôt** (une bibliothèque stable qui bouge rarement, un projet
+    rendu en fin de semestre…) : `watchoo repo add owner/repo --flemme N --dead N`, colonnes `flemme` et
+    `dead` du fichier d'import, partage de la configuration, ou formulaire « Seuils d'activité » de la
+    page d'un dépôt dans l'interface web. Chaque seuil est indépendant : un dépôt peut ne fixer que son
+    seuil Dead et garder le seuil Flemme de l'espace. `0` (ou un champ vide dans le web) revient au
+    seuil de l'espace.
+  - Un seuil propre vaut de 1 à 3 650 jours ; quand les deux sont donnés ensemble, Dead doit être
+    strictement supérieur à Flemme (sinon refus, avant tout appel à GitHub). Si le mélange d'un seuil
+    propre et d'un seuil de l'espace donne Dead inférieur ou égal à Flemme, Dead est ramené à Flemme + 1
+    jour pour le calcul de l'état.
 - **États hors activité** : affichés en **gris**, ils sont prioritaires sur les états d'activité.
   - **Jamais synchronisé** : le dépôt vient d'être ajouté.
   - **En erreur** : la dernière synchro a échoué (dépôt supprimé, accès perdu…).

@@ -114,6 +114,12 @@ type Repository struct {
 	// Branches sont les motifs suivis : [] = toutes les branches ; à l'import, absent ou null = garder
 	// les branches existantes (nouveau dépôt : toutes).
 	Branches []string `json:"branches"`
+	// FlemmeAfterDays et DeadAfterDays sont les seuils d'activité propres au dépôt, en jours. Export
+	// ne les écrit que pour un dépôt qui en a (clés absentes sinon : le fichier reste lisible par les
+	// versions de Watchoo qui ne les connaissent pas). À l'import, absent ou null = garder les seuils
+	// existants (nouveau dépôt : ceux de l'espace), 0 = revenir au seuil de l'espace.
+	FlemmeAfterDays *int `json:"flemme_after_days,omitempty"`
+	DeadAfterDays   *int `json:"dead_after_days,omitempty"`
 }
 
 // Store est ce dont configshare a besoin de la base ; *store.Store le satisfait.
@@ -135,8 +141,8 @@ type ExportOptions struct {
 
 // Export renvoie le document de partage de l'espace : nom de l'espace (ws.Config.Name), réglages
 // communs EN VIGUEUR (ws.Config, après fusion des fichiers et des variables WATCHOO_*), et dépôts dont
-// le suivi est actif (Enabled), triés par owner/name sans tenir compte de la casse, avec label et
-// motifs ([] = toutes les branches). Aucun appel à gh ni à la forge.
+// le suivi est actif (Enabled), triés par owner/name sans tenir compte de la casse, avec label,
+// motifs ([] = toutes les branches) et seuils d'activité propres (s'il y en a). Aucun appel à gh ni à la forge.
 func Export(ctx context.Context, ws *workspace.Workspace, st Store, opts ExportOptions) (*Document, error) {
 	if ws == nil || st == nil {
 		return nil, errors.New("export de la configuration : espace ou base non renseigné")
@@ -171,12 +177,24 @@ func Export(ctx context.Context, ws *workspace.Workspace, st Store, opts ExportO
 			Repo:     r.FullName(),
 			Label:    r.Label,
 			Branches: branches,
+			// Copies : le document ne partage rien avec les dépôts lus.
+			FlemmeAfterDays: clonePtr(r.FlemmeAfterDays),
+			DeadAfterDays:   clonePtr(r.DeadAfterDays),
 		})
 	}
 	slices.SortFunc(doc.Repositories, func(a, b Repository) int {
 		return cmp.Or(strings.Compare(strings.ToLower(a.Repo), strings.ToLower(b.Repo)), strings.Compare(a.Repo, b.Repo))
 	})
 	return doc, nil
+}
+
+// clonePtr renvoie une copie de *p, ou nil.
+func clonePtr(p *int) *int {
+	if p == nil {
+		return nil
+	}
+	v := *p
+	return &v
 }
 
 // settingsFromConfig renvoie tous les réglages communs de c.

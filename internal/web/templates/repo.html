@@ -18,6 +18,7 @@
 </div>
 <div class="space-y-6">
   {{template "repo-overview" .}}
+  {{template "repo-thresholds" .}}
   <div class="grid gap-6 lg:grid-cols-3">
     <section class="card bg-base-100 shadow-sm lg:col-span-2 min-w-0" aria-labelledby="activity-title">
       <div class="card-body p-4 md:p-6">
@@ -60,7 +61,9 @@
           {{- else}}{{clean $r.FullName}}{{end}}
         </p>
         <p class="text-xs text-base-content/60 mt-1">
-          Seuils : Flemme après {{plural .Content.State.Thresholds.FlemmeAfterDays "jour" "jours"}}, Dead après {{plural .Content.State.Thresholds.DeadAfterDays "jour" "jours"}} sans commit.
+          {{- $t := .Content.Thresholds}}
+          Seuils : Flemme après {{plural .Content.State.Thresholds.FlemmeAfterDays "jour" "jours"}} ({{if $t.FlemmeOwn}}propre à ce dépôt{{else}}de l'espace{{end}}), Dead après {{plural .Content.State.Thresholds.DeadAfterDays "jour" "jours"}} ({{if $t.DeadOwn}}propre à ce dépôt{{else}}de l'espace{{end}}) sans commit.
+          <a href="#repo-thresholds" class="link link-hover">Modifier</a>
         </p>
       </div>
       {{if $r.Enabled}}{{template "sync-repo-button" (dict "Page" . "RepoID" $r.ID)}}{{end}}
@@ -100,6 +103,32 @@
     </dl>
   </div>
 </section>
+{{end}}
+
+{{/* Seuils d'activité propres au dépôt (repo_thresholds.go). Hors du fragment « repo-overview » :
+     le rafraîchissement après une synchro n'efface pas une saisie en cours. Donnée : PageData
+     (Content.Repo, Content.Thresholds). */}}
+{{define "repo-thresholds"}}{{$r := .Content.Repo}}{{$t := .Content.Thresholds}}
+<details id="repo-thresholds" class="collapse collapse-arrow bg-base-100 shadow-sm"{{if $t.Open}} open{{end}}>
+  <summary class="collapse-title text-sm font-medium min-h-0 py-3">Seuils d'activité de ce dépôt</summary>
+  <div class="collapse-content space-y-2">
+    {{- if $t.Error}}{{template "flash" (dict "Message" $t.Error "Error" true)}}
+    {{- else if $t.Saved}}{{template "flash" (dict "Message" $t.SavedMessage "Error" false)}}{{end}}
+    <p class="text-sm text-base-content/70">Nombre de jours sans commit avant de passer en Flemme, puis en Dead. Un champ vide (ou 0) reprend le seuil de l'espace : Flemme après {{plural $t.GlobalFlemme "jour" "jours"}}, Dead après {{plural $t.GlobalDead "jour" "jours"}}.</p>
+    <form method="post" action="/repos/{{$r.ID}}/thresholds" class="flex flex-wrap items-end gap-3">
+      {{template "csrf-field" .}}
+      <label class="form-control block">
+        <span class="label text-sm mb-1">Flemme après (jours)</span>
+        <input type="number" name="flemme" value="{{$t.Flemme}}" min="0" max="3650" step="1" inputmode="numeric" placeholder="{{$t.GlobalFlemme}}" class="input input-sm w-32">
+      </label>
+      <label class="form-control block">
+        <span class="label text-sm mb-1">Dead après (jours)</span>
+        <input type="number" name="dead" value="{{$t.Dead}}" min="0" max="3650" step="1" inputmode="numeric" placeholder="{{$t.GlobalDead}}" class="input input-sm w-32">
+      </label>
+      <button type="submit" class="btn btn-sm btn-primary">Enregistrer les seuils</button>
+    </form>
+  </div>
+</details>
 {{end}}
 
 {{/* Contributeurs du dépôt. Donnée : PageData (Content.Contributors). */}}

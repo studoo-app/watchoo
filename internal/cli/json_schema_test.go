@@ -156,8 +156,10 @@ func TestJSONSchemaConfigImport(t *testing.T) {
 		assertJSONKeys(t, r.stdout, "settings.changes.0", "key", "before", "after", "env_var")
 		assertJSONKeys(t, r.stdout, "repositories.0", "index", "repo", "action", "reenable", "before", "after",
 			"outcome", "error")
-		assertJSONKeys(t, r.stdout, "repositories.0.before", "label", "branches", "enabled")
-		assertJSONKeys(t, r.stdout, "repositories.0.after", "label", "branches", "enabled")
+		assertJSONKeys(t, r.stdout, "repositories.0.before", "label", "branches", "flemme_after_days",
+			"dead_after_days", "enabled")
+		assertJSONKeys(t, r.stdout, "repositories.0.after", "label", "branches", "flemme_after_days",
+			"dead_after_days", "enabled")
 		assertJSONKeys(t, r.stdout, "summary", "added", "already_tracked", "updated", "reenabled", "inaccessible",
 			"errors")
 		assertJSONKeys(t, r.stdout, "warnings.0", "code", "key", "message")

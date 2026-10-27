@@ -114,7 +114,13 @@ Deux faux, écrits en phase 2 et réutilisés par les phases suivantes :
 - **Activité et import** (`internal/activity/`, `internal/repoimport/`, sans base) : seuils globaux et par
   dépôt, bornes 5/6 et 15/16 jours, jours calendaires (passage de minuit à Paris, heure d'été), priorité
   des états gris ; CSV (BOM, CRLF, guillemets, colonnes dans le désordre), liste simple, commentaires,
-  doublons, chaque erreur avec son numéro de ligne, aucun identifiant de connexion dans les messages.
+  doublons, chaque erreur avec son numéro de ligne, aucun identifiant de connexion dans les messages ;
+  colonnes `flemme` et `dead` (cellule vide, `0`, valeur illisible, Dead inférieur ou égal à Flemme).
+- **Seuils par dépôt** : création, mise à jour, seuil gardé s'il n'est pas fourni et remise au seuil de
+  l'espace avec `0` (`internal/sync`, `DryRun` compris), `repo add --flemme / --dead` et colonnes de
+  l'import (`internal/cli`, état recalculé par `repo list`), export, aperçu et import du partage
+  (`internal/configshare`), formulaire de la page d'un dépôt (`internal/web` : enregistrement, saisie
+  refusée, `404`, CSRF).
 - **Moteur** (`internal/sync/`, `providertest` + base temporaire) : premier import, synchro
   incrémentale, tête inchangée (aucune requête de commits), nouvelle branche, merge qui apporte des
   commits plus anciens, force-push (branche et branche de référence), branche supprimée,

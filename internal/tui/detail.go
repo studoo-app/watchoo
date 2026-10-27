@@ -45,8 +45,12 @@ func (m Model) detailLines() []string {
 	if s := res.Short(uni); !res.State.Gray() && s != "-" {
 		state += " (" + s + ")"
 	}
-	state += m.st.Muted.Render(fmt.Sprintf("  seuils : Flemme après %d j, Dead après %d j",
-		res.Thresholds.FlemmeAfterDays, res.Thresholds.DeadAfterDays))
+	own := ""
+	if r.FlemmeAfterDays != nil || r.DeadAfterDays != nil {
+		own = " (propres au dépôt)"
+	}
+	state += m.st.Muted.Render(fmt.Sprintf("  seuils : Flemme après %d j, Dead après %d j%s",
+		res.Thresholds.FlemmeAfterDays, res.Thresholds.DeadAfterDays, own))
 	lines = append(lines, field("État", state))
 
 	last := activity.Relative(r.LastCommitAt, now, loc, uni)
