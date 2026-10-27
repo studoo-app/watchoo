@@ -22,6 +22,7 @@ type keyMap struct {
 	Filter       key.Binding
 	SyncAll      key.Binding
 	SyncRepo     key.Binding
+	Add          key.Binding
 	Reload       key.Binding
 	Help         key.Binding
 	Quit         key.Binding
@@ -46,6 +47,7 @@ func defaultKeyMap() keyMap {
 		Filter:       key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "filtrer")),
 		SyncAll:      key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "synchroniser tout")),
 		SyncRepo:     key.NewBinding(key.WithKeys("S"), key.WithHelp("S", "synchroniser ce dépôt")),
+		Add:          key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "ajouter un dépôt (vue Dépôts)")),
 		Reload:       key.NewBinding(key.WithKeys("r"), key.WithHelp("r", "relire la base")),
 		Help:         key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "aide")),
 		Quit:         key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q", "quitter")),
@@ -58,7 +60,7 @@ func (k keyMap) helpGroups() []helpGroup {
 		{Title: "Vues", Bindings: []key.Binding{k.NextView, k.PrevView, k.ViewRepos, k.ViewCommits, k.ViewContribs}},
 		{Title: "Déplacement", Bindings: []key.Binding{k.Up, k.Down, k.PageUp, k.PageDown, k.Top, k.Bottom,
 			k.Open, k.Back, k.Filter}},
-		{Title: "Synchro et données", Bindings: []key.Binding{k.SyncAll, k.SyncRepo, k.Reload}},
+		{Title: "Synchro et données", Bindings: []key.Binding{k.SyncAll, k.SyncRepo, k.Add, k.Reload}},
 		{Title: "Général", Bindings: []key.Binding{k.Help, k.Quit}},
 	}
 }
@@ -77,6 +79,7 @@ func (k keyMap) shortHelp() [][2]string {
 		{k.Filter.Help().Key, "filtre"},
 		{k.SyncAll.Help().Key, "synchro"},
 		{k.SyncRepo.Help().Key, "synchro du dépôt"},
+		{k.Add.Help().Key, "ajouter"},
 		{k.Help.Help().Key, "aide"},
 		{k.Quit.Help().Key, "quitter"},
 	}

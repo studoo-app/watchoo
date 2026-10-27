@@ -1,9 +1,9 @@
 package tui
 
-// Synchros lancées depuis le TUI (« s », « S », synchro automatique). La synchro tourne dans une
-// goroutine démarrée par une commande Bubble Tea ; ses événements de progression et son rapport
-// arrivent par un canal, lu message par message par waitSync, et repassent par Update. Une seule
-// synchro à la fois côté TUI.
+// Synchros lancées depuis le TUI (« s », « S », synchro automatique, dépôt ajouté par « a »). La
+// synchro tourne dans une goroutine démarrée par une commande Bubble Tea ; ses événements de
+// progression et son rapport arrivent par un canal, lu message par message par waitSync, et repassent
+// par Update. Une seule synchro à la fois côté TUI.
 
 import (
 	"fmt"
@@ -20,10 +20,10 @@ import (
 // annulation et clôt ses sync_runs (« synchro annulée ») avant que la base ne soit fermée.
 const quitSyncTimeout = 10 * time.Second
 
-// syncTracker suit les goroutines de synchro lancées par le TUI, pour que Run les attende avant de
-// rendre la main (sinon la base serait fermée sous elles et leurs sync_runs resteraient
-// « running », ce qui verrouillerait les dépôts 30 min). Partagé par pointeur entre les copies du
-// Model.
+// syncTracker suit les goroutines de synchro (et d'ajout de dépôt, add.go) lancées par le TUI, pour que
+// Run les attende avant de rendre la main (sinon la base serait fermée sous elles et leurs sync_runs
+// resteraient « running », ce qui verrouillerait les dépôts 30 min). Partagé par pointeur entre les
+// copies du Model.
 type syncTracker struct {
 	mu     gosync.Mutex
 	closed bool // Run est terminé : plus aucune synchro ne démarre
@@ -98,6 +98,9 @@ func (m Model) startSync(repoID int64, auto bool) (Model, tea.Cmd) {
 		if r, ok := m.repoByID(repoID); ok {
 			label = clean(r.DisplayName())
 		}
+	}
+	if repoID == 0 {
+		m.pendingSyncs = nil // la synchro de tous les dépôts couvre les dépôts en attente
 	}
 	ch := make(chan tea.Msg, 16)
 	gen := m.sync.gen + 1
@@ -180,7 +183,7 @@ func (m Model) handleSyncDone(msg syncDoneMsg) (tea.Model, tea.Cmd) {
 			return m, nil // on quitte
 		}
 		m.setError("synchro impossible : " + clean(msg.err.Error()))
-		return m, nil
+		return m.startPendingSync()
 	}
 	text, isErr := m.summarize(msg.report)
 	if isErr {
@@ -191,7 +194,11 @@ func (m Model) handleSyncDone(msg syncDoneMsg) (tea.Model, tea.Cmd) {
 	m.loading = true
 	cmds := []tea.Cmd{m.loadCmd()}
 	cmds = append(cmds, m.reloadDetails()...)
-	return m, tea.Batch(cmds...)
+	// Un dépôt ajouté pendant la synchro est synchronisé maintenant ; le bilan de celle-ci est remplacé
+	// par la progression de la suivante.
+	var next tea.Cmd
+	m, next = m.startPendingSync()
+	return m, tea.Batch(append(cmds, next)...)
 }
 
 // summarize renvoie le bilan d'une synchro en une ligne, et s'il signale un problème. Les heures de
