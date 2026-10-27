@@ -1,0 +1,67 @@
+{{/*
+  Morceaux communs à toutes les pages (socle). Chacun précise la donnée qu'il attend.
+*/}}
+
+{{/* Pastille d'état d'un dépôt. Donnée : activity.Result (activity.Evaluate). */}}
+{{define "state-badge"}}<span class="badge {{badgeClass .State}} whitespace-nowrap" title="État : {{.State.Label}}">{{stateText .}}</span>{{end}}
+
+{{/* Date relative en français, heure locale dans title. Donnée : time.Time. */}}
+{{define "rel-time"}}{{if .IsZero}}<span class="text-base-content/60">jamais</span>{{else}}<time datetime="{{isoTime .}}" title="{{localTime .}}">{{relTime .}}</time>{{end}}{{end}}
+
+{{/* Champ caché du jeton CSRF, dans tout <form method="post">. Donnée : PageData. */}}
+{{define "csrf-field"}}<input type="hidden" name="csrf_token" value="{{.CSRFToken}}">{{end}}
+
+{{/* Avatar GitHub, ou l'initiale. Donnée : dict "Name" nom "URL" avatar_url ["Size" "size-10"].
+     L'image n'est chargée que depuis avatars.githubusercontent.com (avatarURL), sans Referer. */}}
+{{define "avatar"}}{{$url := avatarURL .URL}}{{$size := or .Size "size-8"}}
+{{- if $url -}}
+<div class="avatar"><div class="{{$size}} rounded-full"><img src="{{$url}}" alt="" loading="lazy" referrerpolicy="no-referrer" decoding="async"></div></div>
+{{- else -}}
+<div class="avatar avatar-placeholder" aria-hidden="true"><div class="bg-neutral text-neutral-content {{$size}} rounded-full"><span>{{initial .Name}}</span></div></div>
+{{- end}}{{end}}
+
+{{/* Message d'information ou d'erreur. Donnée : dict "Message" texte ["Error" true]. */}}
+{{define "flash"}}{{if .Message}}<div role="{{if .Error}}alert{{else}}status{{end}}" class="alert {{if .Error}}alert-error{{else}}alert-info{{end}} alert-soft my-2"><span>{{.Message}}</span></div>{{end}}{{end}}
+
+{{/* État des synchros, dans la navbar (id sync-status, cible des boutons de synchro).
+     Donnée : PageData. Rafraîchi toutes les 2 s pendant une synchro, toutes les 30 s sinon ;
+     la réponse qui constate la fin d'une synchro porte HX-Trigger: sync-finished (syncview.go). */}}
+{{define "sync-status"}}{{$v := .Sync}}
+<div id="sync-status" class="order-4 w-full lg:w-auto flex flex-wrap items-center gap-2 text-sm px-1" aria-live="polite"
+     hx-get="/fragments/sync?gen={{$v.Generation}}&amp;run={{if $v.Running}}1{{else}}0{{end}}"
+     hx-trigger="{{if $v.Running}}every 2s{{else}}every 30s{{end}}" hx-swap="outerHTML">
+  {{- if $v.Running}}
+  <span class="loading loading-spinner loading-sm text-primary" aria-hidden="true"></span>
+  <span>Synchro{{if $v.Auto}} automatique{{end}} : {{$v.Done}}/{{$v.Total}}{{if $v.Current}} · {{truncate 40 $v.Current}}{{end}}</span>
+  <progress class="progress progress-primary w-20" value="{{$v.Percent}}" max="100" aria-label="Progression de la synchro"></progress>
+  {{- else if $v.HasReport}}
+  <span class="text-base-content/70">Synchro {{template "rel-time" $v.LastFinishedAt}}</span>
+  {{- if $v.LastError}} <span class="badge badge-error badge-sm" title="{{clean $v.LastError}}">échec</span>
+  {{- else if $v.Errors}} <span class="badge badge-error badge-sm">{{plural $v.Errors "dépôt en erreur" "dépôts en erreur"}}</span>{{end}}
+  {{- if $v.Deferred}} <span class="badge badge-warning badge-sm">{{plural $v.Deferred "dépôt reporté" "dépôts reportés"}}</span>{{end}}
+  {{- else}}
+  <span class="text-base-content/60" title="Dernière synchro de chaque dépôt : page du dépôt et réglages">Aucune synchro depuis le lancement</span>
+  {{- end}}
+  {{- if $v.QuotaLow}} <span class="badge badge-warning badge-sm" title="Moins de 10 % du quota GitHub : les synchros sont reportées jusqu'à sa remise à zéro">quota bas</span>{{end}}
+  {{- if $v.Message}} <span role="status" class="badge {{if $v.MessageError}}badge-error{{else}}badge-info{{end}} badge-sm">{{$v.Message}}</span>{{end}}
+</div>
+{{end}}
+
+{{/* Bouton « Synchroniser maintenant » (tous les dépôts). Donnée : PageData.
+     Jamais désactivé au rendu : il est hors des fragments rechargés à la fin d'une synchro, et le
+     POST répond « Synchro déjà en cours » si une synchro tourne (syncview.go, startSync). */}}
+{{define "sync-all-button"}}
+<form method="post" action="/sync" hx-post="/sync" hx-target="#sync-status" hx-swap="outerHTML" class="inline">
+  {{template "csrf-field" .}}
+  <button type="submit" class="btn btn-primary">Synchroniser maintenant</button>
+</form>
+{{end}}
+
+{{/* Bouton « Synchroniser ce dépôt ». Donnée : dict "Page" PageData "RepoID" identifiant.
+     Jamais désactivé au rendu, comme « Synchroniser maintenant ». */}}
+{{define "sync-repo-button"}}
+<form method="post" action="{{repoPath .RepoID}}/sync" hx-post="{{repoPath .RepoID}}/sync" hx-target="#sync-status" hx-swap="outerHTML" class="inline">
+  {{template "csrf-field" .Page}}
+  <button type="submit" class="btn btn-primary btn-sm">Synchroniser ce dépôt</button>
+</form>
+{{end}}

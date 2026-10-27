@@ -1,0 +1,59 @@
+{{/*
+  Document complet de toutes les pages (socle). Donnée : PageData (render.go).
+  Blocs de la page : « content » (obligatoire, vérifié au démarrage), « head » et
+  « scripts » (facultatifs).
+  Aucun script ni style en ligne (CSP) : HTMX est réglé par la balise meta htmx-config
+  (pas de <style> injecté, pas d'eval, pas de <script> exécuté dans un fragment, pas
+  d'historique gardé dans localStorage : les pages contiennent des données privées).
+*/}}
+{{define "layout"}}<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <meta name="htmx-config" content='{"includeIndicatorStyles":false,"allowEval":false,"allowScriptTags":false,"historyCacheSize":0,"refreshOnHistoryMiss":true,"selfRequestsOnly":true}'>
+  <title>{{if .Public}}{{.Title}} · Watchoo{{else}}{{if .Title}}{{.Title}} · {{end}}{{.Workspace}} · Watchoo{{end}}</title>
+  <link rel="icon" href="/favicon.ico" sizes="48x48">
+  <link rel="icon" href="/static/watchoo.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="stylesheet" href="/static/app.css">
+  <script src="/static/theme.js"></script>
+  <script src="/static/vendor/htmx-2.0.11.min.js" defer></script>
+  <script src="/static/app.js" defer></script>
+  {{block "head" .}}{{end}}
+</head>
+<body class="min-h-screen flex flex-col bg-base-200 text-base-content" hx-headers='{"X-CSRF-Token": "{{.CSRFToken}}"}'>
+  <header class="navbar bg-base-100 shadow-sm flex-wrap gap-x-2 gap-y-1 px-4">
+    <div class="flex-1 flex items-center gap-2 min-w-0 order-1">
+      <a href="/" class="flex items-center gap-2 font-bold text-lg shrink-0" aria-label="Watchoo, tableau de bord">
+        <img src="/static/watchoo.svg" alt="" width="32" height="32" class="size-8 rounded-lg">
+        <span>Watchoo</span>
+      </a>
+      {{if not .Public}}<span class="badge badge-ghost truncate max-w-48 sm:max-w-xs" title="Espace de supervision">{{.Workspace}}</span>{{end}}
+    </div>
+    <button id="theme-toggle" type="button" class="btn btn-ghost btn-sm btn-square order-2 lg:order-5" aria-label="Basculer entre le thème clair et le thème sombre" title="Thème clair / sombre">
+      <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor"/></svg>
+    </button>
+    {{if not .Public}}
+    <nav aria-label="Navigation principale" class="order-3 w-full overflow-x-auto lg:w-auto">
+      <ul class="menu menu-horizontal menu-sm sm:menu-md flex-nowrap px-0 lg:px-1 gap-1">
+        <li><a href="/" class="whitespace-nowrap {{if eq .Nav "dashboard"}}menu-active{{end}}"{{if eq .Nav "dashboard"}} aria-current="page"{{end}}>Tableau de bord</a></li>
+        <li><a href="/contributors" class="whitespace-nowrap {{if eq .Nav "contributors"}}menu-active{{end}}"{{if eq .Nav "contributors"}} aria-current="page"{{end}}>Contributeurs</a></li>
+        <li><a href="/settings" class="whitespace-nowrap {{if eq .Nav "settings"}}menu-active{{end}}"{{if eq .Nav "settings"}} aria-current="page"{{end}}>Réglages</a></li>
+      </ul>
+    </nav>
+    {{template "sync-status" .}}
+    {{end}}
+  </header>
+  <main id="main" class="flex-1 w-full max-w-7xl mx-auto p-4 md:p-6">
+    {{template "content" .}}
+  </main>
+  <footer class="footer footer-center p-4 text-sm text-base-content/60">
+    <p>Watchoo {{.Version}} · lecture seule : rien n'est jamais écrit sur GitHub · données gardées sur cette machine</p>
+  </footer>
+  {{block "scripts" .}}{{end}}
+</body>
+</html>
+{{end}}

@@ -41,13 +41,13 @@ bon schéma ; les autres commandes retrouvent l'espace.
 
 ### Phase 4 — Interface web
 - `serve`, templates embarqués, CSS DaisyUI généré par la CLI autonome Tailwind (`make css`).
-- Tableau de bord, détail dépôt, contributeurs.
+- Tableau de bord, détail dépôt (avec le graphique d'activité sur 90 jours), contributeurs, réglages.
 - Synchro périodique en arrière-plan.
 
 **Livrable** : interface web locale fonctionnelle.
 
 ### Phase 5 — Finitions MVP
-- Graphiques d'activité.
+- Graphiques d'activité (au-delà de celui du détail d'un dépôt, livré en phase 4).
 - Sortie `--json`.
 - Makefile, binaires multi-plateformes via GoReleaser, image Docker, README.
 - Versions SemVer et `CHANGELOG.md` tenus avec les skills `semver` et `semver-changelog` (voir [Skills](11-skills.md)).

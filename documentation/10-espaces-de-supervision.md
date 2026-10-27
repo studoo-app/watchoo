@@ -126,6 +126,11 @@ Le token n'est **pas** propre à l'espace : tous les espaces utilisent le compte
   `master-projet` en même temps.
 - Deux `serve` ne peuvent pas écouter sur le même port. Le port se règle par espace (`web.addr` dans
   `config.yaml`) ; si le port est déjà pris, `serve` s'arrête avec un message qui l'indique.
+- Réglages web de l'espace (clés `web.*`) : `web.addr` (adresse d'écoute), `web.auth.username`
+  (authentification basique ; le mot de passe n'est jamais dans un fichier : variable
+  `WATCHOO_WEB_PASSWORD`), `web.trusted_proxy` (reverse proxy authentifiant déclaré) et
+  `web.allowed_hosts` (noms publics du proxy acceptés dans l'en-tête `Host`). Deux `serve` sur
+  la même machine gardent chacun leur jeton CSRF (cookie nommé avec le port).
 - Le quota GitHub est **partagé** entre tous les espaces, puisqu'ils utilisent le même compte `gh`.
   Chaque espace affiche le quota restant réel (lu dans les réponses de GitHub).
 

@@ -23,7 +23,25 @@ WHERE (sqlc.narg(repo_id) IS NULL OR c.repo_id = sqlc.narg(repo_id))
           SELECT 1 FROM contributor_emails e
           WHERE e.contributor_id = c.author_id AND e.email = sqlc.narg(author_email)))))
 ORDER BY c.committed_at DESC, c.sha
-LIMIT sqlc.arg(row_limit);
+LIMIT sqlc.arg(row_limit) OFFSET sqlc.arg(row_offset);
+
+-- name: CountRecentCommits :one
+-- Nombre de commits qui satisfont les filtres de ListRecentCommits (memes regles), sans limite.
+SELECT count(*)
+FROM commits c
+LEFT JOIN contributors a ON a.id = c.author_id
+WHERE (sqlc.narg(repo_id) IS NULL OR c.repo_id = sqlc.narg(repo_id))
+  AND (sqlc.narg(since) IS NULL OR c.committed_at >= sqlc.narg(since))
+  AND (sqlc.narg(branch) IS NULL OR EXISTS (
+        SELECT 1 FROM commit_branches cb
+        JOIN branches b ON b.id = cb.branch_id
+        WHERE cb.repo_id = c.repo_id AND cb.sha = c.sha AND b.name = sqlc.narg(branch)))
+  AND (sqlc.narg(author) IS NULL OR (c.author_id IS NOT NULL AND (
+        a.provider_login = sqlc.narg(author) COLLATE NOCASE
+        OR a.name = sqlc.narg(author) COLLATE NOCASE
+        OR EXISTS (
+          SELECT 1 FROM contributor_emails e
+          WHERE e.contributor_id = c.author_id AND e.email = sqlc.narg(author_email)))));
 
 -- name: ContributorRanking :many
 -- Classement des auteurs : commits decroissants, puis dernier commit le plus recent, puis id.
@@ -84,3 +102,28 @@ JOIN sync_runs s ON s.id = (
     ORDER BY s2.started_at DESC, s2.id DESC
     LIMIT 1)
 WHERE (sqlc.narg(repo_id) IS NULL OR r.id = sqlc.narg(repo_id));
+
+-- name: CommitTimesSince :many
+-- Dates de commit (committed_at) des commits du depot (repo_id NULL = tous) depuis since, sans ordre garanti.
+SELECT committed_at
+FROM commits
+WHERE (sqlc.narg(repo_id) IS NULL OR repo_id = sqlc.narg(repo_id))
+  AND committed_at >= sqlc.arg(since);
+
+-- name: ContributorRepoBreakdown :many
+-- Commits de chaque auteur par depot : nombre et dernier commit ; tri par auteur, commits decroissants, depot.
+SELECT c.author_id AS contributor_id, c.repo_id,
+       r.owner AS repo_owner, r.name AS repo_name, r.label AS repo_label,
+       count(*) AS commits,
+       CAST(max(c.committed_at) AS TEXT) AS last_commit_at
+FROM commits c
+JOIN repositories r ON r.id = c.repo_id
+WHERE c.author_id IS NOT NULL
+GROUP BY c.author_id, c.repo_id
+ORDER BY c.author_id, commits DESC, c.repo_id;
+
+-- name: LastSyncFinishedAt :one
+-- Fin de la synchro la plus recente, tous depots et tous statuts confondus ; chaine vide si aucune.
+SELECT CAST(COALESCE(max(finished_at), '') AS TEXT) AS last_finished_at
+FROM sync_runs
+WHERE finished_at IS NOT NULL;

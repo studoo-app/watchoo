@@ -33,7 +33,7 @@ uniquement avec `gh auth token` et ne le stocke jamais (voir
 | `watchoo log [--repo X] [--author Y] [--branch B] [--since 7d] [-n 20]` | Derniers commits filtrés | MVP |
 | `watchoo contributors [--repo X] [--since 30d]` | Classement des contributeurs | MVP |
 | `watchoo status` | Résumé : dépôts à jour, inactifs, en erreur, quota API restant, compte `gh` utilisé et ses droits (sans afficher le token) | MVP |
-| `watchoo serve [--addr :8080] [--interval 30m]` | Lance l'interface web et la synchro périodique (30 min par défaut, 15 min minimum) | MVP |
+| `watchoo serve [--addr 127.0.0.1:8080] [--interval 30m]` | Lance l'interface web et la synchro périodique (30 min par défaut, 15 min minimum) | MVP |
 | `watchoo tui [--interval 30m]` | Ouvre le mode interactif dans le terminal | MVP |
 
 ### Détails
@@ -88,7 +88,16 @@ uniquement avec `gh auth token` et ne le stocke jamais (voir
   RFC 3339 ou `null`) ; son format est vérifié par les tests. Les erreurs vont sur la sortie d'erreur.
 - **Hors espace** : toutes les commandes sauf `init`, `version` et `help` s'arrêtent avec « aucun espace
   Watchoo ici, lancez « watchoo init » (ou indiquez un espace avec -C <répertoire>) ».
-- **`serve`** écoute sur `127.0.0.1` par défaut (voir [Interface web](06-interface-web.md)).
+- **`serve`** écoute sur `web.addr` (`127.0.0.1:8080` par défaut ; `--addr` le remplace) et affiche
+  l'URL à ouvrir (carte d'en-tête sur un terminal). Hors boucle locale (`127.0.0.0/8`, `::1`,
+  `localhost`), il refuse de démarrer sans authentification : `web.auth.username` avec le mot de passe
+  dans la variable `WATCHOO_WEB_PASSWORD` (12 caractères au moins, jamais dans un fichier), ou
+  `web.trusted_proxy: true` derrière un reverse proxy authentifiant, avec ses noms publics dans
+  `web.allowed_hosts` (avertissement au démarrage ; sans `web.allowed_hosts`, refus). Port
+  déjà pris : message clair. `--interval` comme pour `tui` (`0` = synchro manuelle seule) ; au démarrage,
+  une synchro n'est lancée que si la dernière date de plus d'un intervalle. `--json` est refusé. Ctrl+C
+  (ou SIGTERM) arrête proprement : plus de nouvelle requête, synchro en cours annulée et attendue, base
+  fermée ensuite. Voir [Interface web](06-interface-web.md).
 - `watchoo help [commande]` et l'option `-h` / `--help` affichent l'aide en français. Il n'y a pas de
   commande `completion` (celle que `cobra` ajoute d'office est désactivée : son aide est en anglais).
 - **`--version`**, option de `watchoo` seul (`watchoo init --version` est refusée), a le même effet que

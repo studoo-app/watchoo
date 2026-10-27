@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   check:
-    name: vet, gofmt, tests, sqlc
+    name: vet, gofmt, tests, sqlc, css
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -56,6 +56,25 @@ jobs:
           # Ceinture et bretelles : rien ne doit avoir changé dans l'arbre suivi par Git.
           git diff --exit-code -- internal/store/db
           test -z "$(git status --porcelain -- internal/store/db)"
+
+      # CLI autonome de Tailwind CSS (sans Node ni npm), version et empreinte de
+      # internal/web/tailwind/VERSIONS, téléchargée depuis la release GitHub officielle.
+      - name: Installation de la CLI Tailwind CSS
+        env:
+          TAILWIND_VERSION: '4.3.3'
+          TAILWIND_SHA256: 'dc61b3ac6b8c9ca874c0cc4c57b2409791a64c5540404ca5f5367360babc313a'
+        run: |
+          mkdir -p "$RUNNER_TEMP/tailwind"
+          curl -fsSL --proto '=https' --tlsv1.2 -o "$RUNNER_TEMP/tailwind/tailwindcss" \
+            "https://github.com/tailwindlabs/tailwindcss/releases/download/v${TAILWIND_VERSION}/tailwindcss-linux-x64"
+          echo "${TAILWIND_SHA256}  $RUNNER_TEMP/tailwind/tailwindcss" | sha256sum --check --strict
+          chmod +x "$RUNNER_TEMP/tailwind/tailwindcss"
+          echo "$RUNNER_TEMP/tailwind" >> "$GITHUB_PATH"
+
+      - name: CSS de l'interface web à jour
+        run: |
+          make css-check
+          git diff --exit-code -- internal/web/static/app.css
 
       - name: Compilation
         run: make build

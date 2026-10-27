@@ -22,10 +22,11 @@ import (
 // (COLLATE NOCASE de SQLite), et l'e-mail après mise en minuscules.
 func (s *Store) ListRecentCommits(ctx context.Context, f CommitFilter) ([]CommitView, error) {
 	params := db.ListRecentCommitsParams{
-		RepoID:   optionalID(f.RepoID),
-		Since:    optionalTime(f.Since),
-		Branch:   optionalString(f.Branch),
-		RowLimit: rowLimit(f.Limit),
+		RepoID:    optionalID(f.RepoID),
+		Since:     optionalTime(f.Since),
+		Branch:    optionalString(f.Branch),
+		RowLimit:  rowLimit(f.Limit),
+		RowOffset: int64(max(f.Offset, 0)),
 	}
 	if author := strings.TrimSpace(f.Author); author != "" {
 		params.Author = author
@@ -35,24 +36,9 @@ func (s *Store) ListRecentCommits(ctx context.Context, f CommitFilter) ([]Commit
 	if err != nil {
 		return nil, fmt.Errorf("liste des commits : %w", err)
 	}
-	views := make([]CommitView, 0, len(rows))
-	for _, row := range rows {
-		commit, err := commitFromDB(db.Commit{
-			RepoID: row.RepoID, SHA: row.SHA, AuthorID: row.AuthorID, CommitterID: row.CommitterID,
-			Message: row.Message, AuthoredAt: row.AuthoredAt, CommittedAt: row.CommittedAt,
-			Additions: row.Additions, Deletions: row.Deletions, URL: row.URL,
-		})
-		if err != nil {
-			return nil, err
-		}
-		views = append(views, CommitView{
-			Commit:      commit,
-			RepoOwner:   row.RepoOwner,
-			RepoName:    row.RepoName,
-			RepoLabel:   row.RepoLabel,
-			AuthorName:  row.AuthorName,
-			AuthorLogin: row.AuthorLogin,
-		})
+	views, err := commitViewsFromRows(rows)
+	if err != nil {
+		return nil, err
 	}
 	return views, nil
 }

@@ -42,9 +42,16 @@ name: "licence-projet"
 #   exclude: []              # ex. ["dependabot/*", "renovate/*"]
 
 # Interface web (« watchoo serve »). Écouter ailleurs que sur 127.0.0.1
-# exposerait les données des dépôts privés : l'authentification devient obligatoire.
+# exposerait les données des dépôts privés : l'authentification devient obligatoire
+# (auth.username et la variable WATCHOO_WEB_PASSWORD, jamais dans ce fichier,
+# ou trusted_proxy: true derrière un reverse proxy qui authentifie, avec ses noms
+# publics dans allowed_hosts : l'en-tête Host est toujours contrôlé, contre le DNS rebinding).
 # web:
 #   addr: "127.0.0.1:8080"   # hôte:port
+#   trusted_proxy: false     # true : un reverse proxy authentifiant protège l'accès
+#   allowed_hosts: []        # noms publics acceptés dans Host, ex. ["watchoo.example.org"]
+#   auth:
+#     username: ""           # authentification basique ; mot de passe dans WATCHOO_WEB_PASSWORD
 
 # Fuseau horaire d'affichage et de regroupement par jour ou par semaine.
 # timezone: ""               # vide : fuseau du système ; sinon nom IANA, ex. "Europe/Paris"

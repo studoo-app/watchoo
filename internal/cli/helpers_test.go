@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io/fs"
 	"log/slog"
+	"net"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -85,6 +86,9 @@ type harness struct {
 	StdinTerminal bool
 	// RunTUI remplace tui.Run ; nil = un faux qui échoue (le TUI réel n'est jamais lancé).
 	RunTUI func(ctx context.Context, deps tui.Deps, term tui.IO) error
+	// Listen remplace net.Listen pour « watchoo serve » ; nil = un faux qui échoue (aucun test
+	// n'écoute sans le demander).
+	Listen func(network, address string) (net.Listener, error)
 }
 
 // newHarness isole l'environnement et renvoie un harness dont le répertoire courant est un
@@ -155,7 +159,13 @@ func (h *harness) runContext(ctx context.Context, args ...string) result {
 		Stdin:           strings.NewReader(h.Stdin),
 		StdinIsTerminal: func() bool { return h.StdinTerminal },
 		RunTUI:          h.RunTUI,
+		Listen:          h.Listen,
 		Logger:          slog.Default(), // testLogs (TestMain)
+	}
+	if deps.Listen == nil {
+		deps.Listen = func(string, string) (net.Listener, error) {
+			return nil, errors.New("aucune écoute réseau dans ce test")
+		}
 	}
 	if deps.RunTUI == nil {
 		deps.RunTUI = func(context.Context, tui.Deps, tui.IO) error {

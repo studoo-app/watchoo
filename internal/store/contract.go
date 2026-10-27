@@ -99,6 +99,9 @@ type CommitFilter struct {
 	Branch string
 	Since  time.Time // committed_at >= Since ; zéro = pas de borne
 	Limit  int       // nombre maximum de commits ; 0 ou négatif = pas de limite
+	// Offset est le nombre de commits sautés avant le premier renvoyé (pagination, phase 4) ; 0 ou
+	// négatif = aucun. Ignoré par CountRecentCommits.
+	Offset int
 }
 
 // CommitView est une ligne de la vue « derniers commits » : le commit, son dépôt et son auteur.

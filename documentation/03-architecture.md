@@ -56,12 +56,14 @@ watchoo/
   cmd/watchoo/         main.go — point d'entrée
   internal/cli/        commandes cobra
   internal/tui/        mode interactif Bubble Tea
-  internal/web/        handlers, templates, static (embed)
+  internal/web/        handlers chi, middlewares de sécurité, rendu ; templates/ et static/ (embed) ;
+                       tailwind/ (source CSS, DaisyUI vendored, VERSIONS)
   internal/workspace/  espaces de supervision : init, recherche de .watchoo/, réglages
   internal/auth/       accès à gh (token, état de connexion) + faux gh pour les tests
   internal/provider/   interface Provider, types et erreurs ; providertest/ (faux Provider en mémoire)
     github/            implémentation GitHub, seul import de go-github ; githubtest/ (faux serveur)
-  internal/sync/       moteur de synchronisation (Engine : SyncAll, SyncRepo, AddRepositories)
+  internal/sync/       moteur de synchronisation (Engine : SyncAll, SyncRepo, AddRepositories) et
+                       coordinateur des synchros d'un processus long (Coordinator, « watchoo serve »)
   internal/activity/   règles d'activité (Actif / Flemme / Dead, états gris), formats courts
   internal/repoimport/ analyse des références de dépôts, de --branch et des fichiers d'import
   internal/textclean/  nettoyage des textes affichés (séquences d'échappement, contrôles), CLI et TUI
@@ -376,9 +378,17 @@ Les dépôts suivis sont principalement **privés**. Conséquences :
 ### Routeur : go-chi/chi
 - Retenu pour une implémentation propre : les routes sont regroupées par zone (pages, fragments HTMX,
   réglages, assets statiques), chacune avec ses middlewares.
-- Middlewares chi utilisés : `RequestID`, `RealIP`, `Recoverer`, `Timeout`, plus un logger branché sur
-  `log/slog`. L'authentification basique (en cas d'exposition réseau) se branche sur le groupe concerné.
+- **Réalisation (phase 4)** : `go-chi/chi/v5`. Middlewares, dans l'ordre : récupération de panique
+  (page 500 en français, sans détail), journal d'accès `slog` (motif de route, code, durée), en-têtes de
+  sécurité (CSP…), contrôle de l'en-tête `Host` (DNS rebinding), authentification basique (toutes les
+  routes), taille des corps bornée, CSRF, puis `middleware.Timeout` de chi. `RequestID` n'est pas
+  utilisé (rien à corréler) ; `RealIP` non plus : il ferait confiance à `X-Forwarded-For`, falsifiable,
+  et le journal ne contient de toute façon aucune adresse IP. Récupération et journal sont écrits pour
+  Watchoo (messages en français, aucune donnée personnelle).
 - Les handlers restent des `http.Handler` standard : aucune dépendance de chi dans la logique métier.
+- Le package `internal/web` n'a aucune logique métier : il lit `internal/store`, calcule les états avec
+  `internal/activity` et pilote les synchros par `wsync.Coordinator` (une seule à la fois, synchro
+  périodique, arrêt propre : voir [Interface web](06-interface-web.md#synchronisation-en-arrière-plan)).
 
 ### CSS : DaisyUI
 - Pico.css est écarté car il n'est plus maintenu ; on prend **DaisyUI**, un plugin de Tailwind CSS.
@@ -392,6 +402,17 @@ Les dépôts suivis sont principalement **privés**. Conséquences :
   fichier commité est à jour.
 - La version CDN de DaisyUI reste tolérée pour prototyper au début de la phase 4, jamais dans une version
   distribuée.
+- **Réalisation (phase 4)** : DaisyUI 5 pour Tailwind CSS v4, sous forme du bundle autonome
+  `daisyui.mjs` de la release GitHub officielle, vendored dans `internal/web/tailwind/` (empreinte
+  SHA-256 dans `tailwind/VERSIONS`, vérifiée par un test) ; il n'est lu que par la CLI autonome de
+  Tailwind, jamais exécuté autrement. Source : `tailwind/input.css` (`@import "tailwindcss"
+  source(none)`, `@source` vers les templates, les fichiers Go et le JavaScript de `internal/web`,
+  `@plugin "./daisyui.mjs"` avec les thèmes `light` par défaut et `dark` si le système le préfère).
+  `make css` lance `tailwindcss -i internal/web/tailwind/input.css -o internal/web/static/app.css
+  --minify` ; `make css-check` régénère dans un fichier temporaire et compare. La CI installe la CLI de
+  la version fixée (release GitHub officielle `tailwindlabs/tailwindcss`, empreinte vérifiée) et lance
+  `css-check` ; en local, `make check` saute `css-check` (avec un message) si la CLI est absente.
+  `app.css` est partagé par toutes les pages : chacun relance `make css` après avoir modifié un template.
 
 ### JavaScript : HTMX et Chart.js embarqués
 - **Décision** : HTMX et Chart.js sont **embarqués** dans le binaire. On n'utilise aucun CDN.
@@ -399,8 +420,15 @@ Les dépôts suivis sont principalement **privés**. Conséquences :
   `internal/web/static/vendor/` et commitée. Le numéro de version figure dans le nom du fichier (ex.
   `chart-4.x.y.min.js`).
 - Ces fichiers sont servis avec `embed`, comme le CSS. L'interface fonctionne hors ligne et n'envoie
-  aucune requête à un tiers.
+  aucune requête à un tiers (seule exception : les avatars GitHub de la page des contributeurs, voir
+  [Interface web](06-interface-web.md#3-contributeurs)).
 - Les mises à jour sont faites à la main, de façon volontaire, et notées dans le changelog.
+- **Réalisation (phase 4)** : HTMX 2.0.11 (`htmx-2.0.11.min.js`) et Chart.js 4.6.1
+  (`chart-4.6.1.umd.min.js`), chacun avec sa licence à côté. Téléchargés une fois depuis le registre
+  npm officiel (tarball vérifié contre l'intégrité `sha512` publiée par npm, puis fichier min extrait) ;
+  version, origine et empreinte SHA-256 de chaque fichier dans `internal/web/tailwind/VERSIONS`.
+  Fichiers versionnés servis avec un cache d'un an (`immutable`), les autres revalidés (`ETag`).
+  Chart.js n'est chargé que par la page de détail d'un dépôt.
 
 ### Distribution
 - Binaires multi-plateformes via GoReleaser, image Docker (phase 5).

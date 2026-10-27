@@ -28,7 +28,7 @@ func TestDefaultConfig(t *testing.T) {
 		Sync:     SyncConfig{Auto: true, Interval: 30 * time.Minute, Parallelism: 4},
 		Activity: ActivityConfig{FlemmeAfterDays: 5, DeadAfterDays: 15},
 		Branches: BranchesConfig{Exclude: []string{}},
-		Web:      WebConfig{Addr: "127.0.0.1:8080"},
+		Web:      WebConfig{Addr: "127.0.0.1:8080", Auth: WebAuthConfig{Username: ""}, TrustedProxy: false, AllowedHosts: []string{}},
 		Timezone: "",
 		GitHub:   GitHubConfig{User: "", GHPath: "gh"},
 	}
@@ -53,7 +53,7 @@ func TestSettingKeys(t *testing.T) {
 	wantKeys := []string{
 		"name", "sync.auto", "sync.interval", "sync.parallelism",
 		"activity.flemme_after_days", "activity.dead_after_days", "branches.exclude",
-		"web.addr", "timezone", "github.user", "github.gh_path",
+		"web.addr", "web.auth.username", "web.trusted_proxy", "web.allowed_hosts", "timezone", "github.user", "github.gh_path",
 	}
 	if !slices.Equal(keys, wantKeys) {
 		t.Errorf("clés = %v\nattendu %v", keys, wantKeys)
@@ -61,7 +61,7 @@ func TestSettingKeys(t *testing.T) {
 	wantEnvs := []string{
 		"WATCHOO_NAME", "WATCHOO_SYNC_AUTO", "WATCHOO_SYNC_INTERVAL", "WATCHOO_SYNC_PARALLELISM",
 		"WATCHOO_ACTIVITY_FLEMME_AFTER_DAYS", "WATCHOO_ACTIVITY_DEAD_AFTER_DAYS", "WATCHOO_BRANCHES_EXCLUDE",
-		"WATCHOO_WEB_ADDR", "WATCHOO_TIMEZONE", "WATCHOO_GITHUB_USER", "WATCHOO_GITHUB_GH_PATH",
+		"WATCHOO_WEB_ADDR", "WATCHOO_WEB_AUTH_USERNAME", "WATCHOO_WEB_TRUSTED_PROXY", "WATCHOO_WEB_ALLOWED_HOSTS", "WATCHOO_TIMEZONE", "WATCHOO_GITHUB_USER", "WATCHOO_GITHUB_GH_PATH",
 	}
 	if !slices.Equal(envs, wantEnvs) {
 		t.Errorf("variables = %v\nattendu %v", envs, wantEnvs)
@@ -70,12 +70,15 @@ func TestSettingKeys(t *testing.T) {
 
 func TestValidateAcceptsBoundaries(t *testing.T) {
 	cases := map[string]func(*Config){
-		"synchro manuelle seule":     func(c *Config) { c.Sync.Interval = 0 },
-		"intervalle minimum":         func(c *Config) { c.Sync.Interval = 15 * time.Minute },
-		"intervalle long":            func(c *Config) { c.Sync.Interval = 24 * time.Hour },
-		"parallélisme 1":             func(c *Config) { c.Sync.Parallelism = 1 },
-		"flemme 1, dead 2":           func(c *Config) { c.Activity = ActivityConfig{FlemmeAfterDays: 1, DeadAfterDays: 2} },
-		"motifs d'exclusion":         func(c *Config) { c.Branches.Exclude = []string{"dependabot/*", "renovate/*", "wip-?"} },
+		"synchro manuelle seule": func(c *Config) { c.Sync.Interval = 0 },
+		"intervalle minimum":     func(c *Config) { c.Sync.Interval = 15 * time.Minute },
+		"intervalle long":        func(c *Config) { c.Sync.Interval = 24 * time.Hour },
+		"parallélisme 1":         func(c *Config) { c.Sync.Parallelism = 1 },
+		"flemme 1, dead 2":       func(c *Config) { c.Activity = ActivityConfig{FlemmeAfterDays: 1, DeadAfterDays: 2} },
+		"motifs d'exclusion":     func(c *Config) { c.Branches.Exclude = []string{"dependabot/*", "renovate/*", "wip-?"} },
+		"noms publics du proxy": func(c *Config) {
+			c.Web.AllowedHosts = []string{"watchoo.example.org", "Watchoo-2.example.org", "192.168.1.5", "::1", "[fe80::1]"}
+		},
 		"toutes les interfaces":      func(c *Config) { c.Web.Addr = ":8080" },
 		"IPv6":                       func(c *Config) { c.Web.Addr = "[::1]:8080" },
 		"port choisi par le système": func(c *Config) { c.Web.Addr = "localhost:0" },
@@ -120,12 +123,26 @@ func TestValidateRejectsInvalidValues(t *testing.T) {
 			[]string{"branches.exclude", "n° 2", "vide"}},
 		{"motif invalide", func(c *Config) { c.Branches.Exclude = []string{"release/[a"} },
 			[]string{"branches.exclude", `"release/[a"`, "invalide"}},
+		{"nom public avec port", func(c *Config) { c.Web.AllowedHosts = []string{"watchoo.example.org:443"} },
+			[]string{"web.allowed_hosts", "n° 1", "invalide"}},
+		{"nom public joker", func(c *Config) { c.Web.AllowedHosts = []string{"ok.example.org", "*"} },
+			[]string{"web.allowed_hosts", "n° 2", `"*"`}},
+		{"nom public avec schéma", func(c *Config) { c.Web.AllowedHosts = []string{"https://watchoo.example.org"} },
+			[]string{"web.allowed_hosts", "invalide"}},
+		{"nom public vide", func(c *Config) { c.Web.AllowedHosts = []string{""} },
+			[]string{"web.allowed_hosts", "invalide"}},
 		{"adresse sans port", func(c *Config) { c.Web.Addr = "127.0.0.1" },
 			[]string{"web.addr", `"127.0.0.1"`, "hôte:port"}},
 		{"adresse vide", func(c *Config) { c.Web.Addr = "" }, []string{"web.addr", "hôte:port"}},
 		{"port vide", func(c *Config) { c.Web.Addr = "127.0.0.1:" }, []string{"web.addr", "port manquant"}},
 		{"port non numérique", func(c *Config) { c.Web.Addr = "127.0.0.1:80a" }, []string{"web.addr", `port "80a"`}},
 		{"port trop grand", func(c *Config) { c.Web.Addr = "127.0.0.1:70000" }, []string{"web.addr", "65535"}},
+		{"identifiant web avec deux-points", func(c *Config) { c.Web.Auth.Username = "prof:x" },
+			[]string{"web.auth.username", `"prof:x"`, "invalide"}},
+		{"identifiant web avec contrôle", func(c *Config) { c.Web.Auth.Username = "prof\n" },
+			[]string{"web.auth.username", "invalide"}},
+		{"identifiant web entouré d'espaces", func(c *Config) { c.Web.Auth.Username = " prof" },
+			[]string{"web.auth.username", "invalide"}},
 		{"fuseau inconnu", func(c *Config) { c.Timezone = "Mars/Olympus" },
 			[]string{"timezone", `"Mars/Olympus"`, "IANA"}},
 		{"chemin de gh vide", func(c *Config) { c.GitHub.GHPath = "" }, []string{"github.gh_path", "vide"}},
@@ -354,6 +371,7 @@ func TestLoadEnvironmentVariables(t *testing.T) {
 		"WATCHOO_ACTIVITY_DEAD_AFTER_DAYS":   "9",
 		"WATCHOO_BRANCHES_EXCLUDE":           "dependabot/*, renovate/*",
 		"WATCHOO_WEB_ADDR":                   "0.0.0.0:9090",
+		"WATCHOO_WEB_ALLOWED_HOSTS":          "watchoo.example.org, autre.example.org",
 		"WATCHOO_TIMEZONE":                   "America/Montreal",
 		"WATCHOO_GITHUB_USER":                "prof",
 		"WATCHOO_GITHUB_GH_PATH":             "/usr/local/bin/gh",
@@ -369,7 +387,7 @@ func TestLoadEnvironmentVariables(t *testing.T) {
 		Sync:     SyncConfig{Auto: false, Interval: 0, Parallelism: 1},
 		Activity: ActivityConfig{FlemmeAfterDays: 2, DeadAfterDays: 9},
 		Branches: BranchesConfig{Exclude: []string{"dependabot/*", "renovate/*"}},
-		Web:      WebConfig{Addr: "0.0.0.0:9090"},
+		Web:      WebConfig{Addr: "0.0.0.0:9090", AllowedHosts: []string{"watchoo.example.org", "autre.example.org"}},
 		Timezone: "America/Montreal",
 		GitHub:   GitHubConfig{User: "prof", GHPath: "/usr/local/bin/gh"},
 	}

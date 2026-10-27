@@ -2,9 +2,9 @@
 
 > Document de définition du projet — version du 26 octobre 2026 · Benoit
 >
-> Statut : **en développement**. Les phases 1 (fondations), 2 (provider GitHub) et 3 (moteur de synchro,
-> CLI et TUI) de la [roadmap](07-roadmap.md) sont réalisées ; ces pages décrivent l'outil complet, construit
-> phase par phase.
+> Statut : **en développement**. Les phases 1 (fondations), 2 (provider GitHub), 3 (moteur de synchro,
+> CLI et TUI) et 4 (interface web) de la [roadmap](07-roadmap.md) sont réalisées ; ces pages décrivent
+> l'outil complet, construit phase par phase.
 
 Watchoo est un binaire Go unique qui surveille une liste de dépôts GitHub et répond à trois questions :
 **qu'est-ce qui a bougé, quand, et qui l'a fait.** Il s'utilise en ligne de commande (CLI) ou via une

@@ -1,0 +1,18 @@
+{{/*
+  Pages d'erreur (socle). Donnée : PageData avec Content de type ErrorView (render.go).
+  « error-alert » est la réponse à une requête HTMX en erreur.
+*/}}
+{{define "content"}}
+<section class="hero py-16">
+  <div class="hero-content text-center">
+    <div class="max-w-md">
+      <p class="text-6xl font-bold text-base-content/30">{{.Content.Status}}</p>
+      <h1 class="text-2xl font-bold mt-2">{{.Content.Heading}}</h1>
+      <p class="py-4">{{.Content.Message}}</p>
+      {{if not .Public}}<a href="/" class="btn btn-primary">Retour au tableau de bord</a>{{end}}
+    </div>
+  </div>
+</section>
+{{end}}
+
+{{define "error-alert"}}<div role="alert" class="alert alert-error my-2"><span><strong>{{.Content.Heading}}</strong> : {{.Content.Message}}</span></div>{{end}}

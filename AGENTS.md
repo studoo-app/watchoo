@@ -9,14 +9,18 @@ trois questions : qu'est-ce qui a bougé, quand, et qui l'a fait. Il propose une
 (`watchoo tui`) et une interface web locale (`watchoo serve`). Chaque groupe supervisé (ex. les projets des
 étudiants d'une promotion) vit dans son propre répertoire, initialisé par `watchoo init`.
 
-**État actuel : phases 1 (fondations), 2 (provider GitHub) et 3 (moteur de synchro, CLI, TUI) en place.**
-`watchoo init` crée un espace de supervision ; `repo add / import / list / remove`, `sync`, `log`,
-`contributors` et `status` fonctionnent en texte et en `--json` ; `watchoo tui` ouvre le mode interactif.
-Le cœur métier est dans `internal/sync` (moteur : synchro incrémentale, verrou, quota, ajout de dépôts),
-`internal/activity` (états Actif / Flemme / Dead et gris) et `internal/repoimport` (références, motifs
-`--branch`, fichiers d'import) ; `internal/cli` et `internal/tui` ne font qu'afficher. Un test de bout en
-bout (`internal/cli/e2e_test.go`) enchaîne les commandes avec le faux `gh` et `githubtest`. La prochaine
-étape est la phase 4 de la [roadmap](documentation/07-roadmap.md) (interface web).
+**État actuel : phases 1 (fondations), 2 (provider GitHub), 3 (moteur de synchro, CLI, TUI) et 4
+(interface web) en place.** `watchoo init` crée un espace de supervision ; `repo add / import / list /
+remove`, `sync`, `log`, `contributors` et `status` fonctionnent en texte et en `--json` ; `watchoo tui`
+ouvre le mode interactif ; `watchoo serve` sert l'interface web locale (tableau de bord, détail d'un dépôt
+avec graphique d'activité, contributeurs, réglages) et synchronise en arrière-plan. Le cœur métier est
+dans `internal/sync` (moteur : synchro incrémentale, verrou, quota, ajout de dépôts ; `Coordinator` :
+une seule synchro à la fois dans un processus long), `internal/activity` (états Actif / Flemme / Dead et
+gris, série d'activité par jour) et `internal/repoimport` (références, motifs `--branch`, fichiers
+d'import) ; `internal/cli`, `internal/tui` et `internal/web` ne font qu'afficher. Deux tests de bout en
+bout enchaînent les commandes (`internal/cli/e2e_test.go`) et les pages web
+(`internal/web/e2e_test.go`) avec le faux `gh` et `githubtest`. La prochaine étape est la phase 5 de la
+[roadmap](documentation/07-roadmap.md) (finitions MVP : GoReleaser, Docker, `CHANGELOG.md`).
 
 ## Documentation de référence
 
@@ -60,7 +64,7 @@ Bubble Tea + bubbles + lipgloss · log/slog · errgroup. Détail et justificatio
 cmd/watchoo/          point d'entrée
 internal/cli/         commandes cobra (affichage seulement)
 internal/tui/         mode interactif Bubble Tea (affichage seulement)
-internal/web/         handlers chi, templates, static (embed)
+internal/web/         handlers chi, templates, static (embed), tailwind/ (CSS DaisyUI, VERSIONS)
 internal/workspace/   espaces de supervision : init, recherche de .watchoo/, réglages
 internal/auth/        accès à gh (token, état de connexion)
 internal/provider/    interface Provider, types, erreurs ; providertest/ (faux Provider)
@@ -84,14 +88,14 @@ make fmt-check    # échoue si gofmt -l trouve un fichier
 make sqlc         # sqlc generate
 make sqlc-check   # échoue si internal/store/db n'est pas à jour
 make check        # tous les contrôles, comme la CI (.github/workflows/ci.yml)
-make css          # (phase 4) CSS DaisyUI généré par la CLI autonome Tailwind
-make logo         # recopie assets/logo/*.txt dans internal/logo/art/ (copie embarquée)
+make css          # CSS DaisyUI généré par la CLI autonome Tailwind (make css-check : à jour ?)
+make logo         # recopie assets/logo dans internal/logo/art/ et internal/web/static/ (copies embarquées)
 ```
 
 - `sqlc generate` après toute modification de `internal/store/queries/` ou des migrations ; le code
   généré (`internal/store/db/`) est commité et **jamais modifié à la main**.
 - `make css` après toute modification des templates ; `internal/web/static/app.css` est commité.
-- `make logo` après toute modification de `assets/logo/*.txt` ; un test vérifie que la copie est à jour.
+- `make logo` après toute modification de `assets/logo/` ; des tests vérifient que les copies sont à jour.
 
 ## Règles d'architecture
 

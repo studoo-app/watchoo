@@ -6,6 +6,7 @@ require (
 	charm.land/bubbles/v2 v2.2.1
 	charm.land/bubbletea/v2 v2.1.0
 	charm.land/lipgloss/v2 v2.0.6
+	github.com/go-chi/chi/v5 v5.5.0
 	github.com/google/go-github/v93 v93.0.0
 	github.com/mattn/go-isatty v0.0.24
 	github.com/pressly/goose/v3 v3.29.0

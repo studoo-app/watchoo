@@ -1,0 +1,21 @@
+# Fichiers vendored de l'interface web : origine, version et empreinte SHA-256 de chaque fichier.
+# Téléchargés une fois, à la main, vérifiés, puis commités ; mise à jour volontaire seulement
+# (nouveau nom de fichier pour HTMX et Chart.js, mise à jour de ce fichier et de assets.go / des
+# templates, mention dans le changelog). Un test vérifie que les empreintes correspondent.
+#
+# HTMX et Chart.js : tarball du registre npm officiel (https://registry.npmjs.org/<paquet>/-/…),
+# vérifié contre le champ dist.integrity (sha512) publié par npm, puis fichier min extrait.
+# DaisyUI : bundle autonome de la release GitHub officielle saadeghi/daisyui, vérifié contre
+# l'empreinte sha256 publiée par GitHub pour l'asset.
+# Tailwind CSS : CLI autonome, non vendored (installée par le développeur et par la CI, depuis la
+# release GitHub officielle tailwindlabs/tailwindcss, empreinte vérifiée par la CI).
+#
+# format : chemin (relatif à internal/web)  version  sha256  origine
+
+static/vendor/htmx-2.0.11.min.js  2.0.11  d6fdc75f204e6bdefa99b69bf1e6d4ac69b8a364f77929f45c13476b4000f717  npm htmx.org@2.0.11 (dist/htmx.min.js ; tarball sha512-Thx/WtpeOQqSrqBCw/A1cwGJGg4UrVa3+sW0GmrM3p4gJgO89ecH4qtbnyzDDWFvBTqjnIMCgELTNt636dtamA==)
+static/vendor/htmx-2.0.11.LICENSE  2.0.11  d3d2456f76414f2456104660ebd65aff1c04cd7966b942bdabd63f3cdb316a38  npm htmx.org@2.0.11 (LICENSE, 0BSD)
+static/vendor/chart-4.6.1.umd.min.js  4.6.1  87364cc2b2a76a6684929e7d6b80b18a897794db38400caff1fcf1791c6925d2  npm chart.js@4.6.1 (dist/chart.umd.min.js ; tarball sha512-hJyniucsFmq//EvXYvJ6c6mahPoI3kaxdjVH8awTaJ/fDNWeSqqqArixMJWkWNN6fcYvPU3HneSANFNYtRi61g==)
+static/vendor/chart-4.6.1.LICENSE.md  4.6.1  41a84aa2caba645f966a18d9c2056b73e6d3a81d80bc0046bc0011a2634d4cce  npm chart.js@4.6.1 (LICENSE.md, MIT)
+tailwind/daisyui.mjs  5.7.50  d69de07c7463bb1f41548e2688f88ee105cdadf9779fce5b3c47b3bfaa6be472  github saadeghi/daisyui v5.7.50 (asset daisyui.mjs)
+tailwind/daisyui.LICENSE  5.7.50  8709e3ac65c84637c422dc8082b893d9997fce093751c77b2f1983bf29dbf9ea  github saadeghi/daisyui v5.7.50 (LICENSE, MIT)
+tailwindcss  4.3.3  dc61b3ac6b8c9ca874c0cc4c57b2409791a64c5540404ca5f5367360babc313a  github tailwindlabs/tailwindcss v4.3.3 (asset tailwindcss-linux-x64, CI)

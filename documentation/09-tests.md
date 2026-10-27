@@ -148,6 +148,52 @@ Deux faux, écrits en phase 2 et réutilisés par les phases suivantes :
   sorties ni dans les logs ; les tests du moteur vérifient aussi l'absence de nom, d'e-mail, de login et
   de message de commit dans les logs et les rapports.
 
+## Phase 4 : interface web
+
+- **Store et activité** : historique paginé avec total (`CommitPage` : bornes, filtres), dates de commit
+  depuis une date (`CommitTimes`), commits par contributeur et par dépôt, fin de la dernière synchro ;
+  série d'activité par jour (`activity.DailyCounts` : 90 jours, fuseau, changement d'heure, dates hors
+  fenêtre).
+- **Coordinateur** (`internal/sync`, faux `Syncer` suspendu, minuterie simulée) : synchro au démarrage
+  seulement si la dernière date de plus d'un intervalle, synchro périodique, synchro manuelle refusée
+  pendant une synchro, progression, erreur globale, changement d'intervalle (bornes), arrêt qui annule
+  et attend la synchro, délai d'arrêt dépassé ; un scénario avec le vrai moteur.
+- **Web** (`internal/web/`, `httptest` sur le routeur complet, base temporaire remplie de données
+  factices, vrai moteur sur `providertest` et `authtest`) : chaque page (200, contenu clé, message de
+  commit contenant `<script>` échappé), 404 et 405 en français, pagination et filtres, fragments HTMX
+  (en-tête `HX-Request`), `POST` sans jeton CSRF, avec un mauvais jeton ou d'une origine étrangère
+  refusés (`403`, rien n'est modifié), aucun `GET` qui modifie, `Host` étranger refusé (`421`, page qui
+  ne montre rien de l'espace), y compris derrière `web.trusted_proxy` (noms de `web.allowed_hosts`
+  acceptés), authentification basique (bon et mauvais identifiants, statiques
+  compris), en-têtes de sécurité (CSP sans `unsafe-inline` ni `unsafe-eval`), journal d'accès sans
+  query string, corps trop gros, panique rattrapée, synchro manuelle concurrente refusée, progression et
+  `HX-Trigger: sync-finished` (aussi pour une synchro finie avant la réponse au `POST`), boutons de
+  synchro jamais désactivés au rendu, arrêt propre de `Serve` (synchro en cours annulée), fichiers statiques
+  (Content-Type, cache, `ETag` et `304`), copies des logos identiques à `assets/logo`, `app.css` présent
+  et à jour, empreintes de `tailwind/VERSIONS`, et ni token ni e-mail dans aucune réponse ni dans le
+  journal.
+- **Pages** : tableau de bord (tri Dead, Flemme, Actif puis gris, compteurs, fil limité à 20, URL de
+  commit en `javascript:` neutralisée, espace vide) ; détail (chaque état, suivi arrêté sans bouton de
+  synchro, pagination sur 120 commits avec bornes, filtres branche et auteur gardés d'une page à l'autre,
+  filtre contenant un e-mail ignoré, `HX-Push-Url`, données du graphique dans le fuseau d'affichage) ;
+  contributeurs (classement, commits par dépôt, avatar seulement depuis `avatars.githubusercontent.com`
+  avec `referrerpolicy` et `loading`, échappement) ; réglages (ajout, déjà suivi, saisies refusées sans
+  rien créer, dépôt inaccessible `422`, erreur GitHub `502` sans détail, modification, confirmation de
+  retrait en `GET` qui ne modifie rien, arrêt du suivi, reprise, suppression refusée pendant une
+  synchro, intervalle et ses bornes, fragment de quota, messages `?msg=` jamais recopiés).
+- **Bout en bout** (`internal/web/e2e_test.go`) : routeur complet, vrai moteur et vrai coordinateur,
+  vrai provider GitHub sur `githubtest`, faux `gh` (`authtest`) ; ajout de dépôts depuis les réglages
+  (`POST` avec CSRF ; dépôt caché refusé ; sans jeton : `403`), synchro manuelle par le bouton,
+  `HX-Trigger: sync-finished`, tableau de bord avec les trois états dans le bon ordre, détail avec
+  pagination et filtres, nouvelle synchro sans commit re-téléchargé, contributeurs, arrêt du suivi puis
+  suppression depuis les réglages ; uniquement des `GET` vers GitHub, et ni token ni e-mail dans les
+  réponses ou le journal.
+- **CLI** (`watchoo serve`) : `--json` et arguments refusés, `--interval` et `--addr` invalides, refus
+  hors boucle locale sans authentification (aucune écoute ouverte), règles du mot de passe, port déjà
+  pris, démarrage réel sur un port libre de `127.0.0.1` (fragment et CSS servis), carte d'en-tête,
+  avertissement du reverse proxy, authentification basique, synchro au démarrage puis pas de nouvelle
+  synchro après une synchro récente, arrêt propre (code 0).
+
 ## Logo et carte d'en-tête
 
 - Les copies embarquées dans `internal/logo/art/` sont identiques octet pour octet à `assets/logo/*.txt`
@@ -163,6 +209,7 @@ Deux faux, écrits en phase 2 et réutilisés par les phases suivantes :
 
 1. `go vet` et les tests (`go test ./...`, avec le détecteur de concurrence `-race`).
 2. `sqlc generate` puis vérification qu'aucun fichier généré ne change (code commité à jour).
-3. `make css` puis vérification que `app.css` commité est à jour.
+3. `make css-check` (CLI autonome Tailwind de la version fixée dans `internal/web/tailwind/VERSIONS`,
+   installée avec vérification SHA-256) : `app.css` commité est à jour.
 4. Aucune variable `GH_TOKEN` / `GITHUB_TOKEN` n'est fournie aux tests : un test qui aurait besoin du vrai
    GitHub échoue au lieu de passer en silence.

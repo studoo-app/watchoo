@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"net/netip"
 	"os"
 	"path"
 	"path/filepath"
@@ -90,9 +91,36 @@ type BranchesConfig struct {
 // WebConfig regroupe les réglages de l'interface web (clés web.*).
 type WebConfig struct {
 	// Addr est l'adresse d'écoute de « watchoo serve », sous la forme hôte:port
-	// (défaut « 127.0.0.1:8080 »).
+	// (défaut « 127.0.0.1:8080 »). Hors boucle locale (127.0.0.0/8, ::1, localhost), « serve »
+	// refuse de démarrer sans authentification : web.auth.username (avec le mot de passe dans la
+	// variable WATCHOO_WEB_PASSWORD) ou web.trusted_proxy.
 	Addr string `mapstructure:"addr"`
+	// Auth règle l'authentification basique HTTP de « watchoo serve ».
+	Auth WebAuthConfig `mapstructure:"auth"`
+	// TrustedProxy déclare qu'un reverse proxy authentifiant protège l'interface (défaut false) :
+	// « serve » accepte alors d'écouter hors boucle locale sans authentification basique, avec un
+	// avertissement au démarrage.
+	TrustedProxy bool `mapstructure:"trusted_proxy"`
+	// AllowedHosts liste les noms (ou adresses IP), sans port, acceptés dans l'en-tête Host en plus
+	// de localhost, 127.0.0.1, [::1] et de l'hôte écouté (vide par défaut) : les noms publics qu'un
+	// reverse proxy transmet. Le contrôle de l'en-tête Host protège du DNS rebinding ; il reste
+	// actif avec trusted_proxy, et ce réglage est alors obligatoire hors boucle locale sans
+	// authentification basique. En variable d'environnement : liste séparée par des virgules.
+	AllowedHosts []string `mapstructure:"allowed_hosts"`
 }
+
+// WebAuthConfig regroupe l'authentification basique de l'interface web (clés web.auth.*). Le mot de
+// passe n'est JAMAIS dans la configuration : « watchoo serve » le lit dans la variable
+// d'environnement WebPasswordEnv, et ne le journalise jamais.
+type WebAuthConfig struct {
+	// Username est l'identifiant de l'authentification basique ; vide = pas d'authentification
+	// basique. Sans « : » ni caractère de contrôle.
+	Username string `mapstructure:"username"`
+}
+
+// WebPasswordEnv est la variable d'environnement qui porte le mot de passe de l'authentification
+// basique de « watchoo serve » (jamais un réglage de fichier).
+const WebPasswordEnv = "WATCHOO_WEB_PASSWORD"
 
 // GitHubConfig regroupe les réglages d'accès à GitHub via la CLI gh (clés github.*).
 // Aucun token n'est jamais lu ni stocké dans la configuration.
@@ -110,7 +138,7 @@ type GitHubConfig struct {
 //	sync: {auto: true, interval: 30m, parallelism: 4}
 //	activity: {flemme_after_days: 5, dead_after_days: 15}
 //	branches: {exclude: []}       (slice vide non nil)
-//	web: {addr: "127.0.0.1:8080"}
+//	web: {addr: "127.0.0.1:8080", auth: {username: ""}, trusted_proxy: false, allowed_hosts: []}
 //	timezone: ""
 //	github: {user: "", gh_path: "gh"}
 func DefaultConfig(name string) Config {
@@ -126,7 +154,7 @@ func DefaultConfig(name string) Config {
 			DeadAfterDays:   DefaultDeadAfterDays,
 		},
 		Branches: BranchesConfig{Exclude: []string{}},
-		Web:      WebConfig{Addr: DefaultWebAddr},
+		Web:      WebConfig{Addr: DefaultWebAddr, Auth: WebAuthConfig{Username: ""}, TrustedProxy: false, AllowedHosts: []string{}},
 		Timezone: "",
 		GitHub:   GitHubConfig{User: "", GHPath: DefaultGHPath},
 	}
@@ -142,6 +170,8 @@ func DefaultConfig(name string) Config {
 //   - activity.flemme_after_days >= 1 et activity.dead_after_days > activity.flemme_after_days ;
 //   - branches.exclude : chaque motif non vide et valide pour path.Match ;
 //   - web.addr de la forme hôte:port (net.SplitHostPort), port numérique entre 0 et 65535 ;
+//   - web.auth.username sans « : » (séparateur de l'authentification basique) ni caractère de
+//     contrôle, et sans espace autour ;
 //   - timezone vide ou accepté par time.LoadLocation ;
 //   - github.gh_path non vide.
 func (c Config) Validate() error {
@@ -190,6 +220,16 @@ func (c Config) Validate() error {
 	if err := validateAddr(c.Web.Addr); err != nil {
 		errs = append(errs, err)
 	}
+	if u := c.Web.Auth.Username; strings.ContainsRune(u, ':') ||
+		strings.ContainsFunc(u, func(r rune) bool { return r < 0x20 || r == 0x7f }) || strings.TrimSpace(u) != u {
+		add("web.auth.username : %q invalide (ni « : », ni caractère de contrôle, ni espace autour)", u)
+	}
+	for i, h := range c.Web.AllowedHosts {
+		if !validHostName(h) {
+			add("web.allowed_hosts : le nom n° %d (%q) est invalide (nom d'hôte ou adresse IP, sans port, "+
+				"ni schéma, ni joker ; ex. « watchoo.example.org »)", i+1, h)
+		}
+	}
 
 	if c.Timezone != "" {
 		if _, err := time.LoadLocation(c.Timezone); err != nil {
@@ -204,6 +244,21 @@ func (c Config) Validate() error {
 	}
 
 	return errors.Join(errs...)
+}
+
+// validHostName indique si h est un nom d'hôte (lettres, chiffres, « - » et « . », 253 caractères au
+// plus) ou une adresse IP (IPv6 éventuellement entre crochets), sans port.
+func validHostName(h string) bool {
+	if ip := strings.TrimSuffix(strings.TrimPrefix(h, "["), "]"); strings.Contains(ip, ":") {
+		_, err := netip.ParseAddr(ip)
+		return err == nil
+	}
+	if h == "" || len(h) > 253 || strings.HasPrefix(h, ".") || strings.HasPrefix(h, "-") {
+		return false
+	}
+	return !strings.ContainsFunc(h, func(r rune) bool {
+		return !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '-' || r == '.')
+	})
 }
 
 // validateAddr vérifie web.addr : hôte:port, l'hôte pouvant être vide (« :8080 », toutes les
@@ -812,10 +867,17 @@ func ConfigTemplate(name string) string {
 	text(
 		"",
 		"# Interface web (« watchoo serve »). Écouter ailleurs que sur 127.0.0.1",
-		"# exposerait les données des dépôts privés : l'authentification devient obligatoire.",
+		"# exposerait les données des dépôts privés : l'authentification devient obligatoire",
+		"# (auth.username et la variable "+WebPasswordEnv+", jamais dans ce fichier,",
+		"# ou trusted_proxy: true derrière un reverse proxy qui authentifie, avec ses noms",
+		"# publics dans allowed_hosts : l'en-tête Host est toujours contrôlé, contre le DNS rebinding).",
 		"# web:",
 	)
 	setting("  addr: "+strconv.Quote(DefaultWebAddr), "hôte:port")
+	setting(fmt.Sprintf("  trusted_proxy: %t", false), "true : un reverse proxy authentifiant protège l'accès")
+	setting("  allowed_hosts: []", `noms publics acceptés dans Host, ex. ["watchoo.example.org"]`)
+	text("#   auth:")
+	setting(`    username: ""`, "authentification basique ; mot de passe dans "+WebPasswordEnv)
 	text(
 		"",
 		"# Fuseau horaire d'affichage et de regroupement par jour ou par semaine.",

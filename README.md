@@ -6,10 +6,11 @@
 Watchoo surveille une liste de dépôts GitHub et vous montre
 d'un coup d'œil leur activité : les nouveaux commits, les contributeurs, et les dépôts qui ne bougent plus.
 
-> 🚧 **Projet en développement.** Les phases 1 à 3 de la [roadmap](documentation/07-roadmap.md) sont en
-> place : Watchoo s'utilise en terminal, en ligne de commande (`repo add`, `repo import`, `sync`, `log`,
-> `contributors`, `status`…) comme en mode interactif (`watchoo tui`). L'interface web (`watchoo serve`)
-> arrive avec la phase 4 ; la [documentation](documentation/README.md) définit l'outil complet.
+> 🚧 **Projet en développement.** Les phases 1 à 4 de la [roadmap](documentation/07-roadmap.md) sont en
+> place : Watchoo s'utilise en ligne de commande (`repo add`, `repo import`, `sync`, `log`,
+> `contributors`, `status`…), en mode interactif (`watchoo tui`) et dans le navigateur (`watchoo serve`).
+> Les binaires prêts à l'emploi arrivent avec la phase 5 ; la [documentation](documentation/README.md)
+> définit l'outil complet.
 
 ## Pour qui ?
 
@@ -42,6 +43,7 @@ watchoo init                          # crée l'espace de supervision
 watchoo repo import promo-licence.csv # ajoute les dépôts de tous les étudiants
 watchoo sync                          # récupère les commits
 watchoo repo list                     # qui est Actif, en Flemme ou Dead
+watchoo serve                         # tableau de bord sur http://127.0.0.1:8080/
 ```
 
 ```
@@ -65,7 +67,7 @@ Avec Go (version indiquée dans `go.mod`) :
 
 ```bash
 make build    # produit bin/watchoo, à copier dans un répertoire du PATH
-make check    # gofmt, go vet, tests, code sqlc à jour, compilation
+make check    # gofmt, go vet, tests, code sqlc et CSS à jour, compilation
 ```
 
 Puis, dans le répertoire d'un groupe à superviser (ex. `~/supervision/licence-projet`) : `watchoo init`.

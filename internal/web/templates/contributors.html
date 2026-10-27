@@ -1,0 +1,94 @@
+{{/*
+  Contributeurs « /contributors ». PROPRIÉTAIRE : agent contributors+settings. Donnée : PageData,
+  Content de type contributorsView (contributors.go).
+  « contributors-table » est aussi servi seul par GET /fragments/contributors et se recharge à la fin
+  de chaque synchro (événement sync-finished). Aucun e-mail n'est affiché.
+*/}}
+{{define "content"}}
+<div class="flex flex-wrap items-end justify-between gap-2 mb-4">
+  <div>
+    <h1 class="text-2xl font-bold">Contributeurs</h1>
+    <p class="text-sm text-base-content/70">Auteurs des commits de tous les dépôts suivis, du plus actif au moins actif.</p>
+  </div>
+</div>
+{{template "contributors-table" .}}
+{{end}}
+
+{{define "contributors-table"}}{{$c := .Content}}
+<section id="contributors-table" hx-get="/fragments/contributors" hx-trigger="sync-finished from:body" hx-swap="outerHTML">
+  {{- if not $c.Rows}}
+  <div class="card bg-base-100 shadow-sm">
+    <div class="card-body items-center text-center">
+      <h2 class="card-title">Aucun contributeur pour l'instant</h2>
+      <p class="text-base-content/70">Les auteurs apparaissent après la première synchro des dépôts.</p>
+      <a href="/settings" class="btn btn-primary btn-sm mt-2">Gérer les dépôts</a>
+    </div>
+  </div>
+  {{- else}}
+  <div class="stats stats-vertical sm:stats-horizontal shadow-sm bg-base-100 w-full mb-4">
+    <div class="stat">
+      <div class="stat-title">Contributeurs</div>
+      <div class="stat-value">{{len $c.Rows}}</div>
+    </div>
+    <div class="stat">
+      <div class="stat-title">Commits</div>
+      <div class="stat-value">{{$c.TotalCommits}}</div>
+    </div>
+    <div class="stat">
+      <div class="stat-title">Dépôts</div>
+      <div class="stat-value">{{$c.Repos}}</div>
+    </div>
+  </div>
+  <div class="overflow-x-auto rounded-box bg-base-100 shadow-sm">
+    <table class="table">
+      <caption class="sr-only">Classement des contributeurs</caption>
+      <thead>
+        <tr>
+          <th scope="col" class="w-10">#</th>
+          <th scope="col">Contributeur</th>
+          <th scope="col" class="text-right">Commits</th>
+          <th scope="col" class="hidden md:table-cell text-right">Lignes</th>
+          <th scope="col">Commits par dépôt</th>
+          <th scope="col">Dernière activité</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{- range $c.Rows}}
+        <tr class="hover:bg-base-200/50 align-top">
+          <td class="font-semibold text-base-content/60">{{.Rank}}</td>
+          <td>
+            <div class="flex items-center gap-3 min-w-40">
+              {{template "avatar" (dict "Name" .DisplayName "URL" .AvatarURL "Size" "size-10")}}
+              <div class="min-w-0">
+                <div class="font-semibold break-words">{{truncate 80 .DisplayName}}</div>
+                {{- if .ShowLogin}}<div class="text-sm text-base-content/60 break-all">@{{truncate 60 .ProviderLogin}}</div>{{end}}
+              </div>
+            </div>
+          </td>
+          <td class="text-right">
+            <div class="font-semibold tabular-nums">{{.Commits}}</div>
+            <div class="text-xs text-base-content/60 tabular-nums" title="Part de tous les commits">{{percent .Commits $c.TotalCommits}} %</div>
+          </td>
+          <td class="hidden md:table-cell text-right tabular-nums whitespace-nowrap">
+            {{- if or .Additions .Deletions}}
+            <span class="text-success">+{{.Additions}}</span> <span class="text-error">−{{.Deletions}}</span>
+            {{- else}}
+            <span class="text-base-content/40" title="Statistiques de lignes inconnues (pas encore lues sur GitHub) ou nulles">—</span>
+            {{- end}}
+          </td>
+          <td>
+            <ul class="flex flex-wrap gap-1" aria-label="Commits par dépôt">
+              {{- range .Repos}}
+              <li><a href="{{repoPath .RepoID}}" class="badge badge-outline gap-1 hover:badge-primary" title="Dernier commit dans ce dépôt : {{localTime .LastCommitAt}}"><span class="max-w-48 truncate">{{truncate 40 .RepoDisplayName}}</span><span class="font-semibold tabular-nums">{{.Commits}}</span></a></li>
+              {{- end}}
+            </ul>
+          </td>
+          <td class="whitespace-nowrap">{{template "rel-time" .LastCommitAt}}</td>
+        </tr>
+        {{- end}}
+      </tbody>
+    </table>
+  </div>
+  {{- end}}
+</section>
+{{end}}

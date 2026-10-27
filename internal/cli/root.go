@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"os"
 	"os/signal"
 	"strings"
@@ -56,6 +57,9 @@ type Deps struct {
 	// RunTUI lance le mode interactif ; nil = tui.Run. Les tests de « watchoo tui » y vérifient les
 	// dépendances reçues sans ouvrir de terminal.
 	RunTUI func(ctx context.Context, deps tui.Deps, term tui.IO) error
+	// Listen ouvre l'écoute de « watchoo serve » ; nil = net.Listen. Les tests y écoutent sur un port
+	// libre de 127.0.0.1 et récupèrent l'adresse.
+	Listen func(network, address string) (net.Listener, error)
 	// Logger reçoit les logs du moteur de synchro et du provider ; nil = logger texte sur Stderr, au
 	// niveau de WATCHOO_LOG_LEVEL (warn par défaut) ou debug avec --verbose (voir newLogger). Les tests
 	// y passent un logger qui capture tout, pour vérifier qu'aucun token n'y apparaît.
@@ -63,9 +67,9 @@ type Deps struct {
 }
 
 // DefaultDeps renvoie les dépendances de production : os.Stdout, os.Stderr, auth.GH construit depuis
-// la configuration, os.Getwd, DetectTerminal(os.Stdout), time.Now, os.Stdin et tui.Run. NewProvider
-// et Logger restent nil (provider GitHub et logger de newLogger), StdinIsTerminal aussi (détection
-// sur Stdin par withDefaults).
+// la configuration, os.Getwd, DetectTerminal(os.Stdout), time.Now, os.Stdin, tui.Run et net.Listen.
+// NewProvider et Logger restent nil (provider GitHub et logger de newLogger), StdinIsTerminal aussi
+// (détection sur Stdin par withDefaults).
 func DefaultDeps() Deps {
 	return Deps{
 		Stdout: os.Stdout,
@@ -78,6 +82,7 @@ func DefaultDeps() Deps {
 		Now:      time.Now,
 		Stdin:    os.Stdin,
 		RunTUI:   tui.Run,
+		Listen:   net.Listen,
 	}
 }
 
@@ -114,6 +119,9 @@ func (d Deps) withDefaults() Deps {
 	if d.RunTUI == nil {
 		d.RunTUI = def.RunTUI
 	}
+	if d.Listen == nil {
+		d.Listen = def.Listen
+	}
 	return d
 }
 
@@ -127,7 +135,7 @@ type options struct {
 }
 
 // NewRootCmd construit la commande racine « watchoo » et ses sous-commandes (init, version, repo,
-// sync, log, contributors, status, tui).
+// sync, log, contributors, status, tui, serve).
 //
 // Options globales (persistantes) : --json (sortie JSON), -C / --workspace <répertoire> (espace à
 // utiliser au lieu de celui trouvé depuis le répertoire courant) et --verbose (logs détaillés sur
@@ -203,6 +211,7 @@ Prérequis : la CLI GitHub gh, installée et connectée (« gh auth login »).`,
 		newContributorsCmd(deps, opts),
 		newStatusCmd(deps, opts),
 		newTUICmd(deps, opts),
+		newServeCmd(deps, opts),
 	)
 	return root
 }
