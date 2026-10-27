@@ -67,8 +67,10 @@ est ignoré. Quand le quota de l'API GitHub passe sous 10 %, les dépôts restan
 reportés, avec l'heure à laquelle réessayer.
 
 Sans gh installé et connecté, les dépôts sont lus depuis des clones Git locaux
-(.watchoo/repos/, mis à jour par « git fetch ») avec la clé SSH ou les identifiants
-Git de cette machine : pas de quota, mais ni pull requests ni releases.
+(repos/<nom> à la racine de l'espace, mis à jour par « git fetch », copie de travail
+remise sur la branche par défaut : une modification locale des fichiers suivis est
+écrasée) avec la clé SSH ou les identifiants Git de cette machine : pas de quota,
+mais ni pull requests ni releases.
 
 Le code de retour est non nul si un dépôt est en erreur.`,
 		Example: `  watchoo sync

@@ -158,8 +158,8 @@ func newTestEnv(t *testing.T, opts ...envOption) *testEnv {
 		Config:      e.cfg,
 		NewProvider: newProvider,
 		// Sans gh : clones Git locaux vers un « serveur » vide (aucun réseau, accès refusé).
-		NewGitProvider: func() (provider.Provider, error) {
-			return gitprov.New(gitprov.Options{Dir: filepath.Join(t.TempDir(), "repos"),
+		NewGitProvider: func(repos []gitprov.Ref) (provider.Provider, error) {
+			return gitprov.New(gitprov.Options{Dir: filepath.Join(t.TempDir(), "repos"), Repos: repos,
 				BaseURL: "file://" + filepath.ToSlash(t.TempDir()), Logger: logger})
 		},
 		Now:    clock,

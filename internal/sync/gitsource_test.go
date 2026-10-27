@@ -194,3 +194,26 @@ func TestGitSourceKeepsForgeMetadata(t *testing.T) {
 		t.Error("l'API a été appelée sans gh")
 	}
 }
+
+// CloneRefs range les dépôts par ordre d'ajout (identifiant croissant), suivis ou arrêtés : c'est
+// l'ordre de la règle des homonymes des clones.
+func TestCloneRefsOrder(t *testing.T) {
+	repos := []model.Repository{
+		{ID: 3, Owner: "carol", Name: "projet"},
+		{ID: 1, Owner: "bob", Name: "projet", Enabled: false},
+		{ID: 2, Owner: "alice", Name: "projet", Enabled: true},
+	}
+	got := wsync.CloneRefs(repos)
+	want := []string{"bob/projet", "alice/projet", "carol/projet"}
+	if len(got) != len(want) {
+		t.Fatalf("CloneRefs = %v", got)
+	}
+	for i, r := range got {
+		if r.Owner+"/"+r.Name != want[i] {
+			t.Errorf("CloneRefs[%d] = %s/%s, attendu %s", i, r.Owner, r.Name, want[i])
+		}
+	}
+	if repos[0].ID != 3 {
+		t.Error("CloneRefs a modifié la liste reçue")
+	}
+}

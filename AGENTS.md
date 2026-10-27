@@ -24,7 +24,7 @@ pages web (`internal/web/e2e_test.go`) avec le faux `gh` et `githubtest`. Distri
 (`.goreleaser.yaml`), image Docker (`Dockerfile`, `docker-compose.yml`), workflow de release sur tag
 (`.github/workflows/release.yml`) ; historique dans [CHANGELOG.md](CHANGELOG.md). V2 : seuils d'activité
 par dépôt, activité par contributeur dans un dépôt, pull requests / releases / tags, et dépôts Git locaux
-(`internal/provider/git` : clones nus dans `.watchoo/repos/`, utilisés quand `gh` est absent ou non
+(`internal/provider/git` : clones avec copie de travail dans `repos/` à la racine de l'espace, utilisés quand `gh` est absent ou non
 connecté). Le critère de fin du MVP (usage réel d'une semaine) est validé : le MVP est terminé.
 
 ## Documentation de référence
@@ -139,7 +139,7 @@ make docker           # image Docker locale (IMAGE=watchoo:dev), jamais poussée
   les refuse avant l'envoi) ; en mode Git local, seulement `clone`, `fetch` et des commandes de lecture,
   jamais `push`.
 - Les données viennent de dépôts privés et contiennent des données personnelles d'étudiants :
-  `.watchoo/` en `0700`, fichiers en `0600` ; **ni message de commit ni e-mail dans les logs**.
+  `.watchoo/` et `repos/` (clones Git locaux) en `0700`, fichiers en `0600` ; **ni message de commit ni e-mail dans les logs**.
 - Web : écoute sur `127.0.0.1` par défaut ; authentification obligatoire sur toute autre adresse.
 
 ## Tests

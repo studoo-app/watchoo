@@ -1,6 +1,7 @@
 // Package git est le provider des dépôts Git locaux (V2) : il lit les dépôts GitHub suivis depuis des
-// clones nus (« git clone --bare ») rangés dans .watchoo/repos/, mis à jour par « git fetch » à chaque
-// synchro, sans API ni token (documentation/03-architecture.md, « Dépôts Git locaux »).
+// clones avec copie de travail rangés dans repos/, à la racine de l'espace (repos/<name>, voir Layout
+// pour les homonymes), mis à jour à chaque synchro par « git fetch » puis remis sur la branche par
+// défaut, sans API ni token (documentation/03-architecture.md, « Dépôts Git locaux »).
 //
 // Le moteur de synchro l'utilise quand gh n'est pas installé ou pas connecté. Il implémente
 // provider.Provider avec les mêmes conventions (validation avant tout appel, erreurs typées, dates en
@@ -11,9 +12,21 @@
 //
 // Le binaire git est lancé par os/exec, avec des tableaux d'arguments (jamais de shell), « -- » avant
 // les URL et les références quand git l'accepte, et seulement des commandes de lecture du dépôt
-// distant (ls-remote, clone --bare, fetch) ou du clone (for-each-ref, log, rev-parse, diff…). Jamais
-// de push, jamais de commande dans un dépôt de l'utilisateur : seuls les clones de Options.Dir sont
-// touchés.
+// distant (ls-remote, fetch) ou du clone (for-each-ref, log, rev-parse, diff…), plus la création du
+// clone (init) et la remise de sa copie de travail sur la branche par défaut (symbolic-ref, checkout,
+// reset). Jamais de push, jamais de commande dans un dépôt de l'utilisateur : seuls les clones signés
+// par Watchoo dans Options.Dir sont touchés, désignés par --git-dir (et --work-tree), sans recherche
+// du dépôt depuis le répertoire courant.
+//
+// # Dépôts d'étudiants : rien ne s'exécute
+//
+// Les dépôts suivis ne sont pas de confiance. Aucun hook ne s'exécute (core.hooksPath vers le
+// périphérique nul ; les hooks d'un dépôt distant ne sont de toute façon jamais copiés), aucun
+// sous-module n'est lu (submodule.recurse et fetch.recurseSubmodules à false, --no-recurse-submodules),
+// aucun fichier LFS n'est téléchargé (GIT_LFS_SKIP_SMUDGE=1 : les pointeurs restent tels quels),
+// core.fsmonitor est coupé. Les variables d'environnement qui désignent un autre dépôt (GIT_DIR,
+// GIT_WORK_TREE, GIT_INDEX_FILE…) sont retirées. core.symlinks garde sa valeur : git refuse déjà tout
+// chemin qui sortirait de la copie de travail.
 //
 // # Identifiants
 //
@@ -81,9 +94,13 @@ var ErrGitNotFound = errors.New("git est introuvable : installez Git (https://gi
 
 // Options règle New.
 type Options struct {
-	// Dir est le répertoire des clones (.watchoo/repos de l'espace) ; obligatoire. Il est créé en
+	// Dir est le répertoire des clones (repos/ à la racine de l'espace) ; obligatoire. Il est créé en
 	// 0700 au premier clone.
 	Dir string
+	// Repos est la liste des dépôts de l'espace (suivis ou arrêtés), dans l'ordre de leur ajout
+	// (identifiant croissant) : elle fixe l'emplacement des clones des homonymes (Layout). Un dépôt
+	// absent de la liste est rangé comme s'il venait à la suite.
+	Repos []Ref
 	// Protocol est ProtocolSSH (défaut, « git@github.com:owner/name.git ») ou ProtocolHTTPS
 	// (« https://github.com/owner/name.git »).
 	Protocol string
@@ -100,8 +117,8 @@ type Options struct {
 }
 
 // Provider est le provider des clones Git locaux. Construire avec New ; sûr pour un usage concurrent.
-// Un Provider vit le temps d'une synchro : chaque clone y est mis à jour (clone ou fetch) au plus une
-// fois, au premier besoin.
+// Un Provider vit le temps d'une synchro : chaque clone y est créé ou mis à jour (fetch et copie de
+// travail) au plus une fois, au premier besoin.
 type Provider struct {
 	dir            string
 	protocol       string
@@ -110,12 +127,14 @@ type Provider struct {
 	networkTimeout time.Duration
 	localTimeout   time.Duration
 	logger         *slog.Logger
+	layout         *Layout
 
 	envOnce gosync.Once
 	env     []string
 
-	mu    gosync.Mutex
-	repos map[string]*repoState // clé : owner/name en minuscules
+	mu       gosync.Mutex
+	repos    map[string]*repoState // clé : owner/name en minuscules
+	defaults map[string]string     // branche par défaut lue par Repository ; même clé
 }
 
 // repoState sérialise la mise à jour du clone d'un dépôt.
@@ -151,7 +170,9 @@ func New(opts Options) (*Provider, error) {
 		networkTimeout: opts.NetworkTimeout,
 		localTimeout:   opts.LocalTimeout,
 		logger:         opts.Logger,
+		layout:         NewLayout(opts.Dir, opts.Repos),
 		repos:          make(map[string]*repoState),
+		defaults:       make(map[string]string),
 	}
 	if p.networkTimeout <= 0 {
 		p.networkTimeout = DefaultNetworkTimeout
@@ -224,8 +245,15 @@ type result struct {
 // la documentation du package). Calculé une fois par Provider.
 func (p *Provider) gitEnv(ctx context.Context) []string {
 	p.envOnce.Do(func() {
-		env := append(os.Environ(),
+		env := make([]string, 0, len(os.Environ())+8)
+		for _, kv := range os.Environ() {
+			if !isRepoEnv(kv) {
+				env = append(env, kv)
+			}
+		}
+		env = append(env,
 			"GIT_TERMINAL_PROMPT=0", // pas d'invite pour un identifiant HTTPS
+			"GIT_LFS_SKIP_SMUDGE=1", // fichiers LFS : pointeurs gardés, rien de téléchargé
 			"GCM_INTERACTIVE=never", // Git Credential Manager : pas de fenêtre
 			"LC_ALL=C",              // messages de git en anglais : classement des échecs
 			"LANGUAGE=C",
@@ -236,6 +264,23 @@ func (p *Provider) gitEnv(ctx context.Context) []string {
 		p.env = env
 	})
 	return p.env
+}
+
+// repoEnv sont les variables d'environnement qui feraient travailler git sur un autre dépôt que le
+// clone désigné : retirées de l'environnement de git.
+var repoEnv = []string{"GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY",
+	"GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_COMMON_DIR", "GIT_NAMESPACE", "GIT_CEILING_DIRECTORIES",
+	"GIT_DISCOVERY_ACROSS_FILESYSTEM"}
+
+// isRepoEnv indique si kv (« NOM=valeur ») est l'une des variables de repoEnv.
+func isRepoEnv(kv string) bool {
+	name, _, _ := strings.Cut(kv, "=")
+	for _, r := range repoEnv {
+		if strings.EqualFold(name, r) {
+			return true
+		}
+	}
+	return false
 }
 
 // userSSHCommand indique si la configuration Git de l'utilisateur choisit une commande SSH
@@ -250,7 +295,8 @@ func (p *Provider) userSSHCommand(ctx context.Context) bool {
 	return err == nil && strings.TrimSpace(string(out)) != ""
 }
 
-// run lance « git <args> » (gitDir non vide : « git --git-dir=<gitDir> <args> »), borné par timeout.
+// run lance « git <args> » (gitDir non vide : « git --git-dir=<gitDir> <args> » ; les commandes qui
+// touchent la copie de travail commencent args par « --work-tree=<clone> »), borné par timeout.
 // name (« fetch »…) sert aux logs. Un code de retour non nul n'est pas une erreur de run : il est dans
 // result. Erreur si git n'a pas pu être lancé (ErrGitNotFound), si le délai a expiré
 // (provider.ErrUnavailable) ou si ctx est terminé (ctx.Err()).
@@ -260,7 +306,11 @@ func (p *Provider) run(ctx context.Context, timeout time.Duration, gitDir, name 
 	full = append(full, "-c", "log.showSignature=false", "-c", "color.ui=false", "-c", "core.quotePath=false",
 		// Entretien automatique du clone (après un fetch) au premier plan : un processus détaché
 		// garderait les sorties ouvertes après la fin de git.
-		"-c", "gc.autoDetach=false", "-c", "maintenance.autoDetach=false")
+		"-c", "gc.autoDetach=false", "-c", "maintenance.autoDetach=false",
+		// Dépôts d'étudiants : ni hook, ni sous-module, ni fsmonitor (voir la documentation du package).
+		"-c", "core.hooksPath="+os.DevNull, "-c", "submodule.recurse=false",
+		"-c", "fetch.recurseSubmodules=false", "-c", "core.fsmonitor=false",
+		"-c", "advice.detachedHead=false")
 	if gitDir != "" {
 		full = append(full, "--git-dir="+gitDir)
 	}
@@ -385,10 +435,14 @@ func (p *Provider) Repository(ctx context.Context, owner, name string) (provider
 	if res.exitCode != 0 {
 		return provider.Repository{}, remoteError(op, res)
 	}
+	branch := parseSymref(res.stdout)
+	p.mu.Lock()
+	p.defaults[marker(owner, name)] = branch // pour la copie de travail (checkout)
+	p.mu.Unlock()
 	return provider.Repository{
 		Owner:         owner,
 		Name:          name,
-		DefaultBranch: parseSymref(res.stdout),
+		DefaultBranch: branch,
 		URL:           webURL(owner, name),
 		Partial:       true,
 	}, nil

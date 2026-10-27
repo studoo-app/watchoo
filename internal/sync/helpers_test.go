@@ -193,14 +193,14 @@ func (e *env) newEngine(st *store.Store) *wsync.Engine {
 			}
 			return p, nil
 		},
-		NewGitProvider: func() (provider.Provider, error) {
+		NewGitProvider: func(repos []gitprov.Ref) (provider.Provider, error) {
 			e.mu.Lock()
 			defer e.mu.Unlock()
 			e.gitCalls++
 			if e.gitURL == "" {
 				return nil, errors.New("pas de dépôts Git locaux dans ce test")
 			}
-			return gitprov.New(gitprov.Options{Dir: e.reposDir, BaseURL: e.gitURL, Logger: logger})
+			return gitprov.New(gitprov.Options{Dir: e.reposDir, Repos: repos, BaseURL: e.gitURL, Logger: logger})
 		},
 		Now:    e.clock.Now,
 		Logger: logger,

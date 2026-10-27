@@ -212,7 +212,7 @@ func (s *session) statusText(st textStyle, r statusReport, lastSynced time.Time)
 	case wsync.SourceAPI:
 		b.WriteString("Source : API GitHub (gh connecté)\n")
 	case wsync.SourceGit:
-		b.WriteString("Source : clones Git locaux (.watchoo/repos/), avec la clé SSH ou les identifiants Git " +
+		b.WriteString("Source : clones Git locaux (repos/ dans l'espace), avec la clé SSH ou les identifiants Git " +
 			"de cette machine ; « gh auth login » pour passer par l'API GitHub (pull requests, releases, étoiles)\n")
 	default:
 		fmt.Fprintf(&b, "Source : inconnue (%s)\n", textclean.Clean(r.Source.Reason))

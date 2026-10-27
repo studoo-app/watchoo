@@ -21,7 +21,8 @@ const logFormat = "--format=tformat:%H%x00%P%x00%an%x00%ae%x00%aI%x00%cn%x00%ce%
 // logFields est le nombre de champs de logFormat.
 const logFields = 9
 
-// Branches renvoie les branches du clone (« for-each-ref refs/heads/ »), triées par nom, au plus
+// Branches renvoie les branches du dépôt distant telles que le clone les a lues au dernier fetch
+// (« for-each-ref refs/remotes/origin/ », sans origin/HEAD), triées par nom, au plus
 // provider.MaxBranches. Le clone est d'abord créé ou mis à jour. Dépôt vide : liste vide.
 func (p *Provider) Branches(ctx context.Context, owner, name string) ([]provider.Branch, error) {
 	if err := provider.ValidateRepo(owner, name); err != nil {
@@ -36,7 +37,7 @@ func (p *Provider) Branches(ctx context.Context, owner, name string) ([]provider
 
 // branches lit les branches du clone path.
 func (p *Provider) branches(ctx context.Context, owner, name, path string) ([]provider.Branch, error) {
-	refs, err := p.refs(ctx, owner, name, path, "refs/heads/", "%(refname:strip=2)%00%(objectname)")
+	refs, err := p.refs(ctx, owner, name, path, remotePrefix, "%(refname:strip=3)%00%(objectname)")
 	if err != nil {
 		return nil, err
 	}
@@ -44,6 +45,9 @@ func (p *Provider) branches(ctx context.Context, owner, name, path string) ([]pr
 	for _, r := range refs {
 		if len(branches) >= provider.MaxBranches {
 			break
+		}
+		if r[0] == "HEAD" {
+			continue // origin/HEAD : la branche par défaut, déjà dans la liste
 		}
 		branches = append(branches, provider.Branch{Name: r[0], HeadSHA: r[1]})
 	}
@@ -81,7 +85,7 @@ func (p *Provider) Tags(ctx context.Context, owner, name string) ([]provider.Tag
 // refs lit les références sous prefix avec format (champs séparés par NUL, une référence par ligne).
 func (p *Provider) refs(ctx context.Context, owner, name, path, prefix, format string) ([][]string, error) {
 	op := fmt.Sprintf("lecture des références de %s/%s", owner, name)
-	res, err := p.run(ctx, p.localTimeout, path, "for-each-ref",
+	res, err := p.run(ctx, p.localTimeout, gitDir(path), "for-each-ref",
 		"for-each-ref", "--format="+format, "--", prefix)
 	if err != nil {
 		return nil, &provider.APIError{Op: op, Err: err}
@@ -103,8 +107,8 @@ func (p *Provider) refs(ctx context.Context, owner, name, path, prefix, format s
 	return refs, nil
 }
 
-// ListCommits renvoie les commits atteignables depuis opts.Branch (branche, ou SHA complet ; vide =
-// HEAD du clone), du plus récent au plus ancien (ordre de « git log »), filtrés par opts.Since (date de
+// ListCommits renvoie les commits atteignables depuis opts.Branch (branche du distant, ou SHA
+// complet ; vide = branche par défaut, origin/HEAD), du plus récent au plus ancien (ordre de « git log »), filtrés par opts.Since (date de
 // commit), arrêtés par opts.Stop, au plus opts.Limit (ou provider.MaxCommits). Dépôt vide : liste
 // vide ; branche ou commit inconnu : provider.ErrNotFound.
 func (p *Provider) ListCommits(ctx context.Context, owner, name string, opts provider.ListCommitsOptions) ([]provider.Commit, error) {
@@ -121,13 +125,13 @@ func (p *Provider) ListCommits(ctx context.Context, owner, name string, opts pro
 		return nil, err
 	}
 	op := fmt.Sprintf("lecture des commits de %s/%s", owner, name)
-	rev := "HEAD"
+	rev := remoteHEAD
 	switch {
 	case opts.Branch == "":
 	case provider.ValidateSHA(opts.Branch) == nil:
 		rev = opts.Branch
 	default:
-		rev = "refs/heads/" + opts.Branch
+		rev = remotePrefix + opts.Branch
 	}
 	sha, found, err := p.resolve(ctx, op, path, rev)
 	if err != nil {
@@ -237,7 +241,7 @@ func (p *Provider) CommitStats(ctx context.Context, owner, name, sha string) (pr
 	} else {
 		args = append(args, "--root", sha)
 	}
-	res, err := p.run(ctx, p.localTimeout, path, "diff-tree", args...)
+	res, err := p.run(ctx, p.localTimeout, gitDir(path), "diff-tree", args...)
 	if err != nil {
 		return provider.CommitStats{}, &provider.APIError{Op: op, Err: err}
 	}
@@ -269,7 +273,7 @@ func parseNumstat(out []byte) provider.CommitStats {
 
 // resolve renvoie le SHA du commit désigné par rev dans le clone path ; found faux s'il n'existe pas.
 func (p *Provider) resolve(ctx context.Context, op, path, rev string) (string, bool, error) {
-	res, err := p.run(ctx, p.localTimeout, path, "rev-parse",
+	res, err := p.run(ctx, p.localTimeout, gitDir(path), "rev-parse",
 		"rev-parse", "--verify", "--quiet", "--end-of-options", rev+"^{commit}")
 	if err != nil {
 		return "", false, &provider.APIError{Op: op, Err: err}
@@ -290,7 +294,7 @@ func (p *Provider) log(ctx context.Context, op, owner, name, path string, maxCou
 	args := []string{"log", logFormat, "--no-color", "--max-count=" + strconv.Itoa(maxCount), "--end-of-options"}
 	args = append(args, revs...)
 	args = append(args, "--")
-	res, err := p.run(ctx, p.localTimeout, path, "log", args...)
+	res, err := p.run(ctx, p.localTimeout, gitDir(path), "log", args...)
 	if err != nil {
 		return nil, &provider.APIError{Op: op, Err: err}
 	}

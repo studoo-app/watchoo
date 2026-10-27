@@ -997,7 +997,7 @@ func renderConfig(defaultName string, active map[string]any) string {
 	text(
 		"",
 		"# Sans gh installé et connecté, les dépôts sont suivis par clones Git locaux",
-		"# (.watchoo/repos/), avec la clé SSH ou les identifiants Git de cette machine.",
+		"# (repos/ à la racine de l'espace), avec la clé SSH ou les identifiants Git de cette machine.",
 	)
 	section("", "git")
 	setting("  ", "git.protocol", `"ssh" (git@github.com:…) ou "https" (https://github.com/…)`)

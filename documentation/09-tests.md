@@ -256,7 +256,7 @@ Deux faux, écrits en phase 2 et réutilisés par les phases suivantes :
 
 ## Dépôts Git locaux (V2)
 
-Aucun service extérieur : le paquet `internal/provider/git/gittest` crée de vrais dépôts nus
+Aucun service extérieur : le paquet `internal/provider/git/gittest` crée de vrais dépôts nus « distants »
 (`<temp>/<owner>/<name>.git`) et une copie de travail pour les remplir (commits datés, d'une
 identité factice, branches, merges, tags légers et annotés, force-push, suppression de branche, changement
 de branche par défaut), avec une configuration Git isolée de celle du développeur (`GIT_CONFIG_GLOBAL`
@@ -264,7 +264,8 @@ vide, `GIT_CONFIG_NOSYSTEM`, pas d'entretien automatique). Le provider s'y branc
 `git.Options.BaseURL` (`file://…`).
 
 - **Provider** (`internal/provider/git`) : `Repository` par `ls-remote` sans rien cloner (branche par
-  défaut, URL GitHub, `Partial`) ; clone nu en `0700` ; branches, `ListCommits` (HEAD, branche, SHA,
+  défaut, URL GitHub, `Partial`) ; clone avec copie de travail dans `repos/<name>`, `repos/` en `0700` ;
+  branches lues dans `refs/remotes/origin/` (une branche locale créée dans le clone ne compte pas), `ListCommits` (HEAD, branche, SHA,
   `Limit`, `Since`, `Stop`, branche inconnue `ErrNotFound`), message, identités, dates UTC et parents ;
   `CompareCommits` avec un merge, base égale à la tête, base inconnue (`ErrUnknownBase`) ; statistiques
   (`diff-tree --numstat` : commit simple, racine, merge par rapport au premier parent, commit inconnu) ;
@@ -272,8 +273,14 @@ vide, `GIT_CONFIG_NOSYSTEM`, pas d'entretien automatique). Le provider s'y branc
   ajouté et une nouvelle branche par défaut (une seule mise à jour par Provider) ; dépôt vide (listes
   vides non nil) ; références invalides refusées sans lancer `git` (`git` introuvable dans ce test) ;
   dépôt absent : `ErrAccessDenied` sans invite, aucun reste de clone, URL absente du message ; port fermé :
-  `ErrUnavailable` ; 16 appels concurrents sur 4 dépôts ; `RemoveClone` (casse, répertoire du
-  propriétaire vidé) ; `Check` ; aucun nom, e-mail, message ni URL dans les logs ; `ErrUnsupported` pour
+  `ErrUnavailable` ; 16 appels concurrents sur 4 dépôts ; copie de travail qui suit le distant
+  (modification locale d'un fichier suivi écrasée, fichier non suivi gardé, nouvelle branche par défaut
+  extraite) ; dépôt vide cloné sans fichier extrait, puis rempli au premier commit ; aucun hook exécuté
+  (`core.hooksPath` global avec un hook `post-checkout`, `submodule.recurse`) ; règle des homonymes
+  (`Layout` : ordre d'ajout, casse ignorée, nom déjà pris par un autre dépôt, `.git` jamais donné, ajout
+  qui ne déplace rien) ; emplacement occupé (répertoire de l'utilisateur, clone d'un autre dépôt) jamais
+  touché, répertoire vide remplacé ; `RemoveClone` (casse, répertoire non signé gardé, homonyme déplacé
+  vers `repos/<name>` puis retrouvé par la synchro suivante) ; `Check` ; aucun nom, e-mail, message ni URL dans les logs ; `ErrUnsupported` pour
   pull requests, releases, `RepositoryByID` et quota.
 - **Migration `00004`** (`internal/store/migration_provider_id_test.go`) : base remplie au schéma
   `00003` (toutes les tables filles), migration, aucune ligne perdue, `foreign_key_check` et
@@ -288,11 +295,17 @@ vide, `GIT_CONFIG_NOSYSTEM`, pas d'entretien automatique). Le provider s'y branc
   `gh` qui résout `provider_id` et les métadonnées ; dépôt connu par l'API synchronisé sans `gh` (étoiles,
   issues, archivé, URL et identifiant gardés, aucun appel à l'API).
 - **CLI** (`internal/cli/gitsource_test.go` et tests d'`init`, `status`, `sync`, `repo`) : `repo add`
-  sans clone, `sync` (texte et `--json`, `source: "git"`, pas de quota), `log`, `status` (source),
-  `repo remove --keep-history` qui garde le clone, `repo remove` qui le supprime ; `init` sans `gh`
+  sans clone, `sync` (texte et `--json`, `source: "git"`, pas de quota ; copie de travail dans
+  `repos/projet`, `repos/` en `0700`), `log`, `status` (source), homonyme dans `repos/bob-projet` qui
+  contient un `.watchoo/` commité : `status` lancé depuis ce clone travaille sur l'espace,
+  `repo remove --keep-history` qui garde le clone, `repo remove` qui le supprime et déplace l'homonyme
+  vers `repos/projet` ; `init` sans `gh`
   (faux client, faux binaire, vrai `auth.GH` vers un chemin absent) qui crée l'espace et prévient, sans
   `git` qui s'arrête, token refusé qui s'arrête ; clé `source` des sorties JSON (`init`, `sync`,
   `status`).
+- **Espaces** (`internal/workspace`) : un `.watchoo/` sous le `repos/` d'un espace (à toute profondeur,
+  droits `0700`) est ignoré par `Find`, qui rend l'espace englobant ; `Init` y est refusé ; un espace
+  imbriqué ailleurs reste trouvé.
 - **Web et TUI** : page d'un dépôt sans identifiant de forge (étoiles, issues, pull requests et releases
   masquées), fragment du quota « sans objet » sans `gh` ; détail du TUI correspondant.
 

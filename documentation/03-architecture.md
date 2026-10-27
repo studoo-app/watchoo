@@ -14,7 +14,7 @@ flowchart TD
     CORE["Cœur métier<br/>synchro incrémentale, planification"] -->|lit / écrit| DB["SQLite<br/>dépôts, commits, contributeurs"]
     CORE -->|gh connecté| PROV["Provider GitHub<br/>go-github, ETag, rate limit"]
     PROV -->|HTTPS + token| API["API GitHub (externe)"]
-    CORE -->|sans gh| GITP["Provider Git local (V2)<br/>binaire git, clones nus"]
+    CORE -->|sans gh| GITP["Provider Git local (V2)<br/>binaire git, clones dans repos/"]
     GITP -->|git clone / fetch, SSH ou HTTPS| REMOTE["Dépôts GitHub (externe)"]
 ```
 
@@ -65,7 +65,7 @@ watchoo/
   internal/auth/       accès à gh (token, état de connexion) + faux gh pour les tests
   internal/provider/   interface Provider, types et erreurs ; providertest/ (faux Provider en mémoire)
     github/            implémentation GitHub, seul import de go-github ; githubtest/ (faux serveur)
-    git/               dépôts Git locaux (V2) : binaire git, clones nus ; gittest/ (dépôts file://)
+    git/               dépôts Git locaux (V2) : binaire git, clones dans repos/ ; gittest/ (dépôts file://)
   internal/sync/       moteur de synchronisation (Engine : SyncAll, SyncRepo, AddRepositories) et
                        coordinateur des synchros d'un processus long (Coordinator, « watchoo serve »)
   internal/activity/   règles d'activité (Actif / Flemme / Dead, états gris), formats courts
@@ -132,7 +132,8 @@ un à chaque synchro, avec le token redemandé à `gh`, et lui passe le même ca
 état du quota (`Quota`), qui durent d'une synchro à l'autre. Autres options : `BaseURL` (tests),
 `UserAgent` (`watchoo/<version>`), `Transport`, `Timeout` (30 s par requête par défaut), `Logger`.
 
-`git.New(git.Options)` (V2) est légère aussi : `Dir` (`.watchoo/repos`), `Protocol` (`ssh` ou `https`,
+`git.New(git.Options)` (V2) est légère aussi : `Dir` (`repos/` à la racine de l'espace), `Repos` (dépôts
+de l'espace dans l'ordre de leur ajout : emplacement des clones), `Protocol` (`ssh` ou `https`,
 réglage `git.protocol`), `BaseURL` (tests : dépôts `file://`), `GitPath`, délais (10 min par commande
 réseau, 2 min par lecture du clone), `Logger`. Le moteur en construit un à chaque synchro faite sans `gh`.
 
@@ -408,7 +409,8 @@ Les dépôts suivis sont principalement **privés**. Conséquences :
 En place depuis la phase 6 ([Roadmap](07-roadmap.md#phase-6--v2)).
 
 - **But** : suivre un dépôt depuis un clone local, mis à jour par `git fetch` à chaque synchro, pour
-  pouvoir suivre des dépôts privés sans `gh` et sans consommer de quota de l'API GitHub.
+  pouvoir suivre des dépôts privés sans `gh` et sans consommer de quota de l'API GitHub. Le clone a une
+  **copie de travail** : l'enseignant peut y lire le code des étudiants.
 - **Choix de la source** : **uniquement** selon la présence de `gh`, sans réglage par dépôt ni par
   espace, refait à chaque synchro (voir [Authentification](#authentification--gh-facultatif)). `gh`
   installé et connecté : API GitHub ; sinon : clones Git locaux. Le choix est fait dans le cœur métier
@@ -416,7 +418,8 @@ En place depuis la phase 6 ([Roadmap](07-roadmap.md#phase-6--v2)).
 - **Un second `Provider`** dans `internal/provider/git/`, qui lance le binaire `git` par `os/exec`
   (tableaux d'arguments, jamais de shell ; `--` avant les URL et les chemins, `--end-of-options` avant
   les références), sans nouvelle dépendance Go. Le moteur de synchro ne change pas de logique : il reçoit
-  un autre `Provider` (`Options.NewGitProvider`, par défaut `git.New` sur `.watchoo/repos`). Les règles
+  un autre `Provider` (`Options.NewGitProvider`, par défaut `git.New` sur `repos/`, avec les dépôts de
+  l'espace par identifiant croissant, `wsync.CloneRefs`). Les règles
   communes s'appliquent : validation avant toute commande (`ErrInvalidRef`, aucun `git` lancé), erreurs
   typées, dates en UTC, listes vides non nil, plafonds (`MaxCommits`, `MaxBranches`, `MaxTags`),
   usage concurrent (4 dépôts en parallèle).
@@ -431,23 +434,71 @@ En place depuis la phase 6 ([Roadmap](07-roadmap.md#phase-6--v2)).
   pages web (`https://github.com/owner/name`, `…/commit/<sha>`) sont construites par le provider Git :
   ce qui est propre à GitHub reste dans `internal/provider`. `Options.BaseURL` remplace l'adresse pour
   les tests (`file://…/owner/name.git`).
-- **Clones** : clones **nus** dans `.watchoo/repos/<owner>/<name>.git` (en minuscules, comme GitHub qui
-  ne tient pas compte de la casse), répertoires en `0700`, couverts par le `.gitignore` de `.watchoo/`
-  (« `*` », y compris dans les espaces créés avant la V2). Premier besoin d'un dépôt dans une synchro :
-  `git clone --bare` dans un répertoire temporaire voisin, puis renommage (un clone interrompu ne laisse
-  rien de cassé) ; ensuite `git fetch --prune` des branches et des tags
-  (`+refs/heads/*:refs/heads/*`, `+refs/tags/*:refs/tags/*` : un force-push, une branche ou un tag
-  supprimé sont suivis). Une seule mise à jour par dépôt et par synchro, sérialisée par dépôt (verrou du
-  provider ; entre processus, le verrou de synchro en base). `repo remove` supprime le clone (puis le
-  répertoire du propriétaire s'il est vide) ; `repo remove --keep-history` le **garde**, comme
-  l'historique en base. Un dépôt renommé sur GitHub pendant le suivi par l'API donne un nouveau clone
-  au nouveau nom ; l'ancien reste jusqu'à la suppression de l'espace.
-- **Lecture seule** : Watchoo ne lance que `git ls-remote`, `git clone --bare`, `git fetch` et des
-  commandes de lecture du clone (`for-each-ref`, `rev-parse`, `log`, `diff-tree`), jamais `push` ; il
-  ne travaille que dans ses clones (`--git-dir`), jamais dans un dépôt de l'utilisateur. La configuration
+- **Clones** : clones **avec copie de travail** dans **`repos/<name>`, à la racine de l'espace** (le
+  répertoire qui contient `.watchoo/`) : `~/supervision/licence-projet/repos/projet-groupe-3/`. Nom du
+  dépôt seul, sans propriétaire ni suffixe `.git`, **en minuscules** (GitHub, comme les systèmes de
+  fichiers de macOS et Windows, ne tient pas compte de la casse). `repos/` est créé en `0700` au premier
+  clone ; le contenu des clones garde les droits posés par Git.
+- **Homonymes** (règle `git.Layout`, sans état en base) : les dépôts de l'espace, **suivis ou arrêtés**,
+  sont pris par identifiant croissant (ordre d'ajout) et chacun reçoit le premier nom libre parmi
+  `<name>`, `<owner>-<name>`, `<owner>-<name>-2`, `<owner>-<name>-3`… (en minuscules ; « libre » : pas
+  déjà donné à un dépôt plus ancien, sans tenir compte de la casse ; `.git` n'est jamais donné). Ainsi
+  `alice/projet` puis `bob/projet` donnent `repos/projet` et `repos/bob-projet` ; un `carol/bob-projet`
+  ajouté ensuite reçoit `repos/carol-bob-projet`. **Ajouter** un dépôt ne déplace jamais un clone ;
+  `repo remove --keep-history` non plus (le dépôt reste en base). **Supprimer** un dépôt (`repo remove`,
+  page Réglages) peut libérer un nom : `wsync.DeleteRepository` supprime le clone, puis **déplace**
+  (renommage en deux temps, sans reclonage) ceux dont l'emplacement change (`bob/projet` passe de
+  `repos/bob-projet` à `repos/projet`). Un dépôt renommé sur GitHub pendant le suivi par l'API change
+  d'emplacement : nouveau clone au nouveau nom, l'ancien répertoire reste.
+- **Signature** : chaque clone porte dans `.git/watchoo-repository` le dépôt pour lequel Watchoo l'a créé
+  (`owner/name` en minuscules). Watchoo ne met à jour, ne déplace ni ne supprime **que** ses clones
+  signés pour ce dépôt : un emplacement occupé par autre chose (répertoire de l'utilisateur, clone fait à
+  la main, clone signé pour un autre dépôt, lien symbolique) n'est jamais touché et la synchro du dépôt
+  échoue (« emplacement du clone occupé ») ; un répertoire vide est remplacé.
+- **Création** : premier besoin d'un dépôt dans une synchro : `git init` dans un répertoire temporaire de
+  `repos/` (`.clone+…`, un nom qu'aucun dépôt ne peut porter), signature, mise à jour (ci-dessous), puis
+  renommage (un clone interrompu ne laisse rien de cassé). Pas de `git clone` : une seule façon de lire
+  le distant, et aucun remote enregistré.
+- **Mise à jour** (une par dépôt et par synchro, sérialisée par dépôt : verrou du provider ; entre
+  processus, le verrou de synchro en base) :
+  1. `git fetch --prune --no-tags --no-recurse-submodules -- <url>` avec
+     `+refs/heads/*:refs/remotes/origin/*` et `+refs/tags/*:refs/tags/*` : les branches du distant
+     arrivent dans `origin/…`, un force-push, une branche ou un tag supprimé sont suivis ;
+  2. la branche par défaut est celle de `git ls-remote --symref` (déjà lue par `Repository` dans la même
+     synchro) ; `origin/HEAD` la désigne (`git symbolic-ref`) ;
+  3. `git checkout --force -B <défaut> origin/<défaut>` puis `git reset --hard origin/<défaut>` : la copie
+     de travail est sur la branche par défaut, telle que sur GitHub. **Le clone appartient à Watchoo** :
+     une modification locale d'un fichier suivi, une autre branche extraite, un merge en cours sont
+     **écrasés** à chaque synchro ; les fichiers **non suivis** sont gardés (pas de `git clean`). Dépôt
+     vide (ou branche par défaut absente) : rien à extraire, le clone ne contient que `.git/`.
+
+  Les lectures (`Branches`, `ListCommits`…) se font dans `refs/remotes/origin/` et `refs/tags/`, jamais
+  dans les branches locales : une branche créée à la main dans le clone n'est pas une branche du dépôt.
+- **Dépôts d'étudiants, rien ne s'exécute** : les hooks d'un dépôt distant ne sont jamais copiés, et
+  `-c core.hooksPath=<périphérique nul>` empêche aussi ceux de la configuration de l'utilisateur de
+  s'exécuter dans un clone ; ni sous-module (`submodule.recurse=false`, `fetch.recurseSubmodules=false`,
+  `--no-recurse-submodules`), ni `core.fsmonitor` ; `GIT_LFS_SKIP_SMUDGE=1` : aucun fichier LFS
+  téléchargé (les pointeurs restent dans la copie de travail). `core.symlinks` garde sa valeur : Git
+  refuse déjà tout chemin qui sortirait de la copie de travail. Les variables qui désigneraient un autre
+  dépôt (`GIT_DIR`, `GIT_WORK_TREE`, `GIT_INDEX_FILE`…) sont retirées de l'environnement de `git`.
+- **Retrait** : `repo remove` supprime le clone (et déplace un homonyme, voir plus haut) ;
+  `repo remove --keep-history` le **garde**, comme l'historique en base. Repasser par l'API (`gh`
+  connecté) laisse les clones en place, sans les mettre à jour ; ils servent de nouveau si `gh` disparaît.
+- **Lecture seule** : Watchoo ne lance que `git ls-remote`, `git fetch`, des commandes de lecture du clone
+  (`for-each-ref`, `rev-parse`, `log`, `diff-tree`) et, dans ses seuls clones, `git init`,
+  `symbolic-ref`, `checkout` et `reset` ; jamais `push`. Il désigne toujours le clone par `--git-dir`
+  (et `--work-tree`), lancé depuis un répertoire neutre : `git` ne cherche jamais le dépôt depuis le
+  répertoire courant, et ne peut donc pas travailler dans un dépôt de l'utilisateur (la racine de
+  l'espace, par exemple). La configuration
   de l'utilisateur ne peut pas changer les sorties lues (`-c log.showSignature=false`,
   `color.ui=false`, `core.quotePath=false`) ; l'entretien automatique d'un clone se fait au premier plan
   (`gc.autoDetach=false`, `maintenance.autoDetach=false`).
+- **Recherche de l'espace** : un `.watchoo/` commité dans le dépôt d'un étudiant se retrouve dans
+  `repos/<name>/` ; il n'est jamais pris pour un espace (voir
+  [Espaces de supervision](10-espaces-de-supervision.md#comment-watchoo-trouve-lespace)).
+- **`.gitignore`** : `repos/` est hors de `.watchoo/`, donc hors de son `.gitignore`. Si la racine de
+  l'espace est elle-même un dépôt Git, `repos/` y apparaît : à l'utilisateur de l'ajouter à son propre
+  `.gitignore` (Watchoo n'écrit rien hors de `.watchoo/` et `repos/`).
 - **Identifiants** : Watchoo ne lit, ne demande ni ne stocke aucun identifiant. `git` s'appuie sur ce que
   l'utilisateur a configuré (clé SSH et agent, gestionnaire d'identifiants). Il est lancé sans entrée
   standard et **sans invite** : `GIT_TERMINAL_PROMPT=0` (pas de saisie d'identifiant HTTPS),
@@ -471,7 +522,8 @@ En place depuis la phase 6 ([Roadmap](07-roadmap.md#phase-6--v2)).
   [Synchronisation incrémentale](#synchronisation-incrémentale)) :
   - `Repository` (`ls-remote`) d'abord, même pour un dépôt dont l'identifiant est connu
     (`RepositoryByID` renvoie `ErrUnsupported`) ;
-  - `Branches` (`for-each-ref refs/heads/`, triées par nom) crée ou met à jour le clone ;
+  - `Branches` (`for-each-ref refs/remotes/origin/`, sans `origin/HEAD`, triées par nom) crée ou met à
+    jour le clone ;
   - `ListCommits` et `CompareCommits` lisent `git log` (`base..head` pour une comparaison, merges
     compris, du plus récent au plus ancien) avec des champs séparés par NUL ; une base ou une tête
     absente du clone donne `ErrUnknownBase`, et le moteur se replie comme avec l'API. Deux historiques
@@ -688,7 +740,7 @@ En place depuis la phase 6 ([Roadmap](07-roadmap.md#phase-6--v2)).
   - Le volume contient la base de l'espace (messages de commit, noms et e-mails de dépôts privés) : **ne
     pas le partager**, ne le monter dans aucun autre conteneur.
   - **Sans `GH_TOKEN`** (V2) : les dépôts sont suivis par clones Git locaux dans le volume
-    (`/data/.watchoo/repos`). Pour des dépôts privés en SSH, monter une clé et un `known_hosts` qui
+    (`/data/repos`). Pour des dépôts privés en SSH, monter une clé et un `known_hosts` qui
     contient `github.com`, en lecture seule : `-v ~/.ssh-watchoo:/home/nonroot/.ssh:ro` (fichiers lisibles
     par l'uid 65532, clé sans phrase de passe ou agent SSH monté, car `ssh` ne demande rien). Non vérifié
     de bout en bout en V2 ; un token `GH_TOKEN` reste le plus simple.

@@ -57,8 +57,9 @@ const (
 type ProviderFactory func(token string) (provider.Provider, error)
 
 // GitProviderFactory construit le Provider des clones Git locaux (V2), utilisé sans gh. Le moteur
-// l'appelle au début de chaque synchro faite sans gh.
-type GitProviderFactory func() (provider.Provider, error)
+// l'appelle au début de chaque synchro faite sans gh, avec les dépôts de l'espace dans l'ordre de leur
+// ajout (CloneRefs) : ils fixent l'emplacement des clones (git.Options.Repos).
+type GitProviderFactory func(repos []gitprov.Ref) (provider.Provider, error)
 
 // SourceKind est le moyen d'accès aux dépôts. Valeurs stables (sorties --json).
 type SourceKind string
@@ -98,7 +99,7 @@ type Options struct {
 	// providertest.Fake ou un provider GitHub branché sur githubtest.
 	NewProvider ProviderFactory
 	// NewGitProvider construit le Provider des clones Git locaux, utilisé quand gh n'est pas installé
-	// ou pas connecté ; nil = git.New(git.Options{Dir: ReposDir, Protocol: Config.Git.Protocol,
+	// ou pas connecté ; nil = git.New(git.Options{Dir: ReposDir, Repos, Protocol: Config.Git.Protocol,
 	// Logger}). Les tests y branchent un provider Git sur gittest.
 	NewGitProvider GitProviderFactory
 	// ReposDir est le répertoire des clones Git locaux de l'espace (workspace.Workspace.ReposDir), pour
@@ -152,11 +153,11 @@ func New(opts Options) (*Engine, error) {
 	newGit := opts.NewGitProvider
 	if newGit == nil {
 		dir, protocol := opts.ReposDir, opts.Config.Git.Protocol
-		newGit = func() (provider.Provider, error) {
+		newGit = func(repos []gitprov.Ref) (provider.Provider, error) {
 			if dir == "" {
 				return nil, errors.New("répertoire des clones Git locaux non renseigné")
 			}
-			return gitprov.New(gitprov.Options{Dir: dir, Protocol: protocol, Logger: logger})
+			return gitprov.New(gitprov.Options{Dir: dir, Repos: repos, Protocol: protocol, Logger: logger})
 		}
 	}
 	return &Engine{
@@ -303,7 +304,11 @@ func (e *Engine) openProvider(ctx context.Context) (provider.Provider, func(stri
 		return nil, nil, Source{}, err
 	}
 	if src.Kind == SourceGit {
-		prov, err := e.newGit()
+		all, err := e.store.ListRepositories(ctx)
+		if err != nil {
+			return nil, nil, Source{}, err
+		}
+		prov, err := e.newGit(CloneRefs(all))
 		if err != nil {
 			return nil, nil, Source{}, fmt.Errorf("dépôts Git locaux (gh absent ou non connecté) : %w", err)
 		}

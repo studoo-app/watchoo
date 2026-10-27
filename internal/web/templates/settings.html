@@ -176,7 +176,7 @@
   <p class="text-sm text-base-content/70">{{if not $q.Reset.IsZero}}Remise à zéro à <time datetime="{{isoTime $q.Reset}}" title="{{localTime $q.Reset}}">{{localClock $q.Reset}}</time>{{end}}{{if $q.Low}} ; synchros reportées jusque-là{{end}}.</p>
   {{- else if $q.Local}}
   <p><span class="badge badge-info badge-soft">sans objet</span></p>
-  <p class="text-sm text-base-content/70">gh n'est pas installé ou pas connecté : les dépôts sont suivis par clones Git locaux (.watchoo/repos/), avec la clé SSH ou les identifiants Git de cette machine, sans quota. Pull requests, releases et étoiles ne sont alors pas lus ; « gh auth login » fait repasser par l'API GitHub.</p>
+  <p class="text-sm text-base-content/70">gh n'est pas installé ou pas connecté : les dépôts sont suivis par clones Git locaux (repos/ à la racine de l'espace), avec la clé SSH ou les identifiants Git de cette machine, sans quota. Pull requests, releases et étoiles ne sont alors pas lus ; « gh auth login » fait repasser par l'API GitHub.</p>
   {{- else}}
   <p><span class="badge badge-neutral">quota inconnu</span></p>
   <p class="text-sm text-base-content/70 break-words">{{truncate 300 $q.Error}}</p>

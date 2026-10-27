@@ -63,6 +63,6 @@ name: "licence-projet"
 #   gh_path: "gh"            # chemin absolu, ou nom cherché dans le PATH
 
 # Sans gh installé et connecté, les dépôts sont suivis par clones Git locaux
-# (.watchoo/repos/), avec la clé SSH ou les identifiants Git de cette machine.
+# (repos/ à la racine de l'espace), avec la clé SSH ou les identifiants Git de cette machine.
 # git:
 #   protocol: "ssh"          # "ssh" (git@github.com:…) ou "https" (https://github.com/…)

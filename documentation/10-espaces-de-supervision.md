@@ -61,19 +61,28 @@ licence-projet/
     config.yaml      réglages de l'espace (nom, intervalle, seuils, branches exclues…)
     watchoo.db       base SQLite : dépôts, commits, contributeurs, journal des synchros
     .gitignore       contient « * » : le contenu n'est jamais commité par erreur
-    repos/           clones Git nus des dépôts suivis sans gh (V2), créé au premier clone
-      alice/projet-licence.git
+  repos/             clones Git des dépôts suivis sans gh (V2), créé au premier clone
+    projet-licence/      alice/projet-licence, avec sa copie de travail
+    bob-projet-licence/  bob/projet-licence : homonyme ajouté après
 ```
 
 - Le répertoire `.watchoo/` est créé avec les droits **`0700`**, et ses fichiers avec les droits **`0600`** :
   seul l'utilisateur peut les lire. Les données viennent de dépôts privés et contiennent des noms et des
   e-mails d'étudiants.
 - Le `.gitignore` interne évite de pousser la base sur GitHub si l'espace se trouve dans un dépôt Git.
-  Comme il ignore tout le contenu de `.watchoo/`, il couvre aussi les clones de `.watchoo/repos/` (V2),
-  y compris dans les espaces créés avant la V2 : rien à migrer.
-- `.watchoo/repos/` et ses sous-répertoires sont créés en **`0700`** par Watchoo au premier clone (dépôts
-  suivis sans `gh`, voir [Dépôts Git locaux](03-architecture.md#dépôts-git-locaux-v2)). Ces clones sont
-  à Watchoo seul : il les met à jour (`git fetch`) et les supprime (`repo remove`) ; ne pas y travailler.
+  Il ne couvre que `.watchoo/` : si la racine de l'espace est un dépôt Git, **`repos/` y apparaît**, à
+  ajouter à votre propre `.gitignore` (Watchoo n'écrit rien hors de `.watchoo/` et `repos/`).
+- `repos/` (V2) est à la **racine de l'espace**, à côté de `.watchoo/`, créé en **`0700`** par Watchoo au
+  premier clone (dépôts suivis sans `gh`, voir [Dépôts Git locaux](03-architecture.md#dépôts-git-locaux-v2)) ;
+  le contenu des clones garde les droits posés par Git. Chaque dépôt y a son clone **avec copie de
+  travail**, `repos/<name>` en minuscules ; deux dépôts de même nom (deux étudiants) : le premier ajouté
+  garde `repos/<name>`, les suivants `repos/<owner>-<name>` (règle complète dans l'architecture).
+- **Ces clones appartiennent à Watchoo** : on peut y lire le code des étudiants, mais à chaque synchro la
+  copie de travail est remise sur la branche par défaut du dépôt (`git checkout --force` puis
+  `git reset --hard`) : **toute modification locale d'un fichier suivi est écrasée**, une autre branche
+  extraite est quittée ; les fichiers non suivis sont gardés. `repo remove` supprime le clone,
+  `repo remove --keep-history` le garde ; repasser par l'API (`gh` connecté) laisse les clones en place.
+  Un répertoire de `repos/` que Watchoo n'a pas créé pour ce dépôt n'est jamais modifié ni supprimé.
 - `config.yaml` commence par la carte d'en-tête de Watchoo, en commentaires YAML : le hibou en petit
   format, « Watchoo » et « Réglages de l'espace de supervision », dans un cadre (le nom de l'espace n'y
   figure pas). Suivent les réglages, commentés en français ; seul le nom de l'espace est actif. Le fichier
@@ -106,10 +115,10 @@ trouvé est utilisé.
 ### Seuls les espaces de l'utilisateur sont acceptés
 
 Un enseignant clone souvent les dépôts qu'il supervise, parfois **dans** son espace
-(`~/supervision/licence-projet/alice-projet/`). Un étudiant peut y avoir commité un `.watchoo/`
-(`git add -f` contourne le `.gitignore`) : lancée depuis ce clone, une commande le trouverait avant le
-vrai espace et lirait des réglages fournis par l'étudiant (base, `web.*`, `github.gh_path`…). Comme
-le `safe.directory` de Git, Watchoo ne fait donc confiance qu'aux espaces de l'utilisateur. Sous Linux
+(`~/supervision/licence-projet/alice-projet/`) ; sans `gh`, Watchoo le fait lui-même dans `repos/`
+(V2). Un étudiant peut y avoir commité un `.watchoo/` (`git add -f` contourne le `.gitignore`) :
+lancée depuis ce clone, une commande le trouverait avant le vrai espace et lirait des réglages fournis
+par l'étudiant (base, `web.*`, `github.gh_path`…). Comme le `safe.directory` de Git, Watchoo ne fait donc confiance qu'aux espaces de l'utilisateur. Sous Linux
 et macOS, avant de lire les réglages d'un espace, il **refuse** :
 
 - un `.watchoo/` qui n'appartient pas à l'utilisateur courant, ou dont les droits dépassent `0700`
@@ -120,6 +129,17 @@ et macOS, avant de lire les réglages d'un espace, il **refuse** :
 `0755` et des fichiers en `0644`), si bien qu'un `.watchoo/` venu d'un dépôt est refusé. Le message cite
 le chemin et le remède : `chmod 700 …` (ou `chmod 600 …`) s'il s'agit bien de votre espace, sinon lancer
 la commande avec `-C <votre espace>` (ou `WATCHOO_DIR`). Sous Windows, ce contrôle n'est pas fait.
+
+### Les clones de `repos/` ne sont jamais des espaces
+
+Les clones de Watchoo (V2) ont une copie de travail, **dans** l'espace : avec un umask `077`, Git y crée
+des répertoires en `0700` et des fichiers en `0600`, si bien qu'un `.watchoo/` commité par un étudiant
+passerait le contrôle des droits. La recherche l'écarte donc en amont : un `.watchoo/` trouvé **sous le
+répertoire `repos/` d'un espace** (`licence-projet/repos/projet-groupe-3/.watchoo/`, à n'importe quelle
+profondeur ; nom `repos` comparé sans tenir compte de la casse) est **ignoré**, et la recherche reprend à
+l'espace qui contient ce `repos/`. Lancée depuis `repos/projet-groupe-3/src/`, une commande travaille
+donc sur `licence-projet`, comme on l'attend. De même, `watchoo init` refuse de créer un espace sous
+le `repos/` d'un espace. Cette règle vaut aussi pour `-C` et `WATCHOO_DIR`.
 
 En complément, `github.gh_path` doit être un **nom** cherché dans le `PATH` (`gh`) ou un **chemin
 absolu** : un chemin relatif avec un séparateur (`./outils/gh`, `.watchoo/gh`) est refusé, car il
@@ -133,8 +153,8 @@ dépendrait du répertoire d'où la commande est lancée.
      seront suivis par l'API GitHub ;
    - `gh` **absent ou connecté à aucun compte** (V2) : `init` **continue**, si `git` est installé, et
      prévient (sur la sortie d'erreur, et dans `warnings` en JSON) que les dépôts seront suivis par
-     **clones Git locaux** (`.watchoo/repos/`), avec la clé SSH ou les identifiants Git de la machine,
-     sans pull requests, releases ni étoiles ; il rappelle `gh auth login` (et l'installation de `gh`
+     **clones Git locaux** (`repos/` à la racine de l'espace), avec la clé SSH ou les identifiants Git de
+     la machine, sans pull requests, releases ni étoiles ; il rappelle `gh auth login` (et l'installation de `gh`
      s'il manque) pour passer par l'API GitHub. Le compte rendu indique « source : clones Git
      locaux » (`source: "git"` en JSON). Sans `git` non plus, `init` **s'arrête** avec un message qui
      dit d'installer `gh` ou `git`, et ne crée rien (voir
@@ -209,7 +229,7 @@ modèle de `watchoo init` (mêmes commentaires), les réglages importés décomm
   la même machine gardent chacun leur jeton CSRF (cookie nommé avec le port).
 - Le quota GitHub est **partagé** entre tous les espaces, puisqu'ils utilisent le même compte `gh`.
   Chaque espace affiche le quota restant réel (lu dans les réponses de GitHub). Sans `gh`, chaque espace
-  a ses propres clones (`.watchoo/repos/`), sans quota.
+  a ses propres clones (`repos/` à sa racine), sans quota.
 
 ## Données personnelles des étudiants
 

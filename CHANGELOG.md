@@ -17,8 +17,10 @@ activité par contributeur dans un dépôt. Fin du MVP.
 ### Ajouté
 
 - **Dépôts Git locaux** : `gh` devient facultatif. Sans `gh` installé et connecté, Watchoo suit les
-  dépôts par clones Git nus dans `.watchoo/repos/` (`git clone --bare`, puis `git fetch` à chaque
-  synchro), avec la clé SSH ou les identifiants Git de la machine, sans aucune invite (`git` doit être
+  dépôts par clones Git **avec copie de travail** dans `repos/<name>`, à la racine de l'espace (homonymes :
+  `repos/<owner>-<name>`), mis à jour à chaque synchro par `git fetch` puis remis sur la branche par
+  défaut (une modification locale d'un fichier suivi est écrasée, un fichier non suivi gardé ; ni hook,
+  ni sous-module, ni téléchargement LFS), avec la clé SSH ou les identifiants Git de la machine, sans aucune invite (`git` doit être
   installé) : commits, branches, statistiques et tags, sans quota, mais sans pull requests, releases,
   étoiles ni login GitHub (contributeurs fusionnés par e-mail). La source est choisie à chaque synchro,
   seulement selon `gh` : le connecter (`gh auth login`) fait repasser par l'API, qui complète alors
@@ -26,7 +28,8 @@ activité par contributeur dans un dépôt. Fin du MVP.
   (`ssh` par défaut, ou `https`), propre à la machine et jamais partagé. `watchoo init` sans `gh` crée
   l'espace et le signale au lieu de s'arrêter (il s'arrête si `git` manque aussi) ; `repo add` et
   `repo import` vérifient l'accès par `git ls-remote` (« accès refusé » sinon) ; `repo remove` supprime
-  le clone, `--keep-history` le garde. `watchoo status`, le bilan de `watchoo sync` et la page Réglages
+  le clone, `--keep-history` le garde. Lancée depuis un clone, une commande ignore un `.watchoo/` commité
+  par l'étudiant et travaille sur l'espace qui contient `repos/`. `watchoo status`, le bilan de `watchoo sync` et la page Réglages
   (quota « sans objet ») indiquent la source ; les sorties `--json` de `init`, `sync` et `status`
   gagnent la clé `source`. La page d'un dépôt et le détail du TUI masquent étoiles, issues, pull requests
   et releases d'un dépôt jamais lu par l'API. La base rend `repositories.provider_id` facultatif

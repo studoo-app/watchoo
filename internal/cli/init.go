@@ -223,7 +223,7 @@ func noGH(err error, status auth.Status, cfg workspace.Config) bool {
 // noGHWarning renvoie l'avertissement de init sans gh : les dépôts seront suivis par clones Git
 // locaux, et comment passer par l'API GitHub.
 func noGHWarning(err error, cfg workspace.Config) string {
-	const local = "les dépôts seront suivis par clones Git locaux (.watchoo/repos/), avec la clé SSH ou les " +
+	const local = "les dépôts seront suivis par clones Git locaux (repos/ dans l'espace), avec la clé SSH ou les " +
 		"identifiants Git de cette machine (sans pull requests, releases ni étoiles)"
 	if errors.Is(err, auth.ErrGHNotFound) {
 		return fmt.Sprintf("gh introuvable (github.gh_path : %q) : %s ; %s, puis lancez « gh auth login » pour "+

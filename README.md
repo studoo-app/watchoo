@@ -59,8 +59,13 @@ Au choix (la source est choisie à chaque synchro, sans réglage) :
   `gh` (`gh auth token`) et ne le stocke jamais.
 - **Sans `gh`** (pas encore publié) : [Git](https://git-scm.com/), avec une clé SSH (ou des identifiants
   Git en HTTPS, `git.protocol: https`) qui a accès aux dépôts. Watchoo les suit par clones locaux dans
-  `.watchoo/repos/`, sans quota, mais sans pull requests, releases ni étoiles. `github.com` doit être
-  connu de SSH (`ssh -T git@github.com` une fois) : Watchoo ne laisse `git` rien demander.
+  `repos/<name>`, à la racine de l'espace (homonymes : `repos/<owner>-<name>`), sans quota, mais sans
+  pull requests, releases ni étoiles. `github.com` doit être connu de SSH (`ssh -T git@github.com` une
+  fois) : Watchoo ne laisse `git` rien demander. Ces clones ont une copie de travail, pour lire le code
+  des étudiants, mais **ils appartiennent à Watchoo** : à chaque synchro, la copie de travail est remise
+  sur la branche par défaut et toute modification locale d'un fichier suivi est **écrasée** (les
+  fichiers non suivis sont gardés). Travaillez dans votre propre clone. Si l'espace est dans un dépôt
+  Git, ajoutez `repos/` à son `.gitignore`.
 
 ## Installation
 

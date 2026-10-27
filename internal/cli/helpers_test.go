@@ -63,6 +63,7 @@ func isolateEnv(t *testing.T) string {
 type harness struct {
 	t      *testing.T
 	cwd    string      // répertoire courant renvoyé par Getwd
+	root   string      // racine de l'espace des tests (cwd de départ) : clones Git dans root/repos
 	Client auth.Client // accès à gh renvoyé par NewAuthClient ; nil = auth.GH réel (DefaultDeps)
 	// Terminal décrit la sortie standard ; nil = valeur par défaut (DetectTerminal du tampon qui
 	// capture la sortie : jamais un terminal).
@@ -105,9 +106,11 @@ func newHarness(t *testing.T) *harness {
 	isolateEnv(t)
 	base := t.TempDir()
 	requireNoWorkspaceAbove(t, base)
+	root := newDir(t, base, "licence-projet")
 	return &harness{
 		t:      t,
-		cwd:    newDir(t, base, "licence-projet"),
+		cwd:    root,
+		root:   root,
 		Client: authtest.NewLoggedIn(""),
 	}
 }
@@ -161,11 +164,11 @@ func (h *harness) runContext(ctx context.Context, args ...string) result {
 			}
 			return h.Provider, nil
 		},
-		NewGitProvider: func() (provider.Provider, error) {
+		NewGitProvider: func(repos []gitprov.Ref) (provider.Provider, error) {
 			if h.GitURL == "" {
 				return nil, errors.New("aucun dépôt Git dans ce test")
 			}
-			return gitprov.New(gitprov.Options{Dir: filepath.Join(h.cwd, workspace.DirName, workspace.ReposDirName),
+			return gitprov.New(gitprov.Options{Dir: filepath.Join(h.root, workspace.ReposDirName), Repos: repos,
 				BaseURL: h.GitURL, Logger: slog.Default()})
 		},
 		CheckGit: func(context.Context) error {

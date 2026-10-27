@@ -115,7 +115,7 @@ COPY --from=build --chown=65532:65532 /out/data /data
 
 # Espace de supervision dans le volume /data (base SQLite : données personnelles, à ne pas partager).
 # gh ne cherche pas de mise à jour (aucun appel réseau inutile). Sans gh connecté (pas de GH_TOKEN),
-# les dépôts sont suivis par clones Git dans /data/.watchoo/repos, avec une clé SSH montée dans
+# les dépôts sont suivis par clones Git dans /data/repos, avec une clé SSH montée dans
 # /home/nonroot/.ssh (voir « Distribution »).
 ENV WATCHOO_DIR=/data \
     HOME=/home/nonroot \

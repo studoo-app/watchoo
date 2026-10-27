@@ -76,7 +76,8 @@ bon schéma ; les autres commandes retrouvent l'espace.
   `watchoo prs` et `watchoo releases`, cartes de la page d'un dépôt, PR ouvertes sur le tableau de bord
   et dans le TUI ; échec isolé en avertissement, `ErrUnsupported` pour le provider Git local).
 - **Dépôts Git locaux** : **en place** (provider `internal/provider/git` sur le binaire `git`, clones
-  nus dans `.watchoo/repos/` mis à jour par `git fetch`, choix de la source à chaque synchro selon `gh`,
+  avec copie de travail dans `repos/` à la racine de l'espace, mis à jour par `git fetch` puis remis sur
+  la branche par défaut, choix de la source à chaque synchro selon `gh`,
   `provider_id` facultatif (migration `00004`), `watchoo init` sans `gh`, source dans `status`, `sync`,
   la page Réglages, écrans qui masquent ce que le clone ne fournit pas, image Docker avec `git`). Un
   dépôt peut être suivi depuis un clone local qui fournit commits, branches et tags sans appel à l'API

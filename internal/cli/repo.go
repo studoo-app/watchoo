@@ -343,9 +343,9 @@ func newRepoRemoveCmd(deps Deps, opts *options) *cobra.Command {
 		Use:   "remove owner/repo",
 		Short: "Arrête le suivi d'un dépôt et supprime son historique",
 		Long: `Arrête le suivi d'un dépôt et supprime de la base son historique : branches, commits
-et journal des synchros, ainsi que son clone Git local (.watchoo/repos/) s'il existe.
-Les contributeurs restent (ils peuvent avoir travaillé sur d'autres dépôts). Rien
-n'est modifié sur GitHub.
+et journal des synchros, ainsi que son clone Git local (repos/ dans l'espace) s'il
+existe. Les contributeurs restent (ils peuvent avoir travaillé sur d'autres dépôts).
+Rien n'est modifié sur GitHub.
 
 Avec --keep-history, le suivi s'arrête mais l'historique reste consultable (le dépôt
 apparaît « arrêté » dans « watchoo repo list ») et le clone Git local est gardé ;

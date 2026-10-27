@@ -67,7 +67,8 @@ refait à chaque synchro (voir [Architecture](03-architecture.md#authentificatio
   tube) l'option **`--yes` / `-y` est obligatoire**. Une réponse autre que `o`, `oui`, `y` ou `yes`, ou un
   Ctrl+C pendant la question (pris en compte tout de suite), annule avec un code de retour non nul. Sans `--keep-history`, le dépôt, ses branches, commits et synchros sont
   supprimés de la base (les contributeurs restent), ainsi que son clone Git local
-  (`.watchoo/repos/owner/repo.git`, V2) s'il existe ; avec `--keep-history`, le suivi s'arrête (le dépôt
+  (`repos/<name>` à la racine de l'espace, V2) s'il existe, et le clone d'un homonyme qui reprend ce nom
+  est déplacé (voir [Dépôts Git locaux](03-architecture.md#dépôts-git-locaux-v2)) ; avec `--keep-history`, le suivi s'arrête (le dépôt
   n'est plus synchronisé par `watchoo sync`, il apparaît `arrêté`), l'historique en base **et** le clone
   sont gardés, et `repo add` le reprend.
 - **`sync`** affiche un tableau par dépôt (statut `ok`, `erreur`, `ignoré` s'il est déjà en cours de

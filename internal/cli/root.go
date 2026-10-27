@@ -49,7 +49,7 @@ type Deps struct {
 	// providertest.Fake.
 	NewProvider wsync.ProviderFactory
 	// NewGitProvider construit le Provider des clones Git locaux, utilisé sans gh (V2) ; nil =
-	// provider Git par défaut, clones dans .watchoo/repos (voir wsync.Options.NewGitProvider). Les
+	// provider Git par défaut, clones dans repos/ à la racine de l'espace (voir wsync.Options.NewGitProvider). Les
 	// tests y branchent un provider Git sur gittest.
 	NewGitProvider wsync.GitProviderFactory
 	// CheckGit vérifie que git est installé (« watchoo init » sans gh) ; nil = git.Check sur le git
@@ -76,7 +76,7 @@ type Deps struct {
 
 // DefaultDeps renvoie les dépendances de production : os.Stdout, os.Stderr, auth.GH construit depuis
 // la configuration, os.Getwd, DetectTerminal(os.Stdout), time.Now, os.Stdin, tui.Run, net.Listen et
-// git.Check. NewGitProvider reste nil (clones dans .watchoo/repos).
+// git.Check. NewGitProvider reste nil (clones dans repos/ à la racine de l'espace).
 // NewProvider et Logger restent nil (provider GitHub et logger de newLogger), StdinIsTerminal aussi
 // (détection sur Stdin par withDefaults).
 func DefaultDeps() Deps {
