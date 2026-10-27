@@ -60,7 +60,9 @@ func NewServer(t testing.TB) *Server {
 // Create crée le dépôt distant owner/name, vide, dont la branche par défaut est defaultBranch.
 func (s *Server) Create(owner, name, defaultBranch string) *Repo {
 	s.t.Helper()
-	bare := filepath.Join(s.root, owner, name+".git")
+	// En minuscules, comme les cherche le provider (Options.BaseURL) : owner/name sont comparés sans
+	// tenir compte de la casse, comme sur GitHub, même sur un système de fichiers qui la distingue.
+	bare := filepath.Join(s.root, strings.ToLower(owner), strings.ToLower(name)+".git")
 	work := filepath.Join(s.work, owner, name)
 	for _, d := range []string{filepath.Dir(bare), work} {
 		if err := os.MkdirAll(d, 0o700); err != nil {

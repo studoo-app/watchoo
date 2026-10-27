@@ -198,7 +198,9 @@ func Check(ctx context.Context, gitPath string) error {
 func (p *Provider) remoteURL(owner, name string) string {
 	switch {
 	case p.baseURL != "":
-		return p.baseURL + "/" + owner + "/" + name + ".git"
+		// Comme GitHub, le faux serveur des tests (gittest) ignore la casse : ses dépôts sont rangés en
+		// minuscules, quel que soit le système de fichiers.
+		return p.baseURL + "/" + strings.ToLower(owner) + "/" + strings.ToLower(name) + ".git"
 	case p.protocol == ProtocolHTTPS:
 		return WebBaseURL + "/" + owner + "/" + name + ".git"
 	default:
@@ -270,6 +272,9 @@ func (p *Provider) run(ctx context.Context, timeout time.Duration, gitDir, name 
 	stderr := &cappedBuffer{max: maxStderr}
 	cmd := exec.CommandContext(runCtx, p.gitPath, full...)
 	cmd.Env = p.gitEnv(ctx)
+	// Répertoire neutre : lancé depuis un dépôt Git de l'utilisateur (un clone d'étudiant, un worktree),
+	// git lirait sa configuration, voire échouerait s'il est illisible.
+	cmd.Dir = os.TempDir()
 	cmd.Stdin = nil
 	cmd.Stdout = &stdout
 	cmd.Stderr = stderr
