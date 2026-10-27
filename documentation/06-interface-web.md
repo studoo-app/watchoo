@@ -271,9 +271,11 @@ et les dépôts), avec le libellé accessible « Profil GitHub de <login> ».
   [Modèle de données](04-modele-donnees.md#contributors--personnes-identifiées)) ; `internal/web` ne
   construit aucune adresse de forge. Seule une adresse `https://` est affichée (fonction de template
   `profileURL`), sinon pas de lien.
-- Pas de lien pour un contributeur connu seulement par son nom et son e-mail Git (clones Git locaux),
-  ni, après la mise à jour vers 0.5.0, pour un contributeur dont aucun nouveau commit n'a encore été lu
-  par l'API (l'adresse arrive avec son prochain commit).
+- Pas de lien pour un contributeur connu seulement par son nom et son e-mail Git (clones Git locaux).
+  Un contributeur enregistré avant la 0.5.0 (login connu, adresse vide) a son lien dès la synchro
+  suivante (celle que `watchoo serve` lance en arrière-plan suffit) : le provider construit l'adresse à
+  partir du login (0.6.1, voir
+  [Modèle de données](04-modele-donnees.md#contributors--personnes-identifiées)).
 
 ## Graphiques d'activité
 

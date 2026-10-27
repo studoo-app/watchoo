@@ -8,7 +8,7 @@ Le MVP se limite à **suivre, synchroniser et afficher** ; tout le reste vient e
 
 | Fonctionnalité | Détail |
 | --- | --- |
-| Ajouter / retirer un dépôt suivi | Saisie `owner/repo` ou URL GitHub ; toutes les branches suivies par défaut, restreignables par liste ou motif |
+| Ajouter / retirer un dépôt suivi | Saisie `owner/repo` ou URL GitHub ; toutes les branches suivies par défaut, restreignables par liste ou motif. Ajout par `watchoo repo add`, l'import, la page Réglages du web ou la touche `a` du TUI (vue Dépôts : toutes les branches, synchro lancée tout de suite) |
 | Import groupé de dépôts | Fichier CSV (dépôt, nom affiché, branches) : toute une promotion d'un coup, accès vérifié, bilan, relançable sans doublon |
 | Synchronisation des commits | Récupération **incrémentale** depuis le dernier SHA connu |
 | Liste des derniers commits | Message, auteur, date, SHA court, lien GitHub ; filtres par dépôt, auteur, période |
@@ -34,7 +34,7 @@ Version suivante de la V2, décidée par le mainteneur : elle complète la vue c
 | Fonctionnalité | Détail |
 | --- | --- |
 | Page par contributeur | Une page par contributeur : ses dépôts, ses commits et son activité dans le temps, sur le web et dans le TUI. **Publié en v0.5.0** : page web `/contributors/{id}` (en-tête avec nom, login, avatar et nombre d'identités Git connues, sans aucune adresse ; totaux de commits, lignes `+/-`, dépôts, premier et dernier commit ; commits par jour sur 90 jours ; commits par semaine et par dépôt sur 12 semaines ; ses dépôts avec commits, lignes, dernier commit et état du dépôt ; ses commits paginés ; ses pull requests quand son compte de forge est connu), liens vers cette page depuis toutes les listes où un contributeur apparaît ; détail d'un contributeur dans le TUI (`entrée` dans la vue Contributeurs). Pas d'état Actif / Flemme / Dead pour une personne : ces états restent des règles de dépôt ; la page donne l'ancienneté du dernier commit et l'état de chacun de ses dépôts |
-| Lien vers le profil de forge | Partout où l'interface web montre un contributeur dont le compte de forge est connu, un lien secondaire « GitHub » ouvre son profil (adresse fournie par la forge, enregistrée dans `contributors.profile_url`). Aucun lien pour un contributeur connu seulement par son nom et son e-mail Git (clones Git locaux) |
+| Lien vers le profil de forge | Partout où l'interface web montre un contributeur dont le compte de forge est connu, un lien secondaire « GitHub » ouvre son profil (adresse fournie par la forge, enregistrée dans `contributors.profile_url` ; pour un contributeur connu avant la 0.5.0, complétée à partir de son login à la synchro suivante). Aucun lien pour un contributeur connu seulement par son nom et son e-mail Git (clones Git locaux) |
 
 ## 0.6.0
 

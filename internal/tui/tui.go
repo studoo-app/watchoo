@@ -10,8 +10,12 @@
 //
 // Touches (voir keys.go) : tab / maj+tab ou 1, 2, 3 changent de vue ; ↑ ↓ (j k) déplacent la
 // sélection ; entrée ouvre le détail du dépôt (ou du contributeur, vue Contributeurs), échap le ferme ; « / » filtre ; « s » synchronise tout ;
-// « S » synchronise le dépôt sélectionné ; « r » relit la base ; « ? » affiche l'aide ; « q » ou
-// ctrl+c quitte.
+// « S » synchronise le dépôt sélectionné ; « a » ajoute un dépôt (vue Dépôts, add.go) ; « r » relit
+// la base ; « ? » affiche l'aide ; « q » ou ctrl+c quitte.
+//
+// Ajout d'un dépôt (« a ») : saisie de la référence, Adder.AddRepositories dans une commande Bubble
+// Tea (un seul à la fois), puis relecture, sélection et synchro du dépôt ajouté (après la synchro en
+// cours s'il y en a une).
 //
 // Synchro automatique : toutes les Deps.Interval (0 = manuelle seule), par une commande tea.Tick ;
 // la synchro tourne dans une commande Bubble Tea (goroutine), jamais dans Update, et une seule à la
@@ -50,6 +54,11 @@ type DataSource interface {
 	ContributorCommitTimes(ctx context.Context, id int64, since time.Time) ([]model.RepoCommitTime, error)
 }
 
+// Adder ajoute des dépôts à suivre, accès vérifié (touche « a ») ; *wsync.Engine le satisfait.
+type Adder interface {
+	AddRepositories(ctx context.Context, reqs []wsync.AddRequest, opts wsync.AddOptions) ([]wsync.AddResult, error)
+}
+
 // Syncer lance les synchros ; *wsync.Engine le satisfait.
 type Syncer interface {
 	SyncAll(ctx context.Context, opts wsync.SyncOptions) (wsync.Report, error)
@@ -60,12 +69,15 @@ type Syncer interface {
 var (
 	_ DataSource = (*store.Store)(nil)
 	_ Syncer     = (*wsync.Engine)(nil)
+	_ Adder      = (*wsync.Engine)(nil)
 )
 
 // Deps regroupe les dépendances du TUI.
 type Deps struct {
 	Data   DataSource
 	Syncer Syncer
+	// Adder ajoute un dépôt (touche « a ») ; nil = ajout indisponible.
+	Adder Adder
 	// Config est la configuration de l'espace (nom affiché dans l'en-tête, seuils d'activité).
 	Config workspace.Config
 	// Location est le fuseau d'affichage (Config.Location) ; nil = time.Local.

@@ -9,10 +9,25 @@ un changement incompatible fait monter MINOR et tout changement compatible fait 
 
 ## [Unreleased]
 
+### Ajouté
+
+- **Ajout d'un dépôt depuis le mode interactif** : dans `watchoo tui`, la touche `a` (vue Dépôts) ouvre
+  une saisie « Dépôt à suivre (owner/nom ou URL GitHub) : » ; `entrée` valide, `échap` annule. Mêmes
+  références, mêmes vérifications et mêmes messages que `watchoo repo add` (toutes les branches, sans
+  label ni seuils propres). Une fois le dépôt ajouté, la liste est relue, le dépôt sélectionné et sa
+  synchro lancée ; pendant une synchro, celle du nouveau dépôt démarre à la fin de la synchro en cours.
+
 ### Modifié
 
 - `watchoo serve` vérifie s'il existe une nouvelle version de Watchoo toutes les 30 min (au lieu de
   toutes les 24 h) : le bandeau de l'interface web apparaît peu après la publication d'une release.
+
+### Corrigé
+
+- **Lien « GitHub » absent** pour les contributeurs connus avant la 0.5.0 (login enregistré, adresse du
+  profil vide, car les commits déjà en base ne sont pas relus) : l'adresse est désormais complétée à
+  partir du login à la synchro suivante, par l'API comme par les clones Git locaux, sans requête
+  supplémentaire.
 
 ## [0.6.0] - 2026-10-27
 

@@ -607,7 +607,8 @@ Appliquer ces changements ? [o/N]
 ## Mode interactif (TUI)
 
 `watchoo tui` ouvre un mode interactif dans le terminal (Bubble Tea). On y parcourt les dépôts, les commits
-et les contributeurs au clavier, avec filtre et vue détail, et on peut y lancer une synchro. Voir
+et les contributeurs au clavier, avec filtre et vue détail, et on peut y lancer une synchro ou ajouter un
+dépôt à suivre. Voir
 [Architecture](03-architecture.md#terminal--mode-interactif-tui).
 
 - Seule la commande `tui` est interactive. Toutes les autres affichent un tableau texte ou du JSON
@@ -642,6 +643,20 @@ et les contributeurs au clavier, avec filtre et vue détail, et on peut y lancer
   vue Contributeurs (filtre `/`).
 - **En-tête** : hibou mini (pupilles vertes), version et espace, onglets, ligne de synchro (en cours avec
   la progression, dernière synchro, prochaine synchro automatique à HH:MM, ou « Synchro manuelle (s) »).
+- **Ajout d'un dépôt** (`a`, vue Dépôts) : une ligne de saisie « Dépôt à suivre (owner/nom ou URL
+  GitHub) : » s'ouvre en bas de l'écran ; `entrée` valide, `échap` annule. La saisie accepte les mêmes
+  références que `watchoo repo add` (`owner/repo` ou URL GitHub, mêmes règles et mêmes messages) ; une
+  référence invalide est signalée sans rien appeler et la saisie reste ouverte pour la corriger (une
+  saisie contenant `@`, qui peut porter des identifiants, est effacée). L'ajout passe par le même cœur
+  que `repo add` (accès vérifié auprès de GitHub, ou sans `gh` par lecture du dépôt distant) et suit
+  les règles de `repo add` sans option : toutes les branches, sans label ni seuils propres (label,
+  branches et seuils se règlent ensuite avec `repo add`, l'import ou la page Réglages du web). Il tourne
+  en arrière-plan, un seul à la fois. Bilan en bas de l'écran : « owner/nom ajouté » (ou « déjà suivi »,
+  « suivi repris » pour un dépôt arrêté, « inaccessible » avec la raison, comme `repo add`) ; la liste
+  est relue, le dépôt sélectionné et sa synchro lancée, comme `S`. Si une synchro est déjà en cours,
+  l'ajout se fait quand même et la synchro du nouveau dépôt démarre à la fin de celle en cours (une
+  synchro de tous les dépôts lancée entre-temps la remplace). Un dépôt déjà suivi n'est ni modifié ni
+  resynchronisé.
 - **Synchro** : une seule à la fois (une demande de plus est ignorée et signalée) ; à la fin, une ligne de
   bilan (nouveaux commits, erreurs, dépôts ignorés ou reportés avec l'heure de reprise locale,
   avertissements sur les pull requests, releases, tags ou un clone Git local indisponible), puis les
@@ -658,9 +673,10 @@ et les contributeurs au clavier, avec filtre et vue détail, et on peut y lancer
 | `échap` | Retour, ou effacer le filtre |
 | `/` | Filtrer la vue (sous-chaîne, sans tenir compte de la casse) ; `entrée` garde le filtre, `ctrl+u` le vide |
 | `s` / `S` | Synchroniser tous les dépôts / le dépôt sélectionné |
+| `a` | Ajouter un dépôt à suivre (vue Dépôts) ; `entrée` valide, `échap` annule |
 | `r` | Relire la base |
 | `?` | Aide des touches |
-| `q`, `ctrl+c` | Quitter (pendant la saisie d'un filtre, seul `ctrl+c` quitte) |
+| `q`, `ctrl+c` | Quitter (pendant la saisie d'un filtre ou d'un dépôt, seul `ctrl+c` quitte) |
 
 ## Exemples de sortie
 

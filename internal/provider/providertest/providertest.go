@@ -1174,3 +1174,13 @@ func (f *Fake) currentRate(now time.Time) provider.RateLimit {
 	rl.ObservedAt = now
 	return rl
 }
+
+// ProfileURL implémente provider.Provider : « https://github.example.test/<login> » (même forme que
+// la ProfileURL de l'auteur factice d'AppendCommits), sans appel compté ; vide si login n'a pas la
+// forme d'un login (provider.ValidLogin).
+func (f *Fake) ProfileURL(login string) string {
+	if !provider.ValidLogin(login) {
+		return ""
+	}
+	return "https://github.example.test/" + login
+}

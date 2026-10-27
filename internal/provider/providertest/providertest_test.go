@@ -864,3 +864,20 @@ func TestConcurrentUse(t *testing.T) {
 		t.Errorf("quota consommé : %d, veut %d", rl.Used, 400-f.Calls(MethodRateLimit))
 	}
 }
+
+func TestProfileURL(t *testing.T) {
+	f := New()
+	for login, want := range map[string]string{
+		"etudiant-test":   "https://github.example.test/etudiant-test",
+		"":                "",
+		"dependabot[bot]": "",
+		"a/b":             "",
+	} {
+		if got := f.ProfileURL(login); got != want {
+			t.Errorf("ProfileURL(%q) = %q, veut %q", login, got, want)
+		}
+	}
+	if len(f.CallLog()) != 0 {
+		t.Errorf("appels comptés : %v", f.CallLog())
+	}
+}

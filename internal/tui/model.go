@@ -111,8 +111,12 @@ type Model struct {
 	showHelp  bool               // écran d'aide (« ? »)
 
 	sync     syncState
-	tracker  *syncTracker // goroutines de synchro, attendues par Run en quittant
+	tracker  *syncTracker // goroutines de synchro et d'ajout, attendues par Run en quittant
 	nextAuto time.Time    // prochaine synchro automatique ; zéro si synchro manuelle seule
+
+	add          addState // ajout d'un dépôt (« a »)
+	pendingSyncs []int64  // dépôts ajoutés pendant une synchro, à synchroniser après elle
+	selectRepo   int64    // dépôt à sélectionner après la prochaine relecture (dépôt ajouté) ; 0 = aucun
 
 	status    string // message du bas de l'écran
 	statusErr bool   // le message est une erreur
@@ -272,6 +276,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.loaded = true
 		m.repos, m.commits, m.contribs = msg.repos, msg.commits, msg.contribs
 		m.clampAll()
+		m.selectAfterLoad()
 		return m, nil
 	case detailMsg:
 		if !m.detail.open || msg.repoID != m.detail.repoID {
@@ -292,6 +297,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleSyncProgress(msg)
 	case syncDoneMsg:
 		return m.handleSyncDone(msg)
+	case addDoneMsg:
+		return m.handleAddDone(msg)
+	case tea.PasteMsg:
+		if m.add.open {
+			m.appendAddInput(msg.Content)
+		}
+		return m, nil
 	case autoSyncMsg:
 		// La synchro automatique suivante est programmée tout de suite : une synchro manuelle ne la
 		// décale pas, et une synchro longue ne la retarde pas.
@@ -316,6 +328,9 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	}
 	if m.filtering {
 		return m.handleFilterKey(msg), nil
+	}
+	if m.add.open {
+		return m.handleAddKey(msg)
 	}
 	k := m.keys
 	switch {
@@ -379,6 +394,8 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		return m.startSync(id, false)
+	case key.Matches(msg, k.Add):
+		return m.openAdd()
 	case key.Matches(msg, k.Reload):
 		m.loading = true
 		cmds := []tea.Cmd{m.loadCmd()}
