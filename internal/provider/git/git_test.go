@@ -726,3 +726,21 @@ func TestOccupiedCloneDir(t *testing.T) {
 		t.Errorf("répertoire vide : %v", err)
 	}
 }
+
+func TestProfileURL(t *testing.T) {
+	p, err := git.New(git.Options{Dir: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for login, want := range map[string]string{
+		"etudiant-test":   "https://github.com/etudiant-test",
+		"":                "",
+		"dependabot[bot]": "",
+		"a/b":             "",
+		"a b":             "",
+	} {
+		if got := p.ProfileURL(login); got != want {
+			t.Errorf("ProfileURL(%q) = %q, veut %q", login, got, want)
+		}
+	}
+}

@@ -155,6 +155,13 @@ type Provider interface {
 	// LastRateLimit renvoie le dernier état du quota observé (en-têtes de chaque réponse, réponses 304
 	// comprises, ou RateLimit), sans requête ; false si aucun n'a encore été observé pour ce token.
 	LastRateLimit() (RateLimit, bool)
+
+	// ProfileURL renvoie la page web du profil du compte de login login sur la forge (sur GitHub,
+	// « https://github.com/<login> », comme html_url du compte), sans requête. Chaîne vide si login est
+	// vide ou n'a pas la forme d'un login de compte (ValidLogin : bots comme « dependabot[bot] »
+	// compris). Le moteur de synchro s'en sert pour compléter la page de profil des contributeurs dont
+	// le login est connu mais pas l'adresse (contributeurs enregistrés avant la 0.5.0).
+	ProfileURL(login string) string
 }
 
 // ListCommitsOptions règle ListCommits.

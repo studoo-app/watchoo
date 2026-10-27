@@ -37,6 +37,13 @@ func ValidateOwner(owner string) error {
 	return nil
 }
 
+// ValidLogin indique si login a la forme d'un login de compte de forge (utilisateur ou organisation),
+// mêmes règles que ValidateOwner : 1 à 39 caractères parmi A-Z a-z 0-9 et « - », sans « - » en tête.
+// Un compte d'application (« dependabot[bot] ») n'en a pas la forme.
+func ValidLogin(login string) bool {
+	return ownerPattern.MatchString(login)
+}
+
 // ValidateName vérifie un nom de dépôt : 1 à 100 caractères parmi A-Z a-z 0-9 « . » « _ » « - », autre
 // que « . » et « .. ». Erreur enveloppant ErrInvalidRef sinon.
 func ValidateName(name string) error {

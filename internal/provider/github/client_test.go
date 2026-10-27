@@ -283,3 +283,29 @@ func TestAPIPath(t *testing.T) {
 		t.Errorf("apiPath(nil) = %q", got)
 	}
 }
+
+// ProfileURL construit la page de profil sans requête, comme html_url du compte ; vide pour un login
+// absent, mal formé ou de bot (page sous /apps/).
+func TestProfileURL(t *testing.T) {
+	ct := &countingTransport{next: http.DefaultTransport}
+	p, err := New(testToken, Options{Transport: ct})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for login, want := range map[string]string{
+		"etudiant-test":   "https://github.com/etudiant-test",
+		"Alice42":         "https://github.com/Alice42",
+		"":                "",
+		"dependabot[bot]": "",
+		"a/b":             "",
+		"-x":              "",
+		"a b":             "",
+	} {
+		if got := p.ProfileURL(login); got != want {
+			t.Errorf("ProfileURL(%q) = %q, veut %q", login, got, want)
+		}
+	}
+	if n := ct.n.Load(); n != 0 {
+		t.Errorf("%d requêtes envoyées, aucune attendue", n)
+	}
+}

@@ -54,3 +54,15 @@ FROM contributors ct
 LEFT JOIN commits c ON c.author_id = ct.id
 WHERE ct.id = sqlc.arg(id)
 GROUP BY ct.id;
+
+-- name: ListContributorsWithoutProfileURL :many
+-- Contributeurs d'une forge dont le login est connu mais la page de profil vide (connus avant la 0.5.0).
+SELECT id, provider_login FROM contributors
+WHERE provider = ? AND provider_login <> '' AND profile_url = ''
+ORDER BY id;
+
+-- name: SetContributorProfileURL :execrows
+-- Renseigne la page de profil d'un contributeur, seulement si elle est encore vide.
+UPDATE contributors
+SET profile_url = ?
+WHERE id = ? AND profile_url = '';

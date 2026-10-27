@@ -217,3 +217,59 @@ func TestCloneRefsOrder(t *testing.T) {
 		t.Error("CloneRefs a modifié la liste reçue")
 	}
 }
+
+// Contributeur connu avant la 0.5.0 (login enregistré, page de profil vide) : la synchro suivante
+// complète la page de profil à partir du login, par l'API comme par les clones Git locaux, sans
+// requête ni login dans les logs (assertNoLeak).
+func TestSyncBackfillsProfileURL(t *testing.T) {
+	srv := gittest.NewServer(t)
+	r := srv.Create(testOwner, "projet", "main")
+	r.Commit("main", "README.md", "a\n", secretMessage, secretAuthor, epoch)
+
+	e := newEnv(t, withGit(srv.URL))
+	ctx := t.Context()
+	repo := e.addRepo(1, "projet")
+	// Auteur avec login, sans ProfileURL (comme avant la 0.5.0).
+	e.fake.SetBranch(repo.ID, "main", e.commit(repo.ID, "c1", epoch))
+
+	profileURL := func() string {
+		t.Helper()
+		var url string
+		if err := e.st.DB().QueryRowContext(ctx,
+			"SELECT profile_url FROM contributors WHERE provider_login = ?", secretLogin).Scan(&url); err != nil {
+			t.Fatal(err)
+		}
+		return url
+	}
+	clear := func() {
+		t.Helper()
+		if _, err := e.st.DB().ExecContext(ctx, "UPDATE contributors SET profile_url = ''"); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	e.syncOK(repo.ID)
+	if got, want := profileURL(), "https://github.example.test/"+secretLogin; got != want {
+		t.Errorf("après la première synchro : profile_url = %q, attendu %q", got, want)
+	}
+
+	// Base d'avant la 0.5.0 : aucun nouveau commit, l'adresse est quand même complétée.
+	clear()
+	if rep := e.syncOK(repo.ID); rep.NewCommits != 0 {
+		t.Fatalf("%d nouveaux commits, aucun attendu", rep.NewCommits)
+	}
+	if got, want := profileURL(), "https://github.example.test/"+secretLogin; got != want {
+		t.Errorf("synchro par l'API : profile_url = %q, attendu %q", got, want)
+	}
+
+	// Sans gh : clones Git locaux, même complément (adresse github.com).
+	clear()
+	e.auth.SetTokenErr(auth.ErrNotLoggedIn)
+	rep := e.syncAll()
+	if rep.Source.Kind != wsync.SourceGit {
+		t.Fatalf("source %q, clones Git attendus", rep.Source.Kind)
+	}
+	if got, want := profileURL(), "https://github.com/"+secretLogin; got != want {
+		t.Errorf("synchro par clones Git : profile_url = %q, attendu %q", got, want)
+	}
+}
