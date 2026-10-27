@@ -124,12 +124,12 @@ func TestHelpWorkspaceStatus(t *testing.T) {
 		want string
 		tip  string
 	}{
-		{"espace du répertoire courant, sous le répertoire personnel", root, nil, "", inHome, tipHelp},
-		{"depuis un sous-répertoire", newDir(t, root, "src", "module"), []string{"help"}, "", inHome, tipHelp},
+		{"espace du répertoire courant, sous le répertoire personnel", root, nil, "", inHome, tipWorkspace},
+		{"depuis un sous-répertoire", newDir(t, root, "src", "module"), []string{"help"}, "", inHome, tipWorkspace},
 		{"hors d'un espace", empty, []string{"--help"}, "", "Aucun espace de supervision ici", tipInit},
-		{"option -C", empty, []string{"-C", other, "--help"}, "", inOther, tipHelp},
-		{"option -C relative", root, []string{"-C", "src", "help"}, "", inHome, tipHelp},
-		{"variable WATCHOO_DIR", empty, nil, other, inOther, tipHelp},
+		{"option -C", empty, []string{"-C", other, "--help"}, "", inOther, tipWorkspace},
+		{"option -C relative", root, []string{"-C", "src", "help"}, "", inHome, tipWorkspace},
+		{"variable WATCHOO_DIR", empty, nil, other, inOther, tipWorkspace},
 		{"option -C sans espace", root, []string{"-C", empty}, "", "Aucun espace de supervision ici", tipInit},
 		{"option -C inexistante", root, []string{"-C", "absent", "-h"}, "",
 			"Espace : option -C : le répertoire " + filepath.Join(root, "absent") + " n'existe pas", tipHelp},
@@ -253,7 +253,7 @@ func TestCardInit(t *testing.T) {
 	if r.stdout != want {
 		t.Errorf("init sur un terminal :\n%s\nattendu :\n%s", r.stdout, want)
 	}
-	if !strings.Contains(ansiSeq.ReplaceAllString(r.stdout, ""), "Astuce : « watchoo help » liste les commandes.") {
+	if !strings.Contains(ansiSeq.ReplaceAllString(r.stdout, ""), tipInitDone) {
 		t.Errorf("astuce absente :\n%s", r.stdout)
 	}
 	if r.stderr != "" {

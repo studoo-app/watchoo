@@ -1,7 +1,7 @@
 package store
 
 // Tests des contraintes du schéma (00001_init.sql) : unicité, clés étrangères, cascades, CHECK.
-// Les tables autres que repositories n'ont pas encore de requêtes sqlc (phases suivantes) : elles sont
+// Ces tests vérifient le schéma lui-même, indépendamment des requêtes sqlc : les tables sont
 // alimentées ici en SQL brut.
 
 import (

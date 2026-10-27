@@ -18,6 +18,7 @@ pas de token. Tout ce qui sort du binaire est simulé.
 | CLI | Exécution des commandes cobra, vérification de la sortie texte et JSON | `internal/cli/` |
 | Web | `httptest` sur le routeur chi, vérification des pages et fragments | `internal/web/` |
 | TUI | Tests du modèle Bubble Tea : messages envoyés, état et rendu obtenus | `internal/tui/` |
+| Bout en bout | La CLI complète avec le faux `gh`, le vrai provider contre `githubtest` et une base temporaire | `internal/cli/e2e_test.go` |
 
 ## Mock de la commande `gh`
 
@@ -102,6 +103,50 @@ Deux faux, écrits en phase 2 et réutilisés par les phases suivantes :
   l'envoi.
 - **Test de fuite** : dans tous ces scénarios, les logs (capturés au niveau Debug) et les erreurs ne
   contiennent ni le faux token, ni en-tête `Authorization`, ni message de commit, nom ou e-mail.
+
+## Phase 3 : moteur, CLI et TUI
+
+- **Store** (`internal/store/`, base temporaire) : verrou de synchro (8 goroutines concurrentes, une
+  seule le prend ; `running` périmé clos « synchro interrompue »), écriture d'une synchro en une
+  transaction (annulée en entier sur erreur), `INSERT … ON CONFLICT DO NOTHING`, fusion des identités,
+  `last_commit_at` sur les branches suivies, vues de lecture (filtres dépôt, auteur, branche, période,
+  limite ; classement ; résumés).
+- **Activité et import** (`internal/activity/`, `internal/repoimport/`, sans base) : seuils globaux et par
+  dépôt, bornes 5/6 et 15/16 jours, jours calendaires (passage de minuit à Paris, heure d'été), priorité
+  des états gris ; CSV (BOM, CRLF, guillemets, colonnes dans le désordre), liste simple, commentaires,
+  doublons, chaque erreur avec son numéro de ligne, aucun identifiant de connexion dans les messages.
+- **Moteur** (`internal/sync/`, `providertest` + base temporaire) : premier import, synchro
+  incrémentale, tête inchangée (aucune requête de commits), nouvelle branche, merge qui apporte des
+  commits plus anciens, force-push (branche et branche de référence), branche supprimée,
+  `branch_patterns` et `branches.exclude`, branche par défaut changée ou renommée (ancienne supprimée),
+  motifs qui excluent après coup la branche par défaut (nouvelle référence relue en entier,
+  `last_commit_at` et état d'activité conservés), label invalide refusé, dépôt renommé, transféré ou vide,
+  `404` et SSO, quota bas avant et pendant la synchro, `RateLimitError`, limite secondaire, verrou (deux
+  moteurs sur la même base), parallélisme borné, règles des statistiques, token redemandé à chaque
+  synchro et masqué, annulation. Un scénario passe par le vrai provider et `githubtest`.
+- **CLI** (`internal/cli/`, `authtest` ou faux `gh`, `providertest`) : chaque commande en texte et en
+  `--json` (jeu de clés figé par les tests), hors espace, dépôt inconnu, arguments invalides, `--since`
+  et `-n`, import (`--dry-run`, bilan, code de retour, fichier invalide), dépôts verrouillés ou reportés,
+  `gh` déconnecté, carte de `status`, quota bas signalé par `status` (texte et `quota_low`),
+  confirmation de `repo remove` (`--yes` hors terminal), `repo add --label` avec un caractère de
+  contrôle refusé, sortie texte de `log`, `contributors` et `repo list` sans aucune séquence
+  d'échappement quand messages et noms Git en contiennent (`internal/textclean` testé à part).
+- **Bout en bout** (`internal/cli/e2e_test.go`) : vrai `auth.GH` avec le faux `gh`, vrai provider GitHub
+  contre `githubtest`, vrai moteur, base temporaire : `init` → `repo add` → `repo import` (avec
+  `--dry-run`, un dépôt déjà suivi et un inaccessible) → `sync` → `log` (filtres) → `contributors` →
+  `repo list` (Actif / Flemme / Dead) → `status` → nouveaux commits et synchro incrémentale (compare,
+  jamais la liste complète ; rien quand rien n'a changé ; uniquement des `GET`) → `repo remove`
+  (`--keep-history`, puis suppression). Ni token ni message de commit ni e-mail dans les logs.
+- **TUI** (`internal/tui/`) : `Init` / `Update` / `View` appelés directement (sans `teatest`), avec un
+  faux `Syncer` qu'on peut suspendre et une vraie base temporaire : vues, modes ASCII et couleur,
+  défilement, filtre, détail, synchro (progression, refus pendant une synchro, erreurs, report en heure
+  de Paris), synchro automatique, quitter pendant une synchro, aide. Un test lance `tui.Run` avec le
+  vrai moteur, une base temporaire et un provider bloquant : quitter pendant la synchro attend sa fin,
+  le `sync_run` n'est plus `running` et le dépôt n'est pas verrouillé. `watchoo tui` : refus hors
+  terminal, `--json`, valeurs de `--interval`.
+- **Fuites** : à chaque commande de la CLI, le harness vérifie que le faux token n'apparaît ni sur les
+  sorties ni dans les logs ; les tests du moteur vérifient aussi l'absence de nom, d'e-mail, de login et
+  de message de commit dans les logs et les rapports.
 
 ## Logo et carte d'en-tête
 

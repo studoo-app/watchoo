@@ -19,7 +19,9 @@ const (
 	helpSubtitle = "Qui a travaillé, sur quoi, et quand ?"
 	tipHelp      = "Astuce : « watchoo help <commande> » détaille une commande."
 	tipInit      = "Astuce : « watchoo init » fait de ce répertoire un espace de supervision."
-	tipInitDone  = "Astuce : « watchoo help » liste les commandes."
+	tipWorkspace = "Astuce : « watchoo repo add owner/repo » puis « watchoo sync »."
+	tipInitDone  = "Astuce : « watchoo repo add owner/repo » ajoute un premier dépôt à suivre."
+	tipStatus    = "Astuce : « watchoo sync » met à jour les dépôts suivis."
 	noWorkspace  = "Aucun espace de supervision ici"
 )
 
@@ -79,7 +81,8 @@ func writeHelpHeader(deps Deps, opts *options) error {
 // l'espace trouvé comme le feraient les autres commandes (répertoire courant et ses parents, -C ou
 // WATCHOO_DIR). La recherche est locale (workspace.ResolveFrom : aucun appel à gh) et ne fait jamais
 // échouer l'aide :
-//   - espace trouvé : « Espace : <nom> (<racine>) », et l'astuce de « watchoo help <commande> » ;
+//   - espace trouvé : « Espace : <nom> (<racine>) », et l'astuce de « watchoo repo add » et
+//     « watchoo sync » ;
 //   - aucun espace : « Aucun espace de supervision ici », et l'astuce de « watchoo init » ;
 //   - autre erreur (réglages invalides, répertoire de -C inexistant…) : « Espace : <première ligne de
 //     l'erreur> », et l'astuce de « watchoo help <commande> ».
@@ -87,7 +90,7 @@ func helpStatus(deps Deps, opts *options) (status, tip string) {
 	ws, err := resolveForHelp(deps, opts)
 	switch {
 	case err == nil:
-		return fmt.Sprintf("Espace : %s (%s)", ws.Config.Name, displayPath(ws.Root)), tipHelp
+		return fmt.Sprintf("Espace : %s (%s)", ws.Config.Name, displayPath(ws.Root)), tipWorkspace
 	case errors.Is(err, workspace.ErrNotFound):
 		return noWorkspace, tipInit
 	default:

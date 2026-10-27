@@ -8,14 +8,19 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/studoo-app/watchoo/internal/auth"
+	wsync "github.com/studoo-app/watchoo/internal/sync"
+	"github.com/studoo-app/watchoo/internal/textclean"
+	"github.com/studoo-app/watchoo/internal/tui"
 	"github.com/studoo-app/watchoo/internal/workspace"
 )
 
@@ -34,10 +39,33 @@ type Deps struct {
 	// d'afficher la carte. Par défaut, DetectTerminal appliquée à Stdout : un Stdout qui n'est pas un
 	// fichier (tampon des tests) n'est jamais un terminal.
 	Terminal func() TermInfo
+
+	// Dépendances de la phase 3.
+
+	// NewProvider construit le Provider des synchros et vérifications d'accès à partir du token ;
+	// nil = provider GitHub par défaut (voir wsync.Options.NewProvider). Les tests y renvoient un
+	// providertest.Fake.
+	NewProvider wsync.ProviderFactory
+	// Now est l'horloge (dates relatives, --since, synchros) ; nil = time.Now.
+	Now func() time.Time
+	// Stdin est l'entrée standard (confirmation de « repo remove », clavier du TUI) ; nil = os.Stdin.
+	Stdin io.Reader
+	// StdinIsTerminal indique si Stdin est un terminal ; nil = détection sur Stdin (isatty). Les
+	// tests y répondent sans terminal réel.
+	StdinIsTerminal func() bool
+	// RunTUI lance le mode interactif ; nil = tui.Run. Les tests de « watchoo tui » y vérifient les
+	// dépendances reçues sans ouvrir de terminal.
+	RunTUI func(ctx context.Context, deps tui.Deps, term tui.IO) error
+	// Logger reçoit les logs du moteur de synchro et du provider ; nil = logger texte sur Stderr, au
+	// niveau de WATCHOO_LOG_LEVEL (warn par défaut) ou debug avec --verbose (voir newLogger). Les tests
+	// y passent un logger qui capture tout, pour vérifier qu'aucun token n'y apparaît.
+	Logger *slog.Logger
 }
 
 // DefaultDeps renvoie les dépendances de production : os.Stdout, os.Stderr, auth.GH construit depuis
-// la configuration, os.Getwd, DetectTerminal(os.Stdout).
+// la configuration, os.Getwd, DetectTerminal(os.Stdout), time.Now, os.Stdin et tui.Run. NewProvider
+// et Logger restent nil (provider GitHub et logger de newLogger), StdinIsTerminal aussi (détection
+// sur Stdin par withDefaults).
 func DefaultDeps() Deps {
 	return Deps{
 		Stdout: os.Stdout,
@@ -47,6 +75,9 @@ func DefaultDeps() Deps {
 		},
 		Getwd:    os.Getwd,
 		Terminal: func() TermInfo { return DetectTerminal(os.Stdout) },
+		Now:      time.Now,
+		Stdin:    os.Stdin,
+		RunTUI:   tui.Run,
 	}
 }
 
@@ -70,6 +101,19 @@ func (d Deps) withDefaults() Deps {
 		stdout := d.Stdout
 		d.Terminal = func() TermInfo { return DetectTerminal(stdout) }
 	}
+	if d.Now == nil {
+		d.Now = def.Now
+	}
+	if d.Stdin == nil {
+		d.Stdin = def.Stdin
+	}
+	if d.StdinIsTerminal == nil {
+		stdin := d.Stdin
+		d.StdinIsTerminal = func() bool { return isTerminal(stdin) }
+	}
+	if d.RunTUI == nil {
+		d.RunTUI = def.RunTUI
+	}
 	return d
 }
 
@@ -79,12 +123,15 @@ type options struct {
 	workspaceDir string // -C / --workspace : répertoire de l'espace à utiliser
 	json         bool   // --json : sortie JSON au lieu du texte
 	version      bool   // --version (watchoo seul) : même effet que « watchoo version »
+	verbose      bool   // --verbose : logs détaillés (niveau debug) sur la sortie d'erreur
 }
 
-// NewRootCmd construit la commande racine « watchoo » et ses sous-commandes (init, version).
+// NewRootCmd construit la commande racine « watchoo » et ses sous-commandes (init, version, repo,
+// sync, log, contributors, status, tui).
 //
-// Options globales (persistantes) : --json (sortie JSON) et -C / --workspace <répertoire> (espace à
-// utiliser au lieu de celui trouvé depuis le répertoire courant). La commande racine a aussi l'option
+// Options globales (persistantes) : --json (sortie JSON), -C / --workspace <répertoire> (espace à
+// utiliser au lieu de celui trouvé depuis le répertoire courant) et --verbose (logs détaillés sur
+// la sortie d'erreur). La commande racine a aussi l'option
 // --version, qui fait comme « watchoo version ». Sur un terminal, l'aide générale (« watchoo »,
 // « watchoo help », « watchoo --help ») commence par la carte d'en-tête et la ligne d'état de l'espace
 // (voir writeHelpHeader) ; l'aide des sous-commandes, non. Les erreurs ne sont pas affichées par cobra
@@ -129,6 +176,9 @@ Prérequis : la CLI GitHub gh, installée et connectée (« gh auth login »).`,
 		"affiche le résultat au format JSON, pour les scripts")
 	root.PersistentFlags().StringVarP(&opts.workspaceDir, "workspace", "C", "",
 		"travaille sur l'espace situé à ce `chemin` au lieu de celui trouvé depuis le répertoire courant")
+	// Sans lettre courte : « -v » serait confondu avec --version.
+	root.PersistentFlags().BoolVar(&opts.verbose, "verbose", false,
+		"affiche les logs détaillés (niveau debug) sur la sortie d'erreur")
 	// Option locale, sans lettre courte : « watchoo init --version » est une option inconnue.
 	root.Flags().BoolVar(&opts.version, "version", false, "affiche la version de Watchoo (comme « watchoo version »)")
 	localize(root)
@@ -147,6 +197,12 @@ Prérequis : la CLI GitHub gh, installée et connectée (« gh auth login »).`,
 	root.AddCommand(
 		newInitCmd(deps, opts),
 		newVersionCmd(deps, opts),
+		newRepoCmd(deps, opts),
+		newSyncCmd(deps, opts),
+		newLogCmd(deps, opts),
+		newContributorsCmd(deps, opts),
+		newStatusCmd(deps, opts),
+		newTUICmd(deps, opts),
 	)
 	return root
 }
@@ -165,7 +221,8 @@ func Run(ctx context.Context, deps Deps, args []string) int {
 			fmt.Fprintf(deps.Stderr, "erreur : commande interrompue (%v)\n", err)
 			return 1
 		}
-		fmt.Fprintf(deps.Stderr, "erreur : %v\n", err)
+		// Le message peut citer un texte de la forge ou de la base : nettoyé avant d'aller au terminal.
+		fmt.Fprintf(deps.Stderr, "erreur : %s\n", textclean.CleanLines(err.Error()))
 		return 1
 	}
 	return 0

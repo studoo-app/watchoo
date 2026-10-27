@@ -66,6 +66,7 @@ type Repository struct {
 	FlemmeAfterDays sql.NullInt64
 	DeadAfterDays   sql.NullInt64
 	Enabled         bool
+	BranchPatterns  string
 }
 
 type SyncRun struct {

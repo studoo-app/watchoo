@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/studoo-app/watchoo/internal/model"
@@ -34,6 +35,7 @@ func (s *Store) CreateRepository(ctx context.Context, r model.Repository) (model
 		FlemmeAfterDays: nullInt(r.FlemmeAfterDays),
 		DeadAfterDays:   nullInt(r.DeadAfterDays),
 		Enabled:         r.Enabled,
+		BranchPatterns:  JoinBranchPatterns(r.BranchPatterns),
 	})
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -150,7 +152,33 @@ func repositoryFromDB(row db.Repository) (model.Repository, error) {
 		FlemmeAfterDays: intPtr(row.FlemmeAfterDays),
 		DeadAfterDays:   intPtr(row.DeadAfterDays),
 		Enabled:         row.Enabled,
+		BranchPatterns:  SplitBranchPatterns(row.BranchPatterns),
 	}, nil
+}
+
+// JoinBranchPatterns convertit les motifs de branches vers la colonne branch_patterns : valeurs
+// débarrassées des espaces autour, vides retirées, jointes par des virgules ; nil ou vide donne « ».
+// Un motif ne contient jamais de virgule (repoimport.ParseBranchPatterns le garantit en amont).
+func JoinBranchPatterns(patterns []string) string {
+	kept := make([]string, 0, len(patterns))
+	for _, p := range patterns {
+		if p = strings.TrimSpace(p); p != "" {
+			kept = append(kept, p)
+		}
+	}
+	return strings.Join(kept, ",")
+}
+
+// SplitBranchPatterns est la conversion inverse de JoinBranchPatterns : « » donne nil (toutes les
+// branches), sinon les valeurs non vides, dans l'ordre.
+func SplitBranchPatterns(s string) []string {
+	var patterns []string
+	for _, p := range strings.Split(s, ",") {
+		if p = strings.TrimSpace(p); p != "" {
+			patterns = append(patterns, p)
+		}
+	}
+	return patterns
 }
 
 // nullTime convertit une date facultative vers une colonne TEXT nullable : la valeur zéro donne NULL,

@@ -86,8 +86,8 @@ func TestInitCreatesWorkspace(t *testing.T) {
 	if err := st.DB().QueryRowContext(ctx, `SELECT MAX(version_id) FROM goose_db_version`).Scan(&version); err != nil {
 		t.Fatal(err)
 	}
-	if version != 1 {
-		t.Errorf("version du schéma = %d, attendu 1", version)
+	if version != 2 {
+		t.Errorf("version du schéma = %d, attendu 2 (00002_branch_patterns)", version)
 	}
 	if repos, err := st.ListRepositories(ctx); err != nil || len(repos) != 0 {
 		t.Errorf("ListRepositories = %v, %v ; attendu une liste vide", repos, err)

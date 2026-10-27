@@ -52,6 +52,11 @@ Le MVP se limite à **suivre, synchroniser et afficher** ; tout le reste vient e
   - **Jamais synchronisé** : le dépôt vient d'être ajouté.
   - **En erreur** : la dernière synchro a échoué (dépôt supprimé, accès perdu…).
   - **Archivé** : le dépôt est archivé sur GitHub, il ne bougera plus ; il n'est pas signalé en Dead.
+  - **Arrêté** : le suivi est arrêté (`repo remove --keep-history`) ; l'historique reste consultable.
+  - **Vide** : le dépôt a été synchronisé mais n'a aucun commit (dépôt d'étudiant tout juste créé).
+  - Priorité entre états gris : Arrêté, En erreur, Jamais synchronisé, Archivé, Vide.
+- **Jours** : comptés en jours calendaires dans le fuseau d'affichage (réglage `timezone`, sinon celui du
+  système) : un commit d'hier à 23 h a 1 jour, quelle que soit l'heure.
 - **Incrémental** : un commit déjà présent en base n'est jamais re-téléchargé.
 - **Identité** : un contributeur peut utiliser plusieurs e-mails ; ils sont rattachés à son login GitHub
   quand celui-ci est connu.

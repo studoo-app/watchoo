@@ -42,7 +42,7 @@ flowchart TD
 | Affichage terminal | `charmbracelet/bubbletea` + `bubbles` (TUI) + `lipgloss` | Mode interactif navigable au clavier ; sortie texte statique (`lipgloss/table`) pour les pipes et les scripts |
 | Planification | `time.Ticker` + `errgroup` | Synchro périodique, parallélisme borné |
 | Authentification | CLI GitHub `gh` (prérequis) | Token obtenu avec `gh auth token`, jamais stocké par Watchoo ; un seul token pour tous les propriétaires |
-| Logs | `log/slog` | Logs structurés de la bibliothèque standard |
+| Logs | `log/slog` | Logs structurés de la bibliothèque standard, sur la sortie d'erreur ; niveau `warn` par défaut, réglable par `WATCHOO_LOG_LEVEL` (`debug`, `info`, `warn`, `error`) ou `--verbose` (`debug`). Seulement des identifiants de dépôt, des SHA courts et des compteurs : jamais de token, de message de commit, de nom ni d'e-mail |
 
 ### Décisions techniques
 
@@ -61,13 +61,17 @@ watchoo/
   internal/auth/       accès à gh (token, état de connexion) + faux gh pour les tests
   internal/provider/   interface Provider, types et erreurs ; providertest/ (faux Provider en mémoire)
     github/            implémentation GitHub, seul import de go-github ; githubtest/ (faux serveur)
-  internal/sync/       moteur de synchronisation
+  internal/sync/       moteur de synchronisation (Engine : SyncAll, SyncRepo, AddRepositories)
+  internal/activity/   règles d'activité (Actif / Flemme / Dead, états gris), formats courts
+  internal/repoimport/ analyse des références de dépôts, de --branch et des fichiers d'import
+  internal/textclean/  nettoyage des textes affichés (séquences d'échappement, contrôles), CLI et TUI
   internal/store/      SQLite, accès aux données
     migrations/        migrations goose (servent aussi de schéma à sqlc)
     queries/           requêtes SQL annotées pour sqlc
     db/                code Go généré par sqlc (ne pas éditer)
   sqlc.yaml            configuration de sqlc
   internal/model/      structs métier
+  internal/tui/        mode interactif (Bubble Tea v2, bubbles, lipgloss)
   internal/logo/       hibou en versions texte et carte d'en-tête (CLI, config.yaml)
   config.example.yaml
 ```
@@ -172,8 +176,19 @@ Faux pour les tests : `providertest` (Provider en mémoire) et `githubtest` (ser
   `--interval 0`. `serve` et `tui` ne synchronisent alors que sur demande.
 - **Garde-fou sur le quota** : si le quota restant passe sous **10 %**, Watchoo espace les synchros
   jusqu'à la remise à zéro du quota et le signale dans `status`, le web et le TUI.
+- **Garde-fou, détail** : avant chaque dépôt, le moteur lit le dernier état du quota observé ; sous 10 %
+  de la limite, ce dépôt et les suivants sont **reportés** (« reporté : quota bas jusqu'à HH:MM »). Un
+  quota épuisé (`RateLimitError`) arrête la synchro des dépôts restants, reportés jusqu'à l'heure de
+  reprise. Une erreur sur un dépôt n'arrête pas les autres : elle est enregistrée dans `sync_runs`. Le
+  message enregistré donne l'heure en UTC ; la CLI et le TUI affichent l'heure de reprise en heure
+  locale. Un état de quota dont l'heure de remise à zéro est passée est ignoré (nouvelle fenêtre).
+- **Annulation** (Ctrl+C, sortie du TUI) : les dépôts en cours sont clos en erreur (« synchro
+  annulée »), ceux qui n'ont pas commencé ne sont pas touchés.
 - **Pas de double synchro** : si `serve` et `tui` tournent en même temps sur la même base, un verrou dans
-  SQLite empêche deux synchros simultanées du même dépôt.
+  SQLite empêche deux synchros simultanées du même dépôt. Avant chaque dépôt, une transaction vérifie
+  qu'aucun `sync_run` `running` de ce dépôt n'a commencé il y a moins de **30 min**, puis insère le sien ;
+  un `running` plus ancien (processus arrêté en pleine synchro) est clos en erreur (« synchro
+  interrompue »). Un dépôt verrouillé est ignoré et signalé (« déjà en cours de synchronisation »).
 - Ordre de grandeur, dans le pire cas où tout a changé à chaque passage : 100 dépôts × 2 branches toutes
   les 30 min ≈ 800 requêtes / heure, loin des 5 000 du quota. Les réponses `304` ne coûtent rien.
 
@@ -191,7 +206,8 @@ Faux pour les tests : `providertest` (Provider en mémoire) et `githubtest` (ser
   changé (`304`). Une branche dont la tête n'a pas bougé ne coûte rien de plus ; une branche qui a bougé
   coûte une comparaison (voir [Synchronisation incrémentale](#synchronisation-incrémentale)). Les commits
   partagés entre branches ne sont enregistrés qu'une fois (table `commit_branches`). `watchoo status`
-  indique le nombre de branches suivies et la consommation de quota par synchro.
+  indique le nombre de branches suivies et le quota restant ; la mesure de la consommation de quota par
+  synchro n'est pas prévue en phase 3.
 
 ### Synchronisation incrémentale
 - **Règle** : la liste des commits (`ListCommits`) suit l'ordre **chronologique**, pas celui du graphe.
@@ -218,6 +234,29 @@ Faux pour les tests : `providertest` (Provider en mémoire) et `githubtest` (ser
   branche de référence). À défaut, il relit la liste des commits **sans `Stop`**, bornée comme au premier
   import (`Since` ou `Limit`), et ignore les SHA déjà en base (ni réenregistrés, ni statistiques
   redemandées). Ce repli relit des pages déjà connues : il reste réservé à ce cas rare.
+- **Nouvelle branche de référence d'un dépôt déjà importé** (branche par défaut renommée ou changée sur
+  GitHub, ancienne référence supprimée, motifs `--branch` ou `branches.exclude` modifiés) : relecture de
+  sa liste de commits **sans `Stop`**, bornée comme au premier import. Une comparaison depuis l'ancienne
+  référence ne donnerait que les commits absents de celle-ci : les commits partagés resteraient rattachés
+  à l'ancienne seule et, si elle n'est plus suivie, le dépôt paraîtrait vide (`last_commit_at` ne compte
+  que les branches suivies). Les commits déjà en base ne sont ni réenregistrés ni leurs statistiques
+  redemandées : seul `commit_branches` est complété. Coût : au plus `MaxCommits / 100` requêtes, une
+  seule fois, au changement de référence. La référence précédente est déduite des branches suivies en
+  base, avec la même règle (branche par défaut connue si suivie, sinon la première).
+- **Appartenance aux branches** (`commit_branches`) : un commit est rattaché aux branches sur lesquelles
+  le moteur l'a vu (liste ou comparaison). Une branche partie de la branche de référence n'est donc
+  rattachée qu'à ses commits propres : `watchoo log --branch dev` montre ce qui est propre à `dev`, pas
+  l'historique partagé avec `main`.
+- **Statistiques des commits** (lignes ajoutées et supprimées, une requête par commit) : seulement pour
+  les commits découverts après le premier import du dépôt, au plus 100 par dépôt et par synchro, les plus
+  récents d'abord, et jamais quand le quota restant est sous 10 % (contrôlé avant chaque requête) ; sinon
+  0. Un quota épuisé pendant les statistiques n'échoue pas le dépôt (ses commits sont enregistrés) mais
+  reporte les dépôts suivants ; une autre erreur arrête les statistiques de ce dépôt seulement (un `404`
+  ne saute que le commit concerné).
+- **Commit sans date** : un commit sans date d'écriture ni de commit est ignoré (compté dans un log) ; une
+  seule date manquante est complétée par l'autre.
+- **Écriture** : tout ce qu'une synchro de dépôt écrit (métadonnées, branches, commits, contributeurs,
+  `commit_branches`, `last_commit_at`, fin du `sync_run`) l'est dans **une transaction**.
 - **Dépôt vide** (dépôt d'étudiant tout juste créé, auquel GitHub répond `409`) : branches et commits
   vides, sans erreur.
 - **Dépôt renommé ou transféré** : GitHub répond `301` vers `/repositories/{id}` ; le provider suit la
@@ -312,6 +351,12 @@ Les dépôts suivis sont principalement **privés**. Conséquences :
 - Couleurs désactivées hors terminal et quand la variable `NO_COLOR` est définie.
 - Le TUI est une couche d'affichage de plus, au même niveau que la CLI et le web : il appelle le
   cœur métier et ne contient pas de logique.
+- **Réalisation (phase 3)** : Bubble Tea v2, bubbles v2 et lipgloss v2 (modules `charm.land/…/v2`). La
+  synchro tourne dans une goroutine du moteur ; sa progression et son rapport reviennent au modèle par un
+  canal, sans bloquer l'interface. Une seule synchro à la fois ; une synchro automatique qui tombe pendant
+  une synchro est sautée, la suivante reste planifiée. Les textes venus de la base (messages, noms) sont
+  nettoyés des séquences d'échappement avant affichage ; aucun e-mail n'est affiché. Pendant le TUI, les
+  logs du moteur sont coupés (ils casseraient l'écran).
 - Code dans `internal/tui/`.
 
 ### Accès aux données : sqlc

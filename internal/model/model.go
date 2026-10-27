@@ -37,7 +37,14 @@ type Repository struct {
 	// DeadAfterDays est le seuil « Dead » propre au dépôt, en jours ; nil = valeur globale
 	// (activity.dead_after_days).
 	DeadAfterDays *int
-	Enabled       bool // suivi actif (true) ou suspendu (false)
+	// Enabled indique un suivi actif (true) ou arrêté (false, « watchoo repo remove --keep-history » :
+	// l'historique reste en base, le dépôt n'est plus synchronisé ; « watchoo repo add » le réactive).
+	Enabled bool
+	// BranchPatterns liste les noms et motifs de branches à suivre (syntaxe de path.Match, ex.
+	// « release/* »), dans l'ordre donné par l'utilisateur ; nil ou vide = toutes les branches du dépôt.
+	// En base : colonne branch_patterns, valeurs séparées par des virgules (un motif ne contient donc
+	// jamais de virgule).
+	BranchPatterns []string
 }
 
 // FullName renvoie « owner/name ».
@@ -79,6 +86,19 @@ type Contributor struct {
 	// Emails liste les adresses e-mail Git rattachées (table contributor_emails), en minuscules.
 	// Elle n'est remplie que par les fonctions qui le précisent ; nil sinon.
 	Emails []string
+}
+
+// DisplayName renvoie le nom à afficher d'un contributeur : Name s'il est renseigné, sinon
+// ProviderLogin, sinon « inconnu ».
+func (c Contributor) DisplayName() string {
+	switch {
+	case c.Name != "":
+		return c.Name
+	case c.ProviderLogin != "":
+		return c.ProviderLogin
+	default:
+		return "inconnu"
+	}
 }
 
 // Commit est un commit d'un dépôt (table commits, table centrale). Clé : (RepoID, SHA).

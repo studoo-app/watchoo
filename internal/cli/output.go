@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+
+	"github.com/studoo-app/watchoo/internal/textclean"
 )
 
 // writeJSON écrit v en JSON indenté, suivi d'une fin de ligne. Les caractères non ASCII (« », accents)
@@ -21,7 +23,7 @@ func writeJSON(w io.Writer, v any) error {
 // warn affiche un avertissement sur w (la sortie d'erreur), en texte comme en mode --json, pour que
 // la sortie standard reste exploitable par un script.
 func warn(w io.Writer, msg string) {
-	fmt.Fprintf(w, "attention : %s\n", msg)
+	fmt.Fprintf(w, "attention : %s\n", textclean.CleanLines(msg))
 }
 
 // hintError est une erreur dont le message, destiné à l'utilisateur, dit quoi faire ; elle enveloppe

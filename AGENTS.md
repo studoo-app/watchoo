@@ -9,12 +9,14 @@ trois questions : qu'est-ce qui a bougé, quand, et qui l'a fait. Il propose une
 (`watchoo tui`) et une interface web locale (`watchoo serve`). Chaque groupe supervisé (ex. les projets des
 étudiants d'une promotion) vit dans son propre répertoire, initialisé par `watchoo init`.
 
-**État actuel : phases 1 (fondations) et 2 (provider GitHub) en place.** `watchoo init` crée un espace de
-supervision (réglages, base SQLite migrée, droits `0700`/`0600`) après avoir vérifié `gh` ; `watchoo version`
-affiche la version. `internal/provider` définit l'interface `Provider`, implémentée pour GitHub dans
-`internal/provider/github` (go-github, cache ETag en mémoire, quota, lecture seule), avec ses faux pour les
-tests (`githubtest`, `providertest`) ; aucune commande ne s'en sert encore. La prochaine étape est la
-phase 3 de la [roadmap](documentation/07-roadmap.md) (moteur de synchro + CLI).
+**État actuel : phases 1 (fondations), 2 (provider GitHub) et 3 (moteur de synchro, CLI, TUI) en place.**
+`watchoo init` crée un espace de supervision ; `repo add / import / list / remove`, `sync`, `log`,
+`contributors` et `status` fonctionnent en texte et en `--json` ; `watchoo tui` ouvre le mode interactif.
+Le cœur métier est dans `internal/sync` (moteur : synchro incrémentale, verrou, quota, ajout de dépôts),
+`internal/activity` (états Actif / Flemme / Dead et gris) et `internal/repoimport` (références, motifs
+`--branch`, fichiers d'import) ; `internal/cli` et `internal/tui` ne font qu'afficher. Un test de bout en
+bout (`internal/cli/e2e_test.go`) enchaîne les commandes avec le faux `gh` et `githubtest`. La prochaine
+étape est la phase 4 de la [roadmap](documentation/07-roadmap.md) (interface web).
 
 ## Documentation de référence
 
@@ -64,6 +66,9 @@ internal/auth/        accès à gh (token, état de connexion)
 internal/provider/    interface Provider, types, erreurs ; providertest/ (faux Provider)
                       github/ : implémentation GitHub ; github/githubtest/ (faux serveur GitHub)
 internal/sync/        moteur de synchronisation (cœur métier)
+internal/activity/    règles d'activité (Actif / Flemme / Dead, états gris), formats courts
+internal/repoimport/  références de dépôts, motifs --branch, fichiers d'import
+internal/textclean/   nettoyage des textes affichés (séquences d'échappement), CLI et TUI
 internal/store/       SQLite : migrations/, queries/ (sqlc), db/ (généré)
 internal/model/       structs métier
 internal/logo/        hibou en versions texte (copie de assets/logo/) et carte d'en-tête

@@ -13,12 +13,14 @@ import (
 const createRepository = `-- name: CreateRepository :one
 INSERT INTO repositories (
     provider, provider_id, owner, name, label, default_branch, url, stars, open_issues,
-    last_synced_at, last_commit_at, archived, flemme_after_days, dead_after_days, enabled
+    last_synced_at, last_commit_at, archived, flemme_after_days, dead_after_days, enabled,
+    branch_patterns
 ) VALUES (
     ?, ?, ?, ?, ?, ?, ?, ?, ?,
-    ?, ?, ?, ?, ?, ?
+    ?, ?, ?, ?, ?, ?,
+    ?
 )
-RETURNING id, provider, provider_id, owner, name, label, default_branch, url, stars, open_issues, last_synced_at, last_commit_at, archived, flemme_after_days, dead_after_days, enabled
+RETURNING id, provider, provider_id, owner, name, label, default_branch, url, stars, open_issues, last_synced_at, last_commit_at, archived, flemme_after_days, dead_after_days, enabled, branch_patterns
 `
 
 type CreateRepositoryParams struct {
@@ -37,6 +39,7 @@ type CreateRepositoryParams struct {
 	FlemmeAfterDays sql.NullInt64
 	DeadAfterDays   sql.NullInt64
 	Enabled         bool
+	BranchPatterns  string
 }
 
 // Ajoute un depot et renvoie la ligne creee (id compris). Viole UNIQUE si le depot existe deja.
@@ -57,6 +60,7 @@ func (q *Queries) CreateRepository(ctx context.Context, arg CreateRepositoryPara
 		arg.FlemmeAfterDays,
 		arg.DeadAfterDays,
 		arg.Enabled,
+		arg.BranchPatterns,
 	)
 	var i Repository
 	err := row.Scan(
@@ -76,6 +80,7 @@ func (q *Queries) CreateRepository(ctx context.Context, arg CreateRepositoryPara
 		&i.FlemmeAfterDays,
 		&i.DeadAfterDays,
 		&i.Enabled,
+		&i.BranchPatterns,
 	)
 	return i, err
 }
@@ -95,7 +100,7 @@ func (q *Queries) DeleteRepository(ctx context.Context, id int64) (int64, error)
 }
 
 const getRepository = `-- name: GetRepository :one
-SELECT id, provider, provider_id, owner, name, label, default_branch, url, stars, open_issues, last_synced_at, last_commit_at, archived, flemme_after_days, dead_after_days, enabled FROM repositories
+SELECT id, provider, provider_id, owner, name, label, default_branch, url, stars, open_issues, last_synced_at, last_commit_at, archived, flemme_after_days, dead_after_days, enabled, branch_patterns FROM repositories
 WHERE id = ?
 `
 
@@ -120,12 +125,13 @@ func (q *Queries) GetRepository(ctx context.Context, id int64) (Repository, erro
 		&i.FlemmeAfterDays,
 		&i.DeadAfterDays,
 		&i.Enabled,
+		&i.BranchPatterns,
 	)
 	return i, err
 }
 
 const getRepositoryByName = `-- name: GetRepositoryByName :one
-SELECT id, provider, provider_id, owner, name, label, default_branch, url, stars, open_issues, last_synced_at, last_commit_at, archived, flemme_after_days, dead_after_days, enabled FROM repositories
+SELECT id, provider, provider_id, owner, name, label, default_branch, url, stars, open_issues, last_synced_at, last_commit_at, archived, flemme_after_days, dead_after_days, enabled, branch_patterns FROM repositories
 WHERE provider = ? AND owner = ? AND name = ?
 `
 
@@ -156,12 +162,13 @@ func (q *Queries) GetRepositoryByName(ctx context.Context, arg GetRepositoryByNa
 		&i.FlemmeAfterDays,
 		&i.DeadAfterDays,
 		&i.Enabled,
+		&i.BranchPatterns,
 	)
 	return i, err
 }
 
 const getRepositoryByProviderID = `-- name: GetRepositoryByProviderID :one
-SELECT id, provider, provider_id, owner, name, label, default_branch, url, stars, open_issues, last_synced_at, last_commit_at, archived, flemme_after_days, dead_after_days, enabled FROM repositories
+SELECT id, provider, provider_id, owner, name, label, default_branch, url, stars, open_issues, last_synced_at, last_commit_at, archived, flemme_after_days, dead_after_days, enabled, branch_patterns FROM repositories
 WHERE provider = ? AND provider_id = ?
 `
 
@@ -191,12 +198,13 @@ func (q *Queries) GetRepositoryByProviderID(ctx context.Context, arg GetReposito
 		&i.FlemmeAfterDays,
 		&i.DeadAfterDays,
 		&i.Enabled,
+		&i.BranchPatterns,
 	)
 	return i, err
 }
 
 const listRepositories = `-- name: ListRepositories :many
-SELECT id, provider, provider_id, owner, name, label, default_branch, url, stars, open_issues, last_synced_at, last_commit_at, archived, flemme_after_days, dead_after_days, enabled FROM repositories
+SELECT id, provider, provider_id, owner, name, label, default_branch, url, stars, open_issues, last_synced_at, last_commit_at, archived, flemme_after_days, dead_after_days, enabled, branch_patterns FROM repositories
 ORDER BY owner, name
 `
 
@@ -227,6 +235,7 @@ func (q *Queries) ListRepositories(ctx context.Context) ([]Repository, error) {
 			&i.FlemmeAfterDays,
 			&i.DeadAfterDays,
 			&i.Enabled,
+			&i.BranchPatterns,
 		); err != nil {
 			return nil, err
 		}
@@ -239,4 +248,118 @@ func (q *Queries) ListRepositories(ctx context.Context) ([]Repository, error) {
 		return nil, err
 	}
 	return items, nil
+}
+
+const setRepositoryEnabled = `-- name: SetRepositoryEnabled :execrows
+UPDATE repositories
+SET enabled = ?
+WHERE id = ?
+`
+
+type SetRepositoryEnabledParams struct {
+	Enabled bool
+	ID      int64
+}
+
+// Active (1) ou arrete (0) le suivi du depot, sans toucher a son historique.
+func (q *Queries) SetRepositoryEnabled(ctx context.Context, arg SetRepositoryEnabledParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, setRepositoryEnabled, arg.Enabled, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const setRepositoryLastCommitAt = `-- name: SetRepositoryLastCommitAt :exec
+UPDATE repositories
+SET last_commit_at = ?
+WHERE id = ?
+`
+
+type SetRepositoryLastCommitAtParams struct {
+	LastCommitAt sql.NullString
+	ID           int64
+}
+
+// Ecrit la date du dernier commit connu sur les branches suivies (NULL si aucun).
+func (q *Queries) SetRepositoryLastCommitAt(ctx context.Context, arg SetRepositoryLastCommitAtParams) error {
+	_, err := q.db.ExecContext(ctx, setRepositoryLastCommitAt, arg.LastCommitAt, arg.ID)
+	return err
+}
+
+const updateRepositoryMetadata = `-- name: UpdateRepositoryMetadata :execrows
+UPDATE repositories
+SET owner = ?, name = ?, default_branch = ?, url = ?, stars = ?, open_issues = ?, archived = ?,
+    last_synced_at = ?
+WHERE id = ?
+`
+
+type UpdateRepositoryMetadataParams struct {
+	Owner         string
+	Name          string
+	DefaultBranch string
+	URL           string
+	Stars         int64
+	OpenIssues    int64
+	Archived      bool
+	LastSyncedAt  sql.NullString
+	ID            int64
+}
+
+// Ecrit les metadonnees lues sur la forge et la date de fin de la synchro reussie.
+func (q *Queries) UpdateRepositoryMetadata(ctx context.Context, arg UpdateRepositoryMetadataParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateRepositoryMetadata,
+		arg.Owner,
+		arg.Name,
+		arg.DefaultBranch,
+		arg.URL,
+		arg.Stars,
+		arg.OpenIssues,
+		arg.Archived,
+		arg.LastSyncedAt,
+		arg.ID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const updateRepositorySettings = `-- name: UpdateRepositorySettings :one
+UPDATE repositories
+SET label = ?, branch_patterns = ?
+WHERE id = ?
+RETURNING id, provider, provider_id, owner, name, label, default_branch, url, stars, open_issues, last_synced_at, last_commit_at, archived, flemme_after_days, dead_after_days, enabled, branch_patterns
+`
+
+type UpdateRepositorySettingsParams struct {
+	Label          string
+	BranchPatterns string
+	ID             int64
+}
+
+// Remplace le label et les motifs de branches du depot et renvoie la ligne a jour.
+func (q *Queries) UpdateRepositorySettings(ctx context.Context, arg UpdateRepositorySettingsParams) (Repository, error) {
+	row := q.db.QueryRowContext(ctx, updateRepositorySettings, arg.Label, arg.BranchPatterns, arg.ID)
+	var i Repository
+	err := row.Scan(
+		&i.ID,
+		&i.Provider,
+		&i.ProviderID,
+		&i.Owner,
+		&i.Name,
+		&i.Label,
+		&i.DefaultBranch,
+		&i.URL,
+		&i.Stars,
+		&i.OpenIssues,
+		&i.LastSyncedAt,
+		&i.LastCommitAt,
+		&i.Archived,
+		&i.FlemmeAfterDays,
+		&i.DeadAfterDays,
+		&i.Enabled,
+		&i.BranchPatterns,
+	)
+	return i, err
 }

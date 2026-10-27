@@ -93,3 +93,14 @@ func colorAllowed(lookupEnv func(string) (string, bool)) bool {
 	term, _ := lookupEnv("TERM")
 	return term != "dumb"
 }
+
+// isTerminal indique si r est un fichier ouvert sur un terminal (os.Stdin dans un shell interactif) ;
+// un tampon, un fichier ordinaire ou un tube ne le sont jamais.
+func isTerminal(r any) bool {
+	f, ok := r.(interface{ Fd() uintptr })
+	if !ok {
+		return false
+	}
+	fd := f.Fd()
+	return isatty.IsTerminal(fd) || isatty.IsCygwinTerminal(fd)
+}

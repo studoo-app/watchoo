@@ -6,15 +6,20 @@ import (
 	"database/sql"
 	"errors"
 	"io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"runtime"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/studoo-app/watchoo/internal/auth"
 	"github.com/studoo-app/watchoo/internal/auth/authtest"
+	"github.com/studoo-app/watchoo/internal/provider"
+	"github.com/studoo-app/watchoo/internal/provider/providertest"
+	"github.com/studoo-app/watchoo/internal/tui"
 	"github.com/studoo-app/watchoo/internal/workspace"
 )
 
@@ -62,6 +67,24 @@ type harness struct {
 	Terminal func() TermInfo
 	// configs reçoit la Config passée à chaque appel de NewAuthClient.
 	configs []workspace.Config
+
+	// Dépendances de la phase 3.
+
+	// Provider est le faux provider renvoyé par NewProvider ; nil = NewProvider renvoie une erreur
+	// (aucun test ne joint GitHub).
+	Provider *providertest.Fake
+	// NewProvider, s'il est renseigné, remplace Provider : il construit le provider à partir du token
+	// (le vrai provider GitHub branché sur githubtest, pour le test de bout en bout).
+	NewProvider func(token string) (provider.Provider, error)
+	// tokens reçoit le token passé à chaque appel de NewProvider.
+	tokens []string
+	// Now est l'horloge ; nil = time.Now.
+	Now func() time.Time
+	// Stdin est le contenu de l'entrée standard ; StdinTerminal dit s'il s'agit d'un terminal.
+	Stdin         string
+	StdinTerminal bool
+	// RunTUI remplace tui.Run ; nil = un faux qui échoue (le TUI réel n'est jamais lancé).
+	RunTUI func(ctx context.Context, deps tui.Deps, term tui.IO) error
 }
 
 // newHarness isole l'environnement et renvoie un harness dont le répertoire courant est un
@@ -118,9 +141,36 @@ func (h *harness) runContext(ctx context.Context, args ...string) result {
 		},
 		Getwd:    func() (string, error) { return h.cwd, nil },
 		Terminal: h.Terminal,
+		NewProvider: func(token string) (provider.Provider, error) {
+			h.tokens = append(h.tokens, token)
+			if h.NewProvider != nil {
+				return h.NewProvider(token)
+			}
+			if h.Provider == nil {
+				return nil, errors.New("aucun provider dans ce test")
+			}
+			return h.Provider, nil
+		},
+		Now:             h.Now,
+		Stdin:           strings.NewReader(h.Stdin),
+		StdinIsTerminal: func() bool { return h.StdinTerminal },
+		RunTUI:          h.RunTUI,
+		Logger:          slog.Default(), // testLogs (TestMain)
+	}
+	if deps.RunTUI == nil {
+		deps.RunTUI = func(context.Context, tui.Deps, tui.IO) error {
+			return errors.New("le vrai TUI ne doit pas être lancé dans les tests")
+		}
 	}
 	code := Run(ctx, deps, args)
-	return result{code: code, stdout: stdout.String(), stderr: stderr.String()}
+	r := result{code: code, stdout: stdout.String(), stderr: stderr.String()}
+	// Le token n'apparaît jamais : ni dans les sorties, ni dans les logs.
+	for name, out := range map[string]string{"stdout": r.stdout, "stderr": r.stderr, "logs": testLogs.String()} {
+		if strings.Contains(out, authtest.FakeToken) {
+			h.t.Errorf("watchoo %q : token dans %s :\n%s", args, name, out)
+		}
+	}
+	return r
 }
 
 // fake renvoie le authtest.Fake du harness.

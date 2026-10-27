@@ -1,0 +1,225 @@
+package sync
+
+// Ajout de dépôts suivis avec vérification d'accès (« watchoo repo add » et « watchoo repo import »).
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"slices"
+
+	"github.com/studoo-app/watchoo/internal/model"
+	"github.com/studoo-app/watchoo/internal/provider"
+	"github.com/studoo-app/watchoo/internal/repoimport"
+	"github.com/studoo-app/watchoo/internal/store"
+)
+
+// AddRequest est un dépôt à ajouter (ou à mettre à jour s'il est déjà suivi).
+type AddRequest struct {
+	Line  int            // numéro de ligne du fichier d'import ; 0 pour « repo add »
+	Ref   repoimport.Ref // dépôt demandé (owner/name tels que saisis)
+	Label string         // nom affiché ; vide = non fourni
+	// BranchPatterns sont les motifs à suivre ; nil = non fourni (création : toutes les branches).
+	BranchPatterns []string
+}
+
+// AddOutcome est le résultat de l'ajout d'un dépôt. Valeurs stables (sorties --json).
+type AddOutcome string
+
+// Valeurs de AddOutcome.
+const (
+	OutcomeAdded          AddOutcome = "added"        // nouveau dépôt suivi
+	OutcomeAlreadyTracked AddOutcome = "already"      // déjà suivi, rien à changer
+	OutcomeUpdated        AddOutcome = "updated"      // déjà suivi : label et/ou motifs changés, ou suivi réactivé
+	OutcomeInaccessible   AddOutcome = "inaccessible" // ErrNotFound, ErrForbidden (SSO compris) : dépôt introuvable ou sans accès
+	OutcomeError          AddOutcome = "error"        // autre échec (réseau, quota, base…)
+)
+
+// AddResult est le résultat pour une AddRequest.
+type AddResult struct {
+	Request AddRequest
+	Outcome AddOutcome
+	// Repo est le dépôt tel qu'enregistré (ou tel qu'il le serait avec DryRun) : owner/name ACTUELS de
+	// la forge (renommage suivi). Valeur zéro si Inaccessible ou Error.
+	Repo model.Repository
+	// Error est le message en français (Inaccessible, Error) ; vide sinon. Il ne cite jamais le token.
+	Error string
+}
+
+// AddOptions règle AddRepositories.
+type AddOptions struct {
+	DryRun bool // vérifie l'accès et calcule les résultats sans rien écrire
+	// Progress, si non nil, est appelée après chaque dépôt (done sur total), depuis la goroutine de
+	// l'appelant.
+	Progress func(done, total int)
+}
+
+// AddRepositories vérifie l'accès à chaque dépôt (une requête Provider.Repository par dépôt, l'une
+// après l'autre) puis l'enregistre, et renvoie un résultat par requête, dans l'ordre :
+//   - token lu une fois (Auth.Token) et Provider construit ; un échec ici est renvoyé comme erreur ;
+//   - accès refusé (ErrNotFound, ErrForbidden) : OutcomeInaccessible, sans bloquer les autres ;
+//     *RateLimitError : ce dépôt et les suivants en OutcomeError (message du quota) ;
+//   - dépôt déjà en base, cherché par provider_id puis par owner/name actuels : label et motifs mis à
+//     jour s'ils sont fournis et différents, suivi réactivé s'il était arrêté (OutcomeUpdated), sinon
+//     OutcomeAlreadyTracked ;
+//   - sinon création (store.CreateRepository) avec les métadonnées de la forge, Enabled, label et
+//     motifs fournis : OutcomeAdded ;
+//   - DryRun : aucune écriture, les mêmes résultats sont calculés.
+//
+// Les labels sont d'abord vérifiés (repoimport.ValidateLabel) : un label invalide est une erreur,
+// avant tout appel à la forge. Aucune synchro n'est lancée. L'erreur renvoyée est réservée aux
+// échecs globaux (label invalide, token, ctx annulé).
+func (e *Engine) AddRepositories(ctx context.Context, reqs []AddRequest, opts AddOptions) ([]AddResult, error) {
+	for _, req := range reqs {
+		if err := repoimport.ValidateLabel(req.Label); err != nil {
+			return nil, fmt.Errorf("ajout du dépôt %s : %w", req.Ref, err)
+		}
+	}
+	prov, redact, err := e.openProvider(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("ajout de dépôts : %w", err)
+	}
+	results := make([]AddResult, 0, len(reqs))
+	// planned retient, en DryRun, les dépôts qu'un ajout précédent du même lot aurait créés ou
+	// modifiés (clé : identifiant de forge), pour que les résultats soient ceux d'un vrai ajout.
+	planned := make(map[int64]model.Repository)
+	var quotaErr string // message du quota épuisé : ce dépôt et les suivants échouent
+	for i, req := range reqs {
+		if err := ctx.Err(); err != nil {
+			return results, fmt.Errorf("ajout de dépôts : %w", err)
+		}
+		var res AddResult
+		if quotaErr != "" {
+			res = AddResult{Request: req, Outcome: OutcomeError, Error: quotaErr}
+		} else {
+			res, err = e.addOne(ctx, prov, req, opts.DryRun, planned)
+			if err != nil {
+				if ctxErr := ctx.Err(); ctxErr != nil {
+					return results, fmt.Errorf("ajout de dépôts : %w", ctxErr)
+				}
+				var rle *provider.RateLimitError
+				if errors.As(err, &rle) {
+					quotaErr = redact(err.Error())
+				}
+				res = AddResult{Request: req, Outcome: OutcomeError, Error: redact(err.Error())}
+				if isInaccessible(err) {
+					res.Outcome, res.Error = OutcomeInaccessible, redact(inaccessibleMessage(err))
+				}
+			}
+		}
+		e.logger.Info("ajout de dépôt", "repo", req.Ref.String(), "resultat", string(res.Outcome))
+		results = append(results, res)
+		if opts.Progress != nil {
+			opts.Progress(i+1, len(reqs))
+		}
+	}
+	return results, nil
+}
+
+// addOne vérifie l'accès au dépôt de req et l'enregistre (ou calcule ce qui le serait, avec dryRun).
+// Une erreur de la forge ou du store est renvoyée telle quelle ; AddRepositories la classe.
+func (e *Engine) addOne(ctx context.Context, prov provider.Provider, req AddRequest, dryRun bool,
+	planned map[int64]model.Repository) (AddResult, error) {
+	meta, err := prov.Repository(ctx, req.Ref.Owner, req.Ref.Name)
+	if err != nil {
+		return AddResult{}, err
+	}
+	existing, found := planned[meta.ID]
+	if !found {
+		existing, found, err = e.findExisting(ctx, prov.Name(), meta)
+		if err != nil {
+			return AddResult{}, err
+		}
+	}
+
+	if !found {
+		repo := model.Repository{
+			Provider:       prov.Name(),
+			ProviderID:     meta.ID,
+			Owner:          meta.Owner,
+			Name:           meta.Name,
+			Label:          req.Label,
+			DefaultBranch:  meta.DefaultBranch,
+			URL:            meta.URL,
+			Stars:          meta.Stars,
+			OpenIssues:     meta.OpenIssues,
+			Archived:       meta.Archived,
+			Enabled:        true,
+			BranchPatterns: slices.Clone(req.BranchPatterns),
+		}
+		if dryRun {
+			planned[meta.ID] = repo
+		} else if repo, err = e.store.CreateRepository(ctx, repo); err != nil {
+			return AddResult{}, err
+		}
+		return AddResult{Request: req, Outcome: OutcomeAdded, Repo: repo}, nil
+	}
+
+	repo := existing
+	settingsChanged := false
+	if req.Label != "" && req.Label != repo.Label {
+		repo.Label, settingsChanged = req.Label, true
+	}
+	if req.BranchPatterns != nil && !slices.Equal(req.BranchPatterns, repo.BranchPatterns) {
+		repo.BranchPatterns, settingsChanged = slices.Clone(req.BranchPatterns), true
+	}
+	reenable := !repo.Enabled
+	repo.Enabled = true
+	if !settingsChanged && !reenable {
+		return AddResult{Request: req, Outcome: OutcomeAlreadyTracked, Repo: repo}, nil
+	}
+	if dryRun {
+		planned[meta.ID] = repo
+		return AddResult{Request: req, Outcome: OutcomeUpdated, Repo: repo}, nil
+	}
+	if settingsChanged {
+		if repo, err = e.store.UpdateRepositorySettings(ctx, repo.ID, repo.Label, repo.BranchPatterns); err != nil {
+			return AddResult{}, err
+		}
+	}
+	if reenable {
+		if err := e.store.SetRepositoryEnabled(ctx, repo.ID, true); err != nil {
+			return AddResult{}, err
+		}
+		repo.Enabled = true
+	}
+	return AddResult{Request: req, Outcome: OutcomeUpdated, Repo: repo}, nil
+}
+
+// findExisting cherche le dépôt meta en base : par identifiant de forge, puis par owner/name actuels.
+func (e *Engine) findExisting(ctx context.Context, providerName string, meta provider.Repository) (model.Repository, bool, error) {
+	repo, err := e.store.GetRepositoryByProviderID(ctx, providerName, meta.ID)
+	if err == nil {
+		return repo, true, nil
+	}
+	if !errors.Is(err, store.ErrNotFound) {
+		return model.Repository{}, false, err
+	}
+	repo, err = e.store.GetRepositoryByName(ctx, providerName, meta.Owner, meta.Name)
+	if err == nil {
+		return repo, true, nil
+	}
+	if !errors.Is(err, store.ErrNotFound) {
+		return model.Repository{}, false, err
+	}
+	return model.Repository{}, false, nil
+}
+
+// isInaccessible indique un dépôt introuvable ou sans accès (404, 403, SSO compris).
+func isInaccessible(err error) bool {
+	return errors.Is(err, provider.ErrNotFound) || errors.Is(err, provider.ErrForbidden)
+}
+
+// inaccessibleMessage renvoie le message d'un dépôt inaccessible : celui du SSO s'il est en cause
+// (il dit quoi faire), sinon le message de l'erreur sentinelle, sans le détail de la requête.
+func inaccessibleMessage(err error) string {
+	var sso *provider.SSORequiredError
+	switch {
+	case errors.As(err, &sso):
+		return sso.Error()
+	case errors.Is(err, provider.ErrNotFound):
+		return provider.ErrNotFound.Error()
+	default:
+		return provider.ErrForbidden.Error()
+	}
+}
