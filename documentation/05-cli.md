@@ -331,7 +331,7 @@ Nouvelle version de Watchoo disponible : v0.5.0 → v0.6.0. Mettez-la à jour av
   à jour en changeant de tag.
 - Une pré-version n'est jamais proposée ; une version installée plus récente que la dernière publiée ne
   donne aucun avis.
-- **`watchoo serve`** vérifie au démarrage puis toutes les 24 h tant qu'il tourne ; une nouvelle version
+- **`watchoo serve`** vérifie au démarrage puis toutes les 30 min tant qu'il tourne ; une nouvelle version
   est annoncée une fois sur la sortie d'erreur (même phrase) et l'interface web montre un bandeau (voir
   [Interface web](06-interface-web.md#bandeau-de-nouvelle-version-060)).
 

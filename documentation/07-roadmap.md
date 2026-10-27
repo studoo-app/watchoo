@@ -106,7 +106,7 @@ L'import d'une organisation entière et les alertes passent en V3 (voir
 
 ### 0.6.0 : mise à jour de Watchoo
 - Avis de nouvelle version à chaque commande (sur la sortie d'erreur, sans retarder la commande de plus
-  de 1,5 s), au démarrage et toutes les 24 h dans `watchoo serve` (bandeau dans l'interface web) :
+  de 1,5 s), au démarrage et toutes les 30 min dans `watchoo serve` (bandeau dans l'interface web) :
   **en place** (package `internal/selfupdate`, voir
   [Architecture](03-architecture.md#mise-à-jour-de-watchoo-060)).
 - Commande `watchoo update` (`--check`, `--yes`) : **en place** (archive de la release vérifiée par

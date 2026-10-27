@@ -17,6 +17,11 @@ un changement incompatible fait monter MINOR et tout changement compatible fait 
   label ni seuils propres). Une fois le dépôt ajouté, la liste est relue, le dépôt sélectionné et sa
   synchro lancée ; pendant une synchro, celle du nouveau dépôt démarre à la fin de la synchro en cours.
 
+### Modifié
+
+- `watchoo serve` vérifie s'il existe une nouvelle version de Watchoo toutes les 30 min (au lieu de
+  toutes les 24 h) : le bandeau de l'interface web apparaît peu après la publication d'une release.
+
 ### Corrigé
 
 - **Lien « GitHub » absent** pour les contributeurs connus avant la 0.5.0 (login enregistré, adresse du
