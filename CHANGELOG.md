@@ -9,6 +9,13 @@ un changement incompatible fait monter MINOR et tout changement compatible fait 
 
 ## [Unreleased]
 
+### Ajouté
+
+- **Script d'installation** `install.sh` (Linux, macOS) : `curl -fsSL
+  https://raw.githubusercontent.com/studoo-app/watchoo/main/install.sh | sh` télécharge la dernière
+  release, vérifie sa somme SHA-256 et installe `watchoo` dans `~/.local/bin`, sans sudo
+  (`WATCHOO_VERSION`, `WATCHOO_INSTALL_DIR`).
+
 ## [0.1.0] - 2026-10-27
 
 Première version publiée : le MVP (phases 1 à 5 de la [roadmap](documentation/07-roadmap.md)).

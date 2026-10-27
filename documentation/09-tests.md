@@ -245,3 +245,13 @@ Deux faux, écrits en phase 2 et réutilisés par les phases suivantes :
 
 Sur un tag `vX.Y.Z`, le workflow de release relance les mêmes contrôles (`make check`) avant GoReleaser
 et l'image Docker ([Distribution](03-architecture.md#distribution)).
+
+## Script d'installation
+
+`cmd/watchoo/install_test.go` lance `install.sh` avec `sh` contre un faux serveur de releases
+(`httptest`, variable `WATCHOO_RELEASES_URL`, seule à autoriser HTTP), sans réseau : dernière version lue
+dans la redirection de `/latest`, version fixée sans `v`, répertoire par défaut `~/.local/bin`, binaire
+installé en `0755` sans fichier temporaire oublié ; somme SHA-256 fausse ou archive absente du fichier de
+sommes refusées sans rien installer ; version inexistante, version invalide, `HOME` vide. Les tests sont
+sautés hors Linux / macOS ou sans `sh`, `curl` et `tar`. En CI (Ubuntu), `sh` est `dash` : le script reste
+POSIX.

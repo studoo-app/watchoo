@@ -48,9 +48,21 @@ Trois façons de l'utiliser, avec un seul programme :
 
 ## Installation
 
+### En une commande (Linux, macOS)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/studoo-app/watchoo/main/install.sh | sh
+```
+
+Le [script](install.sh) télécharge la dernière release pour votre système, vérifie sa somme SHA-256,
+puis installe `watchoo` dans `~/.local/bin`, sans sudo. Il ne touche ni à votre PATH ni à `gh`, et vous
+prévient si l'un des deux manque. Deux réglages, à placer devant `sh` : `WATCHOO_VERSION=v0.1.0`
+pour une version précise, `WATCHOO_INSTALL_DIR=…` pour un autre répertoire. Vous pouvez lire le
+script avant de le lancer : `curl -fsSL …/install.sh -o install.sh`.
+
 ### Binaires de release
 
-Les [releases GitHub](https://github.com/studoo-app/watchoo/releases) proposent Watchoo pour Linux, macOS
+Sous Windows, ou pour tout faire à la main : les [releases GitHub](https://github.com/studoo-app/watchoo/releases) proposent Watchoo pour Linux, macOS
 et Windows, en amd64 et arm64 : `watchoo_<version>_<os>_<arch>.tar.gz` (`.zip` pour Windows), avec le
 fichier de sommes SHA-256 `watchoo_<version>_checksums.txt`.
 
