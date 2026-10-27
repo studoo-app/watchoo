@@ -15,6 +15,8 @@ un changement incompatible fait monter MINOR et tout changement compatible fait 
   https://raw.githubusercontent.com/studoo-app/watchoo/main/install.sh | sh` télécharge la dernière
   release, vérifie sa somme SHA-256 et installe `watchoo` dans `~/.local/bin`, sans sudo
   (`WATCHOO_VERSION`, `WATCHOO_INSTALL_DIR`).
+- **README** : section « Mise à jour » (script, binaires, Docker, sources ; migrations automatiques,
+  sauvegarde de la base avant de changer de version).
 
 ## [0.1.0] - 2026-10-27
 
