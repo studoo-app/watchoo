@@ -120,6 +120,8 @@ func (e *Engine) syncRepository(ctx context.Context, prov provider.Provider, h *
 		RepoID: repo.ID,
 		RunID:  run.ID,
 		Metadata: store.RepositoryMetadata{
+			Partial:       meta.Partial,
+			ProviderID:    meta.ID,
 			Owner:         meta.Owner,
 			Name:          meta.Name,
 			DefaultBranch: meta.DefaultBranch,
@@ -149,10 +151,15 @@ func (e *Engine) syncRepository(ctx context.Context, prov provider.Provider, h *
 }
 
 // lookupRepository lit les métadonnées actuelles du dépôt, par son identifiant de forge (suit
-// renommage et transfert), ou par owner/name s'il n'est pas connu.
+// renommage et transfert), ou par owner/name s'il n'est pas connu (dépôt ajouté par clone Git local :
+// la première synchro par l'API résout alors l'identifiant) ou si la source ne connaît pas les
+// identifiants (clones Git locaux : ErrUnsupported).
 func (e *Engine) lookupRepository(ctx context.Context, prov provider.Provider, repo model.Repository) (provider.Repository, error) {
 	if repo.ProviderID > 0 {
-		return prov.RepositoryByID(ctx, repo.ProviderID)
+		meta, err := prov.RepositoryByID(ctx, repo.ProviderID)
+		if !errors.Is(err, provider.ErrUnsupported) {
+			return meta, err
+		}
 	}
 	return prov.Repository(ctx, repo.Owner, repo.Name)
 }

@@ -102,7 +102,11 @@
       </div>
       <div>
         <dt class="text-base-content/60">Sur GitHub</dt>
+        {{- if $r.ForgeDetails}}
         <dd class="font-medium">{{plural $r.Stars "étoile" "étoiles"}} · {{plural $r.OpenIssues "issue ouverte" "issues ouvertes"}}</dd>
+        {{- else}}
+        <dd class="text-base-content/70">Étoiles et issues non disponibles : dépôt suivi par clone Git local (sans gh).</dd>
+        {{- end}}
       </div>
     </dl>
   </div>
@@ -172,9 +176,11 @@
     <div class="card-body p-4 md:p-6">
       <div class="flex flex-wrap items-baseline justify-between gap-2">
         <h2 id="repo-pulls-title" class="card-title text-lg">Pull requests</h2>
-        <p class="text-sm text-base-content/70">{{plural $p.Counts.Open "ouverte" "ouvertes"}} · {{plural $p.Counts.Merged "mergée" "mergées"}} · {{plural $p.Counts.Closed "fermée sans merge" "fermées sans merge"}}</p>
+        {{if .Content.Repo.ForgeDetails}}<p class="text-sm text-base-content/70">{{plural $p.Counts.Open "ouverte" "ouvertes"}} · {{plural $p.Counts.Merged "mergée" "mergées"}} · {{plural $p.Counts.Closed "fermée sans merge" "fermées sans merge"}}</p>{{end}}
       </div>
-      {{if or $p.Open $p.Merged}}
+      {{if not .Content.Repo.ForgeDetails}}
+      <p class="text-sm text-base-content/70">Non disponibles : ce dépôt est suivi par clone Git local, sans gh. Connectez gh (« gh auth login ») pour les lire par l'API GitHub.</p>
+      {{else if or $p.Open $p.Merged}}
       {{if $p.Open}}
       <h3 class="text-sm font-semibold mt-2">Ouvertes</h3>
       <ul class="divide-y divide-base-200" role="list">{{range $p.Open}}{{template "pull-item" .}}{{end}}</ul>
@@ -228,6 +234,7 @@
       {{else}}
       <p class="text-sm text-base-content/70">Aucune release ni aucun tag en base pour ce dépôt.</p>
       {{end}}
+      {{if not .Content.Repo.ForgeDetails}}<p class="text-xs text-base-content/60">Releases non disponibles par clone Git local (sans gh) ; les tags, eux, sont lus.</p>{{end}}
     </div>
   </section>
 </div>

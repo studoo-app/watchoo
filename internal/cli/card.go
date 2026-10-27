@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/studoo-app/watchoo/internal/logo"
+	wsync "github.com/studoo-app/watchoo/internal/sync"
 	"github.com/studoo-app/watchoo/internal/workspace"
 )
 
@@ -121,7 +122,7 @@ func writeInitCard(w io.Writer, term TermInfo, card string, r initReport) error 
 		fmt.Sprintf("Espace : %s (%s)", r.Name, displayPath(r.Root)),
 		"Réglages : " + displayPath(r.ConfigFile),
 		"Base : " + displayPath(r.Database),
-		fmt.Sprintf("Compte gh : %s sur %s (%s)", r.GitHub.Login, r.GitHub.Host, scopesText(r.GitHub.Scopes)),
+		initCardAccountLine(r),
 	} {
 		b.WriteString(statusLine(term, line))
 	}
@@ -129,6 +130,14 @@ func writeInitCard(w io.Writer, term TermInfo, card string, r initReport) error 
 		return fmt.Errorf("affichage du compte rendu : %w", err)
 	}
 	return nil
+}
+
+// initCardAccountLine décrit l'accès aux dépôts sur la carte de init : compte gh, ou clones Git locaux.
+func initCardAccountLine(r initReport) string {
+	if r.Source == wsync.SourceGit {
+		return "Source : clones Git locaux (gh absent ou non connecté)"
+	}
+	return fmt.Sprintf("Compte gh : %s sur %s (%s)", r.GitHub.Login, r.GitHub.Host, scopesText(r.GitHub.Scopes))
 }
 
 // displayPath renvoie path pour l'affichage sur un terminal, avec « ~ » à la place du répertoire

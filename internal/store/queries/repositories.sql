@@ -57,11 +57,24 @@ SET enabled = ?
 WHERE id = ?;
 
 -- name: UpdateRepositoryMetadata :execrows
--- Ecrit les metadonnees lues sur la forge et la date de fin de la synchro reussie.
+-- Ecrit les metadonnees lues sur la forge et la date de fin de la synchro reussie. provider_id NULL
+-- garde l'identifiant en base ; sinon il est ecrit (premiere synchro par l'API d'un depot ajoute
+-- par clone Git local).
 UPDATE repositories
-SET owner = ?, name = ?, default_branch = ?, url = ?, stars = ?, open_issues = ?, archived = ?,
-    last_synced_at = ?
-WHERE id = ?;
+SET owner = sqlc.arg(owner), name = sqlc.arg(name), default_branch = sqlc.arg(default_branch),
+    url = sqlc.arg(url), stars = sqlc.arg(stars), open_issues = sqlc.arg(open_issues),
+    archived = sqlc.arg(archived), last_synced_at = sqlc.arg(last_synced_at),
+    provider_id = COALESCE(sqlc.narg(provider_id), provider_id)
+WHERE id = sqlc.arg(id);
+
+-- name: UpdateRepositoryLocalMetadata :execrows
+-- Synchro par clone Git local : seule la branche par defaut (NULL = inconnue, gardee) et la date de
+-- fin de la synchro sont ecrites ; owner, name, url, etoiles, issues, archive et provider_id restent
+-- ceux en base.
+UPDATE repositories
+SET default_branch = COALESCE(sqlc.narg(default_branch), default_branch),
+    last_synced_at = sqlc.arg(last_synced_at)
+WHERE id = sqlc.arg(id);
 
 -- name: SetRepositoryLastCommitAt :exec
 -- Ecrit la date du dernier commit connu sur les branches suivies (NULL si aucun).

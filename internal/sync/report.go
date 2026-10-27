@@ -59,6 +59,9 @@ type Report struct {
 	// RateLimit est le dernier état du quota observé en fin de synchro ; RateLimitKnown faux si aucun.
 	RateLimit      provider.RateLimit
 	RateLimitKnown bool
+	// Source est la source utilisée (API GitHub ou clones Git locaux, V2) ; valeur zéro si la synchro
+	// n'a pas pu commencer.
+	Source Source
 }
 
 // Count renvoie le nombre de dépôts du rapport ayant le statut s.

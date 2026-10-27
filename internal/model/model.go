@@ -15,12 +15,15 @@ const ProviderGitHub = "github"
 
 // Repository est un dépôt suivi (table repositories).
 //
-// Unicité : (Provider, ProviderID) et (Provider, Owner, Name). Owner et Name sont comparés sans tenir
-// compte de la casse, comme sur GitHub.
+// Unicité : (Provider, ProviderID) quand ProviderID est connu, et (Provider, Owner, Name). Owner et Name
+// sont comparés sans tenir compte de la casse, comme sur GitHub.
 type Repository struct {
-	ID            int64     // identifiant interne
-	Provider      string    // forge d'origine (ProviderGitHub au MVP)
-	ProviderID    int64     // identifiant numérique du dépôt sur la forge, qui ne change jamais
+	ID       int64  // identifiant interne
+	Provider string // forge d'origine (ProviderGitHub au MVP)
+	// ProviderID est l'identifiant numérique du dépôt sur la forge, qui ne change jamais ; 0 = pas
+	// encore connu (dépôt ajouté et synchronisé par clone Git local, V2 : NULL en base), résolu à la
+	// première synchro par l'API GitHub.
+	ProviderID    int64
 	Owner         string    // propriétaire (utilisateur ou organisation)
 	Name          string    // nom du dépôt
 	Label         string    // nom affiché facultatif ; vide = Owner/Name (voir DisplayName)
@@ -50,6 +53,13 @@ type Repository struct {
 // FullName renvoie « owner/name ».
 func (r Repository) FullName() string {
 	return r.Owner + "/" + r.Name
+}
+
+// ForgeDetails indique si le dépôt a déjà été lu par l'API de la forge (ProviderID connu) : étoiles,
+// issues, état archivé, pull requests et releases n'ont de sens qu'alors. Un dépôt suivi seulement par
+// clone Git local (V2) ne les a jamais eus : les écrans les masquent.
+func (r Repository) ForgeDetails() bool {
+	return r.ProviderID > 0
 }
 
 // DisplayName renvoie le nom à afficher : Label s'il est renseigné, sinon « owner/name ».

@@ -86,8 +86,8 @@ func TestInitCreatesWorkspace(t *testing.T) {
 	if err := st.DB().QueryRowContext(ctx, `SELECT MAX(version_id) FROM goose_db_version`).Scan(&version); err != nil {
 		t.Fatal(err)
 	}
-	if version != 3 {
-		t.Errorf("version du schéma = %d, attendu 3 (00003_pull_requests_releases_tags)", version)
+	if version != 4 {
+		t.Errorf("version du schéma = %d, attendu 4 (00004_repositories_provider_id_nullable)", version)
 	}
 	if repos, err := st.ListRepositories(ctx); err != nil || len(repos) != 0 {
 		t.Errorf("ListRepositories = %v, %v ; attendu une liste vide", repos, err)
@@ -141,6 +141,7 @@ func TestInitJSON(t *testing.T) {
 			TokenSource: "keyring",
 			Scopes:      []string{"gist", "read:org", "repo"},
 		},
+		Source:   "api",
 		Warnings: []string{},
 	}
 	if !reflect.DeepEqual(got, want) {
@@ -331,36 +332,30 @@ func TestInitNestedWorkspace(t *testing.T) {
 	}
 }
 
-func TestInitGHNotFound(t *testing.T) {
+// Sans gh (absent ou non connecté), init crée l'espace et prévient que les dépôts seront suivis par
+// clones Git locaux (V2) ; sans git non plus, il s'arrête.
+func TestInitWithoutGH(t *testing.T) {
 	t.Run("vrai auth.GH, chemin inexistant", func(t *testing.T) {
 		h := newHarness(t)
 		h.Client = nil // auth.GH réel, construit depuis la configuration
 		missing := filepath.Join(t.TempDir(), "gh-absent")
 		t.Setenv("WATCHOO_GITHUB_GH_PATH", missing)
-		h.run("init").mustFail(t, "installez la CLI GitHub gh : https://cli.github.com/", missing)
-		assertNoWorkspace(t, h.cwd)
-	})
-
-	t.Run("faux client", func(t *testing.T) {
-		h := newHarness(t)
-		h.fake().SetStatus(auth.Status{}, fmt.Errorf("lancement de \"gh\" : %w", auth.ErrGHNotFound))
-		r := h.run("init", "--json").mustFail(t, "installez la CLI GitHub gh : https://cli.github.com/")
-		if strings.Count(r.stderr, "\n") != 1 {
-			t.Errorf("message sur plusieurs lignes :\n%s", r.stderr)
+		r := h.run("init").mustSucceed(t)
+		assertContains(t, "init sans gh", r.stdout, "source      clones Git locaux")
+		assertContains(t, "init sans gh (avertissement)", r.stderr, "gh introuvable", missing,
+			"installez la CLI GitHub gh", "clones Git locaux", "gh auth login")
+		if _, err := os.Stat(filepath.Join(h.cwd, ".watchoo", "watchoo.db")); err != nil {
+			t.Errorf("espace non créé : %v", err)
 		}
-		assertNoWorkspace(t, h.cwd)
 	})
-}
 
-func TestInitNotLoggedIn(t *testing.T) {
 	cases := map[string]func() *authtest.Fake{
-		"non connecté": authtest.NewLoggedOut,
-		"token invalide": func() *authtest.Fake {
-			f := authtest.NewLoggedIn("alice")
-			f.SetStatus(auth.Status{Host: "github.com", Login: "alice", State: "error"},
-				fmt.Errorf("le token gh du compte \"alice\" n'est pas utilisable : %w", auth.ErrNotLoggedIn))
+		"gh absent": func() *authtest.Fake {
+			f := authtest.NewLoggedIn("")
+			f.SetStatus(auth.Status{}, fmt.Errorf("lancement de \"gh\" : %w", auth.ErrGHNotFound))
 			return f
 		},
+		"non connecté": authtest.NewLoggedOut,
 		"message sans conseil": func() *authtest.Fake {
 			f := authtest.NewLoggedIn("")
 			f.SetStatus(auth.Status{}, &wrappedError{msg: "compte absent", err: auth.ErrNotLoggedIn})
@@ -371,15 +366,47 @@ func TestInitNotLoggedIn(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			h := newHarness(t)
 			h.Client = newFake()
-			r := h.run("init").mustFail(t, "lancez « gh auth login »")
+			r := h.run("init", "--json").mustSucceed(t)
+			got := decodeInitReport(t, r.stdout)
+			if got.Source != "git" || got.GitHub.Login != "" || len(got.Warnings) != 1 ||
+				!strings.Contains(got.Warnings[0], "clones Git locaux") || !strings.Contains(got.Warnings[0], "gh auth login") {
+				t.Errorf("rapport JSON sans gh = %+v", got)
+			}
 			if n := strings.Count(r.stderr, "gh auth login"); n != 1 {
 				t.Errorf("conseil « gh auth login » répété %d fois :\n%s", n, r.stderr)
 			}
-			assertNoWorkspace(t, h.cwd)
 			if got := h.fake().TokenCalls(); got != 0 {
 				t.Errorf("Token appelé %d fois", got)
 			}
+
+			// Sans git non plus : arrêt, rien de créé.
+			h2 := newHarness(t)
+			h2.Client = newFake()
+			h2.GitMissing = true
+			r = h2.run("init").mustFail(t, "clones Git locaux", "git est introuvable")
+			if strings.Count(r.stderr, "\n") != 1 {
+				t.Errorf("message sur plusieurs lignes :\n%s", r.stderr)
+			}
+			assertNoWorkspace(t, h2.cwd)
 		})
+	}
+}
+
+// Token refusé par GitHub (gh connecté à un compte dont le token est révoqué) : gh garde ce token et
+// les synchros passeraient par l'API ; init s'arrête et conseille de se reconnecter.
+func TestInitTokenRefused(t *testing.T) {
+	h := newHarness(t)
+	f := authtest.NewLoggedIn("alice")
+	f.SetStatus(auth.Status{Host: "github.com", Login: "alice", State: "error"},
+		fmt.Errorf("le token gh du compte \"alice\" n'est pas utilisable : %w", auth.ErrNotLoggedIn))
+	h.Client = f
+	r := h.run("init").mustFail(t, "lancez « gh auth login »")
+	if n := strings.Count(r.stderr, "gh auth login"); n != 1 {
+		t.Errorf("conseil « gh auth login » répété %d fois :\n%s", n, r.stderr)
+	}
+	assertNoWorkspace(t, h.cwd)
+	if got := h.fake().TokenCalls(); got != 0 {
+		t.Errorf("Token appelé %d fois", got)
 	}
 }
 
@@ -632,15 +659,28 @@ func TestInitWithFakeGHBinary(t *testing.T) {
 		assertOnlyStatusCalls(t, record)
 	})
 
-	for _, scenario := range []string{"not-logged-in", "exit-not-logged-in", "invalid-token"} {
+	// Aucun compte : espace créé, dépôts suivis par clones Git locaux (V2).
+	for _, scenario := range []string{"not-logged-in", "exit-not-logged-in"} {
 		t.Run(scenario, func(t *testing.T) {
 			h := newHarness(t)
 			record := useFakeGH(t, h, scenario)
-			h.run("init").mustFail(t, "lancez « gh auth login »")
-			assertNoWorkspace(t, h.cwd)
+			r := h.run("init", "--json").mustSucceed(t)
+			if report := decodeInitReport(t, r.stdout); report.Source != "git" {
+				t.Errorf("source = %q, git attendue", report.Source)
+			}
+			assertContains(t, scenario, r.stderr, "clones Git locaux", "lancez « gh auth login »")
 			assertOnlyStatusCalls(t, record)
 		})
 	}
+
+	// Token refusé par GitHub : se reconnecter.
+	t.Run("invalid-token", func(t *testing.T) {
+		h := newHarness(t)
+		record := useFakeGH(t, h, "invalid-token")
+		h.run("init").mustFail(t, "lancez « gh auth login »")
+		assertNoWorkspace(t, h.cwd)
+		assertOnlyStatusCalls(t, record)
+	})
 
 	t.Run("GH_TOKEN seul, sans github.user", func(t *testing.T) {
 		h := newHarness(t)

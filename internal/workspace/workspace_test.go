@@ -431,6 +431,13 @@ func TestWorkspacePaths(t *testing.T) {
 	if got, want := ws.ConfigPath(), filepath.Join("/x", ".watchoo", "config.yaml"); got != want {
 		t.Errorf("ConfigPath = %s, attendu %s", got, want)
 	}
+	if got, want := ws.ReposDir(), filepath.Join("/x", ".watchoo", "repos"); got != want {
+		t.Errorf("ReposDir = %s, attendu %s", got, want)
+	}
+	// Les clones sont dans .watchoo/, dont le .gitignore ignore tout.
+	if GitignoreContent != "*\n" {
+		t.Errorf(".gitignore de .watchoo/ = %q : les clones (repos/) doivent rester ignorés", GitignoreContent)
+	}
 }
 
 // assertSameDir vérifie que got et want désignent le même répertoire (sous macOS, os.Getwd peut

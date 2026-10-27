@@ -67,15 +67,19 @@ const (
 //   - ErrUnavailable : forge injoignable, délai dépassé, erreur serveur (5xx) ;
 //   - ErrUnexpected : réponse illisible ou code HTTP imprévu ;
 //   - ErrWriteForbidden : une requête en écriture a été bloquée (ne doit jamais arriver) ;
-//   - ErrUnsupported : la source ne connaît pas cette notion (PullRequests, Releases ou Tags d'une
-//     source qui n'en a pas, comme un clone Git local) ; aucune requête n'est partie. Le moteur de
-//     synchro la traite comme « non disponible », pas comme un échec.
+//   - ErrUnsupported : la source ne connaît pas cette notion (PullRequests, Releases, RepositoryByID
+//     ou RateLimit d'une source qui n'en a pas, comme un clone Git local) ; aucune requête n'est
+//     partie. Le moteur de synchro la traite comme « non disponible », pas comme un échec ;
+//   - ErrAccessDenied : accès refusé par une source sans code HTTP (clone Git local : clé SSH ou
+//     identifiants Git absents ou refusés, dépôt introuvable).
 //
 // Les erreurs issues d'une requête sont de type *APIError (Op, méthode, chemin de l'API, code HTTP),
 // qui enveloppe l'une des erreurs ci-dessus.
 type Provider interface {
 	// Name renvoie l'identifiant de la forge, tel qu'enregistré dans les colonnes provider de la base
-	// (« github » pour GitHub, soit model.ProviderGitHub).
+	// (« github » pour GitHub, soit model.ProviderGitHub). C'est la forge du dépôt, pas le moyen d'y
+	// accéder : le provider des clones Git locaux (internal/provider/git), qui lit les mêmes dépôts
+	// GitHub par git, renvoie aussi « github ».
 	Name() string
 
 	// Repository renvoie les métadonnées du dépôt owner/name (comparés sans tenir compte de la casse).
@@ -85,7 +89,8 @@ type Provider interface {
 
 	// RepositoryByID renvoie les métadonnées du dépôt d'identifiant numérique id (> 0), qui ne change
 	// jamais, même après un renommage ou un transfert. Le moteur de synchro s'en sert pour suivre un
-	// dépôt par son identifiant.
+	// dépôt par son identifiant. Une source qui ne connaît pas ces identifiants (clone Git local)
+	// renvoie une erreur enveloppant ErrUnsupported : le moteur passe alors par Repository.
 	RepositoryByID(ctx context.Context, id int64) (Repository, error)
 
 	// Branches renvoie toutes les branches du dépôt (toutes les pages, au plus MaxBranches), dans
@@ -243,6 +248,10 @@ type Repository struct {
 	Archived      bool      // dépôt archivé
 	Private       bool      // dépôt privé (ou interne)
 	PushedAt      time.Time // dernier push, UTC ; zéro si inconnu
+	// Partial indique une source qui ne connaît du dépôt que Owner, Name, DefaultBranch et URL (clone
+	// Git local, V2) : ID vaut 0 et Stars, OpenIssues, Archived, Private et PushedAt sont inconnus.
+	// Le moteur de synchro garde alors les valeurs en base au lieu d'y écrire ces zéros.
+	Partial bool
 }
 
 // FullName renvoie « owner/name ».

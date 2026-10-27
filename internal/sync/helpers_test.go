@@ -6,6 +6,7 @@ package sync_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"log/slog"
 	"path/filepath"
 	"regexp"
@@ -18,6 +19,7 @@ import (
 	"github.com/studoo-app/watchoo/internal/auth/authtest"
 	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/provider"
+	gitprov "github.com/studoo-app/watchoo/internal/provider/git"
 	"github.com/studoo-app/watchoo/internal/provider/providertest"
 	"github.com/studoo-app/watchoo/internal/store"
 	wsync "github.com/studoo-app/watchoo/internal/sync"
@@ -99,6 +101,16 @@ type env struct {
 	mu     gosync.Mutex
 	tokens []string // tokens reçus par la fabrique de Provider
 	wrap   func(provider.Provider) provider.Provider
+
+	// gitURL et reposDir : provider des clones Git locaux (withGit), utilisé quand gh est absent.
+	gitURL   string
+	reposDir string
+	gitCalls int // Provider Git construits
+}
+
+// withGit branche le provider des clones Git locaux sur le faux serveur Git srvURL (gittest).
+func withGit(srvURL string) envOption {
+	return func(e *env) { e.gitURL = srvURL }
 }
 
 // envOption modifie l'environnement avant la construction du moteur.
@@ -132,6 +144,7 @@ func newEnv(t *testing.T, opts ...envOption) *env {
 		logs:   &safeBuffer{},
 		cfg:    workspace.DefaultConfig("promo"),
 	}
+	e.reposDir = filepath.Join(t.TempDir(), "repos")
 	e.fake.SetClock(e.clock.Now)
 	for _, o := range opts {
 		o(e)
@@ -179,6 +192,15 @@ func (e *env) newEngine(st *store.Store) *wsync.Engine {
 				p = e.wrap(p)
 			}
 			return p, nil
+		},
+		NewGitProvider: func() (provider.Provider, error) {
+			e.mu.Lock()
+			defer e.mu.Unlock()
+			e.gitCalls++
+			if e.gitURL == "" {
+				return nil, errors.New("pas de dépôts Git locaux dans ce test")
+			}
+			return gitprov.New(gitprov.Options{Dir: e.reposDir, BaseURL: e.gitURL, Logger: logger})
 		},
 		Now:    e.clock.Now,
 		Logger: logger,

@@ -11,6 +11,7 @@ pas de token. Tout ce qui sort du binaire est simulé.
 | --- | --- | --- |
 | Commande `gh` (token, état de connexion) | **Mock de `gh`** : interface + faux binaire (voir ci-dessous) | `internal/auth/` |
 | API GitHub | Faux serveur GitHub programmable (`githubtest`, sur `httptest`) | `internal/provider/github/` |
+| Dépôts Git locaux (V2) | Vrais dépôts Git créés avec `git` dans un répertoire temporaire et servis par `file://` (`gittest`) ; tests sautés seulement si `git` est absent (la CI l'a) | `internal/provider/git/`, `internal/sync/`, `internal/cli/` |
 | Espaces de supervision | Répertoires temporaires : `init`, refus si déjà initialisé, recherche dans les parents, `-C`, `WATCHOO_DIR`, espace imbriqué, droits `0700`/`0600` | `internal/workspace/` |
 | Base SQLite et requêtes sqlc | Base SQLite temporaire par test, migrations goose appliquées | `internal/store/` |
 | Import groupé | Fichiers CSV et texte de test : ligne mal formée, doublons, dépôt inaccessible (`404`), relance idempotente, `--dry-run` sans écriture | `internal/cli/` + `internal/sync/` |
@@ -22,7 +23,8 @@ pas de token. Tout ce qui sort du binaire est simulé.
 
 ## Mock de la commande `gh`
 
-Watchoo dépend de `gh` pour obtenir le token (voir
+Watchoo dépend de `gh` pour obtenir le token, et pour choisir entre l'API GitHub et les clones Git
+locaux (voir
 [Architecture](03-architecture.md#authentification--gh-imposé)). Pour que la CI n'ait besoin ni de `gh`
 ni d'un compte GitHub, `gh` est simulé à deux niveaux.
 
@@ -252,6 +254,48 @@ Deux faux, écrits en phase 2 et réutilisés par les phases suivantes :
   un essai du conteneur avec le faux `gh` compilé pour Linux (`init`, refus de `serve` sans
   authentification hors boucle locale, `401` sans identifiants puis `200`, arrêt propre).
 
+## Dépôts Git locaux (V2)
+
+Aucun service extérieur : le paquet `internal/provider/git/gittest` crée de vrais dépôts nus
+(`<temp>/<owner>/<name>.git`) et une copie de travail pour les remplir (commits datés, d'une
+identité factice, branches, merges, tags légers et annotés, force-push, suppression de branche, changement
+de branche par défaut), avec une configuration Git isolée de celle du développeur (`GIT_CONFIG_GLOBAL`
+vide, `GIT_CONFIG_NOSYSTEM`, pas d'entretien automatique). Le provider s'y branche par
+`git.Options.BaseURL` (`file://…`).
+
+- **Provider** (`internal/provider/git`) : `Repository` par `ls-remote` sans rien cloner (branche par
+  défaut, URL GitHub, `Partial`) ; clone nu en `0700` ; branches, `ListCommits` (HEAD, branche, SHA,
+  `Limit`, `Since`, `Stop`, branche inconnue `ErrNotFound`), message, identités, dates UTC et parents ;
+  `CompareCommits` avec un merge, base égale à la tête, base inconnue (`ErrUnknownBase`) ; statistiques
+  (`diff-tree --numstat` : commit simple, racine, merge par rapport au premier parent, commit inconnu) ;
+  tags (légers et annotés déréférencés) ; `fetch` qui suit une branche supprimée, un force-push, un tag
+  ajouté et une nouvelle branche par défaut (une seule mise à jour par Provider) ; dépôt vide (listes
+  vides non nil) ; références invalides refusées sans lancer `git` (`git` introuvable dans ce test) ;
+  dépôt absent : `ErrAccessDenied` sans invite, aucun reste de clone, URL absente du message ; port fermé :
+  `ErrUnavailable` ; 16 appels concurrents sur 4 dépôts ; `RemoveClone` (casse, répertoire du
+  propriétaire vidé) ; `Check` ; aucun nom, e-mail, message ni URL dans les logs ; `ErrUnsupported` pour
+  pull requests, releases, `RepositoryByID` et quota.
+- **Migration `00004`** (`internal/store/migration_provider_id_test.go`) : base remplie au schéma
+  `00003` (toutes les tables filles), migration, aucune ligne perdue, `foreign_key_check` et
+  `integrity_check` propres, clés étrangères réactivées, cascade toujours active, casse ignorée ;
+  plusieurs `provider_id` `NULL`, `0` refusé, écriture `Partial` qui garde URL, étoiles, issues, archivé et
+  identifiant, identifiant résolu par une synchro « API ».
+- **Moteur** (`internal/sync/gitsource_test.go`) : choix de la source (gh connecté, absent, non connecté,
+  `github.user` inutilisable : clones ; délai et réponse illisible : erreur) ; ajout sans `gh`
+  (`--dry-run` qui planifie une fois un dépôt écrit avec une autre casse, dépôt absent « accès refusé »,
+  second ajout retrouvé par nom) ; premier import (branches, commits propres à une branche, tags,
+  contributeur sans login), synchro incrémentale avec statistiques, dépôt devenu inaccessible, retour de
+  `gh` qui résout `provider_id` et les métadonnées ; dépôt connu par l'API synchronisé sans `gh` (étoiles,
+  issues, archivé, URL et identifiant gardés, aucun appel à l'API).
+- **CLI** (`internal/cli/gitsource_test.go` et tests d'`init`, `status`, `sync`, `repo`) : `repo add`
+  sans clone, `sync` (texte et `--json`, `source: "git"`, pas de quota), `log`, `status` (source),
+  `repo remove --keep-history` qui garde le clone, `repo remove` qui le supprime ; `init` sans `gh`
+  (faux client, faux binaire, vrai `auth.GH` vers un chemin absent) qui crée l'espace et prévient, sans
+  `git` qui s'arrête, token refusé qui s'arrête ; clé `source` des sorties JSON (`init`, `sync`,
+  `status`).
+- **Web et TUI** : page d'un dépôt sans identifiant de forge (étoiles, issues, pull requests et releases
+  masquées), fragment du quota « sans objet » sans `gh` ; détail du TUI correspondant.
+
 ## Partage de la configuration
 
 - **Cœur** (`internal/configshare`) : aller-retour export → import dans un autre espace (dépôts, labels,
@@ -264,7 +308,7 @@ Deux faux, écrits en phase 2 et réutilisés par les phases suivantes :
   dépôt arrêté à reprendre, réglages modifiés seulement, avertissements (variable `WATCHOO_*`,
   commentaires perdus) ; aperçu sans écriture (base et `config.yaml` identiques octet pour octet) ;
   application : dépôt inaccessible signalé sans bloquer les autres, réglages identiques non réécrits.
-- **Réécriture de `config.yaml`** (`internal/workspace`) : clés `name`, `github.*`, `web.*` et réglages
+- **Réécriture de `config.yaml`** (`internal/workspace`) : clés `name`, `github.*`, `git.*`, `web.*` et réglages
   non importés conservés, `.bak` identique à l'ancien fichier, droits `0600`, idempotence (deux imports
   donnent le même fichier), injection YAML impossible (fuseau et motifs avec guillemets, `#`, `:`, sauts
   de ligne, `\n`), fichier relu égal aux valeurs attendues, échec sans modification, gabarit de
@@ -301,6 +345,8 @@ Deux faux, écrits en phase 2 et réutilisés par les phases suivantes :
    installée avec vérification SHA-256) : `app.css` commité est à jour.
 4. Aucune variable `GH_TOKEN` / `GITHUB_TOKEN` n'est fournie aux tests : un test qui aurait besoin du vrai
    GitHub échoue au lieu de passer en silence.
+5. `git` est installé sur les machines de CI : les tests des dépôts Git locaux y tournent toujours (ils
+   ne sont sautés que si `git` est absent, en local).
 
 Sur un tag `vX.Y.Z`, le workflow de release relance les mêmes contrôles (`make check`) avant GoReleaser
 et l'image Docker ([Distribution](03-architecture.md#distribution)).

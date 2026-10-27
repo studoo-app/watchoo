@@ -32,6 +32,8 @@ const (
 	DefaultDeadAfterDays   = 15               // activity.dead_after_days
 	DefaultWebAddr         = "127.0.0.1:8080" // web.addr
 	DefaultGHPath          = "gh"             // github.gh_path
+	GitProtocolSSH         = "ssh"            // git.protocol : git@github.com:owner/name.git (défaut)
+	GitProtocolHTTPS       = "https"          // git.protocol : https://github.com/owner/name.git
 	EnvPrefix              = "WATCHOO"        // préfixe des variables d'environnement (WATCHOO_SYNC_INTERVAL…)
 	UserConfigDirName      = "watchoo"        // sous-répertoire de $XDG_CONFIG_HOME (ou ~/.config)
 )
@@ -55,6 +57,7 @@ type Config struct {
 	// système, sinon un nom IANA valide (ex. « Europe/Paris »).
 	Timezone string       `mapstructure:"timezone"`
 	GitHub   GitHubConfig `mapstructure:"github"`
+	Git      GitConfig    `mapstructure:"git"`
 }
 
 // SyncConfig regroupe les réglages de synchronisation (clés sync.*).
@@ -133,6 +136,15 @@ type GitHubConfig struct {
 	GHPath string `mapstructure:"gh_path"`
 }
 
+// GitConfig regroupe les réglages des dépôts Git locaux (clés git.*, V2), utilisés quand gh n'est pas
+// installé ou pas connecté. Propres à la machine : jamais partagés (watchoo config export).
+type GitConfig struct {
+	// Protocol est le protocole des clones : GitProtocolSSH (défaut, clé SSH de l'utilisateur) ou
+	// GitProtocolHTTPS (gestionnaire d'identifiants de Git). Aucun identifiant n'est jamais lu ni
+	// stocké par Watchoo.
+	Protocol string `mapstructure:"protocol"`
+}
+
 // DefaultConfig renvoie la configuration par défaut d'un espace nommé name :
 //
 //	name: <name>
@@ -142,6 +154,7 @@ type GitHubConfig struct {
 //	web: {addr: "127.0.0.1:8080", auth: {username: ""}, trusted_proxy: false, allowed_hosts: []}
 //	timezone: ""
 //	github: {user: "", gh_path: "gh"}
+//	git: {protocol: "ssh"}
 func DefaultConfig(name string) Config {
 	return Config{
 		Name: name,
@@ -158,6 +171,7 @@ func DefaultConfig(name string) Config {
 		Web:      WebConfig{Addr: DefaultWebAddr, Auth: WebAuthConfig{Username: ""}, TrustedProxy: false, AllowedHosts: []string{}},
 		Timezone: "",
 		GitHub:   GitHubConfig{User: "", GHPath: DefaultGHPath},
+		Git:      GitConfig{Protocol: GitProtocolSSH},
 	}
 }
 
@@ -175,7 +189,8 @@ func DefaultConfig(name string) Config {
 //     contrôle, et sans espace autour ;
 //   - timezone vide ou accepté par time.LoadLocation ;
 //   - github.gh_path non vide, et soit absolu, soit un simple nom sans séparateur (cherché dans le
-//     PATH) : un chemin relatif comme « .watchoo/gh » dépendrait du répertoire courant.
+//     PATH) : un chemin relatif comme « .watchoo/gh » dépendrait du répertoire courant ;
+//   - git.protocol : GitProtocolSSH ou GitProtocolHTTPS.
 func (c Config) Validate() error {
 	var errs []error
 	add := func(format string, args ...any) {
@@ -248,6 +263,10 @@ func (c Config) Validate() error {
 		// sous Windows, sans lecteur) ne dépend pas du répertoire courant et reste accepté.
 		add("github.gh_path : chemin relatif %q refusé, il dépendrait du répertoire courant "+
 			"(chemin absolu, ou nom cherché dans le PATH comme « gh »)", p)
+	}
+
+	if p := c.Git.Protocol; p != GitProtocolSSH && p != GitProtocolHTTPS {
+		add("git.protocol : %q inconnu (%q ou %q)", p, GitProtocolSSH, GitProtocolHTTPS)
 	}
 
 	return errors.Join(errs...)
@@ -969,12 +988,19 @@ func renderConfig(defaultName string, active map[string]any) string {
 	setting("", "timezone", `vide : fuseau du système ; sinon nom IANA, ex. "Europe/Paris"`)
 	text(
 		"",
-		"# Accès à GitHub, uniquement par la CLI gh. Avec GH_TOKEN (Docker, CI), laissez",
-		"# user vide : « gh auth token --user » ignore GH_TOKEN.",
+		"# Accès à l'API GitHub par la CLI gh, quand elle est installée et connectée. Avec",
+		"# GH_TOKEN (Docker, CI), laissez user vide : « gh auth token --user » ignore GH_TOKEN.",
 	)
 	section("", "github")
 	setting("  ", "github.user", "login exact d'un compte gh ; vide : compte actif de gh")
 	setting("  ", "github.gh_path", "chemin absolu, ou nom cherché dans le PATH")
+	text(
+		"",
+		"# Sans gh installé et connecté, les dépôts sont suivis par clones Git locaux",
+		"# (.watchoo/repos/), avec la clé SSH ou les identifiants Git de cette machine.",
+	)
+	section("", "git")
+	setting("  ", "git.protocol", `"ssh" (git@github.com:…) ou "https" (https://github.com/…)`)
 	return b.String()
 }
 

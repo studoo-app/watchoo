@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/studoo-app/watchoo/internal/auth"
 	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/provider"
 	"github.com/studoo-app/watchoo/internal/provider/providertest"
@@ -350,6 +351,13 @@ func TestSettingsQuota(t *testing.T) {
 	w = e.htmx("/fragments/quota")
 	assertStatus(t, w, http.StatusOK)
 	assertContains(t, w, "quota inconnu", "lecture du quota")
+
+	// gh non connecté : clones Git locaux, sans quota (V2).
+	e.auth.SetTokenErr(auth.ErrNotLoggedIn)
+	w = e.htmx("/fragments/quota")
+	assertStatus(t, w, http.StatusOK)
+	assertContains(t, w, "sans objet", "clones Git locaux", "gh auth login")
+	assertNotContains(t, w, "quota inconnu")
 }
 
 func TestSettingsActionsRequireCSRF(t *testing.T) {

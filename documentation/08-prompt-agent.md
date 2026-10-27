@@ -15,7 +15,8 @@ nouveaux commits, auteurs/contributeurs, date de dernière activité, évolution
 ## Contraintes techniques
 - Go, dernière version stable (fixée dans go.mod), modules, code dans internal/, point d'entrée cmd/watchoo.
 - CLI : spf13/cobra + spf13/viper (config YAML + variables d'env).
-- Authentification : la CLI GitHub `gh` est un prérequis obligatoire. Le token est obtenu uniquement avec
+- Authentification : la CLI GitHub `gh` est un prérequis obligatoire au MVP (facultative depuis la V2 :
+  sans `gh`, dépôts suivis par clones Git locaux, voir 03-architecture.md). Le token est obtenu uniquement avec
   `gh auth token`, redemandé à chaque synchro, jamais stocké (ni config, ni base, ni logs). init vérifie
   `gh auth status`. Dépôts majoritairement privés : aucune route GitHub en écriture n'est appelée.
 - GitHub : google/go-github, sans golang.org/x/oauth2 (le token est posé par le transport HTTP du

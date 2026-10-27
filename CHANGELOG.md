@@ -11,6 +11,23 @@ un changement incompatible fait monter MINOR et tout changement compatible fait 
 
 ### Ajouté
 
+- **Dépôts Git locaux** : `gh` devient facultatif. Sans `gh` installé et connecté, Watchoo suit les
+  dépôts par clones Git nus dans `.watchoo/repos/` (`git clone --bare`, puis `git fetch` à chaque
+  synchro), avec la clé SSH ou les identifiants Git de la machine, sans aucune invite (`git` doit être
+  installé) : commits, branches, statistiques et tags, sans quota, mais sans pull requests, releases,
+  étoiles ni login GitHub (contributeurs fusionnés par e-mail). La source est choisie à chaque synchro,
+  seulement selon `gh` : le connecter (`gh auth login`) fait repasser par l'API, qui complète alors
+  l'identifiant et les métadonnées des dépôts ajoutés sans `gh`. Nouveau réglage `git.protocol`
+  (`ssh` par défaut, ou `https`), propre à la machine et jamais partagé. `watchoo init` sans `gh` crée
+  l'espace et le signale au lieu de s'arrêter (il s'arrête si `git` manque aussi) ; `repo add` et
+  `repo import` vérifient l'accès par `git ls-remote` (« accès refusé » sinon) ; `repo remove` supprime
+  le clone, `--keep-history` le garde. `watchoo status`, le bilan de `watchoo sync` et la page Réglages
+  (quota « sans objet ») indiquent la source ; les sorties `--json` de `init`, `sync` et `status`
+  gagnent la clé `source`. La page d'un dépôt et le détail du TUI masquent étoiles, issues, pull requests
+  et releases d'un dépôt jamais lu par l'API. La base rend `repositories.provider_id` facultatif
+  (migration `00004`, appliquée automatiquement, sans perte de données). L'image Docker contient
+  désormais `git` et `ssh` : elle passe d'une base distroless à un système Alpine minimal installé pour
+  l'architecture cible (toujours sans émulation, utilisateur non root).
 - **Pull requests et releases** : chaque synchro lit aussi les pull requests (de façon incrémentale :
   seulement celles modifiées depuis la synchro précédente), les releases et les tags de chaque dépôt ;
   quand rien n'a changé, GitHub répond `304` et ces lectures ne coûtent rien. Nouvelles commandes

@@ -19,6 +19,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/studoo-app/watchoo/internal/auth"
+	gitprov "github.com/studoo-app/watchoo/internal/provider/git"
 	wsync "github.com/studoo-app/watchoo/internal/sync"
 	"github.com/studoo-app/watchoo/internal/textclean"
 	"github.com/studoo-app/watchoo/internal/tui"
@@ -47,6 +48,13 @@ type Deps struct {
 	// nil = provider GitHub par défaut (voir wsync.Options.NewProvider). Les tests y renvoient un
 	// providertest.Fake.
 	NewProvider wsync.ProviderFactory
+	// NewGitProvider construit le Provider des clones Git locaux, utilisé sans gh (V2) ; nil =
+	// provider Git par défaut, clones dans .watchoo/repos (voir wsync.Options.NewGitProvider). Les
+	// tests y branchent un provider Git sur gittest.
+	NewGitProvider wsync.GitProviderFactory
+	// CheckGit vérifie que git est installé (« watchoo init » sans gh) ; nil = git.Check sur le git
+	// du PATH. Erreur enveloppant git.ErrGitNotFound s'il manque.
+	CheckGit func(ctx context.Context) error
 	// Now est l'horloge (dates relatives, --since, synchros) ; nil = time.Now.
 	Now func() time.Time
 	// Stdin est l'entrée standard (confirmation de « repo remove », clavier du TUI) ; nil = os.Stdin.
@@ -67,7 +75,8 @@ type Deps struct {
 }
 
 // DefaultDeps renvoie les dépendances de production : os.Stdout, os.Stderr, auth.GH construit depuis
-// la configuration, os.Getwd, DetectTerminal(os.Stdout), time.Now, os.Stdin, tui.Run et net.Listen.
+// la configuration, os.Getwd, DetectTerminal(os.Stdout), time.Now, os.Stdin, tui.Run, net.Listen et
+// git.Check. NewGitProvider reste nil (clones dans .watchoo/repos).
 // NewProvider et Logger restent nil (provider GitHub et logger de newLogger), StdinIsTerminal aussi
 // (détection sur Stdin par withDefaults).
 func DefaultDeps() Deps {
@@ -83,6 +92,7 @@ func DefaultDeps() Deps {
 		Stdin:    os.Stdin,
 		RunTUI:   tui.Run,
 		Listen:   net.Listen,
+		CheckGit: func(ctx context.Context) error { return gitprov.Check(ctx, "") },
 	}
 }
 
@@ -121,6 +131,9 @@ func (d Deps) withDefaults() Deps {
 	}
 	if d.Listen == nil {
 		d.Listen = def.Listen
+	}
+	if d.CheckGit == nil {
+		d.CheckGit = def.CheckGit
 	}
 	return d
 }

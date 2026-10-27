@@ -19,6 +19,7 @@ import (
 	"github.com/studoo-app/watchoo/internal/auth"
 	"github.com/studoo-app/watchoo/internal/auth/authtest"
 	"github.com/studoo-app/watchoo/internal/provider"
+	gitprov "github.com/studoo-app/watchoo/internal/provider/git"
 	"github.com/studoo-app/watchoo/internal/provider/providertest"
 	"github.com/studoo-app/watchoo/internal/tui"
 	"github.com/studoo-app/watchoo/internal/workspace"
@@ -89,6 +90,11 @@ type harness struct {
 	// Listen remplace net.Listen pour « watchoo serve » ; nil = un faux qui échoue (aucun test
 	// n'écoute sans le demander).
 	Listen func(network, address string) (net.Listener, error)
+	// GitURL est la racine du faux serveur Git (gittest) des clones locaux, utilisés sans gh ; vide =
+	// NewGitProvider renvoie une erreur (aucun test ne joint GitHub par git).
+	GitURL string
+	// GitMissing simule un git absent pour « watchoo init » sans gh.
+	GitMissing bool
 }
 
 // newHarness isole l'environnement et renvoie un harness dont le répertoire courant est un
@@ -154,6 +160,19 @@ func (h *harness) runContext(ctx context.Context, args ...string) result {
 				return nil, errors.New("aucun provider dans ce test")
 			}
 			return h.Provider, nil
+		},
+		NewGitProvider: func() (provider.Provider, error) {
+			if h.GitURL == "" {
+				return nil, errors.New("aucun dépôt Git dans ce test")
+			}
+			return gitprov.New(gitprov.Options{Dir: filepath.Join(h.cwd, workspace.DirName, workspace.ReposDirName),
+				BaseURL: h.GitURL, Logger: slog.Default()})
+		},
+		CheckGit: func(context.Context) error {
+			if h.GitMissing {
+				return gitprov.ErrGitNotFound
+			}
+			return nil
 		},
 		Now:             h.Now,
 		Stdin:           strings.NewReader(h.Stdin),

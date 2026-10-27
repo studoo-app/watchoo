@@ -673,3 +673,16 @@ func TestDetailPullsAndRelease(t *testing.T) {
 		t.Errorf("summarize avec avertissement = %q, %v", text, bad)
 	}
 }
+
+// Dépôt suivi seulement par clone Git local (identifiant de forge inconnu, V2) : étoiles, issues et
+// pull requests sont annoncées non disponibles.
+func TestDetailWithoutForgeDetails(t *testing.T) {
+	data := newFakeData()
+	data.repos[0].ProviderID = 0
+	l := newLoop(t, testDeps(data, &fakeSyncer{}))
+	l.press("enter")
+	l.until(func(m Model) bool { return m.detail.open && !m.detail.loading })
+	mustContain(t, l.screen(), "étoiles et issues non disponibles (clone Git local)",
+		"non disponibles (clone Git local, sans gh)")
+	mustNotContain(t, l.screen(), "aucune release")
+}

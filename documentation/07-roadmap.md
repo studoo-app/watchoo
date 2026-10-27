@@ -74,11 +74,14 @@ bon schéma ; les autres commandes retrouvent l'espace.
 ### Phase 6 — V2
 - Pull requests et releases : **en place** (pull requests lues de façon incrémentale, releases et tags,
   `watchoo prs` et `watchoo releases`, cartes de la page d'un dépôt, PR ouvertes sur le tableau de bord
-  et dans le TUI ; échec isolé en avertissement, `ErrUnsupported` prévu pour le provider Git local).
-- **Dépôts Git locaux** : un dépôt peut être suivi depuis un clone local (`git clone`, puis `git fetch`
-  périodique) qui fournit commits, branches et tags sans appel à l'API GitHub, donc sans consommer de
-  quota. Alternative à l'API GitHub et à `gh` : si `gh` est installé et connecté, Watchoo l'utilise par
-  défaut ; sinon il passe par le clone local (voir
+  et dans le TUI ; échec isolé en avertissement, `ErrUnsupported` pour le provider Git local).
+- **Dépôts Git locaux** : **en place** (provider `internal/provider/git` sur le binaire `git`, clones
+  nus dans `.watchoo/repos/` mis à jour par `git fetch`, choix de la source à chaque synchro selon `gh`,
+  `provider_id` facultatif (migration `00004`), `watchoo init` sans `gh`, source dans `status`, `sync`,
+  la page Réglages, écrans qui masquent ce que le clone ne fournit pas, image Docker avec `git`). Un
+  dépôt peut être suivi depuis un clone local qui fournit commits, branches et tags sans appel à l'API
+  GitHub, donc sans consommer de quota. Alternative à l'API GitHub et à `gh` : si `gh` est installé et
+  connecté, Watchoo l'utilise ; sinon il passe par le clone local (voir
   [Dépôts Git locaux](03-architecture.md#dépôts-git-locaux-v2)).
 - Seuils d'activité par dépôt (option de `repo add`, colonne de l'import, réglage web) : **en place**
   (`--flemme` / `--dead`, colonnes `flemme` / `dead`, partage de la configuration, formulaire de la page

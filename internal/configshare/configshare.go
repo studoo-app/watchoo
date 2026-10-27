@@ -15,7 +15,8 @@
 //     (wsync.Engine.AddRepositories, accès vérifié). Rien n'est jamais retiré.
 //
 // Jamais partagés : name, github.* (dont gh_path : un fichier venu d'ailleurs ne doit jamais choisir
-// le programme lancé), web.*, token, commits, contributeurs, e-mails, chemins locaux.
+// le programme lancé), git.* (protocole des clones Git locaux), web.*, token, commits, contributeurs,
+// e-mails, chemins locaux.
 package configshare
 
 import (

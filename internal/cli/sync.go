@@ -48,6 +48,9 @@ type syncReport struct {
 	Summary      syncSummary    `json:"summary"`
 	Repositories []syncRepoJSON `json:"repositories"`
 	RateLimit    *rateLimitJSON `json:"rate_limit"` // dernier quota observé ; null si inconnu
+	// Source : « api » (API GitHub, gh connecté) ou « git » (clones Git locaux, sans gh) ; vide si
+	// aucun dépôt n'a été synchronisé.
+	Source wsync.SourceKind `json:"source"`
 }
 
 // newSyncCmd construit « watchoo sync [owner/repo] ».
@@ -62,6 +65,10 @@ nouveaux commits sont téléchargés.
 Un dépôt déjà en cours de synchronisation (par « watchoo tui » ou un autre terminal)
 est ignoré. Quand le quota de l'API GitHub passe sous 10 %, les dépôts restants sont
 reportés, avec l'heure à laquelle réessayer.
+
+Sans gh installé et connecté, les dépôts sont lus depuis des clones Git locaux
+(.watchoo/repos/, mis à jour par « git fetch ») avec la clé SSH ou les identifiants
+Git de cette machine : pas de quota, mais ni pull requests ni releases.
 
 Le code de retour est non nul si un dépôt est en erreur.`,
 		Example: `  watchoo sync
@@ -119,6 +126,7 @@ func runSync(ctx context.Context, deps Deps, opts *options, ref string) (err err
 			FinishedAt:   timeJSON(report.FinishedAt),
 			Summary:      summary,
 			Repositories: make([]syncRepoJSON, 0, len(report.Repos)),
+			Source:       report.Source.Kind,
 		}
 		for _, r := range report.Repos {
 			out.Repositories = append(out.Repositories, syncRepoJSON{
@@ -200,6 +208,9 @@ func (s *session) syncText(st textStyle, report wsync.Report, sum syncSummary) s
 		durationText(report.FinishedAt.Sub(report.StartedAt)), strings.Join(parts, ", "))
 	if report.RateLimitKnown {
 		b.WriteString(s.rateLimitText(report.RateLimit) + "\n")
+	}
+	if report.Source.Kind == wsync.SourceGit {
+		b.WriteString("Source : clones Git locaux (gh absent ou non connecté ; « gh auth login » pour passer par l'API GitHub).\n")
 	}
 	return b.String()
 }

@@ -56,6 +56,13 @@ type BranchState struct {
 // RepositoryMetadata reprend les métadonnées d'un dépôt lues sur la forge (RepositoryByID), écrites
 // dans repositories à chaque synchro réussie (renommage, transfert, archivage compris).
 type RepositoryMetadata struct {
+	// Partial : source qui ne connaît que la branche par défaut (clone Git local, V2). Seules
+	// DefaultBranch (si elle n'est pas vide) et la date de synchro sont alors écrites ; owner, name,
+	// url, étoiles, issues, archivé et provider_id gardent leur valeur en base.
+	Partial bool
+	// ProviderID est l'identifiant du dépôt sur la forge : > 0 = écrit (premier passage par l'API
+	// d'un dépôt ajouté sans gh) ; 0 = gardé.
+	ProviderID    int64
 	Owner         string // propriétaire actuel
 	Name          string // nom actuel
 	DefaultBranch string // branche par défaut

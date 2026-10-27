@@ -23,18 +23,18 @@ import (
 // jsonTopLevelKeys sont les clés de premier niveau de chaque commande, par nom de commande (sans
 // « watchoo »). La documentation doit lister exactement les mêmes (TestJSONSchemaDocumented).
 var jsonTopLevelKeys = map[string][]string{
-	"init":         {"name", "root", "dir", "config_file", "database", "parent_workspace", "github", "warnings"},
+	"init":         {"name", "root", "dir", "config_file", "database", "parent_workspace", "github", "source", "warnings"},
 	"version":      {"version", "commit", "date", "go", "os", "arch"},
 	"repo add":     {"outcome", "repository"},
 	"repo import":  {"file", "format", "dry_run", "summary", "entries"},
 	"repo list":    {"repositories"},
 	"repo remove":  {"action", "repository", "deleted_commits"},
-	"sync":         {"started_at", "finished_at", "summary", "repositories", "rate_limit"},
+	"sync":         {"started_at", "finished_at", "summary", "repositories", "rate_limit", "source"},
 	"log":          {"commits"},
 	"contributors": {"contributors"},
 	"prs":          {"pull_requests"},
 	"releases":     {"releases", "tags"},
-	"status": {"workspace", "github", "rate_limit", "rate_limit_error", "quota_low", "repositories", "errors",
+	"status": {"workspace", "github", "source", "rate_limit", "rate_limit_error", "quota_low", "repositories", "errors",
 		"last_synced_at", "tracked_branches"},
 	"config export": {"format", "version", "exported_at", "watchoo_version", "workspace", "settings", "repositories"},
 	"config import": {"file", "dry_run", "applied", "source", "settings", "repositories", "summary", "warnings"},

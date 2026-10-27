@@ -212,7 +212,7 @@ func prepareRepoSync(w RepoSyncWrite) ([]CommitWrite, error) {
 		return nil, errors.New("synchro non précisée")
 	case w.SyncedAt.IsZero():
 		return nil, errors.New("date de fin de synchro absente")
-	case w.Metadata.Owner == "" || w.Metadata.Name == "":
+	case !w.Metadata.Partial && (w.Metadata.Owner == "" || w.Metadata.Name == ""):
 		return nil, errors.New("propriétaire ou nom du dépôt absent")
 	}
 
@@ -349,6 +349,20 @@ func writeExtras(ctx context.Context, q *db.Queries, w RepoSyncWrite) error {
 // writeRepoMetadata écrit les métadonnées du dépôt et last_synced_at.
 func writeRepoMetadata(ctx context.Context, q *db.Queries, w RepoSyncWrite) error {
 	m := w.Metadata
+	if m.Partial {
+		n, err := q.UpdateRepositoryLocalMetadata(ctx, db.UpdateRepositoryLocalMetadataParams{
+			DefaultBranch: sql.NullString{String: m.DefaultBranch, Valid: m.DefaultBranch != ""},
+			LastSyncedAt:  nullTime(w.SyncedAt),
+			ID:            w.RepoID,
+		})
+		if err != nil {
+			return fmt.Errorf("métadonnées du dépôt : %w", err)
+		}
+		if n == 0 {
+			return fmt.Errorf("dépôt %d : %w", w.RepoID, ErrNotFound)
+		}
+		return nil
+	}
 	n, err := q.UpdateRepositoryMetadata(ctx, db.UpdateRepositoryMetadataParams{
 		Owner:         m.Owner,
 		Name:          m.Name,
@@ -358,6 +372,7 @@ func writeRepoMetadata(ctx context.Context, q *db.Queries, w RepoSyncWrite) erro
 		OpenIssues:    int64(m.OpenIssues),
 		Archived:      m.Archived,
 		LastSyncedAt:  nullTime(w.SyncedAt),
+		ProviderID:    nullID(m.ProviderID),
 		ID:            w.RepoID,
 	})
 	if err != nil {

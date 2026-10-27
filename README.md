@@ -46,8 +46,15 @@ Trois façons de l'utiliser, avec un seul programme :
 
 ## Prérequis
 
-- La [CLI GitHub `gh`](https://cli.github.com/), installée et connectée (`gh auth login`), avec un compte
-  qui a accès aux dépôts à suivre. Watchoo lui demande le token (`gh auth token`) et ne le stocke jamais.
+Au choix (la source est choisie à chaque synchro, sans réglage) :
+
+- **Recommandé** : la [CLI GitHub `gh`](https://cli.github.com/), installée et connectée (`gh auth login`),
+  avec un compte qui a accès aux dépôts à suivre. Watchoo passe par l'API GitHub ; il demande le token à
+  `gh` (`gh auth token`) et ne le stocke jamais.
+- **Sans `gh`** (pas encore publié) : [Git](https://git-scm.com/), avec une clé SSH (ou des identifiants
+  Git en HTTPS, `git.protocol: https`) qui a accès aux dépôts. Watchoo les suit par clones locaux dans
+  `.watchoo/repos/`, sans quota, mais sans pull requests, releases ni étoiles. `github.com` doit être
+  connu de SSH (`ssh -T git@github.com` une fois) : Watchoo ne laisse `git` rien demander.
 
 ## Installation
 
@@ -84,7 +91,8 @@ encore signés.
 
 ### Docker
 
-L'image `ghcr.io/studoo-app/watchoo` (linux/amd64 et linux/arm64) contient Watchoo et `gh`, tourne en
+L'image `ghcr.io/studoo-app/watchoo` (linux/amd64 et linux/arm64) contient Watchoo et `gh` (et `git`
+pour le suivi sans `gh`, à partir de la prochaine version), tourne en
 utilisateur non root et lance l'interface web sur le port 8080. L'espace de supervision est le volume
 `/data`. Le token GitHub n'est **jamais dans l'image** : il est donné à l'exécution par `GH_TOKEN`. Comme
 l'interface écoute hors de la boucle locale du conteneur, un mot de passe est **obligatoire**.
@@ -151,7 +159,7 @@ niveau peut ne plus s'ouvrir avec une version plus ancienne. Pour pouvoir reveni
 
 ```bash
 mkdir licence-projet && cd licence-projet
-watchoo init                              # crée l'espace de supervision (.watchoo/)
+watchoo init                              # crée l'espace de supervision (.watchoo/) ; sans gh : clones Git
 watchoo repo add alice/projet-licence --label "Alice Martin"
 watchoo repo import promo-licence.csv     # ou tous les dépôts d'un coup
 watchoo sync                              # récupère les commits
@@ -208,6 +216,7 @@ commande.
 | `web.auth.username` | vide | Authentification basique (mot de passe dans `WATCHOO_WEB_PASSWORD`) |
 | `github.user` | compte actif de `gh` | Compte `gh` à utiliser (vide avec `GH_TOKEN`) |
 | `github.gh_path` | `gh` | Nom cherché dans le `PATH` ou chemin absolu de `gh` (pas de chemin relatif) |
+| `git.protocol` | `ssh` | Sans `gh` : clones en SSH (`git@github.com:…`) ou en `https` (gestionnaire d'identifiants de Git) |
 
 `watchoo -C <répertoire>` ou la variable `WATCHOO_DIR` choisissent l'espace sans s'y placer
 ([Espaces de supervision](documentation/10-espaces-de-supervision.md)). Sous Linux et macOS, Watchoo
@@ -217,9 +226,10 @@ un `.watchoo/` commité dans le dépôt d'un étudiant que vous avez cloné n'es
 ## Sécurité et vie privée
 
 - **Token** : obtenu uniquement par `gh auth token` (ou `GH_TOKEN` lu par `gh`), jamais stocké, jamais
-  affiché dans les journaux, les erreurs ni les sorties.
+  affiché dans les journaux, les erreurs ni les sorties. Sans `gh`, Watchoo ne lit ni ne stocke aucun
+  identifiant : `git` utilise votre clé SSH ou votre gestionnaire d'identifiants, sans invite.
 - **Lecture seule** : Watchoo refuse tout appel GitHub qui modifierait quelque chose, avant même de
-  l'envoyer.
+  l'envoyer ; sans `gh`, il ne lance que `git clone`, `git fetch` et des lectures, jamais `push`.
 - **Données locales** : tout reste dans `.watchoo/` (droits `0700`, fichiers `0600`), une base par espace.
   Elles viennent souvent de dépôts privés et contiennent des données personnelles d'étudiants : ne
   commitez pas `.watchoo/` (un `.gitignore` est créé), ne partagez pas la base ni le volume Docker. Ni
@@ -237,7 +247,7 @@ Détails : [Architecture](documentation/03-architecture.md) et
 - [Journal des modifications](CHANGELOG.md).
 - [AGENTS.md](AGENTS.md) : consignes pour les agents de code qui travaillent sur le projet.
 
-Watchoo est écrit en Go : un seul binaire, sans dépendance à installer (hormis `gh`).
+Watchoo est écrit en Go : un seul binaire, sans dépendance à installer (hormis `gh`, ou `git`).
 
 ## Licence
 

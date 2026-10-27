@@ -92,7 +92,9 @@ func newRepoAddCmd(deps Deps, opts *options) *cobra.Command {
 		Use:   "add owner/repo",
 		Short: "Ajoute un dépôt à surveiller",
 		Long: `Ajoute un dépôt à surveiller, après avoir vérifié auprès de GitHub que le compte gh y a
-accès. Le dépôt est désigné par owner/repo ou par son URL GitHub.
+accès (sans gh installé et connecté : que git peut le lire, par « git ls-remote », avec la
+clé SSH ou les identifiants Git de cette machine). Le dépôt est désigné par owner/repo ou
+par son URL GitHub.
 
 Sans --branch, toutes les branches du dépôt sont suivies, y compris celles créées plus
 tard. --branch restreint le suivi à une liste de noms et de motifs (release/* par
@@ -171,8 +173,8 @@ func runRepoAdd(ctx context.Context, deps Deps, opts *options, req wsync.AddRequ
 	res := results[0]
 	switch res.Outcome {
 	case wsync.OutcomeInaccessible:
-		return fmt.Errorf("dépôt %s inaccessible : %s (vérifiez son nom et que le compte gh y a accès)",
-			req.Ref, res.Error)
+		return fmt.Errorf("dépôt %s inaccessible : %s (vérifiez son nom et que le compte gh, ou sans gh "+
+			"la clé SSH ou les identifiants Git de cette machine, y a accès)", req.Ref, res.Error)
 	case wsync.OutcomeError:
 		return fmt.Errorf("ajout du dépôt %s : %s", req.Ref, res.Error)
 	}
@@ -341,11 +343,13 @@ func newRepoRemoveCmd(deps Deps, opts *options) *cobra.Command {
 		Use:   "remove owner/repo",
 		Short: "Arrête le suivi d'un dépôt et supprime son historique",
 		Long: `Arrête le suivi d'un dépôt et supprime de la base son historique : branches, commits
-et journal des synchros. Les contributeurs restent (ils peuvent avoir travaillé sur
-d'autres dépôts). Rien n'est modifié sur GitHub.
+et journal des synchros, ainsi que son clone Git local (.watchoo/repos/) s'il existe.
+Les contributeurs restent (ils peuvent avoir travaillé sur d'autres dépôts). Rien
+n'est modifié sur GitHub.
 
 Avec --keep-history, le suivi s'arrête mais l'historique reste consultable (le dépôt
-apparaît « arrêté » dans « watchoo repo list ») ; « watchoo repo add » le reprend.
+apparaît « arrêté » dans « watchoo repo list ») et le clone Git local est gardé ;
+« watchoo repo add » le reprend.
 
 La commande demande confirmation dans un terminal ; dans un script (entrée standard
 qui n'est pas un terminal), l'option --yes est obligatoire.`,
@@ -412,7 +416,7 @@ func runRepoRemove(ctx context.Context, deps Deps, opts *options, ref string, ke
 			"Suivi de %s arrêté ; son historique est gardé (« watchoo repo add %s » le reprend).\n",
 			repo.FullName(), repo.FullName()))
 	}
-	if err := s.store.DeleteRepository(ctx, repo.ID); err != nil {
+	if err := wsync.DeleteRepository(ctx, s.store, s.ws.ReposDir(), repo); err != nil {
 		return err
 	}
 	report.Action, report.DeletedCommits = "deleted", commits

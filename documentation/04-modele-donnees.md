@@ -4,7 +4,8 @@
 
 Sept tables suffisent pour le MVP ; `commits` est la table centrale, reliée aux dépôts, aux branches (via
 `commit_branches`) et aux contributeurs. La V2 en ajoute trois (migration `00003`) : `pull_requests`,
-`releases` et `tags`, soit **dix tables**. Le stockage est un fichier SQLite versionné par des migrations
+`releases` et `tags`, soit **dix tables** ; la migration `00004` rend `repositories.provider_id`
+facultatif (dépôts suivis par clones Git locaux). Le stockage est un fichier SQLite versionné par des migrations
 `goose`, avec **une base par espace de supervision** (`.watchoo/watchoo.db`, voir
 [Espaces de supervision](10-espaces-de-supervision.md)). Les tables ne connaissent donc pas la notion
 d'espace : deux espaces ne partagent jamais de données.
@@ -30,13 +31,15 @@ erDiagram
 
 ### `repositories` — dépôts suivis
 
-Unicité : **`(provider, provider_id)`** et **`(provider, owner, name)`**.
+Unicité : **`(provider, provider_id)`** et **`(provider, owner, name)`**. `provider_id` peut être
+`NULL` (V2) : SQLite accepte plusieurs `NULL` dans la contrainte `UNIQUE`, et `owner` / `name` restent
+uniques.
 
 | Colonne | Description |
 | --- | --- |
 | id | Identifiant interne |
 | provider | Forge d'origine (`github` au MVP) |
-| provider_id | Identifiant du dépôt sur la forge (identifiant numérique GitHub), qui ne change jamais |
+| provider_id | Identifiant du dépôt sur la forge (identifiant numérique GitHub), qui ne change jamais. `NULL` = pas encore connu (V2) : dépôt ajouté et synchronisé seulement par [clones Git locaux](03-architecture.md#dépôts-git-locaux-v2), qui n'en ont pas ; la première synchro par l'API le résout par owner/name et l'écrit. Strictement positif (`CHECK`) ; `0` dans `model.Repository.ProviderID` |
 | owner | Propriétaire (utilisateur ou organisation) |
 | name | Nom du dépôt |
 | label | Nom affiché (ex. « Alice Martin », « Groupe 3 »), facultatif ; vide = `owner/repo` |
@@ -240,12 +243,43 @@ Précisions :
   vide n'efface pas la valeur connue ; lors d'une fusion, le contributeur avec compte reprend le nom du
   contributeur absorbé s'il n'en a pas.
 
+Sans `gh` (clones Git locaux, V2), aucun commit n'est lié à un compte : seule la règle « commit sans
+compte » s'applique (rattachement par e-mail). Un contributeur créé ainsi est fusionné plus tard, comme
+ci-dessus, quand une synchro par l'API rattache un de ses e-mails à un compte.
+
+## Migration `00004` : `provider_id` facultatif
+
+SQLite ne sait pas retirer un `NOT NULL` d'une colonne : la migration reconstruit `repositories` selon la
+procédure documentée par SQLite (nouvelle table, copie, `DROP`, renommage). Points d'attention :
+
+- **hors transaction goose** (`-- +goose NO TRANSACTION`) pour pouvoir couper les clés étrangères
+  (`PRAGMA foreign_keys = OFF`, sans effet dans une transaction) : sinon `DROP TABLE repositories`
+  supprimerait en cascade branches, commits, `commit_branches`, `sync_runs`, pull requests, releases et
+  tags. goose exécute une migration `NO TRANSACTION` sur une seule connexion, si bien que le pragma
+  s'applique bien aux instructions suivantes ; la reconstruction elle-même est dans une transaction
+  explicite (`BEGIN` … `COMMIT`), puis les clés étrangères sont réactivées ;
+- les tables filles gardent leur clause `REFERENCES repositories`, qui désigne la nouvelle table après le
+  renommage ; `id`, colonnes et contraintes (`COLLATE NOCASE`, `CHECK`) sont repris tels quels, et
+  `provider_id` gagne `CHECK (provider_id IS NULL OR provider_id > 0)` ;
+- un test (`internal/store/migration_provider_id_test.go`) remplit une base au schéma `00003` (deux dépôts
+  avec branches, commits, `commit_branches`, synchros, PR, releases, tags, contributeurs), applique
+  `00004` et vérifie qu'aucune ligne n'est perdue, que `foreign_key_check` et `integrity_check` sont
+  propres, que les clés étrangères sont réactivées et que la cascade marche toujours ;
+- retour arrière (`Down`) : même reconstruction vers `NOT NULL`, un `provider_id` inconnu recevant
+  l'opposé de l'identifiant interne (négatif, unique, remplacé à la synchro par l'API suivante).
+
+Écriture par le moteur (`store.RepositoryMetadata`) : `ProviderID` > 0 est écrit (résolution après le
+retour de `gh`), 0 garde la valeur en base ; `Partial` (synchro par clones Git locaux) n'écrit que la
+branche par défaut (si elle est connue) et la date de synchro, jamais des zéros à la place de l'URL, des
+étoiles, des issues, de l'état archivé ou de `provider_id`.
+
 ## Renommages et changements de login
 
 Sur GitHub, un dépôt peut être renommé ou transféré, et un utilisateur peut changer de login. Les
 identifiants numériques (`provider_id`, `provider_user_id`) ne changent jamais : c'est sur eux que repose
 l'unicité. À chaque synchro, Watchoo met à jour `owner`, `name` et `provider_login` si besoin, sans créer de
-doublon et sans séparer l'historique.
+doublon et sans séparer l'historique. Sans `gh` (clones Git locaux), un dépôt est désigné par owner/name :
+un renommage n'est suivi qu'à la synchro suivante par l'API.
 
 ## Dates
 

@@ -428,9 +428,10 @@ func TestNoCardOnStderr(t *testing.T) {
 		t.Errorf("init imbriqué : carte absente du compte rendu :\n%s", r.stdout)
 	}
 
-	// gh non connecté : erreur seulement.
+	// gh non connecté et git absent : erreur seulement.
 	h2 := newHarness(t)
 	h2.Client = authtest.NewLoggedOut()
+	h2.GitMissing = true
 	onTerminal(h2, wideTerminal)
 	r = h2.run("init").mustFail(t, "gh auth login")
 	assertNoCard(t, "init sans gh connecté (stderr)", r.stderr)

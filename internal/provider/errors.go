@@ -44,6 +44,10 @@ var (
 	// les releases d'un dépôt suivi par clone Git local) ; aucune requête n'est partie. Le moteur de
 	// synchro la traite comme « non disponible pour cette source », pas comme un échec.
 	ErrUnsupported = errors.New("non disponible pour cette source")
+	// ErrAccessDenied : git n'a pas pu lire le dépôt distant (clone Git local, V2) : clé SSH ou
+	// identifiants Git absents ou refusés, hôte SSH inconnu, dépôt introuvable ou sans accès. git ne
+	// distingue pas ces cas de façon fiable ; Watchoo ne demande ni ne stocke aucun identifiant.
+	ErrAccessDenied = errors.New("accès refusé : vérifiez la clé SSH ou les identifiants Git de cette machine")
 )
 
 // APIError est l'erreur renvoyée pour une requête à la forge qui a échoué (ou qui a été bloquée avant

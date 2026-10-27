@@ -20,6 +20,7 @@ const (
 	DirName           = ".watchoo"    // répertoire de l'espace, à la racine de celui-ci
 	ConfigFileName    = "config.yaml" // réglages de l'espace, dans DirName
 	DBFileName        = "watchoo.db"  // base SQLite, dans DirName
+	ReposDirName      = "repos"       // clones Git locaux (V2), dans DirName ; créé au premier clone, en 0700
 	GitignoreFileName = ".gitignore"  // contient « * », dans DirName
 	GitignoreContent  = "*\n"         // contenu exact du .gitignore interne
 	EnvDir            = "WATCHOO_DIR" // variable désignant un espace, même effet que -C
@@ -59,6 +60,13 @@ type Workspace struct {
 // DBPath renvoie le chemin de la base SQLite : Dir/watchoo.db.
 func (w Workspace) DBPath() string {
 	return filepath.Join(w.Dir, DBFileName)
+}
+
+// ReposDir renvoie le répertoire des clones Git locaux (V2) : Dir/repos. Il est créé en 0700 par le
+// provider Git au premier clone ; le .gitignore de .watchoo/ (« * ») l'ignore déjà, dans tous les
+// espaces, anciens compris.
+func (w Workspace) ReposDir() string {
+	return filepath.Join(w.Dir, ReposDirName)
 }
 
 // ConfigPath renvoie le chemin du fichier de réglages de l'espace : Dir/config.yaml.

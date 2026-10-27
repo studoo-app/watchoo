@@ -93,6 +93,12 @@ erreurs (500…) : pages en français, sans détail interne (le détail est dans
     SHA court lié au commit sur GitHub s'il est en base, date de ce commit).
   - Sans donnée : « Aucune pull request en base » / « Aucune release ni aucun tag en base » (dépôt qui
     n'en a pas, ou pas encore synchronisé).
+  - **Dépôt jamais lu par l'API** (V2 : suivi par [clones Git locaux](03-architecture.md#dépôts-git-locaux-v2),
+    sans `gh`, `provider_id` inconnu) : la carte « Pull requests » dit qu'elles ne sont pas disponibles
+    et rappelle `gh auth login`, sans compteurs ; la carte « Releases et tags » montre les tags (lus par
+    `git`) et précise que les releases ne le sont pas ; dans l'en-tête, « Sur GitHub » remplace les
+    étoiles et les issues par « non disponibles ». Un dépôt déjà lu par l'API garde ses dernières
+    valeurs.
 - Bouton **« Synchroniser ce dépôt »** (absent si le suivi est arrêté).
 - Fragments : `/repos/{id}/commits` (historique) ; `/repos/{id}` avec l'en-tête `HX-Target`
   `repo-overview`, `repo-contributors` ou `repo-pulls` renvoie l'en-tête, les contributeurs ou les pull
@@ -118,7 +124,7 @@ erreurs (500…) : pages en français, sans détail interne (le détail est dans
 ### 4. Réglages
 - Liste des dépôts suivis (état, branches, commits, dernière synchro).
 - Ajouter un dépôt (`owner/repo` ou URL, label, branches : mêmes vérifications que `watchoo repo add`,
-  accès vérifié auprès de GitHub, aucune synchro lancée). Un champ branches vide veut dire « non
+  accès vérifié auprès de GitHub, ou par `git ls-remote` sans `gh` (V2), aucune synchro lancée). Un champ branches vide veut dire « non
   précisé » : un nouveau dépôt suit toutes les branches, un dépôt déjà suivi garde ses motifs. Réponses :
   redirection vers `/settings?msg=<code>&repo=<id>` (le message est construit par le serveur à partir
   d'une liste fixe de codes : rien de la requête n'est renvoyé tel quel), `400` avec le formulaire
@@ -127,7 +133,8 @@ erreurs (500…) : pages en français, sans détail interne (le détail est dans
   réaffichée.
 - Modifier le nom affiché et les branches (champ vide : toutes les branches).
 - Retirer un dépôt : page de confirmation (`GET`, ne modifie rien), puis arrêt du suivi avec historique
-  gardé (comme `repo remove --keep-history`), ou suppression avec l'historique. **Choix** : la
+  gardé (comme `repo remove --keep-history`, clone Git local gardé aussi), ou suppression avec
+  l'historique et le clone Git local (V2) s'il existe. **Choix** : la
   suppression est refusée (`409`) pendant une synchro, pour que le moteur n'écrive pas dans un dépôt en
   cours de suppression ; l'arrêt du suivi reste possible. Un dépôt arrêté peut reprendre son suivi.
 - Import groupé depuis un fichier CSV (même format et même bilan que `watchoo repo import`) : V2.
@@ -172,7 +179,9 @@ erreurs (500…) : pages en français, sans détail interne (le détail est dans
     l'import se relance sans risque (ou se fait par la CLI).
 - État du **quota API** GitHub (restant, limite, remise à zéro en heure locale, « quota bas » sous
   10 %), lu par une requête gratuite (`GET /rate_limit`) dans un fragment chargé après la page et
-  rechargé à la fin d'une synchro ; « quota inconnu » si `gh` ne donne pas de token.
+  rechargé à la fin d'une synchro ; « quota inconnu » si `gh` est en panne ou que la lecture échoue.
+  Sans `gh` installé et connecté (V2), « sans objet » : les dépôts sont suivis par clones Git locaux,
+  sans quota, et le fragment le dit (avec ce qui n'est alors pas lu et le rappel de `gh auth login`).
 - Les formulaires des réglages sont des `POST` classiques (redirection `303`, ou page réaffichée avec
   l'erreur), car HTMX ne remplace pas le contenu sur une réponse 4xx. La liste des dépôts n'est pas
   rechargée à la fin d'une synchro (seul le quota l'est).

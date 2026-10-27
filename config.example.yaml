@@ -56,8 +56,13 @@ name: "licence-projet"
 # Fuseau horaire d'affichage et de regroupement par jour ou par semaine.
 # timezone: ""               # vide : fuseau du système ; sinon nom IANA, ex. "Europe/Paris"
 
-# Accès à GitHub, uniquement par la CLI gh. Avec GH_TOKEN (Docker, CI), laissez
-# user vide : « gh auth token --user » ignore GH_TOKEN.
+# Accès à l'API GitHub par la CLI gh, quand elle est installée et connectée. Avec
+# GH_TOKEN (Docker, CI), laissez user vide : « gh auth token --user » ignore GH_TOKEN.
 # github:
 #   user: ""                 # login exact d'un compte gh ; vide : compte actif de gh
 #   gh_path: "gh"            # chemin absolu, ou nom cherché dans le PATH
+
+# Sans gh installé et connecté, les dépôts sont suivis par clones Git locaux
+# (.watchoo/repos/), avec la clé SSH ou les identifiants Git de cette machine.
+# git:
+#   protocol: "ssh"          # "ssh" (git@github.com:…) ou "https" (https://github.com/…)

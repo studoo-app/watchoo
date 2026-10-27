@@ -12,7 +12,7 @@ import (
 func TestSentinelsAreDistinct(t *testing.T) {
 	all := []error{
 		ErrNotFound, ErrUnauthorized, ErrForbidden, ErrRateLimited, ErrEmptyRepository, ErrUnknownBase,
-		ErrWriteForbidden, ErrInvalidRef, ErrUnavailable, ErrUnexpected, ErrUnsupported,
+		ErrWriteForbidden, ErrInvalidRef, ErrUnavailable, ErrUnexpected, ErrUnsupported, ErrAccessDenied,
 	}
 	for i, a := range all {
 		if a.Error() == "" {
@@ -29,6 +29,9 @@ func TestSentinelsAreDistinct(t *testing.T) {
 	}
 	if !strings.Contains(ErrNotFound.Error(), "sans accès") {
 		t.Errorf("ErrNotFound doit évoquer l'absence d'accès : %q", ErrNotFound)
+	}
+	if !strings.HasPrefix(ErrAccessDenied.Error(), "accès refusé") {
+		t.Errorf("ErrAccessDenied doit commencer par « accès refusé » : %q", ErrAccessDenied)
 	}
 }
 

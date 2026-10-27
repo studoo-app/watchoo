@@ -1,7 +1,7 @@
 package cli
 
 // « watchoo status » : carte d'en-tête (terminal, hors --json), compte gh et scopes
-// (auth.Client.Status), quota (wsync.Engine.RateLimit), dépôts à jour / Flemme / Dead / en erreur /
+// (auth.Client.Status), source des synchros (wsync.Engine.Source), quota (wsync.Engine.RateLimit), dépôts à jour / Flemme / Dead / en erreur /
 // jamais synchronisés (activity), dernière synchro, branches suivies ; jamais le token.
 
 import (
@@ -31,6 +31,15 @@ type statusGitHub struct {
 	Error       string   `json:"error"` // vide si OK
 }
 
+// statusSource décrit la source des synchros (V2) : API GitHub avec gh, ou clones Git locaux sans gh.
+type statusSource struct {
+	// Kind : « api », « git », ou vide si gh est installé mais en panne (Reason dit pourquoi).
+	Kind wsync.SourceKind `json:"kind"`
+	// Reason : pourquoi les clones Git locaux (gh absent ou non connecté), ou l'erreur de gh ; vide
+	// pour l'API.
+	Reason string `json:"reason"`
+}
+
 // statusRepoCounts compte les dépôts par état (activity.State).
 type statusRepoCounts struct {
 	Total       int `json:"total"`
@@ -57,6 +66,7 @@ type statusReport struct {
 		Root string `json:"root"`
 	} `json:"workspace"`
 	GitHub         statusGitHub   `json:"github"`
+	Source         statusSource   `json:"source"`
 	RateLimit      *rateLimitJSON `json:"rate_limit"`       // null si inconnu
 	RateLimitError string         `json:"rate_limit_error"` // pourquoi le quota est inconnu
 	// QuotaLow : garde-fou actif (wsync.QuotaLow, quota restant sous 10 %) : les prochaines synchros
@@ -72,15 +82,16 @@ type statusReport struct {
 func newStatusCmd(deps Deps, opts *options) *cobra.Command {
 	return &cobra.Command{
 		Use:   "status",
-		Short: "Résume l'état de l'espace : dépôts, synchros, quota et compte gh",
-		Long: `Résume l'état de l'espace : compte gh utilisé et ses droits, quota restant de l'API
+		Short: "Résume l'état de l'espace : dépôts, synchros, source, quota et compte gh",
+		Long: `Résume l'état de l'espace : compte gh utilisé et ses droits, source des synchros (API
+GitHub avec gh, ou clones Git locaux sans gh installé et connecté), quota restant de l'API
 GitHub (lecture gratuite, qui ne consomme pas de quota) et garde-fou actif s'il reste
 moins de 10 % du quota (synchros reportées jusqu'à la remise à zéro), nombre de dépôts par état
 (Actif, Flemme, Dead, en erreur, jamais synchronisés…), dernière synchro et nombre de
 branches suivies. Le token n'est jamais affiché.
 
 Un problème de gh (non installé, non connecté) est signalé dans le résumé sans faire
-échouer la commande.`,
+échouer la commande : les synchros passent alors par les clones Git locaux.`,
 		Args: noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runStatus(cmd.Context(), deps, opts)
@@ -101,6 +112,17 @@ func runStatus(ctx context.Context, deps Deps, opts *options) (err error) {
 	report.Errors = []statusRepoError{}
 	report.GitHub.Scopes = []string{}
 
+	engine, err := s.engine()
+	if err != nil {
+		return err
+	}
+	// Source des synchros : choisie par le moteur, selon gh seulement (sans contacter GitHub).
+	if src, err := engine.Source(ctx); err != nil {
+		report.Source.Reason = err.Error()
+	} else {
+		report.Source = statusSource{Kind: src.Kind, Reason: src.Reason}
+	}
+
 	ghStatus, ghErr := deps.NewAuthClient(s.ws.Config).Status(ctx)
 	if ghErr != nil {
 		report.GitHub.Error = ghError(ghErr, s.ws.Config).Error()
@@ -112,10 +134,6 @@ func runStatus(ctx context.Context, deps Deps, opts *options) (err error) {
 			TokenSource: ghStatus.TokenSource,
 			Scopes:      append([]string{}, ghStatus.Scopes...),
 		}
-		engine, err := s.engine()
-		if err != nil {
-			return err
-		}
 		if rl, err := engine.RateLimit(ctx); err != nil {
 			report.RateLimitError = err.Error()
 		} else {
@@ -123,7 +141,10 @@ func runStatus(ctx context.Context, deps Deps, opts *options) (err error) {
 			report.QuotaLow = wsync.QuotaLow(rl, s.now())
 		}
 	}
-	if !report.GitHub.OK {
+	switch {
+	case report.Source.Kind == wsync.SourceGit:
+		report.RateLimitError = "sans objet : clones Git locaux, sans quota"
+	case !report.GitHub.OK:
 		report.RateLimitError = "compte gh inutilisable"
 	}
 
@@ -186,6 +207,15 @@ func (s *session) statusText(st textStyle, r statusReport, lastSynced time.Time)
 			textclean.Clean(scopesText(r.GitHub.Scopes)))
 	} else {
 		fmt.Fprintf(&b, "Compte gh : %s\n", textclean.Clean(r.GitHub.Error))
+	}
+	switch r.Source.Kind {
+	case wsync.SourceAPI:
+		b.WriteString("Source : API GitHub (gh connecté)\n")
+	case wsync.SourceGit:
+		b.WriteString("Source : clones Git locaux (.watchoo/repos/), avec la clé SSH ou les identifiants Git " +
+			"de cette machine ; « gh auth login » pour passer par l'API GitHub (pull requests, releases, étoiles)\n")
+	default:
+		fmt.Fprintf(&b, "Source : inconnue (%s)\n", textclean.Clean(r.Source.Reason))
 	}
 	if r.RateLimit != nil {
 		rl := provider.RateLimit{Limit: r.RateLimit.Limit, Remaining: r.RateLimit.Remaining}

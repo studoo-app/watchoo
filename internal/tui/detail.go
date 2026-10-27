@@ -73,8 +73,13 @@ func (m Model) detailLines() []string {
 	lines = append(lines, field("Commits en base", strconv.Itoa(r.Commits)))
 	lines = append(lines, field("Dernière synchro", m.lastRunText(r.LastRun)))
 
-	extra := fmt.Sprintf("%s, %s", plural(r.Stars, "étoile", "étoiles"),
-		plural(r.OpenIssues, "issue ouverte", "issues ouvertes"))
+	// Dépôt jamais lu par l'API (suivi par clone Git local, sans gh, V2) : étoiles, issues, état
+	// archivé, pull requests et releases sont inconnus.
+	extra := "étoiles et issues non disponibles (clone Git local)"
+	if r.ForgeDetails() {
+		extra = fmt.Sprintf("%s, %s", plural(r.Stars, "étoile", "étoiles"),
+			plural(r.OpenIssues, "issue ouverte", "issues ouvertes"))
+	}
 	if r.Archived {
 		extra += ", archivé"
 	}
@@ -82,7 +87,11 @@ func (m Model) detailLines() []string {
 		extra += ", suivi arrêté"
 	}
 	lines = append(lines, field("Sur GitHub", extra))
-	lines = append(lines, field("Pull requests", m.pullsText(r.OpenPullRequests, r.LatestRelease)))
+	pulls := "non disponibles (clone Git local, sans gh)"
+	if r.ForgeDetails() {
+		pulls = m.pullsText(r.OpenPullRequests, r.LatestRelease)
+	}
+	lines = append(lines, field("Pull requests", pulls))
 
 	lines = append(lines, "", m.st.Header.Render("Derniers commits"))
 	switch {

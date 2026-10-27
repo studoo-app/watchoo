@@ -103,3 +103,20 @@ func TestRepoPulls(t *testing.T) {
 	assertContains(t, w, "2 PR ouvertes")
 	assertNotContains(t, w, "0 PR ouverte")
 }
+
+// Dépôt suivi seulement par clone Git local (identifiant de forge inconnu, V2) : étoiles, issues, pull
+// requests et releases sont masquées ; les tags restent.
+func TestRepoWithoutForgeDetails(t *testing.T) {
+	e := newTestEnv(t)
+	repo, err := e.store.CreateRepository(t.Context(), model.Repository{Provider: model.ProviderGitHub,
+		Owner: "promo", Name: "local", URL: "https://github.com/promo/local", Enabled: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := repo.ID
+	w := e.get(repoPath(id))
+	assertStatus(t, w, http.StatusOK)
+	assertContains(t, w, "Étoiles et issues non disponibles", "suivi par clone Git local",
+		"Releases non disponibles par clone Git local")
+	assertNotContains(t, w, "0 étoile", "Aucune pull request en base", "0 ouverte · 0 mergée")
+}

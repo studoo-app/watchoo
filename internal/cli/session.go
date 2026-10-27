@@ -75,7 +75,8 @@ func closeSession(s *session, err *error) {
 }
 
 // engine construit le moteur de synchro de l'espace : store de la session, deps.NewAuthClient(config),
-// deps.NewProvider (nil = provider GitHub par défaut), UserAgent « watchoo/<version> » (appVersion),
+// deps.NewProvider (nil = provider GitHub par défaut), deps.NewGitProvider (nil = clones Git locaux
+// dans .watchoo/repos, sans gh), UserAgent « watchoo/<version> » (appVersion),
 // deps.Now, logger de la session (deps.Logger, sinon newLogger sur la sortie d'erreur).
 func (s *session) engine() (*wsync.Engine, error) {
 	return s.engineWithLogger(s.logger)
@@ -84,13 +85,15 @@ func (s *session) engine() (*wsync.Engine, error) {
 // engineWithLogger est engine avec un logger choisi (le TUI fait taire les logs : io.Discard).
 func (s *session) engineWithLogger(logger *slog.Logger) (*wsync.Engine, error) {
 	return wsync.New(wsync.Options{
-		Store:       s.store,
-		Auth:        s.deps.NewAuthClient(s.ws.Config),
-		Config:      s.ws.Config,
-		NewProvider: s.deps.NewProvider,
-		UserAgent:   "watchoo/" + appVersion(),
-		Now:         s.deps.Now,
-		Logger:      logger,
+		Store:          s.store,
+		Auth:           s.deps.NewAuthClient(s.ws.Config),
+		Config:         s.ws.Config,
+		NewProvider:    s.deps.NewProvider,
+		NewGitProvider: s.deps.NewGitProvider,
+		ReposDir:       s.ws.ReposDir(),
+		UserAgent:      "watchoo/" + appVersion(),
+		Now:            s.deps.Now,
+		Logger:         logger,
 	})
 }
 

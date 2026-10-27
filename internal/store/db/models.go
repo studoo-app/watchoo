@@ -83,7 +83,7 @@ type Release struct {
 type Repository struct {
 	ID              int64
 	Provider        string
-	ProviderID      int64
+	ProviderID      sql.NullInt64
 	Owner           string
 	Name            string
 	Label           string
