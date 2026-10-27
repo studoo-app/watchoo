@@ -9,6 +9,11 @@ un changement incompatible fait monter MINOR et tout changement compatible fait 
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-27
+
+Page par contributeur avec lien vers son profil GitHub, et lignes ajoutées et supprimées de tous les
+commits, calculées depuis un clone Git de chaque dépôt.
+
 ### Ajouté
 
 - **Page par contributeur** : l'interface web gagne la page `/contributors/{id}` : nom, login, avatar et
@@ -206,7 +211,8 @@ Première version publiée : le MVP (phases 1 à 5 de la [roadmap](documentation
   `gh` est le binaire officiel vérifié par SHA-256 ; images de base et actions GitHub épinglées par
   empreinte.
 
-[Unreleased]: https://github.com/studoo-app/watchoo/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/studoo-app/watchoo/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/studoo-app/watchoo/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/studoo-app/watchoo/compare/v0.2.0...v0.4.0
 [0.2.0]: https://github.com/studoo-app/watchoo/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/studoo-app/watchoo/releases/tag/v0.1.0
