@@ -6,7 +6,7 @@ Six phases courtes, chacune livrant quelque chose d'utilisable. **On ne passe à
 la précédente marche de bout en bout.**
 
 **État** : phases 1 à 5 réalisées, MVP publié en **v0.1.0** (voir [CHANGELOG.md](../CHANGELOG.md)) ;
-reste le critère de fin du MVP (usage réel d'une semaine), puis la phase 6.
+critère de fin du MVP validé le 27 octobre 2026 ; phase 6 (V2) réalisée, pas encore publiée.
 
 ```mermaid
 flowchart LR
@@ -103,3 +103,5 @@ L'import d'une organisation entière et les alertes passent en V3 (voir
 ## Critère de fin du MVP
 
 > Suivre **10 dépôts réels pendant une semaine** sans erreur de synchro ni dépassement de quota.
+
+**Validé** le 27 octobre 2026 : le MVP est terminé.

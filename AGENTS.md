@@ -25,7 +25,7 @@ pages web (`internal/web/e2e_test.go`) avec le faux `gh` et `githubtest`. Distri
 (`.github/workflows/release.yml`) ; historique dans [CHANGELOG.md](CHANGELOG.md). V2 : seuils d'activité
 par dépôt, activité par contributeur dans un dépôt, pull requests / releases / tags, et dépôts Git locaux
 (`internal/provider/git` : clones nus dans `.watchoo/repos/`, utilisés quand `gh` est absent ou non
-connecté). Le critère de fin du MVP (usage réel d'une semaine) reste à valider.
+connecté). Le critère de fin du MVP (usage réel d'une semaine) est validé : le MVP est terminé.
 
 ## Documentation de référence
 
