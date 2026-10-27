@@ -22,7 +22,8 @@ const BackupFileName = ConfigFileName + ".bak"
 
 // Clés des réglages communs, dans l'ordre du modèle de config.yaml. Ce sont les seules qu'un import
 // peut modifier : name, github.* (compte et chemin de gh : un fichier venu d'ailleurs ne doit jamais
-// choisir le programme lancé) et web.* restent propres à la machine.
+// choisir le programme lancé), git.* (protocole des clones Git locaux) et web.* restent propres à la
+// machine.
 const (
 	KeySyncAuto        = "sync.auto"
 	KeySyncInterval    = "sync.interval"
@@ -237,7 +238,7 @@ var writeTemp = writeTempFile
 
 // WriteSharedSettings réécrit ws.ConfigPath() avec les réglages communs s, à partir du modèle commenté
 // de Init (renderConfig) :
-//   - les clés propres à la machine présentes dans l'ancien fichier (name, github.*, web.*) y sont
+//   - les clés propres à la machine présentes dans l'ancien fichier (name, github.*, git.*, web.*) y sont
 //     reprises telles quelles, de même que les réglages communs que s ne fournit pas ;
 //   - les réglages fournis par s sont écrits actifs, échappés par FormatSettingValue ;
 //   - les commentaires personnels de l'ancien fichier sont perdus ; il est copié dans

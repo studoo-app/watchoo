@@ -735,11 +735,12 @@ func TestTokenRedemande(t *testing.T) {
 		t.Errorf("Token appelé %d fois, 3 attendus", n)
 	}
 
-	e.auth.SetTokenErr(auth.ErrNotLoggedIn)
+	// gh installé mais en panne (délai) : erreur, sans basculer vers les clones Git.
+	e.auth.SetTokenErr(auth.ErrTimeout)
 	var kinds []wsync.EventKind
 	rep, err := e.eng.SyncAll(t.Context(), wsync.SyncOptions{Progress: func(ev wsync.Event) { kinds = append(kinds, ev.Kind) }})
-	if !errors.Is(err, auth.ErrNotLoggedIn) {
-		t.Errorf("erreur = %v, ErrNotLoggedIn attendue", err)
+	if !errors.Is(err, auth.ErrTimeout) {
+		t.Errorf("erreur = %v, ErrTimeout attendue", err)
 	}
 	if rep.Repos == nil || len(rep.Repos) != 0 {
 		t.Errorf("rapport = %+v, vide attendu", rep.Repos)
@@ -747,10 +748,10 @@ func TestTokenRedemande(t *testing.T) {
 	if !slices.Equal(kinds, []wsync.EventKind{wsync.EventStarted, wsync.EventFinished}) {
 		t.Errorf("événements = %v", kinds)
 	}
-	if _, err := e.eng.RateLimit(t.Context()); !errors.Is(err, auth.ErrNotLoggedIn) {
+	if _, err := e.eng.RateLimit(t.Context()); !errors.Is(err, auth.ErrTimeout) {
 		t.Errorf("RateLimit : %v", err)
 	}
-	if _, err := e.eng.AddRepositories(t.Context(), nil, wsync.AddOptions{}); !errors.Is(err, auth.ErrNotLoggedIn) {
+	if _, err := e.eng.AddRepositories(t.Context(), nil, wsync.AddOptions{}); !errors.Is(err, auth.ErrTimeout) {
 		t.Errorf("AddRepositories : %v", err)
 	}
 }

@@ -56,7 +56,7 @@
     {{- if $c.Changes}}
     <div class="overflow-x-auto bg-base-100 rounded-box shadow-sm">
       <table class="table table-sm">
-        <thead><tr><th>Dépôt</th><th>Action</th><th>Nom affiché</th><th>Branches suivies</th></tr></thead>
+        <thead><tr><th>Dépôt</th><th>Action</th><th>Nom affiché</th><th>Branches suivies</th><th>Seuils</th></tr></thead>
         <tbody>
           {{- range $c.Changes}}
           <tr>
@@ -64,6 +64,7 @@
             <td><span class="badge {{.ActionClass}} whitespace-nowrap">{{.ActionText}}</span></td>
             <td class="break-words">{{if .LabelChanged}}<span class="text-base-content/60">{{or .LabelBefore "—"}}</span> → {{end}}{{or .Label "—"}}</td>
             <td class="break-words">{{if .BranchesChanged}}<span class="text-base-content/60">{{.BranchesBefore}}</span> → {{end}}{{.Branches}}</td>
+            <td class="break-words">{{if .ThresholdsChanged}}<span class="text-base-content/60">{{.ThresholdsBefore}}</span> → {{end}}{{.Thresholds}}</td>
           </tr>
           {{- end}}
         </tbody>

@@ -22,6 +22,7 @@
 //     commits = atteignables depuis head mais pas depuis base, du plus ANCIEN au plus récent (date de
 //     commit croissante, puis ordre d'ajout), paginés ; base ou head inconnu, ou aucun ancêtre commun
 //     → 404 « Not Found » (comme GitHub) ;
+//   - GET …/pulls, …/releases, …/tags (V2) : voir pulls.go ;
 //   - GET /rate_limit : {"resources":{"core":{…},…},"rate":{…}}, gratuit, toujours servi (même quota
 //     épuisé, même pendant une limite secondaire).
 //
@@ -136,6 +137,9 @@ type repoState struct {
 	commits  map[string]*commitState
 	seq      int               // nombre de commits ajoutés depuis la création (ordre d'ajout)
 	branches map[string]string // nom → SHA de tête
+	pulls    map[int]PullRequest
+	releases []Release
+	tags     []Tag
 }
 
 // commitState est un commit simulé et son rang d'ajout dans le dépôt. Il n'est plus modifié après

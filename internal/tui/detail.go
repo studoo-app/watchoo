@@ -1,7 +1,8 @@
 package tui
 
 // Détail d'un dépôt (« entrée » sur un dépôt ou un commit) : métadonnées, état d'activité, dernière
-// synchro, derniers commits et principaux contributeurs.
+// synchro, pull requests ouvertes et dernière release (V2), derniers commits et principaux contributeurs, avec leurs commits par semaine sur
+// activity.ContributorWeeks semaines (total et courbe d'une ligne, activity.Sparkline).
 
 import (
 	"fmt"
@@ -45,8 +46,12 @@ func (m Model) detailLines() []string {
 	if s := res.Short(uni); !res.State.Gray() && s != "-" {
 		state += " (" + s + ")"
 	}
-	state += m.st.Muted.Render(fmt.Sprintf("  seuils : Flemme après %d j, Dead après %d j",
-		res.Thresholds.FlemmeAfterDays, res.Thresholds.DeadAfterDays))
+	own := ""
+	if r.FlemmeAfterDays != nil || r.DeadAfterDays != nil {
+		own = " (propres au dépôt)"
+	}
+	state += m.st.Muted.Render(fmt.Sprintf("  seuils : Flemme après %d j, Dead après %d j%s",
+		res.Thresholds.FlemmeAfterDays, res.Thresholds.DeadAfterDays, own))
 	lines = append(lines, field("État", state))
 
 	last := activity.Relative(r.LastCommitAt, now, loc, uni)
@@ -68,8 +73,13 @@ func (m Model) detailLines() []string {
 	lines = append(lines, field("Commits en base", strconv.Itoa(r.Commits)))
 	lines = append(lines, field("Dernière synchro", m.lastRunText(r.LastRun)))
 
-	extra := fmt.Sprintf("%s, %s", plural(r.Stars, "étoile", "étoiles"),
-		plural(r.OpenIssues, "issue ouverte", "issues ouvertes"))
+	// Dépôt jamais lu par l'API (suivi par clone Git local, sans gh, V2) : étoiles, issues, état
+	// archivé, pull requests et releases sont inconnus.
+	extra := "étoiles et issues non disponibles (clone Git local)"
+	if r.ForgeDetails() {
+		extra = fmt.Sprintf("%s, %s", plural(r.Stars, "étoile", "étoiles"),
+			plural(r.OpenIssues, "issue ouverte", "issues ouvertes"))
+	}
 	if r.Archived {
 		extra += ", archivé"
 	}
@@ -77,6 +87,11 @@ func (m Model) detailLines() []string {
 		extra += ", suivi arrêté"
 	}
 	lines = append(lines, field("Sur GitHub", extra))
+	pulls := "non disponibles (clone Git local, sans gh)"
+	if r.ForgeDetails() {
+		pulls = m.pullsText(r.OpenPullRequests, r.LatestRelease)
+	}
+	lines = append(lines, field("Pull requests", pulls))
 
 	lines = append(lines, "", m.st.Header.Render("Derniers commits"))
 	switch {
@@ -97,17 +112,34 @@ func (m Model) detailLines() []string {
 	}
 
 	if m.detail.err == nil && !m.detail.loading && len(m.detail.contribs) > 0 {
-		lines = append(lines, "", m.st.Header.Render("Principaux contributeurs"))
+		weeks := len(m.detail.weekly.Weeks)
+		lines = append(lines, "", m.st.Header.Render("Principaux contributeurs")+
+			m.st.Muted.Render(fmt.Sprintf("  activité sur %d semaines, la plus récente à droite", weeks)))
 		cols := []column{{title: "CONTRIBUTEUR", flex: true}, {title: "COMMITS", right: true},
-			{title: "DERNIER COMMIT"}}
+			{title: fmt.Sprintf("%d SEM.", weeks), right: true}, {title: "PAR SEMAINE"}, {title: "DERNIER COMMIT"}}
 		rows := make([]row, 0, len(m.detail.contribs))
 		for _, c := range m.detail.contribs {
 			rows = append(rows, row{cells: []string{clean(c.DisplayName()), strconv.Itoa(c.Commits),
+				strconv.Itoa(m.detail.weekly.TotalOf(c.ID)), activity.Sparkline(m.detail.weekly.Of(c.ID), uni),
 				activity.Relative(c.LastCommitAt, now, loc, uni)}, stateCol: -1})
 		}
 		lines = append(lines, m.renderTable(cols, rows, -1, 0, len(rows), false)...)
 	}
 	return lines
+}
+
+// pullsText décrit les pull requests ouvertes et la dernière release publiée d'un dépôt (V2) :
+// « 2 ouvertes, dernière release v1.0 (il y a 3 j) ».
+func (m Model) pullsText(open int, latest model.Release) string {
+	text := plural(open, "ouverte", "ouvertes")
+	if open == 0 {
+		text = "aucune ouverte"
+	}
+	if latest.ProviderID == 0 {
+		return text + ", aucune release"
+	}
+	return text + ", dernière release " + clean(latest.TagName) + " (" +
+		activity.Relative(latest.Date(), m.now(), m.deps.Location, m.deps.Unicode) + ")"
 }
 
 // lastRunText décrit le dernier sync_run d'un dépôt.

@@ -123,8 +123,11 @@ type importRepo struct {
 	// Label et Branches : valeurs après l'import ; *Before : valeurs actuelles (dépôt déjà présent).
 	Label, LabelBefore       string
 	Branches, BranchesBefore string
-	LabelChanged             bool
-	BranchesChanged          bool
+	// Thresholds : seuils propres après l'import (« Flemme 3 j · Dead espace ») ; *Before : actuels.
+	Thresholds, ThresholdsBefore string
+	LabelChanged                 bool
+	BranchesChanged              bool
+	ThresholdsChanged            bool
 }
 
 // ActionText est le libellé de l'action.
@@ -333,12 +336,15 @@ func fillPreview(v *importView, p *configshare.Preview) {
 		row := importRepo{
 			Index: c.Index, Repo: truncate(maxImportText, c.Repo), Action: c.Action, Reenable: c.Reenable,
 			Label: truncate(maxImportText, c.After.Label), Branches: truncate(maxImportBranches, branchesText(c.After.Branches)),
+			Thresholds: thresholdsText(c.After.FlemmeAfterDays, c.After.DeadAfterDays),
 		}
 		if c.Before != nil {
 			row.LabelBefore = truncate(maxImportText, c.Before.Label)
 			row.BranchesBefore = truncate(maxImportBranches, branchesText(c.Before.Branches))
 			row.LabelChanged = c.Before.Label != c.After.Label
 			row.BranchesChanged = row.BranchesBefore != row.Branches
+			row.ThresholdsBefore = thresholdsText(c.Before.FlemmeAfterDays, c.Before.DeadAfterDays)
+			row.ThresholdsChanged = row.ThresholdsBefore != row.Thresholds
 		}
 		if c.Action == configshare.ActionUnchanged {
 			v.Unchanged = append(v.Unchanged, row)

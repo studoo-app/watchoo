@@ -27,6 +27,8 @@ type syncRepoJSON struct {
 	DurationMS      int64            `json:"duration_ms"`
 	Error           string           `json:"error"`     // vide pour un succès
 	ResumeAt        *time.Time       `json:"resume_at"` // deferred : quand réessayer ; null sinon
+	// Warnings : pull requests, releases ou tags non synchronisés d'un dépôt réussi ; [] sinon.
+	Warnings []string `json:"warnings"`
 }
 
 // syncSummary compte les résultats d'une synchro.
@@ -46,6 +48,9 @@ type syncReport struct {
 	Summary      syncSummary    `json:"summary"`
 	Repositories []syncRepoJSON `json:"repositories"`
 	RateLimit    *rateLimitJSON `json:"rate_limit"` // dernier quota observé ; null si inconnu
+	// Source : « api » (API GitHub, gh connecté) ou « git » (clones Git locaux, sans gh) ; vide si
+	// aucun dépôt n'a été synchronisé.
+	Source wsync.SourceKind `json:"source"`
 }
 
 // newSyncCmd construit « watchoo sync [owner/repo] ».
@@ -60,6 +65,12 @@ nouveaux commits sont téléchargés.
 Un dépôt déjà en cours de synchronisation (par « watchoo tui » ou un autre terminal)
 est ignoré. Quand le quota de l'API GitHub passe sous 10 %, les dépôts restants sont
 reportés, avec l'heure à laquelle réessayer.
+
+Sans gh installé et connecté, les dépôts sont lus depuis des clones Git locaux
+(repos/<nom> à la racine de l'espace, mis à jour par « git fetch », copie de travail
+remise sur la branche par défaut : une modification locale des fichiers suivis est
+écrasée) avec la clé SSH ou les identifiants Git de cette machine : pas de quota,
+mais ni pull requests ni releases.
 
 Le code de retour est non nul si un dépôt est en erreur.`,
 		Example: `  watchoo sync
@@ -117,6 +128,7 @@ func runSync(ctx context.Context, deps Deps, opts *options, ref string) (err err
 			FinishedAt:   timeJSON(report.FinishedAt),
 			Summary:      summary,
 			Repositories: make([]syncRepoJSON, 0, len(report.Repos)),
+			Source:       report.Source.Kind,
 		}
 		for _, r := range report.Repos {
 			out.Repositories = append(out.Repositories, syncRepoJSON{
@@ -130,6 +142,7 @@ func runSync(ctx context.Context, deps Deps, opts *options, ref string) (err err
 				DurationMS:      r.Duration.Milliseconds(),
 				Error:           r.Error,
 				ResumeAt:        timeJSON(r.ResumeAt),
+				Warnings:        append([]string{}, r.Warnings...),
 			})
 		}
 		if report.RateLimitKnown {
@@ -190,10 +203,16 @@ func (s *session) syncText(st textStyle, report wsync.Report, sum syncSummary) s
 	if sum.Deferred > 0 {
 		parts = append(parts, fmt.Sprintf("%d reporté%s", sum.Deferred, plural(sum.Deferred)))
 	}
+	if n := report.Warnings(); n > 0 {
+		parts = append(parts, countText(n, "avertissement", "avertissements"))
+	}
 	fmt.Fprintf(&b, "\nSynchro terminée en %s : %s.\n",
 		durationText(report.FinishedAt.Sub(report.StartedAt)), strings.Join(parts, ", "))
 	if report.RateLimitKnown {
 		b.WriteString(s.rateLimitText(report.RateLimit) + "\n")
+	}
+	if report.Source.Kind == wsync.SourceGit {
+		b.WriteString("Source : clones Git locaux (gh absent ou non connecté ; « gh auth login » pour passer par l'API GitHub).\n")
 	}
 	return b.String()
 }
@@ -223,6 +242,9 @@ func (s *session) syncDetail(r wsync.RepoReport) string {
 			reason = "quota bas"
 		}
 		return fmt.Sprintf("reporté : %s jusqu'à %s", reason, s.clockText(r.ResumeAt))
+	}
+	if r.Status == wsync.StatusSuccess && len(r.Warnings) > 0 {
+		return strings.Join(r.Warnings, " ; ")
 	}
 	return r.Error
 }

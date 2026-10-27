@@ -31,6 +31,7 @@ import (
 
 	"github.com/studoo-app/watchoo/internal/activity"
 	"github.com/studoo-app/watchoo/internal/model"
+	"github.com/studoo-app/watchoo/internal/provider"
 	"github.com/studoo-app/watchoo/internal/repoimport"
 	"github.com/studoo-app/watchoo/internal/store"
 	wsync "github.com/studoo-app/watchoo/internal/sync"
@@ -129,6 +130,8 @@ type quotaView struct {
 	Low       bool   // garde-fou du moteur actif (wsync.QuotaLow)
 	Percent   int    // part restante du quota, de 0 à 100
 	Error     string // pourquoi le quota est inconnu (en français, sans token)
+	// Local : synchros par clones Git locaux (gh absent ou non connecté, V2) : pas de quota.
+	Local bool
 }
 
 // branchesText décrit des motifs de branches pour l'affichage.
@@ -334,7 +337,8 @@ func (s *server) handleRepoAdd(w http.ResponseWriter, r *http.Request) {
 		settingsRedirect(w, r, msgAlready, res.Repo.ID)
 	case wsync.OutcomeInaccessible:
 		fail(http.StatusUnprocessableEntity, fmt.Sprintf(
-			"Dépôt %s inaccessible : %s. Vérifiez son nom et que le compte gh y a accès.", ref, textclean.Clean(res.Error)))
+			"Dépôt %s inaccessible : %s. Vérifiez son nom et que le compte gh (sans gh : la clé SSH ou les "+
+				"identifiants Git de cette machine) y a accès.", ref, textclean.Clean(res.Error)))
 	default:
 		s.logger.Error("ajout d'un dépôt impossible", "depot", ref.String(), "erreur", res.Error)
 		fail(http.StatusBadGateway, fmt.Sprintf(
@@ -399,7 +403,8 @@ func (s *server) handleRepoRemoveConfirm(w http.ResponseWriter, r *http.Request)
 }
 
 // handleRepoRemove sert POST /settings/repos/{id}/remove. Avec keep_history=1, le suivi s'arrête et
-// l'historique reste ; sinon le dépôt et son historique sont supprimés (refusé pendant une synchro).
+// l'historique (base et clone Git local) reste ; sinon le dépôt, son historique et son clone Git local
+// sont supprimés (refusé pendant une synchro).
 func (s *server) handleRepoRemove(w http.ResponseWriter, r *http.Request) {
 	id, ok := repoIDParam(r)
 	if !ok {
@@ -429,7 +434,11 @@ func (s *server) handleRepoRemove(w http.ResponseWriter, r *http.Request) {
 			"Une synchro est en cours : réessayez quand elle sera terminée. Rien n'a été supprimé.")
 		return
 	}
-	if err := s.store.DeleteRepository(ctx, id); err != nil {
+	reposDir := ""
+	if s.ws != nil {
+		reposDir = s.ws.ReposDir() // clone Git local supprimé avec le dépôt (V2)
+	}
+	if err := wsync.DeleteRepository(ctx, s.store, reposDir, repo); err != nil {
 		s.repoLookupError(w, r, err)
 		return
 	}
@@ -470,6 +479,12 @@ func (s *server) handleQuota(w http.ResponseWriter, r *http.Request) {
 	var q quotaView
 	rl, err := s.repos.RateLimit(ctx)
 	if err != nil {
+		if errors.Is(err, provider.ErrUnsupported) {
+			// Sans gh : synchros par clones Git locaux, qui n'ont pas de quota (V2).
+			q.Local = true
+			s.renderFragment(w, r, http.StatusOK, pageSettings, "settings-quota", s.page(r, "Réglages", navSettings, q))
+			return
+		}
 		if r.Context().Err() != nil || errors.Is(err, context.Canceled) {
 			// Requête abandonnée (page quittée) ou arrêt de « watchoo serve » : rien d'anormal.
 			s.logger.Debug("lecture du quota GitHub interrompue", "erreur", err)

@@ -11,6 +11,7 @@ pas de token. Tout ce qui sort du binaire est simulé.
 | --- | --- | --- |
 | Commande `gh` (token, état de connexion) | **Mock de `gh`** : interface + faux binaire (voir ci-dessous) | `internal/auth/` |
 | API GitHub | Faux serveur GitHub programmable (`githubtest`, sur `httptest`) | `internal/provider/github/` |
+| Dépôts Git locaux (V2) | Vrais dépôts Git créés avec `git` dans un répertoire temporaire et servis par `file://` (`gittest`) ; tests sautés seulement si `git` est absent (la CI l'a) | `internal/provider/git/`, `internal/sync/`, `internal/cli/` |
 | Espaces de supervision | Répertoires temporaires : `init`, refus si déjà initialisé, recherche dans les parents, `-C`, `WATCHOO_DIR`, espace imbriqué, droits `0700`/`0600` | `internal/workspace/` |
 | Base SQLite et requêtes sqlc | Base SQLite temporaire par test, migrations goose appliquées | `internal/store/` |
 | Import groupé | Fichiers CSV et texte de test : ligne mal formée, doublons, dépôt inaccessible (`404`), relance idempotente, `--dry-run` sans écriture | `internal/cli/` + `internal/sync/` |
@@ -22,7 +23,8 @@ pas de token. Tout ce qui sort du binaire est simulé.
 
 ## Mock de la commande `gh`
 
-Watchoo dépend de `gh` pour obtenir le token (voir
+Watchoo dépend de `gh` pour obtenir le token, et pour choisir entre l'API GitHub et les clones Git
+locaux (voir
 [Architecture](03-architecture.md#authentification--gh-imposé)). Pour que la CI n'ait besoin ni de `gh`
 ni d'un compte GitHub, `gh` est simulé à deux niveaux.
 
@@ -78,7 +80,7 @@ Deux faux, écrits en phase 2 et réutilisés par les phases suivantes :
 | `Provider` en mémoire | `internal/provider/providertest` | Le moteur de synchro, la CLI, le web et le TUI, sans HTTP |
 
 - **`githubtest`** : serveur `httptest` sur `127.0.0.1` qui simule les routes utilisées (dépôt, branches,
-  commits, commit avec statistiques, compare, `/rate_limit`) à partir d'un état préparé par le test :
+  commits, commit avec statistiques, compare, pull requests, releases, tags, `/rate_limit`) à partir d'un état préparé par le test :
   dépôts, graphe de commits (merges compris), branches, force-push, renommage ou transfert (`301`), accès
   refusé (`404`) ou SSO (`403`), dépôt vide (`409`). Il reproduit le format JSON de GitHub, la pagination
   (en-tête `Link`), les ETag et les `304` (sans quota), le quota (en-têtes `X-RateLimit-*`, épuisement,
@@ -114,7 +116,36 @@ Deux faux, écrits en phase 2 et réutilisés par les phases suivantes :
 - **Activité et import** (`internal/activity/`, `internal/repoimport/`, sans base) : seuils globaux et par
   dépôt, bornes 5/6 et 15/16 jours, jours calendaires (passage de minuit à Paris, heure d'été), priorité
   des états gris ; CSV (BOM, CRLF, guillemets, colonnes dans le désordre), liste simple, commentaires,
-  doublons, chaque erreur avec son numéro de ligne, aucun identifiant de connexion dans les messages.
+  doublons, chaque erreur avec son numéro de ligne, aucun identifiant de connexion dans les messages ;
+  colonnes `flemme` et `dead` (cellule vide, `0`, valeur illisible, Dead inférieur ou égal à Flemme).
+- **Seuils par dépôt** : création, mise à jour, seuil gardé s'il n'est pas fourni et remise au seuil de
+  l'espace avec `0` (`internal/sync`, `DryRun` compris), `repo add --flemme / --dead` et colonnes de
+  l'import (`internal/cli`, état recalculé par `repo list`), export, aperçu et import du partage
+  (`internal/configshare`), formulaire de la page d'un dépôt (`internal/web` : enregistrement, saisie
+  refusée, `404`, CSRF).
+- **Activité par contributeur dans un dépôt** (V2) : commits par semaine et par contributeur
+  (`activity.CountContributorWeeks` : fuseau, bornes de la fenêtre, contributeur absent) et courbe d'une
+  ligne (`activity.Sparkline`, Unicode et ASCII) ; `store.AuthorCommitTimes` filtré par dépôt (commit
+  sur deux branches compté une fois, autres dépôts exclus) ; graphique de la page d'un dépôt
+  (`TestRepoContributorsChart` : séries du seul dépôt, absent des fragments ; dépôt sans commit sur la
+  période) ; détail du TUI (colonnes « 12 SEM. » et « PAR SEMAINE », faux `DataSource` et vraie base) ;
+  `watchoo contributors --weeks` (texte, `--repo`, JSON `weekly`, `[]` sans l'option, bornes et refus
+  avec `--since`, `TestContributorsWeeks`).
+- **Pull requests, releases et tags** (V2) : provider GitHub contre `githubtest` (conversion, ordre,
+  pagination et plafonds de 1 000, arrêt anticipé `UpdatedSince` sur une seule page, `Limit`, `304`
+  gratuits, dépôt vide, `409`, réponse inexploitable, `5xx`, `404`, arguments invalides sans requête ;
+  `pulls_test.go`), routes de `githubtest` (`state`, `sort`, `direction`, pagination) et faux
+  `providertest` (tri, `UpdatedSince`, erreur injectée `ErrUnsupported`, quota) ; schéma `00003`
+  (unicité, `CHECK`, cascades), écriture par `ApplyRepoSync` (création, mise à jour, remplacement des
+  releases et tags, conservation quand la liste n'est pas relue, refus d'une donnée invalide sans rien
+  écrire) et lectures (filtres d'état, tags datés par leur commit, résumé des dépôts) ; moteur
+  (`extras_test.go` : premier passage puis incrémental, échec isolé en avertissement avec commits gardés
+  et reprise au même point, `ErrUnsupported` sans avertissement ni effacement, quota bas et épuisé,
+  annulation) ; CLI (`watchoo prs` et `watchoo releases` en texte et en JSON, filtres, options
+  invalides, titres piégés neutralisés, avertissements de `watchoo sync`) ; web (cartes et fragment
+  `repo-pulls`, échappement d'un titre piégé, états vides, PR ouvertes sur le tableau de bord) ; TUI
+  (ligne « Pull requests » du détail, avertissements du bilan). Les deux tests de bout en bout lisent
+  aussi PR, releases et tags (`304` quand rien n'a changé).
 - **Moteur** (`internal/sync/`, `providertest` + base temporaire) : premier import, synchro
   incrémentale, tête inchangée (aucune requête de commits), nouvelle branche, merge qui apporte des
   commits plus anciens, force-push (branche et branche de référence), branche supprimée,
@@ -200,7 +231,7 @@ Deux faux, écrits en phase 2 et réutilisés par les phases suivantes :
   (`WeeklyCounts`) dans le fuseau d'affichage (Paris, passages à l'heure d'hiver et d'été, fin d'année,
   UTC+14, nombre de semaines invalide), résumé d'une série par jour (total, jour le plus chargé).
 - **Store** (`TestAuthorCommitTimes`) : auteur et date de chaque commit, auteur inconnu exclu, dates en
-  UTC, borne `since`.
+  UTC, borne `since`, filtre par dépôt.
 - **Graphiques web** (`internal/web/charts_test.go`) : séries des 8 contributeurs les plus actifs et
   regroupement des autres (égalités, auteur hors classement, noms nettoyés et tronqués, `[]` plutôt que
   `null`) ; JSON des pages tableau de bord et contributeurs, absent des fragments et d'un espace vide ;
@@ -223,6 +254,61 @@ Deux faux, écrits en phase 2 et réutilisés par les phases suivantes :
   un essai du conteneur avec le faux `gh` compilé pour Linux (`init`, refus de `serve` sans
   authentification hors boucle locale, `401` sans identifiants puis `200`, arrêt propre).
 
+## Dépôts Git locaux (V2)
+
+Aucun service extérieur : le paquet `internal/provider/git/gittest` crée de vrais dépôts nus « distants »
+(`<temp>/<owner>/<name>.git`) et une copie de travail pour les remplir (commits datés, d'une
+identité factice, branches, merges, tags légers et annotés, force-push, suppression de branche, changement
+de branche par défaut), avec une configuration Git isolée de celle du développeur (`GIT_CONFIG_GLOBAL`
+vide, `GIT_CONFIG_NOSYSTEM`, pas d'entretien automatique). Le provider s'y branche par
+`git.Options.BaseURL` (`file://…`).
+
+- **Provider** (`internal/provider/git`) : `Repository` par `ls-remote` sans rien cloner (branche par
+  défaut, URL GitHub, `Partial`) ; clone avec copie de travail dans `repos/<name>`, `repos/` en `0700` ;
+  branches lues dans `refs/remotes/origin/` (une branche locale créée dans le clone ne compte pas), `ListCommits` (HEAD, branche, SHA,
+  `Limit`, `Since`, `Stop`, branche inconnue `ErrNotFound`), message, identités, dates UTC et parents ;
+  `CompareCommits` avec un merge, base égale à la tête, base inconnue (`ErrUnknownBase`) ; statistiques
+  (`diff-tree --numstat` : commit simple, racine, merge par rapport au premier parent, commit inconnu) ;
+  tags (légers et annotés déréférencés) ; `fetch` qui suit une branche supprimée, un force-push, un tag
+  ajouté et une nouvelle branche par défaut (une seule mise à jour par Provider) ; dépôt vide (listes
+  vides non nil) ; références invalides refusées sans lancer `git` (`git` introuvable dans ce test) ;
+  dépôt absent : `ErrAccessDenied` sans invite, aucun reste de clone, URL absente du message ; port fermé :
+  `ErrUnavailable` ; 16 appels concurrents sur 4 dépôts ; copie de travail qui suit le distant
+  (modification locale d'un fichier suivi écrasée, fichier non suivi gardé, nouvelle branche par défaut
+  extraite) ; dépôt vide cloné sans fichier extrait, puis rempli au premier commit ; aucun hook exécuté
+  (`core.hooksPath` global avec un hook `post-checkout`, `submodule.recurse`) ; règle des homonymes
+  (`Layout` : ordre d'ajout, casse ignorée, nom déjà pris par un autre dépôt, `.git` jamais donné, ajout
+  qui ne déplace rien) ; emplacement occupé (répertoire de l'utilisateur, clone d'un autre dépôt) jamais
+  touché, répertoire vide remplacé ; `RemoveClone` (casse, répertoire non signé gardé, homonyme déplacé
+  vers `repos/<name>` puis retrouvé par la synchro suivante) ; `Check` ; aucun nom, e-mail, message ni URL dans les logs ; `ErrUnsupported` pour
+  pull requests, releases, `RepositoryByID` et quota.
+- **Migration `00004`** (`internal/store/migration_provider_id_test.go`) : base remplie au schéma
+  `00003` (toutes les tables filles), migration, aucune ligne perdue, `foreign_key_check` et
+  `integrity_check` propres, clés étrangères réactivées, cascade toujours active, casse ignorée ;
+  plusieurs `provider_id` `NULL`, `0` refusé, écriture `Partial` qui garde URL, étoiles, issues, archivé et
+  identifiant, identifiant résolu par une synchro « API ».
+- **Moteur** (`internal/sync/gitsource_test.go`) : choix de la source (gh connecté, absent, non connecté,
+  `github.user` inutilisable : clones ; délai et réponse illisible : erreur) ; ajout sans `gh`
+  (`--dry-run` qui planifie une fois un dépôt écrit avec une autre casse, dépôt absent « accès refusé »,
+  second ajout retrouvé par nom) ; premier import (branches, commits propres à une branche, tags,
+  contributeur sans login), synchro incrémentale avec statistiques, dépôt devenu inaccessible, retour de
+  `gh` qui résout `provider_id` et les métadonnées ; dépôt connu par l'API synchronisé sans `gh` (étoiles,
+  issues, archivé, URL et identifiant gardés, aucun appel à l'API).
+- **CLI** (`internal/cli/gitsource_test.go` et tests d'`init`, `status`, `sync`, `repo`) : `repo add`
+  sans clone, `sync` (texte et `--json`, `source: "git"`, pas de quota ; copie de travail dans
+  `repos/projet`, `repos/` en `0700`), `log`, `status` (source), homonyme dans `repos/bob-projet` qui
+  contient un `.watchoo/` commité : `status` lancé depuis ce clone travaille sur l'espace,
+  `repo remove --keep-history` qui garde le clone, `repo remove` qui le supprime et déplace l'homonyme
+  vers `repos/projet` ; `init` sans `gh`
+  (faux client, faux binaire, vrai `auth.GH` vers un chemin absent) qui crée l'espace et prévient, sans
+  `git` qui s'arrête, token refusé qui s'arrête ; clé `source` des sorties JSON (`init`, `sync`,
+  `status`).
+- **Espaces** (`internal/workspace`) : un `.watchoo/` sous le `repos/` d'un espace (à toute profondeur,
+  droits `0700`) est ignoré par `Find`, qui rend l'espace englobant ; `Init` y est refusé ; un espace
+  imbriqué ailleurs reste trouvé.
+- **Web et TUI** : page d'un dépôt sans identifiant de forge (étoiles, issues, pull requests et releases
+  masquées), fragment du quota « sans objet » sans `gh` ; détail du TUI correspondant.
+
 ## Partage de la configuration
 
 - **Cœur** (`internal/configshare`) : aller-retour export → import dans un autre espace (dépôts, labels,
@@ -235,7 +321,7 @@ Deux faux, écrits en phase 2 et réutilisés par les phases suivantes :
   dépôt arrêté à reprendre, réglages modifiés seulement, avertissements (variable `WATCHOO_*`,
   commentaires perdus) ; aperçu sans écriture (base et `config.yaml` identiques octet pour octet) ;
   application : dépôt inaccessible signalé sans bloquer les autres, réglages identiques non réécrits.
-- **Réécriture de `config.yaml`** (`internal/workspace`) : clés `name`, `github.*`, `web.*` et réglages
+- **Réécriture de `config.yaml`** (`internal/workspace`) : clés `name`, `github.*`, `git.*`, `web.*` et réglages
   non importés conservés, `.bak` identique à l'ancien fichier, droits `0600`, idempotence (deux imports
   donnent le même fichier), injection YAML impossible (fuseau et motifs avec guillemets, `#`, `:`, sauts
   de ligne, `\n`), fichier relu égal aux valeurs attendues, échec sans modification, gabarit de
@@ -272,6 +358,8 @@ Deux faux, écrits en phase 2 et réutilisés par les phases suivantes :
    installée avec vérification SHA-256) : `app.css` commité est à jour.
 4. Aucune variable `GH_TOKEN` / `GITHUB_TOKEN` n'est fournie aux tests : un test qui aurait besoin du vrai
    GitHub échoue au lieu de passer en silence.
+5. `git` est installé sur les machines de CI : les tests des dépôts Git locaux y tournent toujours (ils
+   ne sont sautés que si `git` est absent, en local).
 
 Sur un tag `vX.Y.Z`, le workflow de release relance les mêmes contrôles (`make check`) avant GoReleaser
 et l'image Docker ([Distribution](03-architecture.md#distribution)).

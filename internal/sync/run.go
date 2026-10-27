@@ -150,14 +150,15 @@ func (e *Engine) run(ctx context.Context, repos []model.Repository, opts SyncOpt
 		prog.send(EventFinished, RepoReport{}, false)
 	}
 
-	prov, redact, err := e.openProvider(ctx)
+	prov, redact, src, err := e.openProvider(ctx)
 	if err != nil {
 		finish()
 		return report, err
 	}
-	if _, ok := prov.LastRateLimit(); !ok {
+	report.Source = src
+	if _, ok := prov.LastRateLimit(); !ok && src.Kind == SourceAPI {
 		// Quota encore inconnu : un appel gratuit pour que le garde-fou fonctionne dès le premier
-		// dépôt. Son échec n'empêche pas la synchro.
+		// dépôt. Son échec n'empêche pas la synchro. Les clones Git n'ont pas de quota.
 		if _, err := prov.RateLimit(ctx); err != nil {
 			e.logger.Debug("lecture du quota impossible avant la synchro", "erreur", redact(errorMessage(err)))
 		}
@@ -173,6 +174,7 @@ func (e *Engine) run(ctx context.Context, repos []model.Repository, opts SyncOpt
 	report.RateLimit, report.RateLimitKnown = prov.LastRateLimit()
 	finish()
 	e.logger.Info("synchro terminée",
+		"source", string(src.Kind),
 		"depots", len(repos),
 		"succes", report.Count(StatusSuccess),
 		"erreurs", report.Count(StatusError),
@@ -249,8 +251,13 @@ func (e *Engine) syncOne(ctx context.Context, prov provider.Provider, redact fun
 	rep.NewCommits = res.result.NewCommits
 	rep.TrackedBranches = res.result.TrackedBranches
 	rep.StatsFetched = res.stats
+	rep.PullRequests = res.pulls
+	rep.Warnings = make([]string, 0, len(res.warnings))
+	for _, w := range res.warnings {
+		rep.Warnings = append(rep.Warnings, redact(w))
+	}
 	e.logger.Info("dépôt synchronisé", "repo", rep.FullName, "nouveaux_commits", rep.NewCommits,
-		"branches", rep.TrackedBranches, "statistiques", rep.StatsFetched,
-		"duree", rep.Duration.Round(time.Millisecond))
+		"branches", rep.TrackedBranches, "statistiques", rep.StatsFetched, "pull_requests", rep.PullRequests,
+		"avertissements", len(rep.Warnings), "duree", rep.Duration.Round(time.Millisecond))
 	return rep
 }

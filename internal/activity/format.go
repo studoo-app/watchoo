@@ -103,3 +103,35 @@ func ParseSince(s string) (time.Duration, error) {
 	}
 	return time.Duration(n) * unit, nil
 }
+
+// sparkLevels sont les huit hauteurs de Sparkline, de la plus basse à la plus haute.
+var sparkLevels = []rune("▁▂▃▄▅▆▇█")
+
+// sparkASCII sont les hauteurs de Sparkline sans Unicode : aucun commit, peu, moyen, beaucoup.
+var sparkASCII = []rune(".-=#")
+
+// Sparkline renvoie une courbe d'une ligne, un caractère par valeur de counts, de hauteur
+// proportionnelle au maximum de counts : « ▁ » à « █ » ; sans Unicode (unicode faux), « . », « - »,
+// « = », « # ». Une valeur nulle donne toujours le caractère le plus bas, une valeur non nulle jamais.
+// Fonction pure (TUI).
+func Sparkline(counts []int, unicode bool) string {
+	levels := sparkLevels
+	if !unicode {
+		levels = sparkASCII
+	}
+	peak := 0
+	for _, n := range counts {
+		peak = max(peak, n)
+	}
+	out := make([]rune, len(counts))
+	for i, n := range counts {
+		level := 0
+		if n > 0 && peak > 0 {
+			// 1 … len(levels)-1 : une semaine active ne se confond jamais avec une semaine vide.
+			level = 1 + (n*(len(levels)-1)-1)/peak
+			level = min(max(level, 1), len(levels)-1)
+		}
+		out[i] = levels[level]
+	}
+	return string(out)
+}

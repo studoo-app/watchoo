@@ -23,6 +23,7 @@ import (
 	"github.com/studoo-app/watchoo/internal/auth/authtest"
 	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/provider"
+	gitprov "github.com/studoo-app/watchoo/internal/provider/git"
 	"github.com/studoo-app/watchoo/internal/provider/providertest"
 	"github.com/studoo-app/watchoo/internal/store"
 	wsync "github.com/studoo-app/watchoo/internal/sync"
@@ -156,8 +157,13 @@ func newTestEnv(t *testing.T, opts ...envOption) *testEnv {
 		Auth:        e.auth,
 		Config:      e.cfg,
 		NewProvider: newProvider,
-		Now:         clock,
-		Logger:      logger,
+		// Sans gh : clones Git locaux vers un « serveur » vide (aucun réseau, accès refusé).
+		NewGitProvider: func(repos []gitprov.Ref) (provider.Provider, error) {
+			return gitprov.New(gitprov.Options{Dir: filepath.Join(t.TempDir(), "repos"), Repos: repos,
+				BaseURL: "file://" + filepath.ToSlash(t.TempDir()), Logger: logger})
+		},
+		Now:    clock,
+		Logger: logger,
 	})
 	if err != nil {
 		t.Fatalf("wsync.New : %v", err)

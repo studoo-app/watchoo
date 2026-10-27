@@ -3,7 +3,9 @@
 [← Sommaire](README.md)
 
 Sept tables suffisent pour le MVP ; `commits` est la table centrale, reliée aux dépôts, aux branches (via
-`commit_branches`) et aux contributeurs. Le stockage est un fichier SQLite versionné par des migrations
+`commit_branches`) et aux contributeurs. La V2 en ajoute trois (migration `00003`) : `pull_requests`,
+`releases` et `tags`, soit **dix tables** ; la migration `00004` rend `repositories.provider_id`
+facultatif (dépôts suivis par clones Git locaux). Le stockage est un fichier SQLite versionné par des migrations
 `goose`, avec **une base par espace de supervision** (`.watchoo/watchoo.db`, voir
 [Espaces de supervision](10-espaces-de-supervision.md)). Les tables ne connaissent donc pas la notion
 d'espace : deux espaces ne partagent jamais de données.
@@ -15,6 +17,9 @@ erDiagram
     repositories ||--o{ branches : "possède"
     repositories ||--o{ commits : "contient"
     repositories ||--o{ sync_runs : "journalise"
+    repositories ||--o{ pull_requests : "reçoit"
+    repositories ||--o{ releases : "publie"
+    repositories ||--o{ tags : "marque"
     commits ||--o{ commit_branches : "vu sur"
     branches ||--o{ commit_branches : "contient"
     contributors ||--o{ contributor_emails : "utilise"
@@ -26,13 +31,15 @@ erDiagram
 
 ### `repositories` — dépôts suivis
 
-Unicité : **`(provider, provider_id)`** et **`(provider, owner, name)`**.
+Unicité : **`(provider, provider_id)`** et **`(provider, owner, name)`**. `provider_id` peut être
+`NULL` (V2) : SQLite accepte plusieurs `NULL` dans la contrainte `UNIQUE`, et `owner` / `name` restent
+uniques.
 
 | Colonne | Description |
 | --- | --- |
 | id | Identifiant interne |
 | provider | Forge d'origine (`github` au MVP) |
-| provider_id | Identifiant du dépôt sur la forge (identifiant numérique GitHub), qui ne change jamais |
+| provider_id | Identifiant du dépôt sur la forge (identifiant numérique GitHub), qui ne change jamais. `NULL` = pas encore connu (V2) : dépôt ajouté et synchronisé seulement par [clones Git locaux](03-architecture.md#dépôts-git-locaux-v2), qui n'en ont pas ; la première synchro par l'API le résout par owner/name et l'écrit. Strictement positif (`CHECK`) ; `0` dans `model.Repository.ProviderID` |
 | owner | Propriétaire (utilisateur ou organisation) |
 | name | Nom du dépôt |
 | label | Nom affiché (ex. « Alice Martin », « Groupe 3 »), facultatif ; vide = `owner/repo` |
@@ -43,8 +50,8 @@ Unicité : **`(provider, provider_id)`** et **`(provider, owner, name)`**.
 | last_synced_at | Date de la dernière synchronisation |
 | last_commit_at | Date du dernier commit connu, toutes branches suivies confondues |
 | archived | Dépôt archivé sur GitHub |
-| flemme_after_days | Seuil « Flemme » propre au dépôt (vide = valeur globale, 5 j par défaut ; aucune commande ne le règle encore en v0.1.0) |
-| dead_after_days | Seuil « Dead » propre au dépôt (vide = valeur globale, 15 j par défaut ; idem) |
+| flemme_after_days | Seuil « Flemme » propre au dépôt, au moins 1 (vide = valeur globale, 5 j par défaut) ; réglé par `repo add --flemme`, la colonne `flemme` de l'import, le partage de la configuration ou la page du dépôt dans le web |
+| dead_after_days | Seuil « Dead » propre au dépôt, au moins 1 (vide = valeur globale, 15 j par défaut) ; réglé de même (`--dead`, colonne `dead`) |
 | enabled | Suivi actif, ou arrêté (`repo remove --keep-history` : historique gardé, plus de synchro ; `repo add` le réactive) |
 | branch_patterns | Branches à suivre (`--branch`, colonne `branches` de l'import) : noms et motifs `path.Match` séparés par des virgules (`main,dev,release/*`) ; vide = toutes les branches. Ajoutée par la migration `00002` |
 
@@ -142,6 +149,71 @@ Clé primaire : **`(repo_id, sha, branch_id)`**. Clé étrangère `(repo_id, sha
 Le dernier `sync_run` d'un dépôt donne l'état « en erreur ». Un `sync_run` `running` sert aussi de
 **verrou** : voir [Architecture](03-architecture.md#fréquence-de-synchronisation).
 
+### `pull_requests` — pull requests (V2)
+
+Clé primaire : **`(repo_id, number)`**. Une PR est enregistrée une fois par dépôt, puis mise à jour à
+chaque synchro qui la voit modifiée (voir
+[Synchronisation incrémentale](03-architecture.md#synchronisation-incrémentale)) ; elle n'est jamais
+supprimée, sauf avec son dépôt.
+
+| Colonne | Description |
+| --- | --- |
+| repo_id | Dépôt |
+| number | Numéro de la PR dans le dépôt (au moins 1) |
+| title | Titre (texte venu du dépôt : nettoyé à l'affichage, jamais dans les logs) |
+| state | `open` ou `closed`, comme sur la forge |
+| merged | Mergée (une PR mergée est aussi `closed`, avec `merged_at`) |
+| draft | Brouillon |
+| author_login | Login de l'auteur sur la forge ; vide si inconnu |
+| author_provider_id | Identifiant numérique du compte de l'auteur ; 0 si inconnu |
+| url | Lien vers la PR sur la forge |
+| base_branch | Branche visée |
+| head_branch | Branche proposée |
+| created_at | Date d'ouverture |
+| updated_at | Dernière modification (sert de point de reprise de la synchro suivante) |
+| closed_at | Date de fermeture ; vide si ouverte |
+| merged_at | Date de merge ; vide si non mergée. Une PR mergée a `state = closed` et `merged_at` renseigné |
+
+- **Auteur** : gardé tel quel (login et identifiant de compte), **sans lien** vers `contributors` : un
+  contributeur est l'auteur d'au moins un commit, et un auteur de PR sans commit ne doit pas apparaître
+  dans le classement. Le rapprochement reste possible par `author_provider_id` =
+  `contributors.provider_user_id`.
+- **État affiché** : « ouverte » (ou « brouillon »), « mergée » (`merged`) ou « fermée » (fermée sans
+  merge).
+
+### `releases` — releases (V2)
+
+Clé primaire : **`(repo_id, provider_id)`**. La liste d'un dépôt est **remplacée** à chaque synchro
+réussie de cette liste : une release supprimée sur la forge disparaît.
+
+| Colonne | Description |
+| --- | --- |
+| repo_id | Dépôt |
+| provider_id | Identifiant de la release sur la forge |
+| tag_name | Tag de la release |
+| name | Titre (peut être vide) |
+| draft | Brouillon (visible seulement d'un compte avec droit d'écriture sur le dépôt) |
+| prerelease | Pré-release |
+| author_login | Login de l'auteur ; vide si inconnu |
+| url | Lien vers la release sur la forge |
+| created_at | Date de création |
+| published_at | Date de publication ; vide pour un brouillon |
+
+### `tags` — tags (V2)
+
+Clé primaire : **`(repo_id, name)`**. Comme `releases`, la liste d'un dépôt est remplacée à chaque
+synchro réussie de cette liste.
+
+| Colonne | Description |
+| --- | --- |
+| repo_id | Dépôt |
+| name | Nom du tag |
+| sha | SHA du commit visé |
+
+La forge ne donne pas de date pour un tag : l'affichage reprend la date du commit visé quand il est en
+base (jointure sur `commits (repo_id, sha)`, sans clé étrangère : le commit peut être sur une branche
+non suivie).
+
 ## Index
 
 | Index | Usage |
@@ -149,6 +221,7 @@ Le dernier `sync_run` d'un dépôt donne l'état « en erreur ». Un `sync_run` 
 | `commits(repo_id, committed_at DESC)` | Vue « derniers commits » d'un dépôt |
 | `commits(author_id, committed_at DESC)` | Vue « activité d'un contributeur » |
 | `commit_branches(branch_id)` | Filtre « commits d'une branche » |
+| `pull_requests(repo_id, updated_at DESC)` | Point de reprise de la synchro des PR, liste des PR d'un dépôt |
 
 ## Fusion des identités
 
@@ -170,12 +243,43 @@ Précisions :
   vide n'efface pas la valeur connue ; lors d'une fusion, le contributeur avec compte reprend le nom du
   contributeur absorbé s'il n'en a pas.
 
+Sans `gh` (clones Git locaux, V2), aucun commit n'est lié à un compte : seule la règle « commit sans
+compte » s'applique (rattachement par e-mail). Un contributeur créé ainsi est fusionné plus tard, comme
+ci-dessus, quand une synchro par l'API rattache un de ses e-mails à un compte.
+
+## Migration `00004` : `provider_id` facultatif
+
+SQLite ne sait pas retirer un `NOT NULL` d'une colonne : la migration reconstruit `repositories` selon la
+procédure documentée par SQLite (nouvelle table, copie, `DROP`, renommage). Points d'attention :
+
+- **hors transaction goose** (`-- +goose NO TRANSACTION`) pour pouvoir couper les clés étrangères
+  (`PRAGMA foreign_keys = OFF`, sans effet dans une transaction) : sinon `DROP TABLE repositories`
+  supprimerait en cascade branches, commits, `commit_branches`, `sync_runs`, pull requests, releases et
+  tags. goose exécute une migration `NO TRANSACTION` sur une seule connexion, si bien que le pragma
+  s'applique bien aux instructions suivantes ; la reconstruction elle-même est dans une transaction
+  explicite (`BEGIN` … `COMMIT`), puis les clés étrangères sont réactivées ;
+- les tables filles gardent leur clause `REFERENCES repositories`, qui désigne la nouvelle table après le
+  renommage ; `id`, colonnes et contraintes (`COLLATE NOCASE`, `CHECK`) sont repris tels quels, et
+  `provider_id` gagne `CHECK (provider_id IS NULL OR provider_id > 0)` ;
+- un test (`internal/store/migration_provider_id_test.go`) remplit une base au schéma `00003` (deux dépôts
+  avec branches, commits, `commit_branches`, synchros, PR, releases, tags, contributeurs), applique
+  `00004` et vérifie qu'aucune ligne n'est perdue, que `foreign_key_check` et `integrity_check` sont
+  propres, que les clés étrangères sont réactivées et que la cascade marche toujours ;
+- retour arrière (`Down`) : même reconstruction vers `NOT NULL`, un `provider_id` inconnu recevant
+  l'opposé de l'identifiant interne (négatif, unique, remplacé à la synchro par l'API suivante).
+
+Écriture par le moteur (`store.RepositoryMetadata`) : `ProviderID` > 0 est écrit (résolution après le
+retour de `gh`), 0 garde la valeur en base ; `Partial` (synchro par clones Git locaux) n'écrit que la
+branche par défaut (si elle est connue) et la date de synchro, jamais des zéros à la place de l'URL, des
+étoiles, des issues, de l'état archivé ou de `provider_id`.
+
 ## Renommages et changements de login
 
 Sur GitHub, un dépôt peut être renommé ou transféré, et un utilisateur peut changer de login. Les
 identifiants numériques (`provider_id`, `provider_user_id`) ne changent jamais : c'est sur eux que repose
 l'unicité. À chaque synchro, Watchoo met à jour `owner`, `name` et `provider_login` si besoin, sans créer de
-doublon et sans séparer l'historique.
+doublon et sans séparer l'historique. Sans `gh` (clones Git locaux), un dépôt est désigné par owner/name :
+un renommage n'est suivi qu'à la synchro suivante par l'API.
 
 ## Dates
 

@@ -12,6 +12,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -284,7 +285,10 @@ type configRepoJSON struct {
 type configRepoState struct {
 	Label    string   `json:"label"`
 	Branches []string `json:"branches"`
-	Enabled  bool     `json:"enabled"`
+	// Seuils propres au dépôt ; null = seuil de l'espace.
+	FlemmeAfterDays *int `json:"flemme_after_days"`
+	DeadAfterDays   *int `json:"dead_after_days"`
+	Enabled         bool `json:"enabled"`
 }
 
 type configSummaryJSON struct {
@@ -363,7 +367,8 @@ func newConfigRepoState(s configshare.RepoState) configRepoState {
 	if branches == nil {
 		branches = []string{}
 	}
-	return configRepoState{Label: s.Label, Branches: branches, Enabled: s.Enabled}
+	return configRepoState{Label: s.Label, Branches: branches, Enabled: s.Enabled,
+		FlemmeAfterDays: s.FlemmeAfterDays, DeadAfterDays: s.DeadAfterDays}
 }
 
 // runConfigImport lit et valide le fichier, calcule l'aperçu, demande confirmation (sauf --yes) et
@@ -660,10 +665,32 @@ func repoChangeText(c configshare.RepoChange) string {
 	if !equalStrings(c.Before.Branches, c.After.Branches) {
 		parts = append(parts, "branches : "+patternsText(c.Before.Branches)+" → "+patternsText(c.After.Branches))
 	}
+	if !sameDays(c.Before.FlemmeAfterDays, c.After.FlemmeAfterDays) {
+		parts = append(parts, "flemme : "+daysText(c.Before.FlemmeAfterDays)+" → "+daysText(c.After.FlemmeAfterDays))
+	}
+	if !sameDays(c.Before.DeadAfterDays, c.After.DeadAfterDays) {
+		parts = append(parts, "dead : "+daysText(c.Before.DeadAfterDays)+" → "+daysText(c.After.DeadAfterDays))
+	}
 	if len(parts) > 0 {
 		text += " (" + strings.Join(parts, " ; ") + ")"
 	}
 	return text
+}
+
+// daysText écrit un seuil propre (« 10 j »), ou « espace » pour le seuil de l'espace (nil).
+func daysText(p *int) string {
+	if p == nil {
+		return "espace"
+	}
+	return strconv.Itoa(*p) + " j"
+}
+
+// sameDays compare deux seuils propres (nil = seuil de l'espace).
+func sameDays(a, b *int) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return *a == *b
 }
 
 // labelText écrit un nom affiché entre guillemets, ou « aucun ».

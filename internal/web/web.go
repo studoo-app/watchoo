@@ -51,6 +51,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/provider"
 	"github.com/studoo-app/watchoo/internal/store"
 	wsync "github.com/studoo-app/watchoo/internal/sync"
@@ -67,9 +68,12 @@ type SyncController interface {
 	SetInterval(d time.Duration) error
 }
 
-// RepoManager ajoute des dépôts et lit le quota ; *wsync.Engine le satisfait.
+// RepoManager ajoute des dépôts, règle leurs seuils d'activité et lit le quota ; *wsync.Engine le
+// satisfait.
 type RepoManager interface {
 	AddRepositories(ctx context.Context, reqs []wsync.AddRequest, opts wsync.AddOptions) ([]wsync.AddResult, error)
+	// SetThresholds remplace les seuils propres au dépôt id (nil ou 0 = seuil de l'espace).
+	SetThresholds(ctx context.Context, id int64, flemme, dead *int) (model.Repository, error)
 	RateLimit(ctx context.Context) (provider.RateLimit, error)
 }
 

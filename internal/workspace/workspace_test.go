@@ -270,6 +270,50 @@ func TestFindIgnoresWatchooFile(t *testing.T) {
 	}
 }
 
+// Un .watchoo/ commité dans le dépôt d'un étudiant, cloné par Watchoo dans repos/ (V2), n'est jamais
+// pris pour un espace, même à droits privés (umask 077) : la recherche reprend à l'espace qui contient
+// les clones. Init y est refusé.
+func TestFindSkipsWorkspaceInClones(t *testing.T) {
+	isolateEnv(t)
+	base := t.TempDir()
+	requireNoWorkspaceAbove(t, base)
+	root := newDir(t, base, "espace")
+	mustInit(t, root)
+	clone := newDir(t, root, ReposDirName, "projet-groupe-3")
+	if err := os.Mkdir(filepath.Join(clone, DirName), DirMode); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(clone, DirName, ConfigFileName), "name: piege\n")
+	deep := newDir(t, clone, "src")
+	nested := newDir(t, clone, "sous", "projet")
+	if err := os.Mkdir(filepath.Join(nested, DirName), DirMode); err != nil {
+		t.Fatal(err)
+	}
+	for _, start := range []string{clone, deep, nested, filepath.Join(clone, DirName)} {
+		ws, err := Find(start)
+		if err != nil {
+			t.Fatalf("Find(%s) : %v", start, err)
+		}
+		if ws.Root != root {
+			t.Errorf("Find(%s) = %s, attendu l'espace qui contient les clones (%s)", start, ws.Root, root)
+		}
+	}
+	// Ailleurs que sous repos/, un espace imbriqué reste trouvé.
+	other := newDir(t, root, "autre")
+	mustInit(t, other)
+	if ws, err := Find(other); err != nil || ws.Root != other {
+		t.Errorf("Find(%s) = %v, %v ; attendu l'espace imbriqué", other, ws, err)
+	}
+	// Init dans un clone : refusé, rien de créé.
+	fresh := newDir(t, root, ReposDirName, "autre-projet")
+	if _, err := Init(fresh); err == nil || !strings.Contains(err.Error(), "répertoire des clones") {
+		t.Errorf("Init dans repos/ : %v, refus attendu", err)
+	}
+	if _, err := os.Stat(filepath.Join(fresh, DirName)); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("Init dans repos/ a créé %s", DirName)
+	}
+}
+
 func TestFindNearestWins(t *testing.T) {
 	isolateEnv(t)
 	outer := t.TempDir()
@@ -430,6 +474,10 @@ func TestWorkspacePaths(t *testing.T) {
 	}
 	if got, want := ws.ConfigPath(), filepath.Join("/x", ".watchoo", "config.yaml"); got != want {
 		t.Errorf("ConfigPath = %s, attendu %s", got, want)
+	}
+	// Clones avec copie de travail, à la racine de l'espace (à côté de .watchoo/).
+	if got, want := ws.ReposDir(), filepath.Join("/x", "repos"); got != want {
+		t.Errorf("ReposDir = %s, attendu %s", got, want)
 	}
 }
 

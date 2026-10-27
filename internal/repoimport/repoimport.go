@@ -14,6 +14,7 @@ import (
 	"io"
 	"net/url"
 	"path"
+	"strconv"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -32,6 +33,9 @@ const maxLineBytes = 64 * 1024
 
 // MaxLabelRunes est la longueur maximale d'un label, en caractères.
 const MaxLabelRunes = 200
+
+// MaxThresholdDays borne un seuil d'activité propre à un dépôt, en jours (dix ans).
+const MaxThresholdDays = 3650
 
 // Ref est une référence de dépôt validée (owner et nom valides selon provider.ValidateRepo).
 type Ref struct {
@@ -125,6 +129,10 @@ type Entry struct {
 	// Branches sont les motifs donnés par le fichier (ParseBranchPatterns) ; nil = non fourni (les
 	// motifs existants sont gardés). Une cellule vide ne remet donc pas « toutes les branches ».
 	Branches []string
+	// FlemmeAfterDays et DeadAfterDays sont les seuils d'activité du dépôt (ParseThreshold) ; nil =
+	// non fourni (seuils existants gardés), 0 = revenir à la valeur globale.
+	FlemmeAfterDays *int
+	DeadAfterDays   *int
 }
 
 // Format est la forme reconnue d'un fichier d'import.
@@ -132,7 +140,7 @@ type Format string
 
 // Valeurs de Format.
 const (
-	FormatCSV  Format = "csv"  // CSV avec en-tête (colonne repo obligatoire, label et branches facultatives)
+	FormatCSV  Format = "csv"  // CSV avec en-tête (colonne repo obligatoire, label, branches, flemme et dead facultatives)
 	FormatList Format = "list" // un dépôt par ligne, sans en-tête
 )
 
@@ -181,10 +189,14 @@ const (
 	colRepo column = iota
 	colLabel
 	colBranches
+	colFlemme
+	colDead
 )
 
 // columnNames associe les noms d'en-tête (en minuscules) aux colonnes.
-var columnNames = map[string]column{"repo": colRepo, "label": colLabel, "branches": colBranches}
+var columnNames = map[string]column{
+	"repo": colRepo, "label": colLabel, "branches": colBranches, "flemme": colFlemme, "dead": colDead,
+}
 
 // line est une ligne retenue du fichier (ni vide ni commentaire).
 type line struct {
@@ -199,7 +211,7 @@ type line struct {
 //   - BOM UTF-8 initial ignoré ; lignes vides (ou d'espaces) et lignes dont le premier caractère non
 //     blanc est « # » ignorées, dans les deux formats ;
 //   - format CSV si la première ligne retenue, découpée en CSV, a pour cellules (casse et espaces
-//     ignorés) des noms de colonnes parmi repo, label, branches, dont repo ; colonne inconnue ou en
+//     ignorés) des noms de colonnes parmi repo, label, branches, flemme, dead, dont repo ; colonne inconnue ou en
 //     double : erreur sur la ligne d'en-tête ; nombre de cellules différent de l'en-tête : erreur ;
 //     repo vide : erreur ;
 //   - sinon format liste : une référence par ligne (ParseRef), rien d'autre sur la ligne ;
@@ -305,7 +317,7 @@ func parseHeader(text string) (cols []column, isHeader bool, msg string) {
 		col, ok := columnNames[strings.ToLower(c)]
 		switch {
 		case !ok:
-			return nil, true, fmt.Sprintf("colonne %s inconnue dans l'en-tête (colonnes possibles : repo, label, branches)", quote(c))
+			return nil, true, fmt.Sprintf("colonne %s inconnue dans l'en-tête (colonnes possibles : repo, label, branches, flemme, dead)", quote(c))
 		case seen[col]:
 			return nil, true, fmt.Sprintf("colonne %s en double dans l'en-tête", quote(strings.ToLower(c)))
 		}
@@ -397,7 +409,25 @@ func (p *parser) csvLine(l line, cols []column) {
 				continue
 			}
 			e.Branches = pats
+		case colFlemme, colDead:
+			name := "flemme"
+			if col == colDead {
+				name = "dead"
+			}
+			n, err := ParseThreshold(v)
+			if err != nil {
+				msgs = append(msgs, name+" : "+err.Error())
+				continue
+			}
+			if col == colFlemme {
+				e.FlemmeAfterDays = n
+			} else {
+				e.DeadAfterDays = n
+			}
 		}
+	}
+	if err := ValidateThresholds(e.FlemmeAfterDays, e.DeadAfterDays); err != nil && len(msgs) == 0 {
+		msgs = append(msgs, err.Error())
 	}
 	if len(msgs) > 0 {
 		p.fail(l.num, strings.Join(msgs, " ; "))
@@ -427,6 +457,40 @@ func checkLabel(v string) string {
 		return fmt.Sprintf("label trop long (%d caractères au plus)", MaxLabelRunes)
 	}
 	return ""
+}
+
+// ParseThreshold analyse un seuil d'activité saisi (cellule flemme ou dead, champ du web) : nombre
+// entier de jours, espaces autour ignorés. Chaîne vide : nil (non fourni) ; « 0 » : revenir à la
+// valeur globale. Erreur en français sinon (nombre négatif ou illisible).
+func ParseThreshold(s string) (*int, error) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return nil, nil
+	}
+	n, err := strconv.Atoi(s)
+	if err != nil || n < 0 || n > MaxThresholdDays {
+		return nil, fmt.Errorf("%s : nombre entier de jours attendu, de 1 à %d (0 = valeur globale)", quote(s), MaxThresholdDays)
+	}
+	return &n, nil
+}
+
+// ValidateThresholds vérifie les seuils d'activité demandés pour un dépôt, quelle que soit leur source
+// (« repo add --flemme / --dead », fichier d'import, partage de la configuration, web) : nil = non
+// fourni, 0 = valeur globale, sinon de 1 à MaxThresholdDays jours ; quand les deux sont donnés (non
+// nuls), Dead doit être strictement supérieur à Flemme. Erreur en français sinon.
+func ValidateThresholds(flemme, dead *int) error {
+	for _, t := range []struct {
+		name string
+		v    *int
+	}{{"flemme", flemme}, {"dead", dead}} {
+		if t.v != nil && (*t.v < 0 || *t.v > MaxThresholdDays) {
+			return fmt.Errorf("seuil %s : %d jours invalide (de 1 à %d, ou 0 pour la valeur globale)", t.name, *t.v, MaxThresholdDays)
+		}
+	}
+	if flemme != nil && dead != nil && *flemme > 0 && *dead > 0 && *dead <= *flemme {
+		return fmt.Errorf("seuil dead (%d j) : doit être strictement supérieur au seuil flemme (%d j)", *dead, *flemme)
+	}
+	return nil
 }
 
 // quote cite une valeur entre guillemets, tronquée à maxQuoted caractères.

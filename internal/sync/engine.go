@@ -12,6 +12,11 @@
 // RateLimit), passé à la fabrique de Provider, puis oublié ; jamais stocké, journalisé ni inclus dans
 // une erreur ou un rapport.
 //
+// Source (V2, voir Source) : choisie à chaque fois, uniquement selon gh. Token lu : API GitHub. gh
+// introuvable ou connecté à aucun compte (auth.Absent) : clones Git locaux (NewGitProvider), sans
+// token. Toute autre erreur de gh (délai, réponse illisible) reste une erreur : elle ne fait pas
+// basculer vers git.
+//
 // Logs (slog, Options.Logger) : identifiants de dépôt (owner/name), SHA courts, compteurs et durées
 // seulement ; jamais le token, un message de commit, un nom ou un e-mail.
 package sync
@@ -29,6 +34,7 @@ import (
 	"github.com/studoo-app/watchoo/internal/auth"
 	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/provider"
+	gitprov "github.com/studoo-app/watchoo/internal/provider/git"
 	"github.com/studoo-app/watchoo/internal/provider/github"
 	"github.com/studoo-app/watchoo/internal/store"
 	"github.com/studoo-app/watchoo/internal/workspace"
@@ -50,6 +56,36 @@ const (
 // synchro avec le token fraîchement lu ; le Provider ne vit que le temps de cette synchro.
 type ProviderFactory func(token string) (provider.Provider, error)
 
+// GitProviderFactory construit le Provider des clones Git locaux (V2), utilisé sans gh. Le moteur
+// l'appelle au début de chaque synchro faite sans gh, avec les dépôts de l'espace dans l'ordre de leur
+// ajout (CloneRefs) : ils fixent l'emplacement des clones (git.Options.Repos).
+type GitProviderFactory func(repos []gitprov.Ref) (provider.Provider, error)
+
+// SourceKind est le moyen d'accès aux dépôts. Valeurs stables (sorties --json).
+type SourceKind string
+
+// Valeurs de SourceKind.
+const (
+	SourceAPI SourceKind = "api" // API GitHub, avec le token de gh
+	SourceGit SourceKind = "git" // clones Git locaux, sans token (gh absent ou non connecté)
+)
+
+// Source décrit la source choisie pour la prochaine synchro.
+type Source struct {
+	Kind SourceKind
+	// Reason explique le choix de SourceGit (message de gh : introuvable, non connecté), en français,
+	// sans token ; vide pour SourceAPI.
+	Reason string
+}
+
+// Label renvoie le nom de la source à afficher : « API GitHub » ou « clones Git locaux ».
+func (s Source) Label() string {
+	if s.Kind == SourceGit {
+		return "clones Git locaux"
+	}
+	return "API GitHub"
+}
+
 // Options règle New.
 type Options struct {
 	Store *store.Store // base de l'espace (obligatoire)
@@ -62,6 +98,13 @@ type Options struct {
 	// toutes les synchros de l'Engine (donc de tout le processus). Les tests y renvoient un
 	// providertest.Fake ou un provider GitHub branché sur githubtest.
 	NewProvider ProviderFactory
+	// NewGitProvider construit le Provider des clones Git locaux, utilisé quand gh n'est pas installé
+	// ou pas connecté ; nil = git.New(git.Options{Dir: ReposDir, Repos, Protocol: Config.Git.Protocol,
+	// Logger}). Les tests y branchent un provider Git sur gittest.
+	NewGitProvider GitProviderFactory
+	// ReposDir est le répertoire des clones Git locaux de l'espace (workspace.Workspace.ReposDir), pour
+	// le provider Git par défaut ; vide (et NewGitProvider nil) = suivi sans gh impossible.
+	ReposDir string
 	// UserAgent est passé au provider GitHub par défaut (« watchoo/<version> ») ; vide = défaut.
 	UserAgent string
 	// Now est l'horloge (time.Now par défaut) : dates des sync_runs, verrou, durées, garde-fou de quota.
@@ -78,6 +121,7 @@ type Engine struct {
 	auth        auth.Client
 	cfg         workspace.Config
 	newProvider ProviderFactory
+	newGit      GitProviderFactory
 	now         func() time.Time
 	logger      *slog.Logger
 }
@@ -106,11 +150,22 @@ func New(opts Options) (*Engine, error) {
 			return github.New(token, github.Options{Cache: cache, Quota: quota, UserAgent: userAgent, Logger: logger})
 		}
 	}
+	newGit := opts.NewGitProvider
+	if newGit == nil {
+		dir, protocol := opts.ReposDir, opts.Config.Git.Protocol
+		newGit = func(repos []gitprov.Ref) (provider.Provider, error) {
+			if dir == "" {
+				return nil, errors.New("répertoire des clones Git locaux non renseigné")
+			}
+			return gitprov.New(gitprov.Options{Dir: dir, Repos: repos, Protocol: protocol, Logger: logger})
+		}
+	}
 	return &Engine{
 		store:       opts.Store,
 		auth:        opts.Auth,
 		cfg:         opts.Config,
 		newProvider: newProvider,
+		newGit:      newGit,
 		now:         now,
 		logger:      logger,
 	}, nil
@@ -184,6 +239,8 @@ func (e *Engine) SyncAll(ctx context.Context, opts SyncOptions) (Report, error) 
 //   - statistiques (CommitStats) seulement si le dépôt avait déjà des commits avant cette synchro,
 //     pour les commits absents de la base (store.ExistingCommitSHAs), au plus MaxStatsPerRepo, et
 //     jamais quand le quota restant est sous QuotaReservePercent ; sinon additions / deletions à 0 ;
+//   - pull requests (depuis la plus récente date de modification en base), releases et tags (V2,
+//     voir fetchExtras) : un échec devient un avertissement (RepoReport.Warnings), le dépôt réussit ;
 //   - écriture : store.ApplyRepoSync (une transaction).
 func (e *Engine) SyncRepo(ctx context.Context, repoID int64, opts SyncOptions) (Report, error) {
 	repo, err := e.store.GetRepository(ctx, repoID)
@@ -198,9 +255,10 @@ func (e *Engine) SyncRepo(ctx context.Context, repoID int64, opts SyncOptions) (
 }
 
 // RateLimit lit le token, construit un Provider et renvoie l'état du quota (Provider.RateLimit,
-// gratuit). Sert à « watchoo status ».
+// gratuit). Sert à « watchoo status ». Sans gh (clones Git locaux), erreur enveloppant
+// provider.ErrUnsupported : il n'y a pas de quota.
 func (e *Engine) RateLimit(ctx context.Context) (provider.RateLimit, error) {
-	prov, _, err := e.openProvider(ctx)
+	prov, _, _, err := e.openProvider(ctx)
 	if err != nil {
 		return provider.RateLimit{}, fmt.Errorf("lecture du quota : %w", err)
 	}
@@ -211,18 +269,55 @@ func (e *Engine) RateLimit(ctx context.Context) (provider.RateLimit, error) {
 	return rl, nil
 }
 
-// openProvider lit le token (Auth.Token) et construit le Provider. Le token n'est renvoyé que sous la
-// forme d'une fonction de masquage (redact), qui le retire d'un message avant qu'il ne soit
-// enregistré ou affiché : défense supplémentaire, le Provider ne le cite jamais. Le token n'est gardé
-// que par cette fermeture, le temps de la synchro.
-func (e *Engine) openProvider(ctx context.Context) (provider.Provider, func(string) string, error) {
+// Source renvoie la source que prendrait une synchro lancée maintenant (voir le commentaire du
+// package), sans rien construire ni contacter : seul gh est interrogé (auth.Client.Token, qui ne
+// contacte pas GitHub). Erreur si gh est installé mais en panne (délai, réponse illisible).
+func (e *Engine) Source(ctx context.Context) (Source, error) {
+	_, src, err := e.chooseSource(ctx)
+	return src, err
+}
+
+// chooseSource lit le token de gh : token et SourceAPI si gh est utilisable, SourceGit (avec la raison)
+// s'il est absent ou non connecté (auth.Absent), erreur sinon.
+func (e *Engine) chooseSource(ctx context.Context) (string, Source, error) {
 	token, err := e.auth.Token(ctx)
+	switch {
+	case err == nil:
+		return token, Source{Kind: SourceAPI}, nil
+	case ctx.Err() != nil:
+		return "", Source{}, ctx.Err()
+	case auth.Absent(err):
+		return "", Source{Kind: SourceGit, Reason: err.Error()}, nil
+	default:
+		return "", Source{}, fmt.Errorf("lecture du token GitHub : %w", err)
+	}
+}
+
+// openProvider choisit la source (chooseSource) et construit le Provider : API GitHub avec le token
+// lu, ou clones Git locaux sans token. Le token n'est renvoyé que sous la forme d'une fonction de
+// masquage (redact), qui le retire d'un message avant qu'il ne soit enregistré ou affiché : défense
+// supplémentaire, le Provider ne le cite jamais. Le token n'est gardé que par cette fermeture, le
+// temps de la synchro.
+func (e *Engine) openProvider(ctx context.Context) (provider.Provider, func(string) string, Source, error) {
+	token, src, err := e.chooseSource(ctx)
 	if err != nil {
-		return nil, nil, fmt.Errorf("lecture du token GitHub : %w", err)
+		return nil, nil, Source{}, err
+	}
+	if src.Kind == SourceGit {
+		all, err := e.store.ListRepositories(ctx)
+		if err != nil {
+			return nil, nil, Source{}, err
+		}
+		prov, err := e.newGit(CloneRefs(all))
+		if err != nil {
+			return nil, nil, Source{}, fmt.Errorf("dépôts Git locaux (gh absent ou non connecté) : %w", err)
+		}
+		e.logger.Debug("synchro par clones Git locaux : gh absent ou non connecté")
+		return prov, func(msg string) string { return msg }, src, nil
 	}
 	prov, err := e.newProvider(token)
 	if err != nil {
-		return nil, nil, fmt.Errorf("connexion à GitHub : %w", err)
+		return nil, nil, Source{}, fmt.Errorf("connexion à GitHub : %w", err)
 	}
 	redact := func(msg string) string {
 		if token == "" {
@@ -230,7 +325,7 @@ func (e *Engine) openProvider(ctx context.Context) (provider.Provider, func(stri
 		}
 		return strings.ReplaceAll(msg, token, "[token masqué]")
 	}
-	return prov, redact, nil
+	return prov, redact, src, nil
 }
 
 // forEach lance fn(i) pour i de 0 à n-1, au plus limit à la fois (errgroup.SetLimit, limit ramené

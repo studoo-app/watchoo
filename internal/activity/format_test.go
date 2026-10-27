@@ -104,3 +104,24 @@ func TestParseSince(t *testing.T) {
 
 // syncedRunOK renvoie un sync_run réussi.
 func syncedRunOK() model.SyncRun { return model.SyncRun{ID: 1, Status: model.SyncSuccess} }
+
+func TestSparkline(t *testing.T) {
+	tests := []struct {
+		counts  []int
+		unicode bool
+		want    string
+	}{
+		{nil, true, ""},
+		{[]int{0, 0, 0}, true, "▁▁▁"},
+		{[]int{0, 1, 7, 3, 100}, true, "▁▂▂▂█"},
+		{[]int{1, 2, 3, 4, 5, 6, 7}, true, "▂▃▄▅▆▇█"},
+		{[]int{0, 1, 2, 3}, false, ".-=#"},
+		{[]int{0, 0}, false, ".."},
+		{[]int{5}, false, "#"},
+	}
+	for _, tt := range tests {
+		if got := Sparkline(tt.counts, tt.unicode); got != tt.want {
+			t.Errorf("Sparkline(%v, %v) = %q, attendu %q", tt.counts, tt.unicode, got, tt.want)
+		}
+	}
+}

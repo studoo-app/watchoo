@@ -32,6 +32,9 @@ type fakeData struct {
 	loads         int
 	commitFilters []store.CommitFilter
 	contribFilter []store.ContributorFilter
+	// authorTimes : auteur et date des commits, par dépôt (AuthorCommitTimes).
+	authorTimes map[int64][]model.AuthorCommitTime
+	authorReads []int64 // dépôts demandés à AuthorCommitTimes
 }
 
 func (f *fakeData) RepositorySummaries(context.Context) ([]store.RepositorySummary, error) {
@@ -59,6 +62,24 @@ func (f *fakeData) ContributorRanking(_ context.Context, flt store.ContributorFi
 	defer f.mu.Unlock()
 	f.contribFilter = append(f.contribFilter, flt)
 	return slices.Clone(f.contribs), f.err
+}
+
+func (f *fakeData) AuthorCommitTimes(_ context.Context, repoID int64, since time.Time) ([]model.AuthorCommitTime, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.authorReads = append(f.authorReads, repoID)
+	var out []model.AuthorCommitTime
+	for id, list := range f.authorTimes {
+		if repoID != 0 && id != repoID {
+			continue
+		}
+		for _, at := range list {
+			if !at.CommittedAt.Before(since) {
+				out = append(out, at)
+			}
+		}
+	}
+	return out, f.err
 }
 
 // loadCount renvoie le nombre de lectures complètes (RepositorySummaries).
@@ -115,6 +136,15 @@ func newFakeData() *fakeData {
 				Additions: 10, Deletions: 2, Repos: 1, LastCommitAt: testNow.Add(-2 * time.Hour)},
 			{Contributor: model.Contributor{ID: 2, Name: "Bob"}, Commits: 1, Repos: 1,
 				LastCommitAt: testNow.Add(-9 * 24 * time.Hour)},
+		},
+		authorTimes: map[int64][]model.AuthorCommitTime{
+			1: { // dépôt d'Alice : Alice 2 commits cette semaine et 1 il y a deux semaines, Bob 1 il y a 20 semaines
+				{ContributorID: 1, CommittedAt: testNow.Add(-2 * time.Hour)},
+				{ContributorID: 1, CommittedAt: testNow.Add(-3 * time.Hour)},
+				{ContributorID: 1, CommittedAt: testNow.Add(-14 * 24 * time.Hour)},
+				{ContributorID: 2, CommittedAt: testNow.Add(-20 * 7 * 24 * time.Hour)},
+			},
+			2: {{ContributorID: 2, CommittedAt: testNow.Add(-9 * 24 * time.Hour)}},
 		},
 	}
 }

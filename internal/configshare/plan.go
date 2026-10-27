@@ -22,7 +22,7 @@ type Action string
 // Valeurs de Action.
 const (
 	ActionAdd          Action = "add"          // dépôt absent de l'espace : ajouté
-	ActionUpdate       Action = "update"       // déjà présent : label et/ou branches changés, ou suivi repris
+	ActionUpdate       Action = "update"       // déjà présent : label, branches ou seuils changés, ou suivi repris
 	ActionUnchanged    Action = "unchanged"    // déjà suivi, rien à changer
 	ActionInaccessible Action = "inaccessible" // vérification d'accès : introuvable ou sans accès
 	ActionError        Action = "error"        // vérification d'accès : autre échec (réseau, quota…)
@@ -88,11 +88,14 @@ type RepoChange struct {
 	Error string
 }
 
-// RepoState est le nom affiché, les branches et le suivi d'un dépôt.
+// RepoState est le nom affiché, les branches, les seuils d'activité et le suivi d'un dépôt.
 type RepoState struct {
 	Label    string   // "" = pas de nom affiché
 	Branches []string // jamais nil ; vide = toutes les branches
-	Enabled  bool     // suivi actif
+	// FlemmeAfterDays et DeadAfterDays sont les seuils propres au dépôt ; nil = seuil de l'espace.
+	FlemmeAfterDays *int
+	DeadAfterDays   *int
+	Enabled         bool // suivi actif
 }
 
 // Summary compte les dépôts par résultat (prévu dans un aperçu, obtenu après Apply). Mêmes clés que
@@ -132,7 +135,8 @@ type PlanOptions struct {
 //
 // Dépôts : comme wsync.AddRepositories. Absent : ActionAdd (branches du document, ou toutes).
 // Présent : label remplacé si le document en donne un non vide, branches remplacées si le document
-// les donne (liste vide = toutes), suivi repris s'il était arrêté ; ActionUpdate si quelque chose
+// les donne (liste vide = toutes), seuils remplacés si le document les donne (0 = seuil de l'espace),
+// suivi repris s'il était arrêté ; ActionUpdate si quelque chose
 // change, sinon ActionUnchanged.
 func Plan(ctx context.Context, ws *workspace.Workspace, st Store, f *File, opts PlanOptions) (*Preview, error) {
 	if ws == nil || st == nil || f == nil {
@@ -192,7 +196,8 @@ func Plan(ctx context.Context, ws *workspace.Workspace, st Store, f *File, opts 
 			planExisting(&c, r, e)
 		} else {
 			c.Action = ActionAdd
-			c.After = RepoState{Label: e.Label, Branches: nonNil(e.Branches), Enabled: true}
+			c.After = RepoState{Label: e.Label, Branches: nonNil(e.Branches), Enabled: true,
+				FlemmeAfterDays: threshold(e.FlemmeAfterDays, nil), DeadAfterDays: threshold(e.DeadAfterDays, nil)}
 		}
 		p.Repositories = append(p.Repositories, c)
 	}
@@ -225,6 +230,8 @@ func planExisting(c *RepoChange, r model.Repository, e Entry) {
 	if e.Branches != nil {
 		after.Branches = nonNil(e.Branches)
 	}
+	after.FlemmeAfterDays = threshold(e.FlemmeAfterDays, before.FlemmeAfterDays)
+	after.DeadAfterDays = threshold(e.DeadAfterDays, before.DeadAfterDays)
 	after.Enabled = true
 	c.Before, c.After = &before, after
 	c.Reenable = !before.Enabled
@@ -398,7 +405,8 @@ func Apply(ctx context.Context, ws *workspace.Workspace, st Store, adder Adder, 
 func addRequests(f *File) []wsync.AddRequest {
 	reqs := make([]wsync.AddRequest, len(f.Repositories))
 	for i, e := range f.Repositories {
-		reqs[i] = wsync.AddRequest{Line: e.Index, Ref: e.Ref, Label: e.Label, BranchPatterns: slices.Clone(e.Branches)}
+		reqs[i] = wsync.AddRequest{Line: e.Index, Ref: e.Ref, Label: e.Label, BranchPatterns: slices.Clone(e.Branches),
+			FlemmeAfterDays: clonePtr(e.FlemmeAfterDays), DeadAfterDays: clonePtr(e.DeadAfterDays)}
 		if e.Branches != nil && reqs[i].BranchPatterns == nil {
 			reqs[i].BranchPatterns = []string{}
 		}
@@ -429,9 +437,24 @@ func summarize(changes []RepoChange) Summary {
 	return s
 }
 
-// stateOf renvoie l'état (label, branches, suivi) d'un dépôt.
+// stateOf renvoie l'état (label, branches, seuils, suivi) d'un dépôt.
 func stateOf(r model.Repository) RepoState {
-	return RepoState{Label: r.Label, Branches: nonNil(r.BranchPatterns), Enabled: r.Enabled}
+	return RepoState{Label: r.Label, Branches: nonNil(r.BranchPatterns), Enabled: r.Enabled,
+		FlemmeAfterDays: clonePtr(r.FlemmeAfterDays), DeadAfterDays: clonePtr(r.DeadAfterDays)}
+}
+
+// threshold renvoie un seuil après l'import : current si le document ne le donne pas (nil), nil
+// (seuil de l'espace) s'il vaut 0, sinon une copie de la valeur du document. Même règle que
+// wsync.AddRepositories.
+func threshold(doc, current *int) *int {
+	switch {
+	case doc == nil:
+		return clonePtr(current)
+	case *doc == 0:
+		return nil
+	default:
+		return clonePtr(doc)
+	}
 }
 
 // nonNil renvoie une copie de list, vide plutôt que nil.

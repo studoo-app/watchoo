@@ -9,6 +9,63 @@ un changement incompatible fait monter MINOR et tout changement compatible fait 
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-27
+
+V2 : dépôts Git locaux sans `gh`, pull requests, releases et tags, seuils d'activité par dépôt et
+activité par contributeur dans un dépôt. Fin du MVP.
+
+### Ajouté
+
+- **Dépôts Git locaux** : `gh` devient facultatif. Sans `gh` installé et connecté, Watchoo suit les
+  dépôts par clones Git **avec copie de travail** dans `repos/<name>`, à la racine de l'espace (homonymes :
+  `repos/<owner>-<name>`), mis à jour à chaque synchro par `git fetch` puis remis sur la branche par
+  défaut (une modification locale d'un fichier suivi est écrasée, un fichier non suivi gardé ; ni hook,
+  ni sous-module, ni téléchargement LFS), avec la clé SSH ou les identifiants Git de la machine, sans aucune invite (`git` doit être
+  installé) : commits, branches, statistiques et tags, sans quota, mais sans pull requests, releases,
+  étoiles ni login GitHub (contributeurs fusionnés par e-mail). La source est choisie à chaque synchro,
+  seulement selon `gh` : le connecter (`gh auth login`) fait repasser par l'API, qui complète alors
+  l'identifiant et les métadonnées des dépôts ajoutés sans `gh`. Nouveau réglage `git.protocol`
+  (`ssh` par défaut, ou `https`), propre à la machine et jamais partagé. `watchoo init` sans `gh` crée
+  l'espace et le signale au lieu de s'arrêter (il s'arrête si `git` manque aussi) ; `repo add` et
+  `repo import` vérifient l'accès par `git ls-remote` (« accès refusé » sinon) ; `repo remove` supprime
+  le clone, `--keep-history` le garde. Lancée depuis un clone, une commande ignore un `.watchoo/` commité
+  par l'étudiant et travaille sur l'espace qui contient `repos/`. `watchoo status`, le bilan de `watchoo sync` et la page Réglages
+  (quota « sans objet ») indiquent la source ; les sorties `--json` de `init`, `sync` et `status`
+  gagnent la clé `source`. La page d'un dépôt et le détail du TUI masquent étoiles, issues, pull requests
+  et releases d'un dépôt jamais lu par l'API. La base rend `repositories.provider_id` facultatif
+  (migration `00004`, appliquée automatiquement, sans perte de données). L'image Docker contient
+  désormais `git` et `ssh` : elle passe d'une base distroless à un système Alpine minimal installé pour
+  l'architecture cible (toujours sans émulation, utilisateur non root).
+- **Pull requests et releases** : chaque synchro lit aussi les pull requests (de façon incrémentale :
+  seulement celles modifiées depuis la synchro précédente), les releases et les tags de chaque dépôt ;
+  quand rien n'a changé, GitHub répond `304` et ces lectures ne coûtent rien. Nouvelles commandes
+  `watchoo prs [--repo X] [--state open|merged|closed|all] [-n 20]` et `watchoo releases [--repo X]
+  [-n 20]` (releases puis tags, avec la date du commit visé), en texte et en `--json` (clés
+  `pull_requests`, `releases` et `tags`). La page d'un dépôt de l'interface web gagne les cartes « Pull
+  requests » (ouvertes, dernières mergées, liens vers GitHub) et « Releases et tags » ; le tableau de
+  bord indique les PR ouvertes de chaque dépôt, et le détail d'un dépôt du TUI ses PR ouvertes et sa
+  dernière release. Un échec sur ces listes ne fait pas échouer la synchro des commits : il devient un
+  avertissement (colonne DÉTAIL de `watchoo sync`, clé `warnings` de chaque dépôt en `--json`, bilan du
+  TUI). La base passe à 10 tables (migration `00003`, appliquée automatiquement).
+
+- **Seuils d'activité par dépôt** : un dépôt peut avoir ses propres seuils Flemme et Dead à la place de
+  ceux de l'espace (`activity.*`). `watchoo repo add owner/repo --flemme 3 --dead 10` (`0` revient au
+  seuil de l'espace), colonnes facultatives `flemme` et `dead` du fichier de `watchoo repo import`
+  (cellule vide = seuil gardé), clés `flemme_after_days` et `dead_after_days` des dépôts dans le
+  partage de la configuration (écrites seulement pour un dépôt qui en a), et formulaire « Seuils
+  d'activité de ce dépôt » sur la page d'un dépôt de l'interface web (champ vide = seuil de l'espace).
+  L'en-tête de la page et le détail du TUI disent si les seuils appliqués sont propres au dépôt ou ceux
+  de l'espace. Les sorties `--json` gagnent les clés `flemme_after_days` et `dead_after_days` (`null` =
+  seuil de l'espace) dans l'objet dépôt et dans l'aperçu de `config import`.
+- **Activité par contributeur dans un dépôt** : la page d'un dépôt de l'interface web montre les
+  commits par semaine sur 12 semaines de ses 8 contributeurs les plus actifs (barres empilées, les
+  autres regroupés, table des données repliable), comme la page des contributeurs mais pour ce seul
+  dépôt (toutes les branches suivies, chaque commit une fois). Le détail d'un dépôt du TUI donne, pour
+  ses principaux contributeurs, leurs commits sur 12 semaines et une courbe semaine par semaine.
+  `watchoo contributors --weeks N` (avec ou sans `--repo`) limite le classement aux N dernières semaines
+  et affiche les commits de chacun semaine par semaine ; la sortie `--json` gagne la clé `weekly`
+  (objets `week` / `count`, `[]` sans `--weeks`) dans chaque contributeur.
+
 ## [0.2.0] - 2026-10-27
 
 Partage de la configuration entre superviseurs, script d'installation et nouveau logo.
@@ -104,6 +161,7 @@ Première version publiée : le MVP (phases 1 à 5 de la [roadmap](documentation
   `gh` est le binaire officiel vérifié par SHA-256 ; images de base et actions GitHub épinglées par
   empreinte.
 
-[Unreleased]: https://github.com/studoo-app/watchoo/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/studoo-app/watchoo/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/studoo-app/watchoo/compare/v0.2.0...v0.4.0
 [0.2.0]: https://github.com/studoo-app/watchoo/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/studoo-app/watchoo/releases/tag/v0.1.0

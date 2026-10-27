@@ -6,9 +6,10 @@ package web
 //
 //   - détail d'un dépôt et tableau de bord : commits par jour sur activity.ChartDays jours
 //     (dailyChart) ;
-//   - contributeurs : commits par semaine sur activity.ContributorWeeks semaines, une série par
-//     contributeur parmi les contributorChartTop plus actifs de la période, les autres regroupés dans
-//     « Autres contributeurs » (contributorChart).
+//   - contributeurs (tous les dépôts) et détail d'un dépôt (ses seuls commits) : commits par semaine
+//     sur activity.ContributorWeeks semaines, une série par contributeur parmi les
+//     contributorChartTop plus actifs de la période, les autres regroupés dans « Autres
+//     contributeurs » (contributorChart, template partagé « contributors-chart » de partials.html).
 //
 // Les jours et les semaines (du lundi au dimanche) suivent le fuseau d'affichage de l'espace.
 
@@ -18,6 +19,7 @@ import (
 	"time"
 
 	"github.com/studoo-app/watchoo/internal/activity"
+	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/store"
 )
 
@@ -83,21 +85,20 @@ type contributorChart struct {
 	WeekLabels []string
 }
 
-// buildContributorChart compte les commits de times (auteur et date) par contributeur et par semaine
-// sur les weeks semaines qui se terminent par celle de now, dans loc. Les top contributeurs les plus
-// actifs de la période (au moins un commit ; égalités départagées par l'ordre de rows, le classement
-// global) ont chacun leur série, de la plus fournie à la moins fournie ; les autres, et les auteurs
-// absents de rows, sont regroupés dans une dernière série « Autres contributeurs » (si elle n'est pas
-// vide). Fonction pure.
-func buildContributorChart(rows []contributorRow, times []store.AuthorCommitTime, now time.Time, weeks, top int,
-	loc *time.Location) contributorChart {
-	keys := activity.WeekKeys(now, weeks, loc)
-	index := make(map[string]int, len(keys))
-	for i, k := range keys {
-		index[k] = i
-	}
+// buildContributorChart compte les commits de times (auteur et date ; ceux d'un dépôt pour la page
+// de ce dépôt) par contributeur et par semaine sur les weeks semaines qui se terminent par celle de
+// now, dans loc (activity.CountContributorWeeks). Les top contributeurs les plus actifs de la période
+// (au moins un commit ; égalités départagées par l'ordre de ranking, le classement de la page) ont
+// chacun leur série, de la plus fournie à la moins fournie ; les autres, et les auteurs absents de
+// ranking, sont regroupés dans une dernière série « Autres contributeurs » (si elle n'est pas vide).
+// Sert à la page des contributeurs (tous les dépôts) et à celle d'un dépôt. Fonction pure.
+func buildContributorChart(ranking []store.ContributorStats, times []model.AuthorCommitTime, now time.Time,
+	weeks, top int, loc *time.Location) contributorChart {
+	wc := activity.CountContributorWeeks(times, now, weeks, loc)
+	keys := wc.Weeks
 	top = max(top, 0)
-	c := contributorChart{Weeks: len(keys), Top: top, Data: contributorChartData{Weeks: keys, Series: []contributorSeries{}}}
+	c := contributorChart{Weeks: len(keys), Top: top, Total: wc.Total, Active: len(wc.Counts),
+		Data: contributorChartData{Weeks: keys, Series: []contributorSeries{}}}
 	for i, k := range keys {
 		t, err := time.Parse(time.DateOnly, k)
 		if err != nil {
@@ -108,27 +109,14 @@ func buildContributorChart(rows []contributorRow, times []store.AuthorCommitTime
 		}
 		c.WeekLabels = append(c.WeekLabels, t.Format("02/01"))
 	}
-
-	counts := make(map[int64][]int)
-	for _, at := range times {
-		i, ok := index[activity.WeekOf(at.CommittedAt, loc)]
-		if !ok {
-			continue
-		}
-		if counts[at.ContributorID] == nil {
-			counts[at.ContributorID] = make([]int, len(keys))
-		}
-		counts[at.ContributorID][i]++
-		c.Total++
-	}
-	c.Active = len(counts)
+	counts := wc.Counts
 
 	type candidate struct {
-		rank   int // position dans rows
+		rank   int // position dans ranking
 		series contributorSeries
 	}
 	var candidates []candidate
-	for i, row := range rows {
+	for i, row := range ranking {
 		per, ok := counts[row.ID]
 		if !ok {
 			continue

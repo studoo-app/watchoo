@@ -19,6 +19,7 @@ import (
 	"github.com/studoo-app/watchoo/internal/auth"
 	"github.com/studoo-app/watchoo/internal/auth/authtest"
 	"github.com/studoo-app/watchoo/internal/provider"
+	gitprov "github.com/studoo-app/watchoo/internal/provider/git"
 	"github.com/studoo-app/watchoo/internal/provider/providertest"
 	"github.com/studoo-app/watchoo/internal/tui"
 	"github.com/studoo-app/watchoo/internal/workspace"
@@ -62,6 +63,7 @@ func isolateEnv(t *testing.T) string {
 type harness struct {
 	t      *testing.T
 	cwd    string      // répertoire courant renvoyé par Getwd
+	root   string      // racine de l'espace des tests (cwd de départ) : clones Git dans root/repos
 	Client auth.Client // accès à gh renvoyé par NewAuthClient ; nil = auth.GH réel (DefaultDeps)
 	// Terminal décrit la sortie standard ; nil = valeur par défaut (DetectTerminal du tampon qui
 	// capture la sortie : jamais un terminal).
@@ -89,6 +91,11 @@ type harness struct {
 	// Listen remplace net.Listen pour « watchoo serve » ; nil = un faux qui échoue (aucun test
 	// n'écoute sans le demander).
 	Listen func(network, address string) (net.Listener, error)
+	// GitURL est la racine du faux serveur Git (gittest) des clones locaux, utilisés sans gh ; vide =
+	// NewGitProvider renvoie une erreur (aucun test ne joint GitHub par git).
+	GitURL string
+	// GitMissing simule un git absent pour « watchoo init » sans gh.
+	GitMissing bool
 }
 
 // newHarness isole l'environnement et renvoie un harness dont le répertoire courant est un
@@ -99,9 +106,11 @@ func newHarness(t *testing.T) *harness {
 	isolateEnv(t)
 	base := t.TempDir()
 	requireNoWorkspaceAbove(t, base)
+	root := newDir(t, base, "licence-projet")
 	return &harness{
 		t:      t,
-		cwd:    newDir(t, base, "licence-projet"),
+		cwd:    root,
+		root:   root,
 		Client: authtest.NewLoggedIn(""),
 	}
 }
@@ -154,6 +163,19 @@ func (h *harness) runContext(ctx context.Context, args ...string) result {
 				return nil, errors.New("aucun provider dans ce test")
 			}
 			return h.Provider, nil
+		},
+		NewGitProvider: func(repos []gitprov.Ref) (provider.Provider, error) {
+			if h.GitURL == "" {
+				return nil, errors.New("aucun dépôt Git dans ce test")
+			}
+			return gitprov.New(gitprov.Options{Dir: filepath.Join(h.root, workspace.ReposDirName), Repos: repos,
+				BaseURL: h.GitURL, Logger: slog.Default()})
+		},
+		CheckGit: func(context.Context) error {
+			if h.GitMissing {
+				return gitprov.ErrGitNotFound
+			}
+			return nil
 		},
 		Now:             h.Now,
 		Stdin:           strings.NewReader(h.Stdin),
@@ -279,7 +301,8 @@ func assertMode(t *testing.T, path string, want fs.FileMode) {
 
 // migratedTables est la liste des tables créées par les migrations (hors table de goose).
 var migratedTables = []string{
-	"branches", "commit_branches", "commits", "contributor_emails", "contributors", "repositories", "sync_runs",
+	"branches", "commit_branches", "commits", "contributor_emails", "contributors", "pull_requests", "releases",
+	"repositories", "sync_runs", "tags",
 }
 
 // tables renvoie les tables de la base path, triées, hors tables internes de SQLite. La base est

@@ -31,6 +31,7 @@ func TestDefaultConfig(t *testing.T) {
 		Web:      WebConfig{Addr: "127.0.0.1:8080", Auth: WebAuthConfig{Username: ""}, TrustedProxy: false, AllowedHosts: []string{}},
 		Timezone: "",
 		GitHub:   GitHubConfig{User: "", GHPath: "gh"},
+		Git:      GitConfig{Protocol: "ssh"},
 	}
 	if !reflect.DeepEqual(cfg, want) {
 		t.Errorf("DefaultConfig = %+v\nattendu %+v", cfg, want)
@@ -54,6 +55,7 @@ func TestSettingKeys(t *testing.T) {
 		"name", "sync.auto", "sync.interval", "sync.parallelism",
 		"activity.flemme_after_days", "activity.dead_after_days", "branches.exclude",
 		"web.addr", "web.auth.username", "web.trusted_proxy", "web.allowed_hosts", "timezone", "github.user", "github.gh_path",
+		"git.protocol",
 	}
 	if !slices.Equal(keys, wantKeys) {
 		t.Errorf("clés = %v\nattendu %v", keys, wantKeys)
@@ -62,6 +64,7 @@ func TestSettingKeys(t *testing.T) {
 		"WATCHOO_NAME", "WATCHOO_SYNC_AUTO", "WATCHOO_SYNC_INTERVAL", "WATCHOO_SYNC_PARALLELISM",
 		"WATCHOO_ACTIVITY_FLEMME_AFTER_DAYS", "WATCHOO_ACTIVITY_DEAD_AFTER_DAYS", "WATCHOO_BRANCHES_EXCLUDE",
 		"WATCHOO_WEB_ADDR", "WATCHOO_WEB_AUTH_USERNAME", "WATCHOO_WEB_TRUSTED_PROXY", "WATCHOO_WEB_ALLOWED_HOSTS", "WATCHOO_TIMEZONE", "WATCHOO_GITHUB_USER", "WATCHOO_GITHUB_GH_PATH",
+		"WATCHOO_GIT_PROTOCOL",
 	}
 	if !slices.Equal(envs, wantEnvs) {
 		t.Errorf("variables = %v\nattendu %v", envs, wantEnvs)
@@ -150,6 +153,8 @@ func TestValidateRejectsInvalidValues(t *testing.T) {
 			[]string{"github.gh_path", `".watchoo/gh"`, "relatif", "absolu"}},
 		{"chemin de gh relatif en ./", func(c *Config) { c.GitHub.GHPath = "./gh" },
 			[]string{"github.gh_path", "relatif"}},
+		{"protocole git inconnu", func(c *Config) { c.Git.Protocol = "ftp" },
+			[]string{"git.protocol", `"ftp"`, "ssh", "https"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -379,6 +384,7 @@ func TestLoadEnvironmentVariables(t *testing.T) {
 		"WATCHOO_TIMEZONE":                   "America/Montreal",
 		"WATCHOO_GITHUB_USER":                "prof",
 		"WATCHOO_GITHUB_GH_PATH":             "/usr/local/bin/gh",
+		"WATCHOO_GIT_PROTOCOL":               "https",
 	}
 	for k, v := range env {
 		t.Setenv(k, v)
@@ -394,6 +400,7 @@ func TestLoadEnvironmentVariables(t *testing.T) {
 		Web:      WebConfig{Addr: "0.0.0.0:9090", AllowedHosts: []string{"watchoo.example.org", "autre.example.org"}},
 		Timezone: "America/Montreal",
 		GitHub:   GitHubConfig{User: "prof", GHPath: "/usr/local/bin/gh"},
+		Git:      GitConfig{Protocol: "https"},
 	}
 	if !reflect.DeepEqual(ws.Config, want) {
 		t.Errorf("Config = %+v\nattendu  %+v", ws.Config, want)

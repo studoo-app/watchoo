@@ -20,6 +20,9 @@ type repoOutcome struct {
 	displayName string // label, sinon owner/name actuels
 	result      store.RepoSyncResult
 	stats       int // appels CommitStats faits
+	pulls       int // pull requests lues (créées ou mises à jour)
+	// warnings : listes (pull requests, releases, tags) non synchronisées, en français.
+	warnings []string
 }
 
 // repoSync accumule les commits vus pendant la synchro d'un dépôt.
@@ -104,6 +107,11 @@ func (e *Engine) syncRepository(ctx context.Context, prov provider.Provider, h *
 		}
 	}
 
+	x, err := s.fetchExtras(ctx, h, repo.ID)
+	if err != nil {
+		return repoOutcome{}, err
+	}
+
 	states := make([]store.BranchState, len(tracked))
 	for i, b := range tracked {
 		states[i] = store.BranchState{Name: b.Name, HeadSHA: b.HeadSHA}
@@ -112,6 +120,8 @@ func (e *Engine) syncRepository(ctx context.Context, prov provider.Provider, h *
 		RepoID: repo.ID,
 		RunID:  run.ID,
 		Metadata: store.RepositoryMetadata{
+			Partial:       meta.Partial,
+			ProviderID:    meta.ID,
 			Owner:         meta.Owner,
 			Name:          meta.Name,
 			DefaultBranch: meta.DefaultBranch,
@@ -120,9 +130,14 @@ func (e *Engine) syncRepository(ctx context.Context, prov provider.Provider, h *
 			OpenIssues:    meta.OpenIssues,
 			Archived:      meta.Archived,
 		},
-		Branches: states,
-		Commits:  s.commits,
-		SyncedAt: e.now().UTC(),
+		Branches:        states,
+		Commits:         s.commits,
+		PullRequests:    x.pulls,
+		ReplaceReleases: x.replaceReleases,
+		Releases:        x.releases,
+		ReplaceTags:     x.replaceTags,
+		Tags:            x.tags,
+		SyncedAt:        e.now().UTC(),
 	})
 	if err != nil {
 		return repoOutcome{}, err
@@ -131,14 +146,20 @@ func (e *Engine) syncRepository(ctx context.Context, prov provider.Provider, h *
 	if display == "" {
 		display = s.full
 	}
-	return repoOutcome{fullName: s.full, displayName: display, result: res, stats: stats}, nil
+	return repoOutcome{fullName: s.full, displayName: display, result: res, stats: stats,
+		pulls: len(x.pulls), warnings: x.warnings}, nil
 }
 
 // lookupRepository lit les métadonnées actuelles du dépôt, par son identifiant de forge (suit
-// renommage et transfert), ou par owner/name s'il n'est pas connu.
+// renommage et transfert), ou par owner/name s'il n'est pas connu (dépôt ajouté par clone Git local :
+// la première synchro par l'API résout alors l'identifiant) ou si la source ne connaît pas les
+// identifiants (clones Git locaux : ErrUnsupported).
 func (e *Engine) lookupRepository(ctx context.Context, prov provider.Provider, repo model.Repository) (provider.Repository, error) {
 	if repo.ProviderID > 0 {
-		return prov.RepositoryByID(ctx, repo.ProviderID)
+		meta, err := prov.RepositoryByID(ctx, repo.ProviderID)
+		if !errors.Is(err, provider.ErrUnsupported) {
+			return meta, err
+		}
 	}
 	return prov.Repository(ctx, repo.Owner, repo.Name)
 }

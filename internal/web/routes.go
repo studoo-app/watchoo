@@ -20,6 +20,7 @@ package web
 //	GET  /fragments/dashboard/feed      handleDashboardFeed    dashboard.go     dashboard
 //	GET  /repos/{id}                    handleRepo             repo.go          repo
 //	GET  /repos/{id}/commits            handleRepoCommits      repo.go          repo
+//	POST /repos/{id}/thresholds         handleRepoThresholds   repo_thresholds.go repo
 //	GET  /contributors                  handleContributors     contributors.go  contributors+settings
 //	GET  /fragments/contributors        handleContributorsTable contributors.go contributors+settings
 //	GET  /settings                      handleSettings         settings.go      contributors+settings
@@ -83,6 +84,7 @@ func (s *server) routes() http.Handler {
 	// Actions (POST seulement, protégées par le CSRF).
 	r.Post("/sync", s.handleSyncAll)
 	r.Post("/repos/"+idPattern+"/sync", s.handleSyncRepo)
+	r.Post("/repos/"+idPattern+"/thresholds", s.handleRepoThresholds)
 	r.Post("/settings/repos", s.handleRepoAdd)
 	r.Post("/settings/repos/"+idPattern, s.handleRepoUpdate)
 	r.Post("/settings/repos/"+idPattern+"/remove", s.handleRepoRemove)

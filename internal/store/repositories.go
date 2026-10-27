@@ -21,7 +21,7 @@ import (
 func (s *Store) CreateRepository(ctx context.Context, r model.Repository) (model.Repository, error) {
 	row, err := s.queries.CreateRepository(ctx, db.CreateRepositoryParams{
 		Provider:        r.Provider,
-		ProviderID:      r.ProviderID,
+		ProviderID:      nullID(r.ProviderID),
 		Owner:           r.Owner,
 		Name:            r.Name,
 		Label:           r.Label,
@@ -70,11 +70,15 @@ func (s *Store) GetRepositoryByName(ctx context.Context, provider, owner, name s
 }
 
 // GetRepositoryByProviderID renvoie le dépôt d'identifiant providerID sur la forge provider, ou une
-// erreur enveloppant ErrNotFound.
+// erreur enveloppant ErrNotFound (toujours pour providerID <= 0 : un identifiant inconnu, NULL en
+// base, ne désigne aucun dépôt).
 func (s *Store) GetRepositoryByProviderID(ctx context.Context, provider string, providerID int64) (model.Repository, error) {
+	if providerID <= 0 {
+		return model.Repository{}, fmt.Errorf("dépôt d'identifiant %d sur %s : %w", providerID, provider, ErrNotFound)
+	}
 	row, err := s.queries.GetRepositoryByProviderID(ctx, db.GetRepositoryByProviderIDParams{
 		Provider:   provider,
-		ProviderID: providerID,
+		ProviderID: nullID(providerID),
 	})
 	if err != nil {
 		return model.Repository{}, repositoryLookupError(
@@ -138,7 +142,7 @@ func repositoryFromDB(row db.Repository) (model.Repository, error) {
 	return model.Repository{
 		ID:              row.ID,
 		Provider:        row.Provider,
-		ProviderID:      row.ProviderID,
+		ProviderID:      row.ProviderID.Int64, // NULL : 0 (identifiant pas encore connu)
 		Owner:           row.Owner,
 		Name:            row.Name,
 		Label:           row.Label,
@@ -196,6 +200,15 @@ func parseNullTime(s sql.NullString) (time.Time, error) {
 		return time.Time{}, nil
 	}
 	return ParseTime(s.String)
+}
+
+// nullID convertit un identifiant de forge vers la colonne provider_id : 0 (ou négatif) = pas encore
+// connu, NULL (dépôt ajouté par clone Git local, V2).
+func nullID(id int64) sql.NullInt64 {
+	if id <= 0 {
+		return sql.NullInt64{}
+	}
+	return sql.NullInt64{Int64: id, Valid: true}
 }
 
 // nullInt convertit un entier facultatif (nil = absent) vers une colonne INTEGER nullable.

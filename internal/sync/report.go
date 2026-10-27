@@ -29,12 +29,26 @@ type RepoReport struct {
 	NewCommits      int           // commits insérés
 	TrackedBranches int           // branches suivies après la synchro (0 si échec)
 	StatsFetched    int           // appels CommitStats faits
+	PullRequests    int           // pull requests lues (nouvelles ou modifiées depuis la synchro précédente)
 	Duration        time.Duration // durée de la synchro du dépôt (0 si ignoré ou reporté)
 	// Error est le message d'échec en français (StatusError), « déjà en cours de synchronisation »
 	// (StatusLocked) ou « reporté : quota bas jusqu'à HH:MM » (StatusDeferred, heure non convertie :
 	// voir ResumeAt) ; vide pour un succès.
 	Error    string
 	ResumeAt time.Time // StatusDeferred : moment où réessayer (UTC) ; zéro sinon
+	// Warnings sont les avertissements d'un dépôt réussi (StatusSuccess) : pull requests, releases ou
+	// tags non synchronisés (« releases non synchronisées : … »), en français, sans donnée personnelle ;
+	// nil sinon. Ils ne changent pas le statut du dépôt.
+	Warnings []string
+}
+
+// Warnings renvoie le nombre total d'avertissements du rapport.
+func (r Report) Warnings() int {
+	n := 0
+	for _, repo := range r.Repos {
+		n += len(repo.Warnings)
+	}
+	return n
 }
 
 // Report est le rapport d'une synchro (SyncAll ou SyncRepo).
@@ -45,6 +59,9 @@ type Report struct {
 	// RateLimit est le dernier état du quota observé en fin de synchro ; RateLimitKnown faux si aucun.
 	RateLimit      provider.RateLimit
 	RateLimitKnown bool
+	// Source est la source utilisée (API GitHub ou clones Git locaux, V2) ; valeur zéro si la synchro
+	// n'a pas pu commencer.
+	Source Source
 }
 
 // Count renvoie le nombre de dépôts du rapport ayant le statut s.

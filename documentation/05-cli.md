@@ -14,25 +14,30 @@ Toutes les commandes sauf `init` et `version` travaillent sur un **espace de sup
 `.watchoo/` trouvé dans le répertoire courant ou ses parents (voir
 [Espaces de supervision](10-espaces-de-supervision.md)).
 
-**Prérequis : la CLI GitHub `gh`, installée et connectée** (`gh auth login`). Watchoo obtient le token
-uniquement avec `gh auth token` et ne le stocke jamais (voir
-[Architecture](03-architecture.md#authentification--gh-imposé)).
+**Accès aux dépôts** : avec la CLI GitHub `gh` installée et connectée (`gh auth login`), Watchoo passe
+par l'API GitHub ; il obtient le token uniquement avec `gh auth token` et ne le stocke jamais. Sans `gh`
+(absent ou non connecté), il suit les dépôts par **clones Git locaux** (`git` doit être installé), avec
+la clé SSH ou les identifiants Git de la machine, sans pull requests, releases ni étoiles. Le choix est
+refait à chaque synchro (voir [Architecture](03-architecture.md#authentification--gh-facultatif) et
+[Dépôts Git locaux](03-architecture.md#dépôts-git-locaux-v2)).
 
 ## Commandes
 
 | Commande | Effet | Version |
 | --- | --- | --- |
-| `watchoo init` | Fait du répertoire courant un espace de supervision : vérifie `gh`, puis crée `.watchoo/` avec la config et la base SQLite. Refuse si l'espace existe déjà | MVP |
+| `watchoo init` | Fait du répertoire courant un espace de supervision : vérifie `gh` (sans `gh` : `git`), puis crée `.watchoo/` avec la config et la base SQLite. Refuse si l'espace existe déjà | MVP (sans `gh` : V2) |
 | `watchoo version` | Affiche la version de Watchoo, le commit compilé et sa date, la version de Go et la plateforme (`watchoo --version` fait de même). Fonctionne hors d'un espace et sans `gh` | MVP |
-| `watchoo repo add owner/repo [--branch main,dev,release/*] [--label "Alice Martin"]` | Ajoute un dépôt à surveiller (toutes ses branches par défaut), avec un nom affiché facultatif | MVP |
+| `watchoo repo add owner/repo [--branch main,dev,release/*] [--label "Alice Martin"] [--flemme 3] [--dead 10]` | Ajoute un dépôt à surveiller (toutes ses branches par défaut), avec un nom affiché et des seuils d'activité propres facultatifs | MVP (seuils : V2) |
 | `watchoo repo import fichier.csv [--dry-run]` | Ajoute d'un coup une liste de dépôts (ex. ceux d'une promotion), vérifie l'accès à chacun et affiche un bilan | MVP |
 | `watchoo repo add-org mon-org` | Ajoute tous les dépôts d'une organisation | V2 |
 | `watchoo repo list` | Tableau : dépôt, dernier commit, auteur, état (Actif / Flemme / Dead) | MVP |
-| `watchoo repo remove owner/repo [--keep-history]` | Arrête le suivi et supprime l'historique du dépôt après confirmation (`--keep-history` pour le garder) | MVP |
+| `watchoo repo remove owner/repo [--keep-history]` | Arrête le suivi et supprime l'historique du dépôt (et son clone Git local) après confirmation (`--keep-history` pour les garder) | MVP |
 | `watchoo sync [owner/repo]` | Synchronise tout ou un seul dépôt | MVP |
 | `watchoo log [--repo X] [--author Y] [--branch B] [--since 7d] [-n 20]` | Derniers commits filtrés | MVP |
-| `watchoo contributors [--repo X] [--since 30d]` | Classement des contributeurs | MVP |
-| `watchoo status` | Résumé : dépôts à jour, inactifs, en erreur, quota API restant, compte `gh` utilisé et ses droits (sans afficher le token) | MVP |
+| `watchoo contributors [--repo X] [--since 30d \| --weeks 12]` | Classement des contributeurs ; avec `--weeks`, leurs commits semaine par semaine | MVP (`--weeks` : V2) |
+| `watchoo prs [--repo X] [--state open\|merged\|closed\|all] [-n 20]` | Pull requests des dépôts suivis, de la plus récemment modifiée à la plus ancienne | V2 |
+| `watchoo releases [--repo X] [-n 20]` | Releases des dépôts suivis, puis leurs tags | V2 |
+| `watchoo status` | Résumé : dépôts à jour, inactifs, en erreur, source des synchros (API GitHub ou clones Git locaux), quota API restant, compte `gh` utilisé et ses droits (sans afficher le token) | MVP (source : V2) |
 | `watchoo serve [--addr 127.0.0.1:8080] [--interval 30m]` | Lance l'interface web et la synchro périodique (30 min par défaut, 15 min minimum) | MVP |
 | `watchoo tui [--interval 30m]` | Ouvre le mode interactif dans le terminal | MVP |
 | `watchoo config export [-o fichier] [--force]` | Écrit la configuration partageable de l'espace (dépôts suivis et réglages communs) dans un fichier JSON, pour les autres personnes qui supervisent le même groupe | Après MVP |
@@ -44,21 +49,36 @@ uniquement avec `gh auth token` et ne le stocke jamais (voir
   du dépôt sont suivies, y compris celles créées plus tard. `--branch` restreint le suivi à une liste et à
   des motifs (`--branch main,dev,release/*`) ; une nouvelle branche qui correspond à un motif est suivie
   automatiquement. Voir [Architecture](03-architecture.md#branches-suivies).
-  `--branch ""` revient à toutes les branches. Un dépôt déjà suivi n'est pas ajouté en double : son
-  label et ses branches sont mis à jour s'ils sont donnés, et son suivi reprend s'il avait été arrêté.
-  L'accès est vérifié auprès de GitHub (une requête) ; `repo add` ne lance pas de synchro.
+  `--branch ""` revient à toutes les branches. `--flemme N` et `--dead N` fixent les **seuils
+  d'activité propres** au dépôt, en jours sans commit, à la place de ceux de l'espace
+  (`activity.flemme_after_days`, `activity.dead_after_days`) ; chacun est facultatif et indépendant,
+  `0` revient au seuil de l'espace. Un seuil vaut au plus 3 650 jours et, quand les deux sont donnés,
+  `--dead` doit être strictement supérieur à `--flemme` (sinon refus avant tout appel à GitHub). Un
+  dépôt déjà suivi n'est pas ajouté en double : son label, ses branches et ses seuils sont mis à jour
+  s'ils sont donnés, et son suivi reprend s'il avait été arrêté. Le compte rendu cite les seuils propres
+  (« seuils : flemme 3 j, dead 10 j »). L'accès est vérifié auprès de GitHub (une requête) ; `repo add`
+  ne lance pas de synchro. Sans `gh` (V2), l'accès est vérifié par `git ls-remote`, sans rien cloner :
+  un échec donne « accès refusé » ; le dépôt est enregistré sans identifiant GitHub (`provider_id`
+  inconnu, résolu à la première synchro par l'API) et avec l'URL `https://github.com/owner/repo`.
 - **`repo list`** affiche tous les dépôts de l'espace, suivi arrêté compris. La colonne DÉPÔT montre le
   label s'il existe, sinon `owner/repo` ; l'auteur est celui du dernier commit. États gris : `arrêté`
   (suivi arrêté), `erreur`, `jamais` (jamais synchronisé), `archivé`, `vide` (synchronisé sans commit).
 - **`repo remove`** demande confirmation (`[o/N]`) quand l'entrée standard est un terminal ; sinon (script,
   tube) l'option **`--yes` / `-y` est obligatoire**. Une réponse autre que `o`, `oui`, `y` ou `yes`, ou un
   Ctrl+C pendant la question (pris en compte tout de suite), annule avec un code de retour non nul. Sans `--keep-history`, le dépôt, ses branches, commits et synchros sont
-  supprimés de la base (les contributeurs restent) ; avec `--keep-history`, le suivi s'arrête (le dépôt
-  n'est plus synchronisé par `watchoo sync`, il apparaît `arrêté`) et `repo add` le reprend.
+  supprimés de la base (les contributeurs restent), ainsi que son clone Git local
+  (`repos/<name>` à la racine de l'espace, V2) s'il existe, et le clone d'un homonyme qui reprend ce nom
+  est déplacé (voir [Dépôts Git locaux](03-architecture.md#dépôts-git-locaux-v2)) ; avec `--keep-history`, le suivi s'arrête (le dépôt
+  n'est plus synchronisé par `watchoo sync`, il apparaît `arrêté`), l'historique en base **et** le clone
+  sont gardés, et `repo add` le reprend.
 - **`sync`** affiche un tableau par dépôt (statut `ok`, `erreur`, `ignoré` s'il est déjà en cours de
   synchronisation, `reporté` si le quota est bas, avec l'heure de reprise en heure locale), le bilan et le
   quota restant. `watchoo sync owner/repo` synchronise ce dépôt même si son suivi est arrêté. Code de
-  retour non nul si un dépôt est en erreur.
+  retour non nul si un dépôt est en erreur. Un dépôt synchronisé dont les pull requests, releases ou
+  tags n'ont pas pu être lus reste `ok` : l'avertissement est dans la colonne DÉTAIL (et `warnings` en
+  JSON), et ne change pas le code de retour. Sans `gh` (V2), le bilan se termine par « Source : clones
+  Git locaux (gh absent ou non connecté ; « gh auth login » pour passer par l'API GitHub) » et ne
+  donne pas de quota ; un dépôt que `git` ne peut pas lire est `erreur` avec « accès refusé ».
 - **`--since`** accepte une durée relative : un entier suivi de `d` (jours), `h` (heures) ou `m`
   (minutes), par exemple `7d`, `30d`, `12h`.
 - **`log -n`** (ou `--limit`) limite le nombre de commits affichés (20 par défaut, `0` = tous). Un commit
@@ -70,11 +90,32 @@ uniquement avec `gh auth token` et ne le stocke jamais (voir
   comparant (voir [Architecture](03-architecture.md#synchronisation-incrémentale)).
 - **`contributors`** classe les **auteurs** de commits par nombre de commits. Les lignes ajoutées et
   supprimées ne sont connues que pour les commits découverts après le premier import d'un dépôt.
-- **`status`** : compte `gh` et ses droits, quota restant (lecture gratuite), dépôts par état, dépôts en
-  erreur, dernière synchro réussie, branches suivies. Sous 10 % de quota restant, le garde-fou est
-  signalé (« Quota bas : synchros reportées jusqu'à HH:MM », `quota_low` en JSON), avec la même règle
-  que le moteur. Un `gh` non connecté est signalé sans faire échouer
-  la commande. Le token n'est jamais affiché.
+  **`--weeks N`** (1 à 52) limite la période aux N dernières semaines (du lundi au dimanche, dans le
+  fuseau d'affichage, la semaine en cours comprise) et donne, pour chaque contributeur de cette période,
+  ses commits semaine par semaine : en texte, une colonne par semaine (datée du lundi, « 12/10 ») puis
+  le total ; en JSON, la clé `weekly`. Avec `--repo`, seuls les commits du dépôt comptent, chacun une
+  fois quelle que soit sa branche. `--weeks` et `--since` ne vont pas ensemble (refus).
+- **`prs`** liste les pull requests enregistrées par les synchros (voir
+  [Synchronisation incrémentale](03-architecture.md#synchronisation-incrémentale)), de la plus récemment
+  modifiée à la plus ancienne : modification (date relative), dépôt, numéro, état (`ouverte`,
+  `brouillon`, `mergée`, `fermée` ; fermée = sans merge), auteur (login), titre (première ligne,
+  nettoyée comme un message de commit). `--state` filtre : `open` (ouvertes, brouillons compris),
+  `merged`, `closed` (fermées sans merge) ou `all` (par défaut). `-n` (ou `--limit`) : 20 par défaut,
+  `0` = toutes.
+- **`releases`** affiche deux tableaux : les **releases** (publication, ou création pour un brouillon,
+  en date relative ; dépôt, tag, titre, état `publiée`, `pré-release` ou `brouillon`, auteur), de la
+  plus récente à la plus ancienne, puis les **tags** (dépôt, tag, SHA court du commit visé et date de ce
+  commit s'il est en base, sinon `-`), du commit le plus récent au plus ancien. `-n` limite chaque
+  tableau (20 par défaut, `0` = tout). Les brouillons ne sont visibles que si le compte `gh` a le droit
+  d'écriture sur le dépôt (règle de GitHub).
+- **`status`** : compte `gh` et ses droits, **source** des synchros (V2 : « Source : API GitHub (gh
+  connecté) » ou « Source : clones Git locaux », avec le rappel de `gh auth login`), quota restant
+  (lecture gratuite ; « sans objet » avec les clones Git locaux), dépôts par état, dépôts en erreur,
+  dernière synchro réussie, branches suivies. Sous 10 % de quota restant, le garde-fou est signalé
+  (« Quota bas : synchros reportées jusqu'à HH:MM », `quota_low` en JSON), avec la même règle que le
+  moteur. Un `gh` absent ou non connecté est signalé sans faire échouer la commande. La source est celle
+  que prendrait une synchro lancée maintenant (`gh auth token`, sans contacter GitHub). Le token n'est
+  jamais affiché.
 - **Sorties** : un tableau texte aligné, sans bordure, en-têtes en majuscules ; dates relatives
   (« il y a 2 h ») en heure locale (réglage `timezone`, sinon fuseau du système). Couleurs (en-têtes en
   gras, états gris en gris) seulement sur un terminal, sans `NO_COLOR` ni `TERM=dumb`. Sur un terminal
@@ -128,24 +169,27 @@ Clés de premier niveau (la liste est vérifiée par un test, `internal/cli/json
 
 | Commande | Clés de premier niveau | Notes |
 | --- | --- | --- |
-| `watchoo init` | `name`, `root`, `dir`, `config_file`, `database`, `parent_workspace`, `github`, `warnings` | `github` : `host`, `login`, `token_source`, `scopes` ; `parent_workspace` vide sans espace parent |
+| `watchoo init` | `name`, `root`, `dir`, `config_file`, `database`, `parent_workspace`, `github`, `source`, `warnings` | `github` : `host`, `login`, `token_source`, `scopes` (vides sans `gh`) ; `source` : `api` ou `git` (clones Git locaux, sans `gh`, V2) ; `parent_workspace` vide sans espace parent |
 | `watchoo version` | `version`, `commit`, `date`, `go`, `os`, `arch` | Voir ci-dessous |
 | `watchoo repo add` | `outcome`, `repository` | `outcome` : `added`, `already` ou `updated` ; `repository` : objet dépôt |
 | `watchoo repo import` | `file`, `format`, `dry_run`, `summary`, `entries` | `format` : `csv` ou `list` ; `summary` : `added`, `already_tracked`, `updated`, `inaccessible`, `errors` ; chaque entrée : `line`, `repo`, `outcome`, `repository` (`null` si inaccessible ou en erreur), `error` |
 | `watchoo repo list` | `repositories` | Chaque élément : objet dépôt plus `activity`, `commits`, `tracked_branches`, `last_commit` (objet commit ou `null`), `last_sync` (`null` si aucune) |
 | `watchoo repo remove` | `action`, `repository`, `deleted_commits` | `action` : `deleted`, `stopped` ou `already_stopped` |
-| `watchoo sync` | `started_at`, `finished_at`, `summary`, `repositories`, `rate_limit` | `summary` : `repositories`, `success`, `error`, `locked`, `deferred`, `new_commits` ; chaque dépôt : `id`, `full_name`, `display_name`, `status`, `new_commits`, `tracked_branches`, `stats_fetched`, `duration_ms`, `error`, `resume_at` |
+| `watchoo sync` | `started_at`, `finished_at`, `summary`, `repositories`, `rate_limit`, `source` | `source` : `api`, `git` (clones Git locaux, V2 ; `rate_limit` est alors `null`) ou `""` si la synchro n'a pas commencé ; `summary` : `repositories`, `success`, `error`, `locked`, `deferred`, `new_commits` ; chaque dépôt : `id`, `full_name`, `display_name`, `status`, `new_commits`, `tracked_branches`, `stats_fetched`, `duration_ms`, `error`, `resume_at`, `warnings` (messages en français : pull requests, releases ou tags non synchronisés alors que le dépôt a réussi ; `[]` sinon) |
 | `watchoo log` | `commits` | Du plus récent au plus ancien ; objets commit |
-| `watchoo contributors` | `contributors` | Chaque élément : `id`, `name`, `login`, `display_name`, `avatar_url`, `commits`, `additions`, `deletions`, `repositories`, `last_commit_at` |
-| `watchoo status` | `workspace`, `github`, `rate_limit`, `rate_limit_error`, `quota_low`, `repositories`, `errors`, `last_synced_at`, `tracked_branches` | `workspace` : `name`, `root` ; `github` : `ok`, `host`, `login`, `token_source`, `scopes`, `error` ; `repositories` : `total`, `active`, `flemme`, `dead`, `error`, `never_synced`, `archived`, `empty`, `stopped` ; chaque erreur : `repo`, `message` |
+| `watchoo contributors` | `contributors` | Chaque élément : `id`, `name`, `login`, `display_name`, `avatar_url`, `commits`, `additions`, `deletions`, `repositories`, `last_commit_at`, `weekly` (avec `--weeks N` : N objets `week` (lundi, `AAAA-MM-JJ`, fuseau d'affichage) et `count`, du plus ancien au plus récent ; `[]` sans `--weeks`) |
+| `watchoo prs` | `pull_requests` | De la plus récemment modifiée à la plus ancienne ; objets pull request |
+| `watchoo releases` | `releases`, `tags` | Objets release (du plus récent au plus ancien) et tag ; `-n` limite chaque liste |
+| `watchoo status` | `workspace`, `github`, `source`, `rate_limit`, `rate_limit_error`, `quota_low`, `repositories`, `errors`, `last_synced_at`, `tracked_branches` | `workspace` : `name`, `root` ; `github` : `ok`, `host`, `login`, `token_source`, `scopes`, `error` ; `source` (V2) : `kind` (`api`, `git`, ou `""` si `gh` est en panne) et `reason` (pourquoi les clones Git locaux, ou l'erreur de `gh`) ; `repositories` : `total`, `active`, `flemme`, `dead`, `error`, `never_synced`, `archived`, `empty`, `stopped` ; chaque erreur : `repo`, `message` |
 | `watchoo config export` | `format`, `version`, `exported_at`, `watchoo_version`, `workspace`, `settings`, `repositories` | Le document de partage lui-même (voir [Partage de la configuration](#partage-de-la-configuration--watchoo-config)), avec ou sans `--json` ; avec `-o`, il va dans le fichier et la sortie standard ne reçoit qu'une ligne de confirmation en texte (rien avec `--json`) |
-| `watchoo config import` | `file`, `dry_run`, `applied`, `source`, `settings`, `repositories`, `summary`, `warnings` | `source` : `workspace_name`, `watchoo_version`, `exported_at` (tels qu'écrits dans le fichier) ; `settings` : `changes` (chacun `key`, `before`, `after`, `env_var`), `rewrite`, `written`, `backup_file` ; chaque dépôt : `index`, `repo`, `action` (`add`, `update`, `unchanged`, `inaccessible`, `error`), `reenable`, `before` (`label`, `branches`, `enabled` ; `null` pour un ajout), `after`, `outcome` (comme `repo import`, `""` tant que rien n'est appliqué), `error` ; `summary` : `added`, `already_tracked`, `updated`, `reenabled` (parmi `updated`), `inaccessible`, `errors` (prévus avec `--dry-run`, obtenus sinon) ; chaque avertissement : `code` (`env_override`, `comments_lost`), `key`, `message` |
+| `watchoo config import` | `file`, `dry_run`, `applied`, `source`, `settings`, `repositories`, `summary`, `warnings` | `source` : `workspace_name`, `watchoo_version`, `exported_at` (tels qu'écrits dans le fichier) ; `settings` : `changes` (chacun `key`, `before`, `after`, `env_var`), `rewrite`, `written`, `backup_file` ; chaque dépôt : `index`, `repo`, `action` (`add`, `update`, `unchanged`, `inaccessible`, `error`), `reenable`, `before` (`label`, `branches`, `flemme_after_days`, `dead_after_days` (`null` = seuil de l'espace), `enabled` ; `null` pour un ajout), `after`, `outcome` (comme `repo import`, `""` tant que rien n'est appliqué), `error` ; `summary` : `added`, `already_tracked`, `updated`, `reenabled` (parmi `updated`), `inaccessible`, `errors` (prévus avec `--dry-run`, obtenus sinon) ; chaque avertissement : `code` (`env_override`, `comments_lost`), `key`, `message` |
 
 Objets partagés :
 
 - **dépôt** : `id`, `full_name`, `owner`, `name`, `label`, `display_name`, `url`, `default_branch`,
-  `branch_patterns` (`[]` = toutes les branches), `enabled`, `archived`, `stars`, `open_issues`,
-  `last_synced_at`, `last_commit_at` ;
+  `branch_patterns` (`[]` = toutes les branches), `flemme_after_days` et `dead_after_days` (seuils
+  propres au dépôt, `null` = seuil de l'espace ; les seuils appliqués sont dans l'objet activité),
+  `enabled`, `archived`, `stars`, `open_issues`, `last_synced_at`, `last_commit_at` ;
 - **commit** : `repository` (`id`, `full_name`, `display_name`), `sha`, `short_sha`, `message`, `url`,
   `author` (`name`, `login`, `display_name`), `authored_at`, `committed_at`, `additions`, `deletions` ;
 - **activité** : `state` (`active`, `flemme`, `dead`, `stopped`, `error`, `never_synced`, `archived`,
@@ -154,6 +198,14 @@ Objets partagés :
 - **synchro** (`last_sync`) : `status` (`running`, `success`, `error`), `started_at`, `finished_at`,
   `new_commits`, `error` ;
 - **quota** (`rate_limit`, `null` si inconnu) : `limit`, `remaining`, `used`, `reset`.
+- **pull request** : `repository` (`id`, `full_name`, `display_name`), `number`, `title`, `state`
+  (`open`, `merged` ou `closed` : fermée sans merge), `draft`, `author` (`login`, `""` si inconnu),
+  `url`, `base_branch`, `head_branch`, `created_at`, `updated_at`, `closed_at`, `merged_at` (`null` si
+  sans objet) ;
+- **release** : `repository`, `id` (identifiant sur la forge), `tag_name`, `name`, `draft`,
+  `prerelease`, `author` (`login`), `url`, `created_at`, `published_at` (`null` pour un brouillon) ;
+- **tag** : `repository`, `name`, `sha`, `short_sha`, `commit_url` et `committed_at` (lien et date du
+  commit visé, `""` et `null` s'il n'est pas en base).
 
 ### Version
 
@@ -210,7 +262,7 @@ Watchoo supervise des dépôts GitHub, surtout privés, et répond à trois ques
 | --- | --- | --- |
 | Aide générale : `watchoo`, `watchoo help`, `watchoo --help` / `-h` | « Qui a travaillé, sur quoi, et quand ? » ; astuce « `watchoo init` fait de ce répertoire un espace de supervision » si aucun espace n'est trouvé, « `watchoo repo add owner/repo` puis `watchoo sync` » dans un espace, « `watchoo help <commande>` détaille une commande » si l'espace est illisible | Une ligne vide, la ligne d'état de l'espace, une ligne vide, puis l'aide habituelle |
 | `watchoo version`, `watchoo --version` | Version de Go et plateforme (`go1.27.3 · darwin/arm64`) ; pas d'astuce | Rien |
-| `watchoo init` réussi | « Espace de supervision « nom » créé » ; astuce « `watchoo repo add owner/repo` ajoute un premier dépôt à suivre » | Une ligne vide, puis le compte rendu en lignes d'état : espace, réglages, base, compte `gh` et ses droits |
+| `watchoo init` réussi | « Espace de supervision « nom » créé » ; astuce « `watchoo repo add owner/repo` ajoute un premier dépôt à suivre » | Une ligne vide, puis le compte rendu en lignes d'état : espace, réglages, base, compte `gh` et ses droits (sans `gh` : « Source : clones Git locaux ») |
 | `watchoo status` | « État de l'espace « nom » » ; astuce « `watchoo sync` met à jour les dépôts suivis » | Une ligne vide, puis le résumé habituel |
 
 - **Scripts** : la carte n'est affichée que si la sortie standard est un terminal, et jamais avec `--json`.
@@ -259,6 +311,8 @@ mon-org/projet-groupe-3,Groupe 3 (Dan et Eva),
 | `repo` | oui | `owner/repo` ou URL GitHub |
 | `label` | non | Nom affiché à la place de `owner/repo` (nom de l'étudiant, du binôme, du groupe) |
 | `branches` | non | Branches à suivre, liste et motifs comme `--branch` ; vide = toutes les branches |
+| `flemme` | non | Seuil Flemme propre au dépôt, en jours sans commit, comme `--flemme` (`0` = seuil de l'espace) |
+| `dead` | non | Seuil Dead propre au dépôt, comme `--dead` ; plus grand que `flemme` sur la même ligne |
 
 Un simple fichier texte est aussi accepté : un dépôt par ligne, sans en-tête, lignes vides et lignes
 commençant par `#` ignorées.
@@ -285,9 +339,11 @@ IMPORT  licence-projet.csv
   lignes en erreur  0
 ```
 
-- Une cellule `label` ou `branches` **vide** veut dire « non fourni » : la valeur existante est gardée (un
-  import ne peut donc pas remettre un dépôt à « toutes les branches » ; utiliser `repo add owner/repo
-  --branch ""`).
+- Une cellule `label`, `branches`, `flemme` ou `dead` **vide** veut dire « non fourni » : la valeur
+  existante est gardée (un import ne peut donc pas remettre un dépôt à « toutes les branches » ; utiliser
+  `repo add owner/repo --branch ""`). Pour revenir au seuil de l'espace, écrire `0` dans `flemme` ou
+  `dead`. Un seuil illisible, négatif, au-delà de 3 650 jours, ou un `dead` inférieur ou égal au
+  `flemme` de la même ligne est une ligne en erreur.
 - `-` à la place du fichier lit la liste sur l'entrée standard.
 - Le bilan détaille ensuite chaque dépôt inaccessible ou en erreur, avec son numéro de ligne.
 - `--dry-run` : fait la validation et les vérifications d'accès, affiche le bilan (« à ajouter » au lieu
@@ -348,10 +404,11 @@ partager de données d'étudiants ni de réglage propre à une machine.
 | `exported_at`, `watchoo_version` | Date d'export (UTC, RFC 3339) et version de Watchoo qui l'a fait ; informatifs, facultatifs |
 | `workspace.name` | Nom de l'espace exporté ; informatif : l'import ne renomme jamais l'espace |
 | `settings` | Réglages communs, valeurs **en vigueur** dans l'espace exporté (fichiers et variables `WATCHOO_*` compris) : `sync.auto`, `sync.interval` (durée Go entre guillemets : `"30m"`, `"1h30m"`, `"0"`), `sync.parallelism`, `activity.flemme_after_days`, `activity.dead_after_days`, `branches.exclude`, `timezone` |
-| `repositories` | Dépôts dont le suivi est actif (les dépôts arrêtés ne sont pas exportés), triés par `owner/repo` : `provider` (`github`), `repo` (`owner/repo`), `label` (nom affiché, `""` sans nom), `branches` (motifs suivis, `[]` = toutes les branches) |
+| `repositories` | Dépôts dont le suivi est actif (les dépôts arrêtés ne sont pas exportés), triés par `owner/repo` : `provider` (`github`), `repo` (`owner/repo`), `label` (nom affiché, `""` sans nom), `branches` (motifs suivis, `[]` = toutes les branches), et, **seulement pour un dépôt qui en a**, `flemme_after_days` et `dead_after_days` (seuils propres, en jours). Ces deux clés sont facultatives dans la version 1 du format : un fichier sans seuil propre reste lisible par les versions de Watchoo qui ne les connaissent pas |
 
 **Jamais exportés** : les réglages propres à la machine ou à la personne (`name` du fichier, `github.*` :
-compte `gh` et chemin de `gh`, qu'un fichier venu d'ailleurs ne doit jamais pouvoir changer ;
+compte `gh` et chemin de `gh`, qu'un fichier venu d'ailleurs ne doit jamais pouvoir changer ; `git.*` :
+protocole des clones Git locaux, qui dépend des identifiants de la machine ;
 `web.*` : adresse d'écoute, authentification, reverse proxy, noms acceptés), le token, les commits, les
 contributeurs, les e-mails, les dates de synchro et tout chemin local. Le fichier ne contient donc que
 des noms de dépôts, des noms affichés et des réglages ; il peut quand même révéler la liste des
@@ -376,7 +433,8 @@ modifier quoi que ce soit.
    inconnue, à aucun niveau (une clé `github` ou `web` est donc refusée) ; 1 000 dépôts au plus ; chaque
    dépôt : `provider` absent ou `github`, `repo` de la forme `owner/repo` (ou URL GitHub), présent une
    seule fois (sans tenir compte de la casse), `label` valide (comme `repo add --label`), motifs de
-   branches valides (comme `--branch`, sans virgule) ; réglages valides une fois fusionnés avec ceux de
+   branches valides (comme `--branch`, sans virgule), seuils propres valides (comme `--flemme` et
+   `--dead`) ; réglages valides une fois fusionnés avec ceux de
    l'espace (mêmes règles que `config.yaml`, ex. `dead_after_days` plus grand que `flemme_after_days`),
    y compris une fois les variables `WATCHOO_*` définies réappliquées : l'aperçu refuse donc tout ce que
    l'écriture refuserait (ex. `WATCHOO_ACTIVITY_DEAD_AFTER_DAYS=10` et un import de
@@ -384,8 +442,8 @@ modifier quoi que ce soit.
    `settings` et `repositories` sont facultatifs, chaque réglage aussi : un fichier peut ne contenir que
    des dépôts, ou qu'un fuseau.
 2. **Aperçu**, toujours affiché avant d'appliquer :
-   - dépôts **à ajouter**, **à mettre à jour** (nom affiché et branches, avant → après ; dépôt arrêté
-     **à reprendre**), **inchangés** ;
+   - dépôts **à ajouter**, **à mettre à jour** (nom affiché, branches et seuils propres, avant → après,
+     `espace` pour le seuil de l'espace ; dépôt arrêté **à reprendre**), **inchangés** ;
    - réglages modifiés (clé, valeur actuelle → valeur importée) ; un réglage identique n'est pas listé.
      Un réglage masqué par une variable `WATCHOO_*` définie est comparé à sa valeur **dans les
      fichiers** (fichier utilisateur puis `config.yaml`), pas à celle de la variable : c'est elle que
@@ -403,7 +461,7 @@ modifier quoi que ce soit.
 4. **Application**, dans cet ordre :
    - **réglages** : si au moins un réglage change, `.watchoo/config.yaml` est **réécrit** à partir du
      modèle commenté de `watchoo init`, réglages importés décommentés. Les clés propres à la machine
-     déjà présentes dans le fichier (`name`, `github.*`, `web.*`) et les réglages communs que le fichier
+     déjà présentes dans le fichier (`name`, `github.*`, `git.*`, `web.*`) et les réglages communs que le fichier
      importé ne donne pas sont **gardés tels quels**. L'ancien fichier est copié dans
      `.watchoo/config.yaml.bak` (`0600`, remplacé à chaque import). Le nouveau fichier est écrit à côté
      (`0600`), relu et validé, et comparé aux valeurs attendues avant de remplacer l'ancien (écriture
@@ -413,7 +471,9 @@ modifier quoi que ce soit.
      absent est ajouté ; un dépôt déjà suivi (cherché par son identifiant GitHub puis par
      `owner/repo`, donc renommage compris) reçoit le `label` et les `branches` du fichier, et son suivi
      **reprend s'il était arrêté** (comme `repo add`). Un `label` vide garde le nom affiché existant ;
-     `branches` absent (ou `null`) garde les branches existantes, `[]` revient à toutes les branches.
+     `branches` absent (ou `null`) garde les branches existantes, `[]` revient à toutes les branches ;
+     `flemme_after_days` ou `dead_after_days` absent (ou `null`) garde le seuil existant, `0` revient
+     au seuil de l'espace.
      Un dépôt inaccessible est signalé sans bloquer les autres. **Aucun dépôt n'est jamais retiré** et
      aucune synchro n'est lancée.
 5. **Bilan** : réglages écrits (et copie `.bak`), puis dépôts ajoutés, déjà suivis, mis à jour,
@@ -468,12 +528,16 @@ et les contributeurs au clavier, avec filtre et vue détail, et on peut y lancer
 - **Vues** : Dépôts (dépôt, dernier commit, auteur, branches, état), Commits (quand, dépôt, auteur, SHA
   court, première ligne du message ; les 200 derniers) et Contributeurs (nom, login, commits, `+/-`,
   dépôts, dernier commit). Le **détail d'un dépôt** montre l'URL, l'état et ses seuils, le dernier commit,
-  les branches, le nombre de commits, la dernière synchro (ou son erreur), étoiles et issues, les 15
-  derniers commits et les 5 premiers contributeurs.
+  les branches, le nombre de commits, la dernière synchro (ou son erreur), étoiles et issues, les pull
+  requests ouvertes et la dernière release publiée (V2), les 15
+  derniers commits et les 5 premiers contributeurs, avec leurs commits sur les 12 dernières semaines
+  (colonne « 12 SEM. ») et une courbe d'un caractère par semaine, la plus récente à droite (« PAR
+  SEMAINE » : `▁` à `█`, ou `.` `-` `=` `#` sans Unicode ; `▁` ou `.` = aucun commit).
 - **En-tête** : hibou mini (pupilles vertes), version et espace, onglets, ligne de synchro (en cours avec
   la progression, dernière synchro, prochaine synchro automatique à HH:MM, ou « Synchro manuelle (s) »).
 - **Synchro** : une seule à la fois (une demande de plus est ignorée et signalée) ; à la fin, une ligne de
-  bilan (nouveaux commits, erreurs, dépôts ignorés ou reportés avec l'heure de reprise locale), puis les
+  bilan (nouveaux commits, erreurs, dépôts ignorés ou reportés avec l'heure de reprise locale,
+  avertissements sur les pull requests, releases ou tags), puis les
   vues sont relues. Une synchro automatique qui tombe pendant une synchro est sautée, la suivante reste
   planifiée. Quitter pendant une synchro l'annule : `watchoo tui` attend alors que le moteur ait clos
   ses synchros (« synchro annulée », quelques secondes au plus) avant de fermer la base, pour qu'aucun
@@ -519,6 +583,7 @@ watchoo repo add retardataire/projet-licence --label "Zoé Leroy"
 watchoo sync
 watchoo repo list
 watchoo contributors --since 7d
+watchoo contributors --repo retardataire/projet-licence --weeks 6
 watchoo serve
 ```
 

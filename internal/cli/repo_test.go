@@ -10,6 +10,7 @@ import (
 	"github.com/studoo-app/watchoo/internal/auth/authtest"
 	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/provider"
+	"github.com/studoo-app/watchoo/internal/provider/git/gittest"
 	"github.com/studoo-app/watchoo/internal/provider/providertest"
 	"github.com/studoo-app/watchoo/internal/store"
 	wsync "github.com/studoo-app/watchoo/internal/sync"
@@ -97,9 +98,11 @@ func TestRepoAddErrors(t *testing.T) {
 	h.Provider.SetRepoError("bob", "projet", &provider.SSORequiredError{Organization: "promo"})
 	h.run("repo", "add", "bob/projet").mustFail(t, "dépôt bob/projet inaccessible")
 
-	// gh déconnecté : erreur claire, rien d'enregistré.
+	// gh déconnecté : vérification par git (clone local), dépôt absent du serveur Git : accès
+	// refusé, rien d'enregistré.
 	h.Client = authtest.NewLoggedOut()
-	h.run("repo", "add", "alice/projet").mustFail(t, "gh auth login")
+	h.GitURL = gittest.NewServer(t).URL
+	h.run("repo", "add", "alice/projet").mustFail(t, "dépôt alice/projet inaccessible", "accès refusé")
 	if repos, err := openTestStore(t, h).ListRepositories(context.Background()); err != nil || len(repos) != 0 {
 		t.Errorf("dépôts enregistrés malgré les erreurs : %v, %v", repos, err)
 	}

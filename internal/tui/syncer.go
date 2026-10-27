@@ -229,6 +229,10 @@ func (m Model) summarize(rep wsync.Report) (string, bool) {
 		parts = append(parts, s)
 		bad = true
 	}
+	if w := rep.Warnings(); w > 0 {
+		// Pull requests, releases ou tags non synchronisés : signalé, sans changer l'état des dépôts.
+		parts = append(parts, plural(w, "avertissement", "avertissements")+" (pull requests, releases ou tags)")
+	}
 	return strings.Join(parts, ", "), bad
 }
 

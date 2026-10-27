@@ -12,8 +12,10 @@ flowchart TD
     CLI["CLI (cobra)<br/>watchoo log, sync, status"] -->|commandes| CORE
     WEB["Interface web<br/>net/http + HTMX"] -->|requêtes HTTP| CORE
     CORE["Cœur métier<br/>synchro incrémentale, planification"] -->|lit / écrit| DB["SQLite<br/>dépôts, commits, contributeurs"]
-    CORE -->|appelle| PROV["Provider GitHub<br/>go-github, ETag, rate limit"]
+    CORE -->|gh connecté| PROV["Provider GitHub<br/>go-github, ETag, rate limit"]
     PROV -->|HTTPS + token| API["API GitHub (externe)"]
+    CORE -->|sans gh| GITP["Provider Git local (V2)<br/>binaire git, clones dans repos/"]
+    GITP -->|git clone / fetch, SSH ou HTTPS| REMOTE["Dépôts GitHub (externe)"]
 ```
 
 ### Responsabilités des couches
@@ -41,7 +43,8 @@ flowchart TD
 | Graphiques | Chart.js, embarqué | Courbes d'activité simples, fonctionne hors ligne |
 | Affichage terminal | `charmbracelet/bubbletea` + `bubbles` (TUI) + `lipgloss` | Mode interactif navigable au clavier ; sortie texte statique (`lipgloss/table`) pour les pipes et les scripts |
 | Planification | `time.Ticker` + `errgroup` | Synchro périodique, parallélisme borné |
-| Authentification | CLI GitHub `gh` (prérequis ; facultatif en V2) | Token obtenu avec `gh auth token`, jamais stocké par Watchoo ; un seul token pour tous les propriétaires |
+| Authentification | CLI GitHub `gh` (facultative depuis la V2) | Token obtenu avec `gh auth token`, jamais stocké par Watchoo ; un seul token pour tous les propriétaires. Sans `gh` : clones Git locaux, avec les identifiants Git de la machine |
+| Dépôts Git locaux (V2) | Binaire `git` (os/exec), sans dépendance Go | Clones nus mis à jour par `git fetch` : suivi sans `gh` ni quota |
 | Logs | `log/slog` | Logs structurés de la bibliothèque standard, sur la sortie d'erreur ; niveau `warn` par défaut, réglable par `WATCHOO_LOG_LEVEL` (`debug`, `info`, `warn`, `error`) ou `--verbose` (`debug`). Seulement des identifiants de dépôt, des SHA courts et des compteurs : jamais de token, de message de commit, de nom ni d'e-mail |
 
 ### Décisions techniques
@@ -62,6 +65,7 @@ watchoo/
   internal/auth/       accès à gh (token, état de connexion) + faux gh pour les tests
   internal/provider/   interface Provider, types et erreurs ; providertest/ (faux Provider en mémoire)
     github/            implémentation GitHub, seul import de go-github ; githubtest/ (faux serveur)
+    git/               dépôts Git locaux (V2) : binaire git, clones dans repos/ ; gittest/ (dépôts file://)
   internal/sync/       moteur de synchronisation (Engine : SyncAll, SyncRepo, AddRepositories) et
                        coordinateur des synchros d'un processus long (Coordinator, « watchoo serve »)
   internal/activity/   règles d'activité (Actif / Flemme / Dead, états gris), formats courts
@@ -83,18 +87,23 @@ watchoo/
 ## Interface `Provider`
 
 Abstraction qui isole toute forge, définie dans `internal/provider`, sans dépendance à GitHub ni à
-go-github. L'implémentation GitHub (`internal/provider/github`) est la seule du MVP et le seul endroit où
-go-github est importé. Signature fixée en phase 2 (détail dans `internal/provider/provider.go`) :
+go-github. Deux implémentations : l'API GitHub (`internal/provider/github`, seul endroit où go-github est
+importé) et, depuis la V2, les clones Git locaux (`internal/provider/git`, voir
+[Dépôts Git locaux](#dépôts-git-locaux-v2)). Signature fixée en phase 2 (détail dans
+`internal/provider/provider.go`) :
 
 | Méthode | Rôle |
 | --- | --- |
-| `Name()` | Identifiant de la forge (`github`) |
-| `Repository(ctx, owner, name)` | Métadonnées d'un dépôt : identifiant numérique, owner et nom actuels, branche par défaut, URL, étoiles, issues ouvertes, archivé, privé, dernier push. Suit un renommage ou un transfert |
-| `RepositoryByID(ctx, id)` | Les mêmes métadonnées, par l'identifiant numérique, qui ne change jamais |
+| `Name()` | Identifiant de la **forge** (`github`), pas du moyen d'y accéder : le provider Git local renvoie aussi `github` (les dépôts restent des dépôts GitHub, `repositories.provider` ne change pas) |
+| `Repository(ctx, owner, name)` | Métadonnées d'un dépôt : identifiant numérique, owner et nom actuels, branche par défaut, URL, étoiles, issues ouvertes, archivé, privé, dernier push. Suit un renommage ou un transfert. `Partial` (V2) : la source ne connaît que owner, nom, branche par défaut et URL (identifiant 0) ; le moteur garde alors le reste en base |
+| `RepositoryByID(ctx, id)` | Les mêmes métadonnées, par l'identifiant numérique, qui ne change jamais (`ErrUnsupported` pour les clones Git locaux : le moteur passe alors par `Repository`) |
 | `Branches(ctx, owner, name)` | Toutes les branches (nom, SHA de tête), toutes les pages |
 | `ListCommits(ctx, owner, name, opts)` | Commits d'une branche (ou d'un SHA), du plus récent au plus ancien (ordre chronologique, pas celui du graphe). Options : `Branch`, `Since`, `Stop` (arrêt au premier SHA pour lequel elle renvoie vrai, exclu, sans page suivante ; pas pour s'arrêter au premier SHA connu, voir [Synchronisation incrémentale](#synchronisation-incrémentale)), `Limit` |
 | `CompareCommits(ctx, owner, name, base, head)` | Commits atteignables depuis `head` mais pas depuis `base` (comme `git log base..head`), merges compris, du plus récent au plus ancien |
 | `CommitStats(ctx, owner, name, sha)` | Lignes ajoutées et supprimées par un commit (une requête par commit, une seule page de fichiers, jamais mise en cache) |
+| `PullRequests(ctx, owner, name, opts)` (V2) | Pull requests du dépôt, tous états confondus (ouvertes, fermées, mergées), de la plus récemment modifiée à la plus ancienne. Options : `UpdatedSince` (arrêt à la première PR modifiée **avant** cette date, sans page suivante : synchro incrémentale), `Limit`. Numéro, titre, état, mergée, brouillon, auteur (login, identifiant), URL, branches de base et de tête, dates de création, de modification, de fermeture et de merge |
+| `Releases(ctx, owner, name)` (V2) | Releases du dépôt, de la plus récente à la plus ancienne : identifiant, tag, nom, brouillon, pré-release, auteur, URL, dates de création et de publication. Sur GitHub, les brouillons ne sont visibles que d'un compte qui a le droit d'écriture sur le dépôt |
+| `Tags(ctx, owner, name)` (V2) | Tags du dépôt (nom, SHA du commit visé), dans l'ordre de la forge |
 | `RateLimit(ctx)` | État du quota (`GET /rate_limit`, gratuit) |
 | `LastRateLimit()` | Dernier état du quota observé sur les réponses, sans requête |
 
@@ -102,14 +111,19 @@ Règles communes :
 
 - les arguments (owner, nom de dépôt, branche, SHA complet, identifiant) sont validés avant toute
   requête : une valeur invalide donne `ErrInvalidRef`, sans appel réseau ;
-- dates en UTC, listes vides non nil ; plafonds internes (10 000 commits, 1 000 branches) contre une
-  pagination sans fin ;
+- dates en UTC, listes vides non nil ; plafonds internes (10 000 commits, 1 000 branches, 1 000 pull
+  requests, 1 000 releases, 1 000 tags) contre une pagination sans fin ;
+- une source qui ne connaît pas une notion (le provider des [dépôts Git locaux](#dépôts-git-locaux-v2)
+  n'a ni pull requests, ni releases, ni identifiant numérique, ni quota) renvoie une erreur qui
+  enveloppe `ErrUnsupported`, sans rien demander : le moteur de synchro la traite comme « non disponible
+  pour cette source », pas comme un échec ;
 - erreurs de type `*APIError` (opération, méthode, chemin de l'API, code HTTP), à tester avec
   `errors.Is` / `errors.As` : `ErrNotFound` (`404` : dépôt introuvable ou compte sans accès),
   `ErrUnauthorized` (`401` : conseiller `gh auth login`), `ErrForbidden` et `*SSORequiredError` (`403`,
   SSO imposé par l'organisation), `*RateLimitError` (quota épuisé ou limite secondaire, avec le moment où
   réessayer), `ErrEmptyRepository` (dépôt vide), `ErrUnknownBase` (base d'une comparaison disparue),
-  `ErrUnavailable` (réseau, délai, `5xx`), `ErrUnexpected`, `ErrWriteForbidden`. Leurs messages sont en
+  `ErrUnavailable` (réseau, délai, `5xx`), `ErrUnexpected`, `ErrWriteForbidden`, `ErrUnsupported`,
+  `ErrAccessDenied` (V2 : `git` n'a pas pu lire le dépôt distant, « accès refusé »). Leurs messages sont en
   français et ne citent jamais le token, un corps de réponse, un message de commit, un nom ni un e-mail ;
 - sûr pour un usage concurrent : 4 dépôts synchronisés en parallèle avec la même instance.
 
@@ -118,7 +132,13 @@ un à chaque synchro, avec le token redemandé à `gh`, et lui passe le même ca
 état du quota (`Quota`), qui durent d'une synchro à l'autre. Autres options : `BaseURL` (tests),
 `UserAgent` (`watchoo/<version>`), `Transport`, `Timeout` (30 s par requête par défaut), `Logger`.
 
-Faux pour les tests : `providertest` (Provider en mémoire) et `githubtest` (serveur GitHub simulé), voir
+`git.New(git.Options)` (V2) est légère aussi : `Dir` (`repos/` à la racine de l'espace), `Repos` (dépôts
+de l'espace dans l'ordre de leur ajout : emplacement des clones), `Protocol` (`ssh` ou `https`,
+réglage `git.protocol`), `BaseURL` (tests : dépôts `file://`), `GitPath`, délais (10 min par commande
+réseau, 2 min par lecture du clone), `Logger`. Le moteur en construit un à chaque synchro faite sans `gh`.
+
+Faux pour les tests : `providertest` (Provider en mémoire), `githubtest` (serveur GitHub simulé) et
+`gittest` (vrais dépôts Git dans un répertoire temporaire, servis par `file://`), voir
 [Tests](09-tests.md#api-github-simulée).
 
 ## Configuration
@@ -134,17 +154,18 @@ Faux pour les tests : `providertest` (Provider en mémoire) et `githubtest` (ser
 - Modèle de fichier : `config.example.yaml`, à créer en phase 1.
 - Paramètres attendus : nom de l'espace, intervalle de synchro, adresse d'écoute web, seuils d'activité,
   branches exclues, parallélisme de synchro, fuseau horaire d'affichage (par défaut celui du système),
-  compte `gh` (`github.user`), chemin de `gh` (`github.gh_path`).
+  compte `gh` (`github.user`), chemin de `gh` (`github.gh_path`), protocole des clones Git locaux
+  (`git.protocol` : `ssh` par défaut, ou `https` ; V2).
 - Partage entre superviseurs : `watchoo config export` / `import` (et la page Réglages) échangent un
   fichier JSON versionné (`format: watchoo-config`, `version: 1`) avec les dépôts suivis et les réglages
-  communs, jamais `github.*` ni `web.*`. Le cœur est `internal/configshare` ; la réécriture de
+  communs, jamais `github.*`, `git.*` ni `web.*`. Le cœur est `internal/configshare` ; la réécriture de
   `config.yaml` est faite par `internal/workspace` (`WriteSharedSettings`). Voir
   [Partage de la configuration](05-cli.md#partage-de-la-configuration--watchoo-config).
 
 ## Points d'attention
 
 ### Quota de l'API GitHub
-- 5 000 requêtes / heure avec token.
+- 5 000 requêtes / heure avec token. Les clones Git locaux (V2, sans `gh`) n'en consomment pas.
 - Utiliser les **ETag** (`If-None-Match`) : une réponse `304 Not Modified` ne consomme pas de quota.
 - **Cache ETag en mémoire**, par processus, jamais sur disque. La clé est l'URL complète de la requête
   (pages comprises ; `per_page=100` toujours, pour des clés stables) ; une réponse `304` est servie comme
@@ -200,6 +221,10 @@ Faux pour les tests : `providertest` (Provider en mémoire) et `githubtest` (ser
   interrompue »). Un dépôt verrouillé est ignoré et signalé (« déjà en cours de synchronisation »).
 - Ordre de grandeur, dans le pire cas où tout a changé à chaque passage : 100 dépôts × 2 branches toutes
   les 30 min ≈ 800 requêtes / heure, loin des 5 000 du quota. Les réponses `304` ne coûtent rien.
+- **Pull requests, releases et tags** (V2) : trois listes de plus par dépôt et par synchro (première
+  page seulement dans le cas courant). Toutes passent par le cache ETag : quand rien n'a changé, elles
+  répondent `304` et ne coûtent rien. Dans le pire cas où tout change à chaque passage, 100 dépôts
+  ajoutent 3 × 2 × 100 = 600 requêtes / heure, soit environ 1 400 au total, toujours loin des 5 000.
 
 ### Branches suivies
 - **Décision** : sans `--branch`, Watchoo suit **toutes les branches** du dépôt, y compris celles créées
@@ -262,10 +287,33 @@ Faux pour les tests : `providertest` (Provider en mémoire) et `githubtest` (ser
   0. Un quota épuisé pendant les statistiques n'échoue pas le dépôt (ses commits sont enregistrés) mais
   reporte les dépôts suivants ; une autre erreur arrête les statistiques de ce dépôt seulement (un `404`
   ne saute que le commit concerné).
+- **Pull requests, releases et tags** (V2) : lus après les commits, à chaque synchro d'un dépôt (archivé
+  compris, comme les commits).
+  - **Pull requests** : liste triée par date de modification décroissante, tous états confondus. Au
+    premier passage (aucune PR en base), toute la liste (au plus 1 000) ; ensuite, seulement les PR
+    modifiées depuis la plus récente date de modification en base (`UpdatedSince` : arrêt à la première
+    PR modifiée **strictement avant** cette date ; celles de la même seconde sont relues, l'écriture
+    étant idempotente). Une PR est enregistrée une fois par dépôt et par numéro, mise à jour à chaque
+    changement (titre, état, merge…) ; jamais supprimée.
+  - **Releases et tags** : listes complètes (au plus 1 000 chacune), qui **remplacent** celles en base :
+    une release ou un tag supprimé sur la forge disparaît de Watchoo. Sans changement, la réponse `304`
+    ne coûte rien.
+  - **Garde-fou** : sous 10 % de quota restant (contrôlé avant ces listes), elles ne sont pas demandées.
+  - **Échec isolé** : une erreur sur l'une de ces listes (`404`, `5xx`, quota épuisé…) ne fait pas
+    échouer le dépôt : ses commits sont enregistrés, ce qui était en base pour cette liste est gardé, et
+    l'erreur devient un **avertissement** du rapport de synchro (`watchoo sync`, bilan du TUI, logs). La
+    synchro suivante réessaie (le point de reprise des PR n'avance pas). Un quota épuisé reporte en plus
+    les dépôts suivants, comme pour les statistiques. Seule l'annulation (Ctrl+C) fait échouer le dépôt.
+  - **Source sans cette notion** (`ErrUnsupported`, pull requests et releases des
+    [clones Git locaux](#dépôts-git-locaux-v2)) : la liste est ignorée sans avertissement et rien n'est
+    effacé.
+  - **Auteurs** : le login et l'identifiant de compte de l'auteur d'une PR ou d'une release sont gardés
+    tels quels, sans créer de contributeur (un contributeur est l'auteur d'au moins un commit).
 - **Commit sans date** : un commit sans date d'écriture ni de commit est ignoré (compté dans un log) ; une
   seule date manquante est complétée par l'autre.
 - **Écriture** : tout ce qu'une synchro de dépôt écrit (métadonnées, branches, commits, contributeurs,
-  `commit_branches`, `last_commit_at`, fin du `sync_run`) l'est dans **une transaction**.
+  `commit_branches`, `last_commit_at`, pull requests, releases, tags, fin du `sync_run`) l'est dans
+  **une transaction**.
 - **Dépôt vide** (dépôt d'étudiant tout juste créé, auquel GitHub répond `409`) : branches et commits
   vides, sans erreur.
 - **Dépôt renommé ou transféré** : GitHub répond `301` vers `/repositories/{id}` ; le provider suit la
@@ -276,31 +324,45 @@ Faux pour les tests : `providertest` (Provider en mémoire) et `githubtest` (ser
 - Parallélisme borné avec `errgroup` : **4 dépôts synchronisés en parallèle maximum**. Le provider, son
   cache ETag et l'état du quota sont sûrs pour cet usage concurrent.
 
-### Authentification : `gh` imposé
-- **Décision** : la CLI GitHub **`gh` est un prérequis obligatoire**. C'est la **seule** source du token :
-  Watchoo l'obtient avec `gh auth token` et ne lit ni `GITHUB_TOKEN`, ni de trousseau en propre, ni de
-  token saisi à la main.
-- **À partir de la V2** ([Dépôts Git locaux](#dépôts-git-locaux-v2)) : `gh` devient **facultatif**. Sans
-  `gh` installé et connecté, les dépôts sont suivis par clone local, sans token. `gh` reste la **seule**
-  source du token quand l'API GitHub est utilisée, et toutes les règles ci-dessous restent valables.
+### Authentification : `gh` facultatif
+- **Décision** : la CLI GitHub **`gh`** donne accès à l'API GitHub ; elle est **facultative** depuis la
+  V2. C'est la **seule** source du token : Watchoo l'obtient avec `gh auth token` et ne lit ni
+  `GITHUB_TOKEN`, ni de trousseau en propre, ni de token saisi à la main.
+- **Choix de la source**, refait au début de chaque synchro (et de chaque ajout de dépôts), selon `gh`
+  seulement (`auth.Absent`, `wsync.Engine.Source`) :
+  - `gh auth token` renvoie un token : **API GitHub**, comme au MVP ;
+  - `gh` introuvable (`ErrGHNotFound`) ou connecté à aucun compte utilisable (`ErrNotLoggedIn`,
+    `github.user` inutilisable compris) : **clones Git locaux**, sans token (voir
+    [Dépôts Git locaux](#dépôts-git-locaux-v2)) ;
+  - toute autre panne de `gh` (délai, réponse illisible) reste une **erreur** : elle ne fait pas basculer
+    vers `git`. `gh auth token` ne contacte pas GitHub : un `gh` connecté mais sans réseau donne un token,
+    donc l'API, et l'échec réseau reste une erreur de l'API comme avant ; un token révoqué aussi
+    (`401`, « reconnectez-vous avec gh auth login »).
+
+  Installer ou connecter `gh` fait repasser par l'API à la synchro suivante, sans autre manipulation.
+  Aucun réglage par dépôt ni par espace ne choisit la source.
 - Watchoo **ne stocke jamais le token** : ni dans la config, ni dans la base, ni dans un trousseau.
   `gh` le garde déjà dans le trousseau du système.
 - Le token est redemandé à `gh` **au début de chaque synchro** et gardé en mémoire seulement le temps de
   la synchro. Si l'utilisateur se reconnecte ou change de compte dans `gh`, Watchoo suit sans redémarrer.
-- `watchoo init` vérifie que `gh` est installé et connecté (`gh auth status`). Sinon il s'arrête et
-  indique quoi faire (`gh auth login`). À partir de la V2, il ne s'arrête plus : il prévient que les
-  dépôts seront suivis par clone local (avec `git`, qui doit alors être installé) et rappelle
-  `gh auth login` pour passer par l'API. Il ne demande aucun token. Si `gh` n'a pas pu joindre GitHub pour
-  vérifier le token (réseau coupé, proxy, panne de GitHub), `init` le dit sans conseiller `gh auth login`,
-  qui n'y changerait rien.
+- `watchoo init` vérifie `gh` (`gh auth status`) et ne demande aucun token. Connecté : le compte et ses
+  droits sont dans le compte rendu. **Absent ou connecté à aucun compte** : `init` continue si `git` est
+  installé, prévient que les dépôts seront suivis par clones Git locaux et rappelle `gh auth login` (ou
+  l'installation de `gh`) pour passer par l'API ; sans `git` non plus, il s'arrête. Il s'arrête aussi,
+  sans rien créer, pour un token refusé par GitHub (le compte est connu de `gh` : `gh auth login`), un
+  `github.user` inutilisable ou inconnu de `gh`, et quand `gh` n'a pas pu joindre GitHub pour vérifier le
+  token (réseau coupé, proxy, panne de GitHub) : il le dit alors sans conseiller `gh auth login`, qui n'y
+  changerait rien. Détail : [Espaces de supervision](10-espaces-de-supervision.md#comportement-de-watchoo-init).
 - Plusieurs comptes dans `gh` : par défaut, le compte actif de `gh` pour `github.com`. Une option de
   config (`github.user`) permet d'en choisir un autre (`gh auth token --user …`). `gh` distingue les
   majuscules et `--user` ne lit que les comptes enregistrés (trousseau ou fichier de `gh`) : `github.user`
   doit donc reprendre le login exact d'un compte enregistré. Sinon `init` le refuse, en donnant le login
   connu de `gh` ou en demandant de vider le réglage, au lieu d'accepter un compte dont la synchro ne
-  pourrait pas lire le token.
+  pourrait pas lire le token. (Un `github.user` devenu inutilisable après `init` fait passer les
+  synchros par les clones Git locaux, comme un `gh` non connecté ; `watchoo status` l'affiche.)
 - `watchoo status` indique le compte `gh` utilisé et les droits (scopes) du token, sans jamais afficher le
-  token.
+  token, et la **source** des synchros (« API GitHub » ou « clones Git locaux », avec la raison) ; le web
+  (Réglages, quota « sans objet ») et le bilan de `watchoo sync` la signalent aussi.
 - **Jamais** de token en clair dans les logs, l'interface web ou le TUI ; la sortie de `gh auth token` n'est
   jamais journalisée.
 - Le token n'est posé dans l'en-tête `Authorization` que par le transport du provider, et seulement vers
@@ -310,7 +372,8 @@ Faux pour les tests : `providertest` (Provider en mémoire) et `githubtest` (ser
   token de `GH_TOKEN`, et `gh auth status` présente ce compte comme le compte actif ; avec `--user`, `gh`
   ignore `GH_TOKEN` (« no oauth token found for github.com account … »). Il faut donc **laisser
   `github.user` vide** quand le token vient de `GH_TOKEN` ; `init` refuse un `github.user` que `gh` ne
-  connaît que par cette variable.
+  connaît que par cette variable. Sans `GH_TOKEN`, l'image suit les dépôts par clones Git locaux (elle
+  contient `git` et `ssh`, voir [Distribution](#distribution)).
 
 ### Dépôts privés
 
@@ -343,38 +406,158 @@ Les dépôts suivis sont principalement **privés**. Conséquences :
 
 ### Dépôts Git locaux (V2)
 
-Prévu en phase 6 ([Roadmap](07-roadmap.md#phase-6--v2)) ; rien n'est encore codé.
+En place depuis la phase 6 ([Roadmap](07-roadmap.md#phase-6--v2)).
 
 - **But** : suivre un dépôt depuis un clone local, mis à jour par `git fetch` à chaque synchro, pour
-  limiter les appels à l'API GitHub (aucun quota consommé) et pouvoir suivre un dépôt privé sans `gh`.
+  pouvoir suivre des dépôts privés sans `gh` et sans consommer de quota de l'API GitHub. Le clone a une
+  **copie de travail** : l'enseignant peut y lire le code des étudiants.
 - **Choix de la source** : **uniquement** selon la présence de `gh`, sans réglage par dépôt ni par
-  espace. Si `gh` est installé et connecté, Watchoo utilise l'API GitHub comme aujourd'hui ; sinon il
-  passe par le clone local. Le choix est refait à chaque synchro : installer ou connecter `gh` fait
-  repasser par l'API, sans autre manipulation. `gh` cesse donc d'être un prérequis obligatoire (voir
-  [Authentification](#authentification--gh-imposé)).
-- **Un second `Provider`** dans `internal/provider/git/`, qui appelle le binaire `git` (aucune nouvelle
-  dépendance Go). Le moteur de synchro ne change pas de logique : il reçoit un autre `Provider`. Les
-  règles communes (validation, erreurs typées, dates UTC, usage concurrent) s'appliquent.
-- **Clones** : clones nus (`git clone --bare`) dans `.watchoo/repos/`, en `0700`, ignorés par le
-  `.gitignore` de l'espace. `repo remove` supprime le clone ; `repo remove --keep-history` le **garde**,
-  comme l'historique en base.
-- **Lecture seule** : Watchoo ne lance que `git clone`, `git fetch` et des commandes de lecture (`log`,
-  `for-each-ref`, `rev-list`…), jamais `push` ; il ne modifie pas un clone de l'utilisateur, seulement les
-  siens.
+  espace, refait à chaque synchro (voir [Authentification](#authentification--gh-facultatif)). `gh`
+  installé et connecté : API GitHub ; sinon : clones Git locaux. Le choix est fait dans le cœur métier
+  (`wsync.Engine`, à partir de `auth.Client.Token`) : la CLI, le web et le TUI ne font que l'afficher.
+- **Un second `Provider`** dans `internal/provider/git/`, qui lance le binaire `git` par `os/exec`
+  (tableaux d'arguments, jamais de shell ; `--` avant les URL et les chemins, `--end-of-options` avant
+  les références), sans nouvelle dépendance Go. Le moteur de synchro ne change pas de logique : il reçoit
+  un autre `Provider` (`Options.NewGitProvider`, par défaut `git.New` sur `repos/`, avec les dépôts de
+  l'espace par identifiant croissant, `wsync.CloneRefs`). Les règles
+  communes s'appliquent : validation avant toute commande (`ErrInvalidRef`, aucun `git` lancé), erreurs
+  typées, dates en UTC, listes vides non nil, plafonds (`MaxCommits`, `MaxBranches`, `MaxTags`),
+  usage concurrent (4 dépôts en parallèle).
+- **Nom de la forge** : `Name()` renvoie `github`. Les lignes de `repositories` gardent
+  `provider = 'github'` : c'est le même dépôt GitHub, lu par un autre moyen. Passer de l'API aux clones
+  et inversement ne crée donc ni doublon ni nouvel historique.
+- **Adresse des dépôts** : `owner/name` donne le dépôt distant GitHub, selon `git.protocol` (réglage
+  propre à la machine, jamais partagé) : `ssh` par défaut, `git@github.com:owner/name.git` (dépôts privés
+  avec la clé SSH de l'utilisateur) ; `https`, `https://github.com/owner/name.git` (gestionnaire
+  d'identifiants de Git). L'URL est passée à chaque `fetch` (aucun remote enregistré n'est utilisé) : un
+  changement de protocole s'applique à la synchro suivante. Aucun token ni identifiant dans une URL. Les
+  pages web (`https://github.com/owner/name`, `…/commit/<sha>`) sont construites par le provider Git :
+  ce qui est propre à GitHub reste dans `internal/provider`. `Options.BaseURL` remplace l'adresse pour
+  les tests (`file://…/owner/name.git`).
+- **Clones** : clones **avec copie de travail** dans **`repos/<name>`, à la racine de l'espace** (le
+  répertoire qui contient `.watchoo/`) : `~/supervision/licence-projet/repos/projet-groupe-3/`. Nom du
+  dépôt seul, sans propriétaire ni suffixe `.git`, **en minuscules** (GitHub, comme les systèmes de
+  fichiers de macOS et Windows, ne tient pas compte de la casse). `repos/` est créé en `0700` au premier
+  clone ; le contenu des clones garde les droits posés par Git.
+- **Homonymes** (règle `git.Layout`, sans état en base) : les dépôts de l'espace, **suivis ou arrêtés**,
+  sont pris par identifiant croissant (ordre d'ajout) et chacun reçoit le premier nom libre parmi
+  `<name>`, `<owner>-<name>`, `<owner>-<name>-2`, `<owner>-<name>-3`… (en minuscules ; « libre » : pas
+  déjà donné à un dépôt plus ancien, sans tenir compte de la casse ; `.git` n'est jamais donné). Ainsi
+  `alice/projet` puis `bob/projet` donnent `repos/projet` et `repos/bob-projet` ; un `carol/bob-projet`
+  ajouté ensuite reçoit `repos/carol-bob-projet`. **Ajouter** un dépôt ne déplace jamais un clone ;
+  `repo remove --keep-history` non plus (le dépôt reste en base). **Supprimer** un dépôt (`repo remove`,
+  page Réglages) peut libérer un nom : `wsync.DeleteRepository` supprime le clone, puis **déplace**
+  (renommage en deux temps, sans reclonage) ceux dont l'emplacement change (`bob/projet` passe de
+  `repos/bob-projet` à `repos/projet`). Un dépôt renommé sur GitHub pendant le suivi par l'API change
+  d'emplacement : nouveau clone au nouveau nom, l'ancien répertoire reste.
+- **Signature** : chaque clone porte dans `.git/watchoo-repository` le dépôt pour lequel Watchoo l'a créé
+  (`owner/name` en minuscules). Watchoo ne met à jour, ne déplace ni ne supprime **que** ses clones
+  signés pour ce dépôt : un emplacement occupé par autre chose (répertoire de l'utilisateur, clone fait à
+  la main, clone signé pour un autre dépôt, lien symbolique) n'est jamais touché et la synchro du dépôt
+  échoue (« emplacement du clone occupé ») ; un répertoire vide est remplacé.
+- **Création** : premier besoin d'un dépôt dans une synchro : `git init` dans un répertoire temporaire de
+  `repos/` (`.clone+…`, un nom qu'aucun dépôt ne peut porter), signature, mise à jour (ci-dessous), puis
+  renommage (un clone interrompu ne laisse rien de cassé). Pas de `git clone` : une seule façon de lire
+  le distant, et aucun remote enregistré.
+- **Mise à jour** (une par dépôt et par synchro, sérialisée par dépôt : verrou du provider ; entre
+  processus, le verrou de synchro en base) :
+  1. `git fetch --prune --no-tags --no-recurse-submodules -- <url>` avec
+     `+refs/heads/*:refs/remotes/origin/*` et `+refs/tags/*:refs/tags/*` : les branches du distant
+     arrivent dans `origin/…`, un force-push, une branche ou un tag supprimé sont suivis ;
+  2. la branche par défaut est celle de `git ls-remote --symref` (déjà lue par `Repository` dans la même
+     synchro) ; `origin/HEAD` la désigne (`git symbolic-ref`) ;
+  3. `git checkout --force -B <défaut> origin/<défaut>` puis `git reset --hard origin/<défaut>` : la copie
+     de travail est sur la branche par défaut, telle que sur GitHub. **Le clone appartient à Watchoo** :
+     une modification locale d'un fichier suivi, une autre branche extraite, un merge en cours sont
+     **écrasés** à chaque synchro ; les fichiers **non suivis** sont gardés (pas de `git clean`). Dépôt
+     vide (ou branche par défaut absente) : rien à extraire, le clone ne contient que `.git/`.
+
+  Les lectures (`Branches`, `ListCommits`…) se font dans `refs/remotes/origin/` et `refs/tags/`, jamais
+  dans les branches locales : une branche créée à la main dans le clone n'est pas une branche du dépôt.
+- **Dépôts d'étudiants, rien ne s'exécute** : les hooks d'un dépôt distant ne sont jamais copiés, et
+  `-c core.hooksPath=<périphérique nul>` empêche aussi ceux de la configuration de l'utilisateur de
+  s'exécuter dans un clone ; ni sous-module (`submodule.recurse=false`, `fetch.recurseSubmodules=false`,
+  `--no-recurse-submodules`), ni `core.fsmonitor` ; `GIT_LFS_SKIP_SMUDGE=1` : aucun fichier LFS
+  téléchargé (les pointeurs restent dans la copie de travail). `core.symlinks` garde sa valeur : Git
+  refuse déjà tout chemin qui sortirait de la copie de travail. Les variables qui désigneraient un autre
+  dépôt (`GIT_DIR`, `GIT_WORK_TREE`, `GIT_INDEX_FILE`…) sont retirées de l'environnement de `git`.
+- **Retrait** : `repo remove` supprime le clone (et déplace un homonyme, voir plus haut) ;
+  `repo remove --keep-history` le **garde**, comme l'historique en base. Repasser par l'API (`gh`
+  connecté) laisse les clones en place, sans les mettre à jour ; ils servent de nouveau si `gh` disparaît.
+- **Lecture seule** : Watchoo ne lance que `git ls-remote`, `git fetch`, des commandes de lecture du clone
+  (`for-each-ref`, `rev-parse`, `log`, `diff-tree`) et, dans ses seuls clones, `git init`,
+  `symbolic-ref`, `checkout` et `reset` ; jamais `push`. Il désigne toujours le clone par `--git-dir`
+  (et `--work-tree`), lancé depuis un répertoire neutre : `git` ne cherche jamais le dépôt depuis le
+  répertoire courant, et ne peut donc pas travailler dans un dépôt de l'utilisateur (la racine de
+  l'espace, par exemple). La configuration
+  de l'utilisateur ne peut pas changer les sorties lues (`-c log.showSignature=false`,
+  `color.ui=false`, `core.quotePath=false`) ; l'entretien automatique d'un clone se fait au premier plan
+  (`gc.autoDetach=false`, `maintenance.autoDetach=false`).
+- **Recherche de l'espace** : un `.watchoo/` commité dans le dépôt d'un étudiant se retrouve dans
+  `repos/<name>/` ; il n'est jamais pris pour un espace (voir
+  [Espaces de supervision](10-espaces-de-supervision.md#comment-watchoo-trouve-lespace)).
+- **`.gitignore`** : `repos/` est hors de `.watchoo/`, donc hors de son `.gitignore`. Si la racine de
+  l'espace est elle-même un dépôt Git, `repos/` y apparaît : à l'utilisateur de l'ajouter à son propre
+  `.gitignore` (Watchoo n'écrit rien hors de `.watchoo/` et `repos/`).
 - **Identifiants** : Watchoo ne lit, ne demande ni ne stocke aucun identifiant. `git` s'appuie sur ce que
-  l'utilisateur a déjà configuré (clé SSH, gestionnaire d'identifiants) ; `git` est lancé sans invite
-  interactive (`GIT_TERMINAL_PROMPT=0`), et un échec d'accès s'affiche comme « en erreur : accès refusé ».
-  Aucun token dans une URL de clone, ni dans les logs.
-- **Ce que le mode local ne fournit pas** : pas de login GitHub (seulement nom et e-mail Git, donc une
-  fusion d'identités moins sûre), pas d'étoiles, d'issues, d'état archivé, de pull requests ni de
-  releases ; les tags, eux, sont disponibles. Les écrans masquent ce qui manque.
-- **Distribution** : l'image Docker doit inclure `git`.
+  l'utilisateur a configuré (clé SSH et agent, gestionnaire d'identifiants). Il est lancé sans entrée
+  standard et **sans invite** : `GIT_TERMINAL_PROMPT=0` (pas de saisie d'identifiant HTTPS),
+  `GCM_INTERACTIVE=never` (Git Credential Manager sans fenêtre) et, pour SSH,
+  `GIT_SSH_COMMAND="ssh -o BatchMode=yes"` (ni phrase de passe, ni confirmation d'un hôte inconnu :
+  `github.com` doit déjà être dans `known_hosts`, par exemple après un `ssh -T git@github.com`).
+  **Décision** : si l'utilisateur a déjà choisi sa commande SSH (`GIT_SSH_COMMAND`, `GIT_SSH` ou
+  `core.sshCommand` dans sa configuration Git), elle est gardée telle quelle et Watchoo n'ajoute rien :
+  la remplacer casserait une configuration voulue (clé dédiée, proxy) ; elle doit alors elle-même ne
+  rien demander. `git` est lancé avec `LC_ALL=C` pour classer ses échecs. Un échec d'accès (clé
+  refusée, hôte inconnu, identifiants absents, dépôt introuvable ou privé sans accès) donne
+  `ErrAccessDenied` : « en erreur : accès refusé : vérifiez la clé SSH ou les identifiants Git de cette
+  machine » ; un échec réseau donne `ErrUnavailable`. La sortie de `git` n'est jamais recopiée dans une
+  erreur ni dans les logs (niveau Debug : commande, durée et code de retour seulement).
+- **Ajout d'un dépôt** (`repo add`, `repo import`, web) : l'accès est vérifié par
+  `git ls-remote --symref <url> HEAD`, sans rien cloner (`--dry-run` compris) ; il donne aussi la
+  branche par défaut. Inaccessible : `OutcomeInaccessible` avec « accès refusé ». Le dépôt est enregistré
+  avec `provider_id` inconnu (`NULL`, voir [Modèle de données](04-modele-donnees.md)), l'URL
+  `https://github.com/owner/name` et des étoiles et issues à 0 ; il est retrouvé ensuite par owner/name.
+- **Synchro** : la même stratégie incrémentale qu'avec l'API (voir
+  [Synchronisation incrémentale](#synchronisation-incrémentale)) :
+  - `Repository` (`ls-remote`) d'abord, même pour un dépôt dont l'identifiant est connu
+    (`RepositoryByID` renvoie `ErrUnsupported`) ;
+  - `Branches` (`for-each-ref refs/remotes/origin/`, sans `origin/HEAD`, triées par nom) crée ou met à
+    jour le clone ;
+  - `ListCommits` et `CompareCommits` lisent `git log` (`base..head` pour une comparaison, merges
+    compris, du plus récent au plus ancien) avec des champs séparés par NUL ; une base ou une tête
+    absente du clone donne `ErrUnknownBase`, et le moteur se replie comme avec l'API. Deux historiques
+    sans ancêtre commun donnent exactement les commits de la tête (GitHub répond `404`) ; un dépôt vide
+    donne des listes vides ; une branche inconnue `ErrNotFound` ;
+  - `CommitStats` lit `git diff-tree --numstat` (premier parent, ou arbre vide pour un commit racine ;
+    fichiers binaires non comptés) : pas de quota, mais la même limite de 100 commits par synchro ;
+  - `Tags` lit `refs/tags/` (SHA du commit visé, tag annoté déréférencé) ;
+  - pas de quota : `RateLimit` renvoie `ErrUnsupported` et `LastRateLimit` rien. Le garde-fou ne reporte
+    jamais de dépôt, la lecture initiale du quota est sautée, `status` et la page Réglages affichent
+    « sans objet ».
+- **Métadonnées** : `Repository` renvoie `Partial`. Le moteur écrit alors seulement la branche par
+  défaut (si elle est connue) et la date de synchro ; owner, nom, URL, étoiles, issues, état archivé et
+  `provider_id` gardent leur valeur en base, **jamais remplacée par des zéros**. Quand `gh` revient, la
+  synchro suivante passe par l'API : pour un dépôt sans `provider_id`, elle le résout par owner/name
+  (`Repository`) et l'enregistre, avec toutes les métadonnées.
+- **Ce que le mode local ne fournit pas** : pas de login GitHub (seulement nom et e-mail Git : les
+  contributeurs ne sont fusionnés que par e-mail, voir [Fusion des identités](#fusion-des-identités)),
+  pas d'étoiles, d'issues, d'état archivé, de pull requests ni de releases ; les tags, eux, sont
+  disponibles. Le provider Git renvoie `ErrUnsupported` pour `PullRequests` et `Releases` : le moteur
+  garde ce qui est en base, sans avertissement. Les écrans masquent ce qui manque pour un dépôt jamais lu
+  par l'API (`provider_id` inconnu, `model.Repository.ForgeDetails`) : page d'un dépôt (étoiles, issues,
+  cartes pull requests et releases) et détail du TUI ; un dépôt déjà lu par l'API garde ses dernières
+  valeurs connues.
+- **Distribution** : l'image Docker contient `git` et le client `ssh` (voir [Distribution](#distribution)).
 - **Tests** : dépôts Git créés dans un répertoire temporaire et servis par le système de fichiers
-  (`file://`), sans service extérieur.
+  (`file://`, paquet `gittest`), sans service extérieur ; voir [Tests](09-tests.md).
 
 ### Fusion des identités
 - Un même contributeur peut committer avec plusieurs e-mails.
 - Rattacher les e-mails au login GitHub quand il est connu (table `contributor_emails`).
+- Avec les clones Git locaux (V2, sans `gh`), le login n'est jamais connu : les commits ne sont
+  rattachés que par e-mail (deux e-mails d'une même personne font deux contributeurs tant qu'une synchro
+  par l'API ne les a pas reliés à un même compte).
 
 ### Version de Go
 - **Décision** : on part de la **dernière version stable** de Go. Le numéro exact est fixé dans `go.mod`
@@ -505,20 +688,30 @@ Prévu en phase 6 ([Roadmap](07-roadmap.md#phase-6--v2)) ; rien n'est encore cod
     multi-étapes. Une étape télécharge le binaire officiel de `gh` (release GitHub `cli/cli`, version
     fixée, 2.103.3 en 0.1.0) et vérifie son SHA-256 deux fois : contre l'empreinte écrite dans le
     `Dockerfile` et contre le fichier `gh_<version>_checksums.txt` de la release. Une autre compile
-    Watchoo. Image finale `gcr.io/distroless/static-debian13:nonroot` (sans shell ni gestionnaire de
-    paquets, avec les certificats racine et la base des fuseaux horaires), épinglée par empreinte comme
-    l'image `golang:1.27.3-alpine3.24` de construction. Utilisateur `nonroot` (uid / gid 65532), jamais
-    root ; `WATCHOO_DIR=/data`, `WORKDIR /data` et `VOLUME /data` (créé en `0700`) ; `EXPOSE 8080` ;
+    Watchoo. Image finale `FROM scratch` (V2), qui reçoit un système Alpine minimal installé par une
+    troisième étape : `apk add --root /rootfs --arch <cible> --initdb --no-scripts` des paquets
+    `alpine-baselayout-data`, `musl`, `busybox`, `busybox-binsh`, `ca-certificates-bundle`, `tzdata`,
+    `git` et `openssh-client-default`, signatures vérifiées avec les clés d'Alpine de l'image
+    `alpine:3.24` (épinglée par empreinte, comme `golang:1.27.3-alpine3.24`), puis base `apk` retirée
+    (pas de gestionnaire de paquets dans l'image). **Décision (V2)** : l'image distroless
+    `static-debian13` des versions 0.1 et 0.2 ne pouvait pas recevoir `git` (programme lié à la libc, à
+    libcurl, et qui lance `ssh` par `/bin/sh` pour `GIT_SSH_COMMAND`) ; l'installation croisée garde le
+    multi-architecture sans émulation. Conséquence : l'image a un `/bin/sh` (busybox, sans les autres
+    commandes : les scripts d'installation ne sont pas lancés) ; versions des paquets données par le
+    dépôt Alpine 3.24 au moment de la construction (non épinglées une à une). Utilisateur `nonroot`
+    (uid / gid 65532, ajouté à `/etc/passwd`, ce qu'exige `ssh`), jamais root, `HOME=/home/nonroot`
+    (`0700`) ; `WATCHOO_DIR=/data`, `WORKDIR /data` et `VOLUME /data` (créé en `0700`) ; `EXPOSE 8080` ;
     `ENTRYPOINT watchoo`, commande par défaut `serve --addr 0.0.0.0:8080`. Multi-architecture
-    (linux/amd64 et linux/arm64) **sans émulation** : compilation et téléchargement tournent sur la
-    plateforme de construction pour la plateforme cible, l'étape finale ne lance aucune commande.
+    (linux/amd64 et linux/arm64) **sans émulation** : compilation, téléchargement et installation des
+    paquets tournent sur la plateforme de construction pour la plateforme cible, l'étape finale ne lance
+    aucune commande.
     `.dockerignore` exclut `.watchoo/`, les bases, `bin/`, `dist/`, `.git/`, `.github/`, `.claude/`,
     `.agents/`, `.vibe/`.
   - **Depuis les sources** : `go install github.com/studoo-app/watchoo/cmd/watchoo@v0.1.0` (version
     alors lue dans les informations de module, sans `-ldflags`) ou `make build` dans un clone.
 - **Docker à l'exécution** :
   - Le token n'est **jamais dans l'image** : `GH_TOKEN` est donné à l'exécution, lu par `gh` (laisser
-    `github.user` vide, voir [Authentification](#authentification--gh-imposé)). Watchoo reste en lecture
+    `github.user` vide, voir [Authentification](#authentification--gh-facultatif)). Watchoo reste en lecture
     seule, mais un token classique `repo` permet aussi d'écrire : un token *fine-grained* limité aux
     dépôts suivis, en lecture seule (`Metadata`, `Contents`), réduit le risque en cas de fuite (non
     vérifié de bout en bout en 0.1.0 ; une organisation peut exiger d'approuver ce type de token).
@@ -546,7 +739,12 @@ Prévu en phase 6 ([Roadmap](07-roadmap.md#phase-6--v2)) ; rien n'est encore cod
     l'hôte au lieu d'un volume nommé, il doit appartenir à l'uid 65532 (ou lancer avec `--user`).
   - Le volume contient la base de l'espace (messages de commit, noms et e-mails de dépôts privés) : **ne
     pas le partager**, ne le monter dans aucun autre conteneur.
-  - Pas de `HEALTHCHECK` : l'image n'a ni shell ni client HTTP, toutes les routes exigent
+  - **Sans `GH_TOKEN`** (V2) : les dépôts sont suivis par clones Git locaux dans le volume
+    (`/data/repos`). Pour des dépôts privés en SSH, monter une clé et un `known_hosts` qui
+    contient `github.com`, en lecture seule : `-v ~/.ssh-watchoo:/home/nonroot/.ssh:ro` (fichiers lisibles
+    par l'uid 65532, clé sans phrase de passe ou agent SSH monté, car `ssh` ne demande rien). Non vérifié
+    de bout en bout en V2 ; un token `GH_TOKEN` reste le plus simple.
+  - Pas de `HEALTHCHECK` : l'image n'a pas de client HTTP, toutes les routes exigent
     l'authentification et Watchoo n'a pas de route de santé. Suite possible : une sous-commande ou une
     route de santé sans données.
 - **Workflow de release** (`.github/workflows/release.yml`) : déclenché seulement par un tag `v*.*.*`

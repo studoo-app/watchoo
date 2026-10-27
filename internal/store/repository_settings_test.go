@@ -63,3 +63,41 @@ func TestSetRepositoryEnabled(t *testing.T) {
 		t.Errorf("dépôt inexistant : %v, attendu ErrNotFound", err)
 	}
 }
+
+func TestSetRepositoryThresholds(t *testing.T) {
+	s := newTestStore(t)
+	ctx := t.Context()
+	id := mustCreateRepo(t, s, 1, "promo", "alice")
+	flemme, dead := 3, 10
+
+	repo, err := s.SetRepositoryThresholds(ctx, id, &flemme, &dead)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if repo.FlemmeAfterDays == nil || *repo.FlemmeAfterDays != 3 || repo.DeadAfterDays == nil || *repo.DeadAfterDays != 10 {
+		t.Errorf("seuils renvoyés : %v, %v", repo.FlemmeAfterDays, repo.DeadAfterDays)
+	}
+	if got, _ := s.GetRepository(ctx, id); got.FlemmeAfterDays == nil || *got.FlemmeAfterDays != 3 {
+		t.Errorf("seuils relus : %+v", got)
+	}
+
+	// Un seul seuil propre, l'autre revient à la valeur globale (NULL).
+	repo, err = s.SetRepositoryThresholds(ctx, id, nil, &dead)
+	if err != nil || repo.FlemmeAfterDays != nil || repo.DeadAfterDays == nil {
+		t.Errorf("seuil Flemme retiré : %+v, %v", repo, err)
+	}
+	var n int
+	if err := s.DB().QueryRowContext(ctx,
+		"SELECT count(*) FROM repositories WHERE id = ? AND flemme_after_days IS NULL", id).Scan(&n); err != nil || n != 1 {
+		t.Errorf("flemme_after_days non NULL en base (%d, %v)", n, err)
+	}
+
+	// La contrainte CHECK refuse une valeur nulle.
+	zero := 0
+	if _, err := s.SetRepositoryThresholds(ctx, id, &zero, nil); err == nil {
+		t.Error("seuil 0 accepté par la base")
+	}
+	if _, err := s.SetRepositoryThresholds(ctx, 999, nil, nil); !errors.Is(err, ErrNotFound) {
+		t.Errorf("dépôt inexistant : %v, attendu ErrNotFound", err)
+	}
+}

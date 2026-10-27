@@ -25,7 +25,7 @@ RETURNING id, provider, provider_id, owner, name, label, default_branch, url, st
 
 type CreateRepositoryParams struct {
 	Provider        string
-	ProviderID      int64
+	ProviderID      sql.NullInt64
 	Owner           string
 	Name            string
 	Label           string
@@ -174,7 +174,7 @@ WHERE provider = ? AND provider_id = ?
 
 type GetRepositoryByProviderIDParams struct {
 	Provider   string
-	ProviderID int64
+	ProviderID sql.NullInt64
 }
 
 // Renvoie le depot par son identifiant numerique sur la forge (stable malgre les renommages).
@@ -287,11 +287,76 @@ func (q *Queries) SetRepositoryLastCommitAt(ctx context.Context, arg SetReposito
 	return err
 }
 
+const setRepositoryThresholds = `-- name: SetRepositoryThresholds :one
+UPDATE repositories
+SET flemme_after_days = ?, dead_after_days = ?
+WHERE id = ?
+RETURNING id, provider, provider_id, owner, name, label, default_branch, url, stars, open_issues, last_synced_at, last_commit_at, archived, flemme_after_days, dead_after_days, enabled, branch_patterns
+`
+
+type SetRepositoryThresholdsParams struct {
+	FlemmeAfterDays sql.NullInt64
+	DeadAfterDays   sql.NullInt64
+	ID              int64
+}
+
+// Remplace les seuils d'activite propres au depot (NULL = valeur globale) et renvoie la ligne a jour.
+func (q *Queries) SetRepositoryThresholds(ctx context.Context, arg SetRepositoryThresholdsParams) (Repository, error) {
+	row := q.db.QueryRowContext(ctx, setRepositoryThresholds, arg.FlemmeAfterDays, arg.DeadAfterDays, arg.ID)
+	var i Repository
+	err := row.Scan(
+		&i.ID,
+		&i.Provider,
+		&i.ProviderID,
+		&i.Owner,
+		&i.Name,
+		&i.Label,
+		&i.DefaultBranch,
+		&i.URL,
+		&i.Stars,
+		&i.OpenIssues,
+		&i.LastSyncedAt,
+		&i.LastCommitAt,
+		&i.Archived,
+		&i.FlemmeAfterDays,
+		&i.DeadAfterDays,
+		&i.Enabled,
+		&i.BranchPatterns,
+	)
+	return i, err
+}
+
+const updateRepositoryLocalMetadata = `-- name: UpdateRepositoryLocalMetadata :execrows
+UPDATE repositories
+SET default_branch = COALESCE(?1, default_branch),
+    last_synced_at = ?2
+WHERE id = ?3
+`
+
+type UpdateRepositoryLocalMetadataParams struct {
+	DefaultBranch sql.NullString
+	LastSyncedAt  sql.NullString
+	ID            int64
+}
+
+// Synchro par clone Git local : seule la branche par defaut (NULL = inconnue, gardee) et la date de
+// fin de la synchro sont ecrites ; owner, name, url, etoiles, issues, archive et provider_id restent
+// ceux en base.
+func (q *Queries) UpdateRepositoryLocalMetadata(ctx context.Context, arg UpdateRepositoryLocalMetadataParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, updateRepositoryLocalMetadata, arg.DefaultBranch, arg.LastSyncedAt, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const updateRepositoryMetadata = `-- name: UpdateRepositoryMetadata :execrows
 UPDATE repositories
-SET owner = ?, name = ?, default_branch = ?, url = ?, stars = ?, open_issues = ?, archived = ?,
-    last_synced_at = ?
-WHERE id = ?
+SET owner = ?1, name = ?2, default_branch = ?3,
+    url = ?4, stars = ?5, open_issues = ?6,
+    archived = ?7, last_synced_at = ?8,
+    provider_id = COALESCE(?9, provider_id)
+WHERE id = ?10
 `
 
 type UpdateRepositoryMetadataParams struct {
@@ -303,10 +368,13 @@ type UpdateRepositoryMetadataParams struct {
 	OpenIssues    int64
 	Archived      bool
 	LastSyncedAt  sql.NullString
+	ProviderID    sql.NullInt64
 	ID            int64
 }
 
-// Ecrit les metadonnees lues sur la forge et la date de fin de la synchro reussie.
+// Ecrit les metadonnees lues sur la forge et la date de fin de la synchro reussie. provider_id NULL
+// garde l'identifiant en base ; sinon il est ecrit (premiere synchro par l'API d'un depot ajoute
+// par clone Git local).
 func (q *Queries) UpdateRepositoryMetadata(ctx context.Context, arg UpdateRepositoryMetadataParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, updateRepositoryMetadata,
 		arg.Owner,
@@ -317,6 +385,7 @@ func (q *Queries) UpdateRepositoryMetadata(ctx context.Context, arg UpdateReposi
 		arg.OpenIssues,
 		arg.Archived,
 		arg.LastSyncedAt,
+		arg.ProviderID,
 		arg.ID,
 	)
 	if err != nil {

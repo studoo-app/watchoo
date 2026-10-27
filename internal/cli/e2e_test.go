@@ -8,6 +8,7 @@ package cli
 import (
 	"encoding/json"
 	"log/slog"
+	"net/http"
 	"path/filepath"
 	"strings"
 	gosync "sync"
@@ -45,6 +46,7 @@ const (
 	e2eMsgBob1   = "e2e-msg-bob-init"
 	e2eMsgBob2   = "e2e-msg-bob-reprise"
 	e2eMsgDave   = "e2e-msg-dave-rendu"
+	e2eTitlePR   = "e2e-titre-pr-alice"
 )
 
 func TestEndToEnd(t *testing.T) {
@@ -75,6 +77,15 @@ func TestEndToEnd(t *testing.T) {
 	a2 := commit(1, e2eMsgAlice2, alice, 2*time.Hour, a1)
 	srv.SetBranch(1, "main", a2)
 	srv.SetBranch(1, "dev", commit(1, e2eMsgDev, bob, time.Hour, a2))
+	// Pull requests, release et tag d'alice/projet (V2).
+	srv.SetPullRequests(1,
+		githubtest.PullRequest{Number: 1, Title: e2eTitlePR, Author: "alice-gh", Head: "login",
+			CreatedAt: start.Add(-5 * time.Hour), UpdatedAt: start.Add(-3 * time.Hour)},
+		githubtest.PullRequest{Number: 2, Title: "fusionnée", Author: "alice-gh", Closed: true,
+			CreatedAt: start.Add(-30 * time.Hour), MergedAt: start.Add(-26 * time.Hour), UpdatedAt: start.Add(-26 * time.Hour)})
+	srv.SetReleases(1, githubtest.Release{ID: 9, TagName: "v1.0", Author: "alice-gh",
+		CreatedAt: start.Add(-time.Hour), PublishedAt: start.Add(-time.Hour)})
+	srv.SetTags(1, githubtest.Tag{Name: "v1.0", SHA: a2})
 	srv.AddRepo(githubtest.Repo{ID: 2, Owner: "bob", Name: "projet", Private: true})
 	b1 := commit(2, e2eMsgBob1, bob, 9*24*time.Hour)
 	srv.SetBranch(2, "main", b1)
@@ -241,6 +252,46 @@ func TestEndToEnd(t *testing.T) {
 		if strings.Contains(r.Path, "/commits") || strings.Contains(r.Path, "/compare/") {
 			t.Errorf("requête de commits alors que rien n'a changé : %s", r.Path)
 		}
+		// Pull requests, releases et tags inchangés : 304, sans quota.
+		for _, suffix := range []string{"/pulls", "/releases", "/tags"} {
+			if strings.HasSuffix(r.Path, suffix) && r.Status != http.StatusNotModified {
+				t.Errorf("%s ?%s : code %d alors que rien n'a changé, attendu 304", r.Path, r.RawQuery, r.Status)
+			}
+		}
+	}
+	if n := srv.Count("/repos/alice/projet/pulls"); n != 1 {
+		t.Errorf("%d lectures des pull requests d'alice/projet, attendu 1", n)
+	}
+
+	// Pull requests (une PR modifiée depuis la synchro précédente), releases et tags.
+	srv.SetPullRequests(1, githubtest.PullRequest{Number: 3, Title: "nouvelle", Author: "bob-gh",
+		CreatedAt: clk.Now().Add(-time.Minute)})
+	e2eSync(t, h)
+	var prs struct {
+		PullRequests []struct {
+			Number int    `json:"number"`
+			State  string `json:"state"`
+			Title  string `json:"title"`
+		} `json:"pull_requests"`
+	}
+	decodeLoose(t, h.run("prs", "--json").mustSucceed(t).stdout, &prs)
+	if len(prs.PullRequests) != 3 || prs.PullRequests[0].Number != 3 || prs.PullRequests[2].State != "merged" ||
+		prs.PullRequests[1].Title != e2eTitlePR {
+		t.Errorf("prs = %+v", prs)
+	}
+	var releases struct {
+		Releases []struct {
+			TagName string `json:"tag_name"`
+		} `json:"releases"`
+		Tags []struct {
+			Name        string     `json:"name"`
+			CommittedAt *time.Time `json:"committed_at"`
+		} `json:"tags"`
+	}
+	decodeLoose(t, h.run("releases", "--json").mustSucceed(t).stdout, &releases)
+	if len(releases.Releases) != 1 || releases.Releases[0].TagName != "v1.0" || len(releases.Tags) != 1 ||
+		releases.Tags[0].CommittedAt == nil {
+		t.Errorf("releases = %+v", releases)
 	}
 
 	// 10. repo remove : --keep-history arrête le suivi ; sans, le dépôt et son historique disparaissent.
@@ -257,7 +308,7 @@ func TestEndToEnd(t *testing.T) {
 
 	// Aucun message de commit dans les logs (le token est vérifié par le harness à chaque commande).
 	logs := testLogs.String()
-	for _, msg := range []string{e2eMsgAlice1, e2eMsgAlice2, e2eMsgDev, e2eMsgBob1, e2eMsgBob2, e2eMsgDave,
+	for _, msg := range []string{e2eMsgAlice1, e2eMsgAlice2, e2eMsgDev, e2eMsgBob1, e2eMsgBob2, e2eMsgDave, e2eTitlePR,
 		"alice@example.test", "bob@example.test"} {
 		if strings.Contains(logs, msg) {
 			t.Errorf("donnée personnelle %q dans les logs", msg)

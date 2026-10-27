@@ -1,6 +1,7 @@
 package store
 
-// Réglages d'un dépôt modifiables par l'utilisateur (repo add / import / remove --keep-history).
+// Réglages d'un dépôt modifiables par l'utilisateur (repo add / import / remove --keep-history, seuils
+// d'activité du web).
 
 import (
 	"context"
@@ -26,6 +27,25 @@ func (s *Store) UpdateRepositorySettings(ctx context.Context, id int64, label st
 			return model.Repository{}, fmt.Errorf("dépôt %d : %w", id, ErrNotFound)
 		}
 		return model.Repository{}, fmt.Errorf("mise à jour du dépôt %d : %w", id, err)
+	}
+	return repositoryFromDB(row)
+}
+
+// SetRepositoryThresholds remplace les seuils d'activité propres au dépôt id (nil = valeur globale ;
+// une valeur doit valoir au moins 1, contrainte CHECK du schéma) et renvoie le dépôt à jour. La
+// cohérence des deux seuils est vérifiée en amont (repoimport.ValidateThresholds). Erreur enveloppant
+// ErrNotFound si le dépôt n'existe pas.
+func (s *Store) SetRepositoryThresholds(ctx context.Context, id int64, flemme, dead *int) (model.Repository, error) {
+	row, err := s.queries.SetRepositoryThresholds(ctx, db.SetRepositoryThresholdsParams{
+		FlemmeAfterDays: nullInt(flemme),
+		DeadAfterDays:   nullInt(dead),
+		ID:              id,
+	})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return model.Repository{}, fmt.Errorf("dépôt %d : %w", id, ErrNotFound)
+		}
+		return model.Repository{}, fmt.Errorf("seuils du dépôt %d : %w", id, err)
 	}
 	return repositoryFromDB(row)
 }

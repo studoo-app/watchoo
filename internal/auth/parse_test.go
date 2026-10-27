@@ -2,6 +2,7 @@ package auth
 
 import (
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -346,5 +347,23 @@ func TestCappedBuffer(t *testing.T) {
 	}
 	if b.overflow {
 		t.Error("overflow = true pour une sortie qui tient exactement dans la limite")
+	}
+}
+
+func TestAbsent(t *testing.T) {
+	tests := map[error]bool{
+		ErrGHNotFound:                       true,
+		ErrNotLoggedIn:                      true,
+		ErrUnusableUser:                     true,
+		fmt.Errorf("x : %w", ErrGHNotFound): true,
+		ErrCheckFailed:                      false,
+		ErrTimeout:                          false,
+		ErrUnexpectedOutput:                 false,
+		errors.New("autre"):                 false,
+	}
+	for err, want := range tests {
+		if got := Absent(err); got != want {
+			t.Errorf("Absent(%v) = %v, attendu %v", err, got, want)
+		}
 	}
 }

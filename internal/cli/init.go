@@ -13,6 +13,7 @@ import (
 
 	"github.com/studoo-app/watchoo/internal/auth"
 	"github.com/studoo-app/watchoo/internal/store"
+	wsync "github.com/studoo-app/watchoo/internal/sync"
 	"github.com/studoo-app/watchoo/internal/workspace"
 )
 
@@ -35,8 +36,10 @@ type initReport struct {
 	Database   string `json:"database"`    // .watchoo/watchoo.db
 	// ParentWorkspace est la racine d'un espace parent déjà existant (espace imbriqué) ; vide sinon.
 	ParentWorkspace string       `json:"parent_workspace"`
-	GitHub          githubReport `json:"github"`
-	Warnings        []string     `json:"warnings"` // avertissements, aussi affichés sur la sortie d'erreur
+	GitHub          githubReport `json:"github"` // compte gh ; champs vides sans gh (Source « git »)
+	// Source : « api » (gh installé et connecté) ou « git » (clones Git locaux, sans gh).
+	Source   wsync.SourceKind `json:"source"`
+	Warnings []string         `json:"warnings"` // avertissements, aussi affichés sur la sortie d'erreur
 }
 
 // githubReport décrit le compte gh vérifié par init, sans le token.
@@ -53,9 +56,13 @@ func newInitCmd(deps Deps, opts *options) *cobra.Command {
 		Use:   "init",
 		Short: "Fait du répertoire courant un espace de supervision",
 		Long: `Fait du répertoire courant (ou de celui donné par -C) un espace de supervision :
-vérifie que la CLI GitHub gh est installée et connectée, puis crée .watchoo/ avec
-config.yaml, la base SQLite au bon schéma et un .gitignore. Le répertoire .watchoo/
-est lisible par vous seul (droits 0700, fichiers en 0600).
+vérifie la CLI GitHub gh, puis crée .watchoo/ avec config.yaml, la base SQLite au bon
+schéma et un .gitignore. Le répertoire .watchoo/ est lisible par vous seul (droits
+0700, fichiers en 0600).
+
+Sans gh installé et connecté, init prévient que les dépôts seront suivis par clones
+Git locaux (git doit alors être installé, sinon init s'arrête) et rappelle
+« gh auth login » pour passer par l'API GitHub.
 
 init refuse un répertoire qui est déjà un espace, pour ne jamais écraser de données,
 et prévient si l'espace créé est imbriqué dans un autre espace. Il ne demande ni ne
@@ -70,7 +77,8 @@ stocke aucun token : gh le garde.`,
 }
 
 // runInit enchaîne les étapes de « watchoo init » : réglages utilisateur, vérification de gh (Status
-// seulement, jamais Token), création de .watchoo/, création et migration de la base, résumé.
+// seulement, jamais Token ; sans gh utilisable, vérification de git), création de .watchoo/, création
+// et migration de la base, résumé.
 func runInit(ctx context.Context, deps Deps, opts *options) error {
 	root, err := initRoot(deps, opts.workspaceDir)
 	if err != nil {
@@ -83,8 +91,23 @@ func runInit(ctx context.Context, deps Deps, opts *options) error {
 	if err != nil {
 		return err
 	}
+	source := wsync.SourceAPI
+	var warning string // gh absent ou non connecté
 	status, err := deps.NewAuthClient(cfg).Status(ctx)
-	if err != nil {
+	switch {
+	case err == nil:
+	case noGH(err, status, cfg):
+		// gh absent ou non connecté (V2) : suivi par clones Git locaux, qui demande git.
+		if gitErr := deps.CheckGit(ctx); gitErr != nil {
+			return &hintError{
+				msg: fmt.Sprintf("%s ; sans gh, les dépôts sont suivis par clones Git locaux, mais %s",
+					ghError(err, cfg).Error(), gitErr.Error()),
+				err: errors.Join(err, gitErr),
+			}
+		}
+		source, status = wsync.SourceGit, auth.Status{}
+		warning = noGHWarning(err, cfg)
+	default:
 		return ghError(err, cfg)
 	}
 
@@ -117,7 +140,11 @@ func runInit(ctx context.Context, deps Deps, opts *options) error {
 			TokenSource: status.TokenSource,
 			Scopes:      append([]string{}, status.Scopes...),
 		},
+		Source:   source,
 		Warnings: initWarnings(deps, opts, ws.Root, res.ParentWorkspace),
+	}
+	if warning != "" {
+		report.Warnings = append([]string{warning}, report.Warnings...)
 	}
 	for _, w := range report.Warnings {
 		warn(deps.Stderr, w)
@@ -178,6 +205,32 @@ func createDatabase(ctx context.Context, path string) (err error) {
 		}
 	}()
 	return st.Migrate(ctx)
+}
+
+// noGH indique un gh absent ou connecté à aucun compte (auth.Absent), qui fait suivre les dépôts par
+// clones Git locaux. N'en font pas partie pour init : un réglage github.user inutilisable
+// (ErrUnusableUser) ou qui désigne un compte que gh ne connaît pas (github.user renseigné), fautes de
+// réglage à corriger avant de créer l'espace, et un token refusé par GitHub (ErrNotLoggedIn avec le
+// login du compte dans status) : gh garde ce token, les synchros passeraient par l'API et
+// échoueraient ; il faut se reconnecter.
+func noGH(err error, status auth.Status, cfg workspace.Config) bool {
+	if errors.Is(err, auth.ErrGHNotFound) {
+		return true
+	}
+	return auth.Absent(err) && !errors.Is(err, auth.ErrUnusableUser) && status.Login == "" && cfg.GitHub.User == ""
+}
+
+// noGHWarning renvoie l'avertissement de init sans gh : les dépôts seront suivis par clones Git
+// locaux, et comment passer par l'API GitHub.
+func noGHWarning(err error, cfg workspace.Config) string {
+	const local = "les dépôts seront suivis par clones Git locaux (repos/ dans l'espace), avec la clé SSH ou les " +
+		"identifiants Git de cette machine (sans pull requests, releases ni étoiles)"
+	if errors.Is(err, auth.ErrGHNotFound) {
+		return fmt.Sprintf("gh introuvable (github.gh_path : %q) : %s ; %s, puis lancez « gh auth login » pour "+
+			"passer par l'API GitHub", cfg.GitHub.GHPath, local, hintInstallGH)
+	}
+	return "gh n'est connecté à aucun compte GitHub : " + local + " ; " + hintLoginGH +
+		" pour passer par l'API GitHub"
 }
 
 // ghError traduit une erreur de vérification de gh en message qui dit quoi faire. L'erreur d'origine
@@ -241,9 +294,17 @@ func writeInitText(w io.Writer, r initReport) error {
   répertoire  %s
   réglages    %s
   base        %s
-  compte gh   %s sur %s (%s)
-`, r.Name, r.Root, r.ConfigFile, r.Database, r.GitHub.Login, r.GitHub.Host, scopesText(r.GitHub.Scopes))
+  %s
+`, r.Name, r.Root, r.ConfigFile, r.Database, initAccountLine(r))
 	return err
+}
+
+// initAccountLine décrit l'accès aux dépôts dans le résumé de init : compte gh, ou clones Git locaux.
+func initAccountLine(r initReport) string {
+	if r.Source == wsync.SourceGit {
+		return "source      clones Git locaux (gh absent ou non connecté)"
+	}
+	return fmt.Sprintf("compte gh   %s sur %s (%s)", r.GitHub.Login, r.GitHub.Host, scopesText(r.GitHub.Scopes))
 }
 
 // scopesText décrit les droits du token gh pour le résumé de init.

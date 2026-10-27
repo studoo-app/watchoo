@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -258,7 +259,22 @@ func TestDetail(t *testing.T) {
 		"Derniers commits", "Ajoute la page d'accueil", "Principaux contributeurs")
 	mustNotContain(t, screen, "corrige") // commit d'un autre dépôt
 
+	// Activité par semaine des contributeurs du dépôt (12 semaines, la plus récente à droite) : Alice
+	// 3 commits (2 cette semaine, 1 il y a deux semaines) ; Bob, son seul commit hors fenêtre.
+	mustContain(t, screen, "activité sur 12 semaines, la plus récente à droite", "12 SEM.", "PAR SEMAINE")
+	alice := lineWith(screen, "▁▁▁▁▁▁▁▁▁▅▁█")
+	if !strings.Contains(alice, "Alice") || !strings.Contains(alice, " 3 ") {
+		t.Errorf("ligne d'Alice = %q ; attendu 3 commits sur 12 semaines et la courbe ▁▁▁▁▁▁▁▁▁▅▁█", alice)
+	}
+	bob := lineWith(screen, "▁▁▁▁▁▁▁▁▁▁▁▁")
+	if !strings.Contains(bob, "Bob") || !strings.Contains(bob, " 0 ") {
+		t.Errorf("ligne de Bob = %q ; attendu 0 commit sur 12 semaines", bob)
+	}
+
 	data.mu.Lock()
+	if !slices.Equal(data.authorReads, []int64{1}) {
+		t.Errorf("AuthorCommitTimes lu pour %v, attendu le seul dépôt 1", data.authorReads)
+	}
 	last := data.commitFilters[len(data.commitFilters)-1]
 	data.mu.Unlock()
 	if last.RepoID != 1 || last.Limit != detailCommits {
@@ -617,4 +633,56 @@ func TestWithRealStore(t *testing.T) {
 	l.until(func(m Model) bool { return m.detail.open && !m.detail.loading })
 	mustContain(t, l.screen(), "1 branche suivie, par défaut : main", "Premier rendu", "Principaux contributeurs")
 	mustNotContain(t, l.screen(), "zoe@example.test")
+	// Activité par semaine lue dans la vraie base : le commit de Zoé, cette semaine.
+	if line := lineWith(l.screen(), "▁▁▁▁▁▁▁▁▁▁▁█"); !strings.Contains(line, "Zoé") {
+		t.Errorf("ligne de Zoé = %q ; attendu la courbe ▁▁▁▁▁▁▁▁▁▁▁█", line)
+	}
+}
+
+// Seuils propres au dépôt : appliqués et signalés dans le détail.
+func TestDetailOwnThresholds(t *testing.T) {
+	data := newFakeData()
+	flemme := 1
+	data.repos[0].FlemmeAfterDays = &flemme // Alice : dernier commit il y a 2 h, toujours Actif
+	l := newLoop(t, testDeps(data, &fakeSyncer{}))
+	l.press("enter")
+	l.until(func(m Model) bool { return m.detail.open && !m.detail.loading })
+	mustContain(t, l.screen(), "seuils : Flemme après 1 j, Dead après 15 j (propres au dépôt)")
+}
+
+// Détail d'un dépôt : pull requests ouvertes et dernière release (V2) ; avertissements dans le bilan.
+func TestDetailPullsAndRelease(t *testing.T) {
+	data := newFakeData()
+	data.repos[0].OpenPullRequests = 2
+	data.repos[0].LatestRelease = model.Release{ProviderID: 1, TagName: "v1.0\x1b[2J",
+		PublishedAt: data.repos[0].LastCommitAt}
+	l := newLoop(t, testDeps(data, &fakeSyncer{}))
+	l.press("enter")
+	l.until(func(m Model) bool { return m.detail.open && !m.detail.loading })
+	screen := l.screen()
+	mustContain(t, screen, "Pull requests", "2 ouvertes, dernière release v1.0 (il y a 2 h)")
+	mustNotContain(t, screen, "\x1b[2J")
+
+	if got := l.m.pullsText(0, model.Release{}); got != "aucune ouverte, aucune release" {
+		t.Errorf("pullsText sans rien = %q", got)
+	}
+	text, bad := l.m.summarize(wsync.Report{Repos: []wsync.RepoReport{
+		{DisplayName: "a", Status: wsync.StatusSuccess, Warnings: []string{"tags non synchronisés : x"}},
+		{DisplayName: "b", Status: wsync.StatusSuccess}}})
+	if text != "synchro terminée : 2 dépôts, 0 nouveau commit, 1 avertissement (pull requests, releases ou tags)" || bad {
+		t.Errorf("summarize avec avertissement = %q, %v", text, bad)
+	}
+}
+
+// Dépôt suivi seulement par clone Git local (identifiant de forge inconnu, V2) : étoiles, issues et
+// pull requests sont annoncées non disponibles.
+func TestDetailWithoutForgeDetails(t *testing.T) {
+	data := newFakeData()
+	data.repos[0].ProviderID = 0
+	l := newLoop(t, testDeps(data, &fakeSyncer{}))
+	l.press("enter")
+	l.until(func(m Model) bool { return m.detail.open && !m.detail.loading })
+	mustContain(t, l.screen(), "étoiles et issues non disponibles (clone Git local)",
+		"non disponibles (clone Git local, sans gh)")
+	mustNotContain(t, l.screen(), "aucune release")
 }

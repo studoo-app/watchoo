@@ -29,7 +29,8 @@ erreurs (500…) : pages en français, sans détail interne (le détail est dans
 
 ### 1. Tableau de bord
 - Une **carte par dépôt** : nom affiché (`label`, ex. « Alice Martin ») ou `owner/repo` (rappelé sous le
-  label), première ligne du dernier commit, auteur, ancienneté, nombre de commits et de branches suivies.
+  label), première ligne du dernier commit, auteur, ancienneté, nombre de commits et de branches suivies,
+  et nombre de pull requests ouvertes s'il y en a (V2).
 - **Pastille d'état** (voir [règles](02-fonctionnalites.md#règles-fonctionnelles)) : Actif en vert
   (`badge-success`), Flemme en orange (`badge-warning`), Dead en rouge (`badge-error`) ; jamais
   synchronisé, en erreur, archivé, arrêté ou vide en gris (`badge-neutral`). Libellés identiques à la
@@ -46,8 +47,18 @@ erreurs (500…) : pages en français, sans détail interne (le détail est dans
 - Bouton **« Synchroniser maintenant »**. Sans aucun dépôt : un état vide renvoie vers les réglages.
 
 ### 2. Détail d'un dépôt
-- En-tête : état, seuils, dernier commit, dernière synchro et son résultat, nombre de commits, branche par
-  défaut, branches suivies et motifs, étoiles et issues.
+- En-tête : état, seuils appliqués (chacun marqué « propre à ce dépôt » ou « de l'espace », lien
+  « Modifier » vers le formulaire des seuils), dernier commit, dernière synchro et son résultat, nombre
+  de commits, branche par défaut, branches suivies et motifs, étoiles et issues.
+- **Seuils d'activité de ce dépôt** (bloc repliable sous l'en-tête, hors des fragments HTMX : une saisie
+  en cours n'est pas effacée par le rafraîchissement d'après synchro) : deux champs, « Flemme après » et
+  « Dead après », en jours sans commit, préremplis avec les seuils propres du dépôt ; vide (ou `0`) =
+  seuil de l'espace, rappelé dans le texte et en indication des champs. `POST /repos/{id}/thresholds`
+  (CSRF) : mêmes règles que `repo add --flemme / --dead` (1 à 3 650 jours, Dead strictement supérieur
+  à Flemme quand les deux sont donnés), enregistrement par le moteur (`Engine.SetThresholds`), puis
+  redirection `303` vers `/repos/{id}?msg=thresholds#repo-thresholds` (bloc ouvert, message de
+  confirmation, état recalculé). Saisie refusée : `400`, page réaffichée avec le message et la saisie ;
+  dépôt inconnu : `404`.
 - Historique des commits **paginé** (50 par page, liens précédent / suivant, HTMX). Le numéro de page
   hors bornes est ramené à la première ou à la dernière page.
 - Filtres par **branche** (branches suivies d'abord) et par **auteur** (login GitHub, sinon nom Git ;
@@ -64,10 +75,34 @@ erreurs (500…) : pages en français, sans détail interne (le détail est dans
   `app.js` relit la page (même origine), extrait les données avec `DOMParser` (qui n'exécute rien) et
   redessine.
 - Liste des contributeurs du dépôt (avatar ou initiale, login, dernier commit).
+- **Activité par contributeur sur 12 semaines** (V2) : le graphique de la page des contributeurs
+  (barres empilées des commits par semaine, 8 contributeurs les plus actifs de la période, les autres
+  regroupés, table « Données du graphique » repliable), restreint aux commits du dépôt : toutes les
+  branches suivies, un commit présent sur plusieurs branches compté une fois (`store.AuthorCommitTimes`
+  avec le dépôt). Toujours affiché : sans commit d'auteur connu sur la période, le résumé le dit
+  (« Aucun commit d'auteur connu depuis le … ») et la table aussi ; le graphique se remplit à la fin
+  d'une synchro, sans recharger la page. Voir [Graphiques d'activité](#graphiques-dactivité).
+- **Pull requests, releases et tags** (V2, fragment `repo-pulls`) : deux cartes côte à côte (l'une sous
+  l'autre sur un écran étroit).
+  - **Pull requests** : toutes les PR ouvertes (brouillons marqués), puis les 10 dernières mergées ;
+    pour chacune, numéro et titre (première ligne, liés à la PR sur GitHub), auteur (login), branches
+    (`tête → base`) et date relative (ouverture pour une PR ouverte, merge sinon). Compteurs en tête
+    (ouvertes, mergées, fermées sans merge).
+  - **Releases et tags** : les 10 dernières releases (tag, titre, pastille `pré-release` ou
+    `brouillon`, date de publication, liées à la release sur GitHub), puis les 15 derniers tags (nom,
+    SHA court lié au commit sur GitHub s'il est en base, date de ce commit).
+  - Sans donnée : « Aucune pull request en base » / « Aucune release ni aucun tag en base » (dépôt qui
+    n'en a pas, ou pas encore synchronisé).
+  - **Dépôt jamais lu par l'API** (V2 : suivi par [clones Git locaux](03-architecture.md#dépôts-git-locaux-v2),
+    sans `gh`, `provider_id` inconnu) : la carte « Pull requests » dit qu'elles ne sont pas disponibles
+    et rappelle `gh auth login`, sans compteurs ; la carte « Releases et tags » montre les tags (lus par
+    `git`) et précise que les releases ne le sont pas ; dans l'en-tête, « Sur GitHub » remplace les
+    étoiles et les issues par « non disponibles ». Un dépôt déjà lu par l'API garde ses dernières
+    valeurs.
 - Bouton **« Synchroniser ce dépôt »** (absent si le suivi est arrêté).
 - Fragments : `/repos/{id}/commits` (historique) ; `/repos/{id}` avec l'en-tête `HX-Target`
-  `repo-overview` ou `repo-contributors` renvoie l'en-tête ou les contributeurs seuls. Tous se
-  rechargent à la fin d'une synchro.
+  `repo-overview`, `repo-contributors` ou `repo-pulls` renvoie l'en-tête, les contributeurs ou les pull
+  requests et releases seuls. Tous se rechargent à la fin d'une synchro.
 
 ### 3. Contributeurs
 - Classement global (commits, part du total, lignes ajoutées / retirées ; « — » si les statistiques n'ont
@@ -89,7 +124,7 @@ erreurs (500…) : pages en français, sans détail interne (le détail est dans
 ### 4. Réglages
 - Liste des dépôts suivis (état, branches, commits, dernière synchro).
 - Ajouter un dépôt (`owner/repo` ou URL, label, branches : mêmes vérifications que `watchoo repo add`,
-  accès vérifié auprès de GitHub, aucune synchro lancée). Un champ branches vide veut dire « non
+  accès vérifié auprès de GitHub, ou par `git ls-remote` sans `gh` (V2), aucune synchro lancée). Un champ branches vide veut dire « non
   précisé » : un nouveau dépôt suit toutes les branches, un dépôt déjà suivi garde ses motifs. Réponses :
   redirection vers `/settings?msg=<code>&repo=<id>` (le message est construit par le serveur à partir
   d'une liste fixe de codes : rien de la requête n'est renvoyé tel quel), `400` avec le formulaire
@@ -98,7 +133,8 @@ erreurs (500…) : pages en français, sans détail interne (le détail est dans
   réaffichée.
 - Modifier le nom affiché et les branches (champ vide : toutes les branches).
 - Retirer un dépôt : page de confirmation (`GET`, ne modifie rien), puis arrêt du suivi avec historique
-  gardé (comme `repo remove --keep-history`), ou suppression avec l'historique. **Choix** : la
+  gardé (comme `repo remove --keep-history`, clone Git local gardé aussi), ou suppression avec
+  l'historique et le clone Git local (V2) s'il existe. **Choix** : la
   suppression est refusée (`409`) pendant une synchro, pour que le moteur n'écrive pas dans un dépôt en
   cours de suppression ; l'arrêt du suivi reste possible. Un dépôt arrêté peut reprendre son suivi.
 - Import groupé depuis un fichier CSV (même format et même bilan que `watchoo repo import`) : V2.
@@ -117,7 +153,7 @@ erreurs (500…) : pages en français, sans détail interne (le détail est dans
     seulement ; `Cache-Control: no-store`) ;
   - formulaire **« Importer »** : `POST /settings/import` (`multipart/form-data`, champ `file`, CSRF,
     1 Mio au plus) **valide et affiche l'aperçu sans rien appliquer** : dépôts à ajouter, à mettre à
-    jour (avant → après), à reprendre, inchangés ; réglages modifiés ; avertissements (variable
+    jour (avant → après : nom affiché, branches, seuils propres), à reprendre, inchangés ; réglages modifiés ; avertissements (variable
     `WATCHOO_*` qui masque un réglage, commentaires de `config.yaml` perdus). L'aperçu ne vérifie pas
     l'accès aux dépôts. Fichier invalide : `400` avec le message de validation ; trop gros : `413` ;
   - bouton **« Appliquer »** : `POST /settings/import/apply` (CSRF) renvoie le contenu du fichier dans un
@@ -143,17 +179,21 @@ erreurs (500…) : pages en français, sans détail interne (le détail est dans
     l'import se relance sans risque (ou se fait par la CLI).
 - État du **quota API** GitHub (restant, limite, remise à zéro en heure locale, « quota bas » sous
   10 %), lu par une requête gratuite (`GET /rate_limit`) dans un fragment chargé après la page et
-  rechargé à la fin d'une synchro ; « quota inconnu » si `gh` ne donne pas de token.
+  rechargé à la fin d'une synchro ; « quota inconnu » si `gh` est en panne ou que la lecture échoue.
+  Sans `gh` installé et connecté (V2), « sans objet » : les dépôts sont suivis par clones Git locaux,
+  sans quota, et le fragment le dit (avec ce qui n'est alors pas lu et le rappel de `gh auth login`).
 - Les formulaires des réglages sont des `POST` classiques (redirection `303`, ou page réaffichée avec
   l'erreur), car HTMX ne remplace pas le contenu sur une réponse 4xx. La liste des dépôts n'est pas
   rechargée à la fin d'une synchro (seul le quota l'est).
 
 ## Graphiques d'activité
 
-Trois graphiques (Chart.js 4, embarqué, chargé seulement sur les pages qui en ont un) : détail d'un
-dépôt et tableau de bord (commits par jour sur 90 jours, `activity.DailyCounts`), contributeurs
-(commits par semaine sur 12 semaines, `activity.WeeklyCounts`, séries construites par
-`buildContributorChart` dans `internal/web/charts.go`).
+Deux formes de graphique (Chart.js 4, embarqué, chargé seulement sur les pages qui en ont un) :
+commits par jour sur 90 jours (`activity.DailyCounts`) pour le tableau de bord et le détail d'un
+dépôt ; commits par semaine et par contributeur sur 12 semaines (`activity.CountContributorWeeks`,
+séries construites par `buildContributorChart` dans `internal/web/charts.go`, template partagé
+`contributors-chart` de `partials.html`) pour la page des contributeurs (tous les dépôts) et le détail
+d'un dépôt (ses seuls commits).
 
 - **Calcul en Go**, par des fonctions pures testées : jours et semaines (du lundi au dimanche) dans le
   **fuseau d'affichage** de l'espace ([Dates](04-modele-donnees.md#dates)) ; dates lues par
@@ -171,7 +211,8 @@ dépôt et tableau de bord (commits par jour sur 90 jours, `activity.DailyCounts
   Une carte de graphique n'est rendue que si l'espace a des données au chargement de la page (au
   moins un dépôt suivi pour le tableau de bord, un auteur connu pour les contributeurs) : sur un espace
   encore vide, elle n'apparaît qu'au rechargement de la page qui suit la première synchro (limite connue
-  de 0.1.0).
+  de 0.1.0). Les deux graphiques du détail d'un dépôt sont toujours rendus (vides, avec leur résumé,
+  jusqu'au premier commit) ; ils relisent la même page, une seule fois.
 - **Couleurs** : barres simples de la couleur primaire du thème ; séries des contributeurs dans une
   palette catégorielle de 8 teintes en ordre fixe, avec une variante claire et une variante sombre
   (vérifiées pour les daltonismes courants et le contraste sur le fond de chaque thème ; en thème clair,

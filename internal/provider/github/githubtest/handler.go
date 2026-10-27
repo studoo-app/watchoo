@@ -371,6 +371,12 @@ func (s *Server) repoRoute(repo *repoState, rest, escRest []string, r *http.Requ
 			return s.emptyRepo(now)
 		}
 		return s.commitReply(repo, rest[1], now)
+	case len(rest) == 1 && rest[0] == "pulls":
+		return s.pullsReply(repo, q, linkBase, now)
+	case len(rest) == 1 && rest[0] == "releases":
+		return s.releasesReply(repo, q, linkBase, now)
+	case len(rest) == 1 && rest[0] == "tags":
+		return s.tagsReply(repo, q, linkBase, now)
 	case len(rest) == 2 && rest[0] == "compare" && rest[1] != "":
 		if empty {
 			return s.emptyRepo(now)

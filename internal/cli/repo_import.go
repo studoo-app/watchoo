@@ -55,14 +55,15 @@ func newRepoImportCmd(deps Deps, opts *options) *cobra.Command {
 		Long: `Ajoute d'un coup une liste de dépôts, par exemple ceux d'une promotion.
 
 Le fichier est un CSV avec une ligne d'en-tête repo,label,branches (seule la colonne
-repo est obligatoire), ou un simple texte avec un dépôt par ligne. Les lignes vides et
+repo est obligatoire ; flemme et dead, facultatives, donnent les seuils d'activité du
+dépôt en jours, 0 pour revenir aux seuils de l'espace), ou un simple texte avec un dépôt par ligne. Les lignes vides et
 celles qui commencent par # sont ignorées. « - » lit la liste sur l'entrée standard.
 
 Tout le fichier est validé avant d'ajouter quoi que ce soit : une ligne mal formée
 arrête l'import en indiquant son numéro. L'accès à chaque dépôt est ensuite vérifié
 auprès de GitHub ; un dépôt inaccessible est signalé sans bloquer les autres. Un dépôt
-déjà suivi n'est pas ajouté en double : son label et ses branches sont mis à jour si le
-fichier en donne (une cellule vide garde la valeur existante). L'import peut donc être
+déjà suivi n'est pas ajouté en double : son label, ses branches et ses seuils sont mis à
+jour si le fichier en donne (une cellule vide garde la valeur existante). L'import peut donc être
 relancé sans risque.
 
 Le code de retour est non nul s'il reste des dépôts inaccessibles. L'import ne lance
@@ -97,7 +98,8 @@ func runRepoImport(ctx context.Context, deps Deps, opts *options, file string, d
 	}
 	reqs := make([]wsync.AddRequest, len(entries))
 	for i, e := range entries {
-		reqs[i] = wsync.AddRequest{Line: e.Line, Ref: e.Ref, Label: e.Label, BranchPatterns: e.Branches}
+		reqs[i] = wsync.AddRequest{Line: e.Line, Ref: e.Ref, Label: e.Label, BranchPatterns: e.Branches,
+			FlemmeAfterDays: e.FlemmeAfterDays, DeadAfterDays: e.DeadAfterDays}
 	}
 	results, err := engine.AddRepositories(ctx, reqs, wsync.AddOptions{DryRun: dryRun})
 	if err != nil {

@@ -1,14 +1,14 @@
 # syntax=docker/dockerfile:1
 #
-# Image Docker de Watchoo : watchoo et la CLI GitHub officielle (gh), sur une base distroless sans
-# shell, en utilisateur non root.
+# Image Docker de Watchoo : watchoo, la CLI GitHub officielle (gh) et git (dépôts suivis par clones Git
+# locaux quand gh n'est pas connecté), sur une base Alpine minimale, en utilisateur non root.
 #
 #   make docker                                  # image locale watchoo:dev (version, commit, date injectés)
 #   docker build -t watchoo:dev .                # idem, version « dev »
 #
-# Multi-architecture (linux/amd64, linux/arm64) sans émulation : les deux premières étapes tournent sur
-# la plateforme de construction ($BUILDPLATFORM) et compilent / téléchargent pour la plateforme cible
-# ($TARGETARCH) ; l'étape finale ne lance aucune commande.
+# Multi-architecture (linux/amd64, linux/arm64) sans émulation : les trois premières étapes tournent sur
+# la plateforme de construction ($BUILDPLATFORM) et compilent / téléchargent / installent pour la
+# plateforme cible ($TARGETARCH) ; l'étape finale (FROM scratch) ne lance aucune commande.
 #
 # Le token GitHub n'est JAMAIS dans l'image : il est donné à l'exécution par la variable GH_TOKEN, que
 # gh lit (laisser github.user vide dans ce cas). Exemple complet : README.md et
@@ -16,7 +16,9 @@
 
 # Images de base épinglées par version et par empreinte (digest de l'index multi-architecture).
 ARG GO_IMAGE=golang:1.27.3-alpine3.24@sha256:d200d2dd76b03a99b52651fd1325aff7dcd35422c35c01bac56571b0507f3deb
-ARG RUNTIME_IMAGE=gcr.io/distroless/static-debian13:nonroot@sha256:18f4cc26c9ffa7f20a359298be7deadac5c607c8e03a02b8119f1a5fc2f82c99
+# Alpine sert seulement à installer, pour l'architecture cible, les paquets de l'image finale (git, ssh,
+# certificats, fuseaux horaires) : « apk --root --arch », signatures vérifiées par les clés d'Alpine.
+ARG ALPINE_IMAGE=alpine:3.24@sha256:be2656061b536c1883c4034790e21d0a09c5aaaf51968b89368a3c0371ea2c9a
 
 # ── gh : binaire officiel de la release GitHub cli/cli, vérifié par SHA-256 ─────────────────────────
 FROM --platform=$BUILDPLATFORM ${GO_IMAGE} AS gh
@@ -70,8 +72,33 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
     # Répertoire de l'espace (volume), à l'utilisateur nonroot (65532) de l'image finale, en 0700.
     mkdir -p /out/data && chmod 0700 /out/data
 
+# ── système de l'image finale : git, ssh, certificats et fuseaux horaires, pour l'architecture cible ──
+FROM --platform=$BUILDPLATFORM ${ALPINE_IMAGE} AS rootfs
+ARG TARGETARCH
+RUN set -eu; \
+    case "${TARGETARCH}" in \
+      amd64) arch=x86_64 ;; \
+      arm64) arch=aarch64 ;; \
+      *) echo "architecture non prise en charge : ${TARGETARCH}" >&2; exit 1 ;; \
+    esac; \
+    # Clés de signature d'Alpine pour l'architecture cible (paquet alpine-keys de l'image épinglée).
+    mkdir -p /rootfs/etc/apk/keys; \
+    cp -L "/usr/share/apk/keys/${arch}/"* /rootfs/etc/apk/keys/; \
+    cp /etc/apk/repositories /rootfs/etc/apk/; \
+    # Paquets dont la signature est vérifiée avec ces clés ; sans script
+    # d'installation, qui ne pourrait pas tourner pour une autre architecture. busybox-binsh fournit
+    # /bin/sh, dont git a besoin pour lancer la commande SSH (GIT_SSH_COMMAND).
+    apk add --root /rootfs --arch "${arch}" --initdb --no-cache --no-scripts \
+      alpine-baselayout-data musl busybox busybox-binsh ca-certificates-bundle tzdata git openssh-client-default; \
+    rm -rf /rootfs/etc/apk /rootfs/lib/apk /rootfs/var/cache/apk /rootfs/usr/share/apk; \
+    # Utilisateur nonroot (uid / gid 65532, comme distroless), avec un répertoire personnel pour ~/.ssh.
+    echo "nonroot:x:65532:65532:nonroot:/home/nonroot:/sbin/nologin" >> /rootfs/etc/passwd; \
+    echo "nonroot:x:65532:" >> /rootfs/etc/group; \
+    mkdir -p /rootfs/home/nonroot /rootfs/tmp; \
+    chown 65532:65532 /rootfs/home/nonroot; chmod 0700 /rootfs/home/nonroot; chmod 1777 /rootfs/tmp
+
 # ── image finale ────────────────────────────────────────────────────────────────────────────────────
-FROM ${RUNTIME_IMAGE}
+FROM scratch
 ARG VERSION=dev
 LABEL org.opencontainers.image.title="watchoo" \
       org.opencontainers.image.description="Supervision de dépôts GitHub (CLI, TUI, interface web), en lecture seule" \
@@ -79,6 +106,7 @@ LABEL org.opencontainers.image.title="watchoo" \
       org.opencontainers.image.licenses="Apache-2.0" \
       org.opencontainers.image.version="${VERSION}"
 
+COPY --from=rootfs /rootfs/ /
 COPY --from=gh /usr/local/bin/gh /usr/local/bin/gh
 COPY --from=gh /usr/local/share/gh-LICENSE /usr/share/doc/gh/LICENSE
 COPY --from=build /out/watchoo /usr/local/bin/watchoo
@@ -86,16 +114,19 @@ COPY --from=build /src/LICENSE /src/NOTICE /usr/share/doc/watchoo/
 COPY --from=build --chown=65532:65532 /out/data /data
 
 # Espace de supervision dans le volume /data (base SQLite : données personnelles, à ne pas partager).
-# gh ne cherche pas de mise à jour (aucun appel réseau inutile).
+# gh ne cherche pas de mise à jour (aucun appel réseau inutile). Sans gh connecté (pas de GH_TOKEN),
+# les dépôts sont suivis par clones Git dans /data/repos, avec une clé SSH montée dans
+# /home/nonroot/.ssh (voir « Distribution »).
 ENV WATCHOO_DIR=/data \
+    HOME=/home/nonroot \
     GH_NO_UPDATE_NOTIFIER=1
-# Utilisateur nonroot de distroless (uid / gid 65532), jamais root.
+# Utilisateur nonroot (uid / gid 65532), jamais root.
 USER 65532:65532
 WORKDIR /data
 VOLUME ["/data"]
 EXPOSE 8080
 
-# Pas de HEALTHCHECK : l'image n'a ni shell ni client HTTP, toutes les routes exigent
+# Pas de HEALTHCHECK : l'image n'a pas de client HTTP, toutes les routes exigent
 # l'authentification et Watchoo n'a pas (encore) de route de santé. Voir « Distribution ».
 ENTRYPOINT ["/usr/local/bin/watchoo"]
 # Hors boucle locale : l'authentification est obligatoire (WATCHOO_WEB_AUTH_USERNAME et

@@ -11,6 +11,7 @@ import (
 	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/provider"
 	"github.com/studoo-app/watchoo/internal/provider/providertest"
+	wsync "github.com/studoo-app/watchoo/internal/sync"
 )
 
 func TestStatus(t *testing.T) {
@@ -34,6 +35,7 @@ func TestStatus(t *testing.T) {
 	r := h.run("status").mustSucceed(t)
 	want := fmt.Sprintf(`Espace : licence-projet (%s)
 Compte gh : watchoo-test sur github.com (droits : gist, read:org, repo)
+Source : API GitHub (gh connecté)
 Quota GitHub : 4321 / 5000 requêtes restantes (remise à zéro à 12:20).
 
 Dépôts : 4
@@ -67,8 +69,12 @@ Branches suivies : 3
 	if rep.QuotaLow {
 		t.Error("status --json : quota_low vrai avec 4321 / 5000")
 	}
-	assertJSONKeys(t, r.stdout, "", "workspace", "github", "rate_limit", "rate_limit_error", "quota_low", "repositories",
-		"errors", "last_synced_at", "tracked_branches")
+	assertJSONKeys(t, r.stdout, "", "workspace", "github", "source", "rate_limit", "rate_limit_error", "quota_low",
+		"repositories", "errors", "last_synced_at", "tracked_branches")
+	assertJSONKeys(t, r.stdout, "source", "kind", "reason")
+	if rep.Source != (statusSource{Kind: wsync.SourceAPI}) {
+		t.Errorf("status --json : source %+v, api attendue", rep.Source)
+	}
 	assertJSONKeys(t, r.stdout, "github", "ok", "host", "login", "token_source", "scopes", "error")
 	assertJSONKeys(t, r.stdout, "repositories", "total", "active", "flemme", "dead", "error", "never_synced",
 		"archived", "empty", "stopped")
@@ -104,18 +110,19 @@ func TestStatusQuotaLow(t *testing.T) {
 	assertNotContains(t, "status quota à 10 %", r.stdout, "Quota bas")
 }
 
-// gh déconnecté : status le signale sans échouer, sans demander le token ni le quota.
+// gh déconnecté : status le signale sans échouer, sans demander le quota, et annonce les clones Git
+// locaux comme source des synchros.
 func TestStatusLoggedOut(t *testing.T) {
 	h := newWorkspace(t)
 	h.Client = authtest.NewLoggedOut()
 	r := h.run("status").mustSucceed(t)
 	assertContains(t, "status déconnecté", r.stdout, "Compte gh : vérification de gh : ", "gh auth login",
-		"Quota GitHub : inconnu (compte gh inutilisable)")
+		"Source : clones Git locaux", "Quota GitHub : inconnu (sans objet : clones Git locaux, sans quota)")
 	r = h.run("status", "--json").mustSucceed(t)
 	var rep statusReport
 	decodeStrict(t, r.stdout, &rep)
 	if rep.GitHub.OK || rep.GitHub.Error == "" || rep.RateLimit != nil || rep.RateLimitError == "" ||
-		rep.GitHub.Scopes == nil {
+		rep.GitHub.Scopes == nil || rep.Source.Kind != wsync.SourceGit || rep.Source.Reason == "" {
 		t.Errorf("status --json déconnecté = %+v", rep)
 	}
 	if len(h.tokens) != 0 {

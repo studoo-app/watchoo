@@ -28,6 +28,8 @@ web:
 github:
   user: "prof-gh"
   gh_path: "/opt/gh/bin/gh"
+git:
+  protocol: "https"
 `
 
 // newCustomWorkspace crée un espace dont config.yaml vaut customConfig.
@@ -156,7 +158,7 @@ func TestFormatSettingValue(t *testing.T) {
 	}
 }
 
-// Les clés machine (name, web.*, github.*) et les réglages communs non importés sont gardés, l'ancien
+// Les clés machine (name, web.*, github.*, git.*) et les réglages communs non importés sont gardés, l'ancien
 // fichier est copié dans .bak, les droits sont 0600, et le fichier relu donne les valeurs attendues.
 func TestWriteSharedSettingsKeepsMachineKeys(t *testing.T) {
 	ws := newCustomWorkspace(t)
@@ -195,7 +197,7 @@ func TestWriteSharedSettingsKeepsMachineKeys(t *testing.T) {
 	c := reloaded.Config
 	if c.Name != "Licence : projet # 2026" || c.Web.Addr != "127.0.0.1:9090" ||
 		!slices.Equal(c.Web.AllowedHosts, []string{"watchoo.example.org"}) || c.Web.Auth.Username != "prof" ||
-		c.GitHub.User != "prof-gh" || c.GitHub.GHPath != "/opt/gh/bin/gh" {
+		c.GitHub.User != "prof-gh" || c.GitHub.GHPath != "/opt/gh/bin/gh" || c.Git.Protocol != "https" {
 		t.Errorf("clés machine perdues : %+v", c)
 	}
 	if c.Sync.Parallelism != 2 {
@@ -216,7 +218,7 @@ func TestWriteSharedSettingsKeepsMachineKeys(t *testing.T) {
 	}
 	for _, line := range []string{"sync:\n", "  interval: 1h ", "  parallelism: 2 ", "  dead_after_days: 21 ",
 		`  exclude: ["dependabot/*", "renovate/*"]`, `timezone: "Europe/Paris"`, "  auth:\n", `    username: "prof"`,
-		`  gh_path: "/opt/gh/bin/gh"`} {
+		`  gh_path: "/opt/gh/bin/gh"`, "git:\n", `  protocol: "https"`} {
 		if !strings.Contains(content, line) {
 			t.Errorf("ligne active %q absente :\n%s", line, content)
 		}
@@ -276,7 +278,7 @@ func TestWriteSharedSettingsNoYAMLInjection(t *testing.T) {
 	}
 	for key := range values {
 		if !slices.Contains([]string{"name", "sync.parallelism", "branches.exclude", "web.addr", "web.allowed_hosts",
-			"web.auth.username", "github.user", "github.gh_path"}, key) {
+			"web.auth.username", "github.user", "github.gh_path", "git.protocol"}, key) {
 			t.Errorf("clé inattendue %s dans le fichier réécrit", key)
 		}
 	}

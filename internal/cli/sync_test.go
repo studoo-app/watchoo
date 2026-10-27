@@ -8,6 +8,7 @@ import (
 
 	"github.com/studoo-app/watchoo/internal/auth/authtest"
 	"github.com/studoo-app/watchoo/internal/provider"
+	"github.com/studoo-app/watchoo/internal/provider/git/gittest"
 	"github.com/studoo-app/watchoo/internal/provider/providertest"
 	wsync "github.com/studoo-app/watchoo/internal/sync"
 )
@@ -46,10 +47,13 @@ func TestSyncAll(t *testing.T) {
 	if n := h.Provider.Calls(providertest.MethodListCommits) + h.Provider.Calls(providertest.MethodCompareCommits); n != 0 {
 		t.Errorf("seconde synchro : %d requêtes de commits, attendu 0 (têtes inchangées)", n)
 	}
-	assertJSONKeys(t, r.stdout, "", "started_at", "finished_at", "summary", "repositories", "rate_limit")
+	assertJSONKeys(t, r.stdout, "", "started_at", "finished_at", "summary", "repositories", "rate_limit", "source")
+	if rep.Source != wsync.SourceAPI {
+		t.Errorf("sync --json : source %q, api attendue", rep.Source)
+	}
 	assertJSONKeys(t, r.stdout, "summary", "repositories", "success", "error", "locked", "deferred", "new_commits")
 	assertJSONKeys(t, r.stdout, "repositories.0", "id", "full_name", "display_name", "status", "new_commits",
-		"tracked_branches", "stats_fetched", "duration_ms", "error", "resume_at")
+		"tracked_branches", "stats_fetched", "duration_ms", "error", "resume_at", "warnings")
 	assertJSONKeys(t, r.stdout, "rate_limit", "limit", "remaining", "used", "reset")
 
 	// Le token est redemandé à gh à chaque synchro.
@@ -105,9 +109,11 @@ func TestSyncEmptyAndErrors(t *testing.T) {
 		t.Errorf("état d'alice/projet = %q, attendu « erreur »", row)
 	}
 
-	// gh déconnecté : erreur globale claire.
+	// gh déconnecté : synchro par clones Git locaux ; dépôts absents du serveur Git : accès refusé.
 	h.Client = authtest.NewLoggedOut()
-	h.run("sync").mustFail(t, "gh auth login")
+	h.GitURL = gittest.NewServer(t).URL
+	r = h.run("sync").mustCode(t, 1)
+	assertContains(t, "sync sans gh", r.stdout, "accès refusé", "clones Git locaux")
 }
 
 func TestSyncDeferredAndLocked(t *testing.T) {

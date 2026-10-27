@@ -76,7 +76,7 @@ func addCommits(f *providertest.Fake, repoID int64, branch, parent string, commi
 }
 
 // seedProvider remplit le faux provider : alice/projet (main : 2 commits d'Alice, dev : 1 commit de
-// Bob il y a 1 h), bob/projet (1 commit de Bob il y a 9 jours), dave/projet (1 commit de Dave il y a
+// Bob il y a 1 h ; PR n° 1 ouverte et n° 2 mergée, release v1.0, tags v1.0 et v0.1), bob/projet (1 commit de Bob il y a 9 jours), dave/projet (1 commit de Dave il y a
 // 42 jours). carol/projet n'existe pas (dépôt inaccessible).
 func seedProvider(f *providertest.Fake) {
 	f.AddRepository(provider.Repository{ID: aliceRepoID, Owner: "alice", Name: "projet", Private: true,
@@ -85,6 +85,20 @@ func seedProvider(f *providertest.Fake) {
 		fakeCommit{"a1", alicePerson, 50 * time.Hour, "Premier jet du projet"},
 		fakeCommit{"a2", alicePerson, 2 * time.Hour, "Ajoute les tests\n\nDétail du commit"})
 	addCommits(f, aliceRepoID, "dev", head, fakeCommit{"a3", bobPerson, time.Hour, "Essai sur dev"})
+	// Pull requests, release et tags d'alice/projet (V2).
+	f.SetPullRequests(aliceRepoID,
+		provider.PullRequest{Number: 1, Title: "Ajoute la page de connexion", State: provider.PullRequestOpen,
+			Author: provider.Account{Login: "alice-gh", ID: 2001}, URL: "https://github.example.test/alice/projet/pull/1",
+			BaseBranch: "main", HeadBranch: "login", CreatedAt: testNow.Add(-5 * time.Hour), UpdatedAt: testNow.Add(-3 * time.Hour)},
+		provider.PullRequest{Number: 2, Title: "Corrige le build", State: provider.PullRequestClosed, Merged: true,
+			Author: provider.Account{Login: "alice-gh", ID: 2001}, URL: "https://github.example.test/alice/projet/pull/2",
+			BaseBranch: "main", HeadBranch: "fix", CreatedAt: testNow.Add(-30 * time.Hour),
+			UpdatedAt: testNow.Add(-26 * time.Hour), ClosedAt: testNow.Add(-26 * time.Hour), MergedAt: testNow.Add(-26 * time.Hour)},
+	)
+	f.SetReleases(aliceRepoID, provider.Release{ID: 501, TagName: "v1.0", Name: "Première version",
+		Author: provider.Account{Login: "alice-gh"}, URL: "https://github.example.test/alice/projet/releases/tag/v1.0",
+		CreatedAt: testNow.Add(-2 * time.Hour), PublishedAt: testNow.Add(-2 * time.Hour)})
+	f.SetTags(aliceRepoID, provider.Tag{Name: "v1.0", SHA: head}, provider.Tag{Name: "v0.1", SHA: providertest.SHA("inconnu")})
 
 	f.AddRepository(provider.Repository{ID: bobRepoID, Owner: "bob", Name: "projet",
 		URL: "https://github.example.test/bob/projet"})
@@ -163,7 +177,7 @@ func assertJSONKeys(t *testing.T, stdout string, path string, want ...string) {
 
 // repositoryKeys sont les clés de repositoryJSON.
 var repositoryKeys = []string{"id", "full_name", "owner", "name", "label", "display_name", "url",
-	"default_branch", "branch_patterns", "enabled", "archived", "stars", "open_issues", "last_synced_at",
+	"default_branch", "branch_patterns", "flemme_after_days", "dead_after_days", "enabled", "archived", "stars", "open_issues", "last_synced_at",
 	"last_commit_at"}
 
 // assertContains vérifie que s contient chacun des extraits.

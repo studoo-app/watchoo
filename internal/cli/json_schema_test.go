@@ -23,16 +23,18 @@ import (
 // jsonTopLevelKeys sont les clés de premier niveau de chaque commande, par nom de commande (sans
 // « watchoo »). La documentation doit lister exactement les mêmes (TestJSONSchemaDocumented).
 var jsonTopLevelKeys = map[string][]string{
-	"init":         {"name", "root", "dir", "config_file", "database", "parent_workspace", "github", "warnings"},
+	"init":         {"name", "root", "dir", "config_file", "database", "parent_workspace", "github", "source", "warnings"},
 	"version":      {"version", "commit", "date", "go", "os", "arch"},
 	"repo add":     {"outcome", "repository"},
 	"repo import":  {"file", "format", "dry_run", "summary", "entries"},
 	"repo list":    {"repositories"},
 	"repo remove":  {"action", "repository", "deleted_commits"},
-	"sync":         {"started_at", "finished_at", "summary", "repositories", "rate_limit"},
+	"sync":         {"started_at", "finished_at", "summary", "repositories", "rate_limit", "source"},
 	"log":          {"commits"},
 	"contributors": {"contributors"},
-	"status": {"workspace", "github", "rate_limit", "rate_limit_error", "quota_low", "repositories", "errors",
+	"prs":          {"pull_requests"},
+	"releases":     {"releases", "tags"},
+	"status": {"workspace", "github", "source", "rate_limit", "rate_limit_error", "quota_low", "repositories", "errors",
 		"last_synced_at", "tracked_branches"},
 	"config export": {"format", "version", "exported_at", "watchoo_version", "workspace", "settings", "repositories"},
 	"config import": {"file", "dry_run", "applied", "source", "settings", "repositories", "summary", "warnings"},
@@ -77,6 +79,8 @@ func TestJSONSchemaAllCommands(t *testing.T) {
 	outputs["repo list"] = h.run("repo", "list", "--json").mustSucceed(t).stdout
 	outputs["log"] = h.run("log", "--json").mustSucceed(t).stdout
 	outputs["contributors"] = h.run("contributors", "--json").mustSucceed(t).stdout
+	outputs["prs"] = h.run("prs", "--json").mustSucceed(t).stdout
+	outputs["releases"] = h.run("releases", "--json").mustSucceed(t).stdout
 	outputs["status"] = h.run("status", "--json").mustSucceed(t).stdout
 	outputs["repo remove"] = h.run("repo", "remove", "dave/projet", "--yes", "--json").mustSucceed(t).stdout
 	outputs["config export"] = h.run("config", "export", "--json").mustSucceed(t).stdout
@@ -92,7 +96,30 @@ func TestJSONSchemaAllCommands(t *testing.T) {
 		assertSingleJSONObject(t, cmd, out)
 		assertJSONKeys(t, out, "", keys...)
 	}
+	// Éléments de « prs » et « releases » (V2), et dépôts de « sync » (warnings).
+	assertJSONKeys(t, outputs["sync"], "repositories.0", "id", "full_name", "display_name", "status", "new_commits",
+		"tracked_branches", "stats_fetched", "duration_ms", "error", "resume_at", "warnings")
+	assertJSONKeys(t, outputs["prs"], "pull_requests.0", "repository", "number", "title", "state", "draft", "author",
+		"url", "base_branch", "head_branch", "created_at", "updated_at", "closed_at", "merged_at")
+	assertJSONKeys(t, outputs["prs"], "pull_requests.0.repository", "id", "full_name", "display_name")
+	assertJSONKeys(t, outputs["prs"], "pull_requests.0.author", "login")
+	assertJSONKeys(t, outputs["releases"], "releases.0", "repository", "id", "tag_name", "name", "draft", "prerelease",
+		"author", "url", "created_at", "published_at")
+	assertJSONKeys(t, outputs["releases"], "tags.0", "repository", "name", "sha", "short_sha", "commit_url",
+		"committed_at")
+	assertContains(t, "sync --json", outputs["sync"], `"warnings": []`)
+	// Éléments de « contributors » : weekly ([] sans --weeks, objets week / count avec).
+	assertJSONKeys(t, outputs["contributors"], "contributors.0", contributorKeys...)
+	weekly := h.run("contributors", "--weeks", "2", "--json").mustSucceed(t).stdout
+	assertSingleJSONObject(t, "contributors --weeks", weekly)
+	assertJSONKeys(t, weekly, "", jsonTopLevelKeys["contributors"]...)
+	assertJSONKeys(t, weekly, "contributors.0", contributorKeys...)
+	assertJSONKeys(t, weekly, "contributors.0.weekly.0", "week", "count")
 }
+
+// contributorKeys sont les clés d'un élément de « contributors » (05-cli.md, Sortie JSON).
+var contributorKeys = []string{"id", "name", "login", "display_name", "avatar_url", "commits", "additions",
+	"deletions", "repositories", "last_commit_at", "weekly"}
 
 // Le contrat est documenté : la table « Sortie JSON » de 05-cli.md liste, pour chaque commande, les
 // mêmes clés de premier niveau que jsonTopLevelKeys.
@@ -156,8 +183,10 @@ func TestJSONSchemaConfigImport(t *testing.T) {
 		assertJSONKeys(t, r.stdout, "settings.changes.0", "key", "before", "after", "env_var")
 		assertJSONKeys(t, r.stdout, "repositories.0", "index", "repo", "action", "reenable", "before", "after",
 			"outcome", "error")
-		assertJSONKeys(t, r.stdout, "repositories.0.before", "label", "branches", "enabled")
-		assertJSONKeys(t, r.stdout, "repositories.0.after", "label", "branches", "enabled")
+		assertJSONKeys(t, r.stdout, "repositories.0.before", "label", "branches", "flemme_after_days",
+			"dead_after_days", "enabled")
+		assertJSONKeys(t, r.stdout, "repositories.0.after", "label", "branches", "flemme_after_days",
+			"dead_after_days", "enabled")
 		assertJSONKeys(t, r.stdout, "summary", "added", "already_tracked", "updated", "reenabled", "inaccessible",
 			"errors")
 		assertJSONKeys(t, r.stdout, "warnings.0", "code", "key", "message")
@@ -193,6 +222,8 @@ func TestJSONSchemaEmptyWorkspace(t *testing.T) {
 		{[]string{"repo", "list"}, `"repositories": []`},
 		{[]string{"log"}, `"commits": []`},
 		{[]string{"contributors"}, `"contributors": []`},
+		{[]string{"prs"}, `"pull_requests": []`},
+		{[]string{"releases"}, `"tags": []`},
 		{[]string{"sync"}, `"repositories": []`},
 		{[]string{"status"}, `"errors": []`},
 	} {

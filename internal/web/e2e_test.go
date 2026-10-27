@@ -45,6 +45,10 @@ func TestWebEndToEnd(t *testing.T) {
 	a2 := commit(1, xssMessage, alice, 2*time.Hour, a1)
 	srv.SetBranch(1, "main", a2)
 	srv.SetBranch(1, "dev", commit(1, "e2e-bob-essai-dev", bob, time.Hour, a2))
+	// Une pull request ouverte et un tag (V2).
+	srv.SetPullRequests(1, githubtest.PullRequest{Number: 7, Title: "e2e-pr-ouverte", Author: "alice-gh",
+		CreatedAt: testNow.Add(-3 * time.Hour)})
+	srv.SetTags(1, githubtest.Tag{Name: "v1.0", SHA: a2})
 	// bob/projet : Flemme (9 jours) ; carol/projet : Dead (42 jours) ; cache : inaccessible.
 	srv.AddRepo(githubtest.Repo{ID: 2, Owner: "bob", Name: "projet", Private: true})
 	srv.SetBranch(2, "main", commit(2, "e2e-bob-init", bob, 9*24*time.Hour))
@@ -123,7 +127,8 @@ func TestWebEndToEnd(t *testing.T) {
 	alicePath := repoPath(aliceID)
 	w = e.get(alicePath)
 	assertStatus(t, w, http.StatusOK)
-	assertContains(t, w, "Alice Martin", `id="activity-data"`, "&lt;script&gt;", "Synchroniser ce dépôt")
+	assertContains(t, w, "Alice Martin", `id="activity-data"`, "&lt;script&gt;", "Synchroniser ce dépôt",
+		"#7 e2e-pr-ouverte", "1 ouverte", ">v1.0<")
 	assertNotContains(t, w, xssMessage)
 	// Page 1 : les 50 plus récents (3 commits récents, puis « commit 60 » à « commit 14 »).
 	assertContains(t, w, "commit 14", "?page=2")

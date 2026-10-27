@@ -81,7 +81,7 @@
     <section class="card bg-base-100 shadow-sm" aria-labelledby="add-heading">
       <div class="card-body p-4">
         <h2 id="add-heading" class="card-title text-lg">Ajouter un dépôt</h2>
-        <p class="text-sm text-base-content/70">L'accès est vérifié auprès de GitHub avec le compte gh ; aucune synchro n'est lancée.</p>
+        <p class="text-sm text-base-content/70">L'accès est vérifié auprès de GitHub avec le compte gh (sans gh : par git, avec la clé SSH ou les identifiants Git de cette machine) ; aucune synchro n'est lancée.</p>
         {{template "flash" (dict "Message" $c.AddError "Error" true)}}
         <form method="post" action="/settings/repos" class="space-y-2">
           {{template "csrf-field" .}}
@@ -174,6 +174,9 @@
   </div>
   <progress class="progress {{if $q.Low}}progress-warning{{else}}progress-success{{end}} w-full" value="{{$q.Percent}}" max="100" aria-label="Part du quota restante"></progress>
   <p class="text-sm text-base-content/70">{{if not $q.Reset.IsZero}}Remise à zéro à <time datetime="{{isoTime $q.Reset}}" title="{{localTime $q.Reset}}">{{localClock $q.Reset}}</time>{{end}}{{if $q.Low}} ; synchros reportées jusque-là{{end}}.</p>
+  {{- else if $q.Local}}
+  <p><span class="badge badge-info badge-soft">sans objet</span></p>
+  <p class="text-sm text-base-content/70">gh n'est pas installé ou pas connecté : les dépôts sont suivis par clones Git locaux (repos/ à la racine de l'espace), avec la clé SSH ou les identifiants Git de cette machine, sans quota. Pull requests, releases et étoiles ne sont alors pas lus ; « gh auth login » fait repasser par l'API GitHub.</p>
   {{- else}}
   <p><span class="badge badge-neutral">quota inconnu</span></p>
   <p class="text-sm text-base-content/70 break-words">{{truncate 300 $q.Error}}</p>

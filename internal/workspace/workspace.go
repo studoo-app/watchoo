@@ -12,6 +12,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"syscall"
 )
 
@@ -20,6 +21,7 @@ const (
 	DirName           = ".watchoo"    // répertoire de l'espace, à la racine de celui-ci
 	ConfigFileName    = "config.yaml" // réglages de l'espace, dans DirName
 	DBFileName        = "watchoo.db"  // base SQLite, dans DirName
+	ReposDirName      = "repos"       // clones Git locaux (V2), à la racine de l'espace ; créé au premier clone, en 0700
 	GitignoreFileName = ".gitignore"  // contient « * », dans DirName
 	GitignoreContent  = "*\n"         // contenu exact du .gitignore interne
 	EnvDir            = "WATCHOO_DIR" // variable désignant un espace, même effet que -C
@@ -61,6 +63,15 @@ func (w Workspace) DBPath() string {
 	return filepath.Join(w.Dir, DBFileName)
 }
 
+// ReposDir renvoie le répertoire des clones Git locaux (V2) : Root/repos, à côté de .watchoo/ (les
+// clones ont une copie de travail, à lire par l'enseignant). Il est créé en 0700 par le provider Git
+// au premier clone. Hors de .watchoo/, il n'est pas couvert par son .gitignore : si la racine de
+// l'espace est un dépôt Git, à l'utilisateur de l'ignorer. Find ne retient jamais un .watchoo/ placé
+// dans ce répertoire (clone d'un dépôt d'étudiant).
+func (w Workspace) ReposDir() string {
+	return filepath.Join(w.Root, ReposDirName)
+}
+
 // ConfigPath renvoie le chemin du fichier de réglages de l'espace : Dir/config.yaml.
 func (w Workspace) ConfigPath() string {
 	return filepath.Join(w.Dir, ConfigFileName)
@@ -70,6 +81,10 @@ func (w Workspace) ConfigPath() string {
 // chacun de ses parents jusqu'à la racine du système de fichiers, comme Git. Le premier répertoire
 // qui contient un sous-répertoire nommé DirName est l'espace (un fichier nommé .watchoo ne compte pas,
 // la recherche continue au-dessus). Les liens symboliques ne sont pas résolus.
+//
+// Exception : un .watchoo/ situé sous le répertoire des clones (ReposDirName) d'un autre espace
+// appartient au dépôt d'un étudiant cloné par Watchoo (clone avec copie de travail, V2) ; il est
+// ignoré et la recherche reprend à cet autre espace, qui le contient.
 //
 // Renvoie un *Workspace dont Root et Dir sont renseignés et Config est vide (pas de chargement des
 // réglages), ou une erreur enveloppant ErrNotFound qui cite start. Une erreur d'accès inattendue
@@ -85,6 +100,14 @@ func Find(start string) (*Workspace, error) {
 		info, err := os.Stat(candidate)
 		switch {
 		case err == nil && info.IsDir():
+			outer, err := managingWorkspace(dir)
+			if err != nil {
+				return nil, fmt.Errorf("recherche de l'espace : %w", err)
+			}
+			if outer != "" {
+				dir = outer // .watchoo/ d'un clone : l'espace est celui qui contient le clone
+				continue
+			}
 			return &Workspace{Root: dir, Dir: candidate}, nil
 		case err == nil, isNotExist(err):
 			// Pas d'espace ici (absent, ou .watchoo n'est pas un répertoire) : on remonte.
@@ -97,6 +120,25 @@ func Find(start string) (*Workspace, error) {
 		}
 		dir = parent
 	}
+}
+
+// managingWorkspace renvoie la racine de l'espace dont le répertoire des clones (ReposDirName)
+// contient dir, ou "" : dir est alors dans un clone de Watchoo, pas un espace. La comparaison du nom
+// « repos » ignore la casse (systèmes de fichiers de macOS et Windows).
+func managingWorkspace(dir string) (string, error) {
+	for child, parent := dir, filepath.Dir(dir); parent != child; child, parent = parent, filepath.Dir(parent) {
+		if !strings.EqualFold(filepath.Base(child), ReposDirName) {
+			continue
+		}
+		info, err := os.Stat(filepath.Join(parent, DirName))
+		switch {
+		case err == nil && info.IsDir():
+			return parent, nil
+		case err != nil && !isNotExist(err):
+			return "", err
+		}
+	}
+	return "", nil
 }
 
 // isNotExist indique si err signifie que le chemin n'existe pas, y compris quand un élément du chemin
@@ -176,6 +218,8 @@ type InitResult struct {
 // Init fait de root (rendu absolu ; il doit exister et être un répertoire) un espace de supervision.
 //
 // Comportement :
+//   - si root est sous le répertoire des clones (ReposDirName) d'un espace : erreur, rien n'est créé
+//     (Find ignorerait cet espace) ;
 //   - si root/.watchoo existe déjà (répertoire) : erreur enveloppant ErrAlreadyInitialized, sans rien
 //     modifier ; si c'est un fichier ou autre chose : erreur claire, sans rien modifier ;
 //   - cherche un espace parent avec Find(filepath.Dir(root)) et renseigne ParentWorkspace s'il en
@@ -201,6 +245,14 @@ func Init(root string) (result *InitResult, err error) {
 		return nil, fmt.Errorf("création de l'espace : %w", err)
 	case !info.IsDir():
 		return nil, fmt.Errorf("création de l'espace : %s n'est pas un répertoire", abs)
+	}
+
+	switch outer, err := managingWorkspace(abs); {
+	case err != nil:
+		return nil, fmt.Errorf("création de l'espace : %w", err)
+	case outer != "":
+		return nil, fmt.Errorf("création de l'espace : %s est dans le répertoire des clones (%s/) de "+
+			"l'espace %s, géré par Watchoo ; créez l'espace ailleurs", abs, ReposDirName, outer)
 	}
 
 	dir := filepath.Join(abs, DirName)

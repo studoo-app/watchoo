@@ -1,4 +1,6 @@
-// Package auth donne accès à la CLI GitHub gh, seule source du token GitHub de Watchoo.
+// Package auth donne accès à la CLI GitHub gh, seule source du token GitHub de Watchoo. gh est
+// facultatif depuis la V2 : sans gh installé et connecté (Absent), les dépôts sont suivis par clone Git
+// local, sans token.
 //
 // Règles non négociables (voir documentation/03-architecture.md, « Authentification : gh imposé ») :
 //   - le token vient uniquement de « gh auth token » ; Watchoo ne lit jamais GITHUB_TOKEN lui-même
@@ -232,4 +234,13 @@ func (g GH) Token(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("« gh auth token » a renvoyé une sortie inattendue pour %s : %w", target, ErrUnexpectedOutput)
 	}
 	return token, nil
+}
+
+// Absent indique une erreur de Token (ou de Status) qui veut dire que gh n'est pas utilisable sur
+// cette machine : gh introuvable (ErrGHNotFound) ou connecté à aucun compte utilisable
+// (ErrNotLoggedIn, ErrUnusableUser compris). Le moteur de synchro passe alors par les clones Git
+// locaux (V2). Ni ErrCheckFailed (gh connecté mais GitHub injoignable), ni ErrTimeout, ni
+// ErrUnexpectedOutput n'en font partie : ce sont des pannes, pas l'absence de gh.
+func Absent(err error) bool {
+	return errors.Is(err, ErrGHNotFound) || errors.Is(err, ErrNotLoggedIn)
 }
