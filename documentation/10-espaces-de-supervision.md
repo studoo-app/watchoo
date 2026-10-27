@@ -142,6 +142,34 @@ Le token n'est **pas** propre à l'espace : tous les espaces utilisent le compte
 | Espace | `.watchoo/config.yaml` | Réglages propres au groupe ; ils remplacent ceux de l'utilisateur |
 | Ligne de commande / environnement | options et variables `WATCHOO_*` | Remplacent tout le reste, pour une exécution |
 
+### Partager les réglages avec d'autres superviseurs
+
+`watchoo config export` et `watchoo config import` (CLI) ou la page Réglages (web) partagent les dépôts
+suivis et les **réglages communs** d'un espace : `sync.auto`, `sync.interval`, `sync.parallelism`,
+`activity.flemme_after_days`, `activity.dead_after_days`, `branches.exclude` et `timezone`. Les réglages
+propres à la machine ou à la personne ne sont **jamais** partagés : `name`, `github.*` (compte `gh`,
+chemin de `gh` : un fichier venu d'ailleurs ne doit jamais choisir le programme lancé) et `web.*`.
+Détail : [Partage de la configuration](05-cli.md#partage-de-la-configuration--watchoo-config).
+
+Quand un import change au moins un réglage commun, `.watchoo/config.yaml` est **réécrit** à partir du
+modèle de `watchoo init` (mêmes commentaires), les réglages importés décommentés :
+
+- `name`, `github.*` et `web.*` déjà présents dans le fichier sont gardés tels quels, ainsi que les
+  réglages communs que l'import ne donne pas ;
+- les commentaires personnels sont perdus ; l'ancien fichier est copié dans `.watchoo/config.yaml.bak`
+  (`0600`, remplacé à chaque import) ;
+- le nouveau fichier est écrit à côté en `0600`, relu, validé et comparé aux valeurs attendues avant de
+  remplacer l'ancien (renommage atomique) ; en cas d'écart ou d'erreur, `config.yaml` n'est pas modifié ;
+- les valeurs sont écrites comme des valeurs YAML échappées (chaînes entre guillemets) : un fuseau ou un
+  motif contenant `"`, `#`, `:` ou un saut de ligne ne peut jamais créer une autre clé ;
+- si les réglages importés sont déjà ceux en vigueur, le fichier n'est pas touché ; un réglage masqué
+  par une variable `WATCHOO_*` est comparé à sa valeur dans les fichiers, sans la variable (la valeur
+  partagée est écrite même si la variable a déjà la même valeur, et un second import ne réécrit rien) ;
+- une variable `WATCHOO_*` définie garde la priorité sur la valeur écrite ; l'aperçu le signale pour
+  chaque réglage importé qu'elle masque, et refuse l'import si, variables réappliquées, les réglages
+  deviennent invalides ;
+- le fichier utilisateur (`~/.config/watchoo/config.yaml`) n'est jamais modifié.
+
 ## Plusieurs espaces en même temps
 
 - Chaque espace est indépendant : on peut lancer `watchoo serve` dans `licence-projet` et dans

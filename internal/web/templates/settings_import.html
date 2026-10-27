@@ -1,0 +1,141 @@
+{{/*
+  Import d'une configuration partagée : aperçu (rien n'est appliqué) ou fichier refusé. PROPRIÉTAIRE :
+  agent web (partage). Donnée : PageData, Content de type importView (settings_share.go) ; tous les
+  textes y sont déjà nettoyés et bornés. « Appliquer » renvoie le document dans un champ caché : le
+  serveur le revalide entièrement.
+*/}}
+{{define "content"}}{{$c := .Content}}
+<nav class="breadcrumbs text-sm mb-2" aria-label="Fil d'Ariane"><ul><li><a href="/settings">Réglages</a></li><li>Importer une configuration</li></ul></nav>
+<div class="mb-4">
+  <h1 class="text-2xl font-bold">Importer une configuration</h1>
+  {{- if $c.FileName}}<p class="text-sm text-base-content/70 break-all">Fichier : {{$c.FileName}}</p>{{end}}
+</div>
+
+{{- if $c.Error}}
+<section class="card bg-base-100 shadow-sm max-w-3xl" aria-labelledby="import-error-heading">
+  <div class="card-body">
+    <h2 id="import-error-heading" class="card-title text-lg text-error">Fichier refusé</h2>
+    <div role="alert" class="alert alert-error alert-soft">
+      <div class="min-w-0">
+        <p class="break-words">{{$c.Error}}</p>
+        {{- if $c.ErrorDetails}}
+        <ul class="list-disc ms-5 mt-1 text-sm">
+          {{- range $c.ErrorDetails}}<li class="break-words">{{.}}</li>{{end}}
+        </ul>
+        {{- end}}
+      </div>
+    </div>
+    {{template "settings-import-form" .}}
+    <div class="card-actions justify-end"><a href="/settings" class="btn btn-ghost">Retour aux réglages</a></div>
+  </div>
+</section>
+{{- else}}
+<p class="mb-4">Aperçu de l'import : <strong>rien n'est encore appliqué</strong>. Les dépôts déjà suivis ne sont jamais retirés.</p>
+{{- with $c.Source}}
+<p class="text-sm text-base-content/70 mb-4 break-words">Fichier exporté
+  {{- if .WorkspaceName}} de l'espace « {{.WorkspaceName}} »{{end}}
+  {{- if not .ExportedAt.IsZero}} le <time datetime="{{isoTime .ExportedAt}}">{{localTime .ExportedAt}}</time>{{end}}
+  {{- if .WatchooVersion}} avec Watchoo {{.WatchooVersion}}{{end}}.
+  L'import ne renomme pas cet espace.</p>
+{{- end}}
+
+{{- range $c.Warnings}}
+<div role="alert" class="alert alert-warning alert-soft my-2"><span class="break-words">{{.}}</span></div>
+{{- end}}
+
+<div class="grid gap-6 lg:grid-cols-3 mt-4">
+  <section class="lg:col-span-2 space-y-3" aria-labelledby="import-repos-heading">
+    <h2 id="import-repos-heading" class="text-lg font-semibold">Dépôts</h2>
+    <div class="flex flex-wrap gap-2 text-sm">
+      <span class="badge badge-success">{{$c.Summary.Added}} à ajouter</span>
+      <span class="badge badge-warning">{{$c.Summary.Updated}} à mettre à jour</span>
+      {{- if $c.Summary.Reenabled}}<span class="badge badge-info">dont {{$c.Summary.Reenabled}} à reprendre</span>{{end}}
+      <span class="badge badge-ghost">{{$c.Summary.AlreadyTracked}} inchangés</span>
+    </div>
+    <p class="text-xs text-base-content/60">L'accès aux dépôts est vérifié auprès de GitHub au moment d'appliquer : un dépôt renommé peut apparaître ici « à ajouter » et se révéler déjà suivi ; un dépôt inaccessible sera signalé sans bloquer les autres.</p>
+    {{- if $c.Changes}}
+    <div class="overflow-x-auto bg-base-100 rounded-box shadow-sm">
+      <table class="table table-sm">
+        <thead><tr><th>Dépôt</th><th>Action</th><th>Nom affiché</th><th>Branches suivies</th></tr></thead>
+        <tbody>
+          {{- range $c.Changes}}
+          <tr>
+            <td class="break-all">{{.Repo}}</td>
+            <td><span class="badge {{.ActionClass}} whitespace-nowrap">{{.ActionText}}</span></td>
+            <td class="break-words">{{if .LabelChanged}}<span class="text-base-content/60">{{or .LabelBefore "—"}}</span> → {{end}}{{or .Label "—"}}</td>
+            <td class="break-words">{{if .BranchesChanged}}<span class="text-base-content/60">{{.BranchesBefore}}</span> → {{end}}{{.Branches}}</td>
+          </tr>
+          {{- end}}
+        </tbody>
+      </table>
+    </div>
+    {{- else}}
+    <p class="text-base-content/70">Aucun dépôt à ajouter ni à mettre à jour.</p>
+    {{- end}}
+    {{- if $c.Unchanged}}
+    <details class="collapse collapse-arrow bg-base-100 shadow-sm">
+      <summary class="collapse-title text-sm font-medium min-h-0 py-2">Dépôts inchangés ({{len $c.Unchanged}})</summary>
+      <div class="collapse-content">
+        <ul class="text-sm space-y-1">
+          {{- range $c.Unchanged}}<li class="break-all">{{.Repo}}{{if .Label}} <span class="text-base-content/60">· {{.Label}}</span>{{end}}</li>{{end}}
+        </ul>
+      </div>
+    </details>
+    {{- end}}
+  </section>
+
+  <div class="space-y-6">
+    <section class="card bg-base-100 shadow-sm" aria-labelledby="import-settings-heading">
+      <div class="card-body p-4">
+        <h2 id="import-settings-heading" class="card-title text-lg">Réglages</h2>
+        {{- if $c.Settings}}
+        <ul class="space-y-2 text-sm">
+          {{- range $c.Settings}}
+          <li>
+            <code class="font-semibold">{{.Key}}</code>
+            <div class="break-words"><span class="text-base-content/60">{{.Before}}</span> → <strong>{{.After}}</strong></div>
+            {{- if .EnvVar}}<div class="text-xs text-warning">masqué par la variable {{.EnvVar}}</div>{{end}}
+          </li>
+          {{- end}}
+        </ul>
+        <p class="text-xs text-base-content/60">config.yaml sera réécrit (copie de l'ancien fichier dans config.yaml.bak). Les réglages propres à cette machine (name, github.*, web.*) sont gardés. Ce serveur les prendra en compte à son prochain lancement.</p>
+        {{- else if $c.Provided}}
+        <p class="text-sm text-base-content/70">Les réglages du fichier sont identiques à ceux de cet espace : config.yaml ne sera pas modifié.</p>
+        {{- else}}
+        <p class="text-sm text-base-content/70">Le fichier ne contient aucun réglage : config.yaml ne sera pas modifié.</p>
+        {{- end}}
+      </div>
+    </section>
+
+    <section class="card bg-base-100 shadow-sm" aria-labelledby="import-apply-heading">
+      <div class="card-body p-4">
+        <h2 id="import-apply-heading" class="card-title text-lg">Appliquer</h2>
+        {{- if $c.HasChanges}}
+        <form method="post" action="/settings/import/apply" enctype="multipart/form-data" class="space-y-2">
+          {{template "csrf-field" .}}
+          <input type="hidden" name="document" value="{{$c.Document}}">
+          <p class="text-sm text-base-content/70">Le fichier est vérifié de nouveau avant d'être appliqué. Aucune synchro n'est lancée.</p>
+          <button type="submit" class="btn btn-primary btn-sm w-full">Appliquer ces changements</button>
+        </form>
+        {{- else}}
+        <p class="text-sm text-base-content/70">Rien à appliquer : cet espace a déjà cette configuration.</p>
+        {{- end}}
+        <a href="/settings" class="btn btn-ghost btn-sm w-full">Annuler</a>
+      </div>
+    </section>
+  </div>
+</div>
+{{- end}}
+{{end}}
+
+{{/* Formulaire d'envoi d'un fichier (après un refus). Donnée : PageData. */}}
+{{define "settings-import-form"}}
+<form method="post" action="/settings/import" enctype="multipart/form-data" class="flex flex-wrap items-end gap-2">
+  {{template "csrf-field" .}}
+  <label class="form-control grow block min-w-0">
+    <span class="label text-sm whitespace-normal mb-1">Choisir un autre fichier (JSON, 1 Mio au plus)</span>
+    <input type="file" name="file" accept="application/json,.json" required class="file-input file-input-sm w-full">
+  </label>
+  <button type="submit" class="btn btn-sm">Voir l'aperçu</button>
+</form>
+{{end}}

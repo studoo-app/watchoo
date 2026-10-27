@@ -9,14 +9,24 @@ import (
 	"crypto/subtle"
 	"errors"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
+
+	"github.com/studoo-app/watchoo/internal/configshare"
 )
 
 // MaxBodyBytes borne la taille du corps d'une requête (formulaires des réglages).
 const MaxBodyBytes = 64 << 10
+
+// MaxImportBodyBytes borne le corps des requêtes qui portent un fichier de configuration partagé
+// (importPaths) : le fichier (configshare.MaxFileSize) plus le reste du formulaire multipart.
+const MaxImportBodyBytes = configshare.MaxFileSize + MaxBodyBytes
+
+// importPaths sont les routes dont le corps porte un fichier de configuration (MaxImportBodyBytes).
+var importPaths = []string{"/settings/import", "/settings/import/apply"}
 
 // contentSecurityPolicy n'autorise que les ressources servies par Watchoo, plus les avatars GitHub :
 // aucun script ni style en ligne, aucun eval (HTMX est réglé en conséquence dans layout.html).
@@ -83,12 +93,17 @@ func (s *server) basicAuth(next http.Handler) http.Handler {
 	})
 }
 
-// limitBody borne le corps des requêtes à MaxBodyBytes (formulaire trop gros → erreur de lecture,
-// traitée comme une requête invalide par le handler).
+// limitBody borne le corps des requêtes à MaxBodyBytes, ou MaxImportBodyBytes pour importPaths
+// (formulaire trop gros → erreur de lecture *http.MaxBytesError, traitée par le handler : 413 pour
+// l'import, requête invalide ailleurs).
 func limitBody(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Body != nil {
-			r.Body = http.MaxBytesReader(w, r.Body, MaxBodyBytes)
+			limit := int64(MaxBodyBytes)
+			if slices.Contains(importPaths, r.URL.Path) {
+				limit = MaxImportBodyBytes
+			}
+			r.Body = http.MaxBytesReader(w, r.Body, limit)
 		}
 		next.ServeHTTP(w, r)
 	})

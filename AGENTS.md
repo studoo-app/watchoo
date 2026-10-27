@@ -75,6 +75,7 @@ internal/provider/    interface Provider, types, erreurs ; providertest/ (faux P
 internal/sync/        moteur de synchronisation (cœur métier)
 internal/activity/    règles d'activité (Actif / Flemme / Dead, états gris), séries, formats courts
 internal/repoimport/  références de dépôts, motifs --branch, fichiers d'import
+internal/configshare/ partage de la configuration (export JSON, validation, aperçu, import)
 internal/textclean/   nettoyage des textes affichés (séquences d'échappement), CLI et TUI
 internal/store/       SQLite : migrations/, queries/ (sqlc), db/ (généré)
 internal/model/       structs métier

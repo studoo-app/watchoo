@@ -70,7 +70,7 @@ func TestSettingsPage(t *testing.T) {
 		// Quota chargé après la page.
 		`hx-get="/fragments/quota" hx-trigger="load"`,
 		// Intervalle : manuelle seule dans l'environnement de test, fichier à 30 min.
-		"Intervalle en vigueur : <strong>manuelle seule</strong>", "config.yaml n'est jamais réécrit",
+		"Intervalle en vigueur : <strong>manuelle seule</strong>", "ce formulaire ne réécrit jamais config.yaml",
 		"&lt;script&gt;bob&lt;/script&gt;",
 	)
 	assertNotContains(t, w, "<script>bob", "Reprendre le suivi")
