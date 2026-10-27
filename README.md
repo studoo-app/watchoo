@@ -122,6 +122,28 @@ make check    # gofmt, go vet, tests, code sqlc et CSS à jour, compilation
 make docker   # image Docker locale watchoo:dev
 ```
 
+### Mise à jour
+
+Mettre à jour Watchoo, c'est remplacer le binaire : vos espaces de supervision restent tels quels, et la
+base est mise à niveau toute seule (migrations) à la première commande lancée avec la nouvelle version.
+Lisez d'abord le [journal des modifications](CHANGELOG.md) : en `0.y.z`, une version mineure peut changer
+l'interface.
+
+- **Script d'installation** : relancez la même commande (avec le même `WATCHOO_INSTALL_DIR` si vous en
+  aviez choisi un). Le binaire est remplacé d'un bloc ; un `watchoo serve` déjà lancé garde l'ancienne
+  version jusqu'à son redémarrage.
+- **Binaires de release** : téléchargez et vérifiez la nouvelle archive comme ci-dessus, puis remplacez
+  le binaire.
+- **Docker** : changez le tag de l'image (`ghcr.io/studoo-app/watchoo:<version>`), puis recréez le
+  conteneur (`docker rm -f watchoo` puis le même `docker run -d …`) ; avec compose, changez le tag dans
+  `docker-compose.yml` puis `docker compose pull && docker compose up -d`. Le volume est conservé.
+- **Depuis les sources** : `go install github.com/studoo-app/watchoo/cmd/watchoo@latest`, ou
+  `git pull && make build` dans le clone.
+
+Vérifiez ensuite avec `watchoo version`. Les migrations ne vont que dans un sens : une base mise à
+niveau peut ne plus s'ouvrir avec une version plus ancienne. Pour pouvoir revenir en arrière, copiez
+`.watchoo/watchoo.db` (ou le volume Docker) avant la mise à jour.
+
 ## Démarrage rapide : suivre une promotion d'étudiants
 
 ```bash

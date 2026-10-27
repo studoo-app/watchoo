@@ -23,6 +23,8 @@ un changement incompatible fait monter MINOR et tout changement compatible fait 
   fusionne sans rien retirer (dépôts ajoutés ou mis à jour comme avec `repo import`, `config.yaml`
   réécrit depuis le modèle commenté avec copie `config.yaml.bak`). Même fonction sur la page Réglages
   de l'interface web (export, aperçu, application).
+- **README** : section « Mise à jour » (script, binaires, Docker, sources ; migrations automatiques,
+  sauvegarde de la base avant de changer de version).
 
 ### Modifié
 
