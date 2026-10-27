@@ -412,11 +412,19 @@ Aucun test ne joint GitHub : la racine des releases est celle d'un faux serveur 
   `WATCHOO_NO_UPDATE_CHECK` ; `Monitor` (vérification immédiate, annonce unique, version gardée).
 - CLI : avis écrit sur stderr quand une version plus récente existe (terminal simulé), absent avec
   `--json`, hors terminal, avec `WATCHOO_NO_UPDATE_CHECK`, pour `dev`, pour une version à jour, pour
-  `update` lui-même, et quand le serveur répond après le délai (la commande n'attend pas plus) ;
+  `update` lui-même, et quand le serveur répond après le délai (la commande n'attend pas plus) ; avis
+  après `watchoo` seul (carte et aide) ; avis toujours écrit quand la commande dure plus que le délai et
+  que la réponse est arrivée (pas de tirage au sort entre réponse et délai) ; aucun avis CLI pour
+  `watchoo tui`, qui reçoit sa fonction de vérification (phrase « Quittez puis lancez … », Docker
+  compris ; absente avec `WATCHOO_NO_UPDATE_CHECK` ou une version `dev`) ;
   `update --check` en texte et en JSON (contrat de `json_schema_test.go`) ; `update` confirmé, refusé,
   avec `--yes`, sans terminal ni `--yes`, déjà à jour, dans Docker, en version `dev`.
 - Web : bandeau présent sur les pages quand une nouvelle version est connue (texte Docker compris),
   absent sinon et sur les pages d'erreur publiques.
+- TUI : la ligne sous l'en-tête annonce la nouvelle version quand la fonction de vérification injectée
+  en signale une (une seule vérification, avec délai ; phrase Docker, ASCII, forme courte à 80 colonnes,
+  coupe sur un terminal très étroit, séquences d'échappement nettoyées) ; rien quand Watchoo est à jour,
+  en cas d'erreur, si l'on quitte avant la réponse ou sans fonction (vérification coupée).
 
 ## En CI
 
