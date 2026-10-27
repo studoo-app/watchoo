@@ -175,6 +175,41 @@ func (q *Queries) GetContributorProfile(ctx context.Context, id int64) (GetContr
 	return i, err
 }
 
+const listContributorsWithoutProfileURL = `-- name: ListContributorsWithoutProfileURL :many
+SELECT id, provider_login FROM contributors
+WHERE provider = ? AND provider_login <> '' AND profile_url = ''
+ORDER BY id
+`
+
+type ListContributorsWithoutProfileURLRow struct {
+	ID            int64
+	ProviderLogin string
+}
+
+// Contributeurs d'une forge dont le login est connu mais la page de profil vide (connus avant la 0.5.0).
+func (q *Queries) ListContributorsWithoutProfileURL(ctx context.Context, provider sql.NullString) ([]ListContributorsWithoutProfileURLRow, error) {
+	rows, err := q.db.QueryContext(ctx, listContributorsWithoutProfileURL, provider)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListContributorsWithoutProfileURLRow{}
+	for rows.Next() {
+		var i ListContributorsWithoutProfileURLRow
+		if err := rows.Scan(&i.ID, &i.ProviderLogin); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const moveContributorEmails = `-- name: MoveContributorEmails :exec
 UPDATE contributor_emails
 SET contributor_id = ?1
@@ -190,6 +225,26 @@ type MoveContributorEmailsParams struct {
 func (q *Queries) MoveContributorEmails(ctx context.Context, arg MoveContributorEmailsParams) error {
 	_, err := q.db.ExecContext(ctx, moveContributorEmails, arg.ToID, arg.FromID)
 	return err
+}
+
+const setContributorProfileURL = `-- name: SetContributorProfileURL :execrows
+UPDATE contributors
+SET profile_url = ?
+WHERE id = ? AND profile_url = ''
+`
+
+type SetContributorProfileURLParams struct {
+	ProfileURL string
+	ID         int64
+}
+
+// Renseigne la page de profil d'un contributeur, seulement si elle est encore vide.
+func (q *Queries) SetContributorProfileURL(ctx context.Context, arg SetContributorProfileURLParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, setContributorProfileURL, arg.ProfileURL, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const updateContributorProfile = `-- name: UpdateContributorProfile :exec

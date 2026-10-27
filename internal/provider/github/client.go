@@ -77,6 +77,8 @@ const (
 	PerPage = 100
 	// maxRedirects est le nombre maximum de redirections suivies pour une requête.
 	maxRedirects = 10
+	// WebBaseURL est la racine des pages web de GitHub (html_url des comptes et des dépôts).
+	WebBaseURL = "https://github.com"
 )
 
 // Options règle New. Sa valeur zéro convient à l'API publique de GitHub.
@@ -299,4 +301,15 @@ func checkRedirect(origin *url.URL) func(req *http.Request, via []*http.Request)
 		}
 		return nil
 	}
+}
+
+// ProfileURL implémente provider.Provider : « https://github.com/<login> », la valeur que l'API donne
+// en html_url pour le compte d'un utilisateur ou d'une organisation, sans requête. Vide si login n'a
+// pas la forme d'un login (provider.ValidLogin) : vide, caractère interdit, compte d'application
+// « nom[bot] » (dont la page est ailleurs, sous /apps/).
+func (p *Provider) ProfileURL(login string) string {
+	if !provider.ValidLogin(login) {
+		return ""
+	}
+	return WebBaseURL + "/" + login
 }
