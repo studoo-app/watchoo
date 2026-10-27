@@ -8,7 +8,7 @@ la précédente marche de bout en bout.**
 **État** : phases 1 à 5 réalisées, MVP publié en **v0.1.0** (voir [CHANGELOG.md](../CHANGELOG.md)) ;
 critère de fin du MVP validé le 27 octobre 2026 ; phase 6 (V2) réalisée et publiée en **v0.4.0** ;
 page par contributeur publiée en **v0.5.0** ; mise à jour de Watchoo (`watchoo update`) publiée en
-**v0.6.0**.
+**v0.6.0** ; ajout d'un dépôt depuis le TUI et lien de profil corrigé en **v0.6.1**.
 
 ```mermaid
 flowchart LR

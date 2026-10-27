@@ -9,6 +9,11 @@ un changement incompatible fait monter MINOR et tout changement compatible fait 
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-10-27
+
+Ajout d'un dépôt depuis le TUI (touche `a`), lien « GitHub » rétabli pour les contributeurs connus
+avant la 0.5.0, et vérification des nouvelles versions toutes les 30 min dans `watchoo serve`.
+
 ### Ajouté
 
 - **Ajout d'un dépôt depuis le mode interactif** : dans `watchoo tui`, la touche `a` (vue Dépôts) ouvre
@@ -253,7 +258,8 @@ Première version publiée : le MVP (phases 1 à 5 de la [roadmap](documentation
   `gh` est le binaire officiel vérifié par SHA-256 ; images de base et actions GitHub épinglées par
   empreinte.
 
-[Unreleased]: https://github.com/studoo-app/watchoo/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/studoo-app/watchoo/compare/v0.6.1...HEAD
+[0.6.1]: https://github.com/studoo-app/watchoo/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/studoo-app/watchoo/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/studoo-app/watchoo/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/studoo-app/watchoo/compare/v0.2.0...v0.4.0
