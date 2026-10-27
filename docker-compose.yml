@@ -12,7 +12,7 @@
 # dépôts privés) : ne le partagez pas et ne le montez dans aucun autre conteneur.
 services:
   watchoo:
-    image: ghcr.io/studoo-app/watchoo:0.4.0
+    image: ghcr.io/studoo-app/watchoo:0.5.0
     # Pour construire l'image localement à la place : décommentez (make docker fait de même).
     # build: .
     restart: unless-stopped

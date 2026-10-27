@@ -9,13 +9,12 @@ trois questions : qu'est-ce qui a bougé, quand, et qui l'a fait. Il propose une
 (`watchoo tui`) et une interface web locale (`watchoo serve`). Chaque groupe supervisé (ex. les projets des
 étudiants d'une promotion) vit dans son propre répertoire, initialisé par `watchoo init`.
 
-**État actuel : v0.4.0 (MVP terminé, phases 1 à 6 de la [roadmap](documentation/07-roadmap.md) en place : MVP, partage de la configuration et V2).**
+**État actuel : v0.5.0 (MVP terminé, phases 1 à 6 de la [roadmap](documentation/07-roadmap.md) en place : MVP, partage de la configuration et V2, puis page par contributeur).**
 `watchoo init` crée un espace de supervision ; `repo add / import / list / remove`, `sync`, `log`,
 `contributors`, `prs`, `releases`, `status` et `version` fonctionnent en texte et en `--json` (schéma stable, documenté dans
 [05-cli.md](documentation/05-cli.md#sortie-json) et vérifié par `internal/cli/json_schema_test.go`) ;
 `watchoo tui` ouvre le mode interactif ; `watchoo serve` sert l'interface web locale (tableau de bord et
-contributeurs avec graphiques d'activité, détail d'un dépôt, page d'un contributeur (0.5.0, non
-publiée), réglages) et synchronise en arrière-plan. Le
+contributeurs avec graphiques d'activité, détail d'un dépôt, page d'un contributeur, réglages) et synchronise en arrière-plan. Le
 cœur métier est dans `internal/sync` (moteur : synchro incrémentale, verrou, quota, ajout de dépôts ;
 `Coordinator` : une seule synchro à la fois dans un processus long), `internal/activity` (états Actif /
 Flemme / Dead et gris, séries d'activité par jour et par semaine) et `internal/repoimport` (références,
