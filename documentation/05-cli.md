@@ -320,20 +320,32 @@ Nouvelle version de Watchoo disponible : v0.5.0 → v0.6.0. Mettez-la à jour av
 ```
 
 - La vérification part dès le début de la commande et dispose de **1,5 s** au total : une commande n'est
-  jamais retardée de plus, et l'avis n'est pas écrit si la réponse n'est pas arrivée à temps. Sans
-  réseau, ou en cas d'erreur, rien n'est affiché (log de niveau debug avec `--verbose`).
+  jamais retardée de plus, et l'avis n'est pas écrit si la réponse n'est pas arrivée à temps. Une
+  commande plus longue que ce délai (`sync`, par exemple) n'attend pas : la réponse est déjà là, et l'avis
+  est toujours écrit. Sans réseau, ou en cas d'erreur, rien n'est affiché (log de niveau debug avec
+  `--verbose`).
+- `watchoo` seul (la carte d'en-tête et l'aide générale) a aussi son avis, écrit après l'aide, comme
+  `watchoo repo` ou `watchoo config` seuls ; pas `watchoo --help` ni `watchoo help …`.
 - Pas de vérification avec `--json`, quand la sortie d'erreur n'est pas un terminal (scripts, CI, tube),
   pour une version qui n'est pas une version de release (`dev`, pseudo-version de `go install` ou
-  `go build`, pré-version), pour `watchoo update` lui-même, `watchoo serve` (qui a la sienne), l'aide et
-  `watchoo` seul.
+  `go build`, pré-version), pour `watchoo update` lui-même, `watchoo serve` et `watchoo tui` (qui ont la
+  leur), l'aide et la complétion.
 - **`WATCHOO_NO_UPDATE_CHECK`** : posée à une valeur non vide autre que `0` ou `false`, elle coupe toute
-  vérification (commandes et `serve`). L'image Docker la pose (`WATCHOO_NO_UPDATE_CHECK=1`) : elle se met
+  vérification (commandes, `serve` et `tui`). L'image Docker la pose (`WATCHOO_NO_UPDATE_CHECK=1`) : elle se met
   à jour en changeant de tag.
 - Une pré-version n'est jamais proposée ; une version installée plus récente que la dernière publiée ne
   donne aucun avis.
 - **`watchoo serve`** vérifie au démarrage puis toutes les 30 min tant qu'il tourne ; une nouvelle version
   est annoncée une fois sur la sortie d'erreur (même phrase) et l'interface web montre un bandeau (voir
   [Interface web](06-interface-web.md#bandeau-de-nouvelle-version-060)).
+- **`watchoo tui`** vérifie une fois, en arrière-plan, à l'ouverture (10 s au plus, sans retarder
+  l'affichage) ; si une version plus récente est publiée, le mode interactif l'annonce sur la ligne sous
+  son en-tête, tant qu'il reste ouvert :
+  « Nouvelle version de Watchoo disponible : v0.6.1 → v0.6.2. Quittez puis lancez « watchoo update ». »
+  (dans l'image Docker : « Changez le tag de l'image Docker pour la mettre à jour. ») ; sur un terminal
+  trop étroit, une forme courte : « Watchoo v0.6.2 disponible : quittez puis lancez « watchoo update ». ».
+  Échec ou délai dépassé : rien. Pas d'avis de plus sur la sortie d'erreur en quittant. Mêmes exceptions
+  que les commandes : `WATCHOO_NO_UPDATE_CHECK`, version qui n'est pas une version de release.
 
 ### `watchoo update --check`
 
@@ -643,6 +655,8 @@ dépôt à suivre. Voir
   vue Contributeurs (filtre `/`).
 - **En-tête** : hibou mini (pupilles vertes), version et espace, onglets, ligne de synchro (en cours avec
   la progression, dernière synchro, prochaine synchro automatique à HH:MM, ou « Synchro manuelle (s) »).
+  Quand une nouvelle version de Watchoo est publiée, la ligne sous l'en-tête l'annonce (voir
+  [Avis de nouvelle version](#avis-de-nouvelle-version)).
 - **Ajout d'un dépôt** (`a`, vue Dépôts) : une ligne de saisie « Dépôt à suivre (owner/nom ou URL
   GitHub) : » s'ouvre en bas de l'écran ; `entrée` valide, `échap` annule. La saisie accepte les mêmes
   références que `watchoo repo add` (`owner/repo` ou URL GitHub, mêmes règles et mêmes messages) ; une

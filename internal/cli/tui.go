@@ -80,5 +80,7 @@ func runTUI(ctx context.Context, deps Deps, opts *options, interval time.Duratio
 		Version:  appVersion(),
 		Unicode:  term.Unicode,
 		Color:    term.Color,
+		// Avis de nouvelle version dans l'en-tête (pas d'avis CLI après le TUI : noNoticeCommands).
+		UpdateCheck: tuiUpdateCheck(deps),
 	}, tui.IO{In: deps.Stdin, Out: deps.Stdout})
 }

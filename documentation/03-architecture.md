@@ -661,12 +661,19 @@ font qu'afficher.
   sans cache. Elle part dans une goroutine dès le début de la commande (`PersistentPreRun` de la
   commande racine), avec un délai total de 1,5 s ; après la commande, l'avis est écrit sur la sortie
   d'erreur si la réponse est déjà là ou arrive avant la fin de ce délai, compté depuis le début : une
-  commande n'est jamais retardée de plus de 1,5 s, et une commande longue (`sync`) pas du tout. Échec ou
-  absence de réseau : rien n'est affiché (log de niveau debug, visible avec `--verbose`). Pas de
-  vérification avec `--json`, quand la sortie d'erreur n'est pas un terminal, pour une version qui n'est
-  pas une version de release, pour `update` (qui vérifie de toute façon), `serve` (qui a sa propre
-  vérification), l'aide et `watchoo` seul, ni quand `WATCHOO_NO_UPDATE_CHECK` vaut autre chose que
-  vide, `0` ou `false`.
+  commande n'est jamais retardée de plus de 1,5 s, et une commande longue (`sync`) pas du tout. Une
+  réponse déjà arrivée est toujours préférée au délai écoulé (une commande plus longue que 1,5 s garde
+  son avis). Échec ou absence de réseau : rien n'est affiché (log de niveau debug, visible avec
+  `--verbose`). `watchoo` seul (carte et aide générale) a son avis, après l'aide. Pas de vérification
+  avec `--json`, quand la sortie d'erreur n'est pas un terminal, pour une version qui n'est pas une
+  version de release, pour `update` (qui vérifie de toute façon), `serve` et `tui` (qui ont leur propre
+  vérification), l'aide et la complétion, ni quand `WATCHOO_NO_UPDATE_CHECK` vaut autre chose que vide,
+  `0` ou `false`. La décision « vérifier ou non » (variable, version de release) est partagée par les
+  commandes, `serve` et `tui`.
+- **`watchoo tui`** : une vérification à l'ouverture, dans une commande Bubble Tea (goroutine), avec son
+  propre délai de 10 s ; la CLI passe au TUI une fonction de vérification qui renvoie la nouvelle version
+  (versions installée et publiée, image Docker ou non ; vide si Watchoo est à jour), et le TUI écrit
+  l'avis sur la ligne sous son en-tête. Échec : rien.
 - **`watchoo serve`** : vérification au démarrage puis toutes les 30 min (`selfupdate.Monitor`, tant que le
   serveur tourne) ; une nouvelle version est annoncée une fois sur la sortie d'erreur et gardée en
   mémoire, d'où l'interface web tire son bandeau.

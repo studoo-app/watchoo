@@ -24,6 +24,7 @@ const (
 	detailContributors = 5                // contributeurs affichés dans le détail d'un dépôt
 	clockInterval      = time.Minute      // rafraîchissement des dates relatives (« il y a 5 min »)
 	loadTimeout        = 30 * time.Second // durée maximale d'une lecture de la base
+	updateCheckTimeout = 10 * time.Second // durée maximale de la vérification de nouvelle version
 )
 
 // view est une vue du TUI (onglet).
@@ -120,6 +121,8 @@ type Model struct {
 
 	status    string // message du bas de l'écran
 	statusErr bool   // le message est une erreur
+
+	update UpdateInfo // nouvelle version (Deps.UpdateCheck), annoncée sous l'en-tête ; Latest vide = aucune
 }
 
 // Vérifie à la compilation que Model implémente tea.Model.
@@ -173,16 +176,36 @@ type (
 	autoSyncMsg struct{}
 	// clockMsg rafraîchit les dates relatives.
 	clockMsg struct{}
+	// updateMsg apporte la nouvelle version ; vide = à jour ou vérification impossible.
+	updateMsg struct{ info UpdateInfo }
 )
 
 // Init charge les données, programme la première synchro automatique si Deps.Interval > 0 et le
-// rafraîchissement des dates relatives.
+// rafraîchissement des dates relatives, et lance la vérification de nouvelle version (Deps.UpdateCheck).
 func (m Model) Init() tea.Cmd {
 	cmds := []tea.Cmd{m.loadCmd(), m.clockCmd()}
 	if m.deps.Interval > 0 {
 		cmds = append(cmds, m.autoCmd())
 	}
+	if m.deps.UpdateCheck != nil {
+		cmds = append(cmds, m.updateCmd())
+	}
 	return tea.Batch(cmds...)
+}
+
+// updateCmd vérifie si une nouvelle version de Watchoo est publiée (updateCheckTimeout au plus). Un
+// échec n'affiche rien : l'avis est un confort, pas une erreur.
+func (m Model) updateCmd() tea.Cmd {
+	ctx, check := m.ctx, m.deps.UpdateCheck
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(ctx, updateCheckTimeout)
+		defer cancel()
+		info, err := check(ctx)
+		if err != nil {
+			return updateMsg{}
+		}
+		return updateMsg{info: info}
+	}
 }
 
 // now renvoie l'heure courante (Deps.Now, sinon time.Now).
@@ -317,6 +340,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(next, cmd)
 	case clockMsg:
 		return m, m.clockCmd()
+	case updateMsg:
+		if msg.info.Latest != "" {
+			m.update = msg.info
+		}
+		return m, nil
 	}
 	return m, nil
 }

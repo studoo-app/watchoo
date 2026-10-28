@@ -38,7 +38,8 @@ func (m Model) size() (w, h int) {
 	return w, h
 }
 
-// bodyHeight renvoie le nombre de lignes entre l'en-tête (suivi d'une ligne vide) et le bas.
+// bodyHeight renvoie le nombre de lignes entre l'en-tête (suivi d'une ligne : vide, ou l'avis de nouvelle
+// version) et le bas.
 func (m Model) bodyHeight() int {
 	_, h := m.size()
 	return max(h-headerHeight-1-footerHeight, 2)
@@ -53,7 +54,7 @@ func (m Model) listHeight() int {
 func (m Model) render() string {
 	w, _ := m.size()
 	lines := m.renderHeader()
-	lines = append(lines, "")
+	lines = append(lines, m.updateLine(w))
 	var body []string
 	switch {
 	case m.showHelp:
@@ -75,6 +76,26 @@ func (m Model) render() string {
 	lines = append(lines, body...)
 	lines = append(lines, m.renderFooter(w)...)
 	return strings.Join(lines, "\n")
+}
+
+// updateLine renvoie la ligne sous l'en-tête : l'avis de nouvelle version, ou une ligne vide. La phrase
+// complète cite les deux versions ; sur un terminal trop étroit, une forme courte garde la marche à
+// suivre, coupée seulement en dernier recours.
+func (m Model) updateLine(w int) string {
+	u := m.update
+	if u.Latest == "" {
+		return ""
+	}
+	cur, latest := clean(u.Current), clean(u.Latest)
+	how, short := "Quittez puis lancez « watchoo update ».", "quittez puis lancez « watchoo update »."
+	if u.Docker {
+		how, short = "Changez le tag de l'image Docker pour la mettre à jour.", "changez le tag de l'image Docker."
+	}
+	s := fmt.Sprintf("Nouvelle version de Watchoo disponible : %s %s %s. %s", cur, m.sym("→", "->"), latest, how)
+	if width(s) > w {
+		s = fmt.Sprintf("Watchoo %s disponible : %s", latest, short)
+	}
+	return m.st.Notice.Render(truncate(s, w, m.ellipsis()))
 }
 
 // renderFooter renvoie le message (ou la saisie du filtre) et le rappel des touches ; pendant la saisie

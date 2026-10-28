@@ -6,7 +6,8 @@
 // règle métier ici.
 //
 // Vues : dépôts (nom, état, dernier commit, auteur), commits, contributeurs ; détail d'un dépôt ;
-// détail d'un contributeur (0.5.0, contributor.go) ; filtre ; aide des touches. En-tête : hibou mini (internal/logo) aux pupilles vertes.
+// détail d'un contributeur (0.5.0, contributor.go) ; filtre ; aide des touches. En-tête : hibou mini (internal/logo) aux pupilles vertes,
+// puis, sur la ligne qui le suit, l'avis de nouvelle version (Deps.UpdateCheck, vérifié à l'ouverture).
 //
 // Touches (voir keys.go) : tab / maj+tab ou 1, 2, 3 changent de vue ; ↑ ↓ (j k) déplacent la
 // sélection ; entrée ouvre le détail du dépôt (ou du contributeur, vue Contributeurs), échap le ferme ; « / » filtre ; « s » synchronise tout ;
@@ -90,6 +91,18 @@ type Deps struct {
 	Color    bool             // couleurs permises (faux si NO_COLOR ou TERM=dumb)
 	// CommitLimit est le nombre de commits chargés dans la vue commits ; 0 = 200.
 	CommitLimit int
+	// UpdateCheck vérifie, une fois à l'ouverture et en arrière-plan (updateCheckTimeout au plus), si
+	// une nouvelle version de Watchoo est publiée : elle est annoncée sous l'en-tête ; une UpdateInfo
+	// vide (Watchoo à jour) ou une erreur n'affichent rien. nil = pas de vérification (coupée par
+	// WATCHOO_NO_UPDATE_CHECK, version de développement : décision de la CLI).
+	UpdateCheck func(ctx context.Context) (UpdateInfo, error)
+}
+
+// UpdateInfo décrit une nouvelle version de Watchoo publiée ; Latest vide = aucune.
+type UpdateInfo struct {
+	Current string // version installée (v0.6.1)
+	Latest  string // dernière version publiée (v0.6.2)
+	Docker  bool   // Watchoo tourne dans l'image Docker : changer le tag, pas « watchoo update »
 }
 
 // IO décrit le terminal où tourne le TUI.

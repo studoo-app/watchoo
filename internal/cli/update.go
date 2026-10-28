@@ -18,6 +18,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/studoo-app/watchoo/internal/selfupdate"
+	"github.com/studoo-app/watchoo/internal/tui"
 )
 
 // Updater lit les releases de Watchoo et installe une version ; *selfupdate.Client le satisfait.
@@ -59,26 +60,34 @@ type updateNotice struct {
 	docker   bool
 }
 
-// noNoticeCommands n'ont jamais d'avis : update vérifie de toute façon, serve a sa propre
-// vérification, l'aide et la complétion ne sont pas des commandes de travail.
+// noNoticeCommands n'ont jamais d'avis : update vérifie de toute façon, serve et tui ont leur propre
+// vérification (tui l'affiche dans son en-tête), l'aide et la complétion ne sont pas des commandes de
+// travail.
 var noNoticeCommands = map[string]bool{
-	"update": true, "serve": true, "help": true, "completion": true,
+	"update": true, "serve": true, "tui": true, "help": true, "completion": true,
 	cobra.ShellCompRequestCmd: true, cobra.ShellCompNoDescRequestCmd: true,
 }
 
-// startUpdateNotice lance la vérification de l'avis pour la commande cmd, sauf si elle doit être
-// sautée (voir 05-cli.md, « Avis de nouvelle version ») : --json, sortie d'erreur hors terminal,
-// version qui n'est pas une version de release, commandes de noNoticeCommands, « watchoo » seul (aide),
-// variable WATCHOO_NO_UPDATE_CHECK. Elle renvoie nil si la vérification est sautée.
-func startUpdateNotice(ctx context.Context, deps Deps, opts *options, cmd, root *cobra.Command) *updateNotice {
+// updateCheckEnabled indique si les nouvelles versions de current sont vérifiées : pas quand
+// WATCHOO_NO_UPDATE_CHECK la coupe, ni pour une version qui n'est pas une version de release. Décision
+// commune à l'avis des commandes, à « watchoo serve » et à « watchoo tui ».
+func updateCheckEnabled(current string) bool {
+	return !selfupdate.CheckDisabled(os.Getenv) && selfupdate.IsRelease(current)
+}
+
+// startUpdateNotice lance la vérification de l'avis pour la commande cmd (arguments args), sauf si
+// elle doit être sautée (voir 05-cli.md, « Avis de nouvelle version ») : --json, sortie d'erreur hors
+// terminal, vérification coupée (updateCheckEnabled), commandes de noNoticeCommands, aide d'un groupe,
+// mot inconnu après « watchoo ». « watchoo » seul (carte et aide) a son avis. Elle renvoie nil si la
+// vérification est sautée.
+func startUpdateNotice(ctx context.Context, deps Deps, opts *options, cmd, root *cobra.Command, args []string) *updateNotice {
 	current := appVersion()
 	switch {
 	case opts.json,
 		noNoticeCommands[cmd.Name()],
-		cmd == root && !opts.version,
-		!cmd.Runnable(), // « watchoo repo » seul : son aide
-		selfupdate.CheckDisabled(os.Getenv),
-		!selfupdate.IsRelease(current),
+		cmd == root && len(args) > 0, // « watchoo inconnu » : une erreur
+		!cmd.Runnable(),              // « watchoo repo » seul : son aide
+		!updateCheckEnabled(current),
 		!deps.StderrIsTerminal():
 		return nil
 	}
@@ -109,21 +118,27 @@ func startUpdateNotice(ctx context.Context, deps Deps, opts *options, cmd, root 
 
 // finish attend la vérification jusqu'à son échéance au plus (jamais au-delà de updateNoticeTimeout
 // après le début de la commande), puis écrit l'avis sur la sortie d'erreur si une version plus récente
-// est publiée. Échec, délai dépassé ou commande interrompue : rien (log debug avec --verbose).
+// est publiée. Une réponse déjà arrivée l'emporte toujours : après une commande plus longue que le
+// délai, l'échéance est passée mais la réponse est là, et select choisirait au hasard entre les deux.
+// Échec, délai dépassé ou commande interrompue : rien (log debug avec --verbose).
 func (n *updateNotice) finish(ctx context.Context, deps Deps) {
 	if n == nil {
 		return
 	}
 	defer n.cancel()
-	timer := time.NewTimer(time.Until(n.deadline))
-	defer timer.Stop()
 	select {
 	case <-n.done:
-	case <-timer.C:
-		n.logger.Debug("vérification de la dernière version de Watchoo trop lente : avis abandonné")
-		return
-	case <-ctx.Done():
-		return
+	default:
+		timer := time.NewTimer(time.Until(n.deadline))
+		defer timer.Stop()
+		select {
+		case <-n.done:
+		case <-timer.C:
+			n.logger.Debug("vérification de la dernière version de Watchoo trop lente : avis abandonné")
+			return
+		case <-ctx.Done():
+			return
+		}
 	}
 	if n.err != nil {
 		n.logger.Debug("vérification de la dernière version de Watchoo impossible", "erreur", n.err)
@@ -141,7 +156,8 @@ func (n *updateNotice) abandon() {
 	}
 }
 
-// updateNoticeText est la phrase de l'avis de nouvelle version (CLI et « watchoo serve »).
+// updateNoticeText est la phrase de l'avis de nouvelle version (CLI et « watchoo serve ») ; celle de
+// « watchoo tui » est écrite par le TUI (tui.UpdateInfo).
 func updateNoticeText(st selfupdate.Status, docker bool) string {
 	how := "Mettez-la à jour avec « watchoo update »."
 	if docker {
@@ -150,13 +166,31 @@ func updateNoticeText(st selfupdate.Status, docker bool) string {
 	return fmt.Sprintf("Nouvelle version de Watchoo disponible : %s → %s. %s", st.Current, st.Latest, how)
 }
 
+// tuiUpdateCheck renvoie la vérification passée à « watchoo tui » (tui.Deps.UpdateCheck) : la nouvelle
+// version si une version plus récente est publiée, une UpdateInfo vide sinon. nil si la vérification
+// est coupée (updateCheckEnabled). Le délai est celui du TUI.
+func tuiUpdateCheck(deps Deps) func(ctx context.Context) (tui.UpdateInfo, error) {
+	current := appVersion()
+	if !updateCheckEnabled(current) {
+		return nil
+	}
+	docker := deps.InDocker()
+	return func(ctx context.Context) (tui.UpdateInfo, error) {
+		st, err := deps.Updater.Check(ctx, current)
+		if err != nil || !st.UpdateAvailable {
+			return tui.UpdateInfo{}, err
+		}
+		return tui.UpdateInfo{Current: st.Current, Latest: st.Latest, Docker: docker}, nil
+	}
+}
+
 // newUpdateMonitor renvoie la vérification périodique de « watchoo serve » (au démarrage puis toutes
 // les 30 min), ou nil si elle est coupée (WATCHOO_NO_UPDATE_CHECK) ou si la version installée n'est pas
 // une version de release. Une nouvelle version est annoncée une fois sur la sortie d'erreur (même
 // phrase que l'avis des commandes) et journalisée (info).
 func newUpdateMonitor(deps Deps, logger *slog.Logger) *selfupdate.Monitor {
 	current := appVersion()
-	if selfupdate.CheckDisabled(os.Getenv) || !selfupdate.IsRelease(current) {
+	if !updateCheckEnabled(current) {
 		logger.Debug("vérification des nouvelles versions de Watchoo désactivée", "version", current)
 		return nil
 	}
