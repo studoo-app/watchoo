@@ -9,6 +9,11 @@ un changement incompatible fait monter MINOR et tout changement compatible fait 
 
 ## [Unreleased]
 
+## [0.6.2] - 2026-10-27
+
+Avis de nouvelle version rétabli pour `watchoo` seul et dans `watchoo tui`, et plus jamais perdu après
+une commande longue.
+
 ### Corrigé
 
 - **Avis de nouvelle version** : il s'affiche maintenant aussi pour `watchoo` seul (après la carte et
@@ -264,7 +269,8 @@ Première version publiée : le MVP (phases 1 à 5 de la [roadmap](documentation
   `gh` est le binaire officiel vérifié par SHA-256 ; images de base et actions GitHub épinglées par
   empreinte.
 
-[Unreleased]: https://github.com/studoo-app/watchoo/compare/v0.6.1...HEAD
+[Unreleased]: https://github.com/studoo-app/watchoo/compare/v0.6.2...HEAD
+[0.6.2]: https://github.com/studoo-app/watchoo/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/studoo-app/watchoo/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/studoo-app/watchoo/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/studoo-app/watchoo/compare/v0.4.0...v0.5.0
