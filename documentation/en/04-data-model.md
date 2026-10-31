@@ -170,7 +170,7 @@ Primary key: **`(repo_id, sha, branch_id)`**. Foreign key `(repo_id, sha)` to `c
 | finished_at | End |
 | new_commits | Number of new commits fetched |
 | status | `running`, `success` or `error` |
-| error | Optional error message, in French, with no personal data |
+| error | Optional error message, in the language active at sync time (English or French), with no personal data |
 
 The last `sync_run` of a repository gives the Error state. A `running` `sync_run` also serves as a
 **lock**: see [Architecture](03-architecture.md#sync-frequency).

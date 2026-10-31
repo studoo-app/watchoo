@@ -11,6 +11,9 @@ an incompatible change bumps MINOR and any compatible change bumps PATCH (see
 
 ### Added
 
+- **Bilingual interface**: the CLI, TUI and web interface are available in English (default) and
+  French; the CLI/TUI language comes from `WATCHOO_LANG` or the system locale, the web language from
+  the workspace's shared `lang` setting; no new dependency (the `internal/i18n` package).
 - **Bilingual documentation**: the design documentation is now available in English and French,
   reorganized into mirror trees `documentation/en/` and `documentation/fr/` with the same numbering
   and a bilingual index ([INDEX.md](documentation/INDEX.md)); the root `README.md` is English with a

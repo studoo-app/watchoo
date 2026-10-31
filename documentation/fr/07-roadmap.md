@@ -9,7 +9,8 @@ la précédente marche de bout en bout.**
 critère de fin du MVP validé le 27 octobre 2026 ; phase 6 (V2) réalisée et publiée en **v0.4.0** ;
 page par contributeur publiée en **v0.5.0** ; mise à jour de Watchoo (`watchoo update`) publiée en
 **v0.6.0** ; ajout d'un dépôt depuis le TUI et lien de profil corrigé en **v0.6.1** ; avis de nouvelle version
-corrigé (`watchoo` seul, TUI) en **v0.6.2**.
+corrigé (`watchoo` seul, TUI) en **v0.6.2** ; la suite, l'interface bilingue ([0.7.0](#070--interface-bilingue)), est en
+cours.
 
 ```mermaid
 flowchart LR
@@ -113,6 +114,13 @@ L'import d'une organisation entière et les alertes passent en V3 (voir
 - Commande `watchoo update` (`--check`, `--yes`) : **en place** (archive de la release vérifiée par
   SHA-256, remplacement atomique du binaire ; refus expliqué dans Docker, pour une version de
   développement ou un répertoire non accessible en écriture).
+
+### 0.7.0 : interface bilingue
+- Interface (CLI, TUI, web) en **anglais par défaut**, disponible aussi en **français** : paquet
+  `internal/i18n` (catalogue de clés, sans dépendance), langue de la CLI et du TUI par `WATCHOO_LANG`
+  ou la locale du système, langue du web par le réglage `lang` de l'espace (partagé), textes
+  affichés et erreurs traduits, `config.yaml` écrit dans la langue choisie. Voir
+  [Langues et traductions](03-architecture.md#langues-et-traductions).
 
 ## Définition de « terminé » pour chaque phase
 

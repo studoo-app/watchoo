@@ -11,6 +11,16 @@ thèmes clair / sombre (voir [Architecture](03-architecture.md#css--daisyui)).
 donné par `-C`). Le nom de l'espace (ex. « licence-projet ») est affiché dans le titre de chaque page. Pour
 plusieurs espaces en même temps, on lance un `serve` par espace, chacun sur son port (`web.addr`).
 
+## Langue de l'interface
+
+La langue des pages vient du **réglage `lang` de l'espace de supervision** (`config.yaml`) : `en` par
+défaut, `fr` pour le français. Tout ce qui est affiché — titres, tableaux, libellés, boutons,
+messages d'erreur, dates relatives (« il y a 2 h » → "2 h ago") — existe dans les deux langues, servis
+par le paquet `internal/i18n`, sans dépendance (voir
+[Architecture](03-architecture.md#langues-et-traductions)). `lang` est un réglage commun : il est
+partagé avec les autres superviseurs comme `timezone`. Les données saisies (noms affichés, messages
+de commit, logins) ne sont pas traduites. Le réglage se change dans `config.yaml`.
+
 ## Pages
 
 | Page | Adresse | Fragments HTMX |
@@ -26,7 +36,7 @@ Toutes les pages ont la même barre de navigation (DaisyUI `navbar`) : logo, nom
 `watchoo-theme` ; par défaut, celui du système, `prefers-color-scheme`). Sous 1024 px de large, les
 liens puis l'état des synchros passent chacun sur leur propre ligne. Les dates sont relatives
 (« il y a 2 h »), avec l'heure locale (fuseau d'affichage) en infobulle. Page introuvable (404) et
-erreurs (500…) : pages en français, sans détail interne (le détail est dans le journal de `serve`).
+erreurs (500…) : pages dans la langue de l'espace, sans détail interne (le détail est dans le journal de `serve`).
 
 ### Lignes ajoutées et supprimées (0.5.0)
 

@@ -10,7 +10,8 @@ previous one works end to end.**
 phase 6 (V2) was completed and released as **v0.4.0**; the per-contributor page was released as
 **v0.5.0**; Watchoo self-update (`watchoo update`) was released as **v0.6.0**; adding a repository
 from the TUI and a fixed profile link in **v0.6.1**; the new-version notice fixed (`watchoo` only,
-TUI) in **v0.6.2**.
+TUI) in **v0.6.2**; the next step, the bilingual interface ([0.7.0](#070-bilingual-interface)), is in
+progress.
 
 ```mermaid
 flowchart LR
@@ -115,6 +116,13 @@ Importing a whole organization and the alerts move to V3 (see
 - `watchoo update` command (`--check`, `--yes`): **in place** (release archive verified by
   SHA-256, atomic replacement of the binary; refusal explained in Docker, for a development
   version or a non-writable directory).
+
+### 0.7.0: Bilingual interface
+- Interface (CLI, TUI, web) in **English by default**, also available in **French**: the
+  `internal/i18n` package (key catalog, no dependency), CLI/TUI language via `WATCHOO_LANG`
+  or the system locale, web language via the workspace's shared `lang` setting, displayed
+  texts and errors translated, `config.yaml` written in the chosen language. See
+  [Languages and translations](03-architecture.md#languages-and-translations).
 
 ## Definition of "done" for each phase
 

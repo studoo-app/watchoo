@@ -430,6 +430,21 @@ No test reaches GitHub: the root of the releases is that of a fake `httptest` se
   a very narrow terminal, escape sequences cleaned); nothing when Watchoo is up to date, on error,
   when quitting before the answer or without a function (check disabled).
 
+## Languages in tests
+
+The interface (CLI, TUI, web) is bilingual: **English by default**, French via `WATCHOO_LANG=fr`
+(CLI, TUI) or the workspace's `lang` setting (web); see
+[Languages and translations](03-architecture.md#languages-and-translations).
+
+- Tests write their **own messages in English**: comments, scenario names, failure messages
+  (`t.Errorf`, `t.Fatal`).
+- The interface's **expected texts** are written in the test's language, **set explicitly** by the
+  test (environment variable or workspace setting): English by default, French in the dedicated
+  tests; never the machine's locale, for a result independent of the system.
+- The `internal/i18n` package has its own tests: language detection (`WATCHOO_LANG` first, system
+  locale, then English), English then key fallback for a missing key, argument formatting, and
+  **catalog completeness**: every key exists in both languages.
+
 ## In CI
 
 On every push and every pull request:

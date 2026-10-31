@@ -725,6 +725,30 @@ font qu'afficher.
   logs du moteur sont coupés (ils casseraient l'écran).
 - Code dans `internal/tui/`.
 
+### Langues et traductions
+- **Décision** : l'interface (CLI, TUI, web) est bilingue, en **anglais par défaut** et en **français**.
+  Aucune dépendance : les textes viennent du paquet `internal/i18n`, un **catalogue de clés** vers deux
+  textes (`en`, `fr`), formatés avec `fmt.Sprintf`. Une clé absente du catalogue retombe sur l'anglais,
+  puis sur la clé elle-même (jamais de panique) ; un test du paquet vérifie que **chaque clé existe dans
+  les deux langues**.
+- **Sélection, CLI et TUI** : la variable `WATCHOO_LANG` (`en` ou `fr`) d'abord ; sinon la locale du
+  système (`LC_ALL`, `LC_MESSAGES`, puis `LANG`, préfixe `fr` → français) ; sinon l'anglais. La langue
+  est détectée une fois par processus.
+- **Sélection, web** : le **réglage `lang` de l'espace** (`config.yaml`, `en` par défaut, borné à `en`
+  et `fr`), un réglage **commun** partagé avec les autres superviseurs comme `timezone`. Les pages d'un
+  espace sont toutes servies dans sa langue, quel que soit le navigateur.
+- **Couverture** : tout ce qui est affiché à l'utilisateur — messages et aide de la CLI, écrans du TUI,
+  textes des templates web (titres, tableaux, boutons, badges, pages 404/500), messages d'erreur du
+  provider, compte rendu de `watchoo init`, commentaires et carte d'en-tête du `config.yaml` écrit par
+  `init` (`config.example.yaml` en anglais), formats courts des dates (« il y a 2 h » / "2 h ago") et les
+  messages d'erreur consignés dans `sync_runs.error` (dans la langue active lors de la synchro). Les
+  données saisies (labels, messages de commit, logins) ne sont jamais traduites.
+- **Sortie `--json`** : les clés ne changent pas (schéma stable, même version de schéma) ; les valeurs de
+  message (erreurs, avertissements) sont dans la langue sélectionnée.
+- **Tests** : les textes attendus sont écrits dans la langue du test, posée explicitement (anglais par
+  défaut ; français par `WATCHOO_LANG=fr` ou `lang: fr`), jamais la locale de la machine : voir
+  [Tests](09-tests.md#langues-dans-les-tests).
+
 ### Accès aux données : sqlc
 - Les requêtes sont écrites dans `internal/store/queries/*.sql`, chacune nommée
   (`-- name: ListRecentCommits :many`).
@@ -743,12 +767,12 @@ font qu'afficher.
 - Retenu pour une implémentation propre : les routes sont regroupées par zone (pages, fragments HTMX,
   réglages, assets statiques), chacune avec ses middlewares.
 - **Réalisation (phase 4)** : `go-chi/chi/v5`. Middlewares, dans l'ordre : récupération de panique
-  (page 500 en français, sans détail), journal d'accès `slog` (motif de route, code, durée), en-têtes de
+  (page 500 dans la langue de l'espace, sans détail), journal d'accès `slog` (motif de route, code, durée), en-têtes de
   sécurité (CSP…), contrôle de l'en-tête `Host` (DNS rebinding), authentification basique (toutes les
   routes), taille des corps bornée, CSRF, puis `middleware.Timeout` de chi. `RequestID` n'est pas
   utilisé (rien à corréler) ; `RealIP` non plus : il ferait confiance à `X-Forwarded-For`, falsifiable,
   et le journal ne contient de toute façon aucune adresse IP. Récupération et journal sont écrits pour
-  Watchoo (messages en français, aucune donnée personnelle).
+  Watchoo (dans la langue de l'espace, aucune donnée personnelle).
 - Les handlers restent des `http.Handler` standard : aucune dépendance de chi dans la logique métier.
 - Le package `internal/web` n'a aucune logique métier : il lit `internal/store`, calcule les états avec
   `internal/activity` et pilote les synchros par `wsync.Coordinator` (une seule à la fois, synchro

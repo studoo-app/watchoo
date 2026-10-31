@@ -199,8 +199,9 @@ Git's credential helper).
 
 `watchoo config export` and `watchoo config import` (CLI) or the Settings page (web) share the
 tracked repositories and the **common settings** of a workspace: `sync.auto`, `sync.interval`,
-`sync.parallelism`, `activity.flemme_after_days`, `activity.dead_after_days`, `branches.exclude` and
-`timezone`. Settings specific to the machine or the person are **never** shared: `name`, `github.*`
+`sync.parallelism`, `activity.flemme_after_days`, `activity.dead_after_days`, `branches.exclude`,
+`timezone` and `lang` (English by default, see
+[Web interface](06-web-interface.md#interface-language)). Settings specific to the machine or the person are **never** shared: `name`, `github.*`
 (`gh` account, path to `gh`: a file coming from elsewhere must never choose the program being run),
 `git.*` (clone protocol, tied to the machine's credentials) and `web.*`.
 Details: [Configuration sharing](05-cli.md#configuration-sharing-watchoo-config).

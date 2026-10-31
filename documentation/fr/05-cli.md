@@ -14,6 +14,14 @@ Toutes les commandes sauf `init`, `version` et `update` travaillent sur un **esp
 `.watchoo/` trouvé dans le répertoire courant ou ses parents (voir
 [Espaces de supervision](10-espaces-de-supervision.md)).
 
+**Langue des messages** : la CLI et le TUI parlent **anglais par défaut**. La variable `WATCHOO_LANG`
+(`en` ou `fr`) choisit la langue ; sans elle, la locale du système décide (`LC_ALL`, `LC_MESSAGES`, puis
+`LANG` : préfixe `fr` → français) ; à défaut, l'anglais. La langue de l'interface web se règle
+séparément, par le réglage `lang` de l'espace (voir
+[Interface web](06-interface-web.md#langue-de-linterface)). Les mêmes textes existent dans les deux
+langues, servis par le paquet `internal/i18n` sans dépendance (voir
+[Architecture](03-architecture.md#langues-et-traductions)).
+
 **Accès aux dépôts** : avec la CLI GitHub `gh` installée et connectée (`gh auth login`), Watchoo passe
 par l'API GitHub ; il obtient le token uniquement avec `gh auth token` et ne le stocke jamais. Sans `gh`
 (absent ou non connecté), il suit les dépôts par **clones Git locaux** (`git` doit être installé), avec

@@ -194,7 +194,8 @@ gestionnaire d'identifiants de Git).
 
 `watchoo config export` et `watchoo config import` (CLI) ou la page Réglages (web) partagent les dépôts
 suivis et les **réglages communs** d'un espace : `sync.auto`, `sync.interval`, `sync.parallelism`,
-`activity.flemme_after_days`, `activity.dead_after_days`, `branches.exclude` et `timezone`. Les réglages
+`activity.flemme_after_days`, `activity.dead_after_days`, `branches.exclude`, `timezone` et `lang`
+(anglais par défaut, voir [Interface web](06-interface-web.md#langue-de-linterface)). Les réglages
 propres à la machine ou à la personne ne sont **jamais** partagés : `name`, `github.*` (compte `gh`,
 chemin de `gh` : un fichier venu d'ailleurs ne doit jamais choisir le programme lancé), `git.*`
 (protocole des clones, lié aux identifiants de la machine) et `web.*`.

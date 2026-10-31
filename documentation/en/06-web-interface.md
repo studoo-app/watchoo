@@ -12,6 +12,16 @@ one given by `-C`). The workspace name (e.g. "licence-projet") is displayed in t
 To run several workspaces at the same time, launch one `serve` per workspace, each on its own port
 (`web.addr`).
 
+## Interface language
+
+The pages' language comes from the **workspace's `lang` setting** (`config.yaml`): `en` by
+default, `fr` for French. Everything displayed — titles, tables, labels, buttons,
+error messages, relative dates (« il y a 2 h » → "2 h ago") — exists in both languages, served
+by the `internal/i18n` package, with no dependency (see
+[Architecture](03-architecture.md#languages-and-translations)). `lang` is a shared setting: it is
+shared with the other supervisors like `timezone`. Entered data (display labels, commit
+messages, logins) is not translated. The setting is changed in `config.yaml`.
+
 ## Pages
 
 | Page | Address | HTMX fragments |
@@ -26,7 +36,7 @@ All pages share the same navigation bar (DaisyUI `navbar`): logo, workspace name
 and the light/dark theme selector (the choice is kept in `localStorage`, key `watchoo-theme`; by
 default, the system's, `prefers-color-scheme`). Below 1024 px wide, the links then the sync status each
 move to their own line. Dates are relative ("il y a 2 h" ("2 h ago")), with the local time (display
-timezone) as tooltip. Page not found (404) and errors (500…): pages in French, with no internal detail
+timezone) as tooltip. Page not found (404) and errors (500…): pages in the workspace's language, with no internal detail
 (the detail is in the `serve` log).
 
 ### Lines added and removed (0.5.0)

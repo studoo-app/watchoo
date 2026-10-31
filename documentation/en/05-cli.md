@@ -13,6 +13,14 @@
 All commands except `init`, `version` and `update` work on a **workspace**: the `.watchoo/` directory found in the
 current directory or its parents (see [Workspaces](10-workspaces.md)).
 
+**Message language**: the CLI and the TUI speak **English by default**. The `WATCHOO_LANG`
+variable (`en` or `fr`) picks the language; without it, the system locale decides (`LC_ALL`,
+`LC_MESSAGES`, then `LANG`: `fr` prefix → French); failing that, English. The web interface
+language is set separately, by the workspace's `lang` setting (see
+[Web interface](06-web-interface.md#interface-language)). The same texts exist in both
+languages, served by the `internal/i18n` package with no dependency (see
+[Architecture](03-architecture.md#languages-and-translations)).
+
 **Repository access**: with the GitHub CLI `gh` installed and signed in (`gh auth login`), Watchoo goes
 through the GitHub API; it gets the token only through `gh auth token` and never stores it. Without `gh`
 (absent or signed out), it tracks the repositories through **local Git repositories** (the `git` binary

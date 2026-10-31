@@ -722,6 +722,30 @@ display.
   engine are muted (they would break the screen).
 - Code in `internal/tui/`.
 
+### Languages and translations
+- **Decision**: the interface (CLI, TUI, web) is bilingual, in **English by default** and in **French**.
+  No dependency: the texts come from the `internal/i18n` package, a **key catalog** mapping each key to two
+  texts (`en`, `fr`), formatted with `fmt.Sprintf`. A key missing from the catalog falls back to English,
+  then to the key itself (never a panic); a package test verifies that **every key exists in
+  both languages**.
+- **Selection, CLI and TUI**: the `WATCHOO_LANG` variable (`en` or `fr`) first; otherwise the
+  system locale (`LC_ALL`, `LC_MESSAGES`, then `LANG`, `fr` prefix → French); otherwise English. The language
+  is detected once per process.
+- **Selection, web**: the **workspace's `lang` setting** (`config.yaml`, `en` by default, bounded to `en`
+  and `fr`), a **shared** setting shared with the other supervisors like `timezone`. A
+  workspace's pages are all served in its language, whatever the browser.
+- **Coverage**: everything displayed to the user — CLI messages and help, TUI screens,
+  web template texts (titles, tables, buttons, badges, 404/500 pages), provider error
+  messages, the `watchoo init` report, the comments and header card of the `config.yaml` written by
+  `init` (`config.example.yaml` in English), short date formats ("il y a 2 h" / "2 h ago") and the
+  error messages recorded in `sync_runs.error` (in the language active at sync time). Entered
+  data (labels, commit messages, logins) is never translated.
+- **`--json` output**: the keys do not change (stable schema, same schema version); the message
+  values (errors, warnings) are in the selected language.
+- **Tests**: the expected texts are written in the test's language, set explicitly (English by
+  default; French via `WATCHOO_LANG=fr` or `lang: fr`), never the machine's locale: see
+  [Testing](09-testing.md#languages-in-tests).
+
 ### Data access: sqlc
 - The queries are written in `internal/store/queries/*.sql`, each named
   (`-- name: ListRecentCommits :many`).
@@ -744,7 +768,7 @@ display.
   check of the `Host` header (DNS rebinding), basic authentication (all routes), bounded body size, CSRF,
   then chi's `middleware.Timeout`. `RequestID` is not used (nothing to correlate); `RealIP` neither: it
   would trust `X-Forwarded-For`, which can be forged, and the log contains no IP address anyway. Recovery
-  and logging are written for Watchoo (messages in French, no personal data).
+  and logging are written for Watchoo (in the workspace's language, no personal data).
 - The handlers remain standard `http.Handler`: no dependency of chi in the business logic.
 - The `internal/web` package has no business logic: it reads `internal/store`, computes the states with
   `internal/activity` and drives the syncs through `wsync.Coordinator` (one at a time, periodic sync,

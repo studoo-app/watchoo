@@ -426,6 +426,21 @@ Aucun test ne joint GitHub : la racine des releases est celle d'un faux serveur 
   coupe sur un terminal très étroit, séquences d'échappement nettoyées) ; rien quand Watchoo est à jour,
   en cas d'erreur, si l'on quitte avant la réponse ou sans fonction (vérification coupée).
 
+## Langues dans les tests
+
+L'interface (CLI, TUI, web) est bilingue : **anglais par défaut**, français par `WATCHOO_LANG=fr`
+(CLI, TUI) ou le réglage `lang` de l'espace (web) ; voir
+[Langues et traductions](03-architecture.md#langues-et-traductions).
+
+- Les tests écrivent leurs **propres messages en anglais** : commentaires, noms de scénarios,
+  messages d'échec (`t.Errorf`, `t.Fatal`).
+- Les **textes attendus** de l'interface le sont dans la langue du test, **posée explicitement** par
+  le test (variable d'environnement ou réglage de l'espace) : l'anglais par défaut, le français dans
+  les tests dédiés ; jamais la locale de la machine, pour un résultat indépendant du système.
+- Le paquet `internal/i18n` a ses tests : détection de la langue (`WATCHOO_LANG` d'abord, locale du
+  système, puis anglais), retour anglais puis clé pour une clé absente, formatage des arguments, et
+  **exhaustivité du catalogue** : chaque clé existe dans les deux langues.
+
 ## En CI
 
 À chaque push et chaque pull request :

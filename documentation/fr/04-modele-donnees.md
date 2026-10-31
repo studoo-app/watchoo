@@ -169,7 +169,7 @@ Clé primaire : **`(repo_id, sha, branch_id)`**. Clé étrangère `(repo_id, sha
 | finished_at | Fin |
 | new_commits | Nombre de nouveaux commits récupérés |
 | status | `running`, `success` ou `error` |
-| error | Message d'erreur éventuel, en français, sans donnée personnelle |
+| error | Message d'erreur éventuel, dans la langue active lors de la synchro (anglais ou français), sans donnée personnelle |
 
 Le dernier `sync_run` d'un dépôt donne l'état « en erreur ». Un `sync_run` `running` sert aussi de
 **verrou** : voir [Architecture](03-architecture.md#fréquence-de-synchronisation).
