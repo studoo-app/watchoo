@@ -90,7 +90,7 @@ func flagUsagesFR(fs *pflag.FlagSet) string {
 // localize traduit en français ce que cobra affiche par défaut en anglais : modèle d'usage, option
 // --help, commande help et erreurs d'options. La commande completion que cobra ajoute d'office est
 // désactivée : son aide et ses sous-commandes sont en anglais, et elle n'est pas documentée
-// (documentation/05-cli.md).
+// (documentation/fr/05-cli.md).
 func localize(root *cobra.Command) {
 	root.SetUsageTemplate(usageTemplate)
 	root.PersistentFlags().BoolP("help", "h", false, "affiche l'aide de la commande")

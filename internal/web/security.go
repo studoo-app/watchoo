@@ -1,6 +1,6 @@
 package web
 
-// Exposition réseau de l'interface (documentation/06-interface-web.md, « Sécurité ») : refus de
+// Exposition réseau de l'interface (documentation/fr/06-interface-web.md, « Sécurité ») : refus de
 // démarrer hors boucle locale sans authentification, et liste des valeurs acceptées de l'en-tête Host
 // (protection contre le DNS rebinding, web.allowed_hosts pour les noms publics d'un reverse proxy).
 

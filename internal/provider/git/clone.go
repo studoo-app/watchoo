@@ -50,7 +50,7 @@ type Ref struct {
 }
 
 // Layout range les clones dans un répertoire selon la règle des homonymes
-// (documentation/03-architecture.md, « Dépôts Git locaux ») : les dépôts sont pris dans l'ordre donné
+// (documentation/fr/03-architecture.md, « Dépôts Git locaux ») : les dépôts sont pris dans l'ordre donné
 // (celui de leur ajout, identifiant croissant) et chacun reçoit le premier nom libre parmi
 //
 //	<name>, <owner>-<name>, <owner>-<name>-2, <owner>-<name>-3…

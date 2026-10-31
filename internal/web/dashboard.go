@@ -1,6 +1,6 @@
 package web
 
-// Tableau de bord « / » (documentation/06-interface-web.md, page 1). PROPRIÉTAIRE : agent dashboard
+// Tableau de bord « / » (documentation/fr/06-interface-web.md, page 1). PROPRIÉTAIRE : agent dashboard
 // (ce fichier, templates/dashboard.html, dashboard_test.go).
 //
 // La page montre :

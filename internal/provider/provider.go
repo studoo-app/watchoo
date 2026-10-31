@@ -111,7 +111,7 @@ type Provider interface {
 	// borné par Since ou Limit, au repli après ErrUnknownBase. Ailleurs, CompareCommits est la méthode
 	// exacte : entre l'ancienne et la nouvelle tête pour une branche déjà synchronisée, depuis la tête
 	// de la branche de référence (la branche par défaut) pour une nouvelle branche. Voir « Synchronisation
-	// incrémentale » dans documentation/03-architecture.md.
+	// incrémentale » dans documentation/fr/03-architecture.md.
 	ListCommits(ctx context.Context, owner, name string, opts ListCommitsOptions) ([]Commit, error)
 
 	// CompareCommits renvoie les commits atteignables depuis head mais pas depuis base (comme

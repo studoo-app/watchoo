@@ -1,7 +1,7 @@
 package sync
 
 // Statistiques de lignes par le clone Git local (« toujours cloner », 0.5.0,
-// documentation/03-architecture.md, « Synchronisation incrémentale » et « Dépôts Git locaux ») : avec
+// documentation/fr/03-architecture.md, « Synchronisation incrémentale » et « Dépôts Git locaux ») : avec
 // ou sans gh, chaque dépôt suivi a son clone dans repos/, qui donne les lignes ajoutées et supprimées
 // de tous ses commits (premier import compris), sans plafond ni quota. Clone indisponible : repli sur
 // les statistiques de l'API (fetchStats : premier import exclu, MaxStatsPerRepo, garde-fou de quota)

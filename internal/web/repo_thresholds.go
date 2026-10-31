@@ -1,7 +1,7 @@
 package web
 
 // Seuils d'activité propres à un dépôt : formulaire de la page de détail (« Seuils d'activité ») et
-// POST /repos/{id}/thresholds (documentation/06-interface-web.md, page 2).
+// POST /repos/{id}/thresholds (documentation/fr/06-interface-web.md, page 2).
 //
 // Champs flemme et dead : nombre de jours sans commit ; vide ou 0 = seuil de l'espace (activity.*).
 // La saisie est lue et vérifiée par repoimport (ParseThreshold, ValidateThresholds), puis enregistrée

@@ -1,6 +1,6 @@
 // Package repoimport analyse les références de dépôts saisies par l'utilisateur : argument de
 // « watchoo repo add » / « watchoo sync » / option --repo, liste --branch, et fichier de
-// « watchoo repo import » (documentation/05-cli.md, « Import groupé »).
+// « watchoo repo import » (documentation/fr/05-cli.md, « Import groupé »).
 //
 // Package pur : il lit un io.Reader et valide la syntaxe, sans accès réseau ni base. La vérification
 // d'accès et l'enregistrement sont faits par internal/sync (Engine.AddRepositories).

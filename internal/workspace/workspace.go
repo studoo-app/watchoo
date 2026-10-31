@@ -1,7 +1,7 @@
 // Package workspace gère les espaces de supervision : création par « watchoo init », recherche du
 // répertoire .watchoo/ (comme Git), et chargement des réglages en trois niveaux avec viper.
 //
-// Voir documentation/10-espaces-de-supervision.md. Ce package ne crée pas la base SQLite : c'est le
+// Voir documentation/fr/10-espaces-de-supervision.md. Ce package ne crée pas la base SQLite : c'est le
 // rôle de l'appelant, via internal/store (store.CreateDBFile puis store.Open et Store.Migrate).
 package workspace
 
