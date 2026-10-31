@@ -2,7 +2,8 @@
 // modèle de config.yaml), refus d'un espace non fiable. Préfixe des clés : « workspace. ».
 package i18n
 
-// workspaceTexts regroupe les textes de internal/workspace, ajoutés au catalogue par catalogParts.
+// workspaceTexts regroupe les textes de internal/workspace, enregistrés dans le catalogue par le
+// init() ci-dessous.
 var workspaceTexts = map[string]entry{
 	// Ponctuation des messages composés : le français garde une espace avant « : » et « ; »,
 	// l'anglais n'en met pas.
@@ -535,4 +536,8 @@ var workspaceTexts = map[string]entry{
 		"unexpected key %s",
 		"clé %s inattendue",
 	},
+}
+
+func init() {
+	register(workspaceTexts)
 }

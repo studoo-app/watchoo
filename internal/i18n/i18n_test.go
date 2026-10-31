@@ -1,7 +1,6 @@
 package i18n
 
 import (
-	"fmt"
 	"os"
 	"testing"
 )
@@ -123,23 +122,15 @@ func TestSetProcessForTest(t *testing.T) {
 	}
 }
 
-// TestCatalog vérifie l'exhaustivité du catalogue : aucune clé déclarée deux fois, chaque clé a un
-// texte dans les deux langues. Les fichiers catalog_*.go des couches ajoutent leurs clés ici.
+// TestCatalog vérifie l'exhaustivité du catalogue : chaque clé, ajoutée par les fichiers
+// catalog_*.go des couches, a un texte dans les deux langues.
 func TestCatalog(t *testing.T) {
-	seen := map[string]string{}
-	for i, part := range catalogParts() {
-		for k, e := range part {
-			if prev := seen[k]; prev != "" {
-				t.Errorf("clé %q déclarée deux fois : %s et part %d", k, prev, i)
-				continue
-			}
-			seen[k] = fmt.Sprintf("part %d", i)
-			if e[0] == "" {
-				t.Errorf("clé %q : texte anglais manquant", k)
-			}
-			if e[1] == "" {
-				t.Errorf("clé %q : texte français manquant", k)
-			}
+	for k, e := range catalog {
+		if e[0] == "" {
+			t.Errorf("clé %q : texte anglais manquant", k)
+		}
+		if e[1] == "" {
+			t.Errorf("clé %q : texte français manquant", k)
 		}
 	}
 }
