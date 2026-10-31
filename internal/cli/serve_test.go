@@ -81,8 +81,8 @@ func (s *servedRun) get(t *testing.T, path string) (int, string) {
 
 func TestServeRefusesJSONArgsAndBadOptions(t *testing.T) {
 	h := newWorkspace(t)
-	h.run("serve", "--json").mustFail(t, "n'a pas de sortie JSON")
-	h.run("serve", "extra").mustFail(t, "« watchoo serve » ne prend pas d'argument")
+	h.run("serve", "--json").mustFail(t, "has no JSON output")
+	h.run("serve", "extra").mustFail(t, "takes no argument")
 	h.run("serve", "--interval", "5m").mustFail(t, "--interval", "minimum de 15 min")
 	h.run("serve", "--addr", "pas-une-adresse").mustFail(t, "--addr", "web.addr")
 }
@@ -116,7 +116,7 @@ func TestServeAddressInUse(t *testing.T) {
 	h.Listen = func(string, string) (net.Listener, error) {
 		return nil, &net.OpError{Op: "listen", Net: "tcp", Err: syscall.EADDRINUSE}
 	}
-	h.run("serve", "--interval", "0").mustFail(t, "127.0.0.1:8080 est déjà utilisée", "--addr")
+	h.run("serve", "--interval", "0").mustFail(t, "127.0.0.1:8080 is already in use", "--addr")
 }
 
 func TestServeRunsAndStops(t *testing.T) {
@@ -134,8 +134,8 @@ func TestServeRunsAndStops(t *testing.T) {
 		t.Errorf("GET /static/app.css : %d", code)
 	}
 	r := run.stop(t).mustSucceed(t)
-	for _, want := range []string{"Interface web : http://" + run.addr + "/", "Synchro automatique : désactivée",
-		"Interface web arrêtée."} {
+	for _, want := range []string{"Web interface: http://" + run.addr + "/", "Automatic sync: disabled",
+		"Web interface stopped."} {
 		if !strings.Contains(r.stdout, want) {
 			t.Errorf("sortie sans %q :\n%s", want, r.stdout)
 		}
@@ -161,7 +161,7 @@ func TestServeSyncsAtStartWhenNeverSynced(t *testing.T) {
 		t.Error("aucune synchro au démarrage")
 	}
 	r := run.stop(t).mustSucceed(t)
-	if !strings.Contains(r.stdout, "Synchro automatique : toutes les 30 min") {
+	if !strings.Contains(r.stdout, "Automatic sync: every 30 min") {
 		t.Errorf("sortie :\n%s", r.stdout)
 	}
 	// Relancé juste après : la dernière synchro est récente, pas de nouvelle synchro au démarrage.
@@ -180,7 +180,7 @@ func TestServeTrustedProxyWarns(t *testing.T) {
 	t.Setenv("WATCHOO_WEB_ALLOWED_HOSTS", "watchoo.example.test")
 	run := startServe(t, h, "--interval", "0", "--addr", "0.0.0.0:8080")
 	r := run.stop(t).mustSucceed(t)
-	if !strings.Contains(r.stderr, "attention : écoute sur 0.0.0.0:8080 sans authentification basique") {
+	if !strings.Contains(r.stderr, "warning: écoute sur 0.0.0.0:8080 sans authentification basique") {
 		t.Errorf("avertissement absent :\n%s", r.stderr)
 	}
 }
@@ -217,8 +217,8 @@ func TestServeCardOnTerminal(t *testing.T) {
 	h.Terminal = func() TermInfo { return TermInfo{IsTerminal: true, Width: 100, Unicode: true} }
 	run := startServe(t, h, "--interval", "1h")
 	r := run.stop(t).mustSucceed(t)
-	for _, want := range []string{"╭", "Interface web de l'espace « licence-projet »", "Ctrl+C arrête le serveur",
-		"● Interface web : http://" + run.addr + "/", "● Synchro automatique : toutes les 1 h"} {
+	for _, want := range []string{"╭", `Web interface of workspace "licence-projet"`, "Ctrl+C stops the server",
+		"● Web interface: http://" + run.addr + "/", "● Automatic sync: every 1 h"} {
 		if !strings.Contains(r.stdout, want) {
 			t.Errorf("sortie sans %q :\n%s", want, r.stdout)
 		}

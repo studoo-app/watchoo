@@ -77,11 +77,11 @@ func TestFuncs(t *testing.T) {
 		t.Error("badgeClass : mauvaises classes")
 	}
 	for res, want := range map[activity.Result]string{
-		{State: activity.StateActive, Days: 1}:  "Actif",
-		{State: activity.StateFlemme, Days: 9}:  "Flemme · 9 j",
+		{State: activity.StateActive, Days: 1}:  "Active",
+		{State: activity.StateFlemme, Days: 9}:  "Slacking · 9 j",
 		{State: activity.StateDead, Days: 42}:   "Dead · 42 j",
-		{State: activity.StateError, Days: -1}:  "En erreur",
-		{State: activity.StateStopped, Days: 3}: "Suivi arrêté",
+		{State: activity.StateError, Days: -1}:  "Error",
+		{State: activity.StateStopped, Days: 3}: "Tracking stopped",
 	} {
 		if got := stateText(res); got != want {
 			t.Errorf("stateText(%v) = %q, attendu %q", res, got, want)
@@ -158,7 +158,7 @@ func TestTimeFuncsUseDisplayZone(t *testing.T) {
 	if got := f["localClock"].(func(time.Time) string)(at); got != "14:05" {
 		t.Errorf("localClock = %q", got)
 	}
-	if got := f["relTime"].(func(time.Time) string)(testNow.Add(-2 * time.Hour)); got != "il y a 2 h" {
+	if got := f["relTime"].(func(time.Time) string)(testNow.Add(-2 * time.Hour)); got != "2 h ago" {
 		t.Errorf("relTime = %q", got)
 	}
 	if got := f["localTime"].(func(time.Time) string)(time.Time{}); got != "" {
@@ -197,10 +197,10 @@ func TestPartials(t *testing.T) {
 		return buf.String()
 	}
 	if out := run("state-badge", activity.Result{State: activity.StateFlemme, Days: 9}); !strings.Contains(out, "badge-warning") ||
-		!strings.Contains(out, "Flemme · 9 j") {
+		!strings.Contains(out, "Slacking · 9 j") {
 		t.Errorf("state-badge : %s", out)
 	}
-	if out := run("rel-time", testNow.Add(-5*time.Minute)); !strings.Contains(out, "il y a 5 min") ||
+	if out := run("rel-time", testNow.Add(-5*time.Minute)); !strings.Contains(out, "5 min ago") ||
 		!strings.Contains(out, `datetime="2026-10-27T09:55:00Z"`) || !strings.Contains(out, `title="27/10/2026 à 09:55"`) {
 		t.Errorf("rel-time : %s", out)
 	}

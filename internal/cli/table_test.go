@@ -18,10 +18,10 @@ import (
 
 func TestRenderTable(t *testing.T) {
 	headers := []string{"Dépôt", "État"}
-	rows := [][]string{{"alice/projet", "-"}, {"Élodie", "⚠ 42 j"}, {"x", ""}}
+	rows := [][]string{{"alice/projet", "-"}, {"Élodie", "⚠ 42 d"}, {"x", ""}}
 	want := "DÉPÔT         ÉTAT\n" +
 		"alice/projet  -\n" +
-		"Élodie        ⚠ 42 j\n" +
+		"Élodie        ⚠ 42 d\n" +
 		"x\n"
 	if got := renderTable(textStyle{}, headers, rows, nil); got != want {
 		t.Errorf("renderTable =\n%q\nattendu :\n%q", got, want)
@@ -87,7 +87,7 @@ func TestConfirm(t *testing.T) {
 		if err != nil || got != tt.want {
 			t.Errorf("confirm(%q) = %v, %v ; attendu %v", tt.input, got, err, tt.want)
 		}
-		if !strings.HasPrefix(stderr.String(), "Continuer ? [o/N] ") {
+		if !strings.HasPrefix(stderr.String(), "Continuer ? [y/N] ") {
 			t.Errorf("question = %q", stderr.String())
 		}
 		if strings.HasSuffix(tt.input, "\n") {
@@ -108,7 +108,7 @@ func TestConfirm(t *testing.T) {
 	// Erreur de lecture.
 	_, err = confirm(context.Background(), Deps{Stderr: io.Discard, Stdin: iotest.ErrReader(errors.New("panne")),
 		StdinIsTerminal: func() bool { return true }}, "?")
-	if err == nil || !strings.Contains(err.Error(), "lecture de la réponse : panne") {
+	if err == nil || !strings.Contains(err.Error(), "reading the answer: panne") {
 		t.Errorf("confirm sur une entrée en erreur = %v", err)
 	}
 }
@@ -157,7 +157,7 @@ func TestNewLogger(t *testing.T) {
 	} {
 		var buf bytes.Buffer
 		logger := newLogger(&buf, tt.level, tt.verbose)
-		hasWarning := strings.Contains(buf.String(), "attention : WATCHOO_LOG_LEVEL")
+		hasWarning := strings.Contains(buf.String(), "warning: WATCHOO_LOG_LEVEL")
 		if hasWarning != tt.warning {
 			t.Errorf("newLogger(%q) : avertissement %v, attendu %v (%q)", tt.level, hasWarning, tt.warning, buf.String())
 		}

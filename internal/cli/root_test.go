@@ -45,28 +45,31 @@ func TestVersion(t *testing.T) {
 	if len(h.configs) != 0 {
 		t.Errorf("version a construit un accès à gh")
 	}
-	h.run("version", "extra").mustFail(t, "« watchoo version » ne prend pas d'argument")
+	h.run("version", "extra").mustFail(t, `"watchoo version" takes no argument`)
 }
 
-func TestHelpIsInFrench(t *testing.T) {
+// TestHelpIsTranslated parcourt l'aide générale : les textes sont ceux de la langue du processus
+// (anglais, posée par TestMain), sans trace du français ni des textes anglais de cobra.
+func TestHelpIsTranslated(t *testing.T) {
 	h := newHarness(t)
 	for _, args := range [][]string{nil, {"--help"}, {"help"}, {"-h"}} {
 		r := h.run(args...).mustSucceed(t)
-		for _, want := range []string{"Utilisation :", "Commandes :", "init", "version", "--json",
-			"-C, --workspace chemin", "affiche l'aide de la commande"} {
+		for _, want := range []string{"Usage:", "Commands:", "init", "version", "--json",
+			"-C, --workspace path", "show help for a command"} {
 			if !strings.Contains(r.stdout, want) {
 				t.Errorf("watchoo %q : aide sans %q :\n%s", args, want, r.stdout)
 			}
 		}
-		for _, english := range []string{"Usage:", "Available Commands", "Flags:", "help for", "[flags]", "completion"} {
-			if strings.Contains(r.stdout, english) {
-				t.Errorf("watchoo %q : aide avec %q (anglais) :\n%s", args, english, r.stdout)
+		for _, french := range []string{"Utilisation :", "Commandes :", "Options globales :",
+			"affiche l'aide", "[flags]", "completion"} {
+			if strings.Contains(r.stdout, french) {
+				t.Errorf("watchoo %q : aide avec %q (français) :\n%s", args, french, r.stdout)
 			}
 		}
 	}
 
 	r := h.run("help", "init").mustSucceed(t)
-	for _, want := range []string{"Fait du répertoire courant", "Exemples :", "Options globales :", "watchoo init [options]"} {
+	for _, want := range []string{"Examples:", "Global options:", "watchoo init [options]"} {
 		if !strings.Contains(r.stdout, want) {
 			t.Errorf("aide de init sans %q :\n%s", want, r.stdout)
 		}
@@ -78,33 +81,33 @@ func TestHelpIsInFrench(t *testing.T) {
 
 func TestUsageErrors(t *testing.T) {
 	h := newHarness(t)
-	h.run("inti").mustFail(t, "commande inconnue « inti »", "vouliez-vous dire « init » ?")
-	h.run("help", "inconnue").mustFail(t, "aide : commande inconnue « inconnue »")
-	h.run("init", "mon-espace").mustFail(t, "« watchoo init » ne prend pas d'argument (reçu : mon-espace)")
+	h.run("inti").mustFail(t, `unknown command "inti"`, `did you mean "init"?`)
+	h.run("help", "inconnue").mustFail(t, `help: unknown command "inconnue"`)
+	h.run("init", "mon-espace").mustFail(t, `"watchoo init" takes no argument (got: mon-espace)`)
 
-	// Erreurs d'options : message entièrement en français (pflag les écrit en anglais), qui reprend
-	// seulement ce que l'utilisateur a tapé, suivi de la commande d'aide.
+	// Erreurs d'options : message entièrement dans la langue du processus (pflag les écrit en anglais),
+	// qui reprend seulement ce que l'utilisateur a tapé, suivi de la commande d'aide.
 	for _, tt := range []struct {
 		args []string
 		want string
 	}{
-		{[]string{"--inconnue"}, "erreur : option inconnue : --inconnue (aide : « watchoo --help »)\n"},
-		{[]string{"init", "--inconnue"}, "erreur : option inconnue : --inconnue (aide : « watchoo init --help »)\n"},
-		{[]string{"init", "--inconnue=1"}, "erreur : option inconnue : --inconnue (aide : « watchoo init --help »)\n"},
-		{[]string{"init", "-Z"}, "erreur : option courte inconnue : -Z (aide : « watchoo init --help »)\n"},
-		{[]string{"init", "-hZ"}, "erreur : option courte inconnue : -Z (aide : « watchoo init --help »)\n"},
-		{[]string{"init", "-Zx"}, "erreur : option courte inconnue : -Z (aide : « watchoo init --help »)\n"},
-		{[]string{"init", "-C"}, "erreur : l'option -C attend une valeur (aide : « watchoo init --help »)\n"},
-		{[]string{"init", "--workspace"}, "erreur : l'option --workspace attend une valeur (aide : « watchoo init --help »)\n"},
-		{[]string{"init", "--json=x"}, "erreur : valeur invalide \"x\" pour --json : true ou false attendu (aide : « watchoo init --help »)\n"},
-		{[]string{"--json=oui", "version"}, "erreur : valeur invalide \"oui\" pour --json : true ou false attendu (aide : « watchoo version --help »)\n"},
-		{[]string{"init", "---x"}, "erreur : option mal écrite : ---x (aide : « watchoo init --help »)\n"},
+		{[]string{"--inconnue"}, "error: unknown option: --inconnue (help: \"watchoo --help\")\n"},
+		{[]string{"init", "--inconnue"}, "error: unknown option: --inconnue (help: \"watchoo init --help\")\n"},
+		{[]string{"init", "--inconnue=1"}, "error: unknown option: --inconnue (help: \"watchoo init --help\")\n"},
+		{[]string{"init", "-Z"}, "error: unknown short option: -Z (help: \"watchoo init --help\")\n"},
+		{[]string{"init", "-hZ"}, "error: unknown short option: -Z (help: \"watchoo init --help\")\n"},
+		{[]string{"init", "-Zx"}, "error: unknown short option: -Z (help: \"watchoo init --help\")\n"},
+		{[]string{"init", "-C"}, "error: option -C requires a value (help: \"watchoo init --help\")\n"},
+		{[]string{"init", "--workspace"}, "error: option --workspace requires a value (help: \"watchoo init --help\")\n"},
+		{[]string{"init", "--json=x"}, "error: invalid value \"x\" for --json: expected true or false (help: \"watchoo init --help\")\n"},
+		{[]string{"--json=oui", "version"}, "error: invalid value \"oui\" for --json: expected true or false (help: \"watchoo version --help\")\n"},
+		{[]string{"init", "---x"}, "error: malformed option: ---x (help: \"watchoo init --help\")\n"},
 	} {
 		r := h.run(tt.args...).mustFail(t)
 		if r.stderr != tt.want {
 			t.Errorf("watchoo %q : sortie d'erreur\n%q\nattendu\n%q", tt.args, r.stderr, tt.want)
 		}
-		for _, english := range []string{" in -", " for ", "flag", "invalid argument", "syntax", "strconv", "unknown", "needs"} {
+		for _, english := range []string{" in -", "flag", "invalid argument", "syntax", "strconv", "needs"} {
 			if strings.Contains(r.stderr, english) {
 				t.Errorf("watchoo %q : message avec %q (anglais) : %s", tt.args, english, r.stderr)
 			}
@@ -120,11 +123,11 @@ func TestUsageErrors(t *testing.T) {
 // La commande completion de cobra (aide en anglais, non documentée) est désactivée.
 func TestCompletionDisabled(t *testing.T) {
 	h := newHarness(t)
-	h.run("completion").mustFail(t, "commande inconnue « completion »")
-	h.run("completion", "bash").mustFail(t, "commande inconnue « completion »")
-	h.run("help", "completion").mustFail(t, "aide : commande inconnue « completion »")
+	h.run("completion").mustFail(t, `unknown command "completion"`)
+	h.run("completion", "bash").mustFail(t, `unknown command "completion"`)
+	h.run("help", "completion").mustFail(t, `help: unknown command "completion"`)
 	r := h.run("completion", "--help").mustSucceed(t)
-	if strings.Contains(r.stdout, "autocompletion") || !strings.Contains(r.stdout, "Utilisation :") {
+	if strings.Contains(r.stdout, "autocompletion") || !strings.Contains(r.stdout, "Usage:") {
 		t.Errorf("completion --help devrait afficher l'aide de watchoo :\n%s", r.stdout)
 	}
 }
@@ -141,7 +144,7 @@ func TestRunNilArgsShowsHelp(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	// Sans arguments, cobra lirait os.Args (ceux du binaire de test) : Run doit l'éviter.
 	code := Run(context.Background(), Deps{Stdout: &stdout, Stderr: &stderr}, nil)
-	if code != 0 || !strings.Contains(stdout.String(), "Utilisation :") {
+	if code != 0 || !strings.Contains(stdout.String(), "Usage:") {
 		t.Errorf("Run(nil) = %d, stdout :\n%s\nstderr :\n%s", code, stdout.String(), stderr.String())
 	}
 }
@@ -242,10 +245,10 @@ func TestTokenNeverInOutput(t *testing.T) {
 	}
 }
 
-// TestHelpOptionsInFrenchAndAligned parcourt l'aide de toutes les commandes : aucune trace du
-// « (default …) » anglais de pflag, et, dans chaque bloc d'options, les descriptions commencent à la
-// même colonne (comptée en caractères, accents compris : « --repo dépôt » face à « --author auteur »).
-func TestHelpOptionsInFrenchAndAligned(t *testing.T) {
+// TestHelpOptionsAligned parcourt l'aide de toutes les commandes : aucune trace du texte français de
+// la valeur par défaut, et, dans chaque bloc d'options, les descriptions commencent à la même colonne
+// (comptée en caractères, accents compris : « --repo dépôt » face à « --author auteur »).
+func TestHelpOptionsAligned(t *testing.T) {
 	h := newHarness(t)
 	var visit func(c *cobra.Command)
 	var paths [][]string
@@ -265,9 +268,6 @@ func TestHelpOptionsInFrenchAndAligned(t *testing.T) {
 	}
 	for _, p := range paths {
 		r := h.run(append(p, "--help")...).mustSucceed(t)
-		if strings.Contains(r.stdout, "(default") {
-			t.Errorf("watchoo %q --help contient « (default » :\n%s", p, r.stdout)
-		}
 		for _, block := range optionBlocks(r.stdout) {
 			col := -1
 			for _, line := range block {
@@ -289,19 +289,19 @@ func TestHelpOptionsInFrenchAndAligned(t *testing.T) {
 	}
 
 	r := h.run("log", "--help").mustSucceed(t)
-	if !strings.Contains(r.stdout, "0 = tous (20 par défaut)") {
-		t.Errorf("aide de log sans la valeur par défaut en français :\n%s", r.stdout)
+	if !strings.Contains(r.stdout, "(default 20)") {
+		t.Errorf("aide de log sans la valeur par défaut :\n%s", r.stdout)
 	}
 }
 
-// optionBlocks renvoie les lignes des blocs « Options : » et « Options globales : » d'une aide.
+// optionBlocks renvoie les lignes des blocs « Options » et « Global options » d'une aide.
 func optionBlocks(help string) [][]string {
 	var blocks [][]string
 	var cur []string
 	in := false
 	for _, line := range strings.Split(help, "\n") {
 		switch {
-		case line == "Options :" || line == "Options globales :":
+		case line == "Options:" || line == "Global options:":
 			in, cur = true, nil
 		case in && strings.HasPrefix(line, "  "):
 			cur = append(cur, line)

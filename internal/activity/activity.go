@@ -10,6 +10,7 @@ package activity
 import (
 	"time"
 
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/workspace"
 )
@@ -40,26 +41,27 @@ func (s State) Gray() bool {
 	}
 }
 
-// Label renvoie le libellé français de l'état : « Actif », « Flemme », « Dead », « Suivi arrêté »,
-// « En erreur », « Jamais synchronisé », « Archivé », « Vide ».
+// Label renvoie le libellé de l'état, dans la langue du processus : « Actif », « Flemme »,
+// « Dead », « Suivi arrêté », « En erreur », « Jamais synchronisé », « Archivé », « Vide »
+// (anglais : Active, Slacking, Dead, Tracking stopped, Error, Never synced, Archived, Empty).
 func (s State) Label() string {
 	switch s {
 	case StateActive:
-		return "Actif"
+		return i18n.T("activity.state.active")
 	case StateFlemme:
-		return "Flemme"
+		return i18n.T("activity.state.flemme")
 	case StateDead:
-		return "Dead"
+		return i18n.T("activity.state.dead")
 	case StateStopped:
-		return "Suivi arrêté"
+		return i18n.T("activity.state.stopped")
 	case StateError:
-		return "En erreur"
+		return i18n.T("activity.state.error")
 	case StateNeverSynced:
-		return "Jamais synchronisé"
+		return i18n.T("activity.state.never_synced")
 	case StateArchived:
-		return "Archivé"
+		return i18n.T("activity.state.archived")
 	case StateEmpty:
-		return "Vide"
+		return i18n.T("activity.state.empty")
 	default:
 		return string(s)
 	}

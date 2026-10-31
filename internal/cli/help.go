@@ -8,46 +8,52 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+
+	"github.com/studoo-app/watchoo/internal/i18n"
 )
 
-// usageTemplate est le modèle d'usage de cobra, traduit en français (les groupes de commandes, que
-// Watchoo n'utilise pas, en sont retirés).
-const usageTemplate = `Utilisation :{{if .Runnable}}
-  {{useLineFR .UseLine}}{{end}}{{if .HasAvailableSubCommands}}
-  {{.CommandPath}} [commande]{{end}}{{if gt (len .Aliases) 0}}
+// usageTemplate est le modèle d'usage de cobra. Les textes affichés passent par internal/i18n (tr et
+// trf, évalués au moment du rendu) ; les groupes de commandes, que Watchoo n'utilise pas, en sont
+// retirés.
+const usageTemplate = `{{tr "cli.core.usage"}}{{if .Runnable}}
+  {{useLine .UseLine}}{{end}}{{if .HasAvailableSubCommands}}
+  {{.CommandPath}} {{tr "cli.core.usage_command"}}{{end}}{{if gt (len .Aliases) 0}}
 
-Alias :
+{{tr "cli.core.aliases"}}
   {{.NameAndAliases}}{{end}}{{if .HasExample}}
 
-Exemples :
+{{tr "cli.core.examples"}}
 {{.Example}}{{end}}{{if .HasAvailableSubCommands}}
 
-Commandes :{{range .Commands}}{{if (or .IsAvailableCommand (eq .Name "help"))}}
+{{tr "cli.core.commands"}}{{range .Commands}}{{if (or .IsAvailableCommand (eq .Name "help"))}}
   {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}{{if .HasAvailableLocalFlags}}
 
-Options :
-{{flagUsagesFR .LocalFlags | trimTrailingWhitespaces}}{{end}}{{if .HasAvailableInheritedFlags}}
+{{tr "cli.core.options"}}
+{{flagUsages .LocalFlags | trimTrailingWhitespaces}}{{end}}{{if .HasAvailableInheritedFlags}}
 
-Options globales :
-{{flagUsagesFR .InheritedFlags | trimTrailingWhitespaces}}{{end}}{{if .HasAvailableSubCommands}}
+{{tr "cli.core.global_options"}}
+{{flagUsages .InheritedFlags | trimTrailingWhitespaces}}{{end}}{{if .HasAvailableSubCommands}}
 
-Lancez « {{.CommandPath}} [commande] --help » pour l'aide d'une commande.{{end}}
+{{trf "cli.core.usage_more" .CommandPath}}{{end}}
 `
 
 func init() {
 	// cobra ajoute « [flags] » à la ligne d'usage de toute commande qui a des options.
-	cobra.AddTemplateFunc("useLineFR", func(line string) string {
+	cobra.AddTemplateFunc("useLine", func(line string) string {
 		return strings.Replace(line, "[flags]", "[options]", 1)
 	})
-	cobra.AddTemplateFunc("flagUsagesFR", flagUsagesFR)
+	cobra.AddTemplateFunc("flagUsages", flagUsages)
+	cobra.AddTemplateFunc("tr", func(key string) string { return i18n.T(key) })
+	cobra.AddTemplateFunc("trf", func(key string, args ...any) string { return i18n.T(key, args...) })
 }
 
-// flagUsagesFR remplace pflag.FlagSet.FlagUsages dans l'aide, pour deux raisons : pflag ajoute
-// « (default …) » en anglais, et il aligne la colonne des descriptions en comptant des octets, ce qui
-// décale les options dont le nom de valeur a des accents (« dépôt », « période »). Ici la valeur par
-// défaut est écrite « (20 par défaut) » et l'alignement compte les caractères (runes). Une valeur par
-// défaut vide, nulle ou fausse n'est pas affichée, comme avec pflag. Les options cachées sont omises.
-func flagUsagesFR(fs *pflag.FlagSet) string {
+// flagUsages remplace pflag.FlagSet.FlagUsages dans l'aide, pour deux raisons : pflag écrit la valeur
+// par défaut « (default …) » dans sa langue, et il aligne la colonne des descriptions en comptant des
+// octets, ce qui décale les options dont le nom de valeur a des accents (« dépôt », « période »). Ici
+// la valeur par défaut est écrite avec cli.core.flag.default et l'alignement compte les caractères
+// (runes). Une valeur par défaut vide, nulle ou fausse n'est pas affichée, comme avec pflag. Les
+// options cachées sont omises.
+func flagUsages(fs *pflag.FlagSet) string {
 	type row struct{ left, usage string }
 	var rows []row
 	width := 0
@@ -68,12 +74,12 @@ func flagUsagesFR(fs *pflag.FlagSet) string {
 		}
 		if def := f.DefValue; def != "" && def != "0" && def != "false" && def != "[]" && def != "0s" {
 			if f.Value.Type() == "string" {
-				def = "« " + def + " »"
+				def = i18n.T("cli.core.flag.default_string", def)
 			}
-			usage += " (" + def + " par défaut)"
+			usage += " " + i18n.T("cli.core.flag.default", def)
 		}
 		if f.Deprecated != "" {
-			usage += " (obsolète : " + f.Deprecated + ")"
+			usage += " " + i18n.T("cli.core.flag.deprecated", f.Deprecated)
 		}
 		rows = append(rows, row{left, usage})
 		width = max(width, utf8.RuneCountInString(left))
@@ -87,21 +93,21 @@ func flagUsagesFR(fs *pflag.FlagSet) string {
 	return b.String()
 }
 
-// localize traduit en français ce que cobra affiche par défaut en anglais : modèle d'usage, option
-// --help, commande help et erreurs d'options. La commande completion que cobra ajoute d'office est
-// désactivée : son aide et ses sous-commandes sont en anglais, et elle n'est pas documentée
-// (documentation/fr/05-cli.md).
+// localize traduit ce que cobra affiche par défaut dans sa langue à lui (anglais) : modèle d'usage,
+// option --help, commande help et erreurs d'options passent par internal/i18n. La commande completion
+// que cobra ajoute d'office est désactivée : son aide et ses sous-commandes sont en anglais, et elle
+// n'est pas documentée (documentation/fr/05-cli.md).
 func localize(root *cobra.Command) {
 	root.SetUsageTemplate(usageTemplate)
-	root.PersistentFlags().BoolP("help", "h", false, "affiche l'aide de la commande")
+	root.PersistentFlags().BoolP("help", "h", false, i18n.T("cli.core.flag.help"))
 	root.SetHelpCommand(&cobra.Command{
-		Use:   "help [commande]",
-		Short: "Affiche l'aide d'une commande",
-		Long:  "Affiche l'aide d'une commande : « watchoo help init », par exemple.",
+		Use:   i18n.T("cli.core.help.use"),
+		Short: i18n.T("cli.core.help.short"),
+		Long:  i18n.T("cli.core.help.long"),
 		RunE: func(c *cobra.Command, args []string) error {
 			cmd, rest, err := c.Root().Find(args)
 			if err != nil || cmd == nil || len(rest) > 0 {
-				return fmt.Errorf("aide : commande inconnue « %s » (liste des commandes : « %s --help »)",
+				return fmt.Errorf(i18n.T("cli.core.help.unknown"),
 					strings.Join(args, " "), c.Root().CommandPath())
 			}
 			return cmd.Help()
@@ -111,14 +117,14 @@ func localize(root *cobra.Command) {
 	root.SuggestionsMinimumDistance = 2
 	root.SetFlagErrorFunc(func(c *cobra.Command, err error) error {
 		return &hintError{
-			msg: fmt.Sprintf("%s (aide : « %s --help »)", translateFlagError(err), c.CommandPath()),
+			msg: translateFlagError(err) + i18n.T("cli.core.flagerr.hint", c.CommandPath()),
 			err: err,
 		}
 	})
 }
 
-// translateFlagError traduit en français une erreur d'analyse des options renvoyée par pflag, à partir
-// de son type (et non de son texte, en anglais) : seuls les éléments donnés par l'utilisateur (nom de
+// translateFlagError traduit une erreur d'analyse des options renvoyée par pflag, à partir de son
+// type (et non de son texte, en anglais) : seuls les éléments donnés par l'utilisateur (nom de
 // l'option, valeur) sont repris. Une erreur d'un autre type est renvoyée telle quelle.
 func translateFlagError(err error) string {
 	var (
@@ -132,37 +138,37 @@ func translateFlagError(err error) string {
 		// Pour une option courte, pflag donne sa lettre et ce qui restait du groupe (« -vZx ») :
 		// seule la lettre est reprise.
 		if notExist.GetSpecifiedShortnames() != "" {
-			return "option courte inconnue : -" + notExist.GetSpecifiedName()
+			return i18n.T("cli.core.flagerr.unknown_short", notExist.GetSpecifiedName())
 		}
-		return "option inconnue : --" + notExist.GetSpecifiedName()
+		return i18n.T("cli.core.flagerr.unknown", notExist.GetSpecifiedName())
 	case errors.As(err, &valueRequired):
 		dashes := "--"
 		if valueRequired.GetSpecifiedShortnames() != "" {
 			dashes = "-"
 		}
-		return fmt.Sprintf("l'option %s%s attend une valeur", dashes, valueRequired.GetSpecifiedName())
+		return i18n.T("cli.core.flagerr.value_required", dashes, valueRequired.GetSpecifiedName())
 	case errors.As(err, &invalidValue):
-		msg := fmt.Sprintf("valeur invalide %q pour --%s", invalidValue.GetValue(), invalidValue.GetFlag().Name)
+		msg := i18n.T("cli.core.flagerr.invalid_value", invalidValue.GetValue(), invalidValue.GetFlag().Name)
 		if expected := expectedValue(invalidValue.GetFlag()); expected != "" {
-			msg += " : " + expected
+			msg += i18n.T("cli.core.err.sep") + expected
 		}
 		return msg
 	case errors.As(err, &invalidSyntax):
-		return "option mal écrite : " + invalidSyntax.GetSpecifiedFlag()
+		return i18n.T("cli.core.flagerr.malformed", invalidSyntax.GetSpecifiedFlag())
 	}
 	return err.Error()
 }
 
-// expectedValue décrit en français la valeur attendue par une option, selon son type pflag ; chaîne
-// vide si le type n'a pas de description.
+// expectedValue décrit la valeur attendue par une option, selon son type pflag ; chaîne vide si le
+// type n'a pas de description.
 func expectedValue(f *pflag.Flag) string {
 	switch f.Value.Type() {
 	case "bool":
-		return "true ou false attendu"
+		return i18n.T("cli.core.expected.bool")
 	case "duration":
-		return "durée attendue, ex. 30m ou 1h"
+		return i18n.T("cli.core.expected.duration")
 	case "int", "int8", "int16", "int32", "int64", "uint", "uint8", "uint16", "uint32", "uint64":
-		return "nombre entier attendu"
+		return i18n.T("cli.core.expected.int")
 	}
 	return ""
 }

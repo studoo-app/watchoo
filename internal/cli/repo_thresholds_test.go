@@ -25,16 +25,16 @@ func thresholdPair(t *testing.T, h *harness, owner, name string) string {
 // « repo add --flemme / --dead » : seuils enregistrés, affichés, exposés en JSON et appliqués par
 // « repo list ».
 func TestRepoAddThresholds(t *testing.T) {
-	h := newSyncedWorkspace(t) // bob/projet : dernier commit il y a 9 jours (Flemme avec 5 / 15)
+	h := newSyncedWorkspace(t) // bob/projet : dernier commit 9 d agoours (Flemme avec 5 / 15)
 
 	r := h.run("repo", "add", "bob/projet", "--flemme", "10", "--dead", "20").mustSucceed(t)
 	assertContains(t, "repo add --flemme", r.stdout,
-		"Dépôt bob/projet déjà suivi, mis à jour (toutes les branches, seuils : flemme 10 j, dead 20 j).")
+		"Repository bob/projet already tracked, updated (all branches, thresholds: flemme 10 d, dead 20 d).")
 	if got := thresholdPair(t, h, "bob", "projet"); got != "10/20" {
 		t.Errorf("seuils enregistrés = %s", got)
 	}
 	r = h.run("repo", "add", "bob/projet", "--flemme", "10").mustSucceed(t)
-	assertContains(t, "mêmes seuils", r.stdout, "rien à changer")
+	assertContains(t, "mêmes seuils", r.stdout, "nothing to change")
 
 	// repo list : bob est Actif avec un seuil Flemme de 10 jours.
 	r = h.run("repo", "list", "--json").mustSucceed(t)
@@ -62,7 +62,8 @@ func TestRepoAddThresholds(t *testing.T) {
 		t.Errorf("repo add --flemme 0 --dead 8 --json = %+v", rep)
 	}
 	r = h.run("repo", "list").mustSucceed(t)
-	assertContains(t, "repo list Dead", r.stdout, "bob/projet    il y a 9 j      Bob Durand  ⚠ 9 j")
+	// (La date et l'état courts viennent de internal/activity : hors du périmètre de ce groupe.)
+	assertContains(t, "repo list Dead", r.stdout, "bob/projet    9 d ago      Bob Durand  ⚠ 9 d")
 
 	// 0 et 0 : retour aux seuils de l'espace.
 	h.run("repo", "add", "bob/projet", "--flemme", "0", "--dead", "0").mustSucceed(t)
@@ -119,7 +120,7 @@ func TestConfigImportThresholds(t *testing.T) {
 "repositories":[{"repo":"alice/projet","flemme_after_days":3,"dead_after_days":0}]}`)
 
 	r := h.run("config", "import", "partage.json", "--dry-run").mustSucceed(t)
-	assertContains(t, "aperçu", r.stdout, "alice/projet (flemme : espace → 3 j ; dead : 20 j → espace)")
+	assertContains(t, "aperçu", r.stdout, "alice/projet (flemme: workspace → 3 d; dead: 20 d → workspace)")
 	r = h.run("config", "import", "partage.json", "--dry-run", "--json").mustSucceed(t)
 	var rep configImportReport
 	decodeStrict(t, r.stdout, &rep)

@@ -4,6 +4,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"strconv"
@@ -12,6 +13,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/studoo-app/watchoo/internal/activity"
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/repoimport"
 	wsync "github.com/studoo-app/watchoo/internal/sync"
 	"github.com/studoo-app/watchoo/internal/textclean"
@@ -39,12 +41,12 @@ func newRepoCmd(deps Deps, opts *options) *cobra.Command {
 	return cmd
 }
 
-// exactArgs exige n arguments positionnels, avec un message en français qui rappelle l'usage.
+// exactArgs exige n arguments positionnels, avec un message traduit qui rappelle l'usage.
 func exactArgs(n int) cobra.PositionalArgs {
 	return func(cmd *cobra.Command, args []string) error {
 		if len(args) != n {
-			return fmt.Errorf("« %s » attend %d argument%s (reçu : %d) ; utilisation : %s",
-				cmd.CommandPath(), n, plural(n), len(args), cmd.UseLine())
+			return errors.New(i18n.T("cli.repo.args.exact", cmd.CommandPath(), n, plural(n),
+				len(args), cmd.UseLine()))
 		}
 		return nil
 	}
@@ -54,8 +56,8 @@ func exactArgs(n int) cobra.PositionalArgs {
 func maxArgs(n int) cobra.PositionalArgs {
 	return func(cmd *cobra.Command, args []string) error {
 		if len(args) > n {
-			return fmt.Errorf("« %s » attend au plus %d argument%s (reçu : %s) ; utilisation : %s",
-				cmd.CommandPath(), n, plural(n), strings.Join(args, " "), cmd.UseLine())
+			return errors.New(i18n.T("cli.repo.args.max", cmd.CommandPath(), n, plural(n),
+				strings.Join(args, " "), cmd.UseLine()))
 		}
 		return nil
 	}
@@ -69,12 +71,12 @@ func plural(n int) string {
 	return ""
 }
 
-// branchesText décrit les branches suivies d'un dépôt : « toutes les branches » ou « branches : a, b ».
+// branchesText décrit les branches suivies d'un dépôt : « all branches » ou « branches: a, b ».
 func branchesText(patterns []string) string {
 	if len(patterns) == 0 {
-		return "toutes les branches"
+		return i18n.T("cli.repo.branches.all")
 	}
-	return "branches : " + strings.Join(patterns, ", ")
+	return i18n.T("cli.repo.branches.list", strings.Join(patterns, ", "))
 }
 
 // repoAddReport est la sortie JSON de « watchoo repo add ».
@@ -123,7 +125,7 @@ n'est lancée : enchaînez avec « watchoo sync ».`,
 			if cmd.Flags().Changed("branch") {
 				patterns, err := repoimport.ParseBranchPatterns(branch)
 				if err != nil {
-					return fmt.Errorf("--branch : %w", err)
+					return fmt.Errorf("--branch: %w", err)
 				}
 				if patterns == nil {
 					patterns = []string{} // --branch "" : toutes les branches
@@ -168,15 +170,14 @@ func runRepoAdd(ctx context.Context, deps Deps, opts *options, req wsync.AddRequ
 		return err
 	}
 	if len(results) != 1 {
-		return fmt.Errorf("ajout du dépôt %s : résultat manquant", req.Ref)
+		return errors.New(i18n.T("cli.repo.add.missing_result", req.Ref))
 	}
 	res := results[0]
 	switch res.Outcome {
 	case wsync.OutcomeInaccessible:
-		return fmt.Errorf("dépôt %s inaccessible : %s (vérifiez son nom et que le compte gh, ou sans gh "+
-			"la clé SSH ou les identifiants Git de cette machine, y a accès)", req.Ref, res.Error)
+		return errors.New(i18n.T("cli.repo.add.inaccessible", req.Ref, res.Error))
 	case wsync.OutcomeError:
-		return fmt.Errorf("ajout du dépôt %s : %s", req.Ref, res.Error)
+		return errors.New(i18n.T("cli.repo.add.error", req.Ref, res.Error))
 	}
 	if opts.json {
 		return writeJSON(deps.Stdout, repoAddReport{Outcome: res.Outcome, Repository: newRepositoryJSON(res.Repo)})
@@ -189,7 +190,7 @@ func repoAddText(res wsync.AddResult) string {
 	repo := res.Repo
 	var details []string
 	if repo.Label != "" {
-		details = append(details, fmt.Sprintf("label « %s »", textclean.Clean(repo.Label)))
+		details = append(details, i18n.T("cli.repo.add.details_label", textclean.Clean(repo.Label)))
 	}
 	details = append(details, branchesText(repo.BranchPatterns))
 	if t := thresholdsText(repo.FlemmeAfterDays, repo.DeadAfterDays); t != "" {
@@ -198,41 +199,41 @@ func repoAddText(res wsync.AddResult) string {
 	var b strings.Builder
 	switch res.Outcome {
 	case wsync.OutcomeAdded:
-		fmt.Fprintf(&b, "Dépôt %s ajouté (%s).\n", repo.FullName(), strings.Join(details, ", "))
+		fmt.Fprintf(&b, i18n.T("cli.repo.add.added"), repo.FullName(), strings.Join(details, ", "))
 	case wsync.OutcomeUpdated:
-		fmt.Fprintf(&b, "Dépôt %s déjà suivi, mis à jour (%s).\n", repo.FullName(), strings.Join(details, ", "))
+		fmt.Fprintf(&b, i18n.T("cli.repo.add.updated"), repo.FullName(), strings.Join(details, ", "))
 	default:
-		fmt.Fprintf(&b, "Dépôt %s déjà suivi : rien à changer (%s).\n", repo.FullName(), strings.Join(details, ", "))
+		fmt.Fprintf(&b, i18n.T("cli.repo.add.already"), repo.FullName(), strings.Join(details, ", "))
 	}
 	if !strings.EqualFold(res.Request.Ref.String(), repo.FullName()) {
-		fmt.Fprintf(&b, "Le dépôt %s s'appelle maintenant %s sur GitHub.\n", res.Request.Ref, repo.FullName())
+		fmt.Fprintf(&b, i18n.T("cli.repo.add.renamed"), res.Request.Ref, repo.FullName())
 	}
 	if res.Outcome != wsync.OutcomeAlreadyTracked {
-		b.WriteString("Lancez « watchoo sync » pour le synchroniser.\n")
+		b.WriteString(i18n.T("cli.repo.sync_hint"))
 	}
 	return b.String()
 }
 
-// thresholdsText décrit les seuils propres à un dépôt (« seuils : flemme 3 j, dead 10 j »), ou "" s'il
-// n'en a aucun (seuils de l'espace).
+// thresholdsText décrit les seuils propres à un dépôt (« thresholds: flemme 3 d, dead 10 d »), ou ""
+// s'il n'en a aucun (seuils de l'espace).
 func thresholdsText(flemme, dead *int) string {
 	var parts []string
 	if flemme != nil {
-		parts = append(parts, fmt.Sprintf("flemme %d j", *flemme))
+		parts = append(parts, i18n.T("cli.repo.days.flemme", *flemme))
 	}
 	if dead != nil {
-		parts = append(parts, fmt.Sprintf("dead %d j", *dead))
+		parts = append(parts, i18n.T("cli.repo.days.dead", *dead))
 	}
 	if len(parts) == 0 {
 		return ""
 	}
-	return "seuils : " + strings.Join(parts, ", ")
+	return i18n.T("cli.repo.days.prefix") + strings.Join(parts, ", ")
 }
 
 // writeText écrit s sur w, avec une erreur enveloppée.
 func writeText(w io.Writer, s string) error {
 	if _, err := w.Write([]byte(s)); err != nil {
-		return fmt.Errorf("écriture de la sortie : %w", err)
+		return fmt.Errorf("%s%s%w", i18n.T("cli.repo.write_output"), i18n.T("cli.core.err.sep"), err)
 	}
 	return nil
 }
@@ -306,8 +307,7 @@ func runRepoList(ctx context.Context, deps Deps, opts *options) (err error) {
 		return writeJSON(deps.Stdout, report)
 	}
 	if len(summaries) == 0 {
-		return writeText(deps.Stdout, "Aucun dépôt suivi dans cet espace. Ajoutez-en avec "+
-			"« watchoo repo add owner/repo » ou « watchoo repo import fichier.csv ».\n")
+		return writeText(deps.Stdout, i18n.T("cli.repo.list.empty"))
 	}
 	st := outputStyle(deps, opts)
 	rows := make([][]string, len(summaries))
@@ -323,7 +323,13 @@ func runRepoList(ctx context.Context, deps Deps, opts *options) (err error) {
 			states[i].Short(st.unicode()),
 		}
 	}
-	headers := []string{st.pick("Dépôt", "Depot"), "Dernier commit", "Auteur", st.pick("État", "Etat")}
+	// En-têtes traduits ; la variante ASCII (st.pick) ne sert qu'aux accents du texte français.
+	headers := []string{
+		st.pick(i18n.T("cli.repo.list.header_repo"), i18n.T("cli.repo.list.header_repo_ascii")),
+		i18n.T("cli.repo.list.header_commit"),
+		i18n.T("cli.repo.list.header_author"),
+		st.pick(i18n.T("cli.repo.list.header_state"), i18n.T("cli.repo.list.header_state_ascii")),
+	}
 	return writeText(deps.Stdout, renderTable(st, headers, rows, func(row int) bool { return states[row].State.Gray() }))
 }
 
@@ -383,24 +389,24 @@ func runRepoRemove(ctx context.Context, deps Deps, opts *options, ref string, ke
 		if opts.json {
 			return writeJSON(deps.Stdout, report)
 		}
-		return writeText(deps.Stdout, fmt.Sprintf("Le suivi de %s est déjà arrêté : rien n'a changé.\n", repo.FullName()))
+		return writeText(deps.Stdout, i18n.T("cli.repo.remove.already_stopped", repo.FullName()))
 	}
 	commits, err := s.store.CountCommits(ctx, repo.ID)
 	if err != nil {
 		return err
 	}
 	if !yes {
-		prompt := fmt.Sprintf("Arrêter le suivi de %s et supprimer son historique (%s) ?",
-			repo.FullName(), countText(commits, "commit", "commits"))
+		prompt := i18n.T("cli.repo.remove.prompt_delete", repo.FullName(),
+			countText(commits, i18n.T("cli.repo.word.commit"), i18n.T("cli.repo.word.commits")))
 		if keepHistory {
-			prompt = fmt.Sprintf("Arrêter le suivi de %s (l'historique est gardé) ?", repo.FullName())
+			prompt = i18n.T("cli.repo.remove.prompt_keep", repo.FullName())
 		}
 		ok, err := confirm(ctx, deps, prompt)
 		if err != nil {
 			return err
 		}
 		if !ok {
-			return fmt.Errorf("suppression annulée : rien n'a été modifié")
+			return errors.New(i18n.T("cli.repo.remove.cancelled"))
 		}
 	}
 	if keepHistory {
@@ -412,9 +418,7 @@ func runRepoRemove(ctx context.Context, deps Deps, opts *options, ref string, ke
 		if opts.json {
 			return writeJSON(deps.Stdout, report)
 		}
-		return writeText(deps.Stdout, fmt.Sprintf(
-			"Suivi de %s arrêté ; son historique est gardé (« watchoo repo add %s » le reprend).\n",
-			repo.FullName(), repo.FullName()))
+		return writeText(deps.Stdout, i18n.T("cli.repo.remove.stopped", repo.FullName(), repo.FullName()))
 	}
 	if err := wsync.DeleteRepository(ctx, s.store, s.ws.ReposDir(), repo); err != nil {
 		return err
@@ -423,8 +427,8 @@ func runRepoRemove(ctx context.Context, deps Deps, opts *options, ref string, ke
 	if opts.json {
 		return writeJSON(deps.Stdout, report)
 	}
-	return writeText(deps.Stdout, fmt.Sprintf("Dépôt %s retiré : suivi arrêté, historique supprimé (%s).\n",
-		repo.FullName(), countText(commits, "commit", "commits")))
+	return writeText(deps.Stdout, i18n.T("cli.repo.remove.deleted", repo.FullName(),
+		countText(commits, i18n.T("cli.repo.word.commit"), i18n.T("cli.repo.word.commits"))))
 }
 
 // countText renvoie « 1 commit », « 0 commit » ou « 12 commits ».

@@ -14,12 +14,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/selfupdate"
 	"github.com/studoo-app/watchoo/internal/selfupdate/selfupdatetest"
 	"github.com/studoo-app/watchoo/internal/tui"
 )
 
-const wantNotice = "Nouvelle version de Watchoo disponible : v0.5.0 → v0.6.0. Mettez-la à jour avec « watchoo update »."
+const wantNotice = `New Watchoo version available: v0.5.0 → v0.6.0. Update with "watchoo update".`
 
 // newUpdateHarness renvoie un harness en version current (comme injectée par -ldflags) dont les
 // releases sont celles d'un faux serveur, de dernière version latest, pour la plateforme courante.
@@ -57,7 +58,7 @@ func TestUpdateNoticePrintedOnStderr(t *testing.T) {
 	assertNotContains(t, "stdout", r.stdout, "Nouvelle version")
 	// Aussi après une commande en erreur (hors espace), après le message d'erreur.
 	r = h.run("status").mustCode(t, 1)
-	if !strings.HasPrefix(r.stderr, "erreur : ") || !strings.HasSuffix(r.stderr, wantNotice+"\n") {
+	if !strings.HasPrefix(r.stderr, i18n.T("cli.core.err.line", "")) || !strings.HasSuffix(r.stderr, wantNotice+"\n") {
 		t.Errorf("stderr = %q", r.stderr)
 	}
 	// Une vérification par commande (pas de cache).
@@ -67,7 +68,7 @@ func TestUpdateNoticePrintedOnStderr(t *testing.T) {
 	// Dans l'image Docker : changer le tag.
 	h.InDocker = true
 	r = h.run("version").mustSucceed(t)
-	assertContains(t, "avis Docker", r.stderr, "v0.5.0 → v0.6.0", "Changez le tag de l'image Docker")
+	assertContains(t, "avis Docker", r.stderr, "v0.5.0 → v0.6.0", "Change the Docker image tag")
 }
 
 func TestUpdateNoticeSkipped(t *testing.T) {
@@ -98,7 +99,7 @@ func TestUpdateNoticeSkipped(t *testing.T) {
 				t.Setenv(selfupdate.EnvNoCheck, tt.env)
 			}
 			r := h.run(tt.args...).mustSucceed(t)
-			assertNotContains(t, "stderr", r.stderr, "Nouvelle version de Watchoo")
+			assertNotContains(t, "stderr", r.stderr, "New Watchoo version")
 			wantRequests := int64(0)
 			switch tt.name {
 			case "à jour", "plus récente":
@@ -125,12 +126,12 @@ func TestUpdateNoticeAfterRootHelp(t *testing.T) {
 	h, srv := newUpdateHarness(t, "v0.5.0", "v0.6.0")
 	h.StderrTerminal = true
 	r := h.run().mustSucceed(t)
-	assertContains(t, "stdout", r.stdout, "Commandes :", "Lancez « watchoo [commande] --help »")
+	assertContains(t, "stdout", r.stdout, "Commands:", `Run "watchoo [command] --help"`)
 	if r.stderr != wantNotice+"\n" {
 		t.Errorf("stderr = %q, attendu l'avis", r.stderr)
 	}
 	r = h.run("inconnue").mustCode(t, 1)
-	assertNotContains(t, "stderr", r.stderr, "Nouvelle version")
+	assertNotContains(t, "stderr", r.stderr, "New Watchoo version")
 	if n := srv.Requests(); n != 1 {
 		t.Errorf("%d requêtes, attendu 1", n)
 	}
@@ -202,19 +203,19 @@ func TestUpdateNoticeDoesNotDelayCommand(t *testing.T) {
 func TestUpdateCheckText(t *testing.T) {
 	h, _ := newUpdateHarness(t, "v0.5.0", "v0.6.0")
 	r := h.run("update", "--check").mustSucceed(t)
-	assertContains(t, "update --check", r.stdout, "Version installée : v0.5.0", "Dernière version : v0.6.0",
-		"Nouvelle version disponible : http://127.0.0.1", "/tag/v0.6.0", "« watchoo update »")
+	assertContains(t, "update --check", r.stdout, "Installed version: v0.5.0", "Latest version: v0.6.0",
+		"New version available: http://127.0.0.1", "/tag/v0.6.0", `"watchoo update"`)
 
 	h, _ = newUpdateHarness(t, "v0.6.0", "v0.6.0")
-	assertContains(t, "à jour", h.run("update", "--check").mustSucceed(t).stdout, "Watchoo est à jour.")
+	assertContains(t, "à jour", h.run("update", "--check").mustSucceed(t).stdout, "Watchoo is up to date.")
 
 	h, _ = newUpdateHarness(t, "dev", "v0.6.0")
-	assertContains(t, "dev", h.run("update", "--check").mustSucceed(t).stdout, "Dernière version : v0.6.0",
-		"comparaison impossible")
+	assertContains(t, "dev", h.run("update", "--check").mustSucceed(t).stdout, "Latest version: v0.6.0",
+		"cannot compare versions")
 
 	// Hors espace et sans gh : pas besoin d'espace ; réseau en échec : code non nul.
 	h = newHarness(t)
-	h.run("update", "--check").mustFail(t, "impossible de lire la dernière version")
+	h.run("update", "--check").mustFail(t, "cannot read the latest Watchoo version")
 }
 
 func TestUpdateCheckJSON(t *testing.T) {
@@ -239,9 +240,9 @@ func TestUpdateConfirmed(t *testing.T) {
 	exe := fakeExecutable(t, h)
 	h.StdinTerminal, h.Stdin = true, "o\n"
 	r := h.run("update").mustSucceed(t)
-	assertContains(t, "update", r.stdout, "Mise à jour de Watchoo : v0.5.0 → v0.6.0", "/tag/v0.6.0",
-		"/blob/v0.6.0/CHANGELOG.md", "Watchoo v0.6.0 installé dans "+exe, "watchoo serve", "migrations")
-	assertContains(t, "question", r.stderr, "Installer Watchoo v0.6.0 ? [o/N]")
+	assertContains(t, "update", r.stdout, "Updating Watchoo: v0.5.0 → v0.6.0", "/tag/v0.6.0",
+		"/blob/v0.6.0/CHANGELOG.md", "Watchoo v0.6.0 installed in "+exe, "watchoo serve", "migrations")
+	assertContains(t, "question", r.stderr, "Install Watchoo v0.6.0? [y/N]")
 	if got, _ := os.ReadFile(exe); string(got) != selfupdatetest.DefaultBinary {
 		t.Errorf("binaire = %q, attendu le nouveau", got)
 	}
@@ -252,7 +253,7 @@ func TestUpdateRefusedByUser(t *testing.T) {
 	exe := fakeExecutable(t, h)
 	h.StdinTerminal, h.Stdin = true, "n\n"
 	r := h.run("update").mustCode(t, 1)
-	assertContains(t, "annulation", r.stderr, "mise à jour annulée")
+	assertContains(t, "annulation", r.stderr, "update cancelled")
 	if got, _ := os.ReadFile(exe); string(got) != "ancien" {
 		t.Errorf("binaire modifié : %q", got)
 	}
@@ -267,7 +268,7 @@ func TestUpdateYesAndNonTerminal(t *testing.T) {
 		t.Errorf("binaire modifié sans --yes : %q", got)
 	}
 	r := h.run("update", "-y").mustSucceed(t)
-	assertNotContains(t, "question", r.stderr, "[o/N]")
+	assertNotContains(t, "question", r.stderr, "[y/N]")
 	if got, _ := os.ReadFile(exe); string(got) != selfupdatetest.DefaultBinary {
 		t.Errorf("binaire = %q, attendu le nouveau", got)
 	}
@@ -284,7 +285,7 @@ func TestUpdateAlreadyUpToDate(t *testing.T) {
 	h, _ := newUpdateHarness(t, "v0.6.0", "v0.6.0")
 	exe := fakeExecutable(t, h)
 	r := h.run("update").mustSucceed(t)
-	assertContains(t, "à jour", r.stdout, "Watchoo v0.6.0 est à jour")
+	assertContains(t, "à jour", r.stdout, "Watchoo v0.6.0 is up to date")
 	if got, _ := os.ReadFile(exe); string(got) != "ancien" {
 		t.Errorf("binaire modifié : %q", got)
 	}
@@ -298,7 +299,7 @@ func TestUpdateRefusals(t *testing.T) {
 	h.InDocker = false
 
 	setBuildVars(t, "dev", "", "")
-	h.run("update", "--yes").mustFail(t, "compilée depuis les sources", "go install", "make build")
+	h.run("update", "--yes").mustFail(t, "built from the sources", "go install", "make build")
 	if n := srv.Requests(); n != 0 {
 		t.Errorf("%d requêtes avant les refus, attendu 0", n)
 	}
@@ -319,7 +320,7 @@ func TestUpdateRefusals(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = os.Chmod(ro, 0o755) })
-	h.run("update", "--yes").mustFail(t, "n'est pas accessible en écriture", "sudo", "WATCHOO_INSTALL_DIR")
+	h.run("update", "--yes").mustFail(t, "is not writable", "sudo", "WATCHOO_INSTALL_DIR")
 }
 
 // « watchoo serve » vérifie au démarrage : avis sur stderr et bandeau dans l'interface web.

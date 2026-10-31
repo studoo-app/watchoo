@@ -12,6 +12,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/studoo-app/watchoo/internal/i18n"
 	wsync "github.com/studoo-app/watchoo/internal/sync"
 	"github.com/studoo-app/watchoo/internal/tui"
 )
@@ -21,18 +22,8 @@ func newTUICmd(deps Deps, opts *options) *cobra.Command {
 	var interval time.Duration
 	cmd := &cobra.Command{
 		Use:   "tui",
-		Short: "Ouvre le mode interactif dans le terminal",
-		Long: `Ouvre le mode interactif : dépôts (état, dernier commit, auteur), commits et
-contributeurs se parcourent au clavier, avec filtre et détail d'un dépôt.
-
-Touches principales : tab change de vue, ↑ ↓ déplacent la sélection, entrée ouvre le
-détail, / filtre, s synchronise tout, S le dépôt sélectionné, a ajoute un dépôt à suivre
-(vue Dépôts, comme « watchoo repo add » sans option), ? affiche l'aide, q quitte.
-
-Tant qu'il est ouvert, le mode interactif synchronise automatiquement les dépôts toutes
-les sync.interval (30 min par défaut) si sync.auto est vrai. --interval remplace ce
-réglage le temps de la session : 0 pour la synchro manuelle seule, sinon 15 min au
-minimum. Il doit être lancé dans un terminal.`,
+		Short: i18n.T("cli.sync.tui_short"),
+		Long:  i18n.T("cli.sync.tui_long"),
 		Example: `  watchoo tui
   watchoo tui --interval 1h
   watchoo tui --interval 0`,
@@ -41,15 +32,14 @@ minimum. Il doit être lancé dans un terminal.`,
 			return runTUI(cmd.Context(), deps, opts, interval, cmd.Flags().Changed("interval"))
 		},
 	}
-	cmd.Flags().DurationVar(&interval, "interval", 0,
-		"`intervalle` de synchro automatique (ex. 30m, 1h ; 0 = manuelle seule) ; défaut : sync.interval")
+	cmd.Flags().DurationVar(&interval, "interval", 0, i18n.T("cli.sync.flag_interval"))
 	return cmd
 }
 
 // runTUI vérifie le terminal et l'intervalle, ouvre l'espace et lance le mode interactif.
 func runTUI(ctx context.Context, deps Deps, opts *options, interval time.Duration, overridden bool) (err error) {
 	if opts.json {
-		return errors.New("« watchoo tui » n'a pas de sortie JSON : utilisez les autres commandes avec --json")
+		return errors.New(i18n.T("cli.sync.tui_no_json"))
 	}
 	term := deps.Terminal()
 	if !term.IsTerminal || !deps.StdinIsTerminal() {

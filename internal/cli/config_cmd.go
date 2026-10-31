@@ -12,13 +12,13 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/studoo-app/watchoo/internal/configshare"
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/textclean"
 )
 
@@ -143,7 +143,7 @@ func runConfigExport(ctx context.Context, deps Deps, opts *options, flags *confi
 		var exists *exportExistsError
 		if errors.As(err, &exists) {
 			return &hintError{
-				msg: fmt.Sprintf("le fichier %s existe déjà ; relancez avec --force pour l'écraser", flags.output),
+				msg: i18n.T("cli.repo.config_export_exists", flags.output),
 				err: err,
 			}
 		}
@@ -152,10 +152,11 @@ func runConfigExport(ctx context.Context, deps Deps, opts *options, flags *confi
 	if opts.json {
 		return nil // le fichier est le résultat
 	}
-	return writeText(deps.Stdout, fmt.Sprintf("Configuration exportée dans %s : %s, %s.\n",
-		textclean.Clean(flags.output),
-		countText(len(doc.Repositories), "dépôt", "dépôts"),
-		countText(len(sharedKeysOf(doc)), "réglage", "réglages")))
+	return writeText(deps.Stdout, i18n.T("cli.repo.config_export_done", textclean.Clean(flags.output),
+		countText(len(doc.Repositories), i18n.T("cli.repo.word.repository"),
+			i18n.T("cli.repo.word.repositories")),
+		countText(len(sharedKeysOf(doc)), i18n.T("cli.repo.word.setting"),
+			i18n.T("cli.repo.word.settings"))))
 }
 
 // sharedKeysOf compte les réglages exportés (Export les donne tous).
@@ -188,7 +189,7 @@ func sharedKeysOf(doc *configshare.Document) []string {
 // exportExistsError : le fichier de -o existe déjà (sans --force).
 type exportExistsError struct{ path string }
 
-func (e *exportExistsError) Error() string { return "le fichier " + e.path + " existe déjà" }
+func (e *exportExistsError) Error() string { return i18n.T("cli.repo.export_exists", e.path) }
 func (e *exportExistsError) Unwrap() error { return fs.ErrExist }
 
 // writeExportFile crée path en 0600 (O_EXCL : jamais d'écriture à travers un fichier ou un lien
@@ -197,13 +198,14 @@ func (e *exportExistsError) Unwrap() error { return fs.ErrExist }
 func writeExportFile(path string, data []byte, force bool) error {
 	if info, err := os.Lstat(path); err == nil {
 		if info.IsDir() {
-			return fmt.Errorf("%s est un répertoire : indiquez un nom de fichier", path)
+			return errors.New(i18n.T("cli.repo.export_is_dir", path))
 		}
 		if !force {
 			return &exportExistsError{path: path}
 		}
 		if err := os.Remove(path); err != nil {
-			return fmt.Errorf("remplacement de %s : %w", path, err)
+			return fmt.Errorf("%s%s%w", i18n.T("cli.repo.export_replace", path),
+				i18n.T("cli.core.err.sep"), err)
 		}
 	}
 	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
@@ -211,7 +213,8 @@ func writeExportFile(path string, data []byte, force bool) error {
 		if errors.Is(err, fs.ErrExist) {
 			return &exportExistsError{path: path}
 		}
-		return fmt.Errorf("création de %s : %w", path, err)
+		return fmt.Errorf("%s%s%w", i18n.T("cli.repo.export_create", path),
+			i18n.T("cli.core.err.sep"), err)
 	}
 	_, werr := f.Write(data)
 	cerr := f.Close()
@@ -220,7 +223,8 @@ func writeExportFile(path string, data []byte, force bool) error {
 	}
 	if werr != nil {
 		_ = os.Remove(path)
-		return fmt.Errorf("écriture de %s : %w", path, werr)
+		return fmt.Errorf("%s%s%w", i18n.T("cli.repo.export_write", path),
+			i18n.T("cli.core.err.sep"), werr)
 	}
 	return nil
 }
@@ -232,7 +236,8 @@ func absPath(deps Deps, file string) (string, error) {
 	}
 	cwd, err := deps.Getwd()
 	if err != nil {
-		return "", fmt.Errorf("répertoire courant inaccessible : %w", err)
+		return "", fmt.Errorf("%s%s%w", i18n.T("cli.repo.cwd_unavailable"),
+			i18n.T("cli.core.err.sep"), err)
 	}
 	return filepath.Join(cwd, file), nil
 }
@@ -379,14 +384,12 @@ func runConfigImport(ctx context.Context, deps Deps, opts *options, file string,
 		switch {
 		case file == "-":
 			return &hintError{
-				msg: "« - » lit le fichier sur l'entrée standard, qui ne peut plus servir à confirmer : " +
-					"relancez avec --yes (ou --dry-run pour un aperçu)",
+				msg: i18n.T("cli.repo.config_import.stdin_yes"),
 				err: errNeedYes,
 			}
 		case opts.json:
 			return &hintError{
-				msg: "--json sans --dry-run ne pose pas de question : relancez avec --yes pour appliquer " +
-					"(ou --dry-run pour l'aperçu)",
+				msg: i18n.T("cli.repo.config_import.json_yes"),
 				err: errNeedYes,
 			}
 		}
@@ -421,7 +424,7 @@ func runConfigImport(ctx context.Context, deps Deps, opts *options, file string,
 			err = writeJSON(deps.Stdout, report)
 		} else {
 			err = writeText(deps.Stdout, configPreviewText(file, preview, s.loc, true)+
-				"\nAperçu seulement (--dry-run) : rien n'a été modifié.\n")
+				i18n.T("cli.repo.config_import.dry_run_footer"))
 		}
 		if err != nil {
 			return err
@@ -441,16 +444,16 @@ func runConfigImport(ctx context.Context, deps Deps, opts *options, file string,
 			return err
 		}
 		if !hasChanges(preview) {
-			if err := writeText(deps.Stdout, "Rien à changer : l'espace est déjà à jour.\n"); err != nil {
+			if err := writeText(deps.Stdout, i18n.T("cli.repo.config_import.nothing_to_change")); err != nil {
 				return err
 			}
 		} else if !flags.yes {
-			ok, err := confirm(ctx, deps, "Appliquer ces changements ?")
+			ok, err := confirm(ctx, deps, i18n.T("cli.repo.config_import.apply_q"))
 			if err != nil {
 				return err
 			}
 			if !ok {
-				return errors.New("import annulé : rien n'a été modifié")
+				return errors.New(i18n.T("cli.repo.config_import.cancelled"))
 			}
 		}
 	}
@@ -466,7 +469,7 @@ func runConfigImport(ctx context.Context, deps Deps, opts *options, file string,
 	res, applyErr := configshare.Apply(ctx, s.ws, s.store, adder, f, configshare.ApplyOptions{})
 	if res == nil {
 		if applyErr == nil {
-			applyErr = errors.New("import : aucun résultat")
+			applyErr = errors.New(i18n.T("cli.repo.config_import.no_result"))
 		}
 		return importParseError(file, applyErr)
 	}
@@ -506,13 +509,14 @@ func readConfigFile(deps Deps, file string) (*configshare.File, error) {
 		fh, err := os.Open(path)
 		if err != nil {
 			if errors.Is(err, os.ErrNotExist) {
-				return nil, fmt.Errorf("fichier de configuration %s introuvable", file)
+				return nil, errors.New(i18n.T("cli.repo.config.file_not_found", file))
 			}
-			return nil, fmt.Errorf("ouverture du fichier de configuration : %w", err)
+			return nil, fmt.Errorf("%s%s%w", i18n.T("cli.repo.config.file_open"),
+				i18n.T("cli.core.err.sep"), err)
 		}
 		defer fh.Close()
 		if info, err := fh.Stat(); err == nil && info.IsDir() {
-			return nil, fmt.Errorf("%s est un répertoire, pas un fichier de configuration", file)
+			return nil, errors.New(i18n.T("cli.repo.config.is_dir", file))
 		}
 		r = fh
 	}
@@ -524,13 +528,14 @@ func readConfigFile(deps Deps, file string) (*configshare.File, error) {
 }
 
 // importParseError préfixe une erreur de validation par le nom du fichier et rappelle que rien n'a
-// été importé.
+// été importé (sauf si le message le dit déjà, par exemple une erreur de configshare).
 func importParseError(file string, err error) error {
-	msg := err.Error()
-	if !strings.Contains(msg, "rien n'a été importé") {
-		return fmt.Errorf("%s : %w ; rien n'a été importé", file, err)
+	nothing := i18n.T("cli.repo.import.nothing_imported")
+	if !strings.Contains(err.Error(), nothing) {
+		return fmt.Errorf("%s%s%w%s%s", file, i18n.T("cli.core.err.sep"), err,
+			i18n.T("cli.repo.sep.semicolon"), nothing)
 	}
-	return fmt.Errorf("%s : %w", file, err)
+	return fmt.Errorf("%s%s%w", file, i18n.T("cli.core.err.sep"), err)
 }
 
 // configImportFailure renvoie l'erreur (code de retour non nul) d'un import qui laisse des dépôts
@@ -557,14 +562,15 @@ func configPreviewText(file string, p *configshare.Preview, loc *time.Location, 
 	title := "IMPORT  " + textclean.Clean(file)
 	var origin []string
 	if p.Source.WorkspaceName != "" {
-		origin = append(origin, "espace « "+textclean.Clean(p.Source.WorkspaceName)+" »")
+		origin = append(origin, i18n.T("cli.repo.config_preview.origin_ws", textclean.Clean(p.Source.WorkspaceName)))
 	}
 	var exported []string
 	if !p.Source.ExportedAt.IsZero() {
-		exported = append(exported, "exporté le "+p.Source.ExportedAt.In(loc).Format("02/01/2006"))
+		exported = append(exported, i18n.T("cli.repo.config_preview.exported",
+			p.Source.ExportedAt.In(loc).Format(i18n.T("cli.repo.config_preview.date_fmt"))))
 	}
 	if p.Source.WatchooVersion != "" {
-		exported = append(exported, "avec Watchoo "+textclean.Clean(p.Source.WatchooVersion))
+		exported = append(exported, i18n.T("cli.repo.config_preview.with_version", textclean.Clean(p.Source.WatchooVersion)))
 	}
 	if len(exported) > 0 {
 		origin = append(origin, strings.Join(exported, " "))
@@ -574,26 +580,27 @@ func configPreviewText(file string, p *configshare.Preview, loc *time.Location, 
 	}
 	b.WriteString(title + "\n")
 
-	b.WriteString("Réglages\n")
+	b.WriteString(i18n.T("cli.repo.config_preview.settings_header"))
 	switch {
 	case len(p.Settings.Provided) == 0:
-		b.WriteString("  aucun dans le fichier\n")
+		b.WriteString(i18n.T("cli.repo.config_preview.none_in_file"))
 	case len(p.Settings.Changes) == 0:
-		b.WriteString(fmt.Sprintf("  inchangés (%s, identiques à ceux de l'espace)\n",
-			countText(len(p.Settings.Provided), "réglage", "réglages")))
+		b.WriteString(i18n.T("cli.repo.config_preview.unchanged_settings",
+			countText(len(p.Settings.Provided), i18n.T("cli.repo.word.setting"),
+				i18n.T("cli.repo.word.settings"))))
 	default:
 		for _, c := range p.Settings.Changes {
 			line := fmt.Sprintf("  %-26s %s → %s", c.Key, textclean.Clean(c.Before), textclean.Clean(c.After))
 			if c.EnvVar != "" {
-				line += "   (masqué par " + c.EnvVar + ")"
+				line += i18n.T("cli.repo.config_preview.env_masked", c.EnvVar)
 			}
 			b.WriteString(line + "\n")
 		}
 	}
 
-	b.WriteString("Dépôts\n")
+	b.WriteString(i18n.T("cli.repo.config_preview.repos_header"))
 	if len(p.Repositories) == 0 {
-		b.WriteString("  aucun dans le fichier\n")
+		b.WriteString(i18n.T("cli.repo.config_preview.none_in_file"))
 	} else {
 		var updates, reenables, inaccessible, errored []string
 		for _, c := range p.Repositories {
@@ -621,17 +628,17 @@ func configPreviewText(file string, p *configshare.Preview, loc *time.Location, 
 				b.WriteString(strings.Repeat(" ", 2+16+1+3+3) + item + "\n")
 			}
 		}
-		line("à ajouter", s.Added, nil)
-		line("à mettre à jour", s.Updated-s.Reenabled, updates)
+		line(i18n.T("cli.repo.summary.to_add"), s.Added, nil)
+		line(i18n.T("cli.repo.summary.to_update"), s.Updated-s.Reenabled, updates)
 		if s.Reenabled > 0 {
-			line("à reprendre", s.Reenabled, reenables)
+			line(i18n.T("cli.repo.summary.to_reenable"), s.Reenabled, reenables)
 		}
-		line("inchangés", s.AlreadyTracked, nil)
+		line(i18n.T("cli.repo.summary.unchanged"), s.AlreadyTracked, nil)
 		if p.AccessChecked || s.Inaccessible > 0 {
-			line("inaccessibles", s.Inaccessible, joined(inaccessible))
+			line(i18n.T("cli.repo.summary.inaccessible"), s.Inaccessible, joined(inaccessible))
 		}
 		if s.Errors > 0 {
-			line("en erreur", s.Errors, joined(errored))
+			line(i18n.T("cli.repo.summary.errored"), s.Errors, joined(errored))
 		}
 		b.WriteString(failureDetails(p.Repositories))
 	}
@@ -639,7 +646,7 @@ func configPreviewText(file string, p *configshare.Preview, loc *time.Location, 
 		b.WriteString("! " + textclean.Clean(w.Message) + "\n")
 	}
 	if !p.AccessChecked && !dryRun && len(p.Repositories) > 0 {
-		b.WriteString("(l'accès aux dépôts sera vérifié auprès de GitHub au moment d'appliquer)\n")
+		b.WriteString(i18n.T("cli.repo.config_preview.access_later"))
 	}
 	return b.String()
 }
@@ -652,7 +659,7 @@ func joined(list []string) []string {
 	return []string{strings.Join(list, ", ")}
 }
 
-// repoChangeText décrit la mise à jour d'un dépôt : « bob/projet (branches : toutes → main, dev) ».
+// repoChangeText décrit la mise à jour d'un dépôt : « bob/projet (branches: all → main, dev) ».
 func repoChangeText(c configshare.RepoChange) string {
 	text := textclean.Clean(c.Repo)
 	if c.Before == nil {
@@ -660,29 +667,33 @@ func repoChangeText(c configshare.RepoChange) string {
 	}
 	var parts []string
 	if c.Before.Label != c.After.Label {
-		parts = append(parts, "nom : "+labelText(c.Before.Label)+" → "+labelText(c.After.Label))
+		parts = append(parts, i18n.T("cli.repo.change.label",
+			labelText(c.Before.Label), labelText(c.After.Label)))
 	}
 	if !equalStrings(c.Before.Branches, c.After.Branches) {
-		parts = append(parts, "branches : "+patternsText(c.Before.Branches)+" → "+patternsText(c.After.Branches))
+		parts = append(parts, i18n.T("cli.repo.change.branches",
+			patternsText(c.Before.Branches), patternsText(c.After.Branches)))
 	}
 	if !sameDays(c.Before.FlemmeAfterDays, c.After.FlemmeAfterDays) {
-		parts = append(parts, "flemme : "+daysText(c.Before.FlemmeAfterDays)+" → "+daysText(c.After.FlemmeAfterDays))
+		parts = append(parts, i18n.T("cli.repo.change.flemme",
+			daysText(c.Before.FlemmeAfterDays), daysText(c.After.FlemmeAfterDays)))
 	}
 	if !sameDays(c.Before.DeadAfterDays, c.After.DeadAfterDays) {
-		parts = append(parts, "dead : "+daysText(c.Before.DeadAfterDays)+" → "+daysText(c.After.DeadAfterDays))
+		parts = append(parts, i18n.T("cli.repo.change.dead",
+			daysText(c.Before.DeadAfterDays), daysText(c.After.DeadAfterDays)))
 	}
 	if len(parts) > 0 {
-		text += " (" + strings.Join(parts, " ; ") + ")"
+		text += " (" + strings.Join(parts, i18n.T("cli.repo.sep.semicolon")) + ")"
 	}
 	return text
 }
 
-// daysText écrit un seuil propre (« 10 j »), ou « espace » pour le seuil de l'espace (nil).
+// daysText écrit un seuil propre (« 10 d »), ou « workspace » pour le seuil de l'espace (nil).
 func daysText(p *int) string {
 	if p == nil {
-		return "espace"
+		return i18n.T("cli.repo.days.workspace")
 	}
-	return strconv.Itoa(*p) + " j"
+	return i18n.T("cli.repo.days.value", *p)
 }
 
 // sameDays compare deux seuils propres (nil = seuil de l'espace).
@@ -693,18 +704,18 @@ func sameDays(a, b *int) bool {
 	return *a == *b
 }
 
-// labelText écrit un nom affiché entre guillemets, ou « aucun ».
+// labelText écrit un nom affiché entre guillemets, ou « none ».
 func labelText(label string) string {
 	if label == "" {
-		return "aucun"
+		return i18n.T("cli.repo.change.no_label")
 	}
-	return "« " + textclean.Clean(label) + " »"
+	return i18n.T("cli.repo.change.label_quoted", textclean.Clean(label))
 }
 
-// patternsText écrit des motifs de branches, ou « toutes » pour une liste vide.
+// patternsText écrit des motifs de branches, ou « all » pour une liste vide.
 func patternsText(branches []string) string {
 	if len(branches) == 0 {
-		return "toutes"
+		return i18n.T("cli.repo.change.all_branches")
 	}
 	return textclean.Clean(strings.Join(branches, ", "))
 }
@@ -727,8 +738,8 @@ func failureDetails(changes []configshare.RepoChange) string {
 	var details []string
 	for _, c := range changes {
 		if c.Action == configshare.ActionInaccessible || c.Action == configshare.ActionError {
-			details = append(details, fmt.Sprintf("  dépôt n° %d  %s : %s", c.Index, textclean.Clean(c.Repo),
-				textclean.Clean(c.Error)))
+			details = append(details, i18n.T("cli.repo.change.failure_detail", c.Index,
+				textclean.Clean(c.Repo), textclean.Clean(c.Error)))
 		}
 	}
 	if len(details) == 0 {
@@ -741,15 +752,15 @@ func failureDetails(changes []configshare.RepoChange) string {
 // résultat, détail des échecs.
 func configResultText(res *configshare.Result) string {
 	var b strings.Builder
-	b.WriteString("BILAN\n")
+	b.WriteString(i18n.T("cli.repo.result.title"))
 	if res.Settings.Written {
-		line := "  réglages écrits dans " + textclean.Clean(displayPath(res.Settings.Path))
+		line := i18n.T("cli.repo.result.settings_written", textclean.Clean(displayPath(res.Settings.Path)))
 		if res.Settings.BackupPath != "" {
-			line += " (ancien fichier : " + textclean.Clean(displayPath(res.Settings.BackupPath)) + ")"
+			line += i18n.T("cli.repo.result.backup", textclean.Clean(displayPath(res.Settings.BackupPath)))
 		}
 		b.WriteString(line + "\n")
 	} else {
-		b.WriteString("  réglages inchangés : config.yaml n'a pas été modifié\n")
+		b.WriteString(i18n.T("cli.repo.result.settings_unchanged"))
 	}
 	p := res.Preview
 	if len(p.Repositories) > 0 {
@@ -770,24 +781,23 @@ func configResultText(res *configshare.Result) string {
 			}
 			b.WriteString(row + "\n")
 		}
-		line("ajoutés", s.Added, nil)
-		line("déjà suivis", s.AlreadyTracked, nil)
-		line("mis à jour", s.Updated, nil)
+		line(i18n.T("cli.repo.summary.added"), s.Added, nil)
+		line(i18n.T("cli.repo.summary.already"), s.AlreadyTracked, nil)
+		line(i18n.T("cli.repo.summary.updated"), s.Updated, nil)
 		if s.Reenabled > 0 {
-			line("dont repris", s.Reenabled, nil)
+			line(i18n.T("cli.repo.summary.reenabled"), s.Reenabled, nil)
 		}
-		line("inaccessibles", s.Inaccessible, inaccessible)
+		line(i18n.T("cli.repo.summary.inaccessible"), s.Inaccessible, inaccessible)
 		if s.Errors > 0 {
-			line("en erreur", s.Errors, errored)
+			line(i18n.T("cli.repo.summary.errored"), s.Errors, errored)
 		}
 		b.WriteString(failureDetails(p.Repositories))
 		if s.Added+s.Updated > 0 {
-			b.WriteString("\nLancez « watchoo sync » pour synchroniser les dépôts.\n")
+			b.WriteString(i18n.T("cli.repo.sync_hint_plural"))
 		}
 	}
 	if res.Settings.Written {
-		b.WriteString("Les réglages valent pour les commandes lancées ensuite ; un « watchoo serve » ou " +
-			"« watchoo tui » déjà ouvert les prendra en compte à son prochain lancement.\n")
+		b.WriteString(i18n.T("cli.repo.result.settings_note"))
 	}
 	return b.String()
 }

@@ -189,7 +189,7 @@ func TestEndToEnd(t *testing.T) {
 	// 7. repo list : états Actif / Flemme / Dead.
 	e2eAssertStates(t, h, map[string]string{"alice/projet": "active", "bob/projet": "flemme", "dave/projet": "dead"})
 	list := h.run("repo", "list").mustSucceed(t).stdout
-	for _, part := range []string{"Alice Martin", "~ 9 j", "⚠ 42 j"} {
+	for _, part := range []string{"Alice Martin", "~ 9 d", "⚠ 42 d"} {
 		if !strings.Contains(list, part) {
 			t.Errorf("repo list sans %q :\n%s", part, list)
 		}

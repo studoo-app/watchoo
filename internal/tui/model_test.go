@@ -67,10 +67,10 @@ func TestReposViewAndHeader(t *testing.T) {
 	}
 
 	tests := []struct{ repo, when, state string }{
-		{"Alice Martin", "il y a 2 h", "-"},
-		{"promo/bob", "il y a 9 j", "~ 9 j"},
-		{"promo/chloe", "il y a 42 j", "⚠ 42 j"},
-		{"promo/dan", "jamais", "jamais"},
+		{"Alice Martin", "2 h ago", "-"},
+		{"promo/bob", "9 d ago", "~ 9 d"},
+		{"promo/chloe", "42 d ago", "⚠ 42 d"},
+		{"promo/dan", "never", "never"},
 	}
 	for _, tt := range tests {
 		line := lineWith(screen, tt.repo)
@@ -96,7 +96,7 @@ func TestASCIIAndColor(t *testing.T) {
 	deps.Unicode = false
 	l := newLoop(t, deps)
 	screen := l.screen()
-	mustContain(t, screen, `|\    /|`, "| o##o |", "! 42 j", "> Alice Martin")
+	mustContain(t, screen, `|\    /|`, "| o##o |", "! 42 d", "> Alice Martin")
 	mustNotContain(t, screen, "⚠", "●", "›")
 
 	deps = testDeps(newFakeData(), &fakeSyncer{})
@@ -253,9 +253,9 @@ func TestDetail(t *testing.T) {
 	l.press("enter")
 	l.until(func(m Model) bool { return m.detail.open && !m.detail.loading })
 	screen := l.screen()
-	mustContain(t, screen, "Alice Martin (promo/alice)", "https://github.com/promo/alice", "Actif",
+	mustContain(t, screen, "Alice Martin (promo/alice)", "https://github.com/promo/alice", "Active",
 		"seuils : Flemme après 5 j, Dead après 15 j", "2 branches suivies, par défaut : main, toutes les branches",
-		"il y a 2 h par Alice (abcdef0)", "réussie (1 nouveau commit)",
+		"2 h ago par Alice (abcdef0)", "réussie (1 nouveau commit)",
 		"Derniers commits", "Ajoute la page d'accueil", "Principaux contributeurs")
 	mustNotContain(t, screen, "corrige") // commit d'un autre dépôt
 
@@ -290,7 +290,7 @@ func TestDetail(t *testing.T) {
 	// Entrée sur un commit ouvre le détail de son dépôt.
 	l.press("tab", "j", "enter")
 	l.until(func(m Model) bool { return m.detail.open && !m.detail.loading })
-	mustContain(t, l.screen(), "promo/bob", "Flemme (~ 9 j)")
+	mustContain(t, l.screen(), "promo/bob", "Slacking (~ 9 d)")
 	// Entrée sur un contributeur ouvre son détail (0.5.0), pas celui d'un dépôt.
 	l.press("3", "enter")
 	if l.m.detail.open || !l.m.cdetail.open {
@@ -305,13 +305,13 @@ func TestDetailGrayAndError(t *testing.T) {
 	data.repos[2].Enabled = false
 	data.repos[2].BranchPatterns = []string{"main", "release/*"}
 	l := newLoop(t, testDeps(data, &fakeSyncer{}))
-	if line := lineWith(l.screen(), "promo/chloe"); !strings.HasSuffix(line, "arrêté") {
-		t.Errorf("ligne de chloe = %q ; attendu l'état gris « arrêté »", line)
+	if line := lineWith(l.screen(), "promo/chloe"); !strings.HasSuffix(line, "stopped") {
+		t.Errorf("ligne de chloe = %q ; attendu l.état gris « stopped »", line)
 	}
 	l.press("j", "j", "enter")
 	l.until(func(m Model) bool { return m.detail.open && !m.detail.loading })
-	mustContain(t, l.screen(), "Suivi arrêté", "motifs : main, release/*",
-		"il y a 5 min, erreur : dépôt introuvable ou inaccessible", "suivi arrêté")
+	mustContain(t, l.screen(), "Tracking stopped", "motifs : main, release/*",
+		"5 min ago, erreur : dépôt introuvable ou inaccessible", "suivi arrêté")
 }
 
 func TestSyncAllWithProgress(t *testing.T) {
@@ -342,7 +342,7 @@ func TestSyncAllWithProgress(t *testing.T) {
 	close(gate)
 	l.until(func(m Model) bool { return !m.sync.running && !m.loading })
 	screen := l.screen()
-	mustContain(t, screen, "synchro terminée : 2 dépôts, 3 nouveaux commits", "Dernière synchro à l'instant")
+	mustContain(t, screen, "synchro terminée : 2 dépôts, 3 nouveaux commits", "Dernière synchro just now")
 	if data.loadCount() <= loadsBefore {
 		t.Error("la base n'a pas été relue après la synchro")
 	}
@@ -621,7 +621,7 @@ func TestWithRealStore(t *testing.T) {
 	}
 
 	l := newLoop(t, testDeps(st, &fakeSyncer{}))
-	if line := lineWith(l.screen(), "Zoé Leroy"); !strings.Contains(line, "il y a 3 h") ||
+	if line := lineWith(l.screen(), "Zoé Leroy"); !strings.Contains(line, "3 h ago") ||
 		!strings.Contains(line, "Zoé") || !strings.HasSuffix(line, "-") {
 		t.Errorf("ligne du dépôt = %q", line)
 	}
@@ -643,7 +643,7 @@ func TestWithRealStore(t *testing.T) {
 func TestDetailOwnThresholds(t *testing.T) {
 	data := newFakeData()
 	flemme := 1
-	data.repos[0].FlemmeAfterDays = &flemme // Alice : dernier commit il y a 2 h, toujours Actif
+	data.repos[0].FlemmeAfterDays = &flemme // Alice : dernier commit 2 h ago, toujours Actif
 	l := newLoop(t, testDeps(data, &fakeSyncer{}))
 	l.press("enter")
 	l.until(func(m Model) bool { return m.detail.open && !m.detail.loading })
@@ -660,7 +660,7 @@ func TestDetailPullsAndRelease(t *testing.T) {
 	l.press("enter")
 	l.until(func(m Model) bool { return m.detail.open && !m.detail.loading })
 	screen := l.screen()
-	mustContain(t, screen, "Pull requests", "2 ouvertes, dernière release v1.0 (il y a 2 h)")
+	mustContain(t, screen, "Pull requests", "2 ouvertes, dernière release v1.0 (2 h ago)")
 	mustNotContain(t, screen, "\x1b[2J")
 
 	if got := l.m.pullsText(0, model.Release{}); got != "aucune ouverte, aucune release" {

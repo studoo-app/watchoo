@@ -15,11 +15,12 @@ import (
 func TestPRsText(t *testing.T) {
 	h := newSyncedWorkspace(t)
 	r := h.run("prs").mustSucceed(t)
-	row := tableRow(t, r.stdout, "il y a 3 h")
-	if strings.Join(row, "|") != "il y a 3 h|Alice Martin|#1|ouverte|alice-gh|Ajoute la page de connexion" {
+	// La date relative (« 3 h ago ») vient d'internal/activity, couche traduite à part.
+	row := tableRow(t, r.stdout, "3 h ago")
+	if strings.Join(row, "|") != "3 h ago|Alice Martin|#1|open|alice-gh|Ajoute la page de connexion" {
 		t.Errorf("ligne de la PR ouverte : %q\n%s", row, r.stdout)
 	}
-	assertContains(t, "prs", r.stdout, "MODIFIÉE", "#2", "mergée", "Corrige le build")
+	assertContains(t, "prs", r.stdout, "UPDATED", "#2", "merged", "Corrige le build")
 	if strings.Index(r.stdout, "#1") > strings.Index(r.stdout, "#2") {
 		t.Errorf("ordre : la PR modifiée le plus récemment d'abord :\n%s", r.stdout)
 	}
@@ -28,9 +29,9 @@ func TestPRsText(t *testing.T) {
 	assertNotContains(t, "prs --state merged", r.stdout, "#1")
 	assertContains(t, "prs --state merged", r.stdout, "#2")
 	r = h.run("prs", "--state", "closed").mustSucceed(t)
-	assertContains(t, "prs --state closed", r.stdout, "Aucune pull request pour ces filtres (état closed).")
+	assertContains(t, "prs --state closed", r.stdout, "No pull request for these filters (state closed).")
 	r = h.run("prs", "--repo", "bob/projet").mustSucceed(t)
-	assertContains(t, "prs --repo bob/projet", r.stdout, "Aucune pull request pour ces filtres (dépôt bob/projet).")
+	assertContains(t, "prs --repo bob/projet", r.stdout, "No pull request for these filters (repository bob/projet).")
 	r = h.run("prs", "-n", "1").mustSucceed(t)
 	assertNotContains(t, "prs -n 1", r.stdout, "#2")
 
@@ -56,8 +57,8 @@ func TestPRsText(t *testing.T) {
 func TestReleasesText(t *testing.T) {
 	h := newSyncedWorkspace(t)
 	r := h.run("releases").mustSucceed(t)
-	assertContains(t, "releases", r.stdout, "Releases\n", "Tags\n", "v1.0", "Première version", "publiée", "alice-gh",
-		"DATE DU COMMIT")
+	assertContains(t, "releases", r.stdout, "Releases\n", "Tags\n", "v1.0", "Première version", "published", "alice-gh",
+		"COMMIT DATE")
 	tag := tableRow(t, r.stdout, "Alice Martin  v0.1")
 	if tag[len(tag)-1] != "-" {
 		t.Errorf("tag dont le commit n'est pas en base : %q", tag)
@@ -67,7 +68,7 @@ func TestReleasesText(t *testing.T) {
 	}
 
 	r = h.run("releases", "--repo", "bob/projet").mustSucceed(t)
-	assertContains(t, "releases bob", r.stdout, "Aucune release pour le dépôt bob/projet.", "Aucun tag pour le dépôt bob/projet.")
+	assertContains(t, "releases bob", r.stdout, "No release for the repository bob/projet.", "No tag for the repository bob/projet.")
 
 	r = h.run("releases", "--json", "-n", "1").mustSucceed(t)
 	var rep releasesReport
@@ -117,7 +118,7 @@ func TestSyncWarnings(t *testing.T) {
 	if row[1] != "ok" || !strings.HasPrefix(row[len(row)-1], "pull requests non synchronisées") {
 		t.Errorf("ligne du dépôt : %q", row)
 	}
-	assertContains(t, "sync", r.stdout, "1 avertissement")
+	assertContains(t, "sync", r.stdout, "1 warning")
 
 	h.Provider.FailNext(providertest.MethodTags, &provider.APIError{Status: 404, Err: provider.ErrNotFound})
 	r = h.run("sync", "--json").mustSucceed(t)

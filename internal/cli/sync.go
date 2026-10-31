@@ -5,12 +5,14 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
 
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/provider"
 	wsync "github.com/studoo-app/watchoo/internal/sync"
 )
@@ -57,22 +59,8 @@ type syncReport struct {
 func newSyncCmd(deps Deps, opts *options) *cobra.Command {
 	return &cobra.Command{
 		Use:   "sync [owner/repo]",
-		Short: "Synchronise tous les dépôts suivis, ou un seul",
-		Long: `Synchronise tous les dépôts suivis (au plus sync.parallelism à la fois), ou le seul
-dépôt donné, même si son suivi est arrêté. La synchro est incrémentale : seuls les
-nouveaux commits sont téléchargés.
-
-Un dépôt déjà en cours de synchronisation (par « watchoo tui » ou un autre terminal)
-est ignoré. Quand le quota de l'API GitHub passe sous 10 %, les dépôts restants sont
-reportés, avec l'heure à laquelle réessayer.
-
-Sans gh installé et connecté, les dépôts sont lus depuis des clones Git locaux
-(repos/<nom> à la racine de l'espace, mis à jour par « git fetch », copie de travail
-remise sur la branche par défaut : une modification locale des fichiers suivis est
-écrasée) avec la clé SSH ou les identifiants Git de cette machine : pas de quota,
-mais ni pull requests ni releases.
-
-Le code de retour est non nul si un dépôt est en erreur.`,
+		Short: i18n.T("cli.sync.sync_short"),
+		Long:  i18n.T("cli.sync.sync_long"),
 		Example: `  watchoo sync
   watchoo sync alice/projet-licence --json`,
 		Args: maxArgs(1),
@@ -156,16 +144,27 @@ func runSync(ctx context.Context, deps Deps, opts *options, ref string) (err err
 		return err
 	}
 	if summary.Error > 0 {
-		return fmt.Errorf("synchro terminée avec %d dépôt%s en erreur (détail ci-dessus, ou « watchoo status »)",
-			summary.Error, plural(summary.Error))
+		if summary.Error == 1 {
+			return errors.New(i18n.T("cli.sync.done_errors_one"))
+		}
+		return fmt.Errorf(i18n.T("cli.sync.done_errors_many"), summary.Error)
 	}
 	return nil
+}
+
+// pluralT renvoie le texte de la clé du pluriel si n > 1, sinon celle du singulier, chacune
+// formatée avec n (« 1 dépôt », « 2 dépôts »).
+func pluralT(n int, one, many string) string {
+	if n > 1 {
+		return i18n.T(many, n)
+	}
+	return i18n.T(one, n)
 }
 
 // syncText renvoie le rapport texte d'une synchro : un tableau par dépôt, puis le bilan et le quota.
 func (s *session) syncText(st textStyle, report wsync.Report, sum syncSummary) string {
 	if len(report.Repos) == 0 {
-		return "Aucun dépôt à synchroniser. Ajoutez-en avec « watchoo repo add owner/repo ».\n"
+		return i18n.T("cli.sync.no_repos")
 	}
 	rows := make([][]string, len(report.Repos))
 	for i, r := range report.Repos {
@@ -184,67 +183,89 @@ func (s *session) syncText(st textStyle, report wsync.Report, sum syncSummary) s
 			}
 		}
 	}
-	headers := []string{st.pick("Dépôt", "Depot"), "Statut", "Nouveaux commits", "Branches", st.pick("Durée", "Duree"),
-		st.pick("Détail", "Detail")}
+	// En-têtes traduits ; la variante ASCII (st.pick) ne sert qu'aux accents du texte français.
+	headers := []string{
+		st.pick(i18n.T("cli.sync.header_repo"), i18n.T("cli.sync.header_repo_ascii")),
+		i18n.T("cli.sync.header_status"),
+		i18n.T("cli.sync.header_new_commits"),
+		i18n.T("cli.sync.header_branches"),
+		st.pick(i18n.T("cli.sync.header_duration"), i18n.T("cli.sync.header_duration_ascii")),
+		st.pick(i18n.T("cli.sync.header_detail"), i18n.T("cli.sync.header_detail_ascii")),
+	}
 	var b strings.Builder
 	b.WriteString(renderTable(st, headers, rows, func(row int) bool {
 		return report.Repos[row].Status != wsync.StatusSuccess && report.Repos[row].Status != wsync.StatusError
 	}))
 	parts := []string{
-		countText(sum.Repositories, "dépôt", "dépôts"),
-		countText(sum.NewCommits, "nouveau commit", "nouveaux commits"),
+		pluralT(sum.Repositories, "cli.sync.count_repo_one", "cli.sync.count_repo_many"),
+		pluralT(sum.NewCommits, "cli.sync.count_new_commit_one", "cli.sync.count_new_commit_many"),
 	}
 	if sum.Error > 0 {
-		parts = append(parts, fmt.Sprintf("%d en erreur", sum.Error))
+		parts = append(parts, i18n.T("cli.sync.count_errors", sum.Error))
 	}
 	if sum.Locked > 0 {
-		parts = append(parts, fmt.Sprintf("%d déjà en cours", sum.Locked))
+		parts = append(parts, i18n.T("cli.sync.count_locked", sum.Locked))
 	}
 	if sum.Deferred > 0 {
-		parts = append(parts, fmt.Sprintf("%d reporté%s", sum.Deferred, plural(sum.Deferred)))
+		parts = append(parts, pluralT(sum.Deferred, "cli.sync.count_deferred_one", "cli.sync.count_deferred_many"))
 	}
 	if n := report.Warnings(); n > 0 {
-		parts = append(parts, countText(n, "avertissement", "avertissements"))
+		parts = append(parts, pluralT(n, "cli.sync.count_warning_one", "cli.sync.count_warning_many"))
 	}
-	fmt.Fprintf(&b, "\nSynchro terminée en %s : %s.\n",
+	fmt.Fprintf(&b, i18n.T("cli.sync.summary_line"),
 		durationText(report.FinishedAt.Sub(report.StartedAt)), strings.Join(parts, ", "))
 	if report.RateLimitKnown {
 		b.WriteString(s.rateLimitText(report.RateLimit) + "\n")
 	}
 	if report.Source.Kind == wsync.SourceGit {
-		b.WriteString("Source : clones Git locaux (gh absent ou non connecté ; « gh auth login » pour passer par l'API GitHub).\n")
+		b.WriteString(i18n.T("cli.sync.sync_source_git"))
 	}
 	return b.String()
 }
 
-// syncStatusText renvoie le libellé français du résultat d'un dépôt.
+// syncStatusText renvoie le libellé du résultat d'un dépôt ; la variante ASCII (st.pick) ne sert
+// qu'aux accents du texte français.
 func syncStatusText(st textStyle, status wsync.RepoStatus) string {
 	switch status {
 	case wsync.StatusSuccess:
 		return "ok"
 	case wsync.StatusError:
-		return "erreur"
+		return i18n.T("cli.sync.sync_status_error")
 	case wsync.StatusLocked:
-		return "ignoré"
+		return i18n.T("cli.sync.sync_status_locked")
 	case wsync.StatusDeferred:
-		return st.pick("reporté", "reporte")
+		return st.pick(i18n.T("cli.sync.sync_status_deferred"), i18n.T("cli.sync.sync_status_deferred_ascii"))
 	default:
 		return string(status)
 	}
 }
 
+// deferredReason traduit la raison d'un report extraite du message écrit par le moteur
+// (internal/sync écrit « reporté : <raison> jusqu'à HH:MM ») : les raisons connues du moteur sont
+// traduites, une raison inconnue est affichée telle quelle.
+func deferredReason(reason string) string {
+	switch reason {
+	case "quota bas":
+		return i18n.T("cli.sync.deferred_reason_low")
+	case "quota épuisé":
+		return i18n.T("cli.sync.deferred_reason_exhausted")
+	}
+	return reason
+}
+
 // syncDetail renvoie le détail d'un dépôt : message d'erreur, verrou, ou report avec l'heure de reprise
-// en heure locale (le moteur la donne en UTC).
+// en heure locale (le moteur la donne en UTC). Le préfixe et le séparateur analysés sont ceux du
+// message « reporté : … jusqu'à … » écrit par le moteur (internal/sync).
 func (s *session) syncDetail(r wsync.RepoReport) string {
 	if r.Status == wsync.StatusDeferred && !r.ResumeAt.IsZero() {
 		reason, _, _ := strings.Cut(strings.TrimPrefix(r.Error, "reporté : "), " jusqu'à")
 		if reason == "" {
-			reason = "quota bas"
+			reason = i18n.T("cli.sync.deferred_reason_low")
 		}
-		return fmt.Sprintf("reporté : %s jusqu'à %s", reason, s.clockText(r.ResumeAt))
+		return i18n.T("cli.sync.deferred_detail", deferredReason(reason), s.clockText(r.ResumeAt))
 	}
 	if r.Status == wsync.StatusSuccess && len(r.Warnings) > 0 {
-		return strings.Join(r.Warnings, " ; ")
+		return strings.Join(r.Warnings, i18n.T("cli.sync.warnings_join"))
 	}
 	return r.Error
 }
@@ -259,14 +280,15 @@ func (s *session) clockText(t time.Time) string {
 	return local.Format("02/01/2006 15:04")
 }
 
-// durationText renvoie une durée courte : « 0,4 s », « 12 s », « 3 min 05 s ».
+// durationText renvoie une durée courte : « 0.4 s », « 12 s », « 3 min 05 s » (séparateur décimal
+// « , » en français).
 func durationText(d time.Duration) string {
 	switch {
 	case d < 0:
 		return "0 s"
 	case d < 10*time.Second:
 		tenths := int64(d / (100 * time.Millisecond))
-		return fmt.Sprintf("%d,%d s", tenths/10, tenths%10)
+		return fmt.Sprintf("%d%s%d s", tenths/10, i18n.T("cli.sync.duration_decimal"), tenths%10)
 	case d < time.Minute:
 		return fmt.Sprintf("%d s", int64(d/time.Second))
 	default:
@@ -275,11 +297,11 @@ func durationText(d time.Duration) string {
 }
 
 // rateLimitText décrit le quota de l'API GitHub, avec l'heure de remise à zéro en heure locale :
-// « Quota GitHub : 4987 / 5000 requêtes restantes (remise à zéro à 15:04). »
+// « GitHub quota: 4987 / 5000 requests left (resets at 15:04). »
 func (s *session) rateLimitText(rl provider.RateLimit) string {
-	text := fmt.Sprintf("Quota GitHub : %d / %d requêtes restantes", rl.Remaining, rl.Limit)
+	text := i18n.T("cli.sync.rate_limit", rl.Remaining, rl.Limit)
 	if !rl.Reset.IsZero() {
-		text += fmt.Sprintf(" (remise à zéro à %s)", s.clockText(rl.Reset))
+		text += i18n.T("cli.sync.rate_limit_reset", s.clockText(rl.Reset))
 	}
 	return text + "."
 }

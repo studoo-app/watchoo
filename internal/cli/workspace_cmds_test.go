@@ -25,7 +25,7 @@ func TestPhase3CommandsOutsideWorkspace(t *testing.T) {
 		{"tui"},
 		{"repo", "list", "--json"},
 	} {
-		h.run(args...).mustFail(t, "no Watchoo workspace here", "-C <répertoire>")
+		h.run(args...).mustFail(t, "no Watchoo workspace here", "-C <directory>")
 	}
 	assertNoWorkspace(t, h.cwd)
 	if len(h.configs) != 0 || len(h.tokens) != 0 {
@@ -43,15 +43,16 @@ func TestPhase3WorkspaceFlag(t *testing.T) {
 	assertContains(t, "repo list -C", r.stdout, "Alice Martin", "bob/projet")
 }
 
-// Arguments en trop ou manquants : erreur en français qui rappelle l'usage.
+// Arguments en trop ou manquants : erreur qui rappelle l'usage (validateurs d'arguments de repo.go,
+// sync.go et repo_import.go).
 func TestPhase3Arguments(t *testing.T) {
 	h := newWorkspace(t)
-	h.run("repo", "add").mustFail(t, "« watchoo repo add » attend 1 argument (reçu : 0)", "watchoo repo add owner/repo")
-	h.run("repo", "remove", "a/b", "c/d").mustFail(t, "attend 1 argument (reçu : 2)")
-	h.run("repo", "import").mustFail(t, "« watchoo repo import » attend 1 argument")
-	h.run("sync", "a/b", "c/d").mustFail(t, "« watchoo sync » attend au plus 1 argument (reçu : a/b c/d)")
-	h.run("log", "extra").mustFail(t, "« watchoo log » ne prend pas d'argument")
-	h.run("repo", "inconnue").mustFail(t, "commande inconnue « inconnue »")
+	h.run("repo", "add").mustFail(t, `"watchoo repo add" expects 1 argument (got: 0)`, "watchoo repo add owner/repo")
+	h.run("repo", "remove", "a/b", "c/d").mustFail(t, "expects 1 argument (got: 2)")
+	h.run("repo", "import").mustFail(t, `"watchoo repo import" expects 1 argument`)
+	h.run("sync", "a/b", "c/d").mustFail(t, `"watchoo sync" expects at most 1 argument (got: a/b c/d)`)
+	h.run("log", "extra").mustFail(t, `"watchoo log" takes no argument`)
+	h.run("repo", "inconnue").mustFail(t, `unknown command "inconnue"`)
 	r := h.run("repo").mustSucceed(t)
 	assertContains(t, "aide de repo", r.stdout, "add", "import", "list", "remove")
 }

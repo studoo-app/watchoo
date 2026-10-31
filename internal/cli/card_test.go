@@ -48,7 +48,7 @@ func statusFor(info TermInfo, text string) string {
 // helpHeader est l'en-tête attendu en haut de l'aide générale sur le terminal info : la carte, une ligne
 // vide, la ligne d'état de l'espace, une ligne vide.
 func helpHeader(info TermInfo, status, tip string) string {
-	return cardFor(info, helpSubtitle, tip) + "\n" + statusFor(info, status) + "\n"
+	return cardFor(info, helpSubtitle(), tip) + "\n" + statusFor(info, status) + "\n"
 }
 
 // versionLine est la sortie de « watchoo version » hors terminal.
@@ -64,7 +64,7 @@ func versionCard(info TermInfo) string {
 // assertNoCard vérifie qu'out ne contient ni carte, ni ligne d'état, ni séquence d'échappement.
 func assertNoCard(t *testing.T, what, out string) {
 	t.Helper()
-	for _, part := range []string{"╭", "█", "●", "+--", `|\    /|`, "Astuce", "\x1b"} {
+	for _, part := range []string{"╭", "█", "●", "+--", `|\    /|`, "Tip", "\x1b"} {
 		if strings.Contains(out, part) {
 			t.Errorf("%s : carte inattendue (%q) :\n%s", what, part, out)
 			return
@@ -81,8 +81,8 @@ func TestCardInGeneralHelp(t *testing.T) {
 	plain := newHarness(t)
 	h := newHarness(t)
 	onTerminal(h, wideTerminal)
-	header := helpHeader(wideTerminal, "Aucun espace de supervision ici", tipInit)
-	for _, part := range []string{"Watchoo", "dev", "Qui a travaillé, sur quoi, et quand ?", "watchoo init", "╭", "╯"} {
+	header := helpHeader(wideTerminal, "No workspace here", tipInit())
+	for _, part := range []string{"Watchoo", "dev", "Who worked, on what, and when?", "watchoo init", "╭", "╯"} {
 		if !strings.Contains(ansiSeq.ReplaceAllString(header, ""), part) {
 			t.Fatalf("en-tête sans %q :\n%s", part, header)
 		}
@@ -114,8 +114,8 @@ func TestHelpWorkspaceStatus(t *testing.T) {
 	empty := t.TempDir()
 	requireNoWorkspaceAbove(t, empty)
 
-	inHome := "Espace : licence-projet (" + filepath.Join("~", "supervision", "licence-projet") + ")"
-	inOther := "Espace : master-projet (" + other + ")"
+	inHome := "Workspace: licence-projet (" + filepath.Join("~", "supervision", "licence-projet") + ")"
+	inOther := "Workspace: master-projet (" + other + ")"
 	for _, tt := range []struct {
 		name string
 		cwd  string
@@ -124,15 +124,15 @@ func TestHelpWorkspaceStatus(t *testing.T) {
 		want string
 		tip  string
 	}{
-		{"espace du répertoire courant, sous le répertoire personnel", root, nil, "", inHome, tipWorkspace},
-		{"depuis un sous-répertoire", newDir(t, root, "src", "module"), []string{"help"}, "", inHome, tipWorkspace},
-		{"hors d'un espace", empty, []string{"--help"}, "", "Aucun espace de supervision ici", tipInit},
-		{"option -C", empty, []string{"-C", other, "--help"}, "", inOther, tipWorkspace},
-		{"option -C relative", root, []string{"-C", "src", "help"}, "", inHome, tipWorkspace},
-		{"variable WATCHOO_DIR", empty, nil, other, inOther, tipWorkspace},
-		{"option -C sans espace", root, []string{"-C", empty}, "", "Aucun espace de supervision ici", tipInit},
+		{"espace du répertoire courant, sous le répertoire personnel", root, nil, "", inHome, tipWorkspace()},
+		{"depuis un sous-répertoire", newDir(t, root, "src", "module"), []string{"help"}, "", inHome, tipWorkspace()},
+		{"hors d'un espace", empty, []string{"--help"}, "", "No workspace here", tipInit()},
+		{"option -C", empty, []string{"-C", other, "--help"}, "", inOther, tipWorkspace()},
+		{"option -C relative", root, []string{"-C", "src", "help"}, "", inHome, tipWorkspace()},
+		{"variable WATCHOO_DIR", empty, nil, other, inOther, tipWorkspace()},
+		{"option -C sans espace", root, []string{"-C", empty}, "", "No workspace here", tipInit()},
 		{"option -C inexistante", root, []string{"-C", "absent", "-h"}, "",
-			"Espace : option -C: directory " + filepath.Join(root, "absent") + " does not exist", tipHelp},
+			"Workspace: option -C: directory " + filepath.Join(root, "absent") + " does not exist", tipHelp()},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.env != "" {
@@ -176,7 +176,7 @@ func TestHelpWorkspaceStatusErrors(t *testing.T) {
 
 	writeFile(t, config, "sync:\n  intervall: 1h\n")
 	r := h.run("--help").mustSucceed(t)
-	if got := statusOf(r); !strings.HasPrefix(got, "● Espace : ") || !strings.Contains(got, "intervall") {
+	if got := statusOf(r); !strings.HasPrefix(got, "● Workspace: ") || !strings.Contains(got, "intervall") {
 		t.Errorf(`invalid settings : status line %q`, got)
 	}
 	if r.stderr != "" {
@@ -184,14 +184,14 @@ func TestHelpWorkspaceStatusErrors(t *testing.T) {
 	}
 
 	writeFile(t, config, "sync:\n  interval: 5m\n")
-	if got := statusOf(h.run("help").mustSucceed(t)); !strings.HasPrefix(got, "● Espace : invalid settings: ") {
+	if got := statusOf(h.run("help").mustSucceed(t)); !strings.HasPrefix(got, "● Workspace: invalid settings: ") {
 		t.Errorf("valeur hors limites : ligne d'état %q", got)
 	}
 
 	// Nom avec une séquence d'échappement et un saut de ligne (YAML « \e », « \n ») : neutralisés.
 	writeFile(t, config, `name: "promo\e[2J\nlicence"`+"\n")
 	r = h.run().mustSucceed(t)
-	if got := statusOf(r); got != "● Espace : promo?[2J licence ("+h.cwd+")" {
+	if got := statusOf(r); got != "● Workspace: promo?[2J licence ("+h.cwd+")" {
 		t.Errorf("nom avec caractères de contrôle : ligne d'état %q", got)
 	}
 	if rest := ansiSeq.ReplaceAllString(r.stdout, ""); strings.Contains(rest, "\x1b") {
@@ -201,11 +201,11 @@ func TestHelpWorkspaceStatusErrors(t *testing.T) {
 	// Répertoire courant inaccessible : signalé, sauf avec un -C absolu.
 	deps := Deps{Getwd: func() (string, error) { return "", errors.New("répertoire supprimé") }}
 	status, tip := helpStatus(deps, &options{})
-	if status != "Espace : répertoire courant inaccessible : répertoire supprimé" || tip != tipHelp {
+	if status != "Workspace: current directory unavailable: répertoire supprimé" || tip != tipHelp() {
 		t.Errorf("répertoire courant inaccessible : %q, %q", status, tip)
 	}
 	writeFile(t, config, "name: perso\n")
-	if status, _ := helpStatus(deps, &options{workspaceDir: h.cwd}); status != "Espace : perso ("+h.cwd+")" {
+	if status, _ := helpStatus(deps, &options{workspaceDir: h.cwd}); status != "Workspace: perso ("+h.cwd+")" {
 		t.Errorf("répertoire courant inaccessible, -C absolu : %q", status)
 	}
 }
@@ -245,11 +245,11 @@ func TestCardInit(t *testing.T) {
 	root := h.cwd
 	onTerminal(h, wideTerminal)
 	r := h.run("init").mustSucceed(t)
-	want := cardFor(wideTerminal, "Espace de supervision « licence-projet » créé", tipInitDone) + "\n" +
-		statusFor(wideTerminal, "Espace : licence-projet ("+root+")") +
-		statusFor(wideTerminal, "Réglages : "+filepath.Join(root, ".watchoo", "config.yaml")) +
-		statusFor(wideTerminal, "Base : "+filepath.Join(root, ".watchoo", "watchoo.db")) +
-		statusFor(wideTerminal, "Compte gh : watchoo-test sur github.com (droits : gist, read:org, repo)")
+	want := cardFor(wideTerminal, `Workspace "licence-projet" created`, tipInitDone) + "\n" +
+		statusFor(wideTerminal, "Workspace: licence-projet ("+root+")") +
+		statusFor(wideTerminal, "Settings: "+filepath.Join(root, ".watchoo", "config.yaml")) +
+		statusFor(wideTerminal, "Database: "+filepath.Join(root, ".watchoo", "watchoo.db")) +
+		statusFor(wideTerminal, "gh account: watchoo-test on github.com (scopes: gist, read:org, repo)")
 	if r.stdout != want {
 		t.Errorf("init sur un terminal :\n%s\nattendu :\n%s", r.stdout, want)
 	}
@@ -272,10 +272,10 @@ func TestCardInit(t *testing.T) {
 	onTerminal(h2, info)
 	r = h2.run("init").mustSucceed(t)
 	_, report, _ := strings.Cut(r.stdout, "╯\n\n")
-	wantReport := "● Espace : perso (" + filepath.Join("~", "perso") + ")\n" +
-		"● Réglages : " + filepath.Join("~", "perso", ".watchoo", "config.yaml") + "\n" +
-		"● Base : " + filepath.Join("~", "perso", ".watchoo", "watchoo.db") + "\n" +
-		"● Compte gh : ci-bot sur github.com (droits non indiqués par gh)\n"
+	wantReport := "● Workspace: perso (" + filepath.Join("~", "perso") + ")\n" +
+		"● Settings: " + filepath.Join("~", "perso", ".watchoo", "config.yaml") + "\n" +
+		"● Database: " + filepath.Join("~", "perso", ".watchoo", "watchoo.db") + "\n" +
+		"● gh account: ci-bot on github.com (scopes not reported by gh)\n"
 	if report != wantReport {
 		t.Errorf("compte rendu :\n%s\nattendu :\n%s", report, wantReport)
 	}
@@ -305,11 +305,11 @@ func TestCardDecomposedWorkspaceName(t *testing.T) {
 					unicodeOK, i+1, got, want, card)
 			}
 		}
-		shown, status := "« "+name+" »", "● Espace : "+name+" ("+h.cwd+")"
+		shown, status := `"`+name+`"`, "● Workspace: "+name+" ("+h.cwd+")"
 		if !unicodeOK {
 			// Toute la ligne d'état est ramenée à l'ASCII, chemin compris.
 			shown = `"promo-reseaux"`
-			status = "* Espace : promo-reseaux (" + strings.ReplaceAll(h.cwd, name, "promo-reseaux") + ")"
+			status = "* Workspace: promo-reseaux (" + strings.ReplaceAll(h.cwd, name, "promo-reseaux") + ")"
 		}
 		if !strings.Contains(card, shown) {
 			t.Errorf("Unicode %t : %s absent de la carte :\n%s", unicodeOK, shown, card)
@@ -369,7 +369,7 @@ func TestNoCardOffTerminal(t *testing.T) {
 	h2 := newHarness(t)
 	h2.Terminal = func() TermInfo { return TermInfo{} }
 	r := h2.run("init").mustSucceed(t)
-	if !strings.HasPrefix(r.stdout, "Espace de supervision « licence-projet » créé.\n  répertoire  "+h2.cwd+"\n") {
+	if !strings.HasPrefix(r.stdout, `Workspace "licence-projet" created.`+"\n  directory   "+h2.cwd+"\n") {
 		t.Errorf("init hors terminal : sortie inattendue :\n%s", r.stdout)
 	}
 	assertNoCard(t, "init", r.stdout)
@@ -420,11 +420,11 @@ func TestNoCardOnStderr(t *testing.T) {
 	h.run("init").mustSucceed(t)
 	h.cwd = newDir(t, parent, "groupe-a")
 	r := h.run("init").mustSucceed(t)
-	if !strings.HasPrefix(r.stderr, "attention : ") {
+	if !strings.HasPrefix(r.stderr, "warning: ") {
 		t.Errorf("avertissement attendu sur la sortie d'erreur :\n%s", r.stderr)
 	}
 	assertNoCard(t, "init imbriqué (stderr)", r.stderr)
-	if want := cardFor(wideTerminal, "Espace de supervision « groupe-a » créé", tipInitDone); !strings.HasPrefix(r.stdout, want) {
+	if want := cardFor(wideTerminal, `Workspace "groupe-a" created`, tipInitDone); !strings.HasPrefix(r.stdout, want) {
 		t.Errorf("init imbriqué : carte absente du compte rendu :\n%s", r.stdout)
 	}
 
@@ -489,7 +489,7 @@ func TestCardAdaptsToTerminal(t *testing.T) {
 			initOut := h.run("init").mustSucceed(t).stdout
 			if !tt.want.IsTerminal { // trop étroit pour la carte : sorties habituelles
 				if version != versionLine() || help != plainHelp ||
-					!strings.HasPrefix(initOut, "Espace de supervision « licence-projet » créé.\n  répertoire  "+h.cwd+"\n") {
+					!strings.HasPrefix(initOut, `Workspace "licence-projet" created.`+"\n  directory   "+h.cwd+"\n") {
 					t.Errorf("terminal trop étroit : sorties modifiées :\n%s\n%s\n%s", version, help, initOut)
 				}
 				assertNoCard(t, "init", initOut)
@@ -499,7 +499,7 @@ func TestCardAdaptsToTerminal(t *testing.T) {
 			if want := versionCard(info); version != want {
 				t.Errorf("version :\n%s\nattendu :\n%s", version, want)
 			}
-			header := helpHeader(info, "Aucun espace de supervision ici", tipInit)
+			header := helpHeader(info, "No workspace here", tipInit())
 			if help != header+plainHelp {
 				t.Errorf("aide :\n%s\nattendu l'en-tête :\n%s", help, header)
 			}
@@ -557,18 +557,18 @@ func TestVersionFlag(t *testing.T) {
 		t.Errorf("watchoo --version --json = %+v, attendu %+v", r, versionJSON)
 	}
 
-	h.run("--version", "extra").mustFail(t, "« watchoo --version » ne prend pas d'argument (reçu : extra)")
+	h.run("--version", "extra").mustFail(t, `"watchoo --version" takes no argument (got: extra)`)
 	// Option de la commande racine seulement, sans lettre courte.
-	h.run("init", "--version").mustFail(t, "option inconnue : --version (aide : « watchoo init --help »)")
-	h.run("-v").mustFail(t, "option courte inconnue : -v")
+	h.run("init", "--version").mustFail(t, `unknown option: --version (help: "watchoo init --help")`)
+	h.run("-v").mustFail(t, "unknown short option: -v")
 	assertNoWorkspace(t, h.cwd)
 	if len(h.configs) != 0 {
 		t.Error("--version a construit un accès à gh")
 	}
 
-	// Documentée dans l'aide générale, en français ; absente de l'aide des sous-commandes.
+	// Documentée dans l'aide générale ; absente de l'aide des sous-commandes.
 	if r := h.run("--help").mustSucceed(t); !strings.Contains(r.stdout, "--version") ||
-		!strings.Contains(r.stdout, "affiche la version de Watchoo") {
+		!strings.Contains(r.stdout, "print the Watchoo version") {
 		t.Errorf("aide générale sans --version :\n%s", r.stdout)
 	}
 	if r := h.run("help", "init").mustSucceed(t); strings.Contains(r.stdout, "--version") {

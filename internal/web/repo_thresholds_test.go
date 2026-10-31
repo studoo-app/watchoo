@@ -23,7 +23,7 @@ func TestRepoThresholdsForm(t *testing.T) {
 	assertStatus(t, w, http.StatusOK)
 	assertContains(t, w, `id="repo-thresholds"`, `action="/repos/2/thresholds"`, `name="flemme" value=""`,
 		`name="dead" value=""`, `name="csrf_token"`, "Flemme après 5 jours (de l'espace)",
-		"Dead après 15 jours (de l'espace)", "Flemme · 9 j")
+		"Dead après 15 jours (de l'espace)", "Slacking · 9 j")
 	assertNotContains(t, w, `id="repo-thresholds" class="collapse collapse-arrow bg-base-100 shadow-sm" open`)
 
 	// Enregistrement : redirection, seuils écrits, état recalculé (bob devient Actif).
@@ -34,7 +34,7 @@ func TestRepoThresholdsForm(t *testing.T) {
 	}
 	w = e.get(repoPath(ids.Bob) + "?msg=thresholds")
 	assertContains(t, w, html.EscapeString(thresholdsSaved), `name="flemme" value="10"`, `name="dead" value="20"`,
-		"Flemme après 10 jours (propre à ce dépôt)", "Dead après 20 jours (propre à ce dépôt)", "Actif")
+		"Flemme après 10 jours (propre à ce dépôt)", "Dead après 20 jours (propre à ce dépôt)", "Active")
 
 	// Champ vide (ou 0) : seuil de l'espace.
 	w = e.post(repoPath(ids.Bob)+"/thresholds", url.Values{"flemme": {""}, "dead": {"0"}}, false)

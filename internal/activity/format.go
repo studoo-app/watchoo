@@ -3,37 +3,40 @@ package activity
 // Formats courts communs à la CLI et au TUI (documentation/fr/05-cli.md).
 
 import (
-	"fmt"
+	"errors"
 	"math"
 	"strconv"
 	"time"
+
+	"github.com/studoo-app/watchoo/internal/i18n"
 )
 
 // Short renvoie l'affichage court de l'état, comme la colonne ÉTAT de « watchoo repo list » :
-//   - Active : « - » ; Flemme : « ~ 9 j » ; Dead : « ⚠ 42 j » (« ! 42 j » si unicode est faux) ;
-//   - états gris : « arrêté », « erreur », « jamais », « archivé », « vide » (sans accent si unicode
-//     est faux : « arrete », « archive »).
+//   - Active : « - » ; Flemme : « ~ 9 j » / "~ 9 d" ; Dead : « ⚠ 42 j » / "⚠ 42 d" (« ! 42 j » si
+//     unicode est faux) ;
+//   - états gris : « arrêté », « erreur », « jamais », « archivé », « vide » (sans accent si
+//     unicode est faux : « arrete », « archive » ; anglais : stopped, error, never, archived, empty).
 func (r Result) Short(unicode bool) string {
 	switch r.State {
 	case StateActive:
 		return "-"
 	case StateFlemme:
-		return fmt.Sprintf("~ %d j", r.Days)
+		return i18n.T("activity.short.flemme", r.Days)
 	case StateDead:
 		if unicode {
-			return fmt.Sprintf("⚠ %d j", r.Days)
+			return i18n.T("activity.short.dead", r.Days)
 		}
-		return fmt.Sprintf("! %d j", r.Days)
+		return i18n.T("activity.short.dead_ascii", r.Days)
 	case StateStopped:
-		return pickText(unicode, "arrêté", "arrete")
+		return pickText(unicode, i18n.T("activity.short.stopped"), i18n.T("activity.short.stopped_ascii"))
 	case StateError:
-		return "erreur"
+		return i18n.T("activity.short.error")
 	case StateNeverSynced:
-		return "jamais"
+		return i18n.T("activity.short.never")
 	case StateArchived:
-		return pickText(unicode, "archivé", "archive")
+		return pickText(unicode, i18n.T("activity.short.archived"), i18n.T("activity.short.archived_ascii"))
 	case StateEmpty:
-		return "vide"
+		return i18n.T("activity.short.empty")
 	default:
 		return string(r.State)
 	}
@@ -47,35 +50,36 @@ func pickText(unicode bool, withAccents, ascii string) string {
 	return ascii
 }
 
-// Relative renvoie la date t relative à now, en français, pour l'affichage : t zéro → « jamais » ;
-// moins d'une minute (ou t dans le futur) → « à l'instant » ; moins d'une heure → « il y a 5 min » ;
-// moins de 24 h → « il y a 2 h » ; sinon « il y a 9 j » en jours calendaires dans loc (CalendarDays,
-// pour concorder avec Short). unicode faux : accents retirés (« a l'instant »).
+// Relative renvoie la date t relative à now, dans la langue du processus, pour l'affichage : t zéro
+// → « jamais » / "never" ; moins d'une minute (ou t dans le futur) → « à l'instant » / "just now" ;
+// moins d'une heure → « il y a 5 min » / "5 min ago" ; moins de 24 h → « il y a 2 h » / "2 h ago" ;
+// sinon « il y a 9 j » / "9 d ago" en jours calendaires dans loc (CalendarDays, pour concorder avec
+// Short). unicode faux : accents retirés du français (« a l'instant »).
 func Relative(t, now time.Time, loc *time.Location, unicode bool) string {
 	if t.IsZero() {
-		return "jamais"
+		return i18n.T("activity.rel.never")
 	}
 	d := now.Sub(t)
 	switch {
 	case d < time.Minute:
-		return pickText(unicode, "à l'instant", "a l'instant")
+		return pickText(unicode, i18n.T("activity.rel.now"), i18n.T("activity.rel.now_ascii"))
 	case d < time.Hour:
-		return fmt.Sprintf("il y a %d min", int(d/time.Minute))
+		return i18n.T("activity.rel.minutes", int(d/time.Minute))
 	case d < 24*time.Hour:
-		return fmt.Sprintf("il y a %d h", int(d/time.Hour))
+		return i18n.T("activity.rel.hours", int(d/time.Hour))
 	default:
 		// Au moins 24 h d'écart : au moins un jour calendaire, quel que soit le fuseau.
-		return fmt.Sprintf("il y a %d j", max(CalendarDays(t, now, loc), 1))
+		return i18n.T("activity.rel.days", max(CalendarDays(t, now, loc), 1))
 	}
 }
 
 // ParseSince analyse une durée relative d'option --since : un entier strictement positif suivi d'une
 // unité, « d » (jours de 24 h), « h » (heures) ou « m » (minutes), ex. « 7d », « 30d », « 12h ». Toute
-// autre forme donne une erreur en français qui cite la valeur et les formes acceptées.
+// autre forme donne une erreur, dans la langue du processus, qui cite la valeur et les formes
+// acceptées.
 func ParseSince(s string) (time.Duration, error) {
 	invalid := func() (time.Duration, error) {
-		return 0, fmt.Errorf("--since %q invalide : attendu un nombre entier positif suivi de d (jours), "+
-			"h (heures) ou m (minutes), par exemple 7d, 12h ou 30m", s)
+		return 0, errors.New(i18n.T("activity.err.since", s))
 	}
 	if len(s) < 2 {
 		return invalid()

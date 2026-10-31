@@ -164,14 +164,14 @@ func TestStateLabelAndGray(t *testing.T) {
 		label string
 		gray  bool
 	}{
-		StateActive:      {"Actif", false},
-		StateFlemme:      {"Flemme", false},
+		StateActive:      {"Active", false},
+		StateFlemme:      {"Slacking", false},
 		StateDead:        {"Dead", false},
-		StateStopped:     {"Suivi arrêté", true},
-		StateError:       {"En erreur", true},
-		StateNeverSynced: {"Jamais synchronisé", true},
-		StateArchived:    {"Archivé", true},
-		StateEmpty:       {"Vide", true},
+		StateStopped:     {"Tracking stopped", true},
+		StateError:       {"Error", true},
+		StateNeverSynced: {"Never synced", true},
+		StateArchived:    {"Archived", true},
+		StateEmpty:       {"Empty", true},
 	}
 	for s, w := range want {
 		if s.Label() != w.label || s.Gray() != w.gray {

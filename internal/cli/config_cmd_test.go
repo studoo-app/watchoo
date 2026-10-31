@@ -93,7 +93,7 @@ func TestConfigExport(t *testing.T) {
 
 	// -o : fichier en 0600, ligne de confirmation.
 	r = h.run("config", "export", "-o", "licence.json").mustSucceed(t)
-	if r.stdout != "Configuration exportée dans licence.json : 2 dépôts, 7 réglages.\n" {
+	if r.stdout != "Configuration exported to licence.json: 2 repositories, 7 settings.\n" {
 		t.Errorf("export -o = %q", r.stdout)
 	}
 	out := filepath.Join(h.cwd, "licence.json")
@@ -105,8 +105,9 @@ func TestConfigExport(t *testing.T) {
 	}
 
 	// Fichier existant : refus sans --force, rien n'est touché.
+	// (Le préfixe « erreur : » vient de root.go : hors du périmètre de ce groupe.)
 	writeFile(t, out, "ancien contenu\n")
-	h.run("config", "export", "-o", "licence.json").mustFail(t, "licence.json existe déjà", "--force")
+	h.run("config", "export", "-o", "licence.json").mustFail(t, "licence.json already exists", "--force")
 	if got := readFile(t, out); got != "ancien contenu\n" {
 		t.Errorf("fichier écrasé sans --force : %q", got)
 	}
@@ -123,10 +124,10 @@ func TestConfigExport(t *testing.T) {
 
 	// Un répertoire n'est jamais remplacé.
 	newDir(t, h.cwd, "rep")
-	h.run("config", "export", "-o", "rep", "--force").mustFail(t, "est un répertoire")
+	h.run("config", "export", "-o", "rep", "--force").mustFail(t, "is a directory")
 
 	// Arguments.
-	h.run("config", "export", "en-trop").mustFail(t, "ne prend pas d'argument")
+	h.run("config", "export", "en-trop").mustFail(t, "takes no argument")
 }
 
 // Export d'un espace, import dans un autre espace (celui d'une collègue) : aperçu, application,
@@ -144,15 +145,16 @@ func TestConfigImportRoundTrip(t *testing.T) {
 	configBefore := readFile(t, configPath(b))
 
 	// --dry-run : aperçu avec vérification d'accès ; rien n'est écrit.
+	// (Les avertissements « ! … » viennent de configshare : hors du périmètre de ce groupe.)
 	r := b.run("config", "import", "licence.json", "--dry-run").mustSucceed(t)
 	assertContains(t, "aperçu", r.stdout,
-		"IMPORT  licence.json  (espace « licence-projet », exporté le 27/10/2026 avec Watchoo "+appVersion()+")\n",
-		"Réglages\n  timezone                   \"\" → \"UTC\"   (masqué par WATCHOO_TIMEZONE)\n",
-		"Dépôts\n  à ajouter          3\n",
-		"  inaccessibles      0\n",
+		"IMPORT  licence.json  (workspace \"licence-projet\", exported on 10/27/2026 with Watchoo "+appVersion()+")\n",
+		"Settings\n  timezone                   \"\" → \"UTC\"   (overridden by WATCHOO_TIMEZONE)\n",
+		"Repositories\n  to add             3\n",
+		"  inaccessible       0\n",
 		"! la variable WATCHOO_TIMEZONE est définie : elle masque timezone (la valeur importée sera écrite",
 		"commentaires personnels",
-		"Aperçu seulement (--dry-run) : rien n'a été modifié.\n")
+		"Preview only (--dry-run): nothing was modified.\n")
 	if n := len(listRepos(t, b)); n != 0 {
 		t.Errorf("--dry-run a enregistré %d dépôts", n)
 	}
@@ -165,10 +167,10 @@ func TestConfigImportRoundTrip(t *testing.T) {
 
 	// Application avec --yes : aperçu puis bilan.
 	r = b.run("config", "import", "licence.json", "--yes").mustSucceed(t)
-	assertContains(t, "import", r.stdout, "  à ajouter          3\n",
-		"(l'accès aux dépôts sera vérifié auprès de GitHub au moment d'appliquer)\n",
-		"BILAN\n  réglages écrits dans ",
-		"  ajoutés            3\n", "Lancez « watchoo sync »")
+	assertContains(t, "import", r.stdout, "  to add             3\n",
+		"(repository access will be checked against GitHub when applying)\n",
+		"SUMMARY\n  settings written in ",
+		"  added              3\n", "Run \"watchoo sync\"")
 	written := readFile(t, configPath(b))
 	assertContains(t, "config.yaml réécrit", written, `timezone: "UTC"`)
 	bak := filepath.Join(b.cwd, workspace.DirName, workspace.BackupFileName)
@@ -184,10 +186,10 @@ func TestConfigImportRoundTrip(t *testing.T) {
 
 	// Relance : rien à changer, pas de question (même hors terminal, sans --yes).
 	r = b.run("config", "import", "licence.json").mustSucceed(t)
-	assertContains(t, "relance", r.stdout, "  inchangés          3\n", "Rien à changer : l'espace est déjà à jour.\n",
-		"  déjà suivis        3\n", "inchangés (7 réglages, identiques à ceux de l'espace)\n",
+	assertContains(t, "relance", r.stdout, "  unchanged          3\n", "Nothing to change: the workspace is already up to date.\n",
+		"  already tracked    3\n", "unchanged (7 settings, identical to those of the workspace)\n",
 		"! la variable WATCHOO_TIMEZONE est définie : elle masque timezone (config.yaml contient déjà la valeur importée")
-	assertNotContains(t, "relance", r.stderr, "Appliquer")
+	assertNotContains(t, "relance", r.stderr, "Apply")
 	if readFile(t, configPath(b)) != written || readFile(t, bak) != configBefore {
 		t.Error("relance : config.yaml ou config.yaml.bak réécrit alors qu'aucun réglage ne change")
 	}
@@ -226,12 +228,12 @@ func TestConfigImportMerge(t *testing.T) {
 		t.Fatalf("import refusé au terminal : code %d\n%s", r.code, r.stderr)
 	}
 	assertContains(t, "aperçu", r.stdout,
-		"  à ajouter          1\n",
-		"  à mettre à jour    1   alice/projet (nom : « Alice Martin » → « Alice M. »)\n",
-		"  à reprendre        1   bob/projet (branches : toutes → main, dev)\n",
-		"  inchangés          1\n",
-		"Réglages\n  aucun dans le fichier\n")
-	assertContains(t, "refus", r.stderr, "rien n'a été modifié")
+		"  to add             1\n",
+		"  to update          1   alice/projet (label: \"Alice Martin\" → \"Alice M.\")\n",
+		"  to resume          1   bob/projet (branches: all → main, dev)\n",
+		"  unchanged          1\n",
+		"Settings\n  none in the file\n")
+	assertContains(t, "refus", r.stderr, "nothing was modified")
 	if got := storedRepo(t, h, "alice", "projet").Label; got != "Alice Martin" {
 		t.Errorf("label changé sans confirmation : %q", got)
 	}
@@ -248,7 +250,7 @@ func TestConfigImportMerge(t *testing.T) {
 		rep.Repositories[0].Outcome != "" {
 		t.Errorf("aperçu --json = %+v", rep)
 	}
-	assertContains(t, "--dry-run --json", r.stderr, "import incomplet : 1 dépôt inaccessible (carol/projet)")
+	assertContains(t, "--dry-run --json", r.stderr, "import incomplete: 1 inaccessible repository (carol/projet)")
 	if storedRepo(t, h, "bob", "projet").Enabled {
 		t.Error("--dry-run a repris le suivi de bob")
 	}
@@ -272,9 +274,9 @@ func TestConfigImportMerge(t *testing.T) {
 
 	// En texte : bilan avec le détail de l'échec.
 	r = h.run("config", "import", "partage.json", "--yes").mustCode(t, 1)
-	assertContains(t, "bilan texte", r.stdout, "BILAN\n", "  inaccessibles      1   carol/projet\n",
-		"  dépôt n° 3  carol/projet : ")
-	assertContains(t, "erreur", r.stderr, "erreur : import incomplet : 1 dépôt inaccessible (carol/projet)")
+	assertContains(t, "bilan texte", r.stdout, "SUMMARY\n", "  inaccessible       1   carol/projet\n",
+		"  repository #3  carol/projet: ")
+	assertContains(t, "erreur", r.stderr, "error: import incomplete: 1 inaccessible repository (carol/projet)")
 }
 
 // Réglages : réécriture de config.yaml (clés machine gardées, .bak, 0600), avertissements.
@@ -296,8 +298,8 @@ func TestConfigImportSettings(t *testing.T) {
 		"IMPORT  reglages.json\n",
 		"  sync.interval              30m → 1h\n",
 		"  activity.dead_after_days   15 → 21\n",
-		`  timezone                   "" → "Europe/Paris"   (masqué par WATCHOO_TIMEZONE)`,
-		"Dépôts\n  aucun dans le fichier\n",
+		`  timezone                   "" → "Europe/Paris"   (overridden by WATCHOO_TIMEZONE)`,
+		"Repositories\n  none in the file\n",
 		"! la variable WATCHOO_TIMEZONE est définie",
 		"! config.yaml sera réécrit")
 	if readFile(t, cfg) != original {
@@ -310,13 +312,13 @@ func TestConfigImportSettings(t *testing.T) {
 	if readFile(t, cfg) != original {
 		t.Fatal("config.yaml modifié malgré le refus")
 	}
-	// « o » applique.
+	// « o » applique. (Le suffixe « [o/N] » vient de confirm.go : hors du périmètre de ce groupe.)
 	h.Stdin = "o\n"
 	r = h.run("config", "import", "reglages.json").mustSucceed(t)
-	assertContains(t, "question", r.stderr, "Appliquer ces changements ? [o/N]")
-	assertContains(t, "bilan", r.stdout, "BILAN\n  réglages écrits dans ", "config.yaml.bak",
-		"prochain lancement")
-	assertNotContains(t, "bilan sans dépôt", r.stdout, "ajoutés")
+	assertContains(t, "question", r.stderr, "Apply these changes? [y/N]")
+	assertContains(t, "bilan", r.stdout, "SUMMARY\n  settings written in ", "config.yaml.bak",
+		"next start")
+	assertNotContains(t, "bilan sans dépôt", r.stdout, "added")
 	written := readFile(t, cfg)
 	assertContains(t, "config.yaml réécrit", written, "interval: 1h", "dead_after_days: 21",
 		`timezone: "Europe/Paris"`, `gh_path: "/opt/gh/bin/gh"`)
@@ -337,7 +339,7 @@ func TestConfigImportSettings(t *testing.T) {
 	// Réglages refusés une fois fusionnés : rien n'est écrit.
 	writeFile(t, filepath.Join(h.cwd, "faux.json"),
 		`{"format":"watchoo-config","version":1,"settings":{"activity":{"flemme_after_days":30}}}`)
-	h.run("config", "import", "faux.json", "--yes").mustFail(t, "faux.json : ", "rien n'a été importé")
+	h.run("config", "import", "faux.json", "--yes").mustFail(t, "faux.json: ", "nothing was imported")
 	if readFile(t, cfg) != written {
 		t.Error("config.yaml modifié par un import refusé")
 	}
@@ -362,7 +364,7 @@ func TestConfigImportConfirmation(t *testing.T) {
 	// Terminal, réponse vide (= non).
 	h.StdinTerminal, h.Stdin = true, "\n"
 	r := h.run("config", "import", "partage.json").mustCode(t, 1)
-	assertContains(t, "annulé", r.stderr, "import annulé : rien n'a été modifié")
+	assertContains(t, "annulé", r.stderr, "import cancelled: nothing was modified")
 	if n := len(listRepos(t, h)); n != 0 {
 		t.Errorf("%d dépôts enregistrés après « non »", n)
 	}
@@ -370,8 +372,8 @@ func TestConfigImportConfirmation(t *testing.T) {
 	// Entrée standard avec --yes.
 	h.StdinTerminal, h.Stdin = false, sharedDoc
 	r = h.run("config", "import", "-", "--yes").mustCode(t, 1) // carol inaccessible
-	assertContains(t, "import -", r.stdout, "IMPORT  -  (espace « licence-projet », exporté le 20/10/2026",
-		"  ajoutés            3\n")
+	assertContains(t, "import -", r.stdout, "IMPORT  -  (workspace \"licence-projet\", exported on 10/20/2026",
+		"  added              3\n")
 }
 
 // Fichiers refusés : rien n'est modifié, aucun accès vérifié.
@@ -385,7 +387,7 @@ func TestConfigImportInvalid(t *testing.T) {
 		name, content string
 		want          []string
 	}{
-		{"pas du JSON", "repo,label\nalice/projet,Alice\n", []string{"rien n'a été importé"}},
+		{"pas du JSON", "repo,label\nalice/projet,Alice\n", []string{"nothing was imported"}},
 		{"format absent", `{"version":1}`, []string{"pas une configuration Watchoo"}},
 		{"version plus récente", `{"format":"watchoo-config","version":2}`, []string{"version plus récente"}},
 		{"clé machine", `{"format":"watchoo-config","version":1,"settings":{"github":{"gh_path":"/tmp/x"}}}`,
@@ -396,11 +398,11 @@ func TestConfigImportInvalid(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			writeFile(t, filepath.Join(h.cwd, "f.json"), tt.content)
-			h.run("config", "import", "f.json", "--yes").mustFail(t, append([]string{"f.json : "}, tt.want...)...)
+			h.run("config", "import", "f.json", "--yes").mustFail(t, append([]string{"f.json: "}, tt.want...)...)
 			h.run("config", "import", "f.json", "--dry-run", "--json").mustFail(t, tt.want...)
 		})
 	}
-	h.run("config", "import", "absent.json", "--yes").mustFail(t, "fichier de configuration absent.json introuvable")
+	h.run("config", "import", "absent.json", "--yes").mustFail(t, "configuration file absent.json not found")
 	h.run("config", "import").mustFail(t)
 	if n := h.Provider.Calls(providertest.MethodRepository); n != 0 || len(h.tokens) != 0 {
 		t.Errorf("accès vérifié malgré des fichiers invalides (%d appels)", n)
@@ -433,5 +435,5 @@ func TestConfigHelp(t *testing.T) {
 	assertContains(t, "aide de config", r.stdout, "export", "import", "Partage la configuration")
 	r = h.run("config", "import", "--help").mustSucceed(t)
 	assertContains(t, "aide de config import", r.stdout, "--dry-run", "--yes", "rien n'est")
-	h.run("config", "inconnue").mustFail(t, "commande inconnue « inconnue »")
+	h.run("config", "inconnue").mustFail(t, `unknown command "inconnue"`)
 }

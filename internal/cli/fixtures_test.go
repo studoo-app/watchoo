@@ -21,8 +21,8 @@ var testNow = time.Date(2026, 10, 27, 12, 0, 0, 0, time.UTC)
 // Identifiants GitHub des dépôts factices.
 const (
 	aliceRepoID = 101 // alice/projet : actif, branches main et dev
-	bobRepoID   = 102 // bob/projet : Flemme (dernier commit il y a 9 jours)
-	daveRepoID  = 104 // dave/projet : Dead (dernier commit il y a 42 jours)
+	bobRepoID   = 102 // bob/projet : Flemme (dernier commit 9 d agoours)
+	daveRepoID  = 104 // dave/projet : Dead (dernier commit 42 d agoours)
 )
 
 // Personnes factices.
@@ -76,7 +76,7 @@ func addCommits(f *providertest.Fake, repoID int64, branch, parent string, commi
 }
 
 // seedProvider remplit le faux provider : alice/projet (main : 2 commits d'Alice, dev : 1 commit de
-// Bob il y a 1 h ; PR n° 1 ouverte et n° 2 mergée, release v1.0, tags v1.0 et v0.1), bob/projet (1 commit de Bob il y a 9 jours), dave/projet (1 commit de Dave il y a
+// Bob 1 h ago ; PR n° 1 ouverte et n° 2 mergée, release v1.0, tags v1.0 et v0.1), bob/projet (1 commit de Bob 9 d agoours), dave/projet (1 commit de Dave il y a
 // 42 jours). carol/projet n'existe pas (dépôt inaccessible).
 func seedProvider(f *providertest.Fake) {
 	f.AddRepository(provider.Repository{ID: aliceRepoID, Owner: "alice", Name: "projet", Private: true,

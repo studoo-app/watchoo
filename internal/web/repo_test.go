@@ -70,7 +70,7 @@ func TestRepoPage(t *testing.T) {
 	assertContains(t, w,
 		"<title>Alice Martin · licence-projet · Watchoo</title>",
 		`<h1 id="repo-title"`, "Alice Martin", `href="https://github.com/promo/alice"`, "promo/alice",
-		"badge-success", ">Actif<",
+		"badge-success", ">Active<",
 		// échappement du message de commit (en-tête et historique)
 		html.EscapeString(xssMessage),
 		// bouton de synchro branché sur POST /repos/{id}/sync
@@ -128,11 +128,11 @@ func TestRepoPageStates(t *testing.T) {
 
 	w = e.get(repoPath(ids.Bob))
 	assertStatus(t, w, http.StatusOK)
-	assertContains(t, w, "badge-warning", "Flemme · 9 j")
+	assertContains(t, w, "badge-warning", "Slacking · 9 j")
 
 	w = e.get(repoPath(ids.Dave))
 	assertStatus(t, w, http.StatusOK)
-	assertContains(t, w, "badge-neutral", "Jamais synchronisé", "Aucun commit en base pour ce dépôt",
+	assertContains(t, w, "badge-neutral", "Never synced", "Aucun commit en base pour ce dépôt",
 		"0 commit", ">jamais<")
 	if days := chartData(t, w); len(days) != activity.ChartDays {
 		t.Errorf("%d jours pour un dépôt vide, attendu %d", len(days), activity.ChartDays)
@@ -144,7 +144,7 @@ func TestRepoPageStates(t *testing.T) {
 	}
 	w = e.get(repoPath(ids.Bob))
 	assertStatus(t, w, http.StatusOK)
-	assertContains(t, w, "Suivi arrêté", "badge-neutral")
+	assertContains(t, w, "Tracking stopped", "badge-neutral")
 	assertNotContains(t, w, "Synchroniser ce dépôt")
 }
 

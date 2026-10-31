@@ -93,7 +93,7 @@ func TestWebEndToEnd(t *testing.T) {
 
 	w = e.get("/")
 	assertStatus(t, w, http.StatusOK)
-	assertContains(t, w, "Jamais synchronisé", "Alice Martin", "bob/projet")
+	assertContains(t, w, "Never synced", "Alice Martin", "bob/projet")
 
 	// 3. Synchro manuelle depuis le bouton (HTMX), progression, puis fin signalée par HX-Trigger.
 	w = e.post("/sync", nil, true)
@@ -114,9 +114,9 @@ func TestWebEndToEnd(t *testing.T) {
 	// 4. Tableau de bord : les trois états, le fil, le message échappé.
 	w = e.get("/")
 	assertStatus(t, w, http.StatusOK)
-	assertContains(t, w, "badge-success", "badge-warning", "badge-error", "Flemme · 9 j", "Dead · 42 j",
+	assertContains(t, w, "badge-success", "badge-warning", "badge-error", "Slacking · 9 j", "Dead · 42 j",
 		"&lt;script&gt;", "e2e-bob-essai-dev")
-	assertNotContains(t, w, xssMessage, "Jamais synchronisé")
+	assertNotContains(t, w, xssMessage, "Never synced")
 	// Contenu de la page seulement : l'indicateur de synchro (navbar) peut citer des dépôts dans
 	// l'infobulle de ses avertissements (clones Git locaux indisponibles dans ce test).
 	body := w.Body.String()

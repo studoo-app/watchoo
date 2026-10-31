@@ -63,7 +63,7 @@ func TestSettingsPage(t *testing.T) {
 		"<title>Réglages · "+testWorkspace+" · Watchoo</title>",
 		`aria-current="page">Réglages`,
 		"Alice Martin", "promo/alice", "promo/dave", "toutes les branches", "main, release/*",
-		"Actif", "Dead · 40 j", "Jamais synchronisé",
+		"Active", "Dead · 40 j", "Never synced",
 		`action="/settings/repos/`+strconv.FormatInt(ids.Alice, 10)+`"`,
 		`href="/settings/repos/`+strconv.FormatInt(ids.Carol, 10)+`/remove"`,
 		`action="/settings/repos"`, `action="/settings/interval"`, `action="/sync"`,
@@ -231,7 +231,7 @@ func TestSettingsRemoveRepository(t *testing.T) {
 	w = e.post(confirm, url.Values{"keep_history": {"1"}}, false)
 	assertRedirect(t, w, w.Code, "/settings?msg=already_stopped&repo="+strconv.FormatInt(ids.Alice, 10))
 	w = e.get("/settings")
-	assertContains(t, w, "Suivi arrêté", "Reprendre le suivi", `name="repo" value="promo/alice"`)
+	assertContains(t, w, "Tracking stopped", "Reprendre le suivi", `name="repo" value="promo/alice"`)
 	assertContains(t, e.get(confirm), "suivi déjà arrêté")
 
 	// Reprendre le suivi : comme « repo add ».

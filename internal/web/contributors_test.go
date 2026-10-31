@@ -27,7 +27,7 @@ func TestContributorsPage(t *testing.T) {
 		// Rafraîchi après une synchro.
 		`hx-get="/fragments/contributors" hx-trigger="sync-finished from:body"`,
 		// Dernière activité : date relative, heure locale dans title.
-		`title="26/10/2026 à 10:00">il y a 1 j</time>`,
+		`title="26/10/2026 à 10:00">1 d ago</time>`,
 		// Compteurs : 3 contributeurs, 5 commits, 3 dépôts.
 		`<div class="stat-value">3</div>`, `<div class="stat-value">5</div>`,
 	)

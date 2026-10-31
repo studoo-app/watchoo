@@ -5,6 +5,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/studoo-app/watchoo/internal/activity"
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/provider"
 	"github.com/studoo-app/watchoo/internal/store"
@@ -36,17 +38,8 @@ func newLogCmd(deps Deps, opts *options) *cobra.Command {
 	var f logFlags
 	cmd := &cobra.Command{
 		Use:   "log",
-		Short: "Affiche les derniers commits, filtrés par dépôt, auteur, branche ou période",
-		Long: `Affiche les derniers commits enregistrés par les synchros, du plus récent au plus
-ancien, chacun une seule fois même s'il est sur plusieurs branches.
-
-Filtres :
-  --repo     un dépôt suivi (owner/repo ou URL)
-  --author   login GitHub, nom ou e-mail exact de l'auteur (sans tenir compte de la casse)
-  --branch   commits vus sur cette branche lors des synchros : ceux qu'elle partage avec la
-             branche de référence (souvent main) n'y sont rattachés que s'ils y ont été vus
-  --since    période relative : 7d (jours), 12h (heures), 30m (minutes)
-  -n         nombre maximum de commits (20 par défaut, 0 = tous)`,
+		Short: i18n.T("cli.sync.log_short"),
+		Long:  i18n.T("cli.sync.log_long"),
 		Example: `  watchoo log --since 7d
   watchoo log --repo alice/projet-licence --author alice -n 50`,
 		Args: noArgs,
@@ -54,11 +47,11 @@ Filtres :
 			return runLog(cmd.Context(), deps, opts, f)
 		},
 	}
-	cmd.Flags().StringVar(&f.repo, "repo", "", "limite au `dépôt` owner/repo")
-	cmd.Flags().StringVar(&f.author, "author", "", "limite à un `auteur` (login, nom ou e-mail exact)")
-	cmd.Flags().StringVar(&f.branch, "branch", "", "limite à une `branche`")
-	cmd.Flags().StringVar(&f.since, "since", "", "limite à une `période` récente (ex. 7d, 12h, 30m)")
-	cmd.Flags().IntVarP(&f.limit, "limit", "n", defaultLogLimit, "`nombre` maximum de commits, 0 = tous")
+	cmd.Flags().StringVar(&f.repo, "repo", "", i18n.T("cli.sync.flag_repo"))
+	cmd.Flags().StringVar(&f.author, "author", "", i18n.T("cli.sync.flag_author"))
+	cmd.Flags().StringVar(&f.branch, "branch", "", i18n.T("cli.sync.flag_branch"))
+	cmd.Flags().StringVar(&f.since, "since", "", i18n.T("cli.sync.flag_since"))
+	cmd.Flags().IntVarP(&f.limit, "limit", "n", defaultLogLimit, i18n.T("cli.sync.flag_log_limit"))
 	return cmd
 }
 
@@ -77,7 +70,7 @@ func sinceTime(since string, now time.Time) (time.Time, error) {
 // runLog affiche les derniers commits filtrés.
 func runLog(ctx context.Context, deps Deps, opts *options, f logFlags) (err error) {
 	if f.limit < 0 {
-		return fmt.Errorf("-n %d invalide : attendu un nombre positif (0 = tous les commits)", f.limit)
+		return errors.New(i18n.T("cli.sync.log_bad_limit", f.limit))
 	}
 	// Les options sont vérifiées avant d'ouvrir l'espace : une erreur de saisie est signalée d'abord.
 	since, err := sinceTime(f.since, deps.Now())
@@ -114,7 +107,7 @@ func runLog(ctx context.Context, deps Deps, opts *options, f logFlags) (err erro
 		return writeJSON(deps.Stdout, report)
 	}
 	if len(commits) == 0 {
-		return writeText(deps.Stdout, "Aucun commit ne correspond"+filterText(f)+".\n")
+		return writeText(deps.Stdout, i18n.T("cli.sync.log_no_match", filterText(f)))
 	}
 	st := outputStyle(deps, opts)
 	now := s.now()
@@ -129,7 +122,8 @@ func runLog(ctx context.Context, deps Deps, opts *options, f logFlags) (err erro
 			st.truncate(c.Message, 60),
 		}
 	}
-	headers := []string{"Date", st.pick("Dépôt", "Depot"), "Auteur", "Commit", "+/-", "Message"}
+	headers := []string{"Date", st.pick(i18n.T("cli.sync.header_repo"), i18n.T("cli.sync.header_repo_ascii")),
+		i18n.T("cli.sync.header_author"), "Commit", "+/-", "Message"}
 	return writeText(deps.Stdout, renderTable(st, headers, rows, nil))
 }
 
@@ -146,19 +140,19 @@ func commitLines(c model.Commit) string {
 func filterText(f logFlags) string {
 	var parts []string
 	if f.repo != "" {
-		parts = append(parts, "dépôt "+f.repo)
+		parts = append(parts, i18n.T("cli.sync.filter_repo", f.repo))
 	}
 	if f.author != "" {
-		parts = append(parts, "auteur "+f.author)
+		parts = append(parts, i18n.T("cli.sync.filter_author", f.author))
 	}
 	if f.branch != "" {
-		parts = append(parts, "branche "+f.branch)
+		parts = append(parts, i18n.T("cli.sync.filter_branch", f.branch))
 	}
 	if f.since != "" {
-		parts = append(parts, "depuis "+f.since)
+		parts = append(parts, i18n.T("cli.sync.filter_since", f.since))
 	}
 	if len(parts) == 0 {
-		return " : la base est vide (lancez « watchoo sync »)"
+		return i18n.T("cli.sync.filter_empty_db")
 	}
-	return " aux filtres (" + strings.Join(parts, ", ") + ")"
+	return i18n.T("cli.sync.log_filters", strings.Join(parts, ", "))
 }

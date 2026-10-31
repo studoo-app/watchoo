@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/textclean"
 )
 
@@ -15,7 +16,8 @@ func writeJSON(w io.Writer, v any) error {
 	enc.SetEscapeHTML(false)
 	enc.SetIndent("", "  ")
 	if err := enc.Encode(v); err != nil {
-		return fmt.Errorf("écriture de la sortie JSON : %w", err)
+		return fmt.Errorf("%s%s%w", i18n.T("cli.core.err.write_json"),
+			i18n.T("cli.core.err.sep"), err)
 	}
 	return nil
 }
@@ -23,7 +25,7 @@ func writeJSON(w io.Writer, v any) error {
 // warn affiche un avertissement sur w (la sortie d'erreur), en texte comme en mode --json, pour que
 // la sortie standard reste exploitable par un script.
 func warn(w io.Writer, msg string) {
-	fmt.Fprintf(w, "attention : %s\n", textclean.CleanLines(msg))
+	fmt.Fprintf(w, "%s\n", i18n.T("cli.core.warn.line", textclean.CleanLines(msg)))
 }
 
 // hintError est une erreur dont le message, destiné à l'utilisateur, dit quoi faire ; elle enveloppe

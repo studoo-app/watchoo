@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/studoo-app/watchoo/internal/auth/authtest"
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/provider"
 	"github.com/studoo-app/watchoo/internal/provider/providertest"
@@ -33,21 +34,22 @@ func TestStatus(t *testing.T) {
 	rateCalls := h.Provider.Calls(providertest.MethodRateLimit)
 
 	r := h.run("status").mustSucceed(t)
-	want := fmt.Sprintf(`Espace : licence-projet (%s)
-Compte gh : watchoo-test sur github.com (droits : gist, read:org, repo)
-Source : API GitHub (gh connecté)
-Quota GitHub : 4321 / 5000 requêtes restantes (remise à zéro à 12:20).
+	// « just now » vient d'internal/activity ( Relative), couche traduite à part.
+	want := fmt.Sprintf(`Workspace: licence-projet (%s)
+gh account: watchoo-test on github.com (scopes: gist, read:org, repo)
+Source: GitHub API (gh signed in)
+GitHub quota: 4321 / 5000 requests left (resets at 12:20).
 
-Dépôts : 4
-  à jour (Actif)         1
+Repositories: 4
+  up to date (Active)    1
   Flemme                 0
   Dead                   0
-  en erreur              1   bob/projet
-  jamais synchronisés    1
-  suivi arrêté           1
+  in error               1   bob/projet
+  never synced           1
+  tracking stopped       1
 
-Dernière synchro : à l'instant (27/10/2026 12:00)
-Branches suivies : 3
+Last sync: just now (27/10/2026 12:00)
+Tracked branches: 3
 `, displayPath(h.cwd))
 	if r.stdout != want || r.stderr != "" {
 		t.Errorf("status =\n%s\nattendu :\n%s\nstderr : %s", r.stdout, want, r.stderr)
@@ -84,9 +86,9 @@ Branches suivies : 3
 func TestStatusEmptyWorkspace(t *testing.T) {
 	h := newWorkspace(t)
 	r := h.run("status").mustSucceed(t)
-	assertContains(t, "status vide", r.stdout, "Compte gh : watchoo-test", "Quota GitHub : 5000 / 5000",
-		"Aucun dépôt suivi.")
-	assertNotContains(t, "status vide", r.stdout, "Dernière synchro")
+	assertContains(t, "status vide", r.stdout, "gh account: watchoo-test", "GitHub quota: 5000 / 5000",
+		"No tracked repository.")
+	assertNotContains(t, "status vide", r.stdout, "Last sync")
 }
 
 // Quota sous 10 % : status signale le garde-fou (même règle que le moteur), en texte et en JSON ;
@@ -96,8 +98,8 @@ func TestStatusQuotaLow(t *testing.T) {
 	h.Provider.SetRateLimit(provider.RateLimit{Limit: 5000, Remaining: 300, Reset: testNow.Add(20 * time.Minute)})
 	r := h.run("status").mustSucceed(t)
 	assertContains(t, "status quota bas", r.stdout,
-		"Quota GitHub : 300 / 5000 requêtes restantes (remise à zéro à 12:20).\n"+
-			"Quota bas : synchros reportées jusqu'à 12:20 (moins de 10 % du quota restant).\n")
+		"GitHub quota: 300 / 5000 requests left (resets at 12:20).\n"+
+			"Low quota: syncs postponed until 12:20 (less than 10% of the quota left).\n")
 	r = h.run("status", "--json").mustSucceed(t)
 	var rep statusReport
 	decodeStrict(t, r.stdout, &rep)
@@ -107,7 +109,7 @@ func TestStatusQuotaLow(t *testing.T) {
 
 	h.Provider.SetRateLimit(provider.RateLimit{Limit: 5000, Remaining: 500, Reset: testNow.Add(20 * time.Minute)})
 	r = h.run("status").mustSucceed(t)
-	assertNotContains(t, "status quota à 10 %", r.stdout, "Quota bas")
+	assertNotContains(t, "status quota à 10 %", r.stdout, "Low quota")
 }
 
 // gh déconnecté : status le signale sans échouer, sans demander le quota, et annonce les clones Git
@@ -116,8 +118,8 @@ func TestStatusLoggedOut(t *testing.T) {
 	h := newWorkspace(t)
 	h.Client = authtest.NewLoggedOut()
 	r := h.run("status").mustSucceed(t)
-	assertContains(t, "status déconnecté", r.stdout, "Compte gh : vérification de gh : ", "gh auth login",
-		"Source : clones Git locaux", "Quota GitHub : inconnu (sans objet : clones Git locaux, sans quota)")
+	assertContains(t, "status déconnecté", r.stdout, "gh account: checking gh: ", "gh auth login",
+		"Source: local Git clones", "GitHub quota: unknown (not applicable: local Git clones, no quota)")
 	r = h.run("status", "--json").mustSucceed(t)
 	var rep statusReport
 	decodeStrict(t, r.stdout, &rep)
@@ -133,7 +135,7 @@ func TestStatusLoggedOut(t *testing.T) {
 	h.Client = authtest.NewLoggedIn("")
 	h.Provider.SetError(providertest.MethodRateLimit, provider.ErrUnavailable)
 	r = h.run("status").mustSucceed(t)
-	assertContains(t, "status quota en erreur", r.stdout, "Quota GitHub : inconnu (lecture du quota : GitHub is unreachable")
+	assertContains(t, "status quota en erreur", r.stdout, "GitHub quota: unknown (lecture du quota : GitHub is unreachable")
 }
 
 // Sur un terminal, status commence par la carte d'en-tête ; jamais en JSON ni hors terminal.
@@ -141,18 +143,18 @@ func TestStatusCard(t *testing.T) {
 	h := newWorkspace(t)
 	h.Terminal = func() TermInfo { return wideTerminal }
 	r := h.run("status").mustSucceed(t)
-	card := cardFor(wideTerminal, "État de l'espace « licence-projet »", tipStatus)
+	card := cardFor(wideTerminal, `Status of workspace "licence-projet"`, i18n.T("cli.core.tip.status"))
 	if !strings.HasPrefix(r.stdout, card+"\n") {
 		t.Errorf("status sans carte en tête :\n%s", r.stdout)
 	}
 	assertContains(t, "status sur terminal", ansiSeq.ReplaceAllString(r.stdout, ""),
-		"Astuce : « watchoo sync » met à jour les dépôts suivis.", "Compte gh : watchoo-test")
+		i18n.T("cli.core.tip.status"), "gh account: watchoo-test")
 	r = h.run("status", "--json").mustSucceed(t)
 	if !strings.HasPrefix(r.stdout, "{") {
 		t.Errorf("status --json avec carte :\n%s", r.stdout)
 	}
 	h.Terminal = nil
-	if r := h.run("status").mustSucceed(t); strings.Contains(r.stdout, "╭") || strings.Contains(r.stdout, "Astuce") {
+	if r := h.run("status").mustSucceed(t); strings.Contains(r.stdout, "╭") || strings.Contains(r.stdout, i18n.T("cli.core.tip.status")) {
 		t.Errorf("status redirigé avec carte :\n%s", r.stdout)
 	}
 }

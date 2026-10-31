@@ -27,13 +27,13 @@ func TestInitCreatesWorkspace(t *testing.T) {
 	root := h.cwd
 	r := h.run("init").mustSucceed(t)
 
-	// Résumé en français : nom, chemins et compte gh.
+	// Résumé en anglais (langue des tests) : nom, chemins et compte gh.
 	for _, want := range []string{
-		"Espace de supervision « licence-projet » créé.",
-		"répertoire  " + root + "\n",
-		"réglages    " + filepath.Join(root, ".watchoo", "config.yaml") + "\n",
-		"base        " + filepath.Join(root, ".watchoo", "watchoo.db") + "\n",
-		"compte gh   watchoo-test sur github.com (droits : gist, read:org, repo)",
+		"Workspace \"licence-projet\" created.",
+		"directory   " + root + "\n",
+		"settings    " + filepath.Join(root, ".watchoo", "config.yaml") + "\n",
+		"database    " + filepath.Join(root, ".watchoo", "watchoo.db") + "\n",
+		"gh account  watchoo-test on github.com (scopes: gist, read:org, repo)",
 	} {
 		if !strings.Contains(r.stdout, want) {
 			t.Errorf("résumé sans %q :\n%s", want, r.stdout)
@@ -179,7 +179,7 @@ func TestInitJSONWithoutScopes(t *testing.T) {
 	h2 := newHarness(t)
 	h2.Client = h.Client
 	r := h2.run("init").mustSucceed(t)
-	if !strings.Contains(r.stdout, "ci-bot sur github.com (droits non indiqués par gh)") {
+	if !strings.Contains(r.stdout, "ci-bot on github.com (scopes not reported by gh)") {
 		t.Errorf("résumé sans droits : %s", r.stdout)
 	}
 }
@@ -189,7 +189,7 @@ func TestInitWorkspaceFlag(t *testing.T) {
 		h := newHarness(t)
 		target := newDir(t, h.cwd, "promo", "master-projet")
 		r := h.run("init", "-C", filepath.Join("promo", "master-projet")).mustSucceed(t)
-		if !strings.Contains(r.stdout, "« master-projet »") || !strings.Contains(r.stdout, target) {
+		if !strings.Contains(r.stdout, "\"master-projet\"") || !strings.Contains(r.stdout, target) {
 			t.Errorf("résumé inattendu :\n%s", r.stdout)
 		}
 		if _, err := os.Stat(filepath.Join(target, ".watchoo", "watchoo.db")); err != nil {
@@ -255,7 +255,7 @@ func TestInitRefusesExistingWorkspace(t *testing.T) {
 	}
 
 	for _, args := range [][]string{{"init"}, {"init", "--json"}, {"-C", ".", "init"}} {
-		h.run(args...).mustFail(t, h.cwd, "already a Watchoo workspace", "rien n'a été modifié")
+		h.run(args...).mustFail(t, h.cwd, "already a Watchoo workspace", "nothing was modified")
 	}
 
 	if got := readFile(t, filepath.Join(dir, "config.yaml")); got != config {
@@ -300,13 +300,14 @@ func TestInitNestedWorkspace(t *testing.T) {
 	h.run("init").mustSucceed(t)
 
 	// Texte : avertissement sur la sortie d'erreur, résumé sur la sortie standard.
+	// (Le préfixe « attention : » vient de warn, sortie.go : hors du périmètre de ce groupe.)
 	h.cwd = newDir(t, parent, "groupe-a")
 	r := h.run("init").mustSucceed(t)
-	if !strings.HasPrefix(r.stderr, "attention : ") || !strings.Contains(r.stderr, "dans l'espace "+parent) ||
-		!strings.Contains(r.stderr, "indépendant") {
+	if !strings.Contains(r.stderr, "is inside workspace "+parent) ||
+		!strings.Contains(r.stderr, "independent") {
 		t.Errorf("avertissement d'espace parent absent ou incomplet :\n%s", r.stderr)
 	}
-	if !strings.Contains(r.stdout, "« groupe-a » créé") {
+	if !strings.Contains(r.stdout, "\"groupe-a\" created") {
 		t.Errorf("résumé inattendu :\n%s", r.stdout)
 	}
 
@@ -320,7 +321,7 @@ func TestInitNestedWorkspace(t *testing.T) {
 	if len(report.Warnings) != 1 || !strings.Contains(report.Warnings[0], parent) {
 		t.Errorf("warnings = %q", report.Warnings)
 	}
-	if !strings.Contains(r.stderr, "attention : "+report.Warnings[0]) {
+	if !strings.Contains(r.stderr, report.Warnings[0]) {
 		t.Errorf("avertissement absent de la sortie d'erreur en mode --json :\n%s", r.stderr)
 	}
 
@@ -342,9 +343,9 @@ func TestInitWithoutGH(t *testing.T) {
 		missing := filepath.Join(t.TempDir(), "gh-absent")
 		t.Setenv("WATCHOO_GITHUB_GH_PATH", missing)
 		r := h.run("init").mustSucceed(t)
-		assertContains(t, "init sans gh", r.stdout, "source      clones Git locaux")
-		assertContains(t, "init sans gh (avertissement)", r.stderr, "gh introuvable", missing,
-			"installez la CLI GitHub gh", "clones Git locaux", "gh auth login")
+		assertContains(t, "init sans gh", r.stdout, "source      local Git clones")
+		assertContains(t, "init sans gh (avertissement)", r.stderr, "gh not found", missing,
+			"install the GitHub CLI gh", "local Git clones", "gh auth login")
 		if _, err := os.Stat(filepath.Join(h.cwd, ".watchoo", "watchoo.db")); err != nil {
 			t.Errorf("espace non créé : %v", err)
 		}
@@ -370,7 +371,7 @@ func TestInitWithoutGH(t *testing.T) {
 			r := h.run("init", "--json").mustSucceed(t)
 			got := decodeInitReport(t, r.stdout)
 			if got.Source != "git" || got.GitHub.Login != "" || len(got.Warnings) != 1 ||
-				!strings.Contains(got.Warnings[0], "clones Git locaux") || !strings.Contains(got.Warnings[0], "gh auth login") {
+				!strings.Contains(got.Warnings[0], "local Git clones") || !strings.Contains(got.Warnings[0], "gh auth login") {
 				t.Errorf("rapport JSON sans gh = %+v", got)
 			}
 			if n := strings.Count(r.stderr, "gh auth login"); n != 1 {
@@ -384,7 +385,7 @@ func TestInitWithoutGH(t *testing.T) {
 			h2 := newHarness(t)
 			h2.Client = newFake()
 			h2.GitMissing = true
-			r = h2.run("init").mustFail(t, "clones Git locaux", "git not found")
+			r = h2.run("init").mustFail(t, "local Git clones", "git not found")
 			if strings.Count(r.stderr, "\n") != 1 {
 				t.Errorf("message sur plusieurs lignes :\n%s", r.stderr)
 			}
@@ -400,8 +401,10 @@ func TestInitTokenRefused(t *testing.T) {
 	f := authtest.NewLoggedIn("alice")
 	f.SetStatus(auth.Status{Host: "github.com", Login: "alice", State: "error"},
 		fmt.Errorf("le token gh du compte \"alice\" n'est pas utilisable : %w", auth.ErrNotLoggedIn))
+	// (L'erreur d'authentification ellemême vient du paquet auth, encore en français : le conseil est
+	// ici vérifié par la ligne de commande, indépendante de la langue.)
 	h.Client = f
-	r := h.run("init").mustFail(t, "lancez « gh auth login »")
+	r := h.run("init").mustFail(t, "gh auth login")
 	if n := strings.Count(r.stderr, "gh auth login"); n != 1 {
 		t.Errorf("conseil « gh auth login » répété %d fois :\n%s", n, r.stderr)
 	}
@@ -432,7 +435,7 @@ func TestInitOtherGHErrors(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			h := newHarness(t)
 			h.fake().SetStatus(auth.Status{}, err)
-			r := h.run("init").mustFail(t, "vérification de gh : "+err.Error())
+			r := h.run("init").mustFail(t, "checking gh: "+err.Error())
 			// Se reconnecter ne réglerait rien : pas de conseil « gh auth login ».
 			if strings.Contains(r.stderr, "gh auth login") {
 				t.Errorf("conseil « gh auth login » inapproprié :\n%s", r.stderr)
@@ -446,7 +449,7 @@ func TestInitInterrupted(t *testing.T) {
 	h := newHarness(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	h.runContext(ctx, "init").mustFail(t, "commande interrompue")
+	h.runContext(ctx, "init").mustFail(t, "command interrupted")
 	assertNoWorkspace(t, h.cwd)
 }
 
@@ -493,7 +496,7 @@ func TestInitDatabaseFailureRemovesWorkspace(t *testing.T) {
 		return errors.New("disque plein (simulé)")
 	}
 
-	h.run("init").mustFail(t, "création de la base de l'espace", "disque plein (simulé)")
+	h.run("init").mustFail(t, "creating the workspace database", "disque plein (simulé)")
 	if dbPath != filepath.Join(h.cwd, ".watchoo", "watchoo.db") {
 		t.Errorf("base créée à %q", dbPath)
 	}
@@ -510,7 +513,7 @@ func TestInitWarnsAboutWatchooDir(t *testing.T) {
 		other := newDir(t, t.TempDir(), "autre")
 		t.Setenv("WATCHOO_DIR", other)
 		r := h.run("init").mustSucceed(t)
-		if !strings.Contains(r.stderr, "attention : la variable WATCHOO_DIR vaut \""+other+"\"") {
+		if !strings.Contains(r.stderr, "warning: variable WATCHOO_DIR is set to \""+other+"\"") {
 			t.Errorf("avertissement WATCHOO_DIR absent :\n%s", r.stderr)
 		}
 		// init travaille sur le répertoire courant, pas sur WATCHOO_DIR.
@@ -525,7 +528,7 @@ func TestInitWarnsAboutWatchooDir(t *testing.T) {
 		t.Setenv("WATCHOO_DIR", filepath.Join(other, "sous-repertoire"))
 		newDir(t, other, "sous-repertoire")
 		r := h.run("init").mustSucceed(t)
-		if !strings.Contains(r.stderr, "les autres commandes utiliseront l'espace "+other+" et non celui-ci") {
+		if !strings.Contains(r.stderr, "the other commands will use workspace "+other+", not this one") {
 			t.Errorf("avertissement WATCHOO_DIR absent ou incomplet :\n%s", r.stderr)
 		}
 	})
@@ -556,9 +559,9 @@ func TestInitWarnsAboutWatchooDir(t *testing.T) {
 			env := setup(h)
 			t.Setenv("WATCHOO_DIR", env)
 			r := h.run("init", "--json").mustSucceed(t)
-			want := "la variable WATCHOO_DIR vaut " + fmt.Sprintf("%q", env) +
-				" : tant qu'elle est définie, les autres commandes échoueront"
-			if !strings.Contains(r.stderr, "attention : "+want) {
+			want := "variable WATCHOO_DIR is set to " + fmt.Sprintf("%q", env) +
+				": while it is set, the other commands will fail"
+			if !strings.Contains(r.stderr, "warning: "+want) {
 				t.Errorf("avertissement WATCHOO_DIR absent :\n%s", r.stderr)
 			}
 			if report := decodeInitReport(t, r.stdout); len(report.Warnings) != 1 ||
@@ -669,7 +672,7 @@ func TestInitWithFakeGHBinary(t *testing.T) {
 			if report := decodeInitReport(t, r.stdout); report.Source != "git" {
 				t.Errorf("source = %q, git attendue", report.Source)
 			}
-			assertContains(t, scenario, r.stderr, "clones Git locaux", "lancez « gh auth login »")
+			assertContains(t, scenario, r.stderr, "local Git clones", "run \"gh auth login\"")
 			assertOnlyStatusCalls(t, record)
 		})
 	}
@@ -678,7 +681,7 @@ func TestInitWithFakeGHBinary(t *testing.T) {
 	t.Run("invalid-token", func(t *testing.T) {
 		h := newHarness(t)
 		record := useFakeGH(t, h, "invalid-token")
-		h.run("init").mustFail(t, "lancez « gh auth login »")
+		h.run("init").mustFail(t, "gh auth login")
 		assertNoWorkspace(t, h.cwd)
 		assertOnlyStatusCalls(t, record)
 	})
@@ -699,7 +702,7 @@ func TestInitWithFakeGHBinary(t *testing.T) {
 		h := newHarness(t)
 		record := useFakeGH(t, h, "env-token-only")
 		t.Setenv("WATCHOO_GITHUB_USER", authtest.FakeLogin)
-		r := h.run("init").mustFail(t, "vérification de gh", `github.user vaut "watchoo-test"`, "GH_TOKEN", "videz-le")
+		r := h.run("init").mustFail(t, "checking gh", `github.user vaut "watchoo-test"`, "GH_TOKEN", "videz-le")
 		if strings.Contains(r.stderr, "gh auth login") {
 			t.Errorf("conseil « gh auth login » inapproprié :\n%s", r.stderr)
 		}
@@ -723,7 +726,7 @@ func TestInitWithFakeGHBinary(t *testing.T) {
 	t.Run("GitHub injoignable", func(t *testing.T) {
 		h := newHarness(t)
 		useFakeGH(t, h, "offline")
-		r := h.run("init").mustFail(t, "vérification de gh", "n'a pas pu être vérifié", "proxyconnect tcp",
+		r := h.run("init").mustFail(t, "checking gh", "n'a pas pu être vérifié", "proxyconnect tcp",
 			"vérifiez la connexion réseau")
 		if strings.Contains(r.stderr, "gh auth login") {
 			t.Errorf("conseil « gh auth login » inapproprié :\n%s", r.stderr)
@@ -738,14 +741,14 @@ func TestInitWithFakeGHBinary(t *testing.T) {
 		h := newHarness(t)
 		useFakeGH(t, h, "logged-in")
 		t.Setenv("WATCHOO_GITHUB_USER", "inconnu")
-		h.run("init").mustFail(t, "inconnu", "github.user", "lancez « gh auth login »")
+		h.run("init").mustFail(t, "inconnu", "github.user", "gh auth login")
 		assertNoWorkspace(t, h.cwd)
 	})
 
 	t.Run("erreur de gh", func(t *testing.T) {
 		h := newHarness(t)
 		useFakeGH(t, h, "error")
-		r := h.run("init").mustFail(t, "vérification de gh")
+		r := h.run("init").mustFail(t, "checking gh")
 		if strings.Contains(r.stderr, authtest.FakeToken) {
 			t.Errorf("token dans la sortie d'erreur :\n%s", r.stderr)
 		}

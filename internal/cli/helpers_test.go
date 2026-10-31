@@ -18,6 +18,7 @@ import (
 
 	"github.com/studoo-app/watchoo/internal/auth"
 	"github.com/studoo-app/watchoo/internal/auth/authtest"
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/provider"
 	gitprov "github.com/studoo-app/watchoo/internal/provider/git"
 	"github.com/studoo-app/watchoo/internal/provider/providertest"
@@ -263,7 +264,8 @@ func (r result) mustSucceed(t *testing.T) result {
 }
 
 // mustFail vérifie que l'exécution a échoué (code 1), sans rien sur la sortie standard, avec un
-// message « erreur : … » qui contient chacun des extraits.
+// message d'erreur préfixé (« erreur : … » ou « error: … », la langue du test) qui contient chacun
+// des extraits.
 func (r result) mustFail(t *testing.T, parts ...string) result {
 	t.Helper()
 	if r.code != 1 {
@@ -272,8 +274,10 @@ func (r result) mustFail(t *testing.T, parts ...string) result {
 	if r.stdout != "" {
 		t.Errorf("sortie standard non vide après une erreur :\n%s", r.stdout)
 	}
-	if !strings.HasPrefix(r.stderr, "erreur : ") {
-		t.Errorf("sortie d'erreur sans « erreur : » au début :\n%s", r.stderr)
+	// Le préfixe vient de la clé cli.core.err.line : « error: » (anglais) ou « erreur : » (français),
+	// la valeur vide laissant le préfixe seul.
+	if prefix := i18n.T("cli.core.err.line", ""); !strings.HasPrefix(r.stderr, prefix) {
+		t.Errorf("sortie d'erreur sans %q au début :\n%s", prefix, r.stderr)
 	}
 	for _, part := range parts {
 		if !strings.Contains(r.stderr, part) {

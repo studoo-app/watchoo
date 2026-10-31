@@ -12,15 +12,10 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/studoo-app/watchoo/internal/auth"
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/store"
 	wsync "github.com/studoo-app/watchoo/internal/sync"
 	"github.com/studoo-app/watchoo/internal/workspace"
-)
-
-// Messages qui disent quoi faire quand gh n'est pas utilisable.
-const (
-	hintInstallGH = "installez la CLI GitHub gh : https://cli.github.com/"
-	hintLoginGH   = "lancez « gh auth login »"
 )
 
 // setupDatabase crée la base SQLite de l'espace et lui applique les migrations. C'est une variable
@@ -100,8 +95,7 @@ func runInit(ctx context.Context, deps Deps, opts *options) error {
 		// gh absent ou non connecté (V2) : suivi par clones Git locaux, qui demande git.
 		if gitErr := deps.CheckGit(ctx); gitErr != nil {
 			return &hintError{
-				msg: fmt.Sprintf("%s ; sans gh, les dépôts sont suivis par clones Git locaux, mais %s",
-					ghError(err, cfg).Error(), gitErr.Error()),
+				msg: i18n.T("cli.repo.init.need_git", ghError(err, cfg).Error(), gitErr.Error()),
 				err: errors.Join(err, gitErr),
 			}
 		}
@@ -114,7 +108,8 @@ func runInit(ctx context.Context, deps Deps, opts *options) error {
 	res, err := workspace.Init(root)
 	if err != nil {
 		if errors.Is(err, workspace.ErrAlreadyInitialized) {
-			return fmt.Errorf("%w : rien n'a été modifié", err)
+			return fmt.Errorf("%w%s%s", err, i18n.T("cli.core.err.sep"),
+				i18n.T("cli.repo.init.nothing_modified"))
 		}
 		return err
 	}
@@ -122,7 +117,8 @@ func runInit(ctx context.Context, deps Deps, opts *options) error {
 	if err := finishInit(ctx, ws); err != nil {
 		// Ne pas laisser un espace à moitié créé : Init vient de créer .watchoo/, il est à nous.
 		if rmErr := os.RemoveAll(ws.Dir); rmErr != nil {
-			err = errors.Join(err, fmt.Errorf("nettoyage de %s : %w", ws.Dir, rmErr))
+			err = errors.Join(err, fmt.Errorf("%s%s%w", i18n.T("cli.repo.init.cleanup", ws.Dir),
+				i18n.T("cli.core.err.sep"), rmErr))
 		}
 		return err
 	}
@@ -153,7 +149,7 @@ func runInit(ctx context.Context, deps Deps, opts *options) error {
 		return writeJSON(deps.Stdout, report)
 	}
 	if term, ok := cardTerminal(deps, opts); ok {
-		subtitle := fmt.Sprintf("Espace de supervision « %s » créé", report.Name)
+		subtitle := i18n.T("cli.repo.init.created_card", report.Name)
 		if card := renderCard(term, subtitle, tipInitDone); card != "" {
 			return writeInitCard(deps.Stdout, term, card, report)
 		}
@@ -169,7 +165,8 @@ func initRoot(deps Deps, flagDir string) (string, error) {
 	}
 	cwd, err := deps.Getwd()
 	if err != nil {
-		return "", fmt.Errorf("répertoire courant inaccessible : %w", err)
+		return "", fmt.Errorf("%s%s%w", i18n.T("cli.repo.cwd_unavailable"),
+			i18n.T("cli.core.err.sep"), err)
 	}
 	if flagDir != "" {
 		return filepath.Join(cwd, flagDir), nil
@@ -181,10 +178,12 @@ func initRoot(deps Deps, flagDir string) (string, error) {
 // relecture des réglages comme le feront les autres commandes (nom effectif de l'espace).
 func finishInit(ctx context.Context, ws *workspace.Workspace) error {
 	if err := setupDatabase(ctx, ws.DBPath()); err != nil {
-		return fmt.Errorf("création de la base de l'espace : %w", err)
+		return fmt.Errorf("%s%s%w", i18n.T("cli.repo.init.db_create"),
+			i18n.T("cli.core.err.sep"), err)
 	}
 	if err := workspace.Load(ws); err != nil {
-		return fmt.Errorf("relecture des réglages de l'espace créé : %w", err)
+		return fmt.Errorf("%s%s%w", i18n.T("cli.repo.init.reread_settings"),
+			i18n.T("cli.core.err.sep"), err)
 	}
 	return nil
 }
@@ -201,7 +200,8 @@ func createDatabase(ctx context.Context, path string) (err error) {
 	}
 	defer func() {
 		if cerr := st.Close(); cerr != nil && err == nil {
-			err = fmt.Errorf("fermeture de la base %s : %w", path, cerr)
+			err = fmt.Errorf("%s%s%w", i18n.T("cli.repo.init.db_close", path),
+				i18n.T("cli.core.err.sep"), cerr)
 		}
 	}()
 	return st.Migrate(ctx)
@@ -223,14 +223,12 @@ func noGH(err error, status auth.Status, cfg workspace.Config) bool {
 // noGHWarning renvoie l'avertissement de init sans gh : les dépôts seront suivis par clones Git
 // locaux, et comment passer par l'API GitHub.
 func noGHWarning(err error, cfg workspace.Config) string {
-	const local = "les dépôts seront suivis par clones Git locaux (repos/ dans l'espace), avec la clé SSH ou les " +
-		"identifiants Git de cette machine (sans pull requests, releases ni étoiles)"
+	local := i18n.T("cli.repo.init.no_gh_local")
 	if errors.Is(err, auth.ErrGHNotFound) {
-		return fmt.Sprintf("gh introuvable (github.gh_path : %q) : %s ; %s, puis lancez « gh auth login » pour "+
-			"passer par l'API GitHub", cfg.GitHub.GHPath, local, hintInstallGH)
+		return i18n.T("cli.repo.init.gh_not_found", cfg.GitHub.GHPath, local,
+			i18n.T("cli.repo.hint.install_gh"))
 	}
-	return "gh n'est connecté à aucun compte GitHub : " + local + " ; " + hintLoginGH +
-		" pour passer par l'API GitHub"
+	return i18n.T("cli.repo.init.gh_not_logged", local, i18n.T("cli.repo.hint.login_gh"))
 }
 
 // ghError traduit une erreur de vérification de gh en message qui dit quoi faire. L'erreur d'origine
@@ -238,22 +236,27 @@ func noGHWarning(err error, cfg workspace.Config) string {
 // un token refusé : ni un réglage github.user inutilisable (ErrUnusableUser, dont le message dit quoi
 // corriger) ni un GitHub injoignable (ErrCheckFailed) ne se règlent en se reconnectant.
 func ghError(err error, cfg workspace.Config) error {
+	prefix := i18n.T("cli.repo.init.checking_gh") + i18n.T("cli.core.err.sep")
+	hintLogin := i18n.T("cli.repo.hint.login_gh")
 	switch {
 	case errors.Is(err, auth.ErrGHNotFound):
 		return &hintError{
-			msg: fmt.Sprintf("gh introuvable (github.gh_path : %q) : %s", cfg.GitHub.GHPath, hintInstallGH),
+			msg: i18n.T("cli.repo.init.gh_not_found_short", cfg.GitHub.GHPath,
+				i18n.T("cli.repo.hint.install_gh")),
 			err: err,
 		}
 	case errors.Is(err, auth.ErrUnusableUser):
-		return fmt.Errorf("vérification de gh : %w", err)
+		return fmt.Errorf("%s%w", prefix, err)
 	case errors.Is(err, auth.ErrNotLoggedIn):
-		msg := "vérification de gh : " + err.Error()
-		if !strings.Contains(msg, hintLoginGH) {
-			msg += " : " + hintLoginGH
+		msg := prefix + err.Error()
+		// Le conseil est déjà présent si l'erreur d'auth le donne elle-même (dans sa langue) : la
+		// ligne de commande « gh auth login » ne dépend pas de la langue.
+		if !strings.Contains(msg, "gh auth login") {
+			msg += i18n.T("cli.core.err.sep") + hintLogin
 		}
 		return &hintError{msg: msg, err: err}
 	default:
-		return fmt.Errorf("vérification de gh : %w", err)
+		return fmt.Errorf("%s%w", prefix, err)
 	}
 }
 
@@ -261,9 +264,7 @@ func ghError(err error, cfg workspace.Config) error {
 func initWarnings(deps Deps, opts *options, root, parent string) []string {
 	warnings := []string{}
 	if parent != "" {
-		warnings = append(warnings, fmt.Sprintf(
-			"%s est dans l'espace %s : le nouvel espace est imbriqué et indépendant du parent "+
-				"(dépôts, réglages et données séparés)", root, parent))
+		warnings = append(warnings, i18n.T("cli.repo.init.nested", root, parent))
 	}
 	// WATCHOO_DIR passe avant le répertoire courant pour les autres commandes : si l'espace qu'elle
 	// leur fait trouver n'est pas celui qui vient d'être créé, elles ne l'utiliseront pas. La
@@ -276,13 +277,9 @@ func initWarnings(deps Deps, opts *options, root, parent string) []string {
 		}
 		switch found, err := workspace.ResolveFrom("", cwd); {
 		case err != nil:
-			warnings = append(warnings, fmt.Sprintf(
-				"la variable %s vaut %q : tant qu'elle est définie, les autres commandes échoueront (%v)",
-				workspace.EnvDir, env, err))
+			warnings = append(warnings, i18n.T("cli.repo.init.env_err", workspace.EnvDir, env, err))
 		case found.Root != root:
-			warnings = append(warnings, fmt.Sprintf(
-				"la variable %s vaut %q : tant qu'elle est définie, les autres commandes utiliseront "+
-					"l'espace %s et non celui-ci", workspace.EnvDir, env, found.Root))
+			warnings = append(warnings, i18n.T("cli.repo.init.env_other", workspace.EnvDir, env, found.Root))
 		}
 	}
 	return warnings
@@ -290,27 +287,24 @@ func initWarnings(deps Deps, opts *options, root, parent string) []string {
 
 // writeInitText affiche le résumé de init en texte, hors terminal (sur un terminal : writeInitCard).
 func writeInitText(w io.Writer, r initReport) error {
-	_, err := fmt.Fprintf(w, `Espace de supervision « %s » créé.
-  répertoire  %s
-  réglages    %s
-  base        %s
-  %s
-`, r.Name, r.Root, r.ConfigFile, r.Database, initAccountLine(r))
+	_, err := fmt.Fprint(w, i18n.T("cli.repo.init.summary", r.Name, r.Root, r.ConfigFile,
+		r.Database, initAccountLine(r)))
 	return err
 }
 
 // initAccountLine décrit l'accès aux dépôts dans le résumé de init : compte gh, ou clones Git locaux.
 func initAccountLine(r initReport) string {
 	if r.Source == wsync.SourceGit {
-		return "source      clones Git locaux (gh absent ou non connecté)"
+		return i18n.T("cli.repo.init.account_git")
 	}
-	return fmt.Sprintf("compte gh   %s sur %s (%s)", r.GitHub.Login, r.GitHub.Host, scopesText(r.GitHub.Scopes))
+	return i18n.T("cli.repo.init.account_gh", r.GitHub.Login, r.GitHub.Host,
+		scopesText(r.GitHub.Scopes))
 }
 
 // scopesText décrit les droits du token gh pour le résumé de init.
 func scopesText(scopes []string) string {
 	if len(scopes) == 0 {
-		return "droits non indiqués par gh"
+		return i18n.T("cli.repo.init.scopes_unknown")
 	}
-	return "droits : " + strings.Join(scopes, ", ")
+	return i18n.T("cli.repo.init.scopes", strings.Join(scopes, ", "))
 }

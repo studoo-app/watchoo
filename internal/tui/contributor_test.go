@@ -46,7 +46,7 @@ func TestContributorDetail(t *testing.T) {
 	l.until(func(m Model) bool { return m.cdetail.open && !m.cdetail.loading })
 	screen := l.screen()
 	mustContain(t, screen, "Alice (@alice-gh)", "échap pour revenir", "@alice-gh",
-		"2 adresses rattachées (non affichées)", "5 commits dans 2 dépôts, +40/-7 (2 non comptés)", "il y a 30 j", "il y a 2 h",
+		"2 adresses rattachées (non affichées)", "5 commits dans 2 dépôts, +40/-7 (2 non comptés)", "30 d ago", "2 h ago",
 		"12 semaines", "3 commits", "Dépôts", "Alice Martin", "+40/-7", "promo/chloe",
 		"Derniers commits", "Ajoute la page d'accueil", "+12/-3", "Lignes +/- : comptées dans le clone")
 	mustNotContain(t, screen, "rouge", "https://github.com/alice-gh", "@example")
@@ -55,7 +55,7 @@ func TestContributorDetail(t *testing.T) {
 		t.Errorf("courbe globale = %q", line)
 	}
 	// Ligne du dépôt Dead : état du dépôt, aucune activité sur la période.
-	if line := lineWith(screen, "promo/chloe"); !strings.Contains(line, "⚠ 42 j") || !strings.Contains(line, " - ") {
+	if line := lineWith(screen, "promo/chloe"); !strings.Contains(line, "⚠ 42 d") || !strings.Contains(line, " - ") {
 		t.Errorf("ligne de promo/chloe = %q", line)
 	}
 	data.mu.Lock()

@@ -1,6 +1,6 @@
 // Package cli définit les commandes cobra de Watchoo. Il ne contient aucune logique métier : il
 // analyse les arguments, appelle les packages du cœur (workspace, store, auth…) et formate la sortie.
-// Les messages affichés à l'utilisateur sont en français.
+// Les textes affichés à l'utilisateur passent par internal/i18n (anglais par défaut, français).
 package cli
 
 import (
@@ -19,6 +19,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/studoo-app/watchoo/internal/auth"
+	"github.com/studoo-app/watchoo/internal/i18n"
 	gitprov "github.com/studoo-app/watchoo/internal/provider/git"
 	"github.com/studoo-app/watchoo/internal/selfupdate"
 	wsync "github.com/studoo-app/watchoo/internal/sync"
@@ -202,22 +203,15 @@ func newRootCmd(deps Deps) (*cobra.Command, *noticeSlot) {
 	slot := &noticeSlot{}
 	root := &cobra.Command{
 		Use:   "watchoo",
-		Short: "Supervise des dépôts GitHub : ce qui a bougé, quand, et qui l'a fait",
-		Long: `Watchoo supervise des dépôts GitHub, surtout privés, et répond à trois questions :
-qu'est-ce qui a bougé, quand, et qui l'a fait.
-
-Chaque groupe de dépôts suivis vit dans son propre espace de supervision, créé par
-« watchoo init ». Les autres commandes trouvent l'espace dans le répertoire courant
-ou ses parents, comme Git, ou dans celui donné par -C ou la variable WATCHOO_DIR.
-
-Prérequis : la CLI GitHub gh, installée et connectée (« gh auth login »).`,
+		Short: i18n.T("cli.core.root.short"),
+		Long:  i18n.T("cli.core.root.long"),
 		// Sans sous-commande : l'aide, ou la version avec --version. Avec un mot inconnu : une erreur
-		// en français (le message de cobra serait en anglais).
+		// dans la langue du processus (le message de cobra serait en anglais).
 		Args: cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if opts.version {
 				if len(args) > 0 {
-					return fmt.Errorf("« %s --version » ne prend pas d'argument (reçu : %s)",
+					return fmt.Errorf(i18n.T("cli.core.err.version_args"),
 						cmd.CommandPath(), strings.Join(args, " "))
 				}
 				return runVersion(deps, opts)
@@ -237,14 +231,14 @@ Prérequis : la CLI GitHub gh, installée et connectée (« gh auth login »).`,
 	root.SetOut(deps.Stdout)
 	root.SetErr(deps.Stderr)
 	root.PersistentFlags().BoolVar(&opts.json, "json", false,
-		"affiche le résultat au format JSON, pour les scripts")
+		i18n.T("cli.core.flag.json"))
 	root.PersistentFlags().StringVarP(&opts.workspaceDir, "workspace", "C", "",
-		"travaille sur l'espace situé à ce `chemin` au lieu de celui trouvé depuis le répertoire courant")
+		i18n.T("cli.core.flag.workspace"))
 	// Sans lettre courte : « -v » serait confondu avec --version.
 	root.PersistentFlags().BoolVar(&opts.verbose, "verbose", false,
-		"affiche les logs détaillés (niveau debug) sur la sortie d'erreur")
+		i18n.T("cli.core.flag.verbose"))
 	// Option locale, sans lettre courte : « watchoo init --version » est une option inconnue.
-	root.Flags().BoolVar(&opts.version, "version", false, "affiche la version de Watchoo (comme « watchoo version »)")
+	root.Flags().BoolVar(&opts.version, "version", false, i18n.T("cli.core.flag.version"))
 	localize(root)
 	// La carte en haut de l'aide générale seulement : la fonction d'aide de la racine est aussi celle
 	// des sous-commandes, qui en héritent.
@@ -288,12 +282,12 @@ func Run(ctx context.Context, deps Deps, args []string) int {
 	err := cmd.ExecuteContext(ctx)
 	if err != nil {
 		if errors.Is(err, context.Canceled) && ctx.Err() != nil {
-			fmt.Fprintf(deps.Stderr, "erreur : commande interrompue (%v)\n", err)
+			fmt.Fprintf(deps.Stderr, "%s\n", i18n.T("cli.core.err.interrupted", err))
 			slot.notice.abandon()
 			return 1
 		}
 		// Le message peut citer un texte de la forge ou de la base : nettoyé avant d'aller au terminal.
-		fmt.Fprintf(deps.Stderr, "erreur : %s\n", textclean.CleanLines(err.Error()))
+		fmt.Fprintf(deps.Stderr, "%s\n", i18n.T("cli.core.err.line", textclean.CleanLines(err.Error())))
 	}
 	// Après la commande (et son éventuelle erreur) : l'avis de nouvelle version, s'il est arrivé à temps.
 	slot.notice.finish(ctx, deps)
@@ -313,10 +307,10 @@ func Execute() int {
 	return Run(ctx, DefaultDeps(), os.Args[1:])
 }
 
-// noArgs refuse tout argument positionnel, avec un message en français.
+// noArgs refuse tout argument positionnel, avec un message dans la langue du processus.
 func noArgs(cmd *cobra.Command, args []string) error {
 	if len(args) > 0 {
-		return fmt.Errorf("« %s » ne prend pas d'argument (reçu : %s)", cmd.CommandPath(), strings.Join(args, " "))
+		return fmt.Errorf(i18n.T("cli.core.err.no_args"), cmd.CommandPath(), strings.Join(args, " "))
 	}
 	return nil
 }
@@ -324,9 +318,10 @@ func noArgs(cmd *cobra.Command, args []string) error {
 // unknownCommandError signale une sous-commande inconnue, avec une suggestion si une commande proche
 // existe.
 func unknownCommandError(cmd *cobra.Command, name string) error {
-	msg := fmt.Sprintf("commande inconnue « %s »", name)
+	msg := i18n.T("cli.core.err.unknown_command", name)
 	if suggestions := cmd.SuggestionsFor(name); len(suggestions) > 0 {
-		msg += fmt.Sprintf(" ; vouliez-vous dire « %s » ?", strings.Join(suggestions, " », « "))
+		msg += i18n.T("cli.core.err.suggestion",
+			strings.Join(suggestions, i18n.T("cli.core.err.suggestion_sep")))
 	}
-	return fmt.Errorf("%s (liste des commandes : « %s --help »)", msg, cmd.CommandPath())
+	return fmt.Errorf("%s%s", msg, i18n.T("cli.core.err.command_list", cmd.CommandPath()))
 }

@@ -6,7 +6,7 @@ package cli
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"strconv"
 	"strings"
 	"time"
@@ -14,6 +14,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/studoo-app/watchoo/internal/activity"
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/store"
 )
@@ -77,16 +78,8 @@ func newPRsCmd(deps Deps, opts *options) *cobra.Command {
 	var limit int
 	cmd := &cobra.Command{
 		Use:   "prs",
-		Short: "Affiche les pull requests des dépôts suivis",
-		Long: `Affiche les pull requests enregistrées par les synchros, de la plus récemment
-modifiée à la plus ancienne : date de modification, dépôt, numéro, état, auteur et
-titre.
-
-Filtres :
-  --repo     un dépôt suivi (owner/repo ou URL)
-  --state    open (ouvertes, brouillons compris), merged (mergées), closed (fermées
-             sans merge) ou all (toutes, par défaut)
-  -n         nombre maximum de pull requests (20 par défaut, 0 = toutes)`,
+		Short: i18n.T("cli.sync.prs_short"),
+		Long:  i18n.T("cli.sync.prs_long"),
 		Example: `  watchoo prs --state open
   watchoo prs --repo alice/projet-licence --state merged -n 50`,
 		Args: noArgs,
@@ -94,9 +87,9 @@ Filtres :
 			return runPRs(cmd.Context(), deps, opts, repo, state, limit)
 		},
 	}
-	cmd.Flags().StringVar(&repo, "repo", "", "limite au `dépôt` owner/repo")
-	cmd.Flags().StringVar(&state, "state", prStateAll, "limite à un `état` : open, merged, closed ou all")
-	cmd.Flags().IntVarP(&limit, "limit", "n", defaultPRLimit, "`nombre` maximum de pull requests, 0 = toutes")
+	cmd.Flags().StringVar(&repo, "repo", "", i18n.T("cli.sync.flag_repo"))
+	cmd.Flags().StringVar(&state, "state", prStateAll, i18n.T("cli.sync.flag_state"))
+	cmd.Flags().IntVarP(&limit, "limit", "n", defaultPRLimit, i18n.T("cli.sync.flag_prs_limit"))
 	return cmd
 }
 
@@ -108,14 +101,14 @@ func parsePRState(state string) (model.PullRequestStatus, error) {
 	case model.PullRequestStatusOpen, model.PullRequestStatusMerged, model.PullRequestStatusClosed:
 		return s, nil
 	}
-	return "", fmt.Errorf("--state %q invalide : attendu open, merged, closed ou all", state)
+	return "", errors.New(i18n.T("cli.sync.prs_bad_state", state))
 }
 
 // runPRs affiche les pull requests filtrées.
 func runPRs(ctx context.Context, deps Deps, opts *options, repoRef, state string, limit int) (err error) {
 	// Les options sont vérifiées avant d'ouvrir l'espace : une erreur de saisie est signalée d'abord.
 	if limit < 0 {
-		return fmt.Errorf("-n %d invalide : attendu un nombre positif (0 = toutes les pull requests)", limit)
+		return errors.New(i18n.T("cli.sync.prs_bad_limit", limit))
 	}
 	status, err := parsePRState(state)
 	if err != nil {
@@ -146,7 +139,7 @@ func runPRs(ctx context.Context, deps Deps, opts *options, repoRef, state string
 		return writeJSON(deps.Stdout, report)
 	}
 	if len(pulls) == 0 {
-		return writeText(deps.Stdout, "Aucune pull request"+prFilterText(repoRef, status)+".\n")
+		return writeText(deps.Stdout, i18n.T("cli.sync.prs_none", prFilterText(repoRef, status)))
 	}
 	st := outputStyle(deps, opts)
 	now := s.now()
@@ -161,40 +154,47 @@ func runPRs(ctx context.Context, deps Deps, opts *options, repoRef, state string
 			st.truncate(p.Title, 60),
 		}
 	}
-	headers := []string{st.pick("Modifiée", "Modifiee"), st.pick("Dépôt", "Depot"), "PR", st.pick("État", "Etat"),
-		"Auteur", "Titre"}
+	headers := []string{
+		st.pick(i18n.T("cli.sync.header_updated"), i18n.T("cli.sync.header_updated_ascii")),
+		st.pick(i18n.T("cli.sync.header_repo"), i18n.T("cli.sync.header_repo_ascii")),
+		"PR",
+		st.pick(i18n.T("cli.sync.header_state"), i18n.T("cli.sync.header_state_ascii")),
+		i18n.T("cli.sync.header_author"),
+		i18n.T("cli.sync.header_title"),
+	}
 	return writeText(deps.Stdout, renderTable(st, headers, rows, func(row int) bool {
 		return pulls[row].Status() == model.PullRequestStatusClosed
 	}))
 }
 
-// prStatusText renvoie l'état affiché d'une pull request : ouverte, brouillon, mergée ou fermée.
+// prStatusText renvoie l'état affiché d'une pull request : ouverte, brouillon, mergée ou fermée ;
+// la variante ASCII (st.pick) ne sert qu'aux accents du texte français.
 func prStatusText(st textStyle, p model.PullRequest) string {
 	switch p.Status() {
 	case model.PullRequestStatusMerged:
-		return st.pick("mergée", "mergee")
+		return st.pick(i18n.T("cli.sync.prs_status_merged"), i18n.T("cli.sync.prs_status_merged_ascii"))
 	case model.PullRequestStatusClosed:
-		return st.pick("fermée", "fermee")
+		return st.pick(i18n.T("cli.sync.prs_status_closed"), i18n.T("cli.sync.prs_status_closed_ascii"))
 	}
 	if p.Draft {
-		return "brouillon"
+		return i18n.T("cli.sync.prs_status_draft")
 	}
-	return "ouverte"
+	return i18n.T("cli.sync.prs_status_open")
 }
 
 // prFilterText décrit les filtres de « watchoo prs » pour le message « aucune pull request ».
 func prFilterText(repoRef string, status model.PullRequestStatus) string {
 	var parts []string
 	if repoRef != "" {
-		parts = append(parts, "dépôt "+repoRef)
+		parts = append(parts, i18n.T("cli.sync.filter_repo", repoRef))
 	}
 	if status != "" {
-		parts = append(parts, "état "+string(status))
+		parts = append(parts, i18n.T("cli.sync.prs_filter_state", string(status)))
 	}
 	if len(parts) == 0 {
-		return " en base (lancez « watchoo sync »)"
+		return i18n.T("cli.sync.filter_in_db")
 	}
-	return " pour ces filtres (" + strings.Join(parts, ", ") + ")"
+	return i18n.T("cli.sync.prs_filters", strings.Join(parts, ", "))
 }
 
 // cmpOr renvoie s, ou def s'il est vide.

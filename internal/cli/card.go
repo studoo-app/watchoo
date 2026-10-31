@@ -8,23 +8,33 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/logo"
 	wsync "github.com/studoo-app/watchoo/internal/sync"
 	"github.com/studoo-app/watchoo/internal/workspace"
 )
 
 // Textes de la carte d'en-tête (voir documentation/fr/05-cli.md, « Carte d'en-tête »). Les astuces ne
-// citent que des commandes qui existent.
+// citent que des commandes qui existent. Elles passent par internal/i18n, sauf tipInitDone et
+// tipStatus : affichées par init.go et status.go, qui ne sont pas encore traduits, elles restent des
+// constantes provisoires (clés cli.core.tip.init_done et cli.core.tip.status déjà dans le catalogue).
 const (
-	cardTitle    = "Watchoo"
-	helpSubtitle = "Qui a travaillé, sur quoi, et quand ?"
-	tipHelp      = "Astuce : « watchoo help <commande> » détaille une commande."
-	tipInit      = "Astuce : « watchoo init » fait de ce répertoire un espace de supervision."
-	tipWorkspace = "Astuce : « watchoo repo add owner/repo » puis « watchoo sync »."
-	tipInitDone  = "Astuce : « watchoo repo add owner/repo » ajoute un premier dépôt à suivre."
-	tipStatus    = "Astuce : « watchoo sync » met à jour les dépôts suivis."
-	noWorkspace  = "Aucun espace de supervision ici"
+	cardTitle   = "Watchoo"
+	tipInitDone = "Astuce : « watchoo repo add owner/repo » ajoute un premier dépôt à suivre."
+	tipStatus   = "Astuce : « watchoo sync » met à jour les dépôts suivis."
 )
+
+// helpSubtitle est le sous-titre de la carte de l'aide générale.
+func helpSubtitle() string { return i18n.T("cli.core.card.subtitle") }
+
+// tipHelp, tipInit, tipWorkspace et noWorkspace sont les textes de la ligne d'état de l'aide
+// générale.
+func tipHelp() string { return i18n.T("cli.core.tip.help") }
+func tipInit() string { return i18n.T("cli.core.tip.init") }
+func tipWorkspace() string {
+	return i18n.T("cli.core.tip.workspace")
+}
+func noWorkspace() string { return i18n.T("cli.core.no_workspace") }
 
 // cardTerminal renvoie la description de la sortie standard et true si une carte d'en-tête peut y être
 // affichée : sortie texte (pas --json) sur un terminal. Pour que Watchoo reste scriptable, une sortie
@@ -68,12 +78,13 @@ func writeHelpHeader(deps Deps, opts *options) error {
 		return nil
 	}
 	status, tip := helpStatus(deps, opts)
-	card := renderCard(term, helpSubtitle, tip)
+	card := renderCard(term, helpSubtitle(), tip)
 	if card == "" {
 		return nil
 	}
 	if _, err := io.WriteString(deps.Stdout, card+"\n"+statusLine(term, status)+"\n"); err != nil {
-		return fmt.Errorf("affichage de l'en-tête de l'aide : %w", err)
+		return fmt.Errorf("%s%s%w", i18n.T("cli.core.err.write_help_header"),
+			i18n.T("cli.core.err.sep"), err)
 	}
 	return nil
 }
@@ -82,20 +93,21 @@ func writeHelpHeader(deps Deps, opts *options) error {
 // l'espace trouvé comme le feraient les autres commandes (répertoire courant et ses parents, -C ou
 // WATCHOO_DIR). La recherche est locale (workspace.ResolveFrom : aucun appel à gh) et ne fait jamais
 // échouer l'aide :
-//   - espace trouvé : « Espace : <nom> (<racine>) », et l'astuce de « watchoo repo add » et
-//     « watchoo sync » ;
-//   - aucun espace : « Aucun espace de supervision ici », et l'astuce de « watchoo init » ;
+//   - espace trouvé : « Espace : <nom> (<racine>) » (cli.core.status.workspace), et l'astuce de
+//     « watchoo repo add » et « watchoo sync » ;
+//   - aucun espace : « Aucun espace de supervision ici » (cli.core.no_workspace), et l'astuce de
+//     « watchoo init » ;
 //   - autre erreur (réglages invalides, répertoire de -C inexistant…) : « Espace : <première ligne de
-//     l'erreur> », et l'astuce de « watchoo help <commande> ».
+//     l'erreur> » (cli.core.status.workspace_error), et l'astuce de « watchoo help <commande> ».
 func helpStatus(deps Deps, opts *options) (status, tip string) {
 	ws, err := resolveForHelp(deps, opts)
 	switch {
 	case err == nil:
-		return fmt.Sprintf("Espace : %s (%s)", ws.Config.Name, displayPath(ws.Root)), tipWorkspace
+		return i18n.T("cli.core.status.workspace", ws.Config.Name, displayPath(ws.Root)), tipWorkspace()
 	case errors.Is(err, workspace.ErrNotFound):
-		return noWorkspace, tipInit
+		return noWorkspace(), tipInit()
 	default:
-		return "Espace : " + firstLine(err.Error()), tipHelp
+		return i18n.T("cli.core.status.workspace_error", firstLine(err.Error())), tipHelp()
 	}
 }
 
@@ -105,7 +117,8 @@ func resolveForHelp(deps Deps, opts *options) (*workspace.Workspace, error) {
 	cwd, err := deps.Getwd()
 	if err != nil {
 		if !filepath.IsAbs(opts.workspaceDir) {
-			return nil, fmt.Errorf("répertoire courant inaccessible : %w", err)
+			return nil, fmt.Errorf("%s%s%w", i18n.T("cli.core.err.cwd_unavailable"),
+				i18n.T("cli.core.err.sep"), err)
 		}
 		cwd = opts.workspaceDir
 	}
@@ -119,15 +132,16 @@ func writeInitCard(w io.Writer, term TermInfo, card string, r initReport) error 
 	b.WriteString(card)
 	b.WriteByte('\n')
 	for _, line := range []string{
-		fmt.Sprintf("Espace : %s (%s)", r.Name, displayPath(r.Root)),
-		"Réglages : " + displayPath(r.ConfigFile),
-		"Base : " + displayPath(r.Database),
+		i18n.T("cli.core.status.workspace", r.Name, displayPath(r.Root)),
+		i18n.T("cli.core.status.settings", displayPath(r.ConfigFile)),
+		i18n.T("cli.core.status.database", displayPath(r.Database)),
 		initCardAccountLine(r),
 	} {
 		b.WriteString(statusLine(term, line))
 	}
 	if _, err := io.WriteString(w, b.String()); err != nil {
-		return fmt.Errorf("affichage du compte rendu : %w", err)
+		return fmt.Errorf("%s%s%w", i18n.T("cli.core.err.write_report"),
+			i18n.T("cli.core.err.sep"), err)
 	}
 	return nil
 }
@@ -135,9 +149,9 @@ func writeInitCard(w io.Writer, term TermInfo, card string, r initReport) error 
 // initCardAccountLine décrit l'accès aux dépôts sur la carte de init : compte gh, ou clones Git locaux.
 func initCardAccountLine(r initReport) string {
 	if r.Source == wsync.SourceGit {
-		return "Source : clones Git locaux (gh absent ou non connecté)"
+		return i18n.T("cli.core.status.source_git")
 	}
-	return fmt.Sprintf("Compte gh : %s sur %s (%s)", r.GitHub.Login, r.GitHub.Host, scopesText(r.GitHub.Scopes))
+	return i18n.T("cli.core.status.gh_account", r.GitHub.Login, r.GitHub.Host, scopesText(r.GitHub.Scopes))
 }
 
 // displayPath renvoie path pour l'affichage sur un terminal, avec « ~ » à la place du répertoire

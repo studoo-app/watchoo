@@ -46,8 +46,8 @@ func TestGitSourceEndToEnd(t *testing.T) {
 	}
 
 	out := h.run("sync").mustSucceed(t)
-	assertContains(t, "sync sans gh", out.stdout, "alice/projet", "Source : clones Git locaux")
-	assertNotContains(t, "sync sans gh", out.stdout, "Quota GitHub")
+	assertContains(t, "sync sans gh", out.stdout, "alice/projet", "Source: local Git clones")
+	assertNotContains(t, "sync sans gh", out.stdout, "GitHub quota")
 	if info, err := os.Stat(clone); err != nil || !info.IsDir() {
 		t.Fatalf("clone absent après la synchro : %v", err)
 	}
@@ -81,7 +81,7 @@ func TestGitSourceEndToEnd(t *testing.T) {
 	assertContains(t, "log", logOut.stdout, "Ajoute les tests", "Premier jet")
 
 	st := h.run("status").mustSucceed(t)
-	assertContains(t, "status sans gh", st.stdout, "Source : clones Git locaux", "gh auth login")
+	assertContains(t, "status sans gh", st.stdout, "Source: local Git clones", "gh auth login")
 	var status map[string]any
 	if err := json.Unmarshal([]byte(h.run("status", "--json").mustSucceed(t).stdout), &status); err != nil {
 		t.Fatal(err)

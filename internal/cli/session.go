@@ -10,6 +10,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/repoimport"
 	"github.com/studoo-app/watchoo/internal/store"
@@ -36,7 +37,7 @@ func openSession(ctx context.Context, deps Deps, opts *options) (*session, error
 	if err != nil {
 		if errors.Is(err, workspace.ErrNotFound) {
 			return nil, &hintError{
-				msg: err.Error() + " (ou indiquez un espace avec -C <répertoire>)",
+				msg: err.Error() + i18n.T("cli.core.session.not_found_hint"),
 				err: err,
 			}
 		}
@@ -48,11 +49,13 @@ func openSession(ctx context.Context, deps Deps, opts *options) (*session, error
 	}
 	st, err := store.Open(ctx, ws.DBPath())
 	if err != nil {
-		return nil, fmt.Errorf("ouverture de la base de l'espace : %w", err)
+		return nil, fmt.Errorf("%s%s%w", i18n.T("cli.core.session.open_db"),
+			i18n.T("cli.core.err.sep"), err)
 	}
 	if err := st.Migrate(ctx); err != nil {
 		_ = st.Close() // l'erreur de migration est la plus utile
-		return nil, fmt.Errorf("mise à jour de la base de l'espace : %w", err)
+		return nil, fmt.Errorf("%s%s%w", i18n.T("cli.core.session.migrate_db"),
+			i18n.T("cli.core.err.sep"), err)
 	}
 	logger := deps.Logger
 	if logger == nil {
@@ -70,7 +73,7 @@ func (s *session) Close() error {
 // la commande a réussi (*err nil).
 func closeSession(s *session, err *error) {
 	if cerr := s.Close(); cerr != nil && *err == nil {
-		*err = fmt.Errorf("fermeture de la base : %w", cerr)
+		*err = fmt.Errorf("%s%s%w", i18n.T("cli.core.err.close_db"), i18n.T("cli.core.err.sep"), cerr)
 	}
 }
 
@@ -107,8 +110,7 @@ func (s *session) findRepository(ctx context.Context, ref string) (model.Reposit
 	repo, err := s.store.GetRepositoryByName(ctx, model.ProviderGitHub, parsed.Owner, parsed.Name)
 	if errors.Is(err, store.ErrNotFound) {
 		return model.Repository{}, &hintError{
-			msg: fmt.Sprintf("le dépôt %s n'est pas suivi dans cet espace (dépôts suivis : « watchoo repo list »)",
-				parsed),
+			msg: i18n.T("cli.core.session.repo_not_tracked", parsed),
 			err: err,
 		}
 	}

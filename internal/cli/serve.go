@@ -17,16 +17,11 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/studoo-app/watchoo/internal/i18n"
 	wsync "github.com/studoo-app/watchoo/internal/sync"
 	"github.com/studoo-app/watchoo/internal/textclean"
 	"github.com/studoo-app/watchoo/internal/web"
 	"github.com/studoo-app/watchoo/internal/workspace"
-)
-
-// Textes de la carte de « watchoo serve ».
-const (
-	serveSubtitle = "Interface web de l'espace « %s »"
-	serveTip      = "Astuce : Ctrl+C arrête le serveur (la synchro en cours est annulée proprement)."
 )
 
 // newServeCmd construit « watchoo serve ».
@@ -35,20 +30,8 @@ func newServeCmd(deps Deps, opts *options) *cobra.Command {
 	var interval time.Duration
 	cmd := &cobra.Command{
 		Use:   "serve",
-		Short: "Lance l'interface web locale et la synchro périodique",
-		Long: `Lance l'interface web de l'espace (tableau de bord, détail des dépôts, contributeurs,
-réglages) et synchronise les dépôts en arrière-plan tant qu'elle tourne.
-
-L'interface écoute sur web.addr (127.0.0.1:8080 par défaut) ; --addr remplace ce
-réglage. Ailleurs que sur la boucle locale (127.0.0.1, ::1, localhost), elle refuse de
-démarrer sans authentification : réglez web.auth.username et donnez le mot de passe dans
-la variable WATCHOO_WEB_PASSWORD (jamais dans un fichier), ou déclarez un reverse proxy
-authentifiant avec web.trusted_proxy: true et ses noms publics dans web.allowed_hosts.
-
-La synchro automatique suit sync.interval (30 min par défaut) si sync.auto est vrai ;
---interval remplace ce réglage le temps du processus : 0 pour la synchro manuelle seule,
-sinon 15 min au minimum. Au démarrage, une synchro n'est lancée que si la dernière date
-de plus d'un intervalle. Ctrl+C arrête le serveur proprement.`,
+		Short: i18n.T("cli.sync.serve_short"),
+		Long:  i18n.T("cli.sync.serve_long"),
 		Example: `  watchoo serve
   watchoo serve --addr 127.0.0.1:9000 --interval 1h
   WATCHOO_WEB_PASSWORD=… watchoo serve --addr 0.0.0.0:8080   # avec web.auth.username`,
@@ -58,9 +41,8 @@ de plus d'un intervalle. Ctrl+C arrête le serveur proprement.`,
 				interval, cmd.Flags().Changed("interval"))
 		},
 	}
-	cmd.Flags().StringVar(&addr, "addr", "", "`adresse` d'écoute hôte:port (ex. 127.0.0.1:9000) ; défaut : web.addr")
-	cmd.Flags().DurationVar(&interval, "interval", 0,
-		"`intervalle` de synchro automatique (ex. 30m, 1h ; 0 = manuelle seule) ; défaut : sync.interval")
+	cmd.Flags().StringVar(&addr, "addr", "", i18n.T("cli.sync.flag_addr"))
+	cmd.Flags().DurationVar(&interval, "interval", 0, i18n.T("cli.sync.flag_interval"))
 	return cmd
 }
 
@@ -69,7 +51,7 @@ de plus d'un intervalle. Ctrl+C arrête le serveur proprement.`,
 func runServe(ctx context.Context, deps Deps, opts *options, addr string, addrSet bool,
 	interval time.Duration, intervalSet bool) (err error) {
 	if opts.json {
-		return errors.New("« watchoo serve » n'a pas de sortie JSON : utilisez les autres commandes avec --json")
+		return errors.New(i18n.T("cli.sync.serve_no_json"))
 	}
 	s, err := openSession(ctx, deps, opts)
 	if err != nil {
@@ -81,7 +63,7 @@ func runServe(ctx context.Context, deps Deps, opts *options, addr string, addrSe
 	if addrSet {
 		cfg.Web.Addr = addr
 		if err := cfg.Validate(); err != nil {
-			return fmt.Errorf("--addr : %w", err)
+			return fmt.Errorf("--addr%s%w", i18n.T("cli.core.err.sep"), err)
 		}
 	}
 	auto, err := wsync.AutoInterval(cfg.Sync, interval, intervalSet)
@@ -112,10 +94,10 @@ func runServe(ctx context.Context, deps Deps, opts *options, addr string, addrSe
 	ln, err := deps.Listen("tcp", cfg.Web.Addr)
 	if err != nil {
 		if errors.Is(err, syscall.EADDRINUSE) {
-			return fmt.Errorf("l'adresse %s est déjà utilisée (un autre « watchoo serve » ?) : "+
-				"choisissez un autre port avec web.addr ou --addr", cfg.Web.Addr)
+			return errors.New(i18n.T("cli.sync.serve_addr_in_use", cfg.Web.Addr))
 		}
-		return fmt.Errorf("écoute sur %s impossible : %w", cfg.Web.Addr, err)
+		return fmt.Errorf("%s%s%w", i18n.T("cli.sync.serve_listen_failed", cfg.Web.Addr),
+			i18n.T("cli.core.err.sep"), err)
 	}
 	monitor := newUpdateMonitor(deps, s.logger)
 	var updates web.UpdateSource // nil (et non un *Monitor nil) sans vérification
@@ -145,7 +127,7 @@ func runServe(ctx context.Context, deps Deps, opts *options, addr string, addrSe
 	}
 
 	if warning != "" {
-		fmt.Fprintf(deps.Stderr, "attention : %s\n", warning)
+		warn(deps.Stderr, warning)
 	}
 	if err := writeServeBanner(deps, opts, cfg.Name, serveURL(ln.Addr()), auto); err != nil {
 		_ = ln.Close()
@@ -166,7 +148,7 @@ func runServe(ctx context.Context, deps Deps, opts *options, addr string, addrSe
 	if err := web.Serve(ctx, web.ServeOptions{Listener: ln, Handler: handler, Syncs: coord, Logger: s.logger}); err != nil {
 		return err
 	}
-	fmt.Fprintln(deps.Stdout, "Interface web arrêtée.")
+	fmt.Fprintln(deps.Stdout, i18n.T("cli.sync.serve_stopped"))
 	return nil
 }
 
@@ -187,12 +169,13 @@ func serveURL(a net.Addr) string {
 // d'état ; sinon (sortie redirigée) des lignes simples.
 func writeServeBanner(deps Deps, opts *options, name, url string, interval time.Duration) error {
 	lines := []string{
-		"Interface web : " + url,
-		"Synchro automatique : " + intervalText(interval),
+		i18n.T("cli.sync.serve_web_line", url),
+		i18n.T("cli.sync.serve_sync_line", intervalText(interval)),
 	}
 	var out string
 	if term, ok := cardTerminal(deps, opts); ok {
-		if card := renderCard(term, fmt.Sprintf(serveSubtitle, textclean.Clean(name)), serveTip); card != "" {
+		if card := renderCard(term, i18n.T("cli.sync.serve_subtitle", textclean.Clean(name)),
+			i18n.T("cli.sync.serve_tip")); card != "" {
 			out = card + "\n"
 			for _, l := range lines {
 				out += statusLine(term, l)
@@ -203,10 +186,11 @@ func writeServeBanner(deps Deps, opts *options, name, url string, interval time.
 		for _, l := range lines {
 			out += l + "\n"
 		}
-		out += "Ctrl+C pour arrêter.\n"
+		out += i18n.T("cli.sync.serve_ctrl_c")
 	}
 	if _, err := io.WriteString(deps.Stdout, out); err != nil {
-		return fmt.Errorf("affichage de l'adresse de l'interface : %w", err)
+		return fmt.Errorf("%s%s%w", i18n.T("cli.sync.serve_banner_err"),
+			i18n.T("cli.core.err.sep"), err)
 	}
 	return nil
 }
@@ -214,14 +198,14 @@ func writeServeBanner(deps Deps, opts *options, name, url string, interval time.
 // intervalText décrit l'intervalle de synchro automatique.
 func intervalText(d time.Duration) string {
 	if d <= 0 {
-		return "désactivée (synchro manuelle depuis l'interface)"
+		return i18n.T("cli.sync.interval_off")
 	}
 	switch {
 	case d%time.Hour == 0:
-		return fmt.Sprintf("toutes les %d h", d/time.Hour)
+		return i18n.T("cli.sync.interval_hours", d/time.Hour)
 	case d%time.Minute == 0:
-		return fmt.Sprintf("toutes les %d min", d/time.Minute)
+		return i18n.T("cli.sync.interval_minutes", d/time.Minute)
 	default:
-		return "toutes les " + d.String()
+		return i18n.T("cli.sync.interval_every", d.String())
 	}
 }

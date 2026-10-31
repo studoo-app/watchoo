@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/studoo-app/watchoo/internal/auth/authtest"
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/provider"
 	"github.com/studoo-app/watchoo/internal/provider/git/gittest"
@@ -42,8 +43,8 @@ func TestRepoAdd(t *testing.T) {
 	seedProvider(h.Provider)
 
 	r := h.run("repo", "add", "alice/projet", "--label", "Alice Martin", "--branch", "main, dev,release/*").mustSucceed(t)
-	want := "Dépôt alice/projet ajouté (label « Alice Martin », branches : main, dev, release/*).\n" +
-		"Lancez « watchoo sync » pour le synchroniser.\n"
+	want := "Repository alice/projet added (label \"Alice Martin\", branches: main, dev, release/*).\n" +
+		"Run \"watchoo sync\" to sync it.\n"
 	if r.stdout != want || r.stderr != "" {
 		t.Errorf("repo add = %q (stderr %q), attendu %q", r.stdout, r.stderr, want)
 	}
@@ -65,7 +66,7 @@ func TestRepoAdd(t *testing.T) {
 
 	// Déjà suivi, rien de nouveau (casse différente, URL) : rien à changer.
 	r = h.run("repo", "add", "https://github.com/Alice/Projet.git").mustSucceed(t)
-	assertContains(t, "repo add déjà suivi", r.stdout, "Dépôt alice/projet déjà suivi : rien à changer")
+	assertContains(t, "repo add déjà suivi", r.stdout, "Repository alice/projet already tracked: nothing to change")
 	assertNotContains(t, "repo add déjà suivi", r.stdout, "watchoo sync")
 
 	// --branch "" revient à toutes les branches ; le label est gardé.
@@ -91,18 +92,18 @@ func TestRepoAddErrors(t *testing.T) {
 	h.run("repo", "add", "alice/projet", "--label", "a\x1b]0;titre\x07b").mustFail(t,
 		"--label : caractère de contrôle interdit")
 	h.run("repo", "add", "alice/projet", "--label", "ligne1\nligne2").mustFail(t, "--label : caractère de contrôle")
-	h.run("repo", "add", "carol/projet").mustFail(t, "dépôt carol/projet inaccessible",
+	h.run("repo", "add", "carol/projet").mustFail(t, "repository carol/projet inaccessible",
 		"repository not found or account without access")
 	h.run("repo", "add", "carol/projet", "--json").mustFail(t, "inaccessible")
 
 	h.Provider.SetRepoError("bob", "projet", &provider.SSORequiredError{Organization: "promo"})
-	h.run("repo", "add", "bob/projet").mustFail(t, "dépôt bob/projet inaccessible")
+	h.run("repo", "add", "bob/projet").mustFail(t, "repository bob/projet inaccessible")
 
 	// gh déconnecté : vérification par git (clone local), dépôt absent du serveur Git : accès
 	// refusé, rien d'enregistré.
 	h.Client = authtest.NewLoggedOut()
 	h.GitURL = gittest.NewServer(t).URL
-	h.run("repo", "add", "alice/projet").mustFail(t, "dépôt alice/projet inaccessible", "access denied")
+	h.run("repo", "add", "alice/projet").mustFail(t, "repository alice/projet inaccessible", "access denied")
 	if repos, err := openTestStore(t, h).ListRepositories(context.Background()); err != nil || len(repos) != 0 {
 		t.Errorf("dépôts enregistrés malgré les erreurs : %v, %v", repos, err)
 	}
@@ -111,7 +112,7 @@ func TestRepoAddErrors(t *testing.T) {
 func TestRepoListEmpty(t *testing.T) {
 	h := newWorkspace(t)
 	r := h.run("repo", "list").mustSucceed(t)
-	assertContains(t, "repo list vide", r.stdout, "Aucun dépôt suivi", "watchoo repo add owner/repo")
+	assertContains(t, "repo list vide", r.stdout, "No repository tracked", "watchoo repo add owner/repo")
 	r = h.run("repo", "list", "--json").mustSucceed(t)
 	if r.stdout != "{\n  \"repositories\": []\n}\n" {
 		t.Errorf("repo list --json vide = %q", r.stdout)
@@ -128,20 +129,22 @@ func TestRepoList(t *testing.T) {
 	h.run("repo", "add", "eve/projet").mustSucceed(t) // jamais synchronisé
 
 	r := h.run("repo", "list").mustSucceed(t)
-	want := "DÉPÔT         DERNIER COMMIT  AUTEUR      ÉTAT\n" +
-		"Alice Martin  il y a 1 h      Bob Durand  -\n" +
-		"bob/projet    il y a 9 j      Bob Durand  ~ 9 j\n" +
-		"dave/projet   il y a 42 j     Dave Petit  ⚠ 42 j\n" +
-		"eve/projet    jamais          -           jamais\n"
+	// (Les dates et états courts viennent de internal/activity : hors du périmètre de ce groupe.)
+	want := "REPOSITORY    LAST COMMIT  AUTHOR      STATE\n" +
+		"Alice Martin  1 h ago      Bob Durand  -\n" +
+		"bob/projet    9 d ago      Bob Durand  ~ 9 d\n" +
+		"dave/projet   42 d ago     Dave Petit  ⚠ 42 d\n" +
+		"eve/projet    never        -           never\n"
 	if r.stdout != want {
-		t.Errorf("repo list =\n%s\nattendu :\n%s", r.stdout, want)
+		t.Errorf("repo list =\n%q\nattendu :\n%q", r.stdout, want)
 	}
 
 	// Terminal sans Unicode : symboles et en-têtes ASCII ; avec couleurs : état gris en gris.
+	// (Les dates et états courts viennent de internal/activity : hors du périmètre de ce groupe.)
 	h.Terminal = func() TermInfo { return TermInfo{IsTerminal: true, Width: 100, Color: true} }
 	r = h.run("repo", "list").mustSucceed(t)
 	plain := ansiSeq.ReplaceAllString(r.stdout, "")
-	assertContains(t, "repo list ASCII", plain, "DEPOT", "ETAT", "! 42 j")
+	assertContains(t, "repo list ASCII", plain, "REPOSITORY", "STATE", "! 42 d")
 	assertNotContains(t, "repo list ASCII", plain, "⚠", "É")
 	for _, line := range strings.Split(r.stdout, "\n") {
 		if strings.Contains(line, "eve/projet") && !strings.Contains(line, "\x1b[") {
@@ -151,6 +154,14 @@ func TestRepoList(t *testing.T) {
 			t.Errorf("ligne active colorée : %q", line)
 		}
 	}
+
+	// Terminal ASCII en français : la variante sans accents des clés i18n (Depot, Etat).
+	restore := i18n.SetProcessForTest(i18n.French)
+	r = h.run("repo", "list").mustSucceed(t)
+	restore()
+	plain = ansiSeq.ReplaceAllString(r.stdout, "")
+	assertContains(t, "repo list ASCII français", plain, "DEPOT", "ETAT")
+	assertNotContains(t, "repo list ASCII français", plain, "É")
 	h.Terminal = func() TermInfo { return TermInfo{IsTerminal: true, Width: 100, Unicode: true} }
 	if r := h.run("repo", "list").mustSucceed(t); strings.Contains(r.stdout, "\x1b[") {
 		t.Errorf("couleurs sans TermInfo.Color :\n%s", r.stdout)
@@ -191,21 +202,24 @@ func TestRepoList(t *testing.T) {
 func TestRepoRemove(t *testing.T) {
 	h := newSyncedWorkspace(t)
 
+	// (Le message de suivi non trouvé vient de session.go, « error : » de root.go : hors du périmètre
+	// de ce groupe.)
 	// Hors terminal, --yes est obligatoire ; rien n'est supprimé.
-	h.run("repo", "remove", "bob/projet").mustFail(t, "relancez avec --yes")
+	h.run("repo", "remove", "bob/projet").mustFail(t, "run again with --yes")
 	storedRepo(t, h, "bob", "projet")
 
 	// Dépôt non suivi.
 	h.run("repo", "remove", "carol/projet", "--yes").mustFail(t,
-		"le dépôt carol/projet n'est pas suivi dans cet espace", "watchoo repo list")
+		"repository carol/projet is not tracked in this workspace", "watchoo repo list")
 
-	// Terminal : la réponse « n » (ou la fin de l'entrée) annule.
+	// Terminal : la réponse « n » (ou la fin de l'entrée) annule. (Le suffixe « [y/N] » et le préfixe
+	// « error: » viennent de confirm.go et root.go : hors du périmètre de ce groupe.)
 	h.StdinTerminal = true
 	for _, answer := range []string{"n\n", "", "peut-être\n"} {
 		h.Stdin = answer
 		r := h.run("repo", "remove", "bob/projet").mustCode(t, 1)
-		if !strings.HasPrefix(r.stderr, "Arrêter le suivi de bob/projet et supprimer son historique (1 commit) ? [o/N] ") ||
-			!strings.HasSuffix(r.stderr, "erreur : suppression annulée : rien n'a été modifié\n") || r.stdout != "" {
+		if !strings.HasPrefix(r.stderr, "Stop tracking bob/projet and delete its history (1 commit)? [y/N] ") ||
+			!strings.HasSuffix(r.stderr, "error: removal cancelled: nothing was modified\n") || r.stdout != "" {
 			t.Errorf("réponse %q : stdout %q, stderr %q", answer, r.stdout, r.stderr)
 		}
 	}
@@ -214,7 +228,7 @@ func TestRepoRemove(t *testing.T) {
 	// « oui » : suppression du dépôt et de son historique.
 	h.Stdin = "Oui\n"
 	r := h.run("repo", "remove", "bob/projet").mustSucceed(t)
-	assertContains(t, "repo remove", r.stdout, "Dépôt bob/projet retiré : suivi arrêté, historique supprimé (1 commit).")
+	assertContains(t, "repo remove", r.stdout, "Repository bob/projet removed: tracking stopped, history deleted (1 commit).")
 	st := openTestStore(t, h)
 	if _, err := st.GetRepositoryByName(context.Background(), model.ProviderGitHub, "bob", "projet"); err == nil {
 		t.Error("bob/projet est encore en base")
@@ -233,19 +247,19 @@ func TestRepoRemove(t *testing.T) {
 		t.Errorf("commits gardés = %d, %v ; attendu 3", n, err)
 	}
 	r = h.run("repo", "list").mustSucceed(t)
-	if row := tableRow(t, r.stdout, "Alice Martin"); row[len(row)-1] != "arrêté" {
-		t.Errorf("ligne d'alice/projet = %q, attendu l'état « arrêté »", row)
+	if row := tableRow(t, r.stdout, "Alice Martin"); row[len(row)-1] != "stopped" {
+		t.Errorf("ligne d'alice/projet = %q, attendu l.état « stopped »", row)
 	}
 	// Une synchro de tout l'espace ignore le dépôt arrêté.
 	r = h.run("sync", "--json").mustSucceed(t)
 	assertNotContains(t, "sync après arrêt", r.stdout, "alice/projet")
 
 	r = h.run("repo", "remove", "alice/projet", "--keep-history").mustSucceed(t)
-	assertContains(t, "repo remove déjà arrêté", r.stdout, "déjà arrêté : rien n'a changé")
+	assertContains(t, "repo remove déjà arrêté", r.stdout, "already stopped: nothing changed")
 
 	// repo add reprend le suivi.
 	r = h.run("repo", "add", "alice/projet").mustSucceed(t)
-	assertContains(t, "repo add après arrêt", r.stdout, "déjà suivi, mis à jour")
+	assertContains(t, "repo add après arrêt", r.stdout, "already tracked, updated")
 	if !storedRepo(t, h, "alice", "projet").Enabled {
 		t.Error("repo add n'a pas repris le suivi")
 	}

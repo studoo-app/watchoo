@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+
+	"github.com/studoo-app/watchoo/internal/i18n"
 )
 
 // Informations de compilation, injectées par -ldflags (voir la cible build du Makefile et
@@ -83,7 +85,7 @@ func buildVersion() versionReport {
 func newVersionCmd(deps Deps, opts *options) *cobra.Command {
 	return &cobra.Command{
 		Use:   "version",
-		Short: "Affiche la version de Watchoo",
+		Short: i18n.T("cli.core.version.short"),
 		Args:  noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runVersion(deps, opts)
@@ -126,13 +128,15 @@ func runVersion(deps Deps, opts *options) error {
 		subtitle := fmt.Sprintf("%s · %s/%s", report.Go, report.OS, report.Arch)
 		if card := renderCard(term, subtitle, ""); card != "" {
 			if _, err := io.WriteString(deps.Stdout, card); err != nil {
-				return fmt.Errorf("affichage de la version : %w", err)
+				return fmt.Errorf("%s%s%w", i18n.T("cli.core.err.write_version"),
+					i18n.T("cli.core.err.sep"), err)
 			}
 			return nil
 		}
 	}
 	if _, err := fmt.Fprintf(deps.Stdout, "watchoo %s (%s)\n", report.Version, versionDetails(report)); err != nil {
-		return fmt.Errorf("affichage de la version : %w", err)
+		return fmt.Errorf("%s%s%w", i18n.T("cli.core.err.write_version"),
+			i18n.T("cli.core.err.sep"), err)
 	}
 	return nil
 }

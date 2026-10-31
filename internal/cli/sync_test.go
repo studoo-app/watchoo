@@ -27,8 +27,8 @@ func TestSyncAll(t *testing.T) {
 	if row := tableRow(t, r.stdout, "bob/projet"); row[1] != "ok" || row[2] != "1" || row[3] != "1" {
 		t.Errorf("ligne de bob/projet = %q", row)
 	}
-	assertContains(t, "sync", r.stdout, "DÉPÔT", "STATUT", "NOUVEAUX COMMITS",
-		": 2 dépôts, 4 nouveaux commits.\n", "Quota GitHub : ", "requêtes restantes (remise à zéro à 12:30).")
+	assertContains(t, "sync", r.stdout, "REPOSITORY", "STATUS", "NEW COMMITS",
+		": 2 repositories, 4 new commits.\n", "GitHub quota: ", "requests left (resets at 12:30).")
 	if r.stderr != "" {
 		t.Errorf("sortie d'erreur inattendue :\n%s", r.stderr)
 	}
@@ -74,14 +74,14 @@ func TestSyncOneRepo(t *testing.T) {
 	if len(rep.Repositories) != 1 || rep.Repositories[0].FullName != "bob/projet" || rep.Repositories[0].NewCommits != 1 {
 		t.Errorf("sync bob/projet = %+v", rep)
 	}
-	h.run("sync", "carol/projet").mustFail(t, "le dépôt carol/projet n'est pas suivi dans cet espace")
+	h.run("sync", "carol/projet").mustFail(t, "repository carol/projet is not tracked in this workspace")
 	h.run("sync", "pas un dépôt").mustFail(t, "pas un dépôt")
 }
 
 func TestSyncEmptyAndErrors(t *testing.T) {
 	h := newWorkspace(t)
 	r := h.run("sync").mustSucceed(t)
-	assertContains(t, "sync sans dépôt", r.stdout, "Aucun dépôt à synchroniser", "watchoo repo add owner/repo")
+	assertContains(t, "sync sans dépôt", r.stdout, "No repository to sync", "watchoo repo add owner/repo")
 	r = h.run("sync", "--json").mustSucceed(t)
 	var rep syncReport
 	decodeStrict(t, r.stdout, &rep)
@@ -97,15 +97,15 @@ func TestSyncEmptyAndErrors(t *testing.T) {
 	h.Provider.SetRepoError("alice", "projet", &provider.APIError{Op: "lecture du dépôt alice/projet",
 		Status: 404, Err: provider.ErrNotFound})
 	r = h.run("sync").mustCode(t, 1)
-	if row := tableRow(t, r.stdout, "alice/projet"); row[1] != "erreur" || !strings.Contains(r.stdout, "not found") {
+	if row := tableRow(t, r.stdout, "alice/projet"); row[1] != "error" || !strings.Contains(r.stdout, "not found") {
 		t.Errorf("ligne d'alice/projet = %q\n%s", row, r.stdout)
 	}
 	if row := tableRow(t, r.stdout, "bob/projet"); row[1] != "ok" {
 		t.Errorf("ligne de bob/projet = %q", row)
 	}
-	assertContains(t, "sync en erreur", r.stderr, "erreur : synchro terminée avec 1 dépôt en erreur")
+	assertContains(t, "sync en erreur", r.stderr, "error: sync finished with 1 repository in error")
 	r = h.run("repo", "list").mustSucceed(t)
-	if row := tableRow(t, r.stdout, "alice/projet"); row[len(row)-1] != "erreur" {
+	if row := tableRow(t, r.stdout, "alice/projet"); row[len(row)-1] != "error" {
 		t.Errorf("état d'alice/projet = %q, attendu « erreur »", row)
 	}
 
@@ -113,7 +113,7 @@ func TestSyncEmptyAndErrors(t *testing.T) {
 	h.Client = authtest.NewLoggedOut()
 	h.GitURL = gittest.NewServer(t).URL
 	r = h.run("sync").mustCode(t, 1)
-	assertContains(t, "sync sans gh", r.stdout, "access denied", "clones Git locaux")
+	assertContains(t, "sync sans gh", r.stdout, "access denied", "local Git clones")
 }
 
 func TestSyncDeferredAndLocked(t *testing.T) {
@@ -126,10 +126,10 @@ func TestSyncDeferredAndLocked(t *testing.T) {
 	h.Provider.SetRateLimit(provider.RateLimit{Limit: 5000, Remaining: 100, Reset: testNow.Add(45 * time.Minute)})
 	r := h.run("sync").mustSucceed(t)
 	row := tableRow(t, r.stdout, "alice/projet")
-	if row[1] != "reporté" || !strings.Contains(r.stdout, "reporté : quota bas jusqu'à 12:45") {
+	if row[1] != "deferred" || !strings.Contains(r.stdout, "deferred: low quota until 12:45") {
 		t.Errorf("sync quota bas = %q\n%s", row, r.stdout)
 	}
-	assertContains(t, "sync quota bas", r.stdout, "2 reportés")
+	assertContains(t, "sync quota bas", r.stdout, "2 deferred")
 	r = h.run("sync", "--json").mustSucceed(t)
 	var rep syncReport
 	decodeStrict(t, r.stdout, &rep)
@@ -146,11 +146,11 @@ func TestSyncDeferredAndLocked(t *testing.T) {
 		t.Fatal(err)
 	}
 	r = h.run("sync").mustSucceed(t)
-	if row := tableRow(t, r.stdout, "alice/projet"); row[1] != "ignoré" ||
+	if row := tableRow(t, r.stdout, "alice/projet"); row[1] != "skipped" ||
 		!strings.Contains(r.stdout, "déjà en cours de synchronisation") {
 		t.Errorf("sync verrouillé = %q\n%s", row, r.stdout)
 	}
-	assertContains(t, "sync verrouillé", r.stdout, "1 déjà en cours")
+	assertContains(t, "sync verrouillé", r.stdout, "1 already running")
 }
 
 func TestSyncCanceled(t *testing.T) {
@@ -160,19 +160,20 @@ func TestSyncCanceled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	r := h.runContext(ctx, "sync")
-	r.mustFail(t, "erreur : ")
-	assertContains(t, "sync annulé", r.stderr, "commande interrompue")
+	r.mustFail(t)
+	assertContains(t, "sync annulé", r.stderr, "command interrupted")
 }
 
 func TestDurationText(t *testing.T) {
+	// Anglais : séparateur décimal « . » (le français donne « 0,0 s », « 1,2 s »).
 	for d, want := range map[time.Duration]string{
 		-time.Second:                         "0 s",
-		0:                                    "0,0 s",
-		1234 * time.Millisecond:              "1,2 s",
+		0:                                    "0.0 s",
+		1234 * time.Millisecond:              "1.2 s",
 		12 * time.Second:                     "12 s",
 		3*time.Minute + 5*time.Second:        "3 min 05 s",
 		75*time.Minute + 59*time.Second:      "75 min 59 s",
-		9*time.Second + 990*time.Millisecond: "9,9 s",
+		9*time.Second + 990*time.Millisecond: "9.9 s",
 	} {
 		if got := durationText(d); got != want {
 			t.Errorf("durationText(%s) = %q, attendu %q", d, got, want)

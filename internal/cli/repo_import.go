@@ -14,6 +14,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/repoimport"
 	wsync "github.com/studoo-app/watchoo/internal/sync"
 	"github.com/studoo-app/watchoo/internal/textclean"
@@ -156,16 +157,18 @@ func readImportFile(deps Deps, file string) ([]repoimport.Entry, repoimport.Form
 		if !filepath.IsAbs(path) {
 			cwd, err := deps.Getwd()
 			if err != nil {
-				return nil, "", fmt.Errorf("répertoire courant inaccessible : %w", err)
+				return nil, "", fmt.Errorf("%s%s%w", i18n.T("cli.repo.cwd_unavailable"),
+					i18n.T("cli.core.err.sep"), err)
 			}
 			path = filepath.Join(cwd, path)
 		}
 		f, err := os.Open(path)
 		if err != nil {
 			if errors.Is(err, os.ErrNotExist) {
-				return nil, "", fmt.Errorf("fichier d'import %s introuvable", file)
+				return nil, "", errors.New(i18n.T("cli.repo.import.file_not_found", file))
 			}
-			return nil, "", fmt.Errorf("ouverture du fichier d'import : %w", err)
+			return nil, "", fmt.Errorf("%s%s%w", i18n.T("cli.repo.import.file_open"),
+				i18n.T("cli.core.err.sep"), err)
 		}
 		defer f.Close()
 		r = f
@@ -174,9 +177,10 @@ func readImportFile(deps Deps, file string) ([]repoimport.Entry, repoimport.Form
 	if err != nil {
 		var perr *repoimport.ParseError
 		if errors.As(err, &perr) {
-			return nil, "", fmt.Errorf("%s : %w ; rien n'a été importé", file, err)
+			return nil, "", importParseError(file, err)
 		}
-		return nil, "", fmt.Errorf("lecture du fichier d'import %s : %w", file, err)
+		return nil, "", fmt.Errorf("%s%s%w", i18n.T("cli.repo.import.file_read", file),
+			i18n.T("cli.core.err.sep"), err)
 	}
 	return entries, format, nil
 }
@@ -187,7 +191,7 @@ func importText(r importReport) string {
 	var b strings.Builder
 	title := "IMPORT  " + textclean.Clean(r.File)
 	if r.DryRun {
-		title += "  (simulation : rien n'a été enregistré)"
+		title += i18n.T("cli.repo.import.dry_run_title")
 	}
 	b.WriteString(title + "\n")
 	var inaccessible, errored []string
@@ -206,31 +210,31 @@ func importText(r importReport) string {
 		}
 		b.WriteString(s + "\n")
 	}
-	added := "ajoutés"
+	added := i18n.T("cli.repo.summary.added")
 	if r.DryRun {
-		added = "à ajouter"
+		added = i18n.T("cli.repo.summary.to_add")
 	}
 	line(added, r.Summary.Added, nil)
-	line("déjà suivis", r.Summary.AlreadyTracked, nil)
-	line("mis à jour", r.Summary.Updated, nil)
-	line("inaccessibles", r.Summary.Inaccessible, inaccessible)
+	line(i18n.T("cli.repo.summary.already"), r.Summary.AlreadyTracked, nil)
+	line(i18n.T("cli.repo.summary.updated"), r.Summary.Updated, nil)
+	line(i18n.T("cli.repo.summary.inaccessible"), r.Summary.Inaccessible, inaccessible)
 	if r.Summary.Errors > 0 {
-		line("en erreur", r.Summary.Errors, errored)
+		line(i18n.T("cli.repo.summary.errored"), r.Summary.Errors, errored)
 	}
-	line("lignes en erreur", 0, nil) // une ligne mal formée arrête l'import avant le bilan
+	line(i18n.T("cli.repo.summary.lines_errored"), 0, nil) // une ligne mal formée arrête l'import avant le bilan
 
 	var details []string
 	for _, e := range r.Entries {
 		if e.Outcome == wsync.OutcomeInaccessible || e.Outcome == wsync.OutcomeError {
-			details = append(details, fmt.Sprintf("  ligne %d  %s : %s", e.Line, textclean.Clean(e.Repo),
-				textclean.Clean(e.Error)))
+			details = append(details, i18n.T("cli.repo.import.line_detail", e.Line,
+				textclean.Clean(e.Repo), textclean.Clean(e.Error)))
 		}
 	}
 	if len(details) > 0 {
 		b.WriteString("\n" + strings.Join(details, "\n") + "\n")
 	}
 	if !r.DryRun && r.Summary.Added+r.Summary.Updated > 0 {
-		b.WriteString("\nLancez « watchoo sync » pour synchroniser les dépôts.\n")
+		b.WriteString(i18n.T("cli.repo.sync_hint_plural"))
 	}
 	return b.String()
 }
@@ -240,12 +244,19 @@ func importText(r importReport) string {
 func importFailure(sum importSummary, repos []string) error {
 	var parts []string
 	if sum.Inaccessible > 0 {
-		parts = append(parts, fmt.Sprintf("%d dépôt%s inaccessible%s", sum.Inaccessible, plural(sum.Inaccessible),
-			plural(sum.Inaccessible)))
+		if sum.Inaccessible > 1 {
+			parts = append(parts, i18n.T("cli.repo.import.failure_inaccessible_many", sum.Inaccessible))
+		} else {
+			parts = append(parts, i18n.T("cli.repo.import.failure_inaccessible_one"))
+		}
 	}
 	if sum.Errors > 0 {
-		parts = append(parts, fmt.Sprintf("%d dépôt%s en erreur", sum.Errors, plural(sum.Errors)))
+		if sum.Errors > 1 {
+			parts = append(parts, i18n.T("cli.repo.import.failure_errored_many", sum.Errors))
+		} else {
+			parts = append(parts, i18n.T("cli.repo.import.failure_errored_one"))
+		}
 	}
-	return fmt.Errorf("import incomplet : %s (%s) ; relancez l'import une fois l'accès donné",
-		strings.Join(parts, ", "), strings.Join(repos, ", "))
+	return errors.New(i18n.T("cli.repo.import.failure_title", strings.Join(parts, ", "),
+		strings.Join(repos, ", ")))
 }

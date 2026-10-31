@@ -112,9 +112,9 @@ func TestDashboardPage(t *testing.T) {
 		`aria-current="page">Tableau de bord`,
 		"Alice Martin", "promo/bob", "promo/carol", "promo/dave",
 		"badge-success", "badge-warning", "badge-error", "badge-neutral",
-		"Flemme · 9 j", "Dead · 40 j", "Jamais synchronisé",
+		"Slacking · 9 j", "Dead · 40 j", "Never synced",
 		"Derniers commits", "ajoute le README", "travail de Bob", "dernier signe de vie",
-		"Bob Durand", "il y a",
+		"Bob Durand", "ago",
 		// Pastille gris : dépôt jamais synchronisé, sans commit.
 		"Aucun commit connu : pas encore synchronisé",
 		// Fragments rafraîchis après une synchro.

@@ -5,6 +5,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/studoo-app/watchoo/internal/activity"
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/store"
 )
 
@@ -46,18 +48,8 @@ func newContributorsCmd(deps Deps, opts *options) *cobra.Command {
 	var weeks int
 	cmd := &cobra.Command{
 		Use:   "contributors",
-		Short: "Classe les contributeurs par nombre de commits",
-		Long: `Classe les auteurs de commits par nombre de commits, tous dépôts confondus ou pour un
-seul dépôt, sur toute la période connue ou une période récente.
-
-Les lignes ajoutées et supprimées sont comptées dans le clone Git local de chaque
-dépôt, pour tous ses commits. Elles additionnent les commits dont les statistiques
-sont connues ; « - » : aucune n'est encore connue (clone Git local indisponible).
-
-Avec --weeks N, la période est celle des N dernières semaines (du lundi au
-dimanche, dans le fuseau d'affichage, la semaine en cours comprise) et chaque
-contributeur a ses commits semaine par semaine. Avec --repo, seuls les commits du
-dépôt comptent, une fois chacun quelle que soit sa branche.`,
+		Short: i18n.T("cli.sync.contributors_short"),
+		Long:  i18n.T("cli.sync.contributors_long"),
 		Example: `  watchoo contributors --since 30d
   watchoo contributors --repo mon-org/projet-groupe-3 --weeks 12
   watchoo contributors --repo mon-org/projet-groupe-3 --json`,
@@ -66,9 +58,9 @@ dépôt comptent, une fois chacun quelle que soit sa branche.`,
 			return runContributors(cmd.Context(), deps, opts, repo, since, weeks)
 		},
 	}
-	cmd.Flags().StringVar(&repo, "repo", "", "limite au `dépôt` owner/repo")
-	cmd.Flags().StringVar(&since, "since", "", "limite à une `période` récente (ex. 30d, 7d, 12h)")
-	cmd.Flags().IntVar(&weeks, "weeks", 0, "commits par semaine sur les `N` dernières semaines (1 à 52)")
+	cmd.Flags().StringVar(&repo, "repo", "", i18n.T("cli.sync.flag_repo"))
+	cmd.Flags().StringVar(&since, "since", "", i18n.T("cli.sync.flag_since_contrib"))
+	cmd.Flags().IntVar(&weeks, "weeks", 0, i18n.T("cli.sync.flag_weeks"))
 	return cmd
 }
 
@@ -76,10 +68,10 @@ dépôt comptent, une fois chacun quelle que soit sa branche.`,
 func runContributors(ctx context.Context, deps Deps, opts *options, repoRef, since string, weeks int) (err error) {
 	// Les options sont vérifiées avant d'ouvrir l'espace : une erreur de saisie est signalée d'abord.
 	if weeks < 0 || weeks > maxContributorWeeks {
-		return fmt.Errorf("--weeks %d invalide : attendu un nombre de semaines entre 1 et %d", weeks, maxContributorWeeks)
+		return errors.New(i18n.T("cli.sync.weeks_invalid", weeks, maxContributorWeeks))
 	}
 	if weeks > 0 && since != "" {
-		return fmt.Errorf("--since et --weeks ne vont pas ensemble : --weeks fixe déjà la période (les %d dernières semaines)", weeks)
+		return errors.New(i18n.T("cli.sync.weeks_since_conflict", weeks))
 	}
 	from, err := sinceTime(since, deps.Now())
 	if err != nil {
@@ -135,14 +127,14 @@ func runContributors(ctx context.Context, deps Deps, opts *options, repoRef, sin
 		return writeJSON(deps.Stdout, report)
 	}
 	if len(ranking) == 0 {
-		msg := "Aucun contributeur"
+		msg := i18n.T("cli.sync.contributors_none")
 		if since != "" {
-			msg += " depuis " + since
+			msg += i18n.T("cli.sync.contributors_none_since", since)
 		}
 		if weeks > 0 {
-			msg += fmt.Sprintf(" sur les %d dernières semaines", weeks)
+			msg += i18n.T("cli.sync.contributors_none_weeks", weeks)
 		}
-		return writeText(deps.Stdout, msg+" (les contributeurs viennent des commits synchronisés : « watchoo sync »).\n")
+		return writeText(deps.Stdout, msg+i18n.T("cli.sync.contributors_none_hint"))
 	}
 	st := outputStyle(deps, opts)
 	if weeks > 0 {
@@ -165,8 +157,10 @@ func runContributors(ctx context.Context, deps Deps, opts *options, repoRef, sin
 			activity.Relative(c.LastCommitAt, now, s.loc, st.unicode()),
 		}
 	}
-	headers := []string{"Contributeur", "Login", "Commits", "Ajouts", "Suppressions", st.pick("Dépôts", "Depots"),
-		"Dernier commit"}
+	headers := []string{i18n.T("cli.sync.header_contributor"), "Login", "Commits",
+		i18n.T("cli.sync.header_additions"), i18n.T("cli.sync.header_deletions"),
+		st.pick(i18n.T("cli.sync.header_repos"), i18n.T("cli.sync.header_repos_ascii")),
+		i18n.T("cli.sync.header_last_commit")}
 	return writeText(deps.Stdout, renderTable(st, headers, rows, nil))
 }
 
@@ -174,7 +168,7 @@ func runContributors(ctx context.Context, deps Deps, opts *options, repoRef, sin
 // du classement, une colonne par semaine (lundi au format « 12/10 »), puis le total de la période, et
 // une ligne d'explication.
 func weeklyContributorsTable(st textStyle, ranking []store.ContributorStats, weekly activity.ContributorWeekCounts) string {
-	headers := []string{"Contributeur"}
+	headers := []string{i18n.T("cli.sync.header_contributor")}
 	for _, w := range weekly.Weeks {
 		label := w
 		if t, err := time.Parse(time.DateOnly, w); err == nil {
@@ -191,10 +185,7 @@ func weeklyContributorsTable(st textStyle, ranking []store.ContributorStats, wee
 		}
 		rows[i] = append(row, fmt.Sprint(weekly.TotalOf(c.ID)))
 	}
-	note := st.pick("Commits par semaine (du lundi au dimanche, colonnes datées du lundi, fuseau d'affichage) ; "+
-		"la dernière semaine est en cours.\n",
-		"Commits par semaine (du lundi au dimanche, colonnes datees du lundi, fuseau d'affichage) ; "+
-			"la derniere semaine est en cours.\n")
+	note := st.pick(i18n.T("cli.sync.weekly_note"), i18n.T("cli.sync.weekly_note_ascii"))
 	return renderTable(st, headers, rows, nil) + note
 }
 

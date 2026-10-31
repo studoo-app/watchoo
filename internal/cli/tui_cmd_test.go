@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/studoo-app/watchoo/internal/i18n"
 	wsync "github.com/studoo-app/watchoo/internal/sync"
 	"github.com/studoo-app/watchoo/internal/tui"
 )
@@ -42,7 +43,6 @@ func TestTUICmdRefusesNonTerminal(t *testing.T) {
 
 	h.Terminal = func() TermInfo { return TermInfo{} } // sortie redirigée
 	h.run("tui").mustFail(t, "doit être lancé dans un terminal interactif", "watchoo repo list")
-
 	h.Terminal = func() TermInfo { return TermInfo{IsTerminal: true, Width: 80} }
 	h.StdinTerminal = false // entrée redirigée
 	h.run("tui").mustFail(t, "doit être lancé dans un terminal interactif")
@@ -55,8 +55,8 @@ func TestTUICmdRefusesNonTerminal(t *testing.T) {
 func TestTUICmdRefusesJSONAndArgs(t *testing.T) {
 	h := newWorkspace(t)
 	call := onTUITerminal(h, nil)
-	h.run("tui", "--json").mustFail(t, "n'a pas de sortie JSON")
-	h.run("tui", "extra").mustFail(t, "« watchoo tui » ne prend pas d'argument")
+	h.run("tui", "--json").mustFail(t, "has no JSON output")
+	h.run("tui", "extra").mustFail(t, "takes no argument")
 	if call.calls != 0 {
 		t.Errorf("RunTUI appelé %d fois", call.calls)
 	}
@@ -137,6 +137,7 @@ func TestTUICmdInterval(t *testing.T) {
 			t.Errorf("%v : Interval = %s ; attendu %s", tt.args, call.deps.Interval, tt.want)
 		}
 	}
+	// Messages entiers d'internal/sync (AutoInterval), couche pas encore traduite.
 	h.run("tui", "--interval", "10m").mustFail(t, "--interval : 10m0s est inférieur au minimum de 15 min")
 	h.run("tui", "--interval", "-1h").mustFail(t, "--interval : -1h0m0s est négatif")
 
@@ -156,7 +157,7 @@ func TestTUICmdReturnsTUIError(t *testing.T) {
 	h := newWorkspace(t)
 	onTUITerminal(h, errors.New("mode interactif : terminal perdu"))
 	r := h.run("tui").mustFail(t, "mode interactif : terminal perdu")
-	if strings.Count(r.stderr, "erreur : ") != 1 {
+	if strings.Count(r.stderr, i18n.T("cli.core.err.line", "")) != 1 {
 		t.Errorf("erreur affichée plusieurs fois :\n%s", r.stderr)
 	}
 }

@@ -17,6 +17,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/selfupdate"
 	"github.com/studoo-app/watchoo/internal/tui"
 )
@@ -159,11 +160,11 @@ func (n *updateNotice) abandon() {
 // updateNoticeText est la phrase de l'avis de nouvelle version (CLI et « watchoo serve ») ; celle de
 // « watchoo tui » est écrite par le TUI (tui.UpdateInfo).
 func updateNoticeText(st selfupdate.Status, docker bool) string {
-	how := "Mettez-la à jour avec « watchoo update »."
+	how := i18n.T("cli.sync.update_how")
 	if docker {
-		how = "Changez le tag de l'image Docker pour la mettre à jour."
+		how = i18n.T("cli.sync.update_docker_how")
 	}
-	return fmt.Sprintf("Nouvelle version de Watchoo disponible : %s → %s. %s", st.Current, st.Latest, how)
+	return i18n.T("cli.sync.update_notice", st.Current, st.Latest, how)
 }
 
 // tuiUpdateCheck renvoie la vérification passée à « watchoo tui » (tui.Deps.UpdateCheck) : la nouvelle
@@ -219,20 +220,8 @@ func newUpdateCmd(deps Deps, opts *options) *cobra.Command {
 	var check, yes bool
 	cmd := &cobra.Command{
 		Use:   "update",
-		Short: "Met Watchoo à jour avec la dernière version publiée",
-		Long: `Met Watchoo à jour avec la dernière version publiée sur GitHub : affiche la version
-installée et la dernière, demande confirmation, télécharge l'archive de la release pour
-ce système, vérifie sa somme SHA-256 et remplace le binaire d'un bloc.
-
---check vérifie seulement, sans rien installer (--json possible). Seules les pages
-publiques des releases de Watchoo sont lues : ni token, ni API GitHub.
-
-Refusé dans l'image Docker (changez le tag de l'image), pour une version compilée
-depuis les sources (go install …@latest, ou git pull && make build) et si le
-répertoire du binaire n'est pas accessible en écriture.
-
-Un « watchoo serve » déjà lancé garde l'ancienne version jusqu'à son redémarrage ; la
-base de chaque espace est mise à niveau à la prochaine commande.`,
+		Short: i18n.T("cli.sync.update_short"),
+		Long:  i18n.T("cli.sync.update_long"),
 		Example: `  watchoo update --check
   watchoo update
   watchoo update --yes`,
@@ -244,8 +233,8 @@ base de chaque espace est mise à niveau à la prochaine commande.`,
 			return runUpdate(cmd.Context(), deps, opts, yes)
 		},
 	}
-	cmd.Flags().BoolVar(&check, "check", false, "vérifie seulement si une nouvelle version est publiée, sans rien installer")
-	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "installe sans poser de question (obligatoire hors terminal)")
+	cmd.Flags().BoolVar(&check, "check", false, i18n.T("cli.sync.flag_check"))
+	cmd.Flags().BoolVarP(&yes, "yes", "y", false, i18n.T("cli.sync.flag_yes"))
 	return cmd
 }
 
@@ -255,7 +244,8 @@ func checkLatest(ctx context.Context, deps Deps) (selfupdate.Status, error) {
 	defer cancel()
 	st, err := deps.Updater.Check(ctx, appVersion())
 	if err != nil {
-		return selfupdate.Status{}, fmt.Errorf("impossible de lire la dernière version de Watchoo : %w", err)
+		return selfupdate.Status{}, fmt.Errorf("%s%s%w", i18n.T("cli.sync.update_check_failed"),
+			i18n.T("cli.core.err.sep"), err)
 	}
 	return st, nil
 }
@@ -271,22 +261,23 @@ func runUpdateCheck(ctx context.Context, deps Deps, opts *options) error {
 		return writeJSON(deps.Stdout, updateReport{Current: st.Current, Latest: st.Latest,
 			UpdateAvailable: st.UpdateAvailable, ReleaseURL: st.ReleaseURL})
 	}
-	out := fmt.Sprintf("Version installée : %s\nDernière version : %s\n", st.Current, st.Latest)
+	out := i18n.T("cli.sync.update_check_versions", st.Current, st.Latest)
 	switch {
 	case st.UpdateAvailable:
-		out += "Nouvelle version disponible : " + st.ReleaseURL + "\n"
+		out += i18n.T("cli.sync.update_check_available", st.ReleaseURL)
 		if deps.InDocker() {
-			out += "Changez le tag de l'image Docker pour la mettre à jour.\n"
+			out += i18n.T("cli.sync.update_check_docker")
 		} else {
-			out += "Mettez-la à jour avec « watchoo update ».\n"
+			out += i18n.T("cli.sync.update_check_how")
 		}
 	case !selfupdate.IsRelease(st.Current):
-		out += "Version de développement (compilée depuis les sources) : comparaison impossible.\n"
+		out += i18n.T("cli.sync.update_check_dev")
 	default:
-		out += "Watchoo est à jour.\n"
+		out += i18n.T("cli.sync.update_check_uptodate")
 	}
 	if _, err := io.WriteString(deps.Stdout, out); err != nil {
-		return fmt.Errorf("affichage de la vérification : %w", err)
+		return fmt.Errorf("%s%s%w", i18n.T("cli.sync.update_print_check_err"),
+			i18n.T("cli.core.err.sep"), err)
 	}
 	return nil
 }
@@ -295,7 +286,7 @@ func runUpdateCheck(ctx context.Context, deps Deps, opts *options) error {
 // dit quoi faire.
 func runUpdate(ctx context.Context, deps Deps, opts *options, yes bool) error {
 	if opts.json {
-		return errors.New("« watchoo update » n'a de sortie JSON qu'avec --check : utilisez « watchoo update --check --json »")
+		return errors.New(i18n.T("cli.sync.update_no_json"))
 	}
 	current := appVersion()
 	if err := selfupdate.CheckInstallable(current, deps.InDocker()); err != nil {
@@ -315,35 +306,35 @@ func runUpdate(ctx context.Context, deps Deps, opts *options, yes bool) error {
 		return err
 	}
 	if !st.UpdateAvailable {
-		_, err := fmt.Fprintf(deps.Stdout, "Watchoo %s est à jour (dernière version publiée : %s).\n", st.Current, st.Latest)
+		_, err := fmt.Fprintf(deps.Stdout, "%s", i18n.T("cli.sync.update_uptodate", st.Current, st.Latest))
 		return err
 	}
-	if _, err := fmt.Fprintf(deps.Stdout, "Mise à jour de Watchoo : %s → %s\nNotes de version : %s\n"+
-		"Journal des modifications : %s\nBinaire : %s\n", st.Current, st.Latest, st.ReleaseURL, st.ChangelogURL, exe); err != nil {
-		return fmt.Errorf("affichage de la mise à jour : %w", err)
+	if _, err := fmt.Fprintf(deps.Stdout, "%s", i18n.T("cli.sync.update_plan", st.Current, st.Latest,
+		st.ReleaseURL, st.ChangelogURL, exe)); err != nil {
+		return fmt.Errorf("%s%s%w", i18n.T("cli.sync.update_print_err"),
+			i18n.T("cli.core.err.sep"), err)
 	}
 	if !yes {
-		ok, err := confirm(ctx, deps, fmt.Sprintf("Installer Watchoo %s ?", st.Latest))
+		ok, err := confirm(ctx, deps, i18n.T("cli.sync.update_confirm", st.Latest))
 		if err != nil {
 			return err
 		}
 		if !ok {
-			return errors.New("mise à jour annulée : rien n'a été modifié")
+			return errors.New(i18n.T("cli.sync.update_cancelled"))
 		}
 	}
 
-	fmt.Fprintf(deps.Stdout, "Téléchargement de Watchoo %s (%s/%s)…\n", st.Latest, runtime.GOOS, runtime.GOARCH)
+	fmt.Fprintf(deps.Stdout, "%s", i18n.T("cli.sync.update_downloading", st.Latest, runtime.GOOS, runtime.GOARCH))
 	installCtx, cancel := context.WithTimeout(ctx, updateInstallTimeout)
 	defer cancel()
 	if err := deps.Updater.Install(installCtx, st.Latest, exe); err != nil {
 		if errors.Is(err, selfupdate.ErrNotWritable) {
 			return notWritableError(err, dir)
 		}
-		return fmt.Errorf("mise à jour impossible (binaire inchangé) : %w", err)
+		return fmt.Errorf("%s%s%w", i18n.T("cli.sync.update_failed"),
+			i18n.T("cli.core.err.sep"), err)
 	}
-	_, err = fmt.Fprintf(deps.Stdout, "Somme SHA-256 vérifiée. Watchoo %s installé dans %s.\n"+
-		"Un « watchoo serve » déjà lancé garde l'ancienne version jusqu'à son redémarrage ; la base de chaque\n"+
-		"espace est mise à niveau (migrations) à la prochaine commande.\n", st.Latest, exe)
+	_, err = fmt.Fprintf(deps.Stdout, "%s", i18n.T("cli.sync.update_done", st.Latest, exe))
 	return err
 }
 
@@ -351,20 +342,14 @@ func runUpdate(ctx context.Context, deps Deps, opts *options, yes bool) error {
 func installableError(err error, current string) error {
 	switch {
 	case errors.Is(err, selfupdate.ErrDocker):
-		return &hintError{err: err, msg: "« watchoo update » ne s'utilise pas dans l'image Docker : changez le tag " +
-			"de l'image (ghcr.io/studoo-app/watchoo:<version>) puis recréez le conteneur, ou, avec compose, " +
-			"changez le tag dans docker-compose.yml puis « docker compose pull && docker compose up -d »"}
+		return &hintError{err: err, msg: i18n.T("cli.sync.update_err_docker")}
 	case errors.Is(err, selfupdate.ErrDevBuild):
-		return &hintError{err: err, msg: fmt.Sprintf("la version %s a été compilée depuis les sources : "+
-			"« watchoo update » ne la remplace pas ; utilisez « go install github.com/studoo-app/watchoo/cmd/watchoo@latest », "+
-			"ou « git pull && make build » dans le clone", current)}
+		return &hintError{err: err, msg: i18n.T("cli.sync.update_err_devbuild", current)}
 	}
 	return err
 }
 
 // notWritableError explique un répertoire du binaire non accessible en écriture.
 func notWritableError(err error, dir string) error {
-	return &hintError{err: err, msg: fmt.Sprintf("le répertoire du binaire, %s, n'est pas accessible en écriture : "+
-		"vérifiez ses droits, relancez avec sudo, ou réinstallez Watchoo dans un répertoire à vous avec le script "+
-		"d'installation (WATCHOO_INSTALL_DIR, voir le README, « Mise à jour »)", dir)}
+	return &hintError{err: err, msg: i18n.T("cli.sync.update_err_not_writable", dir)}
 }
