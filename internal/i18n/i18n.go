@@ -81,18 +81,42 @@ func parseLocale(v string) Lang {
 }
 
 // Le traducteur du processus (CLI et TUI) est calculé une seule fois : la locale du système ne
-// change pas en cours d'exécution.
+// change pas en cours d'exécution. Pour les tests, la langue posée par SetProcessForTest prime.
 var (
 	processOnce sync.Once
 	processTr   *Translator
+	testMu      sync.RWMutex
+	testLang    Lang // langue forcée par SetProcessForTest, vide sinon
 )
 
-// Process renvoie le traducteur de la langue du processus (CLI et TUI) : voir Detect.
+// Process renvoie le traducteur de la langue du processus (CLI et TUI) : la langue posée pour les
+// tests d'abord (voir SetProcessForTest), sinon la langue détectée une seule fois (voir Detect).
 func Process() *Translator {
+	testMu.RLock()
+	l := testLang
+	testMu.RUnlock()
+	if l != "" {
+		return For(l)
+	}
 	processOnce.Do(func() {
 		processTr = For(Detect(os.Getenv))
 	})
 	return processTr
+}
+
+// SetProcessForTest force la langue du processus, pour les tests seulement : elle prime sur la
+// détection (WATCHOO_LANG, locale du système), pour un résultat indépendant de la machine. Renvoie
+// une fonction de restauration à passer à defer.
+func SetProcessForTest(l Lang) (restore func()) {
+	testMu.Lock()
+	prev := testLang
+	testLang = l
+	testMu.Unlock()
+	return func() {
+		testMu.Lock()
+		testLang = prev
+		testMu.Unlock()
+	}
 }
 
 // T traduit une clé dans la langue du processus (voir Process). Fonction de confort pour les

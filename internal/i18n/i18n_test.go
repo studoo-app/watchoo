@@ -2,6 +2,7 @@ package i18n
 
 import (
 	"fmt"
+	"os"
 	"testing"
 )
 
@@ -94,6 +95,31 @@ func TestTranslator(t *testing.T) {
 	}
 	if got := fr.T("test.inconnue"); got != "test.inconnue" {
 		t.Errorf("clé inconnue = %q, attendu la clé elle-même %q", got, "test.inconnue")
+	}
+}
+
+// TestSetProcessForTest vérifie que la langue forcée pour les tests prime sur la détection, et que
+// la restauration remet la détection en place.
+func TestSetProcessForTest(t *testing.T) {
+	restore := SetProcessForTest(French)
+	if got := Process().Lang(); got != French {
+		t.Errorf("Process().Lang() = %q, attendu %q (langue forcée)", got, French)
+	}
+	if got := T("test.inconnue"); got != "test.inconnue" {
+		t.Errorf("T = %q, attendu la clé elle-même %q", got, "test.inconnue")
+	}
+	restore()
+	// Après restauration, la langue revient à la détection (l'environnement des tests ne contient
+	// ni WATCHOO_LANG ni une locale française) : le français ne doit plus être forcé.
+	if got := Process().Lang(); got == French {
+		env := map[string]string{}
+		for _, name := range []string{"WATCHOO_LANG", "LC_ALL", "LC_MESSAGES", "LANG"} {
+			env[name] = os.Getenv(name)
+		}
+		if l := Detect(func(name string) string { return env[name] }); l == French {
+			t.Skip("la machine est en français : la détection donne le français, ce qui est correct")
+		}
+		t.Errorf("Process().Lang() = %q après restauration, attendu une autre langue", got)
 	}
 }
 

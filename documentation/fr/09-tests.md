@@ -435,8 +435,9 @@ L'interface (CLI, TUI, web) est bilingue : **anglais par défaut**, français pa
 - Les tests écrivent leurs **propres messages en anglais** : commentaires, noms de scénarios,
   messages d'échec (`t.Errorf`, `t.Fatal`).
 - Les **textes attendus** de l'interface le sont dans la langue du test, **posée explicitement** par
-  le test (variable d'environnement ou réglage de l'espace) : l'anglais par défaut, le français dans
-  les tests dédiés ; jamais la locale de la machine, pour un résultat indépendant du système.
+  le test : `i18n.SetProcessForTest` (CLI, TUI) ou le réglage `lang` de l'espace (web) ; l'anglais
+  par défaut, le français dans les tests dédiés ; jamais la locale de la machine, pour un résultat
+  indépendant du système.
 - Le paquet `internal/i18n` a ses tests : détection de la langue (`WATCHOO_LANG` d'abord, locale du
   système, puis anglais), retour anglais puis clé pour une clé absente, formatage des arguments, et
   **exhaustivité du catalogue** : chaque clé existe dans les deux langues.

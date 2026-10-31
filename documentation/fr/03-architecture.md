@@ -746,8 +746,8 @@ font qu'afficher.
 - **Sortie `--json`** : les clés ne changent pas (schéma stable, même version de schéma) ; les valeurs de
   message (erreurs, avertissements) sont dans la langue sélectionnée.
 - **Tests** : les textes attendus sont écrits dans la langue du test, posée explicitement (anglais par
-  défaut ; français par `WATCHOO_LANG=fr` ou `lang: fr`), jamais la locale de la machine : voir
-  [Tests](09-tests.md#langues-dans-les-tests).
+  défaut ; `SetProcessForTest` pour la CLI et le TUI, réglage `lang` pour le web), jamais la locale de
+  la machine : voir [Tests](09-tests.md#langues-dans-les-tests).
 
 ### Accès aux données : sqlc
 - Les requêtes sont écrites dans `internal/store/queries/*.sql`, chacune nommée

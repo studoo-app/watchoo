@@ -743,8 +743,8 @@ display.
 - **`--json` output**: the keys do not change (stable schema, same schema version); the message
   values (errors, warnings) are in the selected language.
 - **Tests**: the expected texts are written in the test's language, set explicitly (English by
-  default; French via `WATCHOO_LANG=fr` or `lang: fr`), never the machine's locale: see
-  [Testing](09-testing.md#languages-in-tests).
+  default; `SetProcessForTest` for the CLI and the TUI, the `lang` setting for the web), never the
+  machine's locale: see [Testing](09-testing.md#languages-in-tests).
 
 ### Data access: sqlc
 - The queries are written in `internal/store/queries/*.sql`, each named
