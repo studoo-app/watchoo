@@ -9,8 +9,8 @@
 // une valeur d'option déjà nettoyée par l'appelant.
 package i18n
 
-// providerTexts regroupe les textes de internal/provider et de ses sous-paquets, ajoutés au
-// catalogue par catalogParts.
+// providerTexts regroupe les textes de internal/provider et de ses sous-paquets, enregistrés dans
+// le catalogue par le init() ci-dessous.
 var providerTexts = map[string]entry{
 	// Ponctuation des messages composés : le français garde une espace avant « : », l'anglais non.
 	"provider.err.sep": {": ", " : "},
@@ -388,4 +388,8 @@ var providerTexts = map[string]entry{
 		"unreadable date in commit %s",
 		"date illisible dans le commit %s",
 	},
+}
+
+func init() {
+	register(providerTexts)
 }
