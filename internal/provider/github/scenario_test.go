@@ -923,7 +923,7 @@ func TestScenarioAccess(t *testing.T) {
 			continue
 		}
 		scAPIError(t, err, http.StatusNotFound, "")
-		if !strings.Contains(err.Error(), "dépôt introuvable ou compte sans accès") {
+		if !strings.Contains(err.Error(), "repository not found or account without access") {
 			t.Errorf("%s : message %q", c.name, err)
 		}
 	}
@@ -1045,7 +1045,7 @@ func TestScenarioEmptyAndArchived(t *testing.T) {
 		scAPIError(t, err, http.StatusConflict, base+"/compare/"+a+"..."+b)
 	}
 	_, err = p.CommitStats(ctx, scOwner, "projet-vide", a)
-	if !errors.Is(err, provider.ErrEmptyRepository) || !strings.Contains(err.Error(), "dépôt vide") {
+	if !errors.Is(err, provider.ErrEmptyRepository) || !strings.Contains(err.Error(), "empty repository") {
 		t.Errorf("CommitStats d'un dépôt vide : %v ; veut ErrEmptyRepository", err)
 	} else {
 		scAPIError(t, err, http.StatusConflict, base+"/commits/"+a)

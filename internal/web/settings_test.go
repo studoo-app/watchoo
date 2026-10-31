@@ -139,7 +139,7 @@ func TestSettingsAddRepositoryErrors(t *testing.T) {
 		want   []string
 	}{
 		{"référence invalide", url.Values{"repo": {"<b>pas un dépôt</b>"}}, http.StatusBadRequest,
-			[]string{"invalide", `value="&lt;b&gt;pas un dépôt&lt;/b&gt;"`}},
+			[]string{"is invalid", `value="&lt;b&gt;pas un dépôt&lt;/b&gt;"`}},
 		{"URL avec identifiants", url.Values{"repo": {"https://user:secret@github.com/promo/x"}}, http.StatusBadRequest,
 			[]string{"identifiants interdits"}},
 		{"label avec caractère de contrôle", url.Values{"repo": {"promo/eve"}, "label": {"a\x1b[31mb"}}, http.StatusBadRequest,

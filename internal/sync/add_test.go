@@ -64,7 +64,7 @@ func TestAddRepositories(t *testing.T) {
 		alpha.Stars != 2 || alpha.DefaultBranch != "main" || alpha.Provider != model.ProviderGitHub {
 		t.Errorf("dépôt ajouté = %+v", alpha)
 	}
-	if res[2].Error != "dépôt introuvable ou compte sans accès" || res[2].Repo.ID != 0 {
+	if res[2].Error != "repository not found or account without access" || res[2].Repo.ID != 0 {
 		t.Errorf("inaccessible = %+v", res[2])
 	}
 	if !strings.Contains(res[3].Error, "SSO") {
@@ -183,7 +183,7 @@ func TestAddQuotaEpuise(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, r := range res {
-		if r.Outcome != wsync.OutcomeError || !strings.Contains(r.Error, "quota") {
+		if r.Outcome != wsync.OutcomeError || !strings.Contains(r.Error, "rate limit") {
 			t.Errorf("résultat = %+v", r)
 		}
 	}

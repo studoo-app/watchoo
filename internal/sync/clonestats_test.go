@@ -218,7 +218,7 @@ func TestCloneUnavailableFallsBackToAPI(t *testing.T) {
 	r0 := e.syncAll().Repos[0]
 	if r0.Status != wsync.StatusSuccess || len(r0.Warnings) != 1 ||
 		!strings.Contains(r0.Warnings[0], "clone Git local indisponible, statistiques de lignes lues par l'API") ||
-		!strings.Contains(r0.Warnings[0], "emplacement du clone occupé") {
+		!strings.Contains(r0.Warnings[0], "clone location occupied") {
 		t.Fatalf("clone occupé : %+v", r0)
 	}
 	if _, _, known := e.stats(repo.ID, m0); known || e.fake.Calls(providertest.MethodCommitStats) != 0 {
@@ -276,7 +276,7 @@ func TestCloneProviderErrorWithGH(t *testing.T) {
 		t.Fatal(err)
 	}
 	if r0 := rep.Repos[0]; r0.Status != wsync.StatusSuccess || len(r0.Warnings) != 1 ||
-		!strings.Contains(r0.Warnings[0], "git est introuvable") {
+		!strings.Contains(r0.Warnings[0], "git not found") {
 		t.Errorf("git absent avec gh : %+v", r0)
 	}
 }

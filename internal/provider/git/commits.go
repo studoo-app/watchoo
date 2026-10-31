@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/provider"
 )
 
@@ -84,7 +85,7 @@ func (p *Provider) Tags(ctx context.Context, owner, name string) ([]provider.Tag
 
 // refs lit les références sous prefix avec format (champs séparés par NUL, une référence par ligne).
 func (p *Provider) refs(ctx context.Context, owner, name, path, prefix, format string) ([][]string, error) {
-	op := fmt.Sprintf("lecture des références de %s/%s", owner, name)
+	op := i18n.T("provider.git.op.refs", owner, name)
 	res, err := p.run(ctx, p.localTimeout, gitDir(path), "for-each-ref",
 		"for-each-ref", "--format="+format, "--", prefix)
 	if err != nil {
@@ -124,7 +125,7 @@ func (p *Provider) ListCommits(ctx context.Context, owner, name string, opts pro
 	if err != nil {
 		return nil, err
 	}
-	op := fmt.Sprintf("lecture des commits de %s/%s", owner, name)
+	op := i18n.T("provider.git.op.commits", owner, name)
 	rev := remoteHEAD
 	switch {
 	case opts.Branch == "":
@@ -193,7 +194,7 @@ func (p *Provider) CompareCommits(ctx context.Context, owner, name, base, head s
 	if err != nil {
 		return nil, err
 	}
-	op := fmt.Sprintf("comparaison %s...%s de %s/%s", provider.ShortSHA(base), provider.ShortSHA(head), owner, name)
+	op := i18n.T("provider.git.op.compare", provider.ShortSHA(base), provider.ShortSHA(head), owner, name)
 	for _, rev := range []string{base, head} {
 		_, found, err := p.resolve(ctx, op, path, rev)
 		if err != nil {
@@ -223,7 +224,7 @@ func (p *Provider) CommitStats(ctx context.Context, owner, name, sha string) (pr
 	if err != nil {
 		return provider.CommitStats{}, err
 	}
-	op := fmt.Sprintf("statistiques du commit %s de %s/%s", provider.ShortSHA(sha), owner, name)
+	op := i18n.T("provider.git.op.commit_stats", provider.ShortSHA(sha), owner, name)
 	_, found, err := p.resolve(ctx, op, path, sha)
 	if err != nil {
 		return provider.CommitStats{}, err
@@ -316,12 +317,14 @@ func parseLog(out []byte, owner, name string) ([]provider.Commit, error) {
 		f := fields[i : i+logFields]
 		sha := strings.TrimLeft(f[0], "\n")
 		if provider.ValidateSHA(sha) != nil {
-			return nil, fmt.Errorf("sortie de git log illisible : %w", provider.ErrUnexpected)
+			return nil, fmt.Errorf("%s%s%w", i18n.T("provider.git.err.log_unreadable"),
+				i18n.T("provider.err.sep"), provider.ErrUnexpected)
 		}
 		authored, err1 := parseDate(f[4])
 		committed, err2 := parseDate(f[7])
 		if err1 != nil || err2 != nil {
-			return nil, fmt.Errorf("date illisible dans le commit %s : %w", provider.ShortSHA(sha), provider.ErrUnexpected)
+			return nil, fmt.Errorf("%s%s%w", i18n.T("provider.git.err.date_unreadable", provider.ShortSHA(sha)),
+				i18n.T("provider.err.sep"), provider.ErrUnexpected)
 		}
 		parents := strings.Fields(f[1])
 		if parents == nil {

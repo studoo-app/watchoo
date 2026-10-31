@@ -384,7 +384,7 @@ func TestInitWithoutGH(t *testing.T) {
 			h2 := newHarness(t)
 			h2.Client = newFake()
 			h2.GitMissing = true
-			r = h2.run("init").mustFail(t, "clones Git locaux", "git est introuvable")
+			r = h2.run("init").mustFail(t, "clones Git locaux", "git not found")
 			if strings.Count(r.stderr, "\n") != 1 {
 				t.Errorf("message sur plusieurs lignes :\n%s", r.stderr)
 			}

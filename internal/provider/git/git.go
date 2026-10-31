@@ -71,9 +71,23 @@ import (
 	gosync "sync"
 	"time"
 
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/provider"
 )
+
+// i18nError est une erreur sentinelle dont le message vient du catalogue i18n : le texte est traduit
+// au moment de l'affichage (Error), dans la langue du processus. La valeur reste comparable avec ==
+// (une structure d'un champ) : errors.Is retrouve l'erreur sentinelle à travers les emballages.
+type i18nError struct{ key string }
+
+func (e i18nError) Error() string { return i18n.T(e.key) }
+
+// errWrapped compose un texte traduit et une erreur enveloppée, avec la ponctuation de la langue
+// (« texte : err » en français, « texte: err » en anglais).
+func errWrapped(text string, err error) error {
+	return fmt.Errorf("%s%s%w", text, i18n.T("provider.err.sep"), err)
+}
 
 // Valeurs par défaut et réglages.
 const (
@@ -97,7 +111,7 @@ const (
 )
 
 // ErrGitNotFound : l'exécutable git est introuvable.
-var ErrGitNotFound = errors.New("git est introuvable : installez Git (https://git-scm.com) pour suivre les dépôts sans gh")
+var ErrGitNotFound = i18nError{"provider.git.err.not_found"}
 
 // Options règle New.
 type Options struct {
@@ -156,14 +170,14 @@ var _ provider.Provider = (*Provider)(nil)
 // New vérifie les options et construit un Provider (aucune commande lancée).
 func New(opts Options) (*Provider, error) {
 	if opts.Dir == "" {
-		return nil, errors.New("dépôts Git locaux : répertoire des clones non renseigné")
+		return nil, errors.New(i18n.T("provider.git.err.dir_missing"))
 	}
 	protocol := opts.Protocol
 	if protocol == "" {
 		protocol = ProtocolSSH
 	}
 	if protocol != ProtocolSSH && protocol != ProtocolHTTPS {
-		return nil, fmt.Errorf("dépôts Git locaux : protocole %q inconnu (%q ou %q)", protocol, ProtocolSSH, ProtocolHTTPS)
+		return nil, errors.New(i18n.T("provider.git.err.protocol_unknown", protocol, ProtocolSSH, ProtocolHTTPS))
 	}
 	gitPath := opts.GitPath
 	if gitPath == "" {
@@ -217,7 +231,7 @@ func Check(ctx context.Context, gitPath string) error {
 		if errors.Is(err, exec.ErrNotFound) || errors.Is(err, fs.ErrNotExist) {
 			return ErrGitNotFound
 		}
-		return fmt.Errorf("lancement de git : %w", ErrGitNotFound)
+		return errWrapped(i18n.T("provider.git.err.launch"), ErrGitNotFound)
 	}
 	return nil
 }
@@ -356,13 +370,13 @@ func (p *Provider) runInput(ctx context.Context, timeout time.Duration, gitDir, 
 		case ctx.Err() != nil:
 			return result{}, ctx.Err()
 		case runCtx.Err() != nil:
-			return result{}, fmt.Errorf("git %s : délai de %s dépassé : %w", name, timeout, provider.ErrUnavailable)
+			return result{}, errWrapped(i18n.T("provider.git.err.timeout", name, timeout), provider.ErrUnavailable)
 		case errors.As(err, &exitErr):
 			res.exitCode = exitErr.ExitCode()
 		case errors.Is(err, exec.ErrNotFound) || errors.Is(err, fs.ErrNotExist):
 			return result{}, ErrGitNotFound
 		default:
-			return result{}, fmt.Errorf("lancement de git %s : %w", name, ErrGitNotFound)
+			return result{}, errWrapped(i18n.T("provider.git.err.launch_cmd", name), ErrGitNotFound)
 		}
 	}
 	p.logger.Debug("commande git", "commande", name, "code", res.exitCode,
@@ -412,12 +426,12 @@ func remoteError(op string, res result) error {
 	case containsAny(stderr, accessPatterns):
 		cause = provider.ErrAccessDenied
 	}
-	return &provider.APIError{Op: fmt.Sprintf("%s (git, code %d)", op, res.exitCode), Err: cause}
+	return &provider.APIError{Op: i18n.T("provider.git.op.git_suffix", op, res.exitCode), Err: cause}
 }
 
 // localError traduit l'échec d'une commande de lecture du clone.
 func localError(op string, res result) error {
-	return &provider.APIError{Op: fmt.Sprintf("%s (git, code %d)", op, res.exitCode), Err: provider.ErrUnexpected}
+	return &provider.APIError{Op: i18n.T("provider.git.op.git_suffix", op, res.exitCode), Err: provider.ErrUnexpected}
 }
 
 // containsAny indique si s contient l'un des motifs.
@@ -432,7 +446,7 @@ func containsAny(s string, patterns []string) bool {
 
 // unsupported renvoie l'erreur d'une notion que la source ne connaît pas.
 func unsupported(op string) error {
-	return &provider.APIError{Op: op + " (dépôt Git local)", Err: provider.ErrUnsupported}
+	return &provider.APIError{Op: i18n.T("provider.git.op.local_suffix", op), Err: provider.ErrUnsupported}
 }
 
 // Repository vérifie l'accès au dépôt distant (« git ls-remote --symref <url> HEAD », sans rien
@@ -443,7 +457,7 @@ func (p *Provider) Repository(ctx context.Context, owner, name string) (provider
 	if err := provider.ValidateRepo(owner, name); err != nil {
 		return provider.Repository{}, err
 	}
-	op := fmt.Sprintf("lecture du dépôt %s/%s", owner, name)
+	op := i18n.T("provider.op.repo", owner, name)
 	res, err := p.run(ctx, p.networkTimeout, "", "ls-remote",
 		"ls-remote", "--symref", "--", p.remoteURL(owner, name), "HEAD")
 	if err != nil {
@@ -489,7 +503,7 @@ func (p *Provider) RepositoryByID(_ context.Context, id int64) (provider.Reposit
 	if err := provider.ValidateID(id); err != nil {
 		return provider.Repository{}, err
 	}
-	return provider.Repository{}, unsupported(fmt.Sprintf("lecture du dépôt d'identifiant %d", id))
+	return provider.Repository{}, unsupported(i18n.T("provider.git.op.repo_id", id))
 }
 
 // PullRequests : pas de pull requests dans un clone Git (ErrUnsupported).
@@ -497,7 +511,7 @@ func (p *Provider) PullRequests(_ context.Context, owner, name string, _ provide
 	if err := provider.ValidateRepo(owner, name); err != nil {
 		return nil, err
 	}
-	return nil, unsupported(fmt.Sprintf("lecture des pull requests de %s/%s", owner, name))
+	return nil, unsupported(i18n.T("provider.git.op.pulls", owner, name))
 }
 
 // Releases : pas de releases dans un clone Git (ErrUnsupported).
@@ -505,12 +519,12 @@ func (p *Provider) Releases(_ context.Context, owner, name string) ([]provider.R
 	if err := provider.ValidateRepo(owner, name); err != nil {
 		return nil, err
 	}
-	return nil, unsupported(fmt.Sprintf("lecture des releases de %s/%s", owner, name))
+	return nil, unsupported(i18n.T("provider.git.op.releases", owner, name))
 }
 
 // RateLimit : pas de quota pour git (ErrUnsupported).
 func (p *Provider) RateLimit(context.Context) (provider.RateLimit, error) {
-	return provider.RateLimit{}, unsupported("lecture du quota")
+	return provider.RateLimit{}, unsupported(i18n.T("provider.git.op.rate_limit"))
 }
 
 // LastRateLimit : aucun quota n'est jamais observé.

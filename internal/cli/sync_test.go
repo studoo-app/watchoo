@@ -97,7 +97,7 @@ func TestSyncEmptyAndErrors(t *testing.T) {
 	h.Provider.SetRepoError("alice", "projet", &provider.APIError{Op: "lecture du dépôt alice/projet",
 		Status: 404, Err: provider.ErrNotFound})
 	r = h.run("sync").mustCode(t, 1)
-	if row := tableRow(t, r.stdout, "alice/projet"); row[1] != "erreur" || !strings.Contains(r.stdout, "introuvable") {
+	if row := tableRow(t, r.stdout, "alice/projet"); row[1] != "erreur" || !strings.Contains(r.stdout, "not found") {
 		t.Errorf("ligne d'alice/projet = %q\n%s", row, r.stdout)
 	}
 	if row := tableRow(t, r.stdout, "bob/projet"); row[1] != "ok" {
@@ -113,7 +113,7 @@ func TestSyncEmptyAndErrors(t *testing.T) {
 	h.Client = authtest.NewLoggedOut()
 	h.GitURL = gittest.NewServer(t).URL
 	r = h.run("sync").mustCode(t, 1)
-	assertContains(t, "sync sans gh", r.stdout, "accès refusé", "clones Git locaux")
+	assertContains(t, "sync sans gh", r.stdout, "access denied", "clones Git locaux")
 }
 
 func TestSyncDeferredAndLocked(t *testing.T) {

@@ -347,7 +347,7 @@ func TestRepositoryUnexpected(t *testing.T) {
 			if !errors.Is(err, provider.ErrUnexpected) {
 				t.Fatalf("Repository : %v, veut ErrUnexpected", err)
 			}
-			apiErr := apiAPIError(t, err, "lecture du dépôt promo-2026/projet-alice", http.StatusOK)
+			apiErr := apiAPIError(t, err, "reading repository promo-2026/projet-alice", http.StatusOK)
 			if apiErr.Method != http.MethodGet || apiErr.Path != apiRepoPath {
 				t.Errorf("Method, Path = %q, %q", apiErr.Method, apiErr.Path)
 			}
@@ -355,7 +355,7 @@ func TestRepositoryUnexpected(t *testing.T) {
 			if !errors.Is(err, provider.ErrUnexpected) {
 				t.Errorf("RepositoryByID : %v, veut ErrUnexpected", err)
 			}
-			apiAPIError(t, err, "lecture du dépôt n° 1", http.StatusOK)
+			apiAPIError(t, err, "reading repository #1", http.StatusOK)
 		})
 	}
 }
@@ -384,14 +384,14 @@ func TestRepositoryErrors(t *testing.T) {
 			if !errors.Is(err, tt.want) {
 				t.Fatalf("Repository : %v, veut %v", err, tt.want)
 			}
-			apiAPIError(t, err, "lecture du dépôt promo-2026/projet-alice", tt.status)
+			apiAPIError(t, err, "reading repository promo-2026/projet-alice", tt.status)
 			apiNoLeak(t, err, canary, "docs.github.com")
 
 			_, err = p.RepositoryByID(context.Background(), apiRepoID)
 			if !errors.Is(err, tt.want) {
 				t.Errorf("RepositoryByID : %v, veut %v", err, tt.want)
 			}
-			apiAPIError(t, err, "lecture du dépôt n° 424242", tt.status)
+			apiAPIError(t, err, "reading repository #424242", tt.status)
 			apiNoLeak(t, err, canary)
 		})
 	}
@@ -585,7 +585,7 @@ func TestBranchesErrors(t *testing.T) {
 	if !errors.Is(err, provider.ErrNotFound) {
 		t.Fatalf("Branches : %v, veut ErrNotFound", err)
 	}
-	apiAPIError(t, err, "liste des branches de promo-2026/projet-alice", http.StatusNotFound)
+	apiAPIError(t, err, "listing branches of promo-2026/projet-alice", http.StatusNotFound)
 }
 
 func TestBranchesUnexpected(t *testing.T) {

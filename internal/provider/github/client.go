@@ -59,9 +59,16 @@ import (
 
 	gogithub "github.com/google/go-github/v93/github"
 
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/provider"
 )
+
+// errWrapped compose un texte traduit et une erreur enveloppée, avec la ponctuation de la langue
+// (« texte : err » en français, « texte: err » en anglais).
+func errWrapped(text string, err error) error {
+	return fmt.Errorf("%s%s%w", text, i18n.T("provider.err.sep"), err)
+}
 
 // Valeurs par défaut et constantes du client.
 const (
@@ -132,7 +139,7 @@ var _ provider.Provider = (*Provider)(nil)
 // décrivant le réglage en cause.
 func New(token string, opts Options) (*Provider, error) {
 	if !validToken(token) {
-		return nil, fmt.Errorf("token GitHub vide ou mal formé : %w", provider.ErrUnauthorized)
+		return nil, errWrapped(i18n.T("provider.github.client.token"), provider.ErrUnauthorized)
 	}
 	base, err := parseBaseURL(opts.BaseURL)
 	if err != nil {
@@ -143,12 +150,12 @@ func New(token string, opts Options) (*Provider, error) {
 		userAgent = DefaultUserAgent
 	}
 	if strings.IndexFunc(userAgent, unicode.IsControl) >= 0 || !utf8.ValidString(userAgent) {
-		return nil, errors.New("en-tête User-Agent invalide : caractère de contrôle")
+		return nil, errors.New(i18n.T("provider.github.client.useragent"))
 	}
 	timeout := opts.Timeout
 	switch {
 	case timeout < 0:
-		return nil, fmt.Errorf("délai des requêtes GitHub négatif (%s)", timeout)
+		return nil, errors.New(i18n.T("provider.github.client.timeout_negative", timeout))
 	case timeout == 0:
 		timeout = DefaultTimeout
 	}
@@ -195,7 +202,7 @@ func New(token string, opts Options) (*Provider, error) {
 		gogithub.WithDisableRateLimitCheck(),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("création du client GitHub : %w", err)
+		return nil, errWrapped(i18n.T("provider.github.client.create"), err)
 	}
 	return &Provider{
 		client: client,
@@ -231,19 +238,19 @@ func parseBaseURL(raw string) (*url.URL, error) {
 	}
 	u, err := url.Parse(raw)
 	if err != nil {
-		return nil, fmt.Errorf("URL de l'API GitHub invalide : %w", err)
+		return nil, errWrapped(i18n.T("provider.github.client.baseurl_invalid"), err)
 	}
 	switch {
 	case u.Host == "" || u.Opaque != "":
-		return nil, fmt.Errorf("URL de l'API GitHub %q invalide : URL absolue attendue", raw)
+		return nil, errors.New(i18n.T("provider.github.client.baseurl_not_absolute", raw))
 	case u.User != nil:
-		return nil, errors.New("URL de l'API GitHub invalide : elle ne doit pas contenir d'identifiants")
+		return nil, errors.New(i18n.T("provider.github.client.baseurl_credentials"))
 	case u.RawQuery != "" || u.Fragment != "" || u.ForceQuery:
-		return nil, fmt.Errorf("URL de l'API GitHub %q invalide : ni paramètres ni fragment", raw)
+		return nil, errors.New(i18n.T("provider.github.client.baseurl_query", raw))
 	case u.Scheme == "https":
 	case u.Scheme == "http" && isLoopback(u.Hostname()):
 	default:
-		return nil, fmt.Errorf("URL de l'API GitHub %q refusée : https obligatoire (http seulement vers 127.0.0.1, ::1 ou localhost)", raw)
+		return nil, errors.New(i18n.T("provider.github.client.baseurl_https", raw))
 	}
 	if !strings.HasSuffix(u.Path, "/") {
 		u.Path += "/"
@@ -294,10 +301,10 @@ func portOf(u *url.URL) string {
 func checkRedirect(origin *url.URL) func(req *http.Request, via []*http.Request) error {
 	return func(req *http.Request, via []*http.Request) error {
 		if len(via) >= maxRedirects {
-			return fmt.Errorf("plus de %d redirections : %w", maxRedirects, provider.ErrUnexpected)
+			return errWrapped(i18n.T("provider.github.client.too_many_redirects", maxRedirects), provider.ErrUnexpected)
 		}
 		if !sameOrigin(req.URL, origin) {
-			return fmt.Errorf("redirection vers un autre hôte (%s) refusée : %w", req.URL.Host, provider.ErrUnexpected)
+			return errWrapped(i18n.T("provider.github.client.redirect_other_host", req.URL.Host), provider.ErrUnexpected)
 		}
 		return nil
 	}

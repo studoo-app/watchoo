@@ -7,6 +7,8 @@ import (
 	"strings"
 	"unicode"
 	"unicode/utf8"
+
+	"github.com/studoo-app/watchoo/internal/i18n"
 )
 
 // Règles de validation, appliquées avant toute requête : go-github n'échappe pas owner et nom de dépôt
@@ -32,7 +34,7 @@ const maxQuotedRunes = 60
 // A-Z a-z 0-9 et « - », sans « - » en tête. Erreur enveloppant ErrInvalidRef sinon.
 func ValidateOwner(owner string) error {
 	if !ownerPattern.MatchString(owner) {
-		return fmt.Errorf("propriétaire de dépôt %s invalide : %w", quote(owner), ErrInvalidRef)
+		return errInvalidRef("provider.validate.owner", quote(owner))
 	}
 	return nil
 }
@@ -48,7 +50,7 @@ func ValidLogin(login string) bool {
 // que « . » et « .. ». Erreur enveloppant ErrInvalidRef sinon.
 func ValidateName(name string) error {
 	if !namePattern.MatchString(name) || name == "." || name == ".." {
-		return fmt.Errorf("nom de dépôt %s invalide : %w", quote(name), ErrInvalidRef)
+		return errInvalidRef("provider.validate.name", quote(name))
 	}
 	return nil
 }
@@ -65,7 +67,7 @@ func ValidateRepo(owner, name string) error {
 // 64 (SHA-256). Erreur enveloppant ErrInvalidRef sinon.
 func ValidateSHA(sha string) error {
 	if !shaPattern.MatchString(sha) {
-		return fmt.Errorf("SHA de commit %s invalide : %w", quote(sha), ErrInvalidRef)
+		return errInvalidRef("provider.validate.sha", quote(sha))
 	}
 	return nil
 }
@@ -77,11 +79,11 @@ func ValidateSHA(sha string) error {
 func ValidateBranch(branch string) error {
 	switch {
 	case branch == "":
-		return fmt.Errorf("nom de branche vide : %w", ErrInvalidRef)
+		return errInvalidRef("provider.validate.branch_empty")
 	case len(branch) > MaxBranchBytes:
-		return fmt.Errorf("nom de branche trop long (%d octets, %d au plus) : %w", len(branch), MaxBranchBytes, ErrInvalidRef)
+		return errInvalidRef("provider.validate.branch_too_long", len(branch), MaxBranchBytes)
 	case !utf8.ValidString(branch) || strings.IndexFunc(branch, unicode.IsControl) >= 0:
-		return fmt.Errorf("nom de branche %s invalide : %w", quote(branch), ErrInvalidRef)
+		return errInvalidRef("provider.validate.branch", quote(branch))
 	}
 	return nil
 }
@@ -90,9 +92,15 @@ func ValidateBranch(branch string) error {
 // ErrInvalidRef sinon.
 func ValidateID(id int64) error {
 	if id <= 0 {
-		return fmt.Errorf("identifiant de dépôt %d invalide : %w", id, ErrInvalidRef)
+		return errInvalidRef("provider.validate.id", id)
 	}
 	return nil
+}
+
+// errInvalidRef compose le message traduit de la clé key (formatée avec args) et la cause
+// ErrInvalidRef, avec la ponctuation de la langue.
+func errInvalidRef(key string, args ...any) error {
+	return fmt.Errorf("%s%s%w", i18n.T(key, args...), i18n.T("provider.err.sep"), ErrInvalidRef)
 }
 
 // quote cite une valeur reçue dans un message d'erreur : entre guillemets, caractères de contrôle et

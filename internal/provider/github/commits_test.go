@@ -409,7 +409,7 @@ func TestListCommitsUnknownBranch(t *testing.T) {
 	if !errors.Is(err, provider.ErrNotFound) {
 		t.Fatalf("ListCommits : %v, veut ErrNotFound", err)
 	}
-	apiAPIError(t, err, "liste des commits de promo-2026/projet-alice", http.StatusNotFound)
+	apiAPIError(t, err, "listing commits of promo-2026/projet-alice", http.StatusNotFound)
 	apiNoLeak(t, err, "supprimee")
 }
 
@@ -623,7 +623,7 @@ func TestCompareCommitsUnknownBase(t *testing.T) {
 	if errors.Is(err, provider.ErrNotFound) {
 		t.Errorf("l'erreur ne doit pas satisfaire ErrNotFound : %v", err)
 	}
-	apiErr := apiAPIError(t, err, "comparaison 747ca7d...df4cb7b dans promo-2026/projet-alice", http.StatusNotFound)
+	apiErr := apiAPIError(t, err, "comparing 747ca7d...df4cb7b in promo-2026/projet-alice", http.StatusNotFound)
 	if apiErr.Path != apiComparePath || apiErr.Method != http.MethodGet {
 		t.Errorf("Method, Path = %q, %q", apiErr.Method, apiErr.Path)
 	}
@@ -656,7 +656,7 @@ func TestCompareCommitsEmptyRepository(t *testing.T) {
 	if !errors.Is(err, provider.ErrEmptyRepository) {
 		t.Fatalf("CompareCommits : %v, veut ErrEmptyRepository", err)
 	}
-	apiAPIError(t, err, "comparaison 747ca7d...df4cb7b dans promo-2026/projet-alice", http.StatusConflict)
+	apiAPIError(t, err, "comparing 747ca7d...df4cb7b in promo-2026/projet-alice", http.StatusConflict)
 	if s.count(apiRepoPath) != 0 {
 		t.Error("un 409 ne doit pas entraîner de relecture du dépôt")
 	}
@@ -732,7 +732,7 @@ func TestCommitStatsUnexpected(t *testing.T) {
 			if !errors.Is(err, provider.ErrUnexpected) {
 				t.Fatalf("CommitStats : %v, veut ErrUnexpected", err)
 			}
-			apiAPIError(t, err, "statistiques du commit aff84fa de promo-2026/projet-alice", http.StatusOK)
+			apiAPIError(t, err, "statistics of commit aff84fa in promo-2026/projet-alice", http.StatusOK)
 		})
 	}
 	// Des statistiques à zéro (commit vide) sont valides.
@@ -770,7 +770,7 @@ func TestCommitStatsErrors(t *testing.T) {
 			t.Errorf("CommitStats (422 %s) : %v, veut ErrUnexpected sans ErrNotFound", provider.ShortSHA(sha), err)
 			continue
 		}
-		apiAPIError(t, err, "statistiques du commit "+provider.ShortSHA(sha)+" de promo-2026/projet-alice", http.StatusUnprocessableEntity)
+		apiAPIError(t, err, "statistics of commit "+provider.ShortSHA(sha)+" in promo-2026/projet-alice", http.StatusUnprocessableEntity)
 		apiNoLeak(t, err, "taking too long", "Validation Failed", "docs.github.com")
 	}
 
@@ -783,7 +783,7 @@ func TestCommitStatsErrors(t *testing.T) {
 	if !errors.Is(err, provider.ErrNotFound) || errors.Is(err, provider.ErrUnexpected) {
 		t.Fatalf("CommitStats (422) : %v, veut ErrNotFound", err)
 	}
-	apiErr := apiAPIError(t, err, "statistiques du commit d0d0d0d de promo-2026/projet-alice", http.StatusUnprocessableEntity)
+	apiErr := apiAPIError(t, err, "statistics of commit d0d0d0d in promo-2026/projet-alice", http.StatusUnprocessableEntity)
 	if apiErr.Path != apiCommitsPath+"/"+gone {
 		t.Errorf("Path = %q", apiErr.Path)
 	}

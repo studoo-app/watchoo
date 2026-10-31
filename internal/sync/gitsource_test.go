@@ -89,7 +89,7 @@ func TestGitSourceAddAndSync(t *testing.T) {
 		dry[2].Outcome != wsync.OutcomeInaccessible {
 		t.Errorf("dry-run : %v %v %v", dry[0].Outcome, dry[1].Outcome, dry[2].Outcome)
 	}
-	if !strings.HasPrefix(dry[2].Error, "accès refusé") {
+	if !strings.HasPrefix(dry[2].Error, "access denied") {
 		t.Errorf("message d'un dépôt inaccessible : %q", dry[2].Error)
 	}
 	res, err := e.eng.AddRepositories(ctx, reqs[:1], wsync.AddOptions{})
@@ -145,7 +145,7 @@ func TestGitSourceAddAndSync(t *testing.T) {
 	// Dépôt devenu inaccessible : en erreur, « accès refusé ».
 	r.Remove()
 	rep = e.syncAll()
-	if r0 := rep.Repos[0]; r0.Status != wsync.StatusError || !strings.Contains(r0.Error, "accès refusé") {
+	if r0 := rep.Repos[0]; r0.Status != wsync.StatusError || !strings.Contains(r0.Error, "access denied") {
 		t.Errorf("dépôt inaccessible : %+v", r0)
 	}
 

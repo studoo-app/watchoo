@@ -90,7 +90,7 @@ func TestRateLimitUnexpected(t *testing.T) {
 			if !errors.Is(err, provider.ErrUnexpected) {
 				t.Fatalf("RateLimit : %v, veut ErrUnexpected", err)
 			}
-			apiAPIError(t, err, "lecture du quota de l'API", http.StatusOK)
+			apiAPIError(t, err, "reading the GitHub API rate limit", http.StatusOK)
 			if rl, ok := p.LastRateLimit(); ok {
 				t.Errorf("LastRateLimit = %+v après une réponse inexploitable", rl)
 			}
@@ -106,6 +106,6 @@ func TestRateLimitErrors(t *testing.T) {
 	if !errors.Is(err, provider.ErrUnauthorized) {
 		t.Fatalf("RateLimit : %v, veut ErrUnauthorized", err)
 	}
-	apiAPIError(t, err, "lecture du quota de l'API", http.StatusUnauthorized)
+	apiAPIError(t, err, "reading the GitHub API rate limit", http.StatusUnauthorized)
 	apiNoLeak(t, err, "Bad credentials")
 }

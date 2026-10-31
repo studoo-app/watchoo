@@ -133,7 +133,7 @@ func TestStatusLoggedOut(t *testing.T) {
 	h.Client = authtest.NewLoggedIn("")
 	h.Provider.SetError(providertest.MethodRateLimit, provider.ErrUnavailable)
 	r = h.run("status").mustSucceed(t)
-	assertContains(t, "status quota en erreur", r.stdout, "Quota GitHub : inconnu (lecture du quota : GitHub est injoignable")
+	assertContains(t, "status quota en erreur", r.stdout, "Quota GitHub : inconnu (lecture du quota : GitHub is unreachable")
 }
 
 // Sur un terminal, status commence par la carte d'en-tête ; jamais en JSON ni hors terminal.

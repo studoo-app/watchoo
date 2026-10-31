@@ -92,7 +92,7 @@ func TestRepoAddErrors(t *testing.T) {
 		"--label : caractère de contrôle interdit")
 	h.run("repo", "add", "alice/projet", "--label", "ligne1\nligne2").mustFail(t, "--label : caractère de contrôle")
 	h.run("repo", "add", "carol/projet").mustFail(t, "dépôt carol/projet inaccessible",
-		"dépôt introuvable ou compte sans accès")
+		"repository not found or account without access")
 	h.run("repo", "add", "carol/projet", "--json").mustFail(t, "inaccessible")
 
 	h.Provider.SetRepoError("bob", "projet", &provider.SSORequiredError{Organization: "promo"})
@@ -102,7 +102,7 @@ func TestRepoAddErrors(t *testing.T) {
 	// refusé, rien d'enregistré.
 	h.Client = authtest.NewLoggedOut()
 	h.GitURL = gittest.NewServer(t).URL
-	h.run("repo", "add", "alice/projet").mustFail(t, "dépôt alice/projet inaccessible", "accès refusé")
+	h.run("repo", "add", "alice/projet").mustFail(t, "dépôt alice/projet inaccessible", "access denied")
 	if repos, err := openTestStore(t, h).ListRepositories(context.Background()); err != nil || len(repos) != 0 {
 		t.Errorf("dépôts enregistrés malgré les erreurs : %v, %v", repos, err)
 	}

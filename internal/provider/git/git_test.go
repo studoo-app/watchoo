@@ -354,7 +354,7 @@ func TestAccessDeniedWithoutPrompt(t *testing.T) {
 	// Dépôt absent du « serveur » : git échoue sans rien demander (aucune entrée standard).
 	if _, err := p.Repository(ctx, "alice", "absent"); !errors.Is(err, provider.ErrAccessDenied) {
 		t.Errorf("Repository(absent) : %v, ErrAccessDenied attendue", err)
-	} else if !strings.Contains(err.Error(), "accès refusé") || strings.Contains(err.Error(), srv.URL) {
+	} else if !strings.Contains(err.Error(), "access denied") || strings.Contains(err.Error(), srv.URL) {
 		t.Errorf("message : %q", err)
 	}
 	if _, err := p.Branches(ctx, "alice", "absent"); !errors.Is(err, provider.ErrAccessDenied) {

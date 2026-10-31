@@ -11,6 +11,8 @@ import (
 	"runtime/debug"
 	"sync"
 	"testing"
+
+	"github.com/studoo-app/watchoo/internal/i18n"
 )
 
 // fakeGHPath est le chemin du faux gh (internal/auth/testdata/fakegh) compilé par TestMain, pour les
@@ -25,8 +27,11 @@ func TestMain(m *testing.M) {
 	os.Exit(runTests(m))
 }
 
-// runTests compile le faux gh, redirige les logs, puis lance les tests.
+// runTests compile le faux gh, force la langue des messages (anglais : les textes attendus des tests
+// sont écrits dans cette langue, voir documentation/en/09-testing.md, « Languages in tests »), redirige
+// les logs, puis lance les tests.
 func runTests(m *testing.M) int {
+	i18n.SetProcessForTest(i18n.English)
 	dir, err := os.MkdirTemp("", "watchoo-cli-fakegh-")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "création du répertoire du faux gh : %v\n", err)

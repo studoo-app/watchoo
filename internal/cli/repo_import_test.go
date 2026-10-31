@@ -44,7 +44,7 @@ func TestRepoImport(t *testing.T) {
 		"  inaccessibles      1   carol/projet\n" +
 		"  lignes en erreur   0\n" +
 		"\n" +
-		"  ligne 5  carol/projet : dépôt introuvable ou compte sans accès\n"
+		"  ligne 5  carol/projet : repository not found or account without access\n"
 	if r.stdout != want {
 		t.Errorf("import --dry-run =\n%s\nattendu :\n%s", r.stdout, want)
 	}

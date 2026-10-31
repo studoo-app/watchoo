@@ -7,7 +7,6 @@ package git
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -15,6 +14,7 @@ import (
 	"strings"
 	gosync "sync"
 
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/provider"
 )
 
@@ -195,10 +195,10 @@ func RemoveClone(dir string, repos []Ref, owner, name string) error {
 	}
 	switch state, err := inspect(path, owner, name); {
 	case err != nil:
-		return fmt.Errorf("suppression du clone de %s/%s : %w", owner, name, err)
+		return errWrapped(i18n.T("provider.git.err.remove_clone", owner, name), err)
 	case state == stateOwned:
 		if err := os.RemoveAll(path); err != nil {
-			return fmt.Errorf("suppression du clone de %s/%s : %w", owner, name, err)
+			return errWrapped(i18n.T("provider.git.err.remove_clone", owner, name), err)
 		}
 	}
 	var rest []Ref
@@ -208,7 +208,7 @@ func RemoveClone(dir string, repos []Ref, owner, name string) error {
 		}
 	}
 	if err := relocate(dir, before, NewLayout(dir, rest), rest); err != nil {
-		return fmt.Errorf("suppression du clone de %s/%s : %w", owner, name, err)
+		return errWrapped(i18n.T("provider.git.err.remove_clone", owner, name), err)
 	}
 	return nil
 }
@@ -274,7 +274,7 @@ func (p *Provider) state(owner, name string) *repoState {
 
 // ErrCloneDirOccupied : l'emplacement du clone est pris par autre chose qu'un clone de Watchoo pour
 // ce dépôt (répertoire de l'utilisateur, clone d'un autre dépôt) ; Watchoo n'y touche pas.
-var ErrCloneDirOccupied = errors.New("emplacement du clone occupé par un répertoire que Watchoo n'a pas créé pour ce dépôt")
+var ErrCloneDirOccupied = i18nError{"provider.git.err.clone_occupied"}
 
 // ensure renvoie le chemin du clone de owner/name (déjà validés), après l'avoir créé ou mis à jour
 // une fois pour ce Provider. Les appels concurrents pour un même dépôt attendent la même mise à jour ;
@@ -290,7 +290,7 @@ func (p *Provider) ensure(ctx context.Context, owner, name string) (string, erro
 	if st.fetched {
 		return path, nil
 	}
-	op := fmt.Sprintf("clone du dépôt %s/%s", owner, name)
+	op := i18n.T("provider.git.op.clone", owner, name)
 	state, err := inspect(path, owner, name)
 	if err != nil {
 		return "", &provider.APIError{Op: op, Err: err}
@@ -306,7 +306,7 @@ func (p *Provider) ensure(ctx context.Context, owner, name string) (string, erro
 	case stateAbsent:
 		err = p.clone(ctx, owner, name, path)
 	default:
-		return "", &provider.APIError{Op: fmt.Sprintf("%s dans %s", op, filepath.Base(path)), Err: ErrCloneDirOccupied}
+		return "", &provider.APIError{Op: i18n.T("provider.git.op.in_dir", op, filepath.Base(path)), Err: ErrCloneDirOccupied}
 	}
 	if err != nil {
 		return "", err
@@ -320,7 +320,7 @@ func (p *Provider) ensure(ctx context.Context, owner, name string) (string, erro
 // path). Le dépôt est créé par « git init » puis « git fetch » plutôt que par « git clone » : une
 // seule façon de lire le distant, et aucun remote enregistré (l'URL est passée à chaque fetch).
 func (p *Provider) clone(ctx context.Context, owner, name, path string) error {
-	op := fmt.Sprintf("clone du dépôt %s/%s", owner, name)
+	op := i18n.T("provider.git.op.clone", owner, name)
 	if err := mkdirPrivate(p.dir); err != nil {
 		return &provider.APIError{Op: op, Err: err}
 	}
@@ -367,7 +367,7 @@ func (p *Provider) update(ctx context.Context, owner, name, path string) error {
 // distant (l'URL est passée à chaque fois : aucun remote enregistré n'est utilisé, et un changement de
 // git.protocol s'applique), sans sous-module.
 func (p *Provider) fetch(ctx context.Context, owner, name, path string) error {
-	op := fmt.Sprintf("mise à jour du dépôt %s/%s", owner, name)
+	op := i18n.T("provider.git.op.update", owner, name)
 	args := []string{"fetch", "--quiet", "--prune", "--no-tags", "--no-write-fetch-head",
 		"--no-recurse-submodules", "--", p.remoteURL(owner, name)}
 	args = append(args, fetchRefspecs...)
@@ -387,7 +387,7 @@ func (p *Provider) fetch(ctx context.Context, owner, name, path string) error {
 // non suivis sont gardés (pas de « git clean »). origin/HEAD désigne ensuite origin/<défaut>. Dépôt
 // vide (ou branche par défaut absente) : rien à extraire, la copie de travail reste telle quelle.
 func (p *Provider) checkout(ctx context.Context, owner, name, path string) error {
-	op := fmt.Sprintf("mise à jour de la copie de travail de %s/%s", owner, name)
+	op := i18n.T("provider.git.op.checkout", owner, name)
 	branch, err := p.defaultBranch(ctx, owner, name)
 	if err != nil {
 		return err

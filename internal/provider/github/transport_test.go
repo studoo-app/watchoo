@@ -950,7 +950,7 @@ func TestTransportPrimaryWithRetryAfter(t *testing.T) {
 				if rle.Secondary || !rle.Reset.Equal(tt.reset) {
 					t.Errorf("%s : Secondary %v, Reset %s ; veut quota épuisé jusqu'au %s", what, rle.Secondary, rle.Reset, tt.reset)
 				}
-				if strings.Contains(e.Error(), "limite secondaire") {
+				if strings.Contains(e.Error(), "secondary") {
 					t.Errorf("%s : %q ne doit pas parler de limite secondaire", what, e)
 				}
 			}
@@ -1117,7 +1117,7 @@ func TestTransportReadErrorWhileCaching(t *testing.T) {
 	p := trNew(t, s.srv.URL, testToken, Options{}, nil)
 	_, resp, err := trGet(context.Background(), p, "repos/alice/projet")
 	e := p.convertError(context.Background(), "lecture du dépôt alice/projet", resp, err)
-	if !errors.Is(e, provider.ErrUnavailable) || !strings.Contains(e.Error(), "connexion interrompue") {
+	if !errors.Is(e, provider.ErrUnavailable) || !strings.Contains(e.Error(), "connection interrupted") {
 		t.Errorf("corps incomplet : %v", e)
 	}
 	if p.cache.Len() != 0 {

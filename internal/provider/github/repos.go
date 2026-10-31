@@ -20,12 +20,12 @@ package github
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"time"
 
 	gogithub "github.com/google/go-github/v93/github"
 
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/provider"
 )
 
@@ -60,7 +60,7 @@ func (p *Provider) Repository(ctx context.Context, owner, name string) (provider
 	if err := provider.ValidateRepo(owner, name); err != nil {
 		return provider.Repository{}, err
 	}
-	op := "lecture du dépôt " + owner + "/" + name
+	op := i18n.T("provider.op.repo", owner, name)
 	repo, resp, err := p.client.Repositories.Get(ctx, owner, name)
 	if err != nil {
 		return provider.Repository{}, p.convertError(ctx, op, resp, err)
@@ -74,7 +74,7 @@ func (p *Provider) RepositoryByID(ctx context.Context, id int64) (provider.Repos
 	if err := provider.ValidateID(id); err != nil {
 		return provider.Repository{}, err
 	}
-	op := fmt.Sprintf("lecture du dépôt n° %d", id)
+	op := i18n.T("provider.github.op.repo_id", id)
 	repo, resp, err := p.client.Repositories.GetByID(ctx, id)
 	if err != nil {
 		return provider.Repository{}, p.convertError(ctx, op, resp, err)
@@ -114,7 +114,7 @@ func (p *Provider) Branches(ctx context.Context, owner, name string) ([]provider
 	if err := provider.ValidateRepo(owner, name); err != nil {
 		return nil, err
 	}
-	op := "liste des branches de " + owner + "/" + name
+	op := i18n.T("provider.github.op.branches", owner, name)
 	opts := &gogithub.BranchListOptions{ListOptions: gogithub.ListOptions{PerPage: PerPage, Page: 1}}
 	branches := make([]provider.Branch, 0)
 	pages, stop := 0, stopLastPage

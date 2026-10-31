@@ -334,7 +334,7 @@ func TestConvertErrorNetwork(t *testing.T) {
 		srv.Close()
 		p, e := trConvertNoServer(t, srv.URL, Options{})
 		trCheckSentinels(t, e, provider.ErrUnavailable)
-		if !strings.Contains(e.Error(), "connexion impossible") {
+		if !strings.Contains(e.Error(), "connection failed") {
 			t.Errorf("message : %v", e)
 		}
 		_ = p
@@ -364,7 +364,7 @@ func TestConvertErrorNetwork(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			_, e := trConvert(t, tt.handler, Options{Timeout: 100 * time.Millisecond}, tt.status)
 			trCheckSentinels(t, e, provider.ErrUnavailable)
-			if !strings.Contains(e.Error(), "délai dépassé") {
+			if !strings.Contains(e.Error(), "timed out") {
 				t.Errorf("message : %v", e)
 			}
 			if errors.Is(e, context.DeadlineExceeded) {
@@ -379,7 +379,7 @@ func TestConvertErrorNetwork(t *testing.T) {
 			_, _ = io.WriteString(w, `{"id":`)
 		}), Options{}, http.StatusOK)
 		trCheckSentinels(t, e, provider.ErrUnavailable)
-		if !strings.Contains(e.Error(), "connexion interrompue") {
+		if !strings.Contains(e.Error(), "connection interrupted") {
 			t.Errorf("message : %v", e)
 		}
 	})
@@ -389,11 +389,11 @@ func TestConvertErrorNetwork(t *testing.T) {
 			err    error
 			nature string
 		}{
-			{&net.DNSError{Err: "no such host", Name: "api.github.com", IsNotFound: true}, "nom d'hôte introuvable"},
+			{&net.DNSError{Err: "no such host", Name: "api.github.com", IsNotFound: true}, "host name not found"},
 			{&tls.CertificateVerificationError{Err: errors.New("x509: certificate signed by unknown authority")}, "TLS"},
-			{&net.OpError{Op: "read", Net: "tcp", Err: os.NewSyscallError("read", syscall.ECONNRESET)}, "connexion interrompue"},
-			{io.EOF, "connexion interrompue"},
-			{errors.New("proxyconnect tcp: dial tcp 10.0.0.1:3128: refus"), "erreur réseau"},
+			{&net.OpError{Op: "read", Net: "tcp", Err: os.NewSyscallError("read", syscall.ECONNRESET)}, "connection interrupted"},
+			{io.EOF, "connection interrupted"},
+			{errors.New("proxyconnect tcp: dial tcp 10.0.0.1:3128: refus"), "network error"},
 		} {
 			base := trRoundTripFunc(func(*http.Request) (*http.Response, error) { return nil, tt.err })
 			_, e := trConvertNoServer(t, "https://api.github.com/", Options{Transport: base})
@@ -458,18 +458,18 @@ func TestConvertErrorCallerContext(t *testing.T) {
 	t.Run("annulé avant", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
-		check(t, ctx, "repos/alice/projet", context.Canceled, "requête annulée")
+		check(t, ctx, "repos/alice/projet", context.Canceled, "request canceled")
 	})
 	t.Run("annulé pendant", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		go func() { <-arrived; cancel() }()
-		check(t, ctx, "repos/alice/projet", context.Canceled, "requête annulée")
+		check(t, ctx, "repos/alice/projet", context.Canceled, "request canceled")
 	})
 	for _, path := range []string{"repos/alice/projet", "repos/alice/corps", "repos/alice/corps?etag=1"} {
 		t.Run("expiré "+path, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 			defer cancel()
-			check(t, ctx, path, context.DeadlineExceeded, "délai de l'appelant dépassé")
+			check(t, ctx, path, context.DeadlineExceeded, "caller's deadline exceeded")
 		})
 	}
 }
@@ -593,15 +593,15 @@ func TestConvertErrorContextDecides(t *testing.T) {
 		ctxDone bool   // l'erreur doit envelopper ctx.Err(), et aucune sentinelle du package provider
 	}{
 		{"délai brut, contexte de l'appelant actif", context.Background(), context.DeadlineExceeded,
-			provider.ErrUnavailable, "délai dépassé", false},
+			provider.ErrUnavailable, "timed out", false},
 		{"délai enveloppé, contexte de l'appelant actif", context.Background(),
-			fmt.Errorf("lecture du corps : %w", context.DeadlineExceeded), provider.ErrUnavailable, "délai dépassé", false},
+			fmt.Errorf("lecture du corps : %w", context.DeadlineExceeded), provider.ErrUnavailable, "timed out", false},
 		{"délai brut, échéance de l'appelant dépassée", expired, context.DeadlineExceeded,
-			context.DeadlineExceeded, "délai de l'appelant dépassé", true},
+			context.DeadlineExceeded, "caller's deadline exceeded", true},
 		{"délai du client, échéance de l'appelant dépassée", expired, trLookalike{},
-			context.DeadlineExceeded, "délai de l'appelant dépassé", true},
-		{"annulation, contexte annulé", canceled, context.Canceled, context.Canceled, "requête annulée", true},
-		{"cause personnalisée, contexte annulé", stopped, cause, context.Canceled, "requête annulée", true},
+			context.DeadlineExceeded, "caller's deadline exceeded", true},
+		{"annulation, contexte annulé", canceled, context.Canceled, context.Canceled, "request canceled", true},
+		{"cause personnalisée, contexte annulé", stopped, cause, context.Canceled, "request canceled", true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -643,13 +643,13 @@ func (trLookalike) Timeout() bool        { return true }
 // TestFailureNature vérifie la description des échecs de transport.
 func TestFailureNature(t *testing.T) {
 	tests := map[string]error{
-		"nom d'hôte introuvable":               &net.DNSError{Err: "no such host", Name: "x", IsTimeout: true},
-		"délai dépassé":                        trLookalike{},
-		"requête annulée":                      fmt.Errorf("x : %w", context.Canceled),
-		"connexion sécurisée (TLS) impossible": tls.RecordHeaderError{Msg: "first record does not look like a TLS handshake"},
-		"connexion impossible":                 &net.OpError{Op: "dial", Net: "tcp", Err: syscall.ECONNREFUSED},
-		"connexion interrompue":                io.ErrUnexpectedEOF,
-		"erreur réseau":                        errors.New("autre"),
+		"host name not found":            &net.DNSError{Err: "no such host", Name: "x", IsTimeout: true},
+		"timed out":                      trLookalike{},
+		"request canceled":               fmt.Errorf("x : %w", context.Canceled),
+		"secure connection (TLS) failed": tls.RecordHeaderError{Msg: "first record does not look like a TLS handshake"},
+		"connection failed":              &net.OpError{Op: "dial", Net: "tcp", Err: syscall.ECONNREFUSED},
+		"connection interrupted":         io.ErrUnexpectedEOF,
+		"network error":                  errors.New("autre"),
 	}
 	for want, err := range tests {
 		if got := failureNature(err); got != want {

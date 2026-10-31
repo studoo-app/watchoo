@@ -46,11 +46,11 @@ func TestValidateRepo(t *testing.T) {
 		t.Errorf("ValidateRepo valide : %v", err)
 	}
 	err := ValidateRepo("-alice", "projet")
-	if !errors.Is(err, ErrInvalidRef) || !strings.Contains(err.Error(), "propriétaire") {
+	if !errors.Is(err, ErrInvalidRef) || !strings.Contains(err.Error(), "owner") {
 		t.Errorf("ValidateRepo, owner invalide : %v", err)
 	}
 	err = ValidateRepo("alice", "..")
-	if !errors.Is(err, ErrInvalidRef) || !strings.Contains(err.Error(), "nom de dépôt") {
+	if !errors.Is(err, ErrInvalidRef) || !strings.Contains(err.Error(), "repository name") {
 		t.Errorf("ValidateRepo, nom invalide : %v", err)
 	}
 }
@@ -118,7 +118,7 @@ func TestValidationMessages(t *testing.T) {
 		t.Errorf("nom de branche trop long recopié : %v", err)
 	}
 	err = ValidateBranch("\xff")
-	if err == nil || !strings.Contains(err.Error(), "invalide") {
+	if err == nil || !strings.Contains(err.Error(), "invalid") {
 		t.Errorf("UTF-8 invalide : %v", err)
 	}
 }

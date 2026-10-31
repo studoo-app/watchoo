@@ -27,11 +27,11 @@ func TestSentinelsAreDistinct(t *testing.T) {
 	if !strings.Contains(ErrUnauthorized.Error(), "gh auth login") {
 		t.Errorf("ErrUnauthorized doit conseiller gh auth login : %q", ErrUnauthorized)
 	}
-	if !strings.Contains(ErrNotFound.Error(), "sans accès") {
+	if !strings.Contains(ErrNotFound.Error(), "without access") {
 		t.Errorf("ErrNotFound doit évoquer l'absence d'accès : %q", ErrNotFound)
 	}
-	if !strings.HasPrefix(ErrAccessDenied.Error(), "accès refusé") {
-		t.Errorf("ErrAccessDenied doit commencer par « accès refusé » : %q", ErrAccessDenied)
+	if !strings.HasPrefix(ErrAccessDenied.Error(), "access denied") {
+		t.Errorf("ErrAccessDenied doit commencer par « access denied » : %q", ErrAccessDenied)
 	}
 }
 
@@ -42,18 +42,18 @@ func TestRateLimitError(t *testing.T) {
 		err  *RateLimitError
 		msg  string
 	}{
-		{"quota avec reset", &RateLimitError{Reset: reset}, "quota de l'API GitHub épuisé jusqu'au 2026-10-26 14:04:05 UTC"},
-		{"quota sans reset", &RateLimitError{}, "quota de l'API GitHub épuisé"},
-		{"secondaire avec reset", &RateLimitError{Secondary: true, Reset: reset, RetryAfter: time.Minute}, "réessayez après le 2026-10-26 14:04:05 UTC"},
-		{"secondaire avec délai", &RateLimitError{Secondary: true, RetryAfter: 90 * time.Second}, "réessayez dans 1m30s"},
-		{"secondaire sans indication", &RateLimitError{Secondary: true}, "réessayez plus tard"},
+		{"quota avec reset", &RateLimitError{Reset: reset}, "GitHub API rate limit exhausted until 2026-10-26 14:04:05 UTC"},
+		{"quota sans reset", &RateLimitError{}, "GitHub API rate limit exhausted"},
+		{"secondaire avec reset", &RateLimitError{Secondary: true, Reset: reset, RetryAfter: time.Minute}, "try again after 2026-10-26 14:04:05 UTC"},
+		{"secondaire avec délai", &RateLimitError{Secondary: true, RetryAfter: 90 * time.Second}, "try again in 1m30s"},
+		{"secondaire sans indication", &RateLimitError{Secondary: true}, "try again later"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if !strings.Contains(tt.err.Error(), tt.msg) {
 				t.Errorf("Error() = %q, veut %q", tt.err.Error(), tt.msg)
 			}
-			if tt.err.Secondary && !strings.Contains(tt.err.Error(), "secondaire") {
+			if tt.err.Secondary && !strings.Contains(tt.err.Error(), "secondary") {
 				t.Errorf("Error() = %q, veut la mention de la limite secondaire", tt.err.Error())
 			}
 			wrapped := fmt.Errorf("liste des commits : %w", tt.err)
@@ -77,7 +77,7 @@ func TestSSORequiredError(t *testing.T) {
 		URL:          "https://github.com/orgs/ecole-dev/sso?authorization_request=SECRETREQUEST",
 	}
 	msg := err.Error()
-	for _, want := range []string{"« ecole-dev »", "SSO", "gh auth refresh", "https://github.com/orgs/ecole-dev/sso"} {
+	for _, want := range []string{`"ecole-dev"`, "SSO", "gh auth refresh", "https://github.com/orgs/ecole-dev/sso"} {
 		if !strings.Contains(msg, want) {
 			t.Errorf("Error() = %q, veut %q", msg, want)
 		}
@@ -99,7 +99,7 @@ func TestSSORequiredError(t *testing.T) {
 
 	// Sans organisation ni lien exploitable.
 	msg = (&SSORequiredError{URL: "javascript:alert(1)"}).Error()
-	if !strings.Contains(msg, "de ce dépôt") || strings.Contains(msg, "javascript") || strings.Contains(msg, "ouvrez") {
+	if !strings.Contains(msg, "of this repository") || strings.Contains(msg, "javascript") || strings.Contains(msg, "open ") {
 		t.Errorf("Error() sans organisation = %q", msg)
 	}
 	msg = (&SSORequiredError{Organization: "x", URL: "https://user:pass@github.com/orgs/x/sso"}).Error()
@@ -115,13 +115,13 @@ func TestAPIError(t *testing.T) {
 	}{
 		{
 			&APIError{Op: "lecture du dépôt alice/projet", Method: "GET", Path: "/repos/alice/projet", Status: 404, Err: ErrNotFound},
-			"lecture du dépôt alice/projet (GET /repos/alice/projet, HTTP 404) : dépôt introuvable ou compte sans accès",
+			"lecture du dépôt alice/projet (GET /repos/alice/projet, HTTP 404): repository not found or account without access",
 		},
 		{
 			&APIError{Op: "liste des branches de alice/projet", Method: "GET", Path: "/repos/alice/projet/branches", Err: ErrUnavailable},
-			"liste des branches de alice/projet (GET /repos/alice/projet/branches) : " + ErrUnavailable.Error(),
+			"liste des branches de alice/projet (GET /repos/alice/projet/branches): " + ErrUnavailable.Error(),
 		},
-		{&APIError{Op: "état du quota", Err: ErrUnexpected}, "état du quota : " + ErrUnexpected.Error()},
+		{&APIError{Op: "état du quota", Err: ErrUnexpected}, "état du quota: " + ErrUnexpected.Error()},
 		{&APIError{Status: 500}, "(HTTP 500)"},
 	}
 	for _, tt := range tests {

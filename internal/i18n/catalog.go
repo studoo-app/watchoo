@@ -26,5 +26,6 @@ func mergeCatalog() map[string]entry {
 func catalogParts() []map[string]entry {
 	return []map[string]entry{
 		workspaceTexts,
+		providerTexts,
 	}
 }

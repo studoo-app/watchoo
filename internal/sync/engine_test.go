@@ -383,7 +383,7 @@ func TestDepotInaccessibleEtSSO(t *testing.T) {
 	if len(rep.Repos) != 3 {
 		t.Fatalf("%d rapports", len(rep.Repos))
 	}
-	if r := rep.Repos[0]; r.Status != wsync.StatusError || !strings.Contains(r.Error, "introuvable ou compte sans accès") {
+	if r := rep.Repos[0]; r.Status != wsync.StatusError || !strings.Contains(r.Error, "not found or account without access") {
 		t.Errorf("dépôt inaccessible : %+v", r)
 	}
 	if r := rep.Repos[1]; r.Status != wsync.StatusError || !strings.Contains(r.Error, "SSO") ||
@@ -477,7 +477,7 @@ func TestRateLimitErrorArrete(t *testing.T) {
 		Err: &provider.RateLimitError{Reset: reset}})
 
 	rep := e.syncAll()
-	if r := rep.Repos[0]; r.Status != wsync.StatusError || !strings.Contains(r.Error, "quota") {
+	if r := rep.Repos[0]; r.Status != wsync.StatusError || !strings.Contains(r.Error, "rate limit") {
 		t.Errorf("premier dépôt : %+v", r)
 	}
 	for _, r := range rep.Repos[1:] {

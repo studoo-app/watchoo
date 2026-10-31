@@ -13,6 +13,7 @@ import (
 
 	gogithub "github.com/google/go-github/v93/github"
 
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/provider"
 )
 
@@ -54,7 +55,7 @@ func (p *Provider) ListCommits(ctx context.Context, owner, name string, opts pro
 			return nil, err
 		}
 	}
-	op := "liste des commits de " + owner + "/" + name
+	op := i18n.T("provider.github.op.commits", owner, name)
 	limit := opts.Limit
 	if limit <= 0 || limit > provider.MaxCommits {
 		limit = provider.MaxCommits
@@ -144,7 +145,7 @@ func (p *Provider) CompareCommits(ctx context.Context, owner, name, base, head s
 	if base == head {
 		return make([]provider.Commit, 0), nil
 	}
-	op := fmt.Sprintf("comparaison %s...%s dans %s/%s", provider.ShortSHA(base), provider.ShortSHA(head), owner, name)
+	op := i18n.T("provider.github.op.compare", provider.ShortSHA(base), provider.ShortSHA(head), owner, name)
 	lo := &gogithub.ListOptions{PerPage: PerPage, Page: 1}
 
 	commits := make([]provider.Commit, 0)
@@ -257,7 +258,7 @@ func (p *Provider) CommitStats(ctx context.Context, owner, name, sha string) (pr
 	if err := provider.ValidateSHA(sha); err != nil {
 		return provider.CommitStats{}, err
 	}
-	op := fmt.Sprintf("statistiques du commit %s de %s/%s", provider.ShortSHA(sha), owner, name)
+	op := i18n.T("provider.github.op.commit_stats", provider.ShortSHA(sha), owner, name)
 	rc, resp, err := p.client.Repositories.GetCommit(ctx, owner, name, sha, &gogithub.ListOptions{PerPage: 1})
 	if err != nil {
 		unknownSHA := isUnknownCommit(err)
@@ -266,7 +267,8 @@ func (p *Provider) CommitStats(ctx context.Context, owner, name, sha string) (pr
 		if unknownSHA && errors.As(err, &apiErr) && apiErr.Status == http.StatusUnprocessableEntity &&
 			errors.Is(apiErr.Err, provider.ErrUnexpected) {
 			notFound := *apiErr
-			notFound.Err = fmt.Errorf("commit %s inconnu de GitHub : %w", provider.ShortSHA(sha), provider.ErrNotFound)
+			notFound.Err = fmt.Errorf("%s%s%w", i18n.T("provider.github.commit_unknown", provider.ShortSHA(sha)),
+				i18n.T("provider.err.sep"), provider.ErrNotFound)
 			return provider.CommitStats{}, &notFound
 		}
 		return provider.CommitStats{}, err
