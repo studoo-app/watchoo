@@ -1,7 +1,7 @@
 package workspace
 
 // Réglages communs partagés entre superviseurs (« watchoo config import », page Réglages) et
-// réécriture de .watchoo/config.yaml (documentation/10-espaces-de-supervision.md, « Partager les
+// réécriture de .watchoo/config.yaml (documentation/fr/10-espaces-de-supervision.md, « Partager les
 // réglages avec d'autres superviseurs »). Le format du fichier de partage et sa validation sont dans
 // internal/configshare ; ce fichier ne connaît que les réglages et config.yaml.
 

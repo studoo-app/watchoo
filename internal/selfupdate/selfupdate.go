@@ -3,7 +3,7 @@
 // binaire en cours. Il porte aussi la vérification périodique de « watchoo serve » (Monitor). Les
 // couches cli et web ne font qu'afficher ce qu'il renvoie.
 //
-// Exception documentée (documentation/03-architecture.md, « Mise à jour de Watchoo ») à la règle « rien
+// Exception documentée (documentation/fr/03-architecture.md, « Mise à jour de Watchoo ») à la règle « rien
 // de spécifique à GitHub hors de internal/provider » : ce package lit les pages PUBLIQUES des releases
 // de Watchoo lui-même, sans rapport avec les dépôts suivis. Il n'utilise ni token (ni celui de gh, ni
 // aucun autre), ni l'API GitHub (aucun quota), ni go-github : seulement net/http, en GET.

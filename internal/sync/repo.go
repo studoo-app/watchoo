@@ -1,6 +1,6 @@
 package sync
 
-// Synchronisation incrémentale d'un dépôt (documentation/03-architecture.md, « Synchronisation
+// Synchronisation incrémentale d'un dépôt (documentation/fr/03-architecture.md, « Synchronisation
 // incrémentale ») : métadonnées, branches, commits, statistiques, puis une seule écriture en base.
 
 import (
