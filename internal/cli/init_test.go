@@ -16,6 +16,7 @@ import (
 
 	"github.com/studoo-app/watchoo/internal/auth"
 	"github.com/studoo-app/watchoo/internal/auth/authtest"
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/store"
 	"github.com/studoo-app/watchoo/internal/workspace"
@@ -67,8 +68,8 @@ func TestInitCreatesWorkspace(t *testing.T) {
 	if got := readFile(t, filepath.Join(dir, ".gitignore")); got != "*\n" {
 		t.Errorf(".gitignore = %q, attendu %q", got, "*\n")
 	}
-	if got := readFile(t, filepath.Join(dir, "config.yaml")); got != workspace.ConfigTemplate("licence-projet") {
-		t.Errorf("config.yaml différent de ConfigTemplate(\"licence-projet\") :\n%s", got)
+	if got := readFile(t, filepath.Join(dir, "config.yaml")); got != workspace.ConfigTemplate(i18n.Process().Lang(), "licence-projet") {
+		t.Errorf("config.yaml différent de ConfigTemplate(i18n.Process().Lang(), \"licence-projet\") :\n%s", got)
 	}
 
 	// Base migrée : les 10 tables du modèle, plus la table de version de goose.
@@ -217,7 +218,7 @@ func TestInitWorkspaceFlag(t *testing.T) {
 
 	t.Run("répertoire inexistant", func(t *testing.T) {
 		h := newHarness(t)
-		h.run("init", "-C", "absent").mustFail(t, filepath.Join(h.cwd, "absent"), "n'existe pas")
+		h.run("init", "-C", "absent").mustFail(t, filepath.Join(h.cwd, "absent"), "does not exist")
 		if _, err := os.Stat(filepath.Join(h.cwd, "absent")); err == nil {
 			t.Error("init ne doit pas créer le répertoire de -C")
 		}
@@ -254,7 +255,7 @@ func TestInitRefusesExistingWorkspace(t *testing.T) {
 	}
 
 	for _, args := range [][]string{{"init"}, {"init", "--json"}, {"-C", ".", "init"}} {
-		h.run(args...).mustFail(t, h.cwd, "déjà un espace Watchoo", "rien n'a été modifié")
+		h.run(args...).mustFail(t, h.cwd, "already a Watchoo workspace", "rien n'a été modifié")
 	}
 
 	if got := readFile(t, filepath.Join(dir, "config.yaml")); got != config {
@@ -278,7 +279,7 @@ func TestInitIgnoresConfigOfExistingWorkspace(t *testing.T) {
 	h.run("init").mustSucceed(t)
 	// Un config.yaml invalide dans l'espace existant : le refus doit rester clair.
 	writeFile(t, filepath.Join(h.cwd, ".watchoo", "config.yaml"), "cle_inconnue: 1\n")
-	r := h.run("init").mustFail(t, "déjà un espace Watchoo")
+	r := h.run("init").mustFail(t, "already a Watchoo workspace")
 	if strings.Contains(r.stderr, "cle_inconnue") {
 		t.Errorf("init a lu le config.yaml de l'espace existant :\n%s", r.stderr)
 	}
@@ -287,7 +288,7 @@ func TestInitIgnoresConfigOfExistingWorkspace(t *testing.T) {
 func TestInitRefusesWatchooFile(t *testing.T) {
 	h := newHarness(t)
 	writeFile(t, filepath.Join(h.cwd, ".watchoo"), "pas un répertoire")
-	h.run("init").mustFail(t, "n'est pas un répertoire")
+	h.run("init").mustFail(t, "is not a directory")
 	if got := readFile(t, filepath.Join(h.cwd, ".watchoo")); got != "pas un répertoire" {
 		t.Errorf("fichier .watchoo modifié : %q", got)
 	}
@@ -472,7 +473,7 @@ func TestInitInvalidSettings(t *testing.T) {
 	h.run("init").mustFail(t, userConfig, "sync.intervall")
 	// Valeur hors limites : l'erreur cite la clé.
 	writeFile(t, userConfig, "sync:\n  interval: 5m\n")
-	h.run("init").mustFail(t, "réglages invalides", "sync.interval")
+	h.run("init").mustFail(t, "invalid settings", "sync.interval")
 	assertNoWorkspace(t, h.cwd)
 	if got := h.fake().StatusCalls(); got != 0 {
 		t.Errorf("Status appelé %d fois malgré des réglages invalides", got)

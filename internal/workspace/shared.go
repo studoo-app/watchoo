@@ -15,6 +15,8 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"github.com/studoo-app/watchoo/internal/i18n"
 )
 
 // BackupFileName est la copie de l'ancien config.yaml gardée par WriteSharedSettings, dans DirName.
@@ -188,7 +190,7 @@ func EnvOverrides(keys []string) []EnvOverride {
 // fichier, et non à celle de la variable.
 func FileConfig(ws *Workspace) (Config, error) {
 	if ws == nil || ws.Root == "" || ws.Dir == "" {
-		return Config{}, errors.New("lecture des réglages : espace non renseigné")
+		return Config{}, errors.New(i18n.T("workspace.shared.read_no_workspace"))
 	}
 	if err := checkTrusted(ws); err != nil {
 		return Config{}, err
@@ -211,7 +213,8 @@ func WithEnv(c Config) (Config, error) {
 			continue
 		}
 		if err := decodeSetting(f.ptr, value); err != nil {
-			errs = append(errs, fmt.Errorf("variable %s (%s) : %w", name, f.key, err))
+			errs = append(errs, fmt.Errorf("%s%s%w", i18n.T("workspace.decode.env_var", name, f.key),
+				i18n.T("workspace.err.sep"), err))
 		}
 	}
 	if err := errors.Join(errs...); err != nil {
@@ -254,7 +257,7 @@ var writeTemp = writeTempFile
 // copie .bak près). s ne doit fournir que des valeurs valides (sinon : erreur, rien n'est écrit).
 func WriteSharedSettings(ws *Workspace, s SharedSettings) (result WriteResult, err error) {
 	if ws == nil || ws.Root == "" || ws.Dir == "" {
-		return WriteResult{}, errors.New("écriture des réglages : espace non renseigné")
+		return WriteResult{}, errors.New(i18n.T("workspace.shared.write_no_workspace"))
 	}
 	if err := checkTrusted(ws); err != nil {
 		return WriteResult{}, err
@@ -263,11 +266,11 @@ func WriteSharedSettings(ws *Workspace, s SharedSettings) (result WriteResult, e
 	old, err := os.ReadFile(path)
 	exists := err == nil
 	if err != nil && !isNotExist(err) {
-		return WriteResult{}, fmt.Errorf("lecture de %s : %w", path, err)
+		return WriteResult{}, errWrapped(i18n.T("workspace.shared.read_file", path), err)
 	}
 	oldValues, err := fileValues(path)
 	if err != nil {
-		return WriteResult{}, fmt.Errorf("réécriture de %s impossible, le fichier actuel est invalide : %w", path, err)
+		return WriteResult{}, errWrapped(i18n.T("workspace.shared.rewrite_invalid", path), err)
 	}
 
 	expected := map[string]any{}
@@ -279,13 +282,13 @@ func WriteSharedSettings(ws *Workspace, s SharedSettings) (result WriteResult, e
 	}
 	for key, v := range expected {
 		if str, ok := v.(string); ok && !utf8.ValidString(str) {
-			return WriteResult{}, fmt.Errorf("réglage %s : texte UTF-8 invalide, rien n'a été écrit", key)
+			return WriteResult{}, errors.New(i18n.T("workspace.shared.utf8", key))
 		}
 		if list, ok := v.([]string); ok && slices.ContainsFunc(list, func(x string) bool { return !utf8.ValidString(x) }) {
-			return WriteResult{}, fmt.Errorf("réglage %s : texte UTF-8 invalide, rien n'a été écrit", key)
+			return WriteResult{}, errors.New(i18n.T("workspace.shared.utf8", key))
 		}
 	}
-	content := renderConfig(filepath.Base(ws.Root), expected)
+	content := renderConfig(i18n.Process(), filepath.Base(ws.Root), expected)
 
 	tmp, err := writeTemp(ws.Dir, ".config.yaml.tmp-*", []byte(content))
 	if err != nil {
@@ -299,15 +302,18 @@ func WriteSharedSettings(ws *Workspace, s SharedSettings) (result WriteResult, e
 
 	written, err := fileValues(tmp)
 	if err != nil {
-		return WriteResult{}, fmt.Errorf("relecture des réglages écrits : %w ; config.yaml n'a pas été modifié", err)
+		return WriteResult{}, fmt.Errorf("%s%s%w%s%s", i18n.T("workspace.shared.reread"),
+			i18n.T("workspace.err.sep"), err, i18n.T("workspace.err.semicolon"),
+			i18n.T("workspace.shared.not_modified"))
 	}
 	if err := compareValues(expected, written); err != nil {
-		return WriteResult{}, fmt.Errorf("réglages écrits différents des réglages attendus (%w) ; "+
-			"config.yaml n'a pas été modifié", err)
+		return WriteResult{}, fmt.Errorf("%s (%w)%s%s", i18n.T("workspace.shared.mismatch"), err,
+			i18n.T("workspace.err.semicolon"), i18n.T("workspace.shared.not_modified"))
 	}
 	cfg, err := loadConfig(ws.Root, tmp)
 	if err != nil {
-		return WriteResult{}, fmt.Errorf("%w ; config.yaml n'a pas été modifié", err)
+		return WriteResult{}, fmt.Errorf("%w%s%s", err, i18n.T("workspace.err.semicolon"),
+			i18n.T("workspace.shared.not_modified"))
 	}
 
 	result = WriteResult{Path: path, Config: cfg}
@@ -319,12 +325,14 @@ func WriteSharedSettings(ws *Workspace, s SharedSettings) (result WriteResult, e
 		}
 		if err := os.Rename(bakTmp, backup); err != nil {
 			_ = os.Remove(bakTmp)
-			return WriteResult{}, fmt.Errorf("copie de sauvegarde %s : %w ; config.yaml n'a pas été modifié", backup, err)
+			return WriteResult{}, fmt.Errorf("%s%s%w%s%s", i18n.T("workspace.shared.backup", backup),
+				i18n.T("workspace.err.sep"), err, i18n.T("workspace.err.semicolon"),
+				i18n.T("workspace.shared.not_modified"))
 		}
 		result.BackupPath = backup
 	}
 	if err := os.Rename(tmp, path); err != nil {
-		return WriteResult{}, fmt.Errorf("remplacement de %s : %w", path, err)
+		return WriteResult{}, errWrapped(i18n.T("workspace.shared.replace", path), err)
 	}
 	return result, nil
 }
@@ -377,14 +385,15 @@ func compareValues(want, got map[string]any) error {
 		g, ok := got[key]
 		switch {
 		case !ok:
-			errs = append(errs, fmt.Errorf("clé %s absente", key))
+			errs = append(errs, errors.New(i18n.T("workspace.compare.missing", key)))
 		case !reflect.DeepEqual(w, g):
-			errs = append(errs, fmt.Errorf("clé %s : %s au lieu de %s", key, FormatSettingValue(g), FormatSettingValue(w)))
+			errs = append(errs, errors.New(i18n.T("workspace.compare.different", key,
+				FormatSettingValue(g), FormatSettingValue(w))))
 		}
 	}
 	for key := range got {
 		if _, ok := want[key]; !ok {
-			errs = append(errs, fmt.Errorf("clé %s inattendue", key))
+			errs = append(errs, errors.New(i18n.T("workspace.compare.unexpected", key)))
 		}
 	}
 	slices.SortFunc(errs, func(a, b error) int { return strings.Compare(a.Error(), b.Error()) })
@@ -397,25 +406,25 @@ func compareValues(want, got map[string]any) error {
 func writeTempFile(dir, pattern string, content []byte) (path string, err error) {
 	f, err := os.CreateTemp(dir, pattern)
 	if err != nil {
-		return "", fmt.Errorf("création d'un fichier temporaire dans %s : %w", dir, err)
+		return "", errWrapped(i18n.T("workspace.shared.tmp_create", dir), err)
 	}
 	path = f.Name()
 	defer func() {
 		if cerr := f.Close(); cerr != nil && err == nil {
-			err = fmt.Errorf("écriture de %s : %w", path, cerr)
+			err = errWrapped(i18n.T("workspace.fs.write", path), cerr)
 		}
 		if err != nil {
 			_ = os.Remove(path)
 		}
 	}()
 	if err := f.Chmod(FileMode); err != nil {
-		return "", fmt.Errorf("droits de %s : %w", path, err)
+		return "", errWrapped(i18n.T("workspace.fs.perms", path), err)
 	}
 	if _, err := f.Write(content); err != nil {
-		return "", fmt.Errorf("écriture de %s : %w", path, err)
+		return "", errWrapped(i18n.T("workspace.fs.write", path), err)
 	}
 	if err := f.Sync(); err != nil {
-		return "", fmt.Errorf("écriture de %s : %w", path, err)
+		return "", errWrapped(i18n.T("workspace.fs.write", path), err)
 	}
 	return path, nil
 }

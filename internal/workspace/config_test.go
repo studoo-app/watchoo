@@ -16,6 +16,7 @@ import (
 
 	"github.com/spf13/viper"
 
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/logo"
 )
 
@@ -107,52 +108,52 @@ func TestValidateRejectsInvalidValues(t *testing.T) {
 		mutate func(*Config)
 		want   []string
 	}{
-		{"nom vide", func(c *Config) { c.Name = "  " }, []string{"name :", "vide"}},
+		{"nom vide", func(c *Config) { c.Name = "  " }, []string{"name:", "empty"}},
 		{"intervalle trop court", func(c *Config) { c.Sync.Interval = 10 * time.Minute },
-			[]string{"sync.interval : 10m0s est inférieur au minimum de 15 min (0 pour la synchro manuelle seule)"}},
+			[]string{"sync.interval: 10m0s is below the minimum of 15 min (0 for manual sync only)"}},
 		{"intervalle négatif", func(c *Config) { c.Sync.Interval = -time.Minute },
-			[]string{"sync.interval", "-1m0s", "négatif"}},
+			[]string{"sync.interval", "-1m0s", "negative"}},
 		{"parallélisme nul", func(c *Config) { c.Sync.Parallelism = 0 },
-			[]string{"sync.parallelism : 0", "entre 1 et 4"}},
+			[]string{"sync.parallelism: 0", "between 1 and 4"}},
 		{"parallélisme trop grand", func(c *Config) { c.Sync.Parallelism = 5 },
-			[]string{"sync.parallelism : 5", "entre 1 et 4"}},
+			[]string{"sync.parallelism: 5", "between 1 and 4"}},
 		{"flemme nulle", func(c *Config) { c.Activity.FlemmeAfterDays = 0 },
-			[]string{"activity.flemme_after_days : 0", "au moins 1"}},
+			[]string{"activity.flemme_after_days: 0", "at least 1"}},
 		{"dead égal à flemme", func(c *Config) { c.Activity = ActivityConfig{FlemmeAfterDays: 7, DeadAfterDays: 7} },
-			[]string{"activity.dead_after_days : 7", "strictement supérieur", "(7)"}},
+			[]string{"activity.dead_after_days: 7", "strictly greater", "(7)"}},
 		{"dead inférieur à flemme", func(c *Config) { c.Activity = ActivityConfig{FlemmeAfterDays: 10, DeadAfterDays: 3} },
-			[]string{"activity.dead_after_days : 3"}},
+			[]string{"activity.dead_after_days: 3"}},
 		{"motif vide", func(c *Config) { c.Branches.Exclude = []string{"main", " "} },
-			[]string{"branches.exclude", "n° 2", "vide"}},
+			[]string{"branches.exclude", "#2", "empty"}},
 		{"motif invalide", func(c *Config) { c.Branches.Exclude = []string{"release/[a"} },
-			[]string{"branches.exclude", `"release/[a"`, "invalide"}},
+			[]string{"branches.exclude", `"release/[a"`, "invalid"}},
 		{"nom public avec port", func(c *Config) { c.Web.AllowedHosts = []string{"watchoo.example.org:443"} },
-			[]string{"web.allowed_hosts", "n° 1", "invalide"}},
+			[]string{"web.allowed_hosts", "#1", "invalid"}},
 		{"nom public joker", func(c *Config) { c.Web.AllowedHosts = []string{"ok.example.org", "*"} },
-			[]string{"web.allowed_hosts", "n° 2", `"*"`}},
+			[]string{"web.allowed_hosts", "#2", `"*"`}},
 		{"nom public avec schéma", func(c *Config) { c.Web.AllowedHosts = []string{"https://watchoo.example.org"} },
-			[]string{"web.allowed_hosts", "invalide"}},
+			[]string{"web.allowed_hosts", "invalid"}},
 		{"nom public vide", func(c *Config) { c.Web.AllowedHosts = []string{""} },
-			[]string{"web.allowed_hosts", "invalide"}},
+			[]string{"web.allowed_hosts", "invalid"}},
 		{"adresse sans port", func(c *Config) { c.Web.Addr = "127.0.0.1" },
-			[]string{"web.addr", `"127.0.0.1"`, "hôte:port"}},
-		{"adresse vide", func(c *Config) { c.Web.Addr = "" }, []string{"web.addr", "hôte:port"}},
-		{"port vide", func(c *Config) { c.Web.Addr = "127.0.0.1:" }, []string{"web.addr", "port manquant"}},
+			[]string{"web.addr", `"127.0.0.1"`, "host:port"}},
+		{"adresse vide", func(c *Config) { c.Web.Addr = "" }, []string{"web.addr", "host:port"}},
+		{"port vide", func(c *Config) { c.Web.Addr = "127.0.0.1:" }, []string{"web.addr", "missing port"}},
 		{"port non numérique", func(c *Config) { c.Web.Addr = "127.0.0.1:80a" }, []string{"web.addr", `port "80a"`}},
 		{"port trop grand", func(c *Config) { c.Web.Addr = "127.0.0.1:70000" }, []string{"web.addr", "65535"}},
 		{"identifiant web avec deux-points", func(c *Config) { c.Web.Auth.Username = "prof:x" },
-			[]string{"web.auth.username", `"prof:x"`, "invalide"}},
+			[]string{"web.auth.username", `"prof:x"`, "invalid"}},
 		{"identifiant web avec contrôle", func(c *Config) { c.Web.Auth.Username = "prof\n" },
-			[]string{"web.auth.username", "invalide"}},
+			[]string{"web.auth.username", "invalid"}},
 		{"identifiant web entouré d'espaces", func(c *Config) { c.Web.Auth.Username = " prof" },
-			[]string{"web.auth.username", "invalide"}},
+			[]string{"web.auth.username", "invalid"}},
 		{"fuseau inconnu", func(c *Config) { c.Timezone = "Mars/Olympus" },
 			[]string{"timezone", `"Mars/Olympus"`, "IANA"}},
-		{"chemin de gh vide", func(c *Config) { c.GitHub.GHPath = "" }, []string{"github.gh_path", "vide"}},
+		{"chemin de gh vide", func(c *Config) { c.GitHub.GHPath = "" }, []string{"github.gh_path", "empty"}},
 		{"chemin de gh relatif", func(c *Config) { c.GitHub.GHPath = ".watchoo/gh" },
-			[]string{"github.gh_path", `".watchoo/gh"`, "relatif", "absolu"}},
+			[]string{"github.gh_path", `".watchoo/gh"`, "relative", "absolute"}},
 		{"chemin de gh relatif en ./", func(c *Config) { c.GitHub.GHPath = "./gh" },
-			[]string{"github.gh_path", "relatif"}},
+			[]string{"github.gh_path", "relative"}},
 		{"protocole git inconnu", func(c *Config) { c.Git.Protocol = "ftp" },
 			[]string{"git.protocol", `"ftp"`, "ssh", "https"}},
 	}
@@ -285,7 +286,7 @@ func TestLoadUserConfigErrors(t *testing.T) {
 	root := newDir(t, t.TempDir(), "licence-projet")
 
 	_, err := LoadUserConfig("")
-	assertErrorContains(t, err, "répertoire non renseigné")
+	assertErrorContains(t, err, "directory not provided")
 
 	writeFile(t, userConfig, "sync:\n  interval: 1m\n")
 	_, err = LoadUserConfig(root)
@@ -463,15 +464,15 @@ func TestLoadRejectsUnknownKeys(t *testing.T) {
 		want          []string
 	}{
 		{"faute de frappe", "sync:\n  intervall: 1h\n",
-			[]string{`clé inconnue "sync.intervall"`, "vouliez-vous dire « sync.interval »"}},
+			[]string{`unknown key "sync.intervall"`, `did you mean "sync.interval"?`}},
 		{"clé hors de sa section", "interval: 1h\n",
-			[]string{`clé inconnue "interval"`, "« sync.interval »"}},
-		{"clé inconnue", "couleur: bleu\n", []string{`clé inconnue "couleur"`}},
-		{"clé inconnue sans valeur", "couleur:\n", []string{`clé inconnue "couleur"`}},
-		{"section inconnue", "token:\n  value: x\n", []string{`clé inconnue "token.value"`}},
-		{"section avec une valeur", "sync: 5\n", []string{`"sync" est une section`, "sync.auto"}},
+			[]string{`unknown key "interval"`, `"sync.interval"`}},
+		{"clé inconnue", "couleur: bleu\n", []string{`unknown key "couleur"`}},
+		{"clé inconnue sans valeur", "couleur:\n", []string{`unknown key "couleur"`}},
+		{"section inconnue", "token:\n  value: x\n", []string{`unknown key "token.value"`}},
+		{"section avec une valeur", "sync: 5\n", []string{`"sync" is a section`, "sync.auto"}},
 		{"réglage avec des sous-clés", "web:\n  addr:\n    host: x\n",
-			[]string{`"web.addr" n'accepte pas de sous-clés`}},
+			[]string{`"web.addr" takes no sub-keys`}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -493,20 +494,20 @@ func TestLoadRejectsInvalidFileValues(t *testing.T) {
 		want          []string
 	}{
 		{"durée illisible", "sync:\n  interval: bientôt\n",
-			[]string{"sync.interval", `durée invalide "bientôt"`}},
-		{"durée sans unité", "sync:\n  interval: 30\n", []string{"sync.interval", "durée sans unité 30"}},
+			[]string{"sync.interval", `invalid duration "bientôt"`}},
+		{"durée sans unité", "sync:\n  interval: 30\n", []string{"sync.interval", "duration without a unit 30"}},
 		{"intervalle trop court", "sync:\n  interval: 5m\n",
-			[]string{"réglages invalides", "sync.interval : 5m0s est inférieur au minimum de 15 min"}},
-		{"booléen", "sync:\n  auto: oui\n", []string{"sync.auto", "true ou false attendu", `"oui"`}},
-		{"entier", "sync:\n  parallelism: deux\n", []string{"sync.parallelism", "nombre entier attendu"}},
+			[]string{"invalid settings", "sync.interval: 5m0s is below the minimum of 15 min"}},
+		{"booléen", "sync:\n  auto: oui\n", []string{"sync.auto", "expected true or false", `"oui"`}},
+		{"entier", "sync:\n  parallelism: deux\n", []string{"sync.parallelism", "expected an integer"}},
 		{"entier décimal", "activity:\n  flemme_after_days: 2.5\n",
-			[]string{"activity.flemme_after_days", "nombre entier attendu", "2.5"}},
+			[]string{"activity.flemme_after_days", "expected an integer", "2.5"}},
 		{"liste attendue", "branches:\n  exclude: {a: 1}\n", []string{"branches.exclude"}},
-		{"élément de liste", "branches:\n  exclude: [[a]]\n", []string{"branches.exclude", "élément n° 1"}},
-		{"chaîne attendue", "web:\n  addr: [a, b]\n", []string{"web.addr", "chaîne de caractères attendue"}},
-		{"parallélisme hors limites", "sync:\n  parallelism: 9\n", []string{"sync.parallelism : 9", "entre 1 et 4"}},
+		{"élément de liste", "branches:\n  exclude: [[a]]\n", []string{"branches.exclude", "item #1"}},
+		{"chaîne attendue", "web:\n  addr: [a, b]\n", []string{"web.addr", "expected a string"}},
+		{"parallélisme hors limites", "sync:\n  parallelism: 9\n", []string{"sync.parallelism: 9", "between 1 and 4"}},
 		{"seuils incohérents", "activity:\n  flemme_after_days: 20\n",
-			[]string{"activity.dead_after_days : 15", "strictement supérieur"}},
+			[]string{"activity.dead_after_days: 15", "strictly greater"}},
 		{"fuseau inconnu", "timezone: Lune/Base\n", []string{"timezone", "Lune/Base"}},
 		{"plusieurs erreurs", "sync:\n  auto: peut-être\n  parallelism: x\n",
 			[]string{"sync.auto", "sync.parallelism"}},
@@ -529,13 +530,13 @@ func TestLoadErrorsCiteTheFile(t *testing.T) {
 func TestLoadInvalidYAML(t *testing.T) {
 	ws, _ := newLoadWorkspace(t)
 	writeFile(t, ws.ConfigPath(), "name: [non fermé\n")
-	assertErrorContains(t, Load(ws), ws.ConfigPath(), "YAML invalide")
+	assertErrorContains(t, Load(ws), ws.ConfigPath(), "invalid YAML")
 
 	writeFile(t, ws.ConfigPath(), "- une\n- liste\n")
-	assertErrorContains(t, Load(ws), ws.ConfigPath(), "YAML invalide")
+	assertErrorContains(t, Load(ws), ws.ConfigPath(), "invalid YAML")
 
 	writeFile(t, ws.ConfigPath(), "name: a\nname: b\n")
-	assertErrorContains(t, Load(ws), ws.ConfigPath(), "YAML invalide")
+	assertErrorContains(t, Load(ws), ws.ConfigPath(), "invalid YAML")
 }
 
 func TestLoadUnreadableFile(t *testing.T) {
@@ -544,7 +545,7 @@ func TestLoadUnreadableFile(t *testing.T) {
 		t.Fatal(err)
 	}
 	newDir(t, ws.ConfigPath()) // un répertoire à la place du fichier
-	assertErrorContains(t, Load(ws), "lecture des réglages", ws.ConfigPath())
+	assertErrorContains(t, Load(ws), "reading the settings", ws.ConfigPath())
 }
 
 func TestLoadMissingWorkspaceFile(t *testing.T) {
@@ -563,10 +564,10 @@ func TestLoadMissingWorkspaceFile(t *testing.T) {
 
 func TestLoadRejectsInvalidEnvironment(t *testing.T) {
 	cases := map[string][]string{
-		"WATCHOO_SYNC_INTERVAL":            {"variable WATCHOO_SYNC_INTERVAL (sync.interval)", "durée invalide"},
-		"WATCHOO_SYNC_AUTO":                {"variable WATCHOO_SYNC_AUTO (sync.auto)", "true ou false"},
-		"WATCHOO_SYNC_PARALLELISM":         {"variable WATCHOO_SYNC_PARALLELISM", "nombre entier"},
-		"WATCHOO_ACTIVITY_DEAD_AFTER_DAYS": {"variable WATCHOO_ACTIVITY_DEAD_AFTER_DAYS", "nombre entier"},
+		"WATCHOO_SYNC_INTERVAL":            {"variable WATCHOO_SYNC_INTERVAL (sync.interval)", "invalid duration"},
+		"WATCHOO_SYNC_AUTO":                {"variable WATCHOO_SYNC_AUTO (sync.auto)", "true or false"},
+		"WATCHOO_SYNC_PARALLELISM":         {"variable WATCHOO_SYNC_PARALLELISM", "integer"},
+		"WATCHOO_ACTIVITY_DEAD_AFTER_DAYS": {"variable WATCHOO_ACTIVITY_DEAD_AFTER_DAYS", "integer"},
 	}
 	for name, want := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -579,13 +580,13 @@ func TestLoadRejectsInvalidEnvironment(t *testing.T) {
 	t.Run("durée sans unité", func(t *testing.T) {
 		ws, _ := newLoadWorkspace(t)
 		t.Setenv("WATCHOO_SYNC_INTERVAL", "10")
-		assertErrorContains(t, Load(ws), "variable WATCHOO_SYNC_INTERVAL", `durée sans unité "10"`)
+		assertErrorContains(t, Load(ws), "variable WATCHOO_SYNC_INTERVAL", `duration without a unit "10"`)
 	})
 
 	t.Run("valeur refusée par Validate", func(t *testing.T) {
 		ws, _ := newLoadWorkspace(t)
 		t.Setenv("WATCHOO_SYNC_INTERVAL", "1m")
-		assertErrorContains(t, Load(ws), "sync.interval : 1m0s est inférieur au minimum")
+		assertErrorContains(t, Load(ws), "sync.interval: 1m0s is below the minimum")
 	})
 }
 
@@ -601,8 +602,8 @@ func TestLoadCaseInsensitiveKeys(t *testing.T) {
 }
 
 func TestLoadRequiresWorkspace(t *testing.T) {
-	assertErrorContains(t, Load(nil), "espace non renseigné")
-	assertErrorContains(t, Load(&Workspace{}), "espace non renseigné")
+	assertErrorContains(t, Load(nil), "workspace not provided")
+	assertErrorContains(t, Load(&Workspace{}), "workspace not provided")
 }
 
 // trickyNames sont des noms d'espace qui exigent un échappement YAML correct.
@@ -622,9 +623,9 @@ func TestConfigTemplateRoundTrip(t *testing.T) {
 	for _, name := range trickyNames {
 		t.Run(name, func(t *testing.T) {
 			ws, _ := newLoadWorkspace(t)
-			writeFile(t, ws.ConfigPath(), ConfigTemplate(name))
+			writeFile(t, ws.ConfigPath(), ConfigTemplate(i18n.English, name))
 			if err := Load(ws); err != nil {
-				t.Fatalf("Load : %v\n%s", err, ConfigTemplate(name))
+				t.Fatalf("Load : %v\n%s", err, ConfigTemplate(i18n.English, name))
 			}
 			if !reflect.DeepEqual(ws.Config, DefaultConfig(name)) {
 				t.Errorf("Config = %+v\nattendu  %+v", ws.Config, DefaultConfig(name))
@@ -653,7 +654,7 @@ var settingLine = regexp.MustCompile(`^# ( *)([a-z_]+):(.*)$`)
 func TestConfigTemplateUncommentedEqualsDefaults(t *testing.T) {
 	name := "licence-projet"
 	var b strings.Builder
-	for line := range strings.Lines(ConfigTemplate(name)) {
+	for line := range strings.Lines(ConfigTemplate(i18n.English, name)) {
 		b.WriteString(settingLine.ReplaceAllString(strings.TrimSuffix(line, "\n"), "$1$2:$3"))
 		b.WriteByte('\n')
 	}
@@ -688,10 +689,12 @@ func TestConfigTemplateUncommentedEqualsDefaults(t *testing.T) {
 	}
 }
 
-func TestConfigTemplateIsCommentedInFrench(t *testing.T) {
-	tpl := ConfigTemplate("licence-projet")
+// Le modèle de la langue du processus (anglais, forcée par TestMain) contient les repères attendus,
+// et seule la clé name y est active.
+func TestConfigTemplateIsCommentedInEnglish(t *testing.T) {
+	tpl := ConfigTemplate(i18n.English, "licence-projet")
 	for _, part := range []string{
-		"Réglages de l'espace de supervision Watchoo",
+		"Watchoo workspace settings",
 		"~/.config/watchoo/config.yaml",
 		"WATCHOO_SYNC_INTERVAL",
 		"gh auth token",
@@ -714,27 +717,28 @@ func TestConfigTemplateIsCommentedInFrench(t *testing.T) {
 // l'en-tête des réglages. Le nom de l'espace n'est pas dans la carte.
 func TestConfigTemplateStartsWithCard(t *testing.T) {
 	want := strings.Join([]string{
-		"# ╭─────────────────────────────────────────────────╮",
-		"# │  █▄    ▄█  Watchoo                              │",
-		"# │  █ ●██● █  Réglages de l'espace de supervision  │",
-		"# │  ▀██▙▟██▀                                       │",
-		"# ╰─────────────────────────────────────────────────╯",
+		"# ╭────────────────────────────────╮",
+		"# │  █▄    ▄█  Watchoo             │",
+		"# │  █ ●██● █  Workspace settings  │",
+		"# │  ▀██▙▟██▀                      │",
+		"# ╰────────────────────────────────╯",
 		"#",
-		"# Réglages de l'espace de supervision Watchoo.",
+		"# Watchoo workspace settings.",
 		"",
 	}, "\n")
 	for _, name := range trickyNames {
-		tpl := ConfigTemplate(name)
+		tpl := ConfigTemplate(i18n.English, name)
 		if !strings.HasPrefix(tpl, want) {
 			t.Errorf("ConfigTemplate(%q) ne commence pas par la carte :\n%s", name, tpl)
 		}
 	}
-	header := configHeader()
+	tr := i18n.For(i18n.English)
+	header := configHeader(tr)
 	if header != strings.Join(strings.SplitAfter(want, "\n")[:5], "") {
 		t.Errorf("configHeader =\n%s", header)
 	}
-	if header != commentLines(logo.Card(logo.CardOptions{Title: "Watchoo", Subtitle: configHeaderSubtitle,
-		Width: 80, Unicode: true})) {
+	if header != commentLines(logo.Card(logo.CardOptions{Title: "Watchoo",
+		Subtitle: tr.T("workspace.cfg.card_subtitle"), Width: 80, Unicode: true})) {
 		t.Errorf("configHeader n'est pas la carte de logo.Card en commentaires :\n%s", header)
 	}
 	if strings.Contains(header, "\x1b") {
@@ -758,7 +762,7 @@ func commentLines(s string) string {
 
 func TestConfigExampleFile(t *testing.T) {
 	path := filepath.Join("..", "..", "config.example.yaml")
-	want := ConfigTemplate("licence-projet")
+	want := ConfigTemplate(i18n.English, "licence-projet")
 	if *update {
 		if err := os.WriteFile(path, []byte(want), 0o644); err != nil {
 			t.Fatal(err)

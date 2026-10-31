@@ -7,6 +7,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/studoo-app/watchoo/internal/i18n"
 )
 
 func TestInitCreatesWorkspace(t *testing.T) {
@@ -40,8 +42,8 @@ func TestInitCreatesWorkspace(t *testing.T) {
 	if got := readFile(t, gitignore); got != "*\n" {
 		t.Errorf(".gitignore = %q, attendu %q", got, "*\n")
 	}
-	if got := readFile(t, ws.ConfigPath()); got != ConfigTemplate("licence-projet") {
-		t.Errorf("config.yaml différent de ConfigTemplate(\"licence-projet\") :\n%s", got)
+	if got := readFile(t, ws.ConfigPath()); got != ConfigTemplate(i18n.English, "licence-projet") {
+		t.Errorf("config.yaml différent de ConfigTemplate(i18n.English, \"licence-projet\") :\n%s", got)
 	}
 
 	// Init ne crée pas la base : c'est le rôle de store.
@@ -96,7 +98,7 @@ func TestInitRefusesExistingWorkspace(t *testing.T) {
 	if !errors.Is(err, ErrAlreadyInitialized) {
 		t.Fatalf("second Init : erreur %v, attendu ErrAlreadyInitialized", err)
 	}
-	assertErrorContains(t, err, "déjà un espace Watchoo", root)
+	assertErrorContains(t, err, "already a Watchoo workspace", root)
 	if got := readFile(t, ws.ConfigPath()); got != custom {
 		t.Errorf("config.yaml modifié par le second Init : %q", got)
 	}
@@ -112,7 +114,7 @@ func TestInitRefusesWatchooFile(t *testing.T) {
 	if err == nil || errors.Is(err, ErrAlreadyInitialized) {
 		t.Fatalf("Init avec un fichier .watchoo : erreur %v, attendu une erreur claire", err)
 	}
-	assertErrorContains(t, err, path, "n'est pas un répertoire")
+	assertErrorContains(t, err, path, "is not a directory")
 	if got := readFile(t, path); got != "pas un répertoire" {
 		t.Errorf("le fichier .watchoo a été modifié : %q", got)
 	}
@@ -124,7 +126,7 @@ func TestInitRootMustBeADirectory(t *testing.T) {
 
 	missing := filepath.Join(base, "absent")
 	_, err := Init(missing)
-	assertErrorContains(t, err, missing, "n'existe pas")
+	assertErrorContains(t, err, missing, "does not exist")
 	if _, statErr := os.Stat(missing); !errors.Is(statErr, os.ErrNotExist) {
 		t.Errorf("Init ne doit pas créer le répertoire racine")
 	}
@@ -132,7 +134,7 @@ func TestInitRootMustBeADirectory(t *testing.T) {
 	file := filepath.Join(base, "fichier")
 	writeFile(t, file, "x")
 	_, err = Init(file)
-	assertErrorContains(t, err, file, "n'est pas un répertoire")
+	assertErrorContains(t, err, file, "is not a directory")
 }
 
 func TestInitNestedWorkspace(t *testing.T) {
@@ -250,7 +252,7 @@ func TestFindNotFound(t *testing.T) {
 	if !errors.Is(err, ErrNotFound) {
 		t.Fatalf("Find : %v, %v ; attendu ErrNotFound", ws, err)
 	}
-	assertErrorContains(t, err, "aucun espace Watchoo ici, lancez « watchoo init »", start)
+	assertErrorContains(t, err, `no Watchoo workspace here, run "watchoo init"`, start)
 }
 
 func TestFindIgnoresWatchooFile(t *testing.T) {
@@ -306,7 +308,7 @@ func TestFindSkipsWorkspaceInClones(t *testing.T) {
 	}
 	// Init dans un clone : refusé, rien de créé.
 	fresh := newDir(t, root, ReposDirName, "autre-projet")
-	if _, err := Init(fresh); err == nil || !strings.Contains(err.Error(), "répertoire des clones") {
+	if _, err := Init(fresh); err == nil || !strings.Contains(err.Error(), "clones directory") {
 		t.Errorf("Init dans repos/ : %v, refus attendu", err)
 	}
 	if _, err := os.Stat(filepath.Join(fresh, DirName)); !errors.Is(err, os.ErrNotExist) {
@@ -410,20 +412,20 @@ func TestResolveFromErrors(t *testing.T) {
 		if !errors.Is(err, ErrNotFound) {
 			t.Fatalf("erreur %v, attendu ErrNotFound", err)
 		}
-		assertErrorContains(t, err, "option -C", "aucun espace Watchoo", empty)
+		assertErrorContains(t, err, "option -C", "no Watchoo workspace", empty)
 	})
 	t.Run("-C inexistant", func(t *testing.T) {
 		_, err := ResolveFrom(missing, base)
-		assertErrorContains(t, err, "option -C", missing, "n'existe pas")
+		assertErrorContains(t, err, "option -C", missing, "does not exist")
 	})
 	t.Run("-C fichier", func(t *testing.T) {
 		_, err := ResolveFrom(file, base)
-		assertErrorContains(t, err, "option -C", file, "n'est pas un répertoire")
+		assertErrorContains(t, err, "option -C", file, "is not a directory")
 	})
 	t.Run("WATCHOO_DIR inexistant", func(t *testing.T) {
 		t.Setenv(EnvDir, missing)
 		_, err := ResolveFrom("", base)
-		assertErrorContains(t, err, "variable WATCHOO_DIR", missing, "n'existe pas")
+		assertErrorContains(t, err, "variable WATCHOO_DIR", missing, "does not exist")
 	})
 	t.Run("WATCHOO_DIR sans espace", func(t *testing.T) {
 		t.Setenv(EnvDir, empty)

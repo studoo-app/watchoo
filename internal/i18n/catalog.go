@@ -24,5 +24,7 @@ func mergeCatalog() map[string]entry {
 // catalogParts liste les maps de chaque domaine d'affichage, une par fichier catalog_<domaine>.go.
 // Ajouter le fichier d'une nouvelle couche ici.
 func catalogParts() []map[string]entry {
-	return []map[string]entry{}
+	return []map[string]entry{
+		workspaceTexts,
+	}
 }

@@ -1,68 +1,68 @@
-# ╭─────────────────────────────────────────────────╮
-# │  █▄    ▄█  Watchoo                              │
-# │  █ ●██● █  Réglages de l'espace de supervision  │
-# │  ▀██▙▟██▀                                       │
-# ╰─────────────────────────────────────────────────╯
+# ╭────────────────────────────────╮
+# │  █▄    ▄█  Watchoo             │
+# │  █ ●██● █  Workspace settings  │
+# │  ▀██▙▟██▀                      │
+# ╰────────────────────────────────╯
 #
-# Réglages de l'espace de supervision Watchoo.
+# Watchoo workspace settings.
 #
-# Seul le nom de l'espace est actif. Les autres réglages sont en commentaire,
-# avec leur valeur par défaut : pour en changer un dans cet espace seulement,
-# retirez le « # » devant sa section (ex. « sync: ») et devant sa ligne.
+# Only the workspace name is active. The other settings are in comments,
+# with their default value: to change one for this workspace only,
+# remove the "#" in front of its section (e.g. "sync:") and in front of its line.
 #
-# Ordre de priorité, du plus faible au plus fort :
-#   1. valeurs par défaut de Watchoo ;
-#   2. réglages de l'utilisateur, communs à tous ses espaces (facultatif) :
-#      $XDG_CONFIG_HOME/watchoo/config.yaml, sinon ~/.config/watchoo/config.yaml ;
-#   3. ce fichier ;
-#   4. variables d'environnement WATCHOO_<SECTION>_<CLÉ> (ex. WATCHOO_SYNC_INTERVAL=1h),
-#      puis options de la ligne de commande.
+# Order of precedence, from lowest to highest:
+#   1. Watchoo's defaults;
+#   2. the user's settings, shared by all their workspaces (optional):
+#      $XDG_CONFIG_HOME/watchoo/config.yaml, or ~/.config/watchoo/config.yaml;
+#   3. this file;
+#   4. environment variables WATCHOO_<SECTION>_<KEY> (e.g. WATCHOO_SYNC_INTERVAL=1h),
+#      then the command-line options.
 #
-# Une clé inconnue est refusée, pour signaler les fautes de frappe.
-# Aucun token ici : Watchoo l'obtient de « gh auth token » et ne le stocke jamais.
+# An unknown key is refused, to catch typos.
+# No token here: Watchoo gets it from "gh auth token" and never stores it.
 
-# Nom de l'espace, affiché dans le web, le TUI et « watchoo status ».
-# Par défaut : le nom du répertoire de l'espace.
+# Workspace name, shown in the web UI, the TUI and "watchoo status".
+# Default: the name of the workspace directory.
 name: "licence-projet"
 
-# Synchronisation automatique, faite par « watchoo serve » et « watchoo tui ».
-# « watchoo sync » reste possible à tout moment.
+# Automatic synchronization, performed by "watchoo serve" and "watchoo tui".
+# "watchoo sync" remains available at any time.
 # sync:
-#   auto: true               # false : synchro manuelle seule
-#   interval: 30m            # durée (15m, 1h…), au moins 15m ; 0 : synchro manuelle seule
-#   parallelism: 4           # dépôts synchronisés en même temps, de 1 à 4
+#   auto: true               # false: manual sync only
+#   interval: 30m            # duration (15m, 1h…), at least 15m; 0: manual sync only
+#   parallelism: 4           # repositories synced at the same time, from 1 to 4
 
-# Seuils d'activité de l'espace, en jours sans commit.
+# Activity thresholds of the workspace, in days without a commit.
 # activity:
-#   flemme_after_days: 5     # au-delà : « Flemme » (au moins 1)
-#   dead_after_days: 15      # au-delà : « Dead » (plus grand que flemme_after_days)
+#   flemme_after_days: 5     # beyond: "Flemme" (at least 1)
+#   dead_after_days: 15      # beyond: "Dead" (greater than flemme_after_days)
 
-# Branches ignorées, par motifs (syntaxe de path.Match).
+# Ignored branches, by pattern (path.Match syntax).
 # branches:
-#   exclude: []              # ex. ["dependabot/*", "renovate/*"]
+#   exclude: []              # e.g. ["dependabot/*", "renovate/*"]
 
-# Interface web (« watchoo serve »). Écouter ailleurs que sur 127.0.0.1
-# exposerait les données des dépôts privés : l'authentification devient obligatoire
-# (auth.username et la variable WATCHOO_WEB_PASSWORD, jamais dans ce fichier,
-# ou trusted_proxy: true derrière un reverse proxy qui authentifie, avec ses noms
-# publics dans allowed_hosts : l'en-tête Host est toujours contrôlé, contre le DNS rebinding).
+# Web interface ("watchoo serve"). Listening anywhere other than 127.0.0.1
+# would expose private repository data: authentication becomes mandatory
+# (auth.username and the WATCHOO_WEB_PASSWORD variable, never in this file,
+# or trusted_proxy: true behind an authenticating reverse proxy, with its public
+# names in allowed_hosts: the Host header is always checked, against DNS rebinding).
 # web:
-#   addr: "127.0.0.1:8080"   # hôte:port
-#   trusted_proxy: false     # true : un reverse proxy authentifiant protège l'accès
-#   allowed_hosts: []        # noms publics acceptés dans Host, ex. ["watchoo.example.org"]
+#   addr: "127.0.0.1:8080"   # host:port
+#   trusted_proxy: false     # true: an authenticating reverse proxy protects access
+#   allowed_hosts: []        # public names accepted in Host, e.g. ["watchoo.example.org"]
 #   auth:
-#     username: ""           # authentification basique ; mot de passe dans WATCHOO_WEB_PASSWORD
+#     username: ""           # basic authentication; password in WATCHOO_WEB_PASSWORD
 
-# Fuseau horaire d'affichage et de regroupement par jour ou par semaine.
-# timezone: ""               # vide : fuseau du système ; sinon nom IANA, ex. "Europe/Paris"
+# Time zone used for display and grouping by day or by week.
+# timezone: ""               # empty: system time zone; otherwise an IANA name, e.g. "Europe/Paris"
 
-# Accès à l'API GitHub par la CLI gh, quand elle est installée et connectée. Avec
-# GH_TOKEN (Docker, CI), laissez user vide : « gh auth token --user » ignore GH_TOKEN.
+# Access to the GitHub API through the gh CLI, when it is installed and signed in. With
+# GH_TOKEN (Docker, CI), leave user empty: "gh auth token --user" ignores GH_TOKEN.
 # github:
-#   user: ""                 # login exact d'un compte gh ; vide : compte actif de gh
-#   gh_path: "gh"            # chemin absolu, ou nom cherché dans le PATH
+#   user: ""                 # exact login of a gh account; empty: gh's active account
+#   gh_path: "gh"            # absolute path, or a name looked up in the PATH
 
-# Sans gh installé et connecté, les dépôts sont suivis par clones Git locaux
-# (repos/ à la racine de l'espace), avec la clé SSH ou les identifiants Git de cette machine.
+# Without gh installed and signed in, repositories are tracked by local Git clones
+# (repos/ at the workspace root), with this machine's SSH key or Git credentials.
 # git:
-#   protocol: "ssh"          # "ssh" (git@github.com:…) ou "https" (https://github.com/…)
+#   protocol: "ssh"          # "ssh" (git@github.com:…) or "https" (https://github.com/…)

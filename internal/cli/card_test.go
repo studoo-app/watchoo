@@ -132,7 +132,7 @@ func TestHelpWorkspaceStatus(t *testing.T) {
 		{"variable WATCHOO_DIR", empty, nil, other, inOther, tipWorkspace},
 		{"option -C sans espace", root, []string{"-C", empty}, "", "Aucun espace de supervision ici", tipInit},
 		{"option -C inexistante", root, []string{"-C", "absent", "-h"}, "",
-			"Espace : option -C : le répertoire " + filepath.Join(root, "absent") + " n'existe pas", tipHelp},
+			"Espace : option -C: directory " + filepath.Join(root, "absent") + " does not exist", tipHelp},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.env != "" {
@@ -177,14 +177,14 @@ func TestHelpWorkspaceStatusErrors(t *testing.T) {
 	writeFile(t, config, "sync:\n  intervall: 1h\n")
 	r := h.run("--help").mustSucceed(t)
 	if got := statusOf(r); !strings.HasPrefix(got, "● Espace : ") || !strings.Contains(got, "intervall") {
-		t.Errorf("réglages invalides : ligne d'état %q", got)
+		t.Errorf(`invalid settings : status line %q`, got)
 	}
 	if r.stderr != "" {
 		t.Errorf("sortie d'erreur inattendue :\n%s", r.stderr)
 	}
 
 	writeFile(t, config, "sync:\n  interval: 5m\n")
-	if got := statusOf(h.run("help").mustSucceed(t)); !strings.HasPrefix(got, "● Espace : réglages invalides : ") {
+	if got := statusOf(h.run("help").mustSucceed(t)); !strings.HasPrefix(got, "● Espace : invalid settings: ") {
 		t.Errorf("valeur hors limites : ligne d'état %q", got)
 	}
 

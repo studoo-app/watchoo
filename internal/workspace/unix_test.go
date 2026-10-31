@@ -51,7 +51,7 @@ func TestFindStopsOnAccessError(t *testing.T) {
 	if err == nil || errors.Is(err, ErrNotFound) {
 		t.Fatalf("Find = %v, %v ; attendu une erreur d'accès", ws, err)
 	}
-	assertErrorContains(t, err, "recherche de l'espace")
+	assertErrorContains(t, err, "looking for the workspace")
 	if !errors.Is(err, os.ErrPermission) {
 		t.Errorf("l'erreur d'origine doit être conservée : %v", err)
 	}
@@ -78,7 +78,7 @@ func TestLoadRefusesUntrustedWorkspace(t *testing.T) {
 			old := currentUID
 			currentUID = func() int { return uid }
 			t.Cleanup(func() { currentUID = old })
-		}, func(ws *Workspace) string { return ws.Dir }, []string{"autre utilisateur", "-C", EnvDir}},
+		}, func(ws *Workspace) string { return ws.Dir }, []string{"another user", "-C", EnvDir}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

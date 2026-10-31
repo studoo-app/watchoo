@@ -18,6 +18,7 @@ import (
 
 	"github.com/spf13/viper"
 
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/logo"
 )
 
@@ -193,44 +194,41 @@ func DefaultConfig(name string) Config {
 //   - git.protocol : GitProtocolSSH ou GitProtocolHTTPS.
 func (c Config) Validate() error {
 	var errs []error
-	add := func(format string, args ...any) {
-		errs = append(errs, fmt.Errorf(format, args...))
+	add := func(key string, args ...any) {
+		errs = append(errs, errors.New(i18n.T(key, args...)))
 	}
 
 	if strings.TrimSpace(c.Name) == "" {
-		add("name : le nom de l'espace est vide (reçu %q)", c.Name)
+		add("workspace.validate.name_empty", c.Name)
 	}
 
 	minutes := int(MinSyncInterval / time.Minute)
 	switch d := c.Sync.Interval; {
 	case d < 0:
-		add("sync.interval : %s est négatif (0 pour la synchro manuelle seule, sinon au moins %d min)",
-			d, minutes)
+		add("workspace.validate.interval_negative", d, minutes)
 	case d > 0 && d < MinSyncInterval:
-		add("sync.interval : %s est inférieur au minimum de %d min (0 pour la synchro manuelle seule)",
-			d, minutes)
+		add("workspace.validate.interval_too_low", d, minutes)
 	}
 
 	if p := c.Sync.Parallelism; p < 1 || p > MaxSyncParallelism {
-		add("sync.parallelism : %d doit être compris entre 1 et %d", p, MaxSyncParallelism)
+		add("workspace.validate.parallelism_range", p, MaxSyncParallelism)
 	}
 
 	flemme, dead := c.Activity.FlemmeAfterDays, c.Activity.DeadAfterDays
 	if flemme < 1 {
-		add("activity.flemme_after_days : %d doit valoir au moins 1 (jours sans commit)", flemme)
+		add("workspace.validate.flemme_min", flemme)
 	}
 	if dead <= flemme {
-		add("activity.dead_after_days : %d doit être strictement supérieur à "+
-			"activity.flemme_after_days (%d)", dead, flemme)
+		add("workspace.validate.dead_above_flemme", dead, flemme)
 	}
 
 	for i, pattern := range c.Branches.Exclude {
 		if strings.TrimSpace(pattern) == "" {
-			add("branches.exclude : le motif n° %d est vide", i+1)
+			add("workspace.validate.pattern_empty", i+1)
 			continue
 		}
 		if _, err := path.Match(pattern, ""); err != nil {
-			add("branches.exclude : motif %q invalide (syntaxe de path.Match, ex. « dependabot/* »)", pattern)
+			add("workspace.validate.pattern_invalid", pattern)
 		}
 	}
 
@@ -239,34 +237,31 @@ func (c Config) Validate() error {
 	}
 	if u := c.Web.Auth.Username; strings.ContainsRune(u, ':') ||
 		strings.ContainsFunc(u, func(r rune) bool { return r < 0x20 || r == 0x7f }) || strings.TrimSpace(u) != u {
-		add("web.auth.username : %q invalide (ni « : », ni caractère de contrôle, ni espace autour)", u)
+		add("workspace.validate.username_invalid", u)
 	}
 	for i, h := range c.Web.AllowedHosts {
 		if !validHostName(h) {
-			add("web.allowed_hosts : le nom n° %d (%q) est invalide (nom d'hôte ou adresse IP, sans port, "+
-				"ni schéma, ni joker ; ex. « watchoo.example.org »)", i+1, h)
+			add("workspace.validate.host_invalid", i+1, h)
 		}
 	}
 
 	if c.Timezone != "" {
 		if _, err := time.LoadLocation(c.Timezone); err != nil {
-			add("timezone : fuseau %q inconnu (nom IANA attendu, ex. « Europe/Paris » ; "+
-				"vide pour le fuseau du système)", c.Timezone)
+			add("workspace.validate.timezone_unknown", c.Timezone)
 		}
 	}
 
 	if p := c.GitHub.GHPath; strings.TrimSpace(p) == "" {
-		add("github.gh_path : le chemin de gh est vide (reçu %q ; « gh » pour le chercher dans le PATH)", p)
+		add("workspace.validate.gh_path_empty", p)
 	} else if seps := `/` + string(filepath.Separator); !filepath.IsAbs(p) &&
 		!strings.ContainsAny(p[:1], seps) && strings.ContainsAny(p, seps) {
 		// Relatif avec séparateur (« .watchoo/gh ») : refusé. Un chemin qui part de la racine (« \gh »
 		// sous Windows, sans lecteur) ne dépend pas du répertoire courant et reste accepté.
-		add("github.gh_path : chemin relatif %q refusé, il dépendrait du répertoire courant "+
-			"(chemin absolu, ou nom cherché dans le PATH comme « gh »)", p)
+		add("workspace.validate.gh_path_relative", p)
 	}
 
 	if p := c.Git.Protocol; p != GitProtocolSSH && p != GitProtocolHTTPS {
-		add("git.protocol : %q inconnu (%q ou %q)", p, GitProtocolSSH, GitProtocolHTTPS)
+		add("workspace.validate.protocol_unknown", p, GitProtocolSSH, GitProtocolHTTPS)
 	}
 
 	return errors.Join(errs...)
@@ -292,13 +287,13 @@ func validHostName(h string) bool {
 func validateAddr(addr string) error {
 	_, port, err := net.SplitHostPort(addr)
 	if err != nil {
-		return fmt.Errorf("web.addr : %q n'est pas de la forme hôte:port (ex. « 127.0.0.1:8080 »)", addr)
+		return errors.New(i18n.T("workspace.validate.addr_form", addr))
 	}
 	if port == "" {
-		return fmt.Errorf("web.addr : port manquant dans %q (ex. « 127.0.0.1:8080 »)", addr)
+		return errors.New(i18n.T("workspace.validate.addr_port_missing", addr))
 	}
 	if n, err := strconv.Atoi(port); err != nil || n < 0 || n > 65535 {
-		return fmt.Errorf("web.addr : port %q invalide dans %q (nombre entre 0 et 65535 attendu)", port, addr)
+		return errors.New(i18n.T("workspace.validate.addr_port_invalid", port, addr))
 	}
 	return nil
 }
@@ -311,7 +306,7 @@ func (c Config) Location() (*time.Location, error) {
 	}
 	loc, err := time.LoadLocation(c.Timezone)
 	if err != nil {
-		return nil, fmt.Errorf("timezone : fuseau %q inconnu : %w", c.Timezone, err)
+		return nil, errWrapped(i18n.T("workspace.validate.timezone_unknown_wrap", c.Timezone), err)
 	}
 	return loc, nil
 }
@@ -328,7 +323,7 @@ func UserConfigPath() (string, error) {
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return "", fmt.Errorf("réglages de l'utilisateur : répertoire personnel introuvable : %w", err)
+		return "", errWrapped(i18n.T("workspace.userconfig.no_home"), err)
 	}
 	return filepath.Join(home, ".config", UserConfigDirName, ConfigFileName), nil
 }
@@ -361,7 +356,7 @@ func UserConfigPath() (string, error) {
 // par la CLI, qui revalide la Config.
 func Load(ws *Workspace) error {
 	if ws == nil || ws.Root == "" || ws.Dir == "" {
-		return errors.New("chargement des réglages : espace non renseigné")
+		return errors.New(i18n.T("workspace.load.no_workspace"))
 	}
 	if err := checkTrusted(ws); err != nil {
 		return err
@@ -383,7 +378,7 @@ func Load(ws *Workspace) error {
 // invalide.
 func LoadUserConfig(root string) (Config, error) {
 	if root == "" {
-		return Config{}, errors.New("chargement des réglages : répertoire non renseigné")
+		return Config{}, errors.New(i18n.T("workspace.load.no_dir"))
 	}
 	return loadConfig(root, "")
 }
@@ -396,7 +391,7 @@ func loadConfig(root, workspaceFile string) (Config, error) {
 		return Config{}, err
 	}
 	if err := cfg.Validate(); err != nil {
-		return Config{}, fmt.Errorf("réglages invalides : %w", err)
+		return Config{}, errWrapped(i18n.T("workspace.load.invalid"), err)
 	}
 	return cfg, nil
 }
@@ -429,7 +424,8 @@ func loadLayers(root, workspaceFile string, withEnv bool) (Config, error) {
 			continue
 		}
 		if err := v.MergeConfigMap(values); err != nil {
-			errs = append(errs, fmt.Errorf("%s : fusion des réglages : %w", file, err))
+			errs = append(errs, fmt.Errorf("%s : %s%s%w", file, i18n.T("workspace.load.merge"),
+				i18n.T("workspace.err.sep"), err))
 		}
 	}
 	if withEnv {
@@ -452,7 +448,7 @@ func loadLayers(root, workspaceFile string, withEnv bool) (Config, error) {
 		}
 	}
 	if err := errors.Join(errs...); err != nil {
-		return Config{}, fmt.Errorf("réglages de l'espace %s : %w", root, err)
+		return Config{}, errWrapped(i18n.T("workspace.load.of", root), err)
 	}
 	return cfg, nil
 }
@@ -467,13 +463,14 @@ func readSettingsFile(file string) (map[string]any, error) {
 		return nil, nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("lecture des réglages %s : %w", file, err)
+		return nil, errWrapped(i18n.T("workspace.settings.read", file), err)
 	}
 
 	fv := viper.New()
 	fv.SetConfigType("yaml")
 	if err := fv.ReadConfig(bytes.NewReader(data)); err != nil {
-		return nil, fmt.Errorf("%s : YAML invalide : %w", file, err)
+		return nil, fmt.Errorf("%s : %s%s%w", file, i18n.T("workspace.settings.invalid_yaml"),
+			i18n.T("workspace.err.sep"), err)
 	}
 
 	var scratch Config
@@ -527,17 +524,17 @@ func unknownKeyError(key string, raw any, leaves []string) error {
 		if m, isMap := raw.(map[string]any); raw == nil || (isMap && len(m) == 0) {
 			return nil
 		}
-		return fmt.Errorf("%q est une section : indiquez ses sous-clés (ex. « %s »)", key, sectionLeaf)
+		return errors.New(i18n.T("workspace.settings.is_section", key, sectionLeaf))
 	}
 	for _, leaf := range leaves {
 		if strings.HasPrefix(key, leaf+".") {
-			return fmt.Errorf("%q n'accepte pas de sous-clés (clé %q refusée)", leaf, key)
+			return errors.New(i18n.T("workspace.settings.no_subkeys", leaf, key))
 		}
 	}
 	if suggestion := suggestKey(key, leaves); suggestion != "" {
-		return fmt.Errorf("clé inconnue %q (vouliez-vous dire « %s » ?)", key, suggestion)
+		return errors.New(i18n.T("workspace.settings.unknown_key_suggest", key, suggestion))
 	}
-	return fmt.Errorf("clé inconnue %q", key)
+	return errors.New(i18n.T("workspace.settings.unknown_key", key))
 }
 
 // suggestKey propose la clé connue la plus proche de key (faute de frappe, ou clé écrite hors de sa
@@ -608,7 +605,8 @@ func checkEnv() []error {
 			continue
 		}
 		if err := decodeSetting(f.ptr, value); err != nil {
-			errs = append(errs, fmt.Errorf("variable %s (%s) : %w", name, f.key, err))
+			errs = append(errs, fmt.Errorf("%s%s%w", i18n.T("workspace.decode.env_var", name, f.key),
+				i18n.T("workspace.err.sep"), err))
 		}
 	}
 	return errs
@@ -690,7 +688,7 @@ func decodeSetting(ptr, raw any) error {
 		}
 		*p = list
 	default:
-		return fmt.Errorf("type de réglage non géré : %T", ptr)
+		return errors.New(i18n.T("workspace.decode.unsupported_type", ptr))
 	}
 	return nil
 }
@@ -699,17 +697,17 @@ func decodeSetting(ptr, raw any) error {
 func describe(raw any) string {
 	switch v := raw.(type) {
 	case nil:
-		return "une valeur vide"
+		return i18n.T("workspace.desc.empty")
 	case string:
 		return fmt.Sprintf("%q", v)
 	case bool:
-		return fmt.Sprintf("le booléen %t", v)
+		return i18n.T("workspace.desc.bool", v)
 	case int, int64, uint64, float64:
-		return fmt.Sprintf("le nombre %v", v)
+		return i18n.T("workspace.desc.number", v)
 	case []any, []string:
-		return "une liste"
+		return i18n.T("workspace.desc.list")
 	case map[string]any:
-		return "une section"
+		return i18n.T("workspace.desc.section")
 	default:
 		return fmt.Sprintf("%v", v)
 	}
@@ -726,8 +724,7 @@ func toString(raw any) (string, error) {
 	case uint64:
 		return strconv.FormatUint(v, 10), nil
 	}
-	return "", fmt.Errorf("chaîne de caractères attendue, reçu %s (mettez la valeur entre guillemets)",
-		describe(raw))
+	return "", errors.New(i18n.T("workspace.decode.want_string", describe(raw)))
 }
 
 func toBool(raw any) (bool, error) {
@@ -739,7 +736,7 @@ func toBool(raw any) (bool, error) {
 			return b, nil
 		}
 	}
-	return false, fmt.Errorf("true ou false attendu, reçu %s", describe(raw))
+	return false, errors.New(i18n.T("workspace.decode.want_bool", describe(raw)))
 }
 
 func toInt(raw any) (int, error) {
@@ -759,7 +756,7 @@ func toInt(raw any) (int, error) {
 			return n, nil
 		}
 	}
-	return 0, fmt.Errorf("nombre entier attendu, reçu %s", describe(raw))
+	return 0, errors.New(i18n.T("workspace.decode.want_int", describe(raw)))
 }
 
 func toDuration(raw any) (time.Duration, error) {
@@ -771,18 +768,18 @@ func toDuration(raw any) (time.Duration, error) {
 		if n, err := toInt(v); err == nil && n == 0 {
 			return 0, nil
 		}
-		return 0, fmt.Errorf("durée sans unité %v (exemples : 30m, 1h ; 0 accepté)", v)
+		return 0, errors.New(i18n.T("workspace.decode.duration_no_unit_v", v))
 	case string:
 		d, err := time.ParseDuration(strings.TrimSpace(v))
 		if err == nil {
 			return d, nil
 		}
 		if _, convErr := strconv.Atoi(strings.TrimSpace(v)); convErr == nil {
-			return 0, fmt.Errorf("durée sans unité %q (exemples : 30m, 1h ; 0 accepté)", v)
+			return 0, errors.New(i18n.T("workspace.decode.duration_no_unit_q", v))
 		}
-		return 0, fmt.Errorf("durée invalide %q (exemples : 30m, 1h ; 0 accepté)", v)
+		return 0, errors.New(i18n.T("workspace.decode.duration_invalid", v))
 	}
-	return 0, fmt.Errorf("durée attendue (exemples : 30m, 1h), reçu %s", describe(raw))
+	return 0, errors.New(i18n.T("workspace.decode.want_duration", describe(raw)))
 }
 
 // toStringSlice accepte une liste YAML de chaînes, ou une chaîne de valeurs séparées par des virgules
@@ -797,7 +794,8 @@ func toStringSlice(raw any) ([]string, error) {
 		for i, item := range v {
 			s, err := toString(item)
 			if err != nil {
-				return nil, fmt.Errorf("élément n° %d : %w", i+1, err)
+				return nil, fmt.Errorf("%s%s%w", i18n.T("workspace.decode.list_item", i+1),
+					i18n.T("workspace.err.sep"), err)
 			}
 			out = append(out, s)
 		}
@@ -812,21 +810,19 @@ func toStringSlice(raw any) ([]string, error) {
 		}
 		return parts, nil
 	}
-	return nil, fmt.Errorf("liste attendue (ex. [\"dependabot/*\"]), reçu %s", describe(raw))
+	return nil, errors.New(i18n.T("workspace.decode.want_list", describe(raw)))
 }
 
-// configHeaderSubtitle est le sous-titre de la carte d'en-tête des fichiers de configuration.
-const configHeaderSubtitle = "Réglages de l'espace de supervision"
-
 // configHeader renvoie la carte d'en-tête des fichiers de configuration, en commentaires YAML : la carte
-// de logo.Card (hibou mini en blocs Unicode, titre « Watchoo » sans version, sous-titre
-// configHeaderSubtitle, sans astuce ni couleur, 80 colonnes au plus), chaque ligne précédée de « # ».
+// de logo.Card (hibou mini en blocs Unicode, titre « Watchoo » sans version, sous-titre traduit
+// (clé workspace.cfg.card_subtitle), sans astuce ni couleur, 80 colonnes au plus), chaque ligne
+// précédée de « # ».
 // Le fichier est déjà en UTF-8 (accents, « »). Le nom de l'espace n'y figure pas : il pourrait contenir
 // un saut de ligne, qui ferait sortir la suite du commentaire.
-func configHeader() string {
+func configHeader(tr *i18n.Translator) string {
 	card := logo.Card(logo.CardOptions{
 		Title:    "Watchoo",
-		Subtitle: configHeaderSubtitle,
+		Subtitle: tr.T("workspace.cfg.card_subtitle"),
 		Width:    logo.MaxCardWidth,
 		Unicode:  true,
 	})
@@ -838,33 +834,35 @@ func configHeader() string {
 	return b.String()
 }
 
-// ConfigTemplate renvoie le contenu du config.yaml écrit par Init pour un espace nommé name.
+// ConfigTemplate renvoie le contenu du config.yaml écrit par Init pour un espace nommé name, dans la
+// langue lang.
 //
-// Le fichier commence par la carte d'en-tête de Watchoo, en commentaires (voir configHeader). Il est
-// commenté en français. Seule la clé name y est active (valeur écrite comme une chaîne
-// YAML entre guillemets, correctement échappée, pour supporter « : », « # », guillemets…). Tous les
-// autres réglages y figurent en commentaire, avec leur valeur par défaut et une explication, afin que
-// les réglages de l'utilisateur ($XDG_CONFIG_HOME/watchoo/config.yaml, sinon ~/.config/watchoo/config.yaml)
+// Le fichier commence par la carte d'en-tête de Watchoo, en commentaires (voir configHeader). Ses
+// commentaires sont traduits (anglais ou français). Seule la clé name y est active (valeur écrite comme
+// une chaîne YAML entre guillemets, correctement échappée, pour supporter « : », « # », guillemets…).
+// Tous les autres réglages y figurent en commentaire, avec leur valeur par défaut et une explication,
+// afin que les réglages de l'utilisateur ($XDG_CONFIG_HOME/watchoo/config.yaml, sinon ~/.config/watchoo/config.yaml)
 // continuent de s'appliquer.
 // Propriété attendue : ce contenu, relu par Load sans autre source, donne exactement DefaultConfig(name).
 // Décommenter toutes les lignes de réglage donne aussi DefaultConfig(name) (un test le vérifie).
 //
-// config.example.yaml, à la racine du dépôt, est égal à ConfigTemplate("licence-projet") (un test le
-// vérifie ; « go test ./internal/workspace -run TestConfigExampleFile -update » le régénère).
-func ConfigTemplate(name string) string {
-	return renderConfig(name, map[string]any{"name": name})
+// config.example.yaml, à la racine du dépôt, est égal à ConfigTemplate(i18n.English, "licence-projet")
+// (un test le vérifie ; « go test ./internal/workspace -run TestConfigExampleFile -update » le régénère).
+func ConfigTemplate(lang i18n.Lang, name string) string {
+	return renderConfig(i18n.For(lang), name, map[string]any{"name": name})
 }
 
 // renderConfig écrit le config.yaml du modèle de Init pour un espace dont le nom par défaut est
-// defaultName, avec les réglages de active (clé complète → valeur typée : string, bool, int,
-// time.Duration ou []string) écrits ACTIFS, chacun à sa place dans le modèle ; les autres restent en
-// commentaire avec leur valeur par défaut. Une section (« sync: ») est décommentée dès qu'une de ses
-// clés est active. Les valeurs passent par FormatSettingValue (chaînes entre guillemets, échappées) :
-// aucune valeur ne peut créer une autre clé. Une clé de active inconnue du modèle est ignorée ici :
-// WriteSharedSettings relit le fichier écrit et le compare aux valeurs attendues.
+// defaultName, dans la langue du traducteur tr, avec les réglages de active (clé complète → valeur
+// typée : string, bool, int, time.Duration ou []string) écrits ACTIFS, chacun à sa place dans le
+// modèle ; les autres restent en commentaire avec leur valeur par défaut. Une section (« sync: ») est
+// décommentée dès qu'une de ses clés est active. Les valeurs passent par FormatSettingValue (chaînes
+// entre guillemets, échappées) : aucune valeur ne peut créer une autre clé. Une clé de active inconnue
+// du modèle est ignorée ici : WriteSharedSettings relit le fichier écrit et le compare aux valeurs
+// attendues.
 //
 // Sans « name » dans active, la ligne du nom est écrite en commentaire, avec defaultName.
-func renderConfig(defaultName string, active map[string]any) string {
+func renderConfig(tr *i18n.Translator, defaultName string, active map[string]any) string {
 	defaults := DefaultConfig(defaultName)
 	defaultValues := map[string]any{}
 	for _, f := range settingFields(&defaults) {
@@ -906,34 +904,34 @@ func renderConfig(defaultName string, active map[string]any) string {
 		fmt.Fprintf(&b, "%-28s # %s\n", "# "+indent+leaf+": "+FormatSettingValue(defaultValues[key]), comment)
 	}
 
-	b.WriteString(configHeader())
+	b.WriteString(configHeader(tr))
 	text(
 		"#",
-		"# Réglages de l'espace de supervision Watchoo.",
+		"# "+tr.T("workspace.cfg.header"),
 		"#",
 	)
 	if onlyName := len(active) == 0 || (len(active) == 1 && active["name"] != nil); onlyName {
-		text("# Seul le nom de l'espace est actif. Les autres réglages sont en commentaire,")
+		text("# " + tr.T("workspace.cfg.only_name"))
 	} else {
-		text("# Les réglages sans « # » s'appliquent à cet espace. Les autres sont en commentaire,")
+		text("# " + tr.T("workspace.cfg.some_active"))
 	}
 	text(
-		"# avec leur valeur par défaut : pour en changer un dans cet espace seulement,",
-		"# retirez le « # » devant sa section (ex. « sync: ») et devant sa ligne.",
+		"# "+tr.T("workspace.cfg.change_hint"),
+		"# "+tr.T("workspace.cfg.uncomment"),
 		"#",
-		"# Ordre de priorité, du plus faible au plus fort :",
-		"#   1. valeurs par défaut de Watchoo ;",
-		"#   2. réglages de l'utilisateur, communs à tous ses espaces (facultatif) :",
-		"#      $XDG_CONFIG_HOME/watchoo/config.yaml, sinon ~/.config/watchoo/config.yaml ;",
-		"#   3. ce fichier ;",
-		"#   4. variables d'environnement WATCHOO_<SECTION>_<CLÉ> (ex. WATCHOO_SYNC_INTERVAL=1h),",
-		"#      puis options de la ligne de commande.",
+		"# "+tr.T("workspace.cfg.priority_order"),
+		"#   "+tr.T("workspace.cfg.priority_defaults"),
+		"#   "+tr.T("workspace.cfg.priority_user"),
+		"#      "+tr.T("workspace.cfg.priority_user_paths"),
+		"#   "+tr.T("workspace.cfg.priority_this_file"),
+		"#   "+tr.T("workspace.cfg.priority_env"),
+		"#      "+tr.T("workspace.cfg.priority_cli"),
 		"#",
-		"# Une clé inconnue est refusée, pour signaler les fautes de frappe.",
-		"# Aucun token ici : Watchoo l'obtient de « gh auth token » et ne le stocke jamais.",
+		"# "+tr.T("workspace.cfg.unknown_key_refused"),
+		"# "+tr.T("workspace.cfg.no_token"),
 		"",
-		"# Nom de l'espace, affiché dans le web, le TUI et « watchoo status ».",
-		"# Par défaut : le nom du répertoire de l'espace.",
+		"# "+tr.T("workspace.cfg.name_comment"),
+		"# "+tr.T("workspace.cfg.name_default"),
 	)
 	if v, ok := active["name"]; ok {
 		text("name: " + FormatSettingValue(v))
@@ -942,65 +940,65 @@ func renderConfig(defaultName string, active map[string]any) string {
 	}
 	text(
 		"",
-		"# Synchronisation automatique, faite par « watchoo serve » et « watchoo tui ».",
-		"# « watchoo sync » reste possible à tout moment.",
+		"# "+tr.T("workspace.cfg.sync_comment"),
+		"# "+tr.T("workspace.cfg.sync_manual"),
 	)
 	section("", "sync")
-	setting("  ", "sync.auto", "false : synchro manuelle seule")
+	setting("  ", "sync.auto", tr.T("workspace.cfg.sync_auto"))
 	setting("  ", "sync.interval",
-		fmt.Sprintf("durée (15m, 1h…), au moins %s ; 0 : synchro manuelle seule", shortDuration(MinSyncInterval)))
-	setting("  ", "sync.parallelism", fmt.Sprintf("dépôts synchronisés en même temps, de 1 à %d", MaxSyncParallelism))
+		tr.T("workspace.cfg.sync_interval", shortDuration(MinSyncInterval)))
+	setting("  ", "sync.parallelism", tr.T("workspace.cfg.sync_parallelism", MaxSyncParallelism))
 	text(
 		"",
-		"# Seuils d'activité de l'espace, en jours sans commit.",
+		"# "+tr.T("workspace.cfg.activity_comment"),
 	)
 	section("", "activity")
-	setting("  ", "activity.flemme_after_days", "au-delà : « Flemme » (au moins 1)")
-	setting("  ", "activity.dead_after_days", "au-delà : « Dead » (plus grand que flemme_after_days)")
+	setting("  ", "activity.flemme_after_days", tr.T("workspace.cfg.flemme"))
+	setting("  ", "activity.dead_after_days", tr.T("workspace.cfg.dead"))
 	text(
 		"",
-		"# Branches ignorées, par motifs (syntaxe de path.Match).",
+		"# "+tr.T("workspace.cfg.branches_comment"),
 	)
 	section("", "branches")
-	setting("  ", "branches.exclude", `ex. ["dependabot/*", "renovate/*"]`)
+	setting("  ", "branches.exclude", tr.T("workspace.cfg.branches_exclude"))
 	text(
 		"",
-		"# Interface web (« watchoo serve »). Écouter ailleurs que sur 127.0.0.1",
-		"# exposerait les données des dépôts privés : l'authentification devient obligatoire",
-		"# (auth.username et la variable "+WebPasswordEnv+", jamais dans ce fichier,",
-		"# ou trusted_proxy: true derrière un reverse proxy qui authentifie, avec ses noms",
-		"# publics dans allowed_hosts : l'en-tête Host est toujours contrôlé, contre le DNS rebinding).",
+		"# "+tr.T("workspace.cfg.web_l1"),
+		"# "+tr.T("workspace.cfg.web_l2"),
+		"# "+tr.T("workspace.cfg.web_l3", WebPasswordEnv),
+		"# "+tr.T("workspace.cfg.web_l4"),
+		"# "+tr.T("workspace.cfg.web_l5"),
 	)
 	section("", "web")
-	setting("  ", "web.addr", "hôte:port")
-	setting("  ", "web.trusted_proxy", "true : un reverse proxy authentifiant protège l'accès")
-	setting("  ", "web.allowed_hosts", `noms publics acceptés dans Host, ex. ["watchoo.example.org"]`)
+	setting("  ", "web.addr", tr.T("workspace.cfg.web_addr"))
+	setting("  ", "web.trusted_proxy", tr.T("workspace.cfg.trusted_proxy"))
+	setting("  ", "web.allowed_hosts", tr.T("workspace.cfg.allowed_hosts"))
 	if sectionActive("web.auth") {
 		text("  auth:")
 	} else {
 		text("#   auth:")
 	}
-	setting("    ", "web.auth.username", "authentification basique ; mot de passe dans "+WebPasswordEnv)
+	setting("    ", "web.auth.username", tr.T("workspace.cfg.auth_username", WebPasswordEnv))
 	text(
 		"",
-		"# Fuseau horaire d'affichage et de regroupement par jour ou par semaine.",
+		"# "+tr.T("workspace.cfg.timezone_comment"),
 	)
-	setting("", "timezone", `vide : fuseau du système ; sinon nom IANA, ex. "Europe/Paris"`)
+	setting("", "timezone", tr.T("workspace.cfg.timezone"))
 	text(
 		"",
-		"# Accès à l'API GitHub par la CLI gh, quand elle est installée et connectée. Avec",
-		"# GH_TOKEN (Docker, CI), laissez user vide : « gh auth token --user » ignore GH_TOKEN.",
+		"# "+tr.T("workspace.cfg.github_l1"),
+		"# "+tr.T("workspace.cfg.github_l2"),
 	)
 	section("", "github")
-	setting("  ", "github.user", "login exact d'un compte gh ; vide : compte actif de gh")
-	setting("  ", "github.gh_path", "chemin absolu, ou nom cherché dans le PATH")
+	setting("  ", "github.user", tr.T("workspace.cfg.gh_user"))
+	setting("  ", "github.gh_path", tr.T("workspace.cfg.gh_path"))
 	text(
 		"",
-		"# Sans gh installé et connecté, les dépôts sont suivis par clones Git locaux",
-		"# (repos/ à la racine de l'espace), avec la clé SSH ou les identifiants Git de cette machine.",
+		"# "+tr.T("workspace.cfg.git_l1"),
+		"# "+tr.T("workspace.cfg.git_l2"),
 	)
 	section("", "git")
-	setting("  ", "git.protocol", `"ssh" (git@github.com:…) ou "https" (https://github.com/…)`)
+	setting("  ", "git.protocol", tr.T("workspace.cfg.git_protocol"))
 	return b.String()
 }
 

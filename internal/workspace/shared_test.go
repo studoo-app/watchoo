@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/studoo-app/watchoo/internal/i18n"
 )
 
 func ptr[T any](v T) *T { return &v }
@@ -186,7 +188,7 @@ func TestWriteSharedSettingsKeepsMachineKeys(t *testing.T) {
 	if strings.Contains(content, "Mon commentaire personnel") {
 		t.Error("le commentaire personnel devait disparaître (il reste dans .bak)")
 	}
-	if !strings.HasPrefix(content, configHeader()) {
+	if !strings.HasPrefix(content, configHeader(i18n.For(i18n.English))) {
 		t.Error("le fichier réécrit ne commence pas par la carte du modèle")
 	}
 
@@ -371,7 +373,7 @@ func TestWriteSharedSettingsRequiresWorkspace(t *testing.T) {
 // Les réglages importés et les clés machine relus valent ceux attendus, y compris pour le modèle de Init
 // réécrit sans aucun réglage commun : seul name est actif.
 func TestRenderConfigOnlyName(t *testing.T) {
-	if got := renderConfig("x", map[string]any{"name": "x"}); got != ConfigTemplate("x") {
+	if got := renderConfig(i18n.For(i18n.English), "x", map[string]any{"name": "x"}); got != ConfigTemplate(i18n.English, "x") {
 		t.Error("renderConfig avec name seul doit donner ConfigTemplate")
 	}
 }

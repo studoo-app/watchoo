@@ -25,7 +25,7 @@ func TestPhase3CommandsOutsideWorkspace(t *testing.T) {
 		{"tui"},
 		{"repo", "list", "--json"},
 	} {
-		h.run(args...).mustFail(t, "aucun espace Watchoo ici, lancez « watchoo init »", "-C <répertoire>")
+		h.run(args...).mustFail(t, "no Watchoo workspace here", "-C <répertoire>")
 	}
 	assertNoWorkspace(t, h.cwd)
 	if len(h.configs) != 0 || len(h.tokens) != 0 {
@@ -38,7 +38,7 @@ func TestPhase3WorkspaceFlag(t *testing.T) {
 	h := newSyncedWorkspace(t)
 	root := h.cwd
 	h.cwd = newDir(t, t.TempDir(), "ailleurs")
-	h.run("repo", "list").mustFail(t, "aucun espace Watchoo ici")
+	h.run("repo", "list").mustFail(t, "no Watchoo workspace here")
 	r := h.run("-C", root, "repo", "list").mustSucceed(t)
 	assertContains(t, "repo list -C", r.stdout, "Alice Martin", "bob/projet")
 }
