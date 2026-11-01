@@ -23,7 +23,7 @@ import (
 func newRepoCmd(deps Deps, opts *options) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "repo",
-		Short: "Gère les dépôts suivis (add, import, list, remove)",
+		Short: i18n.T("cli.repo.help.repo_short"),
 		Args:  cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) > 0 {
@@ -92,23 +92,8 @@ func newRepoAddCmd(deps Deps, opts *options) *cobra.Command {
 	var flemme, dead int
 	cmd := &cobra.Command{
 		Use:   "add owner/repo",
-		Short: "Ajoute un dépôt à surveiller",
-		Long: `Ajoute un dépôt à surveiller, après avoir vérifié auprès de GitHub que le compte gh y a
-accès (sans gh installé et connecté : que git peut le lire, par « git ls-remote », avec la
-clé SSH ou les identifiants Git de cette machine). Le dépôt est désigné par owner/repo ou
-par son URL GitHub.
-
-Sans --branch, toutes les branches du dépôt sont suivies, y compris celles créées plus
-tard. --branch restreint le suivi à une liste de noms et de motifs (release/* par
-exemple) ; --branch "" revient à toutes les branches.
-
---flemme et --dead règlent les seuils d'activité de ce dépôt, en jours sans commit, à la
-place de ceux de l'espace (activity.*) ; 0 revient au seuil de l'espace. Quand les deux
-sont donnés, --dead doit être plus grand que --flemme.
-
-Un dépôt déjà suivi n'est pas ajouté en double : son label, ses branches et ses seuils
-sont mis à jour s'ils sont donnés, et son suivi reprend s'il avait été arrêté. Aucune synchro
-n'est lancée : enchaînez avec « watchoo sync ».`,
+		Short: i18n.T("cli.repo.help.add_short"),
+		Long:  i18n.T("cli.repo.help.add_long"),
 		Example: `  watchoo repo add alice/projet-licence --label "Alice Martin"
   watchoo repo add https://github.com/mon-org/site-web --branch main,dev,release/*
   watchoo repo add alice/projet-licence --flemme 3 --dead 10`,
@@ -145,12 +130,12 @@ n'est lancée : enchaînez avec « watchoo sync ».`,
 		},
 	}
 	cmd.Flags().StringVar(&branch, "branch", "",
-		"`branches` à suivre, séparées par des virgules, motifs acceptés (ex. main,dev,release/*) ; défaut : toutes")
-	cmd.Flags().StringVar(&label, "label", "", "`nom` affiché à la place de owner/repo (ex. \"Alice Martin\")")
+		i18n.T("cli.repo.help.add_flag_branch"))
+	cmd.Flags().StringVar(&label, "label", "", i18n.T("cli.repo.help.add_flag_label"))
 	cmd.Flags().IntVar(&flemme, "flemme", 0,
-		"seuil Flemme de ce dépôt, en `jours` sans commit (0 = seuil de l'espace)")
+		i18n.T("cli.repo.help.add_flag_flemme"))
 	cmd.Flags().IntVar(&dead, "dead", 0,
-		"seuil Dead de ce dépôt, en `jours` sans commit, plus grand que --flemme (0 = seuil de l'espace)")
+		i18n.T("cli.repo.help.add_flag_dead"))
 	return cmd
 }
 
@@ -257,15 +242,9 @@ type repoListReport struct {
 func newRepoListCmd(deps Deps, opts *options) *cobra.Command {
 	return &cobra.Command{
 		Use:   "list",
-		Short: "Liste les dépôts suivis : dernier commit, auteur, état",
-		Long: `Liste les dépôts de l'espace avec leur dernier commit (toutes branches suivies
-confondues), son auteur et leur état :
-  -        Actif   (dernier commit il y a 0 à 5 jours, par défaut)
-  ~ 9 j    Flemme  (6 à 15 jours)
-  ⚠ 42 j   Dead    (plus de 15 jours)
-En gris : arrêté (suivi arrêté), erreur (dernière synchro en échec), jamais
-(jamais synchronisé), archivé (archivé sur GitHub), vide (aucun commit).`,
-		Args: noArgs,
+		Short: i18n.T("cli.repo.help.list_short"),
+		Long:  i18n.T("cli.repo.help.list_long"),
+		Args:  noArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runRepoList(cmd.Context(), deps, opts)
 		},
@@ -347,18 +326,8 @@ func newRepoRemoveCmd(deps Deps, opts *options) *cobra.Command {
 	var keepHistory, yes bool
 	cmd := &cobra.Command{
 		Use:   "remove owner/repo",
-		Short: "Arrête le suivi d'un dépôt et supprime son historique",
-		Long: `Arrête le suivi d'un dépôt et supprime de la base son historique : branches, commits
-et journal des synchros, ainsi que son clone Git local (repos/ dans l'espace) s'il
-existe. Les contributeurs restent (ils peuvent avoir travaillé sur d'autres dépôts).
-Rien n'est modifié sur GitHub.
-
-Avec --keep-history, le suivi s'arrête mais l'historique reste consultable (le dépôt
-apparaît « arrêté » dans « watchoo repo list ») et le clone Git local est gardé ;
-« watchoo repo add » le reprend.
-
-La commande demande confirmation dans un terminal ; dans un script (entrée standard
-qui n'est pas un terminal), l'option --yes est obligatoire.`,
+		Short: i18n.T("cli.repo.help.remove_short"),
+		Long:  i18n.T("cli.repo.help.remove_long"),
 		Example: `  watchoo repo remove alice/projet-licence
   watchoo repo remove alice/projet-licence --keep-history --yes`,
 		Args: exactArgs(1),
@@ -366,8 +335,8 @@ qui n'est pas un terminal), l'option --yes est obligatoire.`,
 			return runRepoRemove(cmd.Context(), deps, opts, args[0], keepHistory, yes)
 		},
 	}
-	cmd.Flags().BoolVar(&keepHistory, "keep-history", false, "arrête le suivi mais garde l'historique en base")
-	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "confirme sans poser de question (obligatoire hors terminal)")
+	cmd.Flags().BoolVar(&keepHistory, "keep-history", false, i18n.T("cli.repo.help.remove_flag_keep"))
+	cmd.Flags().BoolVarP(&yes, "yes", "y", false, i18n.T("cli.repo.help.remove_flag_yes"))
 	return cmd
 }
 

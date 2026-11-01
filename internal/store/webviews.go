@@ -9,10 +9,10 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"strings"
 	"time"
 
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/store/db"
 )
@@ -56,7 +56,7 @@ func (s *Store) CommitPage(ctx context.Context, f CommitFilter, page, perPage in
 		}
 		total, err := q.CountRecentCommits(ctx, countParams)
 		if err != nil {
-			return fmt.Errorf("nombre de commits : %w", err)
+			return wrapErr(i18n.T("store.views.commit_count"), err)
 		}
 		pages := max(1, (int(total)+perPage-1)/perPage)
 		page = min(max(page, 1), pages)
@@ -74,13 +74,13 @@ func (s *Store) CommitPage(ctx context.Context, f CommitFilter, page, perPage in
 		}
 		rows, err := q.ListRecentCommits(ctx, params)
 		if err != nil {
-			return fmt.Errorf("liste des commits : %w", err)
+			return wrapErr(i18n.T("store.views.commits"), err)
 		}
 		result.Commits, err = commitViewsFromRows(rows)
 		return err
 	})
 	if err != nil {
-		return CommitPage{}, fmt.Errorf("historique des commits : %w", err)
+		return CommitPage{}, wrapErr(i18n.T("store.web.history"), err)
 	}
 	return result, nil
 }
@@ -119,13 +119,13 @@ func (s *Store) CommitTimes(ctx context.Context, repoID int64, since time.Time) 
 		Since:  FormatTime(since),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("dates des commits : %w", err)
+		return nil, wrapErr(i18n.T("store.web.dates"), err)
 	}
 	times := make([]time.Time, 0, len(rows))
 	for _, row := range rows {
 		t, err := ParseTime(row)
 		if err != nil {
-			return nil, fmt.Errorf("dates des commits : %w", err)
+			return nil, wrapErr(i18n.T("store.web.dates"), err)
 		}
 		times = append(times, t)
 	}
@@ -143,13 +143,13 @@ func (s *Store) AuthorCommitTimes(ctx context.Context, repoID int64, since time.
 		Since:  FormatTime(since),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("dates des commits par auteur : %w", err)
+		return nil, wrapErr(i18n.T("store.web.dates_author"), err)
 	}
 	out := make([]model.AuthorCommitTime, 0, len(rows))
 	for _, row := range rows {
 		t, err := ParseTime(row.CommittedAt)
 		if err != nil {
-			return nil, fmt.Errorf("dates des commits par auteur : %w", err)
+			return nil, wrapErr(i18n.T("store.web.dates_author"), err)
 		}
 		out = append(out, model.AuthorCommitTime{ContributorID: row.AuthorID.Int64, CommittedAt: t})
 	}
@@ -191,7 +191,7 @@ func (c ContributorRepoStats) RepoDisplayName() string {
 func (s *Store) ContributorRepoBreakdown(ctx context.Context) ([]ContributorRepoStats, error) {
 	out, err := s.contributorRepoBreakdown(ctx, 0)
 	if err != nil {
-		return nil, fmt.Errorf("commits des contributeurs par dépôt : %w", err)
+		return nil, wrapErr(i18n.T("store.web.contrib_by_repo"), err)
 	}
 	return out, nil
 }
@@ -201,7 +201,7 @@ func (s *Store) ContributorRepoBreakdown(ctx context.Context) ([]ContributorRepo
 func (s *Store) ContributorRepos(ctx context.Context, id int64) ([]ContributorRepoStats, error) {
 	out, err := s.contributorRepoBreakdown(ctx, id)
 	if err != nil {
-		return nil, fmt.Errorf("dépôts du contributeur %d : %w", id, err)
+		return nil, wrapErr(i18n.T("store.web.contrib_repos", id), err)
 	}
 	return out, nil
 }
@@ -217,8 +217,7 @@ func (s *Store) contributorRepoBreakdown(ctx context.Context, id int64) ([]Contr
 	for _, row := range rows {
 		last, err := ParseTime(row.LastCommitAt)
 		if err != nil {
-			return nil, fmt.Errorf("contributeur %d, dépôt %d, dernier commit : %w",
-				row.ContributorID.Int64, row.RepoID, err)
+			return nil, wrapErr(i18n.T("store.web.contrib_repo_last", row.ContributorID.Int64, row.RepoID), err)
 		}
 		out = append(out, ContributorRepoStats{
 			ContributorID: row.ContributorID.Int64,
@@ -242,14 +241,14 @@ func (s *Store) contributorRepoBreakdown(ctx context.Context, id int64) ([]Contr
 func (s *Store) LastSyncFinishedAt(ctx context.Context) (time.Time, error) {
 	raw, err := s.queries.LastSyncFinishedAt(ctx)
 	if err != nil {
-		return time.Time{}, fmt.Errorf("dernière synchro : %w", err)
+		return time.Time{}, wrapErr(i18n.T("store.views.last_sync"), err)
 	}
 	if raw == "" {
 		return time.Time{}, nil
 	}
 	t, err := ParseTime(raw)
 	if err != nil {
-		return time.Time{}, fmt.Errorf("dernière synchro : %w", err)
+		return time.Time{}, wrapErr(i18n.T("store.views.last_sync"), err)
 	}
 	return t, nil
 }
@@ -260,10 +259,10 @@ func (s *Store) LastSyncFinishedAt(ctx context.Context) (time.Time, error) {
 func (s *Store) ContributorProfile(ctx context.Context, id int64) (ContributorProfile, error) {
 	row, err := s.queries.GetContributorProfile(ctx, id)
 	if errors.Is(err, sql.ErrNoRows) {
-		return ContributorProfile{}, fmt.Errorf("contributeur %d : %w", id, ErrNotFound)
+		return ContributorProfile{}, wrapErr(i18n.T("store.web.contrib", id), ErrNotFound)
 	}
 	if err != nil {
-		return ContributorProfile{}, fmt.Errorf("contributeur %d : %w", id, err)
+		return ContributorProfile{}, wrapErr(i18n.T("store.web.contrib", id), err)
 	}
 	p := ContributorProfile{
 		Contributor: contributorFromDB(db.Contributor{
@@ -285,7 +284,7 @@ func (s *Store) ContributorProfile(ctx context.Context, id int64) (ContributorPr
 			continue
 		}
 		if *d.dst, err = ParseTime(d.raw); err != nil {
-			return ContributorProfile{}, fmt.Errorf("contributeur %d : %w", id, err)
+			return ContributorProfile{}, wrapErr(i18n.T("store.web.contrib", id), err)
 		}
 	}
 	return p, nil
@@ -300,13 +299,13 @@ func (s *Store) ContributorCommitTimes(ctx context.Context, id int64, since time
 		Since:         FormatTime(since),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("dates des commits du contributeur %d : %w", id, err)
+		return nil, wrapErr(i18n.T("store.web.contrib_dates", id), err)
 	}
 	out := make([]model.RepoCommitTime, 0, len(rows))
 	for _, row := range rows {
 		t, err := ParseTime(row.CommittedAt)
 		if err != nil {
-			return nil, fmt.Errorf("dates des commits du contributeur %d : %w", id, err)
+			return nil, wrapErr(i18n.T("store.web.contrib_dates", id), err)
 		}
 		out = append(out, model.RepoCommitTime{RepoID: row.RepoID, CommittedAt: t})
 	}

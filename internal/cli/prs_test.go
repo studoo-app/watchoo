@@ -1,7 +1,7 @@
 package cli
 
-// « watchoo prs » et « watchoo releases » (V2) : texte, filtres, JSON, options invalides, textes
-// piégés neutralisés, et avertissements de « watchoo sync ».
+// "watchoo prs" and "watchoo releases" (V2): text, filters, JSON, invalid options, booby-trapped texts
+// neutralized, and warnings of "watchoo sync".
 
 import (
 	"strings"
@@ -15,14 +15,14 @@ import (
 func TestPRsText(t *testing.T) {
 	h := newSyncedWorkspace(t)
 	r := h.run("prs").mustSucceed(t)
-	// La date relative (« 3 h ago ») vient d'internal/activity, couche traduite à part.
+	// The relative date ("3 h ago") comes from internal/activity, a layer translated separately.
 	row := tableRow(t, r.stdout, "3 h ago")
 	if strings.Join(row, "|") != "3 h ago|Alice Martin|#1|open|alice-gh|Ajoute la page de connexion" {
-		t.Errorf("ligne de la PR ouverte : %q\n%s", row, r.stdout)
+		t.Errorf("row of the open PR: %q\n%s", row, r.stdout)
 	}
 	assertContains(t, "prs", r.stdout, "UPDATED", "#2", "merged", "Corrige le build")
 	if strings.Index(r.stdout, "#1") > strings.Index(r.stdout, "#2") {
-		t.Errorf("ordre : la PR modifiée le plus récemment d'abord :\n%s", r.stdout)
+		t.Errorf("order: the most recently updated PR first:\n%s", r.stdout)
 	}
 
 	r = h.run("prs", "--state", "merged").mustSucceed(t)
@@ -39,7 +39,7 @@ func TestPRsText(t *testing.T) {
 	var rep prsReport
 	decodeStrict(t, r.stdout, &rep)
 	if len(rep.PullRequests) != 1 {
-		t.Fatalf("prs --json : %+v", rep)
+		t.Fatalf("prs --json: %+v", rep)
 	}
 	p := rep.PullRequests[0]
 	if p.Number != 1 || p.State != "open" || p.Draft || p.Author.Login != "alice-gh" || p.HeadBranch != "login" ||
@@ -51,7 +51,7 @@ func TestPRsText(t *testing.T) {
 	h.run("prs", "--state", "fusionnee").mustCode(t, 1)
 	h.run("prs", "-n", "-1").mustCode(t, 1)
 	r = h.run("prs", "--repo", "carol/projet").mustCode(t, 1)
-	assertContains(t, "dépôt inconnu", r.stderr, "carol/projet")
+	assertContains(t, "unknown repository", r.stderr, "carol/projet")
 }
 
 func TestReleasesText(t *testing.T) {
@@ -61,10 +61,10 @@ func TestReleasesText(t *testing.T) {
 		"COMMIT DATE")
 	tag := tableRow(t, r.stdout, "Alice Martin  v0.1")
 	if tag[len(tag)-1] != "-" {
-		t.Errorf("tag dont le commit n'est pas en base : %q", tag)
+		t.Errorf("tag whose commit is not in the database: %q", tag)
 	}
 	if strings.Index(r.stdout, "v1.0  ") > strings.LastIndex(r.stdout, "v0.1") {
-		t.Errorf("tags : le commit connu d'abord :\n%s", r.stdout)
+		t.Errorf("tags: the known commit first:\n%s", r.stdout)
 	}
 
 	r = h.run("releases", "--repo", "bob/projet").mustSucceed(t)
@@ -81,8 +81,7 @@ func TestReleasesText(t *testing.T) {
 	h.run("releases", "-n", "-2").mustCode(t, 1)
 }
 
-// Titres de PR et noms de release piégés : aucune séquence dans la sortie texte, texte d'origine en
-// JSON.
+// Booby-trapped PR titles and release names: no sequence in the text output, original text in JSON.
 func TestPRsReleasesNeutralizeEscapes(t *testing.T) {
 	h := newWorkspace(t)
 	h.Provider.AddRepository(provider.Repository{ID: 301, Owner: "eve", Name: "projet"})
@@ -96,31 +95,31 @@ func TestPRsReleasesNeutralizeEscapes(t *testing.T) {
 	for _, cmd := range []string{"prs", "releases"} {
 		r := h.run(cmd).mustSucceed(t)
 		if strings.ContainsAny(r.stdout, "\x1b\x07‮") {
-			t.Errorf("%s : séquence de contrôle dans la sortie texte :\n%q", cmd, r.stdout)
+			t.Errorf("%s: control sequence in the text output:\n%q", cmd, r.stdout)
 		}
 	}
 	r := h.run("prs", "--json").mustSucceed(t)
 	if !strings.Contains(r.stdout, `\u001b]0;PWNED`) {
-		t.Errorf("prs --json : titre d'origine perdu :\n%s", r.stdout)
+		t.Errorf("prs --json: original title lost:\n%s", r.stdout)
 	}
 }
 
-// Un dépôt dont les pull requests n'ont pas pu être lues reste « ok » : avertissement dans DÉTAIL, en
-// JSON et dans le bilan, code de retour nul.
+// A repository whose pull requests could not be read stays "ok": warning in DETAIL, in JSON and in the
+// summary, zero exit code.
 func TestSyncWarnings(t *testing.T) {
 	h := newWorkspace(t)
 	seedProvider(h.Provider)
 	h.run("repo", "add", "alice/projet").mustSucceed(t)
-	h.Provider.FailNext(providertest.MethodPullRequests, &provider.APIError{Op: "liste des pull requests",
+	h.Provider.FailNext(providertest.MethodPullRequests, &provider.APIError{Op: "listing the pull requests",
 		Status: 502, Err: provider.ErrUnavailable})
 	r := h.run("sync").mustSucceed(t)
 	row := tableRow(t, r.stdout, "alice/projet")
-	if row[1] != "ok" || !strings.HasPrefix(row[len(row)-1], "pull requests non synchronisées") {
-		t.Errorf("ligne du dépôt : %q", row)
+	if row[1] != "ok" || !strings.HasPrefix(row[len(row)-1], "pull requests not synced") {
+		t.Errorf("repository row: %q", row)
 	}
 	assertContains(t, "sync", r.stdout, "1 warning")
 
 	h.Provider.FailNext(providertest.MethodTags, &provider.APIError{Status: 404, Err: provider.ErrNotFound})
 	r = h.run("sync", "--json").mustSucceed(t)
-	assertContains(t, "sync --json", r.stdout, `"warnings": [`, "tags non synchronisés")
+	assertContains(t, "sync --json", r.stdout, `"warnings": [`, "tags not synced")
 }

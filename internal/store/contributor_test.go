@@ -1,6 +1,6 @@
 package store
 
-// Lectures de la page d'un contributeur (0.5.0) et page de profil des contributeurs (migration 00005).
+// Reads of a contributor's page (0.5.0) and profile page of the contributors (migration 00005).
 
 import (
 	"errors"
@@ -15,7 +15,7 @@ import (
 	"github.com/studoo-app/watchoo/internal/store/migrations"
 )
 
-// rankingIDs renvoie l'identifiant des contributeurs auteurs, par nom.
+// rankingIDs returns the identifier of the author contributors, by name.
 func rankingIDs(t *testing.T, s *Store) map[string]ContributorStats {
 	t.Helper()
 	ranking, err := s.ContributorRanking(t.Context(), ContributorFilter{})
@@ -40,16 +40,16 @@ func TestContributorProfile(t *testing.T) {
 		t.Fatal(err)
 	}
 	if p.Name != "Alice" || p.ProviderLogin != "alice-gh" || p.ProviderUserID != 10 || p.Emails != nil {
-		t.Errorf("contributeur = %+v", p.Contributor)
+		t.Errorf("contributor = %+v", p.Contributor)
 	}
 	if p.Identities != 1 || p.Commits != 3 || p.Additions != 7 || p.Deletions != 3 || p.Repos != 2 {
-		t.Errorf("totaux = %+v, attendu 1 identité, 3 commits, +7/-3, 2 dépôts", p)
+		t.Errorf("totals = %+v, want 1 identity, 3 commits, +7/-3, 2 repositories", p)
 	}
 	if !p.FirstCommitAt.Equal(t0.Add(time.Hour)) || !p.LastCommitAt.Equal(t0.Add(6*time.Hour)) {
-		t.Errorf("premier / dernier commit = %v / %v", p.FirstCommitAt, p.LastCommitAt)
+		t.Errorf("first / last commit = %v / %v", p.FirstCommitAt, p.LastCommitAt)
 	}
 
-	// Contributeur sans commit d'auteur (committer seulement) : totaux nuls, dates zéro.
+	// Contributor without an author commit (committer only): zero totals, zero dates.
 	c := cw(7, person("Zoé", "zoe@example.test", "", 0), "main")
 	c.Committer = person("Fred", "fred@example.test", "", 0)
 	applySync(t, s, aliceRepo, []BranchState{{Name: "main", HeadSHA: sha(7)}}, c)
@@ -62,11 +62,11 @@ func TestContributorProfile(t *testing.T) {
 		t.Fatal(err)
 	}
 	if p.Commits != 0 || p.Repos != 0 || p.Identities != 1 || !p.FirstCommitAt.IsZero() || !p.LastCommitAt.IsZero() {
-		t.Errorf("committer seul = %+v", p)
+		t.Errorf("committer only = %+v", p)
 	}
 
 	if _, err := s.ContributorProfile(ctx, 9999); !errors.Is(err, ErrNotFound) {
-		t.Errorf("contributeur inconnu : %v, attendu ErrNotFound", err)
+		t.Errorf("unknown contributor: %v, want ErrNotFound", err)
 	}
 }
 
@@ -86,12 +86,12 @@ func TestContributorRepos(t *testing.T) {
 	}
 	for _, g := range got {
 		if g.ContributorID != ids["Alice"].ID {
-			t.Errorf("ligne d'un autre contributeur : %+v", g)
+			t.Errorf("row of another contributor: %+v", g)
 		}
 	}
 	none, err := s.ContributorRepos(ctx, 9999)
 	if err != nil || none == nil || len(none) != 0 {
-		t.Errorf("contributeur inconnu : %v, %v ; attendu liste vide non nil", none, err)
+		t.Errorf("unknown contributor: %v, %v; want a non-nil empty list", none, err)
 	}
 }
 
@@ -106,14 +106,14 @@ func TestCommitFilterAuthorID(t *testing.T) {
 		t.Fatal(err)
 	}
 	if want := []string{sha(4), sha(3)}; !slices.Equal(shasOf(list), want) {
-		t.Errorf("commits de Bob = %v, attendu %v", shasOf(list), want)
+		t.Errorf("commits of Bob = %v, want %v", shasOf(list), want)
 	}
 	page, err := s.CommitPage(ctx, CommitFilter{AuthorID: ids["Alice"].ID}, 1, 2)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if page.Total != 3 || page.Pages != 2 || !slices.Equal(shasOf(page.Commits), []string{sha(6), sha(2)}) {
-		t.Errorf("page des commits d'Alice = %+v", page)
+		t.Errorf("commits page of Alice = %+v", page)
 	}
 	if page.Commits[0].RepoName != "bob" || page.Commits[0].Additions != 7 {
 		t.Errorf("commit = %+v", page.Commits[0])
@@ -133,7 +133,7 @@ func TestContributorCommitTimes(t *testing.T) {
 	want := []model.RepoCommitTime{{RepoID: got[0].RepoID, CommittedAt: t0.Add(2 * time.Hour)},
 		{RepoID: bobRepo, CommittedAt: t0.Add(6 * time.Hour)}}
 	if !slices.Equal(got, want) || got[0].RepoID == bobRepo {
-		t.Errorf("ContributorCommitTimes = %v, attendu %v", got, want)
+		t.Errorf("ContributorCommitTimes = %v, want %v", got, want)
 	}
 }
 
@@ -155,7 +155,7 @@ func TestPullRequestFilterAuthor(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(got) != 2 || got[0].Number != 3 || got[1].Number != 1 {
-		t.Errorf("PR du compte 10 = %+v", got)
+		t.Errorf("PRs of account 10 = %+v", got)
 	}
 }
 
@@ -165,46 +165,46 @@ func TestContributorProfileURL(t *testing.T) {
 	main := []BranchState{{Name: "main", HeadSHA: sha(3)}}
 	alice := person("Alice", "alice@example.test", "alice-gh", 10)
 
-	// Premier commit sans adresse (contributeur déjà en base avant 0.5.0), puis avec : remplie.
+	// First commit without an address (contributor already in the database before 0.5.0), then with one: filled.
 	applySync(t, s, repo, main, cw(1, alice, "main"))
 	if got := rankingIDs(t, s)["Alice"].ProfileURL; got != "" {
-		t.Errorf("profil = %q, attendu vide", got)
+		t.Errorf("profile = %q, want empty", got)
 	}
 	withURL := alice
 	withURL.ProfileURL = "https://forge.example.test/alice-gh"
 	applySync(t, s, repo, main, cw(2, withURL, "main"))
 	if got := rankingIDs(t, s)["Alice"].ProfileURL; got != withURL.ProfileURL {
-		t.Errorf("profil = %q, attendu %q", got, withURL.ProfileURL)
+		t.Errorf("profile = %q, want %q", got, withURL.ProfileURL)
 	}
-	// Une identité sans adresse ne l'efface pas.
+	// An identity without an address does not erase it.
 	applySync(t, s, repo, main, cw(3, alice, "main"))
 	stats := rankingIDs(t, s)["Alice"]
 	if stats.ProfileURL != withURL.ProfileURL {
-		t.Errorf("profil effacé : %q", stats.ProfileURL)
+		t.Errorf("profile erased: %q", stats.ProfileURL)
 	}
 	list, err := s.ListRecentCommits(t.Context(), CommitFilter{Limit: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if list[0].AuthorProfileURL != withURL.ProfileURL {
-		t.Errorf("commit : AuthorProfileURL = %q", list[0].AuthorProfileURL)
+		t.Errorf("commit: AuthorProfileURL = %q", list[0].AuthorProfileURL)
 	}
 	sums, err := s.RepositorySummaries(t.Context())
 	if err != nil {
 		t.Fatal(err)
 	}
 	if sums[0].LastCommit.AuthorProfileURL != withURL.ProfileURL {
-		t.Errorf("dernier commit : AuthorProfileURL = %q", sums[0].LastCommit.AuthorProfileURL)
+		t.Errorf("last commit: AuthorProfileURL = %q", sums[0].LastCommit.AuthorProfileURL)
 	}
 	p, err := s.ContributorProfile(t.Context(), stats.ID)
 	if err != nil || p.ProfileURL != withURL.ProfileURL {
-		t.Errorf("fiche : %q, %v", p.ProfileURL, err)
+		t.Errorf("record: %q, %v", p.ProfileURL, err)
 	}
 }
 
-// TestMigrationProfileURL applique la migration 00005 sur une base au schéma 00004 qui a des
-// contributeurs : aucun n'est perdu, l'adresse est vide (aucune n'est devinée), et le retour arrière
-// retire la colonne.
+// TestMigrationProfileURL applies migration 00005 to a database at schema 00004 that has
+// contributors: none is lost, the address is empty (none is guessed), and the rollback removes
+// the column.
 func TestMigrationProfileURL(t *testing.T) {
 	ctx := t.Context()
 	s, err := Open(ctx, filepath.Join(t.TempDir(), "watchoo.db"))
@@ -217,29 +217,29 @@ func TestMigrationProfileURL(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := p.UpTo(ctx, 4); err != nil {
-		t.Fatalf("UpTo(4) : %v", err)
+		t.Fatalf("UpTo(4): %v", err)
 	}
 	mustExec(t, s, `INSERT INTO contributors (provider, provider_user_id, provider_login, name) VALUES ('github', 10, 'alice-gh', 'Alice')`)
 	mustExec(t, s, `INSERT INTO contributors (name) VALUES ('Bob')`)
 	if _, err := p.UpTo(ctx, 5); err != nil {
-		t.Fatalf("UpTo(5) : %v", err)
+		t.Fatalf("UpTo(5): %v", err)
 	}
 	if got := count(t, s, "SELECT count(*) FROM contributors WHERE profile_url = ''"); got != 2 {
-		t.Errorf("%d contributeurs à profile_url vide, attendu 2", got)
+		t.Errorf("%d contributors with an empty profile_url, want 2", got)
 	}
 	if _, err := p.DownTo(ctx, 4); err != nil {
-		t.Fatalf("DownTo(4) : %v", err)
+		t.Fatalf("DownTo(4): %v", err)
 	}
 	if got := count(t, s, "SELECT count(*) FROM pragma_table_info('contributors') WHERE name = 'profile_url'"); got != 0 {
-		t.Error("retour arrière : colonne profile_url toujours là")
+		t.Error("rollback: profile_url column still there")
 	}
 	if got := count(t, s, "SELECT count(*) FROM contributors"); got != 2 {
-		t.Errorf("retour arrière : %d contributeurs, attendu 2", got)
+		t.Errorf("rollback: %d contributors, want 2", got)
 	}
 }
 
-// BackfillProfileURLs complète seulement les adresses vides des contributeurs de la forge qui ont un
-// login ; les adresses connues, les contributeurs sans login et ceux d'une autre forge restent tels quels.
+// BackfillProfileURLs fills only the empty addresses of the contributors of the forge that have a
+// login; the known addresses, the contributors without a login and those of another forge stay as they are.
 func TestBackfillProfileURLs(t *testing.T) {
 	s := newTestStore(t)
 	ctx := t.Context()
@@ -261,7 +261,7 @@ func TestBackfillProfileURLs(t *testing.T) {
 	}
 	n, err := s.BackfillProfileURLs(ctx, "github", build)
 	if err != nil || n != 1 {
-		t.Fatalf("BackfillProfileURLs = %d, %v ; attendu 1 contributeur complété", n, err)
+		t.Fatalf("BackfillProfileURLs = %d, %v; want 1 contributor filled", n, err)
 	}
 	urls := map[int64]string{}
 	rows, err := s.DB().QueryContext(ctx, "SELECT id, profile_url FROM contributors")
@@ -286,12 +286,12 @@ func TestBackfillProfileURLs(t *testing.T) {
 	}
 	for id, w := range want {
 		if urls[id] != w {
-			t.Errorf("contributeur %d : profile_url = %q, attendu %q", id, urls[id], w)
+			t.Errorf("contributor %d: profile_url = %q, want %q", id, urls[id], w)
 		}
 	}
 
-	// Second passage : plus rien à compléter.
+	// Second pass: nothing left to fill.
 	if n, err := s.BackfillProfileURLs(ctx, "github", build); err != nil || n != 0 {
-		t.Errorf("second passage = %d, %v ; attendu 0", n, err)
+		t.Errorf("second pass = %d, %v; want 0", n, err)
 	}
 }

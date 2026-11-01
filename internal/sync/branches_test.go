@@ -11,7 +11,7 @@ import (
 	"github.com/studoo-app/watchoo/internal/workspace"
 )
 
-// names renvoie les noms des branches.
+// names returns the names of the branches.
 func names(bs []provider.Branch) []string {
 	out := make([]string, len(bs))
 	for i, b := range bs {
@@ -28,21 +28,21 @@ func TestSelectBranches(t *testing.T) {
 		patterns, exclude []string
 		want              []string
 	}{
-		{"toutes", nil, nil, []string{"dependabot/npm", "dev", "main", "release/1", "release/2/fix", "wip"}},
+		{"all", nil, nil, []string{"dependabot/npm", "dev", "main", "release/1", "release/2/fix", "wip"}},
 		{"exclusion", nil, []string{"dependabot/*", "wip"}, []string{"dev", "main", "release/1", "release/2/fix"}},
-		{"motifs", []string{"main", "release/*"}, nil, []string{"main", "release/1"}},
-		{"motifs et exclusion", []string{"release/*", "dependabot/*"}, []string{"dependabot/*"}, []string{"release/1"}},
-		{"motif invalide", []string{"[", "dev"}, []string{"["}, []string{"dev"}},
-		{"aucune", []string{"prod"}, nil, []string{}},
+		{"patterns", []string{"main", "release/*"}, nil, []string{"main", "release/1"}},
+		{"patterns and exclusion", []string{"release/*", "dependabot/*"}, []string{"dependabot/*"}, []string{"release/1"}},
+		{"invalid pattern", []string{"[", "dev"}, []string{"["}, []string{"dev"}},
+		{"none", []string{"prod"}, nil, []string{}},
 	}
 	for _, tc := range cases {
 		got := wsync.SelectBranches(all, tc.patterns, tc.exclude)
 		if got == nil || !slices.Equal(names(got), tc.want) {
-			t.Errorf("%s : %v, %v attendu", tc.name, names(got), tc.want)
+			t.Errorf("%s: %v, want %v", tc.name, names(got), tc.want)
 		}
 	}
 	if got := wsync.SelectBranches(nil, nil, nil); got == nil || len(got) != 0 {
-		t.Errorf("liste vide : %v", got)
+		t.Errorf("empty list: %v", got)
 	}
 }
 
@@ -56,7 +56,7 @@ func TestReferenceBranch(t *testing.T) {
 		{"main", tracked, 1}, {"master", tracked, 0}, {"", tracked, 0}, {"main", nil, -1},
 	} {
 		if got := wsync.ReferenceBranch(tc.list, tc.def); got != tc.want {
-			t.Errorf("ReferenceBranch(%v, %q) = %d, %d attendu", names(tc.list), tc.def, got, tc.want)
+			t.Errorf("ReferenceBranch(%v, %q) = %d, want %d", names(tc.list), tc.def, got, tc.want)
 		}
 	}
 }
@@ -72,26 +72,26 @@ func TestAutoInterval(t *testing.T) {
 		want       time.Duration
 		err        string
 	}{
-		{"config auto", auto, 0, false, 30 * time.Minute, ""},
-		{"config manuelle", manual, 0, false, 0, ""},
+		{"auto config", auto, 0, false, 30 * time.Minute, ""},
+		{"manual config", manual, 0, false, 0, ""},
 		{"--interval 0", auto, 0, true, 0, ""},
-		{"--interval malgré auto false", manual, time.Hour, true, time.Hour, ""},
+		{"--interval despite auto false", manual, time.Hour, true, time.Hour, ""},
 		{"--interval minimum", auto, 15 * time.Minute, true, 15 * time.Minute, ""},
-		{"--interval trop court", auto, 10 * time.Minute, true, 0,
-			"--interval : 10m0s est inférieur au minimum de 15 min (0 pour la synchro manuelle seule)"},
-		{"--interval négatif", auto, -time.Minute, true, 0, "--interval : -1m0s est négatif"},
-		{"config invalide", workspace.SyncConfig{Auto: true, Interval: time.Minute}, 0, false, 0, "sync.interval : 1m0s"},
+		{"--interval too short", auto, 10 * time.Minute, true, 0,
+			"--interval: 10m0s is below the minimum of 15 min (0 for manual sync only)"},
+		{"negative --interval", auto, -time.Minute, true, 0, "--interval: -1m0s is negative"},
+		{"invalid config", workspace.SyncConfig{Auto: true, Interval: time.Minute}, 0, false, 0, "sync.interval: 1m0s"},
 	}
 	for _, tc := range cases {
 		got, err := wsync.AutoInterval(tc.cfg, tc.override, tc.overridden)
 		if tc.err != "" {
 			if err == nil || !strings.HasPrefix(err.Error(), tc.err) {
-				t.Errorf("%s : erreur %v, %q attendue", tc.name, err, tc.err)
+				t.Errorf("%s: error %v, want %q", tc.name, err, tc.err)
 			}
 			continue
 		}
 		if err != nil || got != tc.want {
-			t.Errorf("%s : %v, %v ; %v attendu", tc.name, got, err, tc.want)
+			t.Errorf("%s: %v, %v; want %v", tc.name, got, err, tc.want)
 		}
 	}
 }

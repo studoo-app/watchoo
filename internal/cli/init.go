@@ -49,19 +49,8 @@ type githubReport struct {
 func newInitCmd(deps Deps, opts *options) *cobra.Command {
 	return &cobra.Command{
 		Use:   "init",
-		Short: "Fait du répertoire courant un espace de supervision",
-		Long: `Fait du répertoire courant (ou de celui donné par -C) un espace de supervision :
-vérifie la CLI GitHub gh, puis crée .watchoo/ avec config.yaml, la base SQLite au bon
-schéma et un .gitignore. Le répertoire .watchoo/ est lisible par vous seul (droits
-0700, fichiers en 0600).
-
-Sans gh installé et connecté, init prévient que les dépôts seront suivis par clones
-Git locaux (git doit alors être installé, sinon init s'arrête) et rappelle
-« gh auth login » pour passer par l'API GitHub.
-
-init refuse un répertoire qui est déjà un espace, pour ne jamais écraser de données,
-et prévient si l'espace créé est imbriqué dans un autre espace. Il ne demande ni ne
-stocke aucun token : gh le garde.`,
+		Short: i18n.T("cli.repo.help.init_short"),
+		Long:  i18n.T("cli.repo.help.init_long"),
 		Example: `  mkdir licence-projet && cd licence-projet && watchoo init
   watchoo init -C ~/supervision/master-projet --json`,
 		Args: noArgs,
@@ -150,7 +139,7 @@ func runInit(ctx context.Context, deps Deps, opts *options) error {
 	}
 	if term, ok := cardTerminal(deps, opts); ok {
 		subtitle := i18n.T("cli.repo.init.created_card", report.Name)
-		if card := renderCard(term, subtitle, tipInitDone); card != "" {
+		if card := renderCard(term, subtitle, tipInitDone()); card != "" {
 			return writeInitCard(deps.Stdout, term, card, report)
 		}
 	}

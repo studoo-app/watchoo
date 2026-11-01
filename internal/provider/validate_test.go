@@ -10,7 +10,7 @@ func TestValidateOwner(t *testing.T) {
 	valid := []string{"a", "alice", "Alice-Martin", "promo-2026", "0", strings.Repeat("a", 39), "a-b-c"}
 	for _, owner := range valid {
 		if err := ValidateOwner(owner); err != nil {
-			t.Errorf("ValidateOwner(%q) = %v, veut nil", owner, err)
+			t.Errorf("ValidateOwner(%q) = %v, want nil", owner, err)
 		}
 	}
 	invalid := []string{
@@ -19,7 +19,7 @@ func TestValidateOwner(t *testing.T) {
 	}
 	for _, owner := range invalid {
 		if err := ValidateOwner(owner); !errors.Is(err, ErrInvalidRef) {
-			t.Errorf("ValidateOwner(%q) = %v, veut ErrInvalidRef", owner, err)
+			t.Errorf("ValidateOwner(%q) = %v, want ErrInvalidRef", owner, err)
 		}
 	}
 }
@@ -28,7 +28,7 @@ func TestValidateName(t *testing.T) {
 	valid := []string{"projet", "Projet-Web_2026", "a.b", ".github", "...", "x", strings.Repeat("r", 100), "-tiret"}
 	for _, name := range valid {
 		if err := ValidateName(name); err != nil {
-			t.Errorf("ValidateName(%q) = %v, veut nil", name, err)
+			t.Errorf("ValidateName(%q) = %v, want nil", name, err)
 		}
 	}
 	invalid := []string{
@@ -36,22 +36,22 @@ func TestValidateName(t *testing.T) {
 	}
 	for _, name := range invalid {
 		if err := ValidateName(name); !errors.Is(err, ErrInvalidRef) {
-			t.Errorf("ValidateName(%q) = %v, veut ErrInvalidRef", name, err)
+			t.Errorf("ValidateName(%q) = %v, want ErrInvalidRef", name, err)
 		}
 	}
 }
 
 func TestValidateRepo(t *testing.T) {
 	if err := ValidateRepo("alice", "projet"); err != nil {
-		t.Errorf("ValidateRepo valide : %v", err)
+		t.Errorf("ValidateRepo valid: %v", err)
 	}
 	err := ValidateRepo("-alice", "projet")
 	if !errors.Is(err, ErrInvalidRef) || !strings.Contains(err.Error(), "owner") {
-		t.Errorf("ValidateRepo, owner invalide : %v", err)
+		t.Errorf("ValidateRepo, invalid owner: %v", err)
 	}
 	err = ValidateRepo("alice", "..")
 	if !errors.Is(err, ErrInvalidRef) || !strings.Contains(err.Error(), "repository name") {
-		t.Errorf("ValidateRepo, nom invalide : %v", err)
+		t.Errorf("ValidateRepo, invalid name: %v", err)
 	}
 }
 
@@ -60,7 +60,7 @@ func TestValidateSHA(t *testing.T) {
 	sha256 := strings.Repeat("abcdef0123456789", 4)
 	for _, sha := range []string{sha1, sha256, strings.Repeat("f", 40)} {
 		if err := ValidateSHA(sha); err != nil {
-			t.Errorf("ValidateSHA(%q) = %v, veut nil", sha, err)
+			t.Errorf("ValidateSHA(%q) = %v, want nil", sha, err)
 		}
 	}
 	invalid := []string{
@@ -69,7 +69,7 @@ func TestValidateSHA(t *testing.T) {
 	}
 	for _, sha := range invalid {
 		if err := ValidateSHA(sha); !errors.Is(err, ErrInvalidRef) {
-			t.Errorf("ValidateSHA(%q) = %v, veut ErrInvalidRef", sha, err)
+			t.Errorf("ValidateSHA(%q) = %v, want ErrInvalidRef", sha, err)
 		}
 	}
 }
@@ -79,13 +79,13 @@ func TestValidateBranch(t *testing.T) {
 		strings.Repeat("b", MaxBranchBytes), strings.Repeat("0123456789", 4)}
 	for _, branch := range valid {
 		if err := ValidateBranch(branch); err != nil {
-			t.Errorf("ValidateBranch(%q) = %v, veut nil", branch, err)
+			t.Errorf("ValidateBranch(%q) = %v, want nil", branch, err)
 		}
 	}
 	invalid := []string{"", "main\n", "a\tb", "x\x00", "\x7f", "a\u0085b", "\xff\xfe", strings.Repeat("b", MaxBranchBytes+1)}
 	for _, branch := range invalid {
 		if err := ValidateBranch(branch); !errors.Is(err, ErrInvalidRef) {
-			t.Errorf("ValidateBranch(%q) = %v, veut ErrInvalidRef", branch, err)
+			t.Errorf("ValidateBranch(%q) = %v, want ErrInvalidRef", branch, err)
 		}
 	}
 }
@@ -96,30 +96,30 @@ func TestValidateID(t *testing.T) {
 	}
 	for _, id := range []int64{0, -1} {
 		if err := ValidateID(id); !errors.Is(err, ErrInvalidRef) {
-			t.Errorf("ValidateID(%d) = %v, veut ErrInvalidRef", id, err)
+			t.Errorf("ValidateID(%d) = %v, want ErrInvalidRef", id, err)
 		}
 	}
 }
 
-// TestValidationMessages vérifie que la valeur citée est échappée et raccourcie : un message d'erreur
-// ne doit ni casser une ligne de log ni recopier une entrée démesurée.
+// TestValidationMessages checks that the quoted value is escaped and shortened: an error message
+// must neither break a log line nor copy an oversized input.
 func TestValidationMessages(t *testing.T) {
 	err := ValidateName("a\nb")
 	if err == nil || strings.ContainsAny(err.Error(), "\n") || !strings.Contains(err.Error(), `"a\nb"`) {
-		t.Errorf("message avec saut de ligne : %v", err)
+		t.Errorf("message with a line break: %v", err)
 	}
 	long := strings.Repeat("x", 500) + "/"
 	err = ValidateName(long)
 	if err == nil || strings.Contains(err.Error(), strings.Repeat("x", maxQuotedRunes+1)) || !strings.Contains(err.Error(), "…") {
-		t.Errorf("message avec une valeur longue : %v", err)
+		t.Errorf("message with a long value: %v", err)
 	}
 	err = ValidateBranch(strings.Repeat("b", MaxBranchBytes+1))
 	if err == nil || strings.Contains(err.Error(), "bbbb") {
-		t.Errorf("nom de branche trop long recopié : %v", err)
+		t.Errorf("too long branch name copied: %v", err)
 	}
 	err = ValidateBranch("\xff")
 	if err == nil || !strings.Contains(err.Error(), "invalid") {
-		t.Errorf("UTF-8 invalide : %v", err)
+		t.Errorf("invalid UTF-8: %v", err)
 	}
 }
 
@@ -127,7 +127,7 @@ func TestShortSHA(t *testing.T) {
 	tests := map[string]string{"": "", "abc": "abc", "0123456": "0123456", strings.Repeat("0123456789", 4): "0123456"}
 	for in, want := range tests {
 		if got := ShortSHA(in); got != want {
-			t.Errorf("ShortSHA(%q) = %q, veut %q", in, got, want)
+			t.Errorf("ShortSHA(%q) = %q, want %q", in, got, want)
 		}
 	}
 }
@@ -154,7 +154,7 @@ func TestValidLogin(t *testing.T) {
 		"x?y=1":                 false,
 	} {
 		if got := ValidLogin(login); got != want {
-			t.Errorf("ValidLogin(%q) = %v, veut %v", login, got, want)
+			t.Errorf("ValidLogin(%q) = %v, want %v", login, got, want)
 		}
 	}
 }

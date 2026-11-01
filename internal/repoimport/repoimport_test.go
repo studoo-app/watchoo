@@ -27,7 +27,7 @@ func TestParseRef(t *testing.T) {
 	for in, want := range ok {
 		got, err := ParseRef(in)
 		if err != nil || got != want {
-			t.Errorf("ParseRef(%q) = %+v, %v ; attendu %+v", in, got, err, want)
+			t.Errorf("ParseRef(%q) = %+v, %v; want %+v", in, got, err, want)
 		}
 	}
 	if s := (Ref{"alice", "projet"}).String(); s != "alice/projet" {
@@ -45,17 +45,17 @@ func TestParseRef(t *testing.T) {
 	for _, in := range bad {
 		_, err := ParseRef(in)
 		if err == nil {
-			t.Errorf("ParseRef(%q) : erreur attendue", in)
+			t.Errorf("ParseRef(%q): error expected", in)
 			continue
 		}
 		if !strings.Contains(err.Error(), "owner/repo") {
-			t.Errorf("ParseRef(%q) : le message doit citer la forme attendue : %v", in, err)
+			t.Errorf("ParseRef(%q): the message must quote the expected form: %v", in, err)
 		}
 		if strings.Contains(err.Error(), "secret") || strings.Contains(err.Error(), "pass") || strings.Contains(err.Error(), "tok") {
-			t.Errorf("ParseRef(%q) : des identifiants apparaissent dans le message : %v", in, err)
+			t.Errorf("ParseRef(%q): credentials appear in the message: %v", in, err)
 		}
 	}
-	// Owner ou nom invalide : enveloppe provider.ErrInvalidRef et cite la valeur.
+	// Invalid owner or name: wraps provider.ErrInvalidRef and quotes the value.
 	_, err := ParseRef("-alice/projet")
 	if !errors.Is(err, provider.ErrInvalidRef) || !strings.Contains(err.Error(), `"-alice/projet"`) {
 		t.Errorf("ParseRef(-alice/projet) = %v", err)
@@ -75,18 +75,18 @@ func TestParseBranchPatterns(t *testing.T) {
 	for in, want := range ok {
 		got, err := ParseBranchPatterns(in)
 		if err != nil || !reflect.DeepEqual(got, want) {
-			t.Errorf("ParseBranchPatterns(%q) = %#v, %v ; attendu %#v", in, got, err, want)
+			t.Errorf("ParseBranchPatterns(%q) = %#v, %v; want %#v", in, got, err, want)
 		}
 	}
 	for _, in := range []string{"main,[abc", "release/[", "a\\", "ma\tin"} {
 		_, err := ParseBranchPatterns(in)
 		if err == nil {
-			t.Errorf("ParseBranchPatterns(%q) : erreur attendue", in)
+			t.Errorf("ParseBranchPatterns(%q): error expected", in)
 		}
 	}
 	_, err := ParseBranchPatterns("main,[abc")
 	if err == nil || !strings.Contains(err.Error(), `"[abc"`) {
-		t.Errorf("le message doit citer le motif : %v", err)
+		t.Errorf("the message must quote the pattern: %v", err)
 	}
 }
 
@@ -106,10 +106,10 @@ func TestParseCSV(t *testing.T) {
 		"mon-org/projet-groupe-3,\"Groupe 3 (Dan, Eva)\",release/*\n"
 	entries, format, err := parseString(t, in)
 	if err != nil {
-		t.Fatalf("Parse : %v", err)
+		t.Fatalf("Parse: %v", err)
 	}
 	if format != FormatCSV {
-		t.Errorf("format %s, attendu csv", format)
+		t.Errorf("format %s, want csv", format)
 	}
 	want := []Entry{
 		{Line: 2, Ref: Ref{"alice", "projet-licence"}, Label: "Alice Martin"},
@@ -118,26 +118,26 @@ func TestParseCSV(t *testing.T) {
 		{Line: 8, Ref: Ref{"mon-org", "projet-groupe-3"}, Label: "Groupe 3 (Dan, Eva)", Branches: []string{"release/*"}},
 	}
 	if !reflect.DeepEqual(entries, want) {
-		t.Errorf("entrées :\n%#v\nattendu :\n%#v", entries, want)
+		t.Errorf("entries:\n%#v\nwant:\n%#v", entries, want)
 	}
 }
 
 func TestParseCSVColumnsOrderAndCase(t *testing.T) {
 	entries, format, err := parseString(t, " Branches , REPO \nmain,alice/x\n,bob/y\n")
 	if err != nil || format != FormatCSV {
-		t.Fatalf("Parse : %v (%s)", err, format)
+		t.Fatalf("Parse: %v (%s)", err, format)
 	}
 	want := []Entry{
 		{Line: 2, Ref: Ref{"alice", "x"}, Branches: []string{"main"}},
 		{Line: 3, Ref: Ref{"bob", "y"}},
 	}
 	if !reflect.DeepEqual(entries, want) {
-		t.Errorf("entrées %#v", entries)
+		t.Errorf("entries %#v", entries)
 	}
-	// Une seule colonne repo.
+	// A single repo column.
 	entries, _, err = parseString(t, "repo\nalice/x\n")
 	if err != nil || len(entries) != 1 || entries[0].Label != "" || entries[0].Branches != nil {
-		t.Errorf("repo seul : %#v, %v", entries, err)
+		t.Errorf("repo only: %#v, %v", entries, err)
 	}
 }
 
@@ -145,10 +145,10 @@ func TestParseList(t *testing.T) {
 	in := "# promotion 2026\n\nalice/projet\r\n  https://github.com/bob/projet  \n\t\n# fin\ncarol/projet.git\n"
 	entries, format, err := parseString(t, in)
 	if err != nil {
-		t.Fatalf("Parse : %v", err)
+		t.Fatalf("Parse: %v", err)
 	}
 	if format != FormatList {
-		t.Errorf("format %s, attendu list", format)
+		t.Errorf("format %s, want list", format)
 	}
 	want := []Entry{
 		{Line: 3, Ref: Ref{"alice", "projet"}},
@@ -156,7 +156,7 @@ func TestParseList(t *testing.T) {
 		{Line: 7, Ref: Ref{"carol", "projet"}},
 	}
 	if !reflect.DeepEqual(entries, want) {
-		t.Errorf("entrées %#v", entries)
+		t.Errorf("entries %#v", entries)
 	}
 }
 
@@ -167,15 +167,15 @@ func TestParseListWithBOM(t *testing.T) {
 	}
 }
 
-// lineErrors vérifie que err est une *ParseError et renvoie ses erreurs.
+// lineErrors checks that err is a *ParseError and returns its errors.
 func lineErrors(t *testing.T, err error) []LineError {
 	t.Helper()
 	var pe *ParseError
 	if !errors.As(err, &pe) {
-		t.Fatalf("erreur %v (%T), attendu *ParseError", err, err)
+		t.Fatalf("error %v (%T), want *ParseError", err, err)
 	}
 	if len(pe.Errors) == 0 {
-		t.Fatal("ParseError sans erreur")
+		t.Fatal("ParseError without errors")
 	}
 	return pe.Errors
 }
@@ -190,72 +190,72 @@ func errLines(errs []LineError) []int {
 
 func TestParseCSVErrorsAllReported(t *testing.T) {
 	in := "repo,label,branches\n" +
-		"alice/projet,Alice,\n" + // 2 : ok
-		"pas un depot,Bob,\n" + // 3 : référence invalide
-		",Carol,\n" + // 4 : repo vide
-		"dan/projet,Dan\n" + // 5 : nombre de cellules
-		"eva/projet,Eva,\"main,[x\"\n" + // 6 : motif invalide
-		"ALICE/Projet,Alice bis,\n" + // 7 : doublon de la ligne 2
-		"fred/projet,\"Fred,\n" + // 8 : guillemets
-		"gus/projet,\"a\x01b\",\n" // 9 : label avec caractère de contrôle
+		"alice/projet,Alice,\n" + // 2: ok
+		"pas un depot,Bob,\n" + // 3: invalid reference
+		",Carol,\n" + // 4: empty repo
+		"dan/projet,Dan\n" + // 5: number of cells
+		"eva/projet,Eva,\"main,[x\"\n" + // 6: invalid pattern
+		"ALICE/Projet,Alice bis,\n" + // 7: duplicate of line 2
+		"fred/projet,\"Fred,\n" + // 8: quotes
+		"gus/projet,\"a\x01b\",\n" // 9: label with a control character
 	entries, format, err := parseString(t, in)
 	if entries != nil {
-		t.Errorf("aucune entrée attendue en cas d'erreur : %#v", entries)
+		t.Errorf("no entries expected on error: %#v", entries)
 	}
 	if format != FormatCSV {
 		t.Errorf("format %s", format)
 	}
 	errs := lineErrors(t, err)
 	if got, want := errLines(errs), []int{3, 4, 5, 6, 7, 8, 9}; !reflect.DeepEqual(got, want) {
-		t.Fatalf("lignes en erreur %v, attendu %v (%v)", got, want, err)
+		t.Fatalf("lines with errors %v, want %v (%v)", got, want, err)
 	}
 	checks := map[int]string{
 		3: `"pas un depot"`,
-		4: "repo vide",
-		5: "2 cellule(s) au lieu de 3",
+		4: "empty repo",
+		5: "2 cell(s) instead of 3",
 		6: `"[x"`,
-		7: "déjà présent ligne 2",
-		8: "guillemets",
-		9: "contrôle",
+		7: "already on line 2",
+		8: "quotes",
+		9: "control",
 	}
 	for _, e := range errs {
 		if !strings.Contains(e.Msg, checks[e.Line]) {
-			t.Errorf("ligne %d : %q ne contient pas %q", e.Line, e.Msg, checks[e.Line])
+			t.Errorf("line %d: %q does not contain %q", e.Line, e.Msg, checks[e.Line])
 		}
-		if strings.HasPrefix(e.Msg, "ligne") {
-			t.Errorf("Msg ne doit pas porter le préfixe : %q", e.Msg)
+		if strings.HasPrefix(e.Msg, "line") {
+			t.Errorf("Msg must not carry the prefix: %q", e.Msg)
 		}
 	}
 	msg := err.Error()
-	if !strings.HasPrefix(msg, "7 lignes en erreur :") || !strings.Contains(msg, "\n  ligne 7 : ") {
+	if !strings.HasPrefix(msg, "7 lines with errors:") || !strings.Contains(msg, "\n  line 7: ") {
 		t.Errorf("Error() = %q", msg)
 	}
 	if got := strings.Count(msg, "\n"); got != 7 {
-		t.Errorf("une erreur par ligne de texte attendue, %d sauts de ligne : %q", got, msg)
+		t.Errorf("one error per text line expected, %d line breaks: %q", got, msg)
 	}
 }
 
 func TestParseHeaderErrors(t *testing.T) {
 	tests := map[string]string{
-		"repo,label,commentaire\nalice/x,A,b\n": `colonne "commentaire" inconnue`,
-		"repo,label,Repo\nalice/x,A,b\n":        `colonne "repo" en double`,
+		"repo,label,commentaire\nalice/x,A,b\n": `unknown column "commentaire"`,
+		"repo,label,Repo\nalice/x,A,b\n":        `duplicate column "repo"`,
 	}
 	for in, want := range tests {
 		_, format, err := parseString(t, in)
 		errs := lineErrors(t, err)
 		if format != FormatCSV || errs[0].Line != 1 || !strings.Contains(errs[0].Msg, want) {
-			t.Errorf("%q : %v (%s)", in, err, format)
+			t.Errorf("%q: %v (%s)", in, err, format)
 		}
 	}
-	// En-tête après commentaires : son numéro de ligne réel est donné.
+	// Header after comments: its real line number is given.
 	_, _, err := parseString(t, "# import\n\nrepo,nom\nalice/x,A\n")
 	if errs := lineErrors(t, err); errs[0].Line != 3 {
-		t.Errorf("ligne d'en-tête %d, attendu 3", errs[0].Line)
+		t.Errorf("header line %d, want 3", errs[0].Line)
 	}
-	// Les lignes de données mal découpées sont aussi signalées malgré l'en-tête invalide.
+	// Badly split data lines are reported too, despite the invalid header.
 	_, _, err = parseString(t, "repo,nom\nalice/x,\"A\n")
 	if got := errLines(lineErrors(t, err)); !reflect.DeepEqual(got, []int{1, 2}) {
-		t.Errorf("lignes %v", got)
+		t.Errorf("lines %v", got)
 	}
 }
 
@@ -267,15 +267,15 @@ func TestParseListErrors(t *testing.T) {
 	}
 	errs := lineErrors(t, err)
 	if got := errLines(errs); !reflect.DeepEqual(got, []int{2, 3, 4, 5}) {
-		t.Fatalf("lignes %v (%v)", got, err)
+		t.Fatalf("lines %v (%v)", got, err)
 	}
 	if !strings.Contains(errs[0].Msg, "repo,label,branches") {
-		t.Errorf("ligne 2 : l'astuce CSV manque : %q", errs[0].Msg)
+		t.Errorf("line 2: the CSV hint is missing: %q", errs[0].Msg)
 	}
-	if !strings.Contains(errs[2].Msg, "ligne 1") {
-		t.Errorf("ligne 4 : le doublon doit citer la ligne 1 : %q", errs[2].Msg)
+	if !strings.Contains(errs[2].Msg, "line 1") {
+		t.Errorf("line 4: the duplicate must quote line 1: %q", errs[2].Msg)
 	}
-	if !strings.HasPrefix(err.Error(), "4 lignes en erreur") {
+	if !strings.HasPrefix(err.Error(), "4 lines with errors") {
 		t.Errorf("Error() = %q", err.Error())
 	}
 }
@@ -284,41 +284,41 @@ func TestParseEmpty(t *testing.T) {
 	for _, in := range []string{"", "\ufeff", "\n\n  \n", "# rien\n# toujours rien\n", "repo,label,branches\n", "repo\n# aucun\n"} {
 		entries, _, err := parseString(t, in)
 		if entries != nil {
-			t.Errorf("%q : entrées %#v", in, entries)
+			t.Errorf("%q: entries %#v", in, entries)
 		}
 		errs := lineErrors(t, err)
-		if len(errs) != 1 || errs[0].Msg != "aucun dépôt dans le fichier" {
-			t.Errorf("%q : %v", in, err)
+		if len(errs) != 1 || errs[0].Msg != "no repository in the file" {
+			t.Errorf("%q: %v", in, err)
 		}
 		if !errors.Is(err, ErrNoEntry) {
-			t.Errorf("%q : errors.Is(ErrNoEntry) faux", in)
+			t.Errorf("%q: errors.Is(ErrNoEntry) false", in)
 		}
-		if err.Error() != "1 ligne en erreur :\n  "+errs[0].Error() {
-			t.Errorf("%q : Error() = %q", in, err.Error())
+		if err.Error() != "1 line with errors:\n  "+errs[0].Error() {
+			t.Errorf("%q: Error() = %q", in, err.Error())
 		}
 	}
-	// Une autre erreur n'est pas ErrNoEntry.
+	// Another error is not ErrNoEntry.
 	_, _, err := parseString(t, "carol\n")
 	if errors.Is(err, ErrNoEntry) {
-		t.Error("errors.Is(ErrNoEntry) vrai pour une référence invalide")
+		t.Error("errors.Is(ErrNoEntry) true for an invalid reference")
 	}
 }
 
 func TestParseReadError(t *testing.T) {
-	boom := errors.New("disque illisible")
+	boom := errors.New("unreadable disk")
 	_, _, err := Parse(iotest.ErrReader(boom))
 	var pe *ParseError
 	if !errors.Is(err, boom) || errors.As(err, &pe) {
-		t.Errorf("erreur %v, attendu l'erreur de lecture enveloppée", err)
+		t.Errorf("error %v, want the wrapped read error", err)
 	}
 	_, _, err = Parse(strings.NewReader(strings.Repeat("a", maxLineBytes+10)))
 	if err == nil || errors.As(err, &pe) {
-		t.Errorf("ligne trop longue : %v", err)
+		t.Errorf("line too long: %v", err)
 	}
 }
 
 func TestLineError(t *testing.T) {
-	if s := (LineError{Line: 12, Msg: "colonne repo vide"}).Error(); s != "ligne 12 : colonne repo vide" {
+	if s := (LineError{Line: 12, Msg: "empty repo column"}).Error(); s != "line 12: empty repo column" {
 		t.Errorf("Error() = %q", s)
 	}
 }
@@ -326,7 +326,7 @@ func TestLineError(t *testing.T) {
 func TestQuoteTruncates(t *testing.T) {
 	_, err := ParseRef(strings.Repeat("x", 300))
 	if err == nil || len(err.Error()) > 250 {
-		t.Errorf("message trop long : %v", err)
+		t.Errorf("message too long: %v", err)
 	}
 }
 
@@ -336,12 +336,12 @@ func TestParseThreshold(t *testing.T) {
 	for in, want := range map[string]*int{"": nil, "  ": nil, "0": intp(0), " 7 ": intp(7), "3650": intp(3650)} {
 		got, err := ParseThreshold(in)
 		if err != nil || !reflect.DeepEqual(got, want) {
-			t.Errorf("ParseThreshold(%q) = %v, %v ; attendu %v", in, got, err, want)
+			t.Errorf("ParseThreshold(%q) = %v, %v; want %v", in, got, err, want)
 		}
 	}
 	for _, in := range []string{"-1", "abc", "1.5", "3651", "99999999999999999999"} {
-		if _, err := ParseThreshold(in); err == nil || !strings.Contains(err.Error(), "nombre entier de jours") {
-			t.Errorf("ParseThreshold(%q) : erreur %v", in, err)
+		if _, err := ParseThreshold(in); err == nil || !strings.Contains(err.Error(), "whole number of days") {
+			t.Errorf("ParseThreshold(%q): error %v", in, err)
 		}
 	}
 }
@@ -350,18 +350,18 @@ func TestValidateThresholds(t *testing.T) {
 	ok := [][2]*int{{nil, nil}, {intp(3), nil}, {nil, intp(2)}, {intp(3), intp(4)}, {intp(0), intp(2)}, {intp(5), intp(0)}, {intp(0), intp(0)}}
 	for _, c := range ok {
 		if err := ValidateThresholds(c[0], c[1]); err != nil {
-			t.Errorf("ValidateThresholds(%v, %v) : %v", c[0], c[1], err)
+			t.Errorf("ValidateThresholds(%v, %v): %v", c[0], c[1], err)
 		}
 	}
 	bad := map[[2]*int]string{
-		{intp(5), intp(5)}:  "strictement supérieur",
-		{intp(10), intp(3)}: "strictement supérieur",
-		{intp(-1), nil}:     "seuil flemme",
-		{nil, intp(4000)}:   "seuil dead",
+		{intp(5), intp(5)}:  "strictly greater",
+		{intp(10), intp(3)}: "strictly greater",
+		{intp(-1), nil}:     "flemme threshold",
+		{nil, intp(4000)}:   "dead threshold",
 	}
 	for c, want := range bad {
 		if err := ValidateThresholds(c[0], c[1]); err == nil || !strings.Contains(err.Error(), want) {
-			t.Errorf("ValidateThresholds(%v, %v) : %v, attendu %q", c[0], c[1], err, want)
+			t.Errorf("ValidateThresholds(%v, %v): %v, want %q", c[0], c[1], err, want)
 		}
 	}
 }
@@ -373,7 +373,7 @@ func TestParseCSVThresholds(t *testing.T) {
 		"carol/projet,,0,\n"
 	entries, _, err := parseString(t, in)
 	if err != nil {
-		t.Fatalf("Parse : %v", err)
+		t.Fatalf("Parse: %v", err)
 	}
 	want := []Entry{
 		{Line: 2, Ref: Ref{"alice", "projet"}, Label: "Alice", FlemmeAfterDays: intp(3), DeadAfterDays: intp(10)},
@@ -381,17 +381,17 @@ func TestParseCSVThresholds(t *testing.T) {
 		{Line: 4, Ref: Ref{"carol", "projet"}, FlemmeAfterDays: intp(0)},
 	}
 	if !reflect.DeepEqual(entries, want) {
-		t.Errorf("entrées :\n%#v\nattendu :\n%#v", entries, want)
+		t.Errorf("entries:\n%#v\nwant:\n%#v", entries, want)
 	}
 
 	_, _, err = parseString(t, "repo,flemme,dead\nalice/projet,x,\nbob/projet,10,5\ncarol/projet,2,-3\n")
 	var pe *ParseError
 	if !errors.As(err, &pe) || len(pe.Errors) != 3 {
-		t.Fatalf("erreurs : %v", err)
+		t.Fatalf("errors: %v", err)
 	}
-	for i, want := range []string{"flemme : \"x\"", "strictement supérieur", "dead : \"-3\""} {
+	for i, want := range []string{"flemme: \"x\"", "strictly greater", "dead: \"-3\""} {
 		if !strings.Contains(pe.Errors[i].Msg, want) {
-			t.Errorf("erreur %d = %q, attendu %q", i, pe.Errors[i].Msg, want)
+			t.Errorf("error %d = %q, want %q", i, pe.Errors[i].Msg, want)
 		}
 	}
 }

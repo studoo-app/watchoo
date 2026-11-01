@@ -51,24 +51,9 @@ type importReport struct {
 func newRepoImportCmd(deps Deps, opts *options) *cobra.Command {
 	var dryRun bool
 	cmd := &cobra.Command{
-		Use:   "import fichier",
-		Short: "Ajoute d'un coup une liste de dépôts (CSV ou un dépôt par ligne)",
-		Long: `Ajoute d'un coup une liste de dépôts, par exemple ceux d'une promotion.
-
-Le fichier est un CSV avec une ligne d'en-tête repo,label,branches (seule la colonne
-repo est obligatoire ; flemme et dead, facultatives, donnent les seuils d'activité du
-dépôt en jours, 0 pour revenir aux seuils de l'espace), ou un simple texte avec un dépôt par ligne. Les lignes vides et
-celles qui commencent par # sont ignorées. « - » lit la liste sur l'entrée standard.
-
-Tout le fichier est validé avant d'ajouter quoi que ce soit : une ligne mal formée
-arrête l'import en indiquant son numéro. L'accès à chaque dépôt est ensuite vérifié
-auprès de GitHub ; un dépôt inaccessible est signalé sans bloquer les autres. Un dépôt
-déjà suivi n'est pas ajouté en double : son label, ses branches et ses seuils sont mis à
-jour si le fichier en donne (une cellule vide garde la valeur existante). L'import peut donc être
-relancé sans risque.
-
-Le code de retour est non nul s'il reste des dépôts inaccessibles. L'import ne lance
-pas de synchro : enchaînez avec « watchoo sync ».`,
+		Use:   "import " + i18n.T("cli.repo.help.file_arg"),
+		Short: i18n.T("cli.repo.help.import_short"),
+		Long:  i18n.T("cli.repo.help.import_long"),
 		Example: `  watchoo repo import promo-licence.csv --dry-run
   watchoo repo import promo-licence.csv`,
 		Args: exactArgs(1),
@@ -77,7 +62,7 @@ pas de synchro : enchaînez avec « watchoo sync ».`,
 		},
 	}
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false,
-		"valide le fichier et vérifie l'accès aux dépôts, sans rien enregistrer")
+		i18n.T("cli.repo.help.import_flag_dry_run"))
 	return cmd
 }
 

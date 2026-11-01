@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"unicode/utf8"
+
+	"github.com/studoo-app/watchoo/internal/i18n"
 )
 
 func TestParseStatus(t *testing.T) {
@@ -17,24 +19,24 @@ func TestParseStatus(t *testing.T) {
 		user    string
 		want    Status
 		wantErr error
-		notErr  error    // erreur que l'erreur renvoyée ne doit pas envelopper
-		msg     []string // extraits attendus dans le message d'erreur
-		noMsg   []string // extraits interdits dans le message d'erreur
+		notErr  error    // error that the returned error must not wrap
+		msg     []string // excerpts expected in the error message
+		noMsg   []string // excerpts forbidden in the error message
 	}{
 		{
-			name:   "compte actif",
+			name:   "active account",
 			stdout: `{"hosts":{"github.com":[{"state":"success","active":true,"host":"github.com","login":"alice","tokenSource":"keyring","scopes":"gist, read:org, repo","gitProtocol":"ssh"}]}}`,
 			want:   Status{Host: host, Login: "alice", TokenSource: "keyring", Active: true, State: "success", Scopes: []string{"gist", "read:org", "repo"}},
 		},
 		{
-			name: "compte actif parmi plusieurs",
+			name: "active account among several",
 			stdout: `{"hosts":{"github.com":[
 				{"state":"success","active":false,"host":"github.com","login":"bob","tokenSource":"keyring","scopes":"repo"},
 				{"state":"success","active":true,"host":"github.com","login":"alice","tokenSource":"keyring","scopes":"repo"}]}}`,
 			want: Status{Host: host, Login: "alice", TokenSource: "keyring", Active: true, State: "success", Scopes: []string{"repo"}},
 		},
 		{
-			name: "compte choisi par github.user",
+			name: "account chosen by github.user",
 			stdout: `{"hosts":{"github.com":[
 				{"state":"success","active":true,"host":"github.com","login":"alice","tokenSource":"keyring","scopes":"repo"},
 				{"state":"success","active":false,"host":"github.com","login":"Bob","tokenSource":"oauth_token","scopes":"repo, read:org"}]}}`,
@@ -42,18 +44,18 @@ func TestParseStatus(t *testing.T) {
 			want: Status{Host: host, Login: "Bob", TokenSource: "oauth_token", State: "success", Scopes: []string{"repo", "read:org"}},
 		},
 		{
-			// « gh auth token --user bob » échouerait : gh distingue les majuscules.
-			name: "github.user avec une autre casse",
+			// "gh auth token --user bob" would fail: gh is case-sensitive.
+			name: "github.user with another case",
 			stdout: `{"hosts":{"github.com":[
 				{"state":"success","active":true,"host":"github.com","login":"alice","tokenSource":"keyring","scopes":"repo"},
 				{"state":"success","active":false,"host":"github.com","login":"Bob","tokenSource":"oauth_token","scopes":"repo"}]}}`,
 			user:    "bob",
 			wantErr: ErrUnusableUser,
-			msg:     []string{`github.user vaut "bob"`, `sous le nom "Bob"`, "majuscules", "corrigez le réglage github.user"},
+			msg:     []string{`github.user is "bob"`, `as "Bob"`, "case-sensitive", "fix the github.user setting"},
 			noMsg:   []string{"gh auth login"},
 		},
 		{
-			name: "github.user préfère le compte enregistré à GH_TOKEN",
+			name: "github.user prefers the stored account to GH_TOKEN",
 			stdout: `{"hosts":{"github.com":[
 				{"state":"success","active":true,"host":"github.com","login":"alice","tokenSource":"GH_TOKEN"},
 				{"state":"success","active":false,"host":"github.com","login":"alice","tokenSource":"keyring","scopes":"repo"}]}}`,
@@ -61,38 +63,38 @@ func TestParseStatus(t *testing.T) {
 			want: Status{Host: host, Login: "alice", TokenSource: "keyring", State: "success", Scopes: []string{"repo"}},
 		},
 		{
-			// « gh auth token --user alice » ignore GH_TOKEN et échouerait (vérifié avec gh 2.103).
-			name:    "github.user ne correspond qu'à GH_TOKEN",
+			// "gh auth token --user alice" ignores GH_TOKEN and would fail (checked with gh 2.103).
+			name:    "github.user only matches GH_TOKEN",
 			stdout:  `{"hosts":{"github.com":[{"state":"success","active":true,"host":"github.com","login":"alice","tokenSource":"GH_TOKEN"}]}}`,
 			user:    "alice",
 			wantErr: ErrUnusableUser,
-			msg:     []string{`github.user vaut "alice"`, "que par la variable GH_TOKEN", "videz-le"},
+			msg:     []string{`github.user is "alice"`, "only knows this account on github.com through the variable GH_TOKEN", "empty it"},
 			noMsg:   []string{"gh auth login"},
 		},
 		{
-			name:    "github.user ne correspond qu'à GH_TOKEN, avec une autre casse",
+			name:    "github.user only matches GH_TOKEN, with another case",
 			stdout:  `{"hosts":{"github.com":[{"state":"success","active":true,"host":"github.com","login":"Alice","tokenSource":"GH_TOKEN"}]}}`,
 			user:    "alice",
 			wantErr: ErrUnusableUser,
-			msg:     []string{"que par la variable GH_TOKEN"},
+			msg:     []string{"through the variable GH_TOKEN"},
 		},
 		{
-			name: "github.user : la casse d'un compte enregistré l'emporte sur GH_TOKEN",
+			name: "github.user: the case of a stored account wins over GH_TOKEN",
 			stdout: `{"hosts":{"github.com":[
 				{"state":"success","active":true,"host":"github.com","login":"alice","tokenSource":"GH_TOKEN"},
 				{"state":"success","active":false,"host":"github.com","login":"Alice","tokenSource":"keyring"}]}}`,
 			user:    "alice",
 			wantErr: ErrUnusableUser,
-			msg:     []string{`sous le nom "Alice"`},
+			msg:     []string{`as "Alice"`},
 		},
 		{
-			name:   "compte actif issu de GH_TOKEN, sans github.user",
+			name:   "active account from GH_TOKEN, without github.user",
 			stdout: `{"hosts":{"github.com":[{"state":"success","active":true,"host":"github.com","login":"ci-bot","tokenSource":"GH_TOKEN"}]}}`,
 			want:   Status{Host: host, Login: "ci-bot", TokenSource: "GH_TOKEN", Active: true, State: "success", Scopes: []string{}},
 			notErr: ErrNotLoggedIn,
 		},
 		{
-			name:    "github.user inconnu",
+			name:    "unknown github.user",
 			stdout:  `{"hosts":{"github.com":[{"state":"success","active":true,"host":"github.com","login":"alice","tokenSource":"keyring"}]}}`,
 			user:    "carol",
 			wantErr: ErrNotLoggedIn,
@@ -100,89 +102,89 @@ func TestParseStatus(t *testing.T) {
 			msg:     []string{`"carol"`, "github.user", "gh auth login"},
 		},
 		{
-			name:    "aucun compte actif",
+			name:    "no active account",
 			stdout:  `{"hosts":{"github.com":[{"state":"success","active":false,"host":"github.com","login":"alice","tokenSource":"keyring"}]}}`,
 			wantErr: ErrNotLoggedIn,
 		},
 		{
-			name:    "aucun compte (réponse de gh non connecté)",
+			name:    "no account (answer of a gh not signed in)",
 			stdout:  `{"hosts":{}}`,
 			wantErr: ErrNotLoggedIn,
 		},
 		{
-			name:    "comptes d'un autre hôte seulement",
+			name:    "accounts of another host only",
 			stdout:  `{"hosts":{"ghe.example.test":[{"state":"success","active":true,"host":"ghe.example.test","login":"alice"}]}}`,
 			wantErr: ErrNotLoggedIn,
 		},
 		{
-			name:   "clé d'hôte en majuscules",
+			name:   "host key in uppercase",
 			stdout: `{"hosts":{"GitHub.com":[{"state":"success","active":true,"host":"GitHub.com","login":"alice","tokenSource":"keyring","scopes":""}]}}`,
 			want:   Status{Host: "GitHub.com", Login: "alice", TokenSource: "keyring", Active: true, State: "success", Scopes: []string{}},
 		},
 		{
-			name:   "hôte absent de l'entrée",
+			name:   "host missing from the entry",
 			stdout: `{"hosts":{"github.com":[{"state":"success","active":true,"login":"alice"}]}}`,
 			want:   Status{Host: host, Login: "alice", Active: true, State: "success", Scopes: []string{}},
 		},
 		{
-			name:   "scopes sous forme de liste",
+			name:   "scopes as a list",
 			stdout: `{"hosts":{"github.com":[{"state":"success","active":true,"login":"alice","scopes":[" repo ","gist",""]}]}}`,
 			want:   Status{Host: host, Login: "alice", Active: true, State: "success", Scopes: []string{"repo", "gist"}},
 		},
 		{
-			name:   "scopes d'un type inattendu",
+			name:   "scopes of an unexpected type",
 			stdout: `{"hosts":{"github.com":[{"state":"success","active":true,"login":"alice","scopes":42}]}}`,
 			want:   Status{Host: host, Login: "alice", Active: true, State: "success", Scopes: []string{}},
 		},
 		{
-			name:    "token invalide",
+			name:    "invalid token",
 			stdout:  `{"hosts":{"github.com":[{"state":"error","error":"HTTP 401: Bad credentials (https://api.github.com/)","active":true,"host":"github.com","login":"alice","tokenSource":"GH_TOKEN"}]}}`,
 			want:    Status{Host: host, Login: "alice", TokenSource: "GH_TOKEN", Active: true, State: "error", Scopes: []string{}},
 			wantErr: ErrNotLoggedIn,
 			notErr:  ErrCheckFailed,
-			msg:     []string{`"alice"`, "n'est pas utilisable", "gh auth login"},
+			msg:     []string{`"alice"`, "is not usable", "gh auth login"},
 			noMsg:   []string{"Bad credentials"},
 		},
 		{
-			name:    "token refusé, message sans code HTTP",
+			name:    "refused token, message without HTTP code",
 			stdout:  `{"hosts":{"github.com":[{"state":"error","error":"bad credentials","active":true,"login":"alice"}]}}`,
 			want:    Status{Host: host, Login: "alice", Active: true, State: "error", Scopes: []string{}},
 			wantErr: ErrNotLoggedIn,
 			notErr:  ErrCheckFailed,
 		},
 		{
-			// Format réel de gh 2.103, sans le texte « Bad credentials ».
-			name:    "token refusé, format « status code: 401 » de gh",
+			// Real format of gh 2.103, without the text "Bad credentials".
+			name:    "refused token, \"status code: 401\" format of gh",
 			stdout:  `{"hosts":{"github.com":[{"state":"error","error":"non-200 OK status code: 401 Unauthorized body: \"\"","active":true,"login":"alice"}]}}`,
 			want:    Status{Host: host, Login: "alice", Active: true, State: "error", Scopes: []string{}},
 			wantErr: ErrNotLoggedIn,
 			notErr:  ErrCheckFailed,
 		},
 		{
-			name:    "état error sans détail",
+			name:    "error state without detail",
 			stdout:  `{"hosts":{"github.com":[{"state":"error","active":true,"login":"alice"}]}}`,
 			want:    Status{Host: host, Login: "alice", Active: true, State: "error", Scopes: []string{}},
 			wantErr: ErrNotLoggedIn,
 			notErr:  ErrCheckFailed,
 		},
 		{
-			name:    "état inconnu",
+			name:    "unknown state",
 			stdout:  `{"hosts":{"github.com":[{"state":"expired","active":true,"login":"alice"}]}}`,
 			want:    Status{Host: host, Login: "alice", Active: true, State: "expired", Scopes: []string{}},
 			wantErr: ErrNotLoggedIn,
 		},
 		{
-			name:    "github.com injoignable (délai)",
+			name:    "github.com unreachable (timeout)",
 			stdout:  `{"hosts":{"github.com":[{"state":"timeout","error":"net/http: request canceled (Client.Timeout exceeded)","active":true,"host":"github.com","login":"alice","tokenSource":"keyring"}]}}`,
 			want:    Status{Host: host, Login: "alice", TokenSource: "keyring", Active: true, State: "timeout", Scopes: []string{}},
 			wantErr: ErrCheckFailed,
 			notErr:  ErrNotLoggedIn,
-			msg:     []string{"n'a pas pu être vérifié", "« timeout »", "Client.Timeout exceeded", "réseau"},
+			msg:     []string{"could not be checked", `"timeout"`, "Client.Timeout exceeded", "network"},
 			noMsg:   []string{"gh auth login"},
 		},
 		{
-			// Réponse réelle de gh 2.103 avec HTTPS_PROXY=http://127.0.0.1:9 et un token valide.
-			name:    "github.com injoignable (proxy)",
+			// Real answer of gh 2.103 with HTTPS_PROXY=http://127.0.0.1:9 and a valid token.
+			name:    "github.com unreachable (proxy)",
 			stdout:  `{"hosts":{"github.com":[{"state":"error","error":"Get \"https://api.github.com/\": proxyconnect tcp: dial tcp 127.0.0.1:9: connect: connection refused","active":true,"host":"github.com","login":"alice","tokenSource":"keyring","scopes":"repo"}]}}`,
 			want:    Status{Host: host, Login: "alice", TokenSource: "keyring", Active: true, State: "error", Scopes: []string{"repo"}},
 			wantErr: ErrCheckFailed,
@@ -191,71 +193,71 @@ func TestParseStatus(t *testing.T) {
 			noMsg:   []string{"gh auth login"},
 		},
 		{
-			name:    "erreur de gh sur plusieurs lignes, avec un token",
-			stdout:  `{"hosts":{"github.com":[{"state":"error","error":"HTTP 502: Bad Gateway gho_secret123\nsuite","active":true,"login":"alice"}]}}`,
+			name:    "gh error on several lines, with a token",
+			stdout:  `{"hosts":{"github.com":[{"state":"error","error":"HTTP 502: Bad Gateway gho_secret123\nnext","active":true,"login":"alice"}]}}`,
 			want:    Status{Host: host, Login: "alice", Active: true, State: "error", Scopes: []string{}},
 			wantErr: ErrCheckFailed,
-			msg:     []string{"HTTP 502: Bad Gateway " + redacted},
-			noMsg:   []string{"gho_secret123", "suite"},
+			msg:     []string{"HTTP 502: Bad Gateway [redacted]"},
+			noMsg:   []string{"gho_secret123", "next"},
 		},
-		{name: "sortie vide", stdout: ``, wantErr: ErrUnexpectedOutput},
-		{name: "pas du JSON", stdout: `github.com: Logged in`, wantErr: ErrUnexpectedOutput},
-		{name: "objet sans hosts", stdout: `{}`, wantErr: ErrUnexpectedOutput},
-		{name: "hosts nul", stdout: `{"hosts":null}`, wantErr: ErrUnexpectedOutput},
-		{name: "hosts d'un mauvais type", stdout: `{"hosts":[]}`, wantErr: ErrUnexpectedOutput},
+		{name: "empty output", stdout: ``, wantErr: ErrUnexpectedOutput},
+		{name: "not JSON", stdout: `github.com: Logged in`, wantErr: ErrUnexpectedOutput},
+		{name: "object without hosts", stdout: `{}`, wantErr: ErrUnexpectedOutput},
+		{name: "null hosts", stdout: `{"hosts":null}`, wantErr: ErrUnexpectedOutput},
+		{name: "hosts of a wrong type", stdout: `{"hosts":[]}`, wantErr: ErrUnexpectedOutput},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := parseStatus([]byte(tt.stdout), host, tt.user)
 			if tt.wantErr != nil {
 				if !errors.Is(err, tt.wantErr) {
-					t.Fatalf("erreur = %v, veut %q", err, tt.wantErr)
+					t.Fatalf("error = %v, want %q", err, tt.wantErr)
 				}
 			} else if err != nil {
-				t.Fatalf("erreur inattendue : %v", err)
+				t.Fatalf("unexpected error: %v", err)
 			}
 			if tt.notErr != nil && errors.Is(err, tt.notErr) {
-				t.Errorf("l'erreur %q ne devrait pas envelopper %q", err, tt.notErr)
+				t.Errorf("the error %q should not wrap %q", err, tt.notErr)
 			}
 			for _, part := range tt.msg {
 				if err == nil || !strings.Contains(err.Error(), part) {
-					t.Errorf("message %v sans %q", err, part)
+					t.Errorf("message %v without %q", err, part)
 				}
 			}
 			for _, part := range tt.noMsg {
 				if err != nil && strings.Contains(err.Error(), part) {
-					t.Errorf("message %q avec %q", err, part)
+					t.Errorf("message %q with %q", err, part)
 				}
 			}
 			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("Status = %#v, veut %#v", got, tt.want)
+				t.Errorf("Status = %#v, want %#v", got, tt.want)
 			}
 		})
 	}
 }
 
-// ErrUnusableUser enveloppe ErrNotLoggedIn, comme l'erreur que Token renverrait dans ce cas, mais son
-// message ne conseille pas « gh auth login », qui ne réglerait rien.
+// ErrUnusableUser wraps ErrNotLoggedIn, like the error that Token would return in this case, but its
+// message does not advise "gh auth login", which would fix nothing.
 func TestErrUnusableUserWrapsNotLoggedIn(t *testing.T) {
 	if !errors.Is(ErrUnusableUser, ErrNotLoggedIn) {
-		t.Error("ErrUnusableUser n'enveloppe pas ErrNotLoggedIn")
+		t.Error("ErrUnusableUser does not wrap ErrNotLoggedIn")
 	}
 	if errors.Is(ErrNotLoggedIn, ErrUnusableUser) {
-		t.Error("ErrNotLoggedIn ne doit pas être ErrUnusableUser")
+		t.Error("ErrNotLoggedIn must not be ErrUnusableUser")
 	}
 	if msg := ErrUnusableUser.Error(); strings.Contains(msg, "gh auth login") || !strings.Contains(msg, "github.user") {
-		t.Errorf("message de ErrUnusableUser = %q", msg)
+		t.Errorf("message of ErrUnusableUser = %q", msg)
 	}
 }
 
 func TestParseStatusErrorDoesNotQuoteStdout(t *testing.T) {
-	stdout := `{"hosts": oups gho_secret_dans_la_sortie`
+	stdout := `{"hosts": oops gho_secret_in_the_output`
 	_, err := parseStatus([]byte(stdout), "github.com", "")
 	if !errors.Is(err, ErrUnexpectedOutput) {
-		t.Fatalf("erreur = %v, veut ErrUnexpectedOutput", err)
+		t.Fatalf("error = %v, want ErrUnexpectedOutput", err)
 	}
-	if strings.Contains(err.Error(), "oups") || strings.Contains(err.Error(), "gho_") {
-		t.Errorf("le message %q recopie la sortie standard de gh", err)
+	if strings.Contains(err.Error(), "oops") || strings.Contains(err.Error(), "gho_") {
+		t.Errorf("the message %q copies the standard output of gh", err)
 	}
 }
 
@@ -271,7 +273,7 @@ func TestSplitScopes(t *testing.T) {
 	for in, want := range tests {
 		got := splitScopes(in)
 		if got == nil || !reflect.DeepEqual(got, want) {
-			t.Errorf("splitScopes(%q) = %#v, veut %#v", in, got, want)
+			t.Errorf("splitScopes(%q) = %#v, want %#v", in, got, want)
 		}
 	}
 }
@@ -281,26 +283,26 @@ func TestSummarize(t *testing.T) {
 	tests := []struct {
 		name, in, want string
 	}{
-		{"vide", "", ""},
-		{"blancs seulement", " \n\t\n", ""},
-		{"première ligne non vide", "\n\n  unknown flag: --json  \nUsage: gh auth status\n", "unknown flag: --json"},
-		{"retour chariot", "ligne\r\nsuite", "ligne"},
-		{"caractères de contrôle", "a\x1b[31mb\x00c", "a [31mb c"},
-		{"UTF-8 invalide", "a\xffb", "a?b"},
-		{"token classique masqué", "bad token gho_ABCdef123 here", "bad token " + redacted + " here"},
-		{"plusieurs tokens masqués", "ghp_x1 ghs_y2 ghu_z3 ghr_w4", strings.Join([]string{redacted, redacted, redacted, redacted}, " ")},
-		{"token fin masqué", "github_pat_11AAA_bbb", redacted},
-		{"faux token masqué", "token " + fakeToken + " refusé", "token " + redacted + " refusé"},
-		{"raccourci", long, strings.Repeat("é", maxSummaryRunes) + "…"},
+		{"empty", "", ""},
+		{"blanks only", " \n\t\n", ""},
+		{"first non-empty line", "\n\n  unknown flag: --json  \nUsage: gh auth status\n", "unknown flag: --json"},
+		{"carriage return", "line\r\nnext", "line"},
+		{"control characters", "a\x1b[31mb\x00c", "a [31mb c"},
+		{"invalid UTF-8", "a\xffb", "a?b"},
+		{"classic token masked", "bad token gho_ABCdef123 here", "bad token [redacted] here"},
+		{"several tokens masked", "ghp_x1 ghs_y2 ghu_z3 ghr_w4", strings.Repeat("[redacted] ", 3) + "[redacted]"},
+		{"fine-grained token masked", "github_pat_11AAA_bbb", "[redacted]"},
+		{"fake token masked", "token " + fakeToken + " refused", "token [redacted] refused"},
+		{"shortened", long, strings.Repeat("é", maxSummaryRunes) + "…"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := summarize(tt.in)
 			if got != tt.want {
-				t.Errorf("summarize(%q) = %q, veut %q", tt.in, got, tt.want)
+				t.Errorf("summarize(%q) = %q, want %q", tt.in, got, tt.want)
 			}
 			if !utf8.ValidString(got) {
-				t.Errorf("summarize(%q) n'est pas de l'UTF-8 valide", tt.in)
+				t.Errorf("summarize(%q) is not valid UTF-8", tt.in)
 			}
 		})
 	}
@@ -315,13 +317,13 @@ func TestLooksNotLoggedIn(t *testing.T) {
 	}
 	for _, s := range yes {
 		if !looksNotLoggedIn(s) {
-			t.Errorf("looksNotLoggedIn(%q) = false, veut true", s)
+			t.Errorf("looksNotLoggedIn(%q) = false, want true", s)
 		}
 	}
 	no := []string{"", "unknown flag: --json", "HTTP 502: Bad Gateway"}
 	for _, s := range no {
 		if looksNotLoggedIn(s) {
-			t.Errorf("looksNotLoggedIn(%q) = true, veut false", s)
+			t.Errorf("looksNotLoggedIn(%q) = true, want false", s)
 		}
 	}
 }
@@ -331,14 +333,14 @@ func TestCappedBuffer(t *testing.T) {
 	for _, chunk := range []string{"ab", "cd", "efg", "hij"} {
 		n, err := b.Write([]byte(chunk))
 		if err != nil || n != len(chunk) {
-			t.Fatalf("Write(%q) = %d, %v ; veut %d, nil", chunk, n, err, len(chunk))
+			t.Fatalf("Write(%q) = %d, %v; want %d, nil", chunk, n, err, len(chunk))
 		}
 	}
 	if got := b.buf.String(); got != "abcde" {
-		t.Errorf("contenu = %q, veut %q", got, "abcde")
+		t.Errorf("content = %q, want %q", got, "abcde")
 	}
 	if !b.overflow {
-		t.Error("overflow = false, veut true")
+		t.Error("overflow = false, want true")
 	}
 
 	b = &cappedBuffer{max: 4}
@@ -346,24 +348,44 @@ func TestCappedBuffer(t *testing.T) {
 		t.Fatal(err)
 	}
 	if b.overflow {
-		t.Error("overflow = true pour une sortie qui tient exactement dans la limite")
+		t.Error("overflow = true for an output that exactly fits the limit")
 	}
 }
 
 func TestAbsent(t *testing.T) {
 	tests := map[error]bool{
-		ErrGHNotFound:                       true,
-		ErrNotLoggedIn:                      true,
-		ErrUnusableUser:                     true,
-		fmt.Errorf("x : %w", ErrGHNotFound): true,
-		ErrCheckFailed:                      false,
-		ErrTimeout:                          false,
-		ErrUnexpectedOutput:                 false,
-		errors.New("autre"):                 false,
+		ErrGHNotFound:                      true,
+		ErrNotLoggedIn:                     true,
+		ErrUnusableUser:                    true,
+		fmt.Errorf("x: %w", ErrGHNotFound): true,
+		ErrCheckFailed:                     false,
+		ErrTimeout:                         false,
+		ErrUnexpectedOutput:                false,
+		errors.New("other"):                false,
 	}
 	for err, want := range tests {
 		if got := Absent(err); got != want {
-			t.Errorf("Absent(%v) = %v, attendu %v", err, got, want)
+			t.Errorf("Absent(%v) = %v, want %v", err, got, want)
 		}
+	}
+}
+
+// The messages follow the process language: French typography (space before ":"), French masking
+// mark. Not parallel: the process language is shared.
+func TestMessagesFrench(t *testing.T) {
+	defer i18n.SetProcessForTest(i18n.French)()
+
+	_, err := parseStatus([]byte(`{"hosts":{}}`), "github.com", "")
+	if want := "aucun compte gh connecté pour github.com : gh n'est pas connecté à GitHub : lancez « gh auth login »"; err == nil || err.Error() != want {
+		t.Errorf("error = %v, want %q", err, want)
+	}
+	if !errors.Is(err, ErrNotLoggedIn) {
+		t.Errorf("errors.Is(ErrNotLoggedIn) false: %v", err)
+	}
+	if got := summarize("bad token gho_ABCdef123"); got != "bad token [masqué]" {
+		t.Errorf("summarize = %q", got)
+	}
+	if got := ErrUnusableUser.Error(); !strings.HasPrefix(got, "corrigez le réglage github.user") {
+		t.Errorf("ErrUnusableUser = %q", got)
 	}
 }

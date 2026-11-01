@@ -7,10 +7,10 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"strings"
 	"time"
 
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/store/db"
 )
@@ -39,9 +39,9 @@ func (s *Store) CreateRepository(ctx context.Context, r model.Repository) (model
 	})
 	if err != nil {
 		if isUniqueViolation(err) {
-			return model.Repository{}, fmt.Errorf("dépôt %s : %w", r.FullName(), ErrAlreadyExists)
+			return model.Repository{}, wrapErr(i18n.T("store.repo.name", r.FullName()), ErrAlreadyExists)
 		}
-		return model.Repository{}, fmt.Errorf("ajout du dépôt %s : %w", r.FullName(), err)
+		return model.Repository{}, wrapErr(i18n.T("store.repo.add", r.FullName()), err)
 	}
 	return repositoryFromDB(row)
 }
@@ -50,7 +50,7 @@ func (s *Store) CreateRepository(ctx context.Context, r model.Repository) (model
 func (s *Store) GetRepository(ctx context.Context, id int64) (model.Repository, error) {
 	row, err := s.queries.GetRepository(ctx, id)
 	if err != nil {
-		return model.Repository{}, repositoryLookupError(fmt.Sprintf("dépôt %d", id), err)
+		return model.Repository{}, repositoryLookupError(i18n.T("store.repo.id", id), err)
 	}
 	return repositoryFromDB(row)
 }
@@ -64,7 +64,7 @@ func (s *Store) GetRepositoryByName(ctx context.Context, provider, owner, name s
 		Name:     name,
 	})
 	if err != nil {
-		return model.Repository{}, repositoryLookupError(fmt.Sprintf("dépôt %s/%s", owner, name), err)
+		return model.Repository{}, repositoryLookupError(i18n.T("store.repo.full_name", owner, name), err)
 	}
 	return repositoryFromDB(row)
 }
@@ -74,7 +74,7 @@ func (s *Store) GetRepositoryByName(ctx context.Context, provider, owner, name s
 // base, ne désigne aucun dépôt).
 func (s *Store) GetRepositoryByProviderID(ctx context.Context, provider string, providerID int64) (model.Repository, error) {
 	if providerID <= 0 {
-		return model.Repository{}, fmt.Errorf("dépôt d'identifiant %d sur %s : %w", providerID, provider, ErrNotFound)
+		return model.Repository{}, wrapErr(i18n.T("store.repo.provider_id", providerID, provider), ErrNotFound)
 	}
 	row, err := s.queries.GetRepositoryByProviderID(ctx, db.GetRepositoryByProviderIDParams{
 		Provider:   provider,
@@ -82,7 +82,7 @@ func (s *Store) GetRepositoryByProviderID(ctx context.Context, provider string, 
 	})
 	if err != nil {
 		return model.Repository{}, repositoryLookupError(
-			fmt.Sprintf("dépôt d'identifiant %d sur %s", providerID, provider), err)
+			i18n.T("store.repo.provider_id", providerID, provider), err)
 	}
 	return repositoryFromDB(row)
 }
@@ -92,7 +92,7 @@ func (s *Store) GetRepositoryByProviderID(ctx context.Context, provider string, 
 func (s *Store) ListRepositories(ctx context.Context) ([]model.Repository, error) {
 	rows, err := s.queries.ListRepositories(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("liste des dépôts : %w", err)
+		return nil, wrapErr(i18n.T("store.repo.list"), err)
 	}
 	repos := make([]model.Repository, 0, len(rows))
 	for _, row := range rows {
@@ -111,10 +111,10 @@ func (s *Store) ListRepositories(ctx context.Context) ([]model.Repository, error
 func (s *Store) DeleteRepository(ctx context.Context, id int64) error {
 	n, err := s.queries.DeleteRepository(ctx, id)
 	if err != nil {
-		return fmt.Errorf("suppression du dépôt %d : %w", id, err)
+		return wrapErr(i18n.T("store.repo.delete", id), err)
 	}
 	if n == 0 {
-		return fmt.Errorf("dépôt %d : %w", id, ErrNotFound)
+		return wrapErr(i18n.T("store.repo.id", id), ErrNotFound)
 	}
 	return nil
 }
@@ -123,9 +123,9 @@ func (s *Store) DeleteRepository(ctx context.Context, id int64) error {
 // les autres erreurs sont enveloppées avec what (ex. « dépôt 42 »).
 func repositoryLookupError(what string, err error) error {
 	if errors.Is(err, sql.ErrNoRows) {
-		return fmt.Errorf("%s : %w", what, ErrNotFound)
+		return wrapErr(what, ErrNotFound)
 	}
-	return fmt.Errorf("lecture du %s : %w", what, err)
+	return wrapErr(i18n.T("store.repo.read", what), err)
 }
 
 // repositoryFromDB convertit une ligne sqlc en model.Repository. Une date mal formée en base (ce que
@@ -133,11 +133,11 @@ func repositoryLookupError(what string, err error) error {
 func repositoryFromDB(row db.Repository) (model.Repository, error) {
 	lastSyncedAt, err := parseNullTime(row.LastSyncedAt)
 	if err != nil {
-		return model.Repository{}, fmt.Errorf("dépôt %d, last_synced_at : %w", row.ID, err)
+		return model.Repository{}, wrapErr(i18n.T("store.repo.last_synced_at", row.ID), err)
 	}
 	lastCommitAt, err := parseNullTime(row.LastCommitAt)
 	if err != nil {
-		return model.Repository{}, fmt.Errorf("dépôt %d, last_commit_at : %w", row.ID, err)
+		return model.Repository{}, wrapErr(i18n.T("store.repo.last_commit_at", row.ID), err)
 	}
 	return model.Repository{
 		ID:              row.ID,

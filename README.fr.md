@@ -84,8 +84,9 @@ curl -fsSL https://raw.githubusercontent.com/studoo-app/watchoo/main/install.sh 
 
 Le [script](install.sh) télécharge la dernière release pour votre système, vérifie sa somme SHA-256,
 puis installe `watchoo` dans `~/.local/bin`, sans sudo. Il ne touche ni à votre PATH ni à `gh`, et vous
-prévient si l'un des deux manque. Deux réglages, à placer devant `sh` : `WATCHOO_VERSION=v0.6.2`
-pour une version précise, `WATCHOO_INSTALL_DIR=…` pour un autre répertoire. Vous pouvez lire le
+prévient si l'un des deux manque. Réglages, à placer devant `sh` : `WATCHOO_VERSION=v0.6.2`
+pour une version précise, `WATCHOO_INSTALL_DIR=…` pour un autre répertoire, `WATCHOO_LANG=fr` pour des
+messages en français (par défaut : la locale du système, sinon l'anglais). Vous pouvez lire le
 script avant de le lancer : `curl -fsSL …/install.sh -o install.sh`.
 
 ### Binaires de release

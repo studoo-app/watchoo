@@ -3,10 +3,11 @@ package sync
 // Sélection des branches suivies et intervalle de synchro automatique.
 
 import (
-	"fmt"
+	"errors"
 	"path"
 	"time"
 
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/provider"
 	"github.com/studoo-app/watchoo/internal/workspace"
 )
@@ -61,8 +62,8 @@ func ReferenceBranch(tracked []provider.Branch, defaultBranch string) int {
 // AutoInterval renvoie l'intervalle de synchro automatique de « watchoo tui » (et plus tard
 // « watchoo serve ») : override s'il est fourni (option --interval, overridden vrai), sinon
 // cfg.Interval si cfg.Auto, sinon 0. 0 = synchro manuelle seule. Une valeur négative, ou non nulle et
-// inférieure à workspace.MinSyncInterval, donne une erreur en français (« --interval : 10m0s est
-// inférieur au minimum de 15 min (0 pour la synchro manuelle seule) »).
+// inférieure à workspace.MinSyncInterval, donne une erreur dans la langue du processus (« --interval:
+// 10m0s is below the minimum of 15 min (0 for manual sync only) »).
 func AutoInterval(cfg workspace.SyncConfig, override time.Duration, overridden bool) (time.Duration, error) {
 	name, d := "sync.interval", cfg.Interval
 	switch {
@@ -74,11 +75,9 @@ func AutoInterval(cfg workspace.SyncConfig, override time.Duration, overridden b
 	minutes := int(workspace.MinSyncInterval / time.Minute)
 	switch {
 	case d < 0:
-		return 0, fmt.Errorf("%s : %s est négatif (0 pour la synchro manuelle seule, sinon au moins %d min)",
-			name, d, minutes)
+		return 0, errors.New(i18n.T("sync.interval.negative", name, d, minutes))
 	case d > 0 && d < workspace.MinSyncInterval:
-		return 0, fmt.Errorf("%s : %s est inférieur au minimum de %d min (0 pour la synchro manuelle seule)",
-			name, d, minutes)
+		return 0, errors.New(i18n.T("sync.interval.too_short", name, d, minutes))
 	}
 	return d, nil
 }

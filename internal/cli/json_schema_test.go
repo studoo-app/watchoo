@@ -1,8 +1,8 @@
 package cli
 
-// Contrat des sorties --json : chaque commande qui produit des données écrit un seul objet JSON dont
-// les clés de premier niveau sont celles documentées dans 05-cli.md (section « Sortie JSON ») ; les
-// listes vides sont des tableaux vides, jamais null ; les dates inconnues sont null.
+// Contract of the --json outputs: every command that produces data writes a single JSON object whose
+// top-level keys are the ones documented in 05-cli.md ("JSON output" section); empty lists are empty
+// arrays, never null; unknown dates are null.
 
 import (
 	"context"
@@ -22,8 +22,8 @@ import (
 	"github.com/studoo-app/watchoo/internal/selfupdate/selfupdatetest"
 )
 
-// jsonTopLevelKeys sont les clés de premier niveau de chaque commande, par nom de commande (sans
-// « watchoo »). La documentation doit lister exactement les mêmes (TestJSONSchemaDocumented).
+// jsonTopLevelKeys are the top-level keys of each command, by command name (without "watchoo"). The
+// documentation must list exactly the same ones (TestJSONSchemaDocumented).
 var jsonTopLevelKeys = map[string][]string{
 	"init":         {"name", "root", "dir", "config_file", "database", "parent_workspace", "github", "source", "warnings"},
 	"version":      {"version", "commit", "date", "go", "os", "arch"},
@@ -43,30 +43,30 @@ var jsonTopLevelKeys = map[string][]string{
 	"update":        {"current", "latest", "update_available", "release_url"},
 }
 
-// pendingJSONCommands sont documentées dans 05-cli.md mais pas encore implémentées (aucune
-// aujourd'hui) : une commande ajoutée à la documentation avant son code y figure le temps de l'écrire.
+// pendingJSONCommands are documented in 05-cli.md but not implemented yet (none today): a command
+// added to the documentation before its code is listed here while it is being written.
 var pendingJSONCommands = map[string]bool{}
 
-// assertSingleJSONObject vérifie que stdout est exactement un objet JSON suivi d'une fin de ligne.
+// assertSingleJSONObject checks that stdout is exactly one JSON object followed by a line ending.
 func assertSingleJSONObject(t *testing.T, what, stdout string) {
 	t.Helper()
 	if !strings.HasPrefix(stdout, "{") || !strings.HasSuffix(stdout, "}\n") {
-		t.Errorf("%s : la sortie n'est pas un objet JSON seul :\n%s", what, stdout)
+		t.Errorf("%s: the output is not a single JSON object:\n%s", what, stdout)
 		return
 	}
 	dec := json.NewDecoder(strings.NewReader(stdout))
 	var v map[string]any
 	if err := dec.Decode(&v); err != nil {
-		t.Errorf("%s : JSON invalide : %v\n%s", what, err, stdout)
+		t.Errorf("%s: invalid JSON: %v\n%s", what, err, stdout)
 		return
 	}
 	if dec.More() {
-		t.Errorf("%s : texte après l'objet JSON :\n%s", what, stdout)
+		t.Errorf("%s: text after the JSON object:\n%s", what, stdout)
 	}
 }
 
-// Toutes les commandes qui produisent des données ont --json, avec les clés de premier niveau du
-// contrat, et rien d'autre sur la sortie standard.
+// All the commands that produce data have --json, with the top-level keys of the contract, and nothing
+// else on the standard output.
 func TestJSONSchemaAllCommands(t *testing.T) {
 	h := newHarness(t)
 	r := h.run("init", "--json").mustSucceed(t)
@@ -96,13 +96,13 @@ func TestJSONSchemaAllCommands(t *testing.T) {
 	for cmd, keys := range jsonTopLevelKeys {
 		out, ok := outputs[cmd]
 		if !ok {
-			t.Errorf("commande %q non testée", cmd)
+			t.Errorf("command %q not tested", cmd)
 			continue
 		}
 		assertSingleJSONObject(t, cmd, out)
 		assertJSONKeys(t, out, "", keys...)
 	}
-	// Éléments de « prs » et « releases » (V2), et dépôts de « sync » (warnings).
+	// Items of "prs" and "releases" (V2), and repositories of "sync" (warnings).
 	assertJSONKeys(t, outputs["sync"], "repositories.0", "id", "full_name", "display_name", "status", "new_commits",
 		"tracked_branches", "stats_fetched", "duration_ms", "error", "resume_at", "warnings")
 	assertJSONKeys(t, outputs["prs"], "pull_requests.0", "repository", "number", "title", "state", "draft", "author",
@@ -114,10 +114,10 @@ func TestJSONSchemaAllCommands(t *testing.T) {
 	assertJSONKeys(t, outputs["releases"], "tags.0", "repository", "name", "sha", "short_sha", "commit_url",
 		"committed_at")
 	assertContains(t, "sync --json", outputs["sync"], `"warnings": []`)
-	// Éléments de « log » (stats_known : 0.5.0).
+	// Items of "log" (stats_known: 0.5.0).
 	assertJSONKeys(t, outputs["log"], "commits.0", "repository", "sha", "short_sha", "message", "url", "author",
 		"authored_at", "committed_at", "additions", "deletions", "stats_known")
-	// Éléments de « contributors » : weekly ([] sans --weeks, objets week / count avec).
+	// Items of "contributors": weekly ([] without --weeks, week / count objects with it).
 	assertJSONKeys(t, outputs["contributors"], "contributors.0", contributorKeys...)
 	weekly := h.run("contributors", "--weeks", "2", "--json").mustSucceed(t).stdout
 	assertSingleJSONObject(t, "contributors --weeks", weekly)
@@ -126,12 +126,12 @@ func TestJSONSchemaAllCommands(t *testing.T) {
 	assertJSONKeys(t, weekly, "contributors.0.weekly.0", "week", "count")
 }
 
-// contributorKeys sont les clés d'un élément de « contributors » (05-cli.md, Sortie JSON).
+// contributorKeys are the keys of an item of "contributors" (05-cli.md, JSON output).
 var contributorKeys = []string{"id", "name", "login", "display_name", "avatar_url", "commits", "additions",
 	"deletions", "repositories", "last_commit_at", "weekly"}
 
-// Le contrat est documenté : la table « Sortie JSON » de documentation/fr/05-cli.md liste, pour
-// chaque commande, les mêmes clés de premier niveau que jsonTopLevelKeys.
+// The contract is documented: the "Sortie JSON" table of documentation/fr/05-cli.md lists, for each
+// command, the same top-level keys as jsonTopLevelKeys.
 func TestJSONSchemaDocumented(t *testing.T) {
 	doc, err := os.ReadFile(filepath.Join("..", "..", "documentation", "fr", "05-cli.md"))
 	if err != nil {
@@ -139,7 +139,7 @@ func TestJSONSchemaDocumented(t *testing.T) {
 	}
 	_, section, ok := strings.Cut(string(doc), "\n## Sortie JSON\n")
 	if !ok {
-		t.Fatal("section « ## Sortie JSON » absente de documentation/fr/05-cli.md")
+		t.Fatal(`section "## Sortie JSON" missing from documentation/fr/05-cli.md`)
 	}
 	if end := strings.Index(section, "\n## "); end >= 0 {
 		section = section[:end]
@@ -161,23 +161,23 @@ func TestJSONSchemaDocumented(t *testing.T) {
 	for cmd, want := range jsonTopLevelKeys {
 		got, ok := documented[cmd]
 		if !ok {
-			t.Errorf("fr/05-cli.md : pas de ligne pour « watchoo %s » dans la section Sortie JSON", cmd)
+			t.Errorf("fr/05-cli.md: no line for \"watchoo %s\" in the Sortie JSON section", cmd)
 			continue
 		}
 		got, want = slices.Sorted(slices.Values(got)), slices.Sorted(slices.Values(want))
 		if !slices.Equal(got, want) {
-			t.Errorf("fr/05-cli.md : clés de « watchoo %s » = %v, attendu %v", cmd, got, want)
+			t.Errorf("fr/05-cli.md: keys of \"watchoo %s\" = %v, want %v", cmd, got, want)
 		}
 	}
 	for cmd := range documented {
 		if _, ok := jsonTopLevelKeys[cmd]; !ok && !pendingJSONCommands[cmd] {
-			t.Errorf("fr/05-cli.md : « watchoo %s » documentée mais absente du contrat testé", cmd)
+			t.Errorf("fr/05-cli.md: \"watchoo %s\" documented but missing from the tested contract", cmd)
 		}
 	}
 }
 
-// Sous-objets de « config import » (aperçu et bilan), avec un réglage modifié, un dépôt à mettre à
-// jour et un avertissement.
+// Sub-objects of "config import" (preview and summary), with a changed setting, a repository to update
+// and a warning.
 func TestJSONSchemaConfigImport(t *testing.T) {
 	h := newSyncedWorkspace(t)
 	writeFile(t, filepath.Join(h.cwd, "partage.json"), `{"format":"watchoo-config","version":1,
@@ -202,14 +202,14 @@ func TestJSONSchemaConfigImport(t *testing.T) {
 		assertContains(t, "config import "+args[0], r.stdout, `"workspace_name": ""`, `"branches": []`,
 			`"code": "comments_lost"`)
 	}
-	// Un ajout : before vaut null.
+	// An addition: before is null.
 	writeFile(t, filepath.Join(h.cwd, "ajout.json"), `{"format":"watchoo-config","version":1,
 "repositories":[{"repo":"carol/projet"}]}`)
 	r := h.run("config", "import", "ajout.json", "--json", "--dry-run").mustCode(t, 1)
-	assertContains(t, "ajout", r.stdout, `"before": null`, `"exported_at": null`, `"warnings": []`, `"changes": []`)
+	assertContains(t, "addition", r.stdout, `"before": null`, `"exported_at": null`, `"warnings": []`, `"changes": []`)
 }
 
-// Sous-objets de init et version.
+// Sub-objects of init and version.
 func TestJSONSchemaInitVersion(t *testing.T) {
 	h := newHarness(t)
 	r := h.run("init", "--json").mustSucceed(t)
@@ -217,11 +217,11 @@ func TestJSONSchemaInitVersion(t *testing.T) {
 	assertContains(t, "init --json", r.stdout, `"warnings": []`)
 
 	r = h.run("version", "--json").mustSucceed(t)
-	// Binaire de test : ni commit ni date connus.
+	// Test binary: neither commit nor date known.
 	assertContains(t, "version --json", r.stdout, `"commit": ""`, `"date": null`)
 }
 
-// Espace vide : les listes sont des tableaux vides, jamais null.
+// Empty workspace: the lists are empty arrays, never null.
 func TestJSONSchemaEmptyWorkspace(t *testing.T) {
 	h := newWorkspace(t)
 	for _, tt := range []struct {
@@ -241,10 +241,10 @@ func TestJSONSchemaEmptyWorkspace(t *testing.T) {
 		assertContains(t, strings.Join(tt.args, " ")+" --json", r.stdout, tt.want)
 	}
 	r := h.run("status", "--json").mustSucceed(t)
-	assertContains(t, "status --json vide", r.stdout, `"last_synced_at": null`, `"scopes": [`)
+	assertContains(t, "empty status --json", r.stdout, `"last_synced_at": null`, `"scopes": [`)
 }
 
-// Les trois actions de repo remove ont le même schéma, avec le dépôt complet.
+// The three actions of repo remove have the same schema, with the complete repository.
 func TestJSONSchemaRepoRemove(t *testing.T) {
 	h := newSyncedWorkspace(t)
 	for _, tt := range []struct {
@@ -261,12 +261,12 @@ func TestJSONSchemaRepoRemove(t *testing.T) {
 		var rep repoRemoveReport
 		decodeStrict(t, r.stdout, &rep)
 		if rep.Action != tt.action {
-			t.Errorf("%v : action = %q, attendu %q", tt.args, rep.Action, tt.action)
+			t.Errorf("%v: action = %q, want %q", tt.args, rep.Action, tt.action)
 		}
 	}
 }
 
-// Les éléments de status.errors et d'un import inaccessible.
+// The items of status.errors and of an inaccessible import.
 func TestJSONSchemaErrorItems(t *testing.T) {
 	h := newSyncedWorkspace(t)
 	st := openTestStore(t, h)
@@ -275,7 +275,7 @@ func TestJSONSchemaErrorItems(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := st.FinishSyncRun(context.Background(), run.ID, testNow, model.SyncError, 0, "accès perdu"); err != nil {
+	if err := st.FinishSyncRun(context.Background(), run.ID, testNow, model.SyncError, 0, "access lost"); err != nil {
 		t.Fatal(err)
 	}
 	r := h.run("status", "--json").mustSucceed(t)
@@ -285,10 +285,10 @@ func TestJSONSchemaErrorItems(t *testing.T) {
 	writeFile(t, filepath.Join(h.cwd, "carol.txt"), "carol/projet\n")
 	r = h.run("repo", "import", "carol.txt", "--json").mustCode(t, 1)
 	assertJSONKeys(t, r.stdout, "entries.0", "line", "repo", "outcome", "repository", "error")
-	assertContains(t, "import inaccessible", r.stdout, `"repository": null`, `"outcome": "inaccessible"`)
+	assertContains(t, "inaccessible import", r.stdout, `"repository": null`, `"outcome": "inaccessible"`)
 }
 
-// fakeBuildInfo remplace les informations de compilation de Go le temps du test.
+// fakeBuildInfo replaces Go's build information for the duration of the test.
 func fakeBuildInfo(t *testing.T, info *debug.BuildInfo) {
 	t.Helper()
 	original := readBuildInfo
@@ -296,7 +296,7 @@ func fakeBuildInfo(t *testing.T, info *debug.BuildInfo) {
 	readBuildInfo = func() (*debug.BuildInfo, bool) { return info, info != nil }
 }
 
-// setBuildVars fixe Version, Commit et Date (valeurs de -ldflags) le temps du test.
+// setBuildVars sets Version, Commit and Date (-ldflags values) for the duration of the test.
 func setBuildVars(t *testing.T, version, commit, date string) {
 	t.Helper()
 	v, c, d := Version, Commit, Date
@@ -326,12 +326,12 @@ func TestVersionBuildMetadata(t *testing.T) {
 		info                  *debug.BuildInfo
 		wantVersion           string
 		wantCommit            string
-		wantDate              string // vide = null
+		wantDate              string // empty = null
 		wantText              string
 	}{
-		{"-ldflags complet", "v0.1.0", sha, "2026-10-27T10:00:00Z", nil,
+		{"complete -ldflags", "v0.1.0", sha, "2026-10-27T10:00:00Z", nil,
 			"v0.1.0", sha, "2026-10-27T10:00:00Z", "watchoo v0.1.0 (commit 1a2b3c4, 2026-10-27, " + platform + ")\n"},
-		{"-ldflags prioritaire", "v0.1.0", sha, "2026-10-27T10:00:00Z", vcs,
+		{"-ldflags take precedence", "v0.1.0", sha, "2026-10-27T10:00:00Z", vcs,
 			"v0.1.0", sha, "2026-10-27T10:00:00Z", "watchoo v0.1.0 (commit 1a2b3c4, 2026-10-27, " + platform + ")\n"},
 		{"go install", "dev", "", "", vcs,
 			"v0.1.1", "ffffffffffffffffffffffffffffffffffffffff", "2026-10-20T08:00:00Z",
@@ -339,17 +339,17 @@ func TestVersionBuildMetadata(t *testing.T) {
 		{"go build local", "dev", "", "", devel,
 			"dev", "ffffffffffffffffffffffffffffffffffffffff", "2026-10-20T08:00:00Z",
 			"watchoo dev (commit fffffff, 2026-10-20, " + platform + ")\n"},
-		{"go build modifié", "dev", "", "", dirty,
+		{"modified go build", "dev", "", "", dirty,
 			"dev", "ffffffffffffffffffffffffffffffffffffffff", "2026-10-20T08:00:00Z",
 			"watchoo dev (commit fffffff, 2026-10-20, " + platform + ")\n"},
-		{"go build hors tag", "dev", "", "", pseudo,
+		{"go build off a tag", "dev", "", "", pseudo,
 			"v0.0.0-20261020080000-ffffffffffff", "ffffffffffffffffffffffffffffffffffffffff", "2026-10-20T08:00:00Z",
 			"watchoo v0.0.0-20261020080000-ffffffffffff (commit fffffff, 2026-10-20, " + platform + ")\n"},
-		{"date illisible", "v0.1.0", "abc", "hier", nil,
+		{"unreadable date", "v0.1.0", "abc", "hier", nil,
 			"v0.1.0", "abc", "", "watchoo v0.1.0 (commit abc, " + platform + ")\n"},
-		{"date hors UTC", "v0.1.0", "", "2026-10-27T23:30:00+02:00", nil,
+		{"non-UTC date", "v0.1.0", "", "2026-10-27T23:30:00+02:00", nil,
 			"v0.1.0", "", "2026-10-27T21:30:00Z", "watchoo v0.1.0 (2026-10-27, " + platform + ")\n"},
-		{"rien de connu", "dev", "", "", nil,
+		{"nothing known", "dev", "", "", nil,
 			"dev", "", "", "watchoo dev (" + platform + ")\n"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -357,7 +357,7 @@ func TestVersionBuildMetadata(t *testing.T) {
 			fakeBuildInfo(t, tt.info)
 			h := newHarness(t)
 			if r := h.run("version").mustSucceed(t); r.stdout != tt.wantText {
-				t.Errorf("version = %q, attendu %q", r.stdout, tt.wantText)
+				t.Errorf("version = %q, want %q", r.stdout, tt.wantText)
 			}
 			r := h.run("version", "--json").mustSucceed(t)
 			assertJSONKeys(t, r.stdout, "", jsonTopLevelKeys["version"]...)
@@ -372,21 +372,21 @@ func TestVersionBuildMetadata(t *testing.T) {
 				t.Errorf("version --json = %+v (date %q)", got, date)
 			}
 			if appVersion() != tt.wantVersion {
-				t.Errorf("appVersion() = %q, attendu %q", appVersion(), tt.wantVersion)
+				t.Errorf("appVersion() = %q, want %q", appVersion(), tt.wantVersion)
 			}
 			if r2 := h.run("--version", "--json").mustSucceed(t); r2.stdout != r.stdout {
-				t.Errorf("--version --json = %s, attendu %s", r2.stdout, r.stdout)
+				t.Errorf("--version --json = %s, want %s", r2.stdout, r.stdout)
 			}
 		})
 	}
 }
 
-// La carte d'en-tête montre la même version que « watchoo version » (ici celle de go install).
+// The header card shows the same version as "watchoo version" (here the go install one).
 func TestVersionCardUsesBuildInfo(t *testing.T) {
 	setBuildVars(t, "dev", "", "")
 	fakeBuildInfo(t, &debug.BuildInfo{Main: debug.Module{Version: "v0.1.1"}})
 	h := newHarness(t)
 	h.Terminal = func() TermInfo { return wideTerminal }
 	r := h.run("version").mustSucceed(t)
-	assertContains(t, "carte de version", ansiSeq.ReplaceAllString(r.stdout, ""), "v0.1.1")
+	assertContains(t, "version card", ansiSeq.ReplaceAllString(r.stdout, ""), "v0.1.1")
 }

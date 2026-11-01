@@ -137,13 +137,13 @@ func TestAddInvalidReference(t *testing.T) {
 	if !l.m.add.open || l.m.add.input != "pas-de-barre" {
 		t.Errorf("input closed or cleared after an error: open %v, %q", l.m.add.open, l.m.add.input)
 	}
-	mustContain(t, l.screen(), "Repository to track (owner/name or GitHub URL): pas-de-barre", `dépôt "pas-de-barre" invalide`)
+	mustContain(t, l.screen(), "Repository to track (owner/name or GitHub URL): pas-de-barre", `invalid repository "pas-de-barre"`)
 
 	// A URL with credentials is refused and cleared, without being shown again.
 	l.press("ctrl+u")
 	l.send(tea.PasteMsg{Content: "https://eleve:jeton-secret@github.com/promo/eve"})
 	l.press("enter")
-	mustContain(t, l.screen(), "identifiants interdits dans l'URL")
+	mustContain(t, l.screen(), "credentials not allowed in the URL")
 	mustNotContain(t, l.screen(), "jeton-secret")
 	if l.m.add.input != "" {
 		t.Errorf("input with credentials kept: %q", l.m.add.input)
@@ -151,7 +151,7 @@ func TestAddInvalidReference(t *testing.T) {
 
 	// Empty input.
 	l.press("enter")
-	mustContain(t, l.screen(), "dépôt vide")
+	mustContain(t, l.screen(), "empty repository")
 	if reqs := adder.requests(); len(reqs) != 0 {
 		t.Errorf("addition called for an invalid reference: %v", reqs)
 	}

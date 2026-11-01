@@ -32,10 +32,10 @@ func TestPullRequestsRoute(t *testing.T) {
 		for i, pr := range list {
 			out[i] = pr.Number
 			if pr.Number == 2 && (pr.State != "closed" || pr.MergedAt == nil || pr.ClosedAt == nil) {
-				t.Errorf("PR 2 mergée : %+v", pr)
+				t.Errorf("merged PR 2: %+v", pr)
 			}
 			if pr.Number == 3 && pr.User != nil {
-				t.Errorf("PR 3 sans auteur : user = %+v", pr.User)
+				t.Errorf("PR 3 without author: user = %+v", pr.User)
 			}
 		}
 		return out
@@ -44,19 +44,19 @@ func TestPullRequestsRoute(t *testing.T) {
 		path string
 		want []int
 	}{
-		{"/repos/alice/projet/pulls", []int{3, 1}},                                          // ouvertes, création décroissante
-		{"/repos/alice/projet/pulls?state=all&sort=updated&direction=desc", []int{1, 3, 2}}, // modification décroissante, puis numéro
+		{"/repos/alice/projet/pulls", []int{3, 1}},                                          // open, descending creation
+		{"/repos/alice/projet/pulls?state=all&sort=updated&direction=desc", []int{1, 3, 2}}, // descending update, then number
 		{"/repos/alice/projet/pulls?state=closed", []int{2}},
-		{"/repos/alice/projet/pulls?state=all&sort=updated", []int{2, 3, 1}}, // asc par défaut avec sort=updated
+		{"/repos/alice/projet/pulls?state=all&sort=updated", []int{2, 3, 1}}, // asc by default with sort=updated
 		{"/repos/alice/projet/pulls?state=all&per_page=1&page=2", []int{2}},
 	} {
 		if got := numbers(tt.path); len(got) != len(tt.want) || (len(got) > 0 && got[0] != tt.want[0]) ||
 			(len(got) > 1 && got[len(got)-1] != tt.want[len(tt.want)-1]) {
-			t.Errorf("%s : %v, veut %v", tt.path, got, tt.want)
+			t.Errorf("%s: %v, want %v", tt.path, got, tt.want)
 		}
 	}
-	wantStatus(t, "state invalide", get(t, s, "/repos/alice/projet/pulls?state=merged"), http.StatusUnprocessableEntity)
-	wantStatus(t, "dépôt inconnu", get(t, s, "/repos/alice/autre/pulls"), http.StatusNotFound)
+	wantStatus(t, "invalid state", get(t, s, "/repos/alice/projet/pulls?state=merged"), http.StatusUnprocessableEntity)
+	wantStatus(t, "unknown repository", get(t, s, "/repos/alice/autre/pulls"), http.StatusNotFound)
 }
 
 func TestReleasesAndTagsRoutes(t *testing.T) {
@@ -96,13 +96,13 @@ func TestReleasesAndTagsRoutes(t *testing.T) {
 		t.Errorf("tags = %+v", tags)
 	}
 	if link := r.header.Get("Link"); link == "" {
-		t.Error("tags paginés sans en-tête Link")
+		t.Error("paginated tags without Link header")
 	}
 
 	rec := &recordTB{TB: t}
 	bad := NewServer(rec, Options{})
 	bad.AddRepo(Repo{ID: 1, Owner: "a", Name: "b"})
-	expectFatal(t, rec, "PR sans numéro", func() { bad.SetPullRequests(1, PullRequest{CreatedAt: t0}) })
-	expectFatal(t, rec, "release sans tag", func() { bad.SetReleases(1, Release{ID: 1, CreatedAt: t0}) })
-	expectFatal(t, rec, "tag mal formé", func() { bad.SetTags(1, Tag{Name: "v1", SHA: "abc"}) })
+	expectFatal(t, rec, "PR without number", func() { bad.SetPullRequests(1, PullRequest{CreatedAt: t0}) })
+	expectFatal(t, rec, "release without tag", func() { bad.SetReleases(1, Release{ID: 1, CreatedAt: t0}) })
+	expectFatal(t, rec, "malformed tag", func() { bad.SetTags(1, Tag{Name: "v1", SHA: "abc"}) })
 }

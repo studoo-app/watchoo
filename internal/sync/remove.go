@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"slices"
 
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/model"
 	gitprov "github.com/studoo-app/watchoo/internal/provider/git"
 	"github.com/studoo-app/watchoo/internal/store"
@@ -37,7 +38,7 @@ func DeleteRepository(ctx context.Context, st *store.Store, reposDir string, rep
 		return nil
 	}
 	if err := gitprov.RemoveClone(reposDir, refs, repo.Owner, repo.Name); err != nil {
-		return fmt.Errorf("dépôt %s retiré, mais %w", repo.FullName(), err)
+		return fmt.Errorf("%s%w", i18n.T("sync.remove.clone", repo.FullName()), err)
 	}
 	return nil
 }

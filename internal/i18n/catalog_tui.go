@@ -218,6 +218,12 @@ var tuiTexts = map[string]entry{
 	// Erreurs de Run (tui.go), renvoyées à la CLI.
 	"tui.err.run":          {"interactive mode: %w", "mode interactif : %w"},
 	"tui.err.sync_timeout": {"the running sync did not stop in time", "la synchro en cours ne s'est pas arrêtée à temps"},
+
+	// Refus hors terminal (tui.go, ErrNotTerminal).
+	"tui.err.not_terminal": {
+		`"watchoo tui" must be run in an interactive terminal (use the other commands, such as "watchoo repo list", in a script)`,
+		"« watchoo tui » doit être lancé dans un terminal interactif (utilisez les autres commandes, comme « watchoo repo list », dans un script)",
+	},
 }
 
 func init() {

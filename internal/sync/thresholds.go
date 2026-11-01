@@ -5,8 +5,8 @@ package sync
 
 import (
 	"context"
-	"fmt"
 
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/repoimport"
 )
@@ -23,7 +23,7 @@ func (e *Engine) SetThresholds(ctx context.Context, id int64, flemme, dead *int)
 	}
 	repo, err := e.store.SetRepositoryThresholds(ctx, id, thresholdValue(flemme, nil), thresholdValue(dead, nil))
 	if err != nil {
-		return model.Repository{}, fmt.Errorf("seuils d'activité du dépôt : %w", err)
+		return model.Repository{}, errWrapped(i18n.T("sync.thresholds.error"), err)
 	}
 	e.logger.Info("seuils d'activité du dépôt modifiés", "repo", repo.FullName())
 	return repo, nil

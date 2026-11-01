@@ -1,6 +1,6 @@
 package store
 
-// Migration 00004 (V2) : provider_id facultatif, par reconstruction de la table repositories.
+// Migration 00004 (V2): optional provider_id, by rebuilding the repositories table.
 
 import (
 	"errors"
@@ -15,7 +15,7 @@ import (
 	"github.com/studoo-app/watchoo/internal/store/migrations"
 )
 
-// childCounts compte les lignes des tables qui dépendent de repositories.
+// childCounts counts the rows of the tables that depend on repositories.
 func childCounts(t *testing.T, s *Store) map[string]int {
 	t.Helper()
 	out := map[string]int{}
@@ -38,10 +38,10 @@ func TestMigrationProviderIDNullableKeepsData(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := p.UpTo(ctx, 3); err != nil {
-		t.Fatalf("UpTo(3) : %v", err)
+		t.Fatalf("UpTo(3): %v", err)
 	}
 
-	// Données de la v0.2 : deux dépôts complets avec tout ce qui en dépend.
+	// Data of v0.2: two complete repositories with everything that depends on them.
 	mustExec(t, s, `INSERT INTO repositories (id, provider, provider_id, owner, name, label, default_branch, url,
 		stars, open_issues, last_synced_at, last_commit_at, archived, flemme_after_days, dead_after_days, enabled,
 		branch_patterns) VALUES (7, 'github', 1007, 'Promo', 'Alice', 'Projet A', 'main', 'https://github.com/Promo/Alice',
@@ -63,28 +63,28 @@ func TestMigrationProviderIDNullableKeepsData(t *testing.T) {
 	before := childCounts(t, s)
 
 	if err := s.Migrate(ctx); err != nil {
-		t.Fatalf("Migrate : %v", err)
+		t.Fatalf("Migrate: %v", err)
 	}
 
 	if after := childCounts(t, s); len(after) != len(before) {
-		t.Fatal("tables manquantes")
+		t.Fatal("missing tables")
 	} else {
 		for table, n := range before {
 			if after[table] != n || n == 0 {
-				t.Errorf("%s : %d lignes après la migration, %d avant (aucune ne doit être perdue)", table, after[table], n)
+				t.Errorf("%s: %d rows after the migration, %d before (none must be lost)", table, after[table], n)
 			}
 		}
 	}
 	var fk int
 	if err := s.DB().QueryRowContext(ctx, "PRAGMA foreign_keys").Scan(&fk); err != nil || fk != 1 {
-		t.Errorf("clés étrangères après la migration : %d, %v", fk, err)
+		t.Errorf("foreign keys after the migration: %d, %v", fk, err)
 	}
 	if n := count(t, s, "SELECT count(*) FROM pragma_foreign_key_check"); n != 0 {
-		t.Errorf("%d violations de clés étrangères", n)
+		t.Errorf("%d foreign key violations", n)
 	}
 	var check string
 	if err := s.DB().QueryRowContext(ctx, "PRAGMA integrity_check").Scan(&check); err != nil || check != "ok" {
-		t.Errorf("integrity_check : %q, %v", check, err)
+		t.Errorf("integrity_check: %q, %v", check, err)
 	}
 
 	repo, err := s.GetRepository(ctx, 7)
@@ -100,42 +100,42 @@ func TestMigrationProviderIDNullableKeepsData(t *testing.T) {
 		repo.URL != want.URL || repo.Stars != 3 || repo.OpenIssues != 2 || !repo.Archived || repo.Enabled ||
 		*repo.FlemmeAfterDays != 4 || *repo.DeadAfterDays != 9 || len(repo.BranchPatterns) != 2 ||
 		!repo.LastSyncedAt.Equal(want.LastSyncedAt) {
-		t.Errorf("dépôt après migration = %+v", repo)
+		t.Errorf("repository after migration = %+v", repo)
 	}
-	// Owner et name toujours comparés sans tenir compte de la casse.
+	// Owner and name still compared case-insensitively.
 	if _, err := s.GetRepositoryByName(ctx, "github", "promo", "ALICE"); err != nil {
-		t.Errorf("recherche sans casse après migration : %v", err)
+		t.Errorf("case-insensitive lookup after migration: %v", err)
 	}
-	// La cascade marche toujours sur la nouvelle table.
+	// The cascade still works on the new table.
 	if err := s.DeleteRepository(ctx, 8); err != nil {
 		t.Fatal(err)
 	}
 	if n := count(t, s, "SELECT count(*) FROM commits WHERE repo_id = 8"); n != 0 {
-		t.Errorf("cascade : %d commits restants", n)
+		t.Errorf("cascade: %d commits left", n)
 	}
 }
 
 func TestProviderIDNullable(t *testing.T) {
 	s := newTestStore(t)
 	ctx := t.Context()
-	// Deux dépôts sans identifiant de forge (NULL) : acceptés par UNIQUE (provider, provider_id).
+	// Two repositories without a forge identifier (NULL): accepted by UNIQUE (provider, provider_id).
 	a := mustCreateRepo(t, s, 0, "promo", "alice")
 	mustCreateRepo(t, s, 0, "promo", "bob")
 	if n := count(t, s, "SELECT count(*) FROM repositories WHERE provider_id IS NULL"); n != 2 {
-		t.Errorf("%d dépôts à provider_id NULL, attendu 2", n)
+		t.Errorf("%d repositories with a NULL provider_id, want 2", n)
 	}
 	got, err := s.GetRepository(ctx, a)
 	if err != nil || got.ProviderID != 0 || got.ForgeDetails() {
-		t.Errorf("dépôt sans identifiant : %+v, %v", got, err)
+		t.Errorf("repository without identifier: %+v, %v", got, err)
 	}
 	if _, err := s.GetRepositoryByProviderID(ctx, "github", 0); !errors.Is(err, ErrNotFound) {
-		t.Errorf("GetRepositoryByProviderID(0) : %v, ErrNotFound attendue", err)
+		t.Errorf("GetRepositoryByProviderID(0): %v, want ErrNotFound", err)
 	}
-	// 0 et les valeurs négatives sont refusés en SQL brut (CHECK).
+	// 0 and negative values are refused in raw SQL (CHECK).
 	err = execErr(t, s, "INSERT INTO repositories (provider, provider_id, owner, name) VALUES ('github', 0, 'x', 'y')")
 	wantCode(t, "provider_id 0", err, sqlite3.SQLITE_CONSTRAINT_CHECK)
 
-	// Une synchro par l'API résout l'identifiant ; une synchro par clone Git le garde.
+	// A sync through the API resolves the identifier; a sync through a Git clone keeps it.
 	run, err := s.BeginSyncRun(ctx, a, time.Now().UTC(), time.Hour)
 	if err != nil {
 		t.Fatal(err)
@@ -161,9 +161,9 @@ func TestProviderIDNullable(t *testing.T) {
 	if got.ProviderID != 4242 || got.Owner != "promo" || got.Name != "alice" || got.Stars != 5 || got.OpenIssues != 1 ||
 		!got.Archived || got.URL != "https://github.com/promo/alice" || got.DefaultBranch != "trunk" ||
 		!got.LastSyncedAt.Equal(synced) {
-		t.Errorf("après synchro API puis Git : %+v", got)
+		t.Errorf("after API then Git sync: %+v", got)
 	}
-	// Branche par défaut inconnue (dépôt vide) : gardée.
+	// Unknown default branch (empty repository): kept.
 	run, err = s.BeginSyncRun(ctx, a, time.Now().UTC(), time.Hour)
 	if err != nil {
 		t.Fatal(err)
@@ -173,6 +173,6 @@ func TestProviderIDNullable(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got, _ = s.GetRepository(ctx, a); got.DefaultBranch != "trunk" {
-		t.Errorf("branche par défaut écrasée : %q", got.DefaultBranch)
+		t.Errorf("default branch overwritten: %q", got.DefaultBranch)
 	}
 }

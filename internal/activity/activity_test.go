@@ -16,12 +16,12 @@ func mustLoc(t *testing.T, name string) *time.Location {
 	t.Helper()
 	loc, err := time.LoadLocation(name)
 	if err != nil {
-		t.Skipf("fuseau %s indisponible : %v", name, err)
+		t.Skipf("time zone %s unavailable: %v", name, err)
 	}
 	return loc
 }
 
-// syncedRepo renvoie un dépôt suivi, synchronisé, dont le dernier commit date de lastCommit.
+// syncedRepo returns a tracked, synced repository whose last commit dates from lastCommit.
 func syncedRepo(lastCommit time.Time) model.Repository {
 	return model.Repository{
 		ID: 1, Owner: "alice", Name: "projet", Enabled: true,
@@ -36,19 +36,19 @@ func TestThresholdsFor(t *testing.T) {
 		cfg  workspace.ActivityConfig
 		want Thresholds
 	}{
-		{"globaux", model.Repository{}, defaultCfg, Thresholds{5, 15}},
-		{"propres au dépôt", model.Repository{FlemmeAfterDays: intPtr(3), DeadAfterDays: intPtr(10)}, defaultCfg, Thresholds{3, 10}},
-		{"flemme du dépôt seulement", model.Repository{FlemmeAfterDays: intPtr(7)}, defaultCfg, Thresholds{7, 15}},
-		{"dead du dépôt seulement", model.Repository{DeadAfterDays: intPtr(30)}, defaultCfg, Thresholds{5, 30}},
-		{"mélange incohérent corrigé", model.Repository{FlemmeAfterDays: intPtr(20)}, defaultCfg, Thresholds{20, 21}},
-		{"dead du dépôt trop petit", model.Repository{DeadAfterDays: intPtr(2)}, defaultCfg, Thresholds{5, 6}},
-		{"valeurs nulles ignorées", model.Repository{FlemmeAfterDays: intPtr(0), DeadAfterDays: intPtr(-1)}, defaultCfg, Thresholds{5, 15}},
-		{"configuration vide : défauts", model.Repository{}, workspace.ActivityConfig{}, Thresholds{workspace.DefaultFlemmeAfterDays, workspace.DefaultDeadAfterDays}},
+		{"global", model.Repository{}, defaultCfg, Thresholds{5, 15}},
+		{"specific to the repository", model.Repository{FlemmeAfterDays: intPtr(3), DeadAfterDays: intPtr(10)}, defaultCfg, Thresholds{3, 10}},
+		{"repository's flemme only", model.Repository{FlemmeAfterDays: intPtr(7)}, defaultCfg, Thresholds{7, 15}},
+		{"repository's dead only", model.Repository{DeadAfterDays: intPtr(30)}, defaultCfg, Thresholds{5, 30}},
+		{"inconsistent mix corrected", model.Repository{FlemmeAfterDays: intPtr(20)}, defaultCfg, Thresholds{20, 21}},
+		{"repository's dead too small", model.Repository{DeadAfterDays: intPtr(2)}, defaultCfg, Thresholds{5, 6}},
+		{"zero values ignored", model.Repository{FlemmeAfterDays: intPtr(0), DeadAfterDays: intPtr(-1)}, defaultCfg, Thresholds{5, 15}},
+		{"empty configuration: defaults", model.Repository{}, workspace.ActivityConfig{}, Thresholds{workspace.DefaultFlemmeAfterDays, workspace.DefaultDeadAfterDays}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := ThresholdsFor(tt.repo, tt.cfg); got != tt.want {
-				t.Errorf("ThresholdsFor = %+v, attendu %+v", got, tt.want)
+				t.Errorf("ThresholdsFor = %+v, want %+v", got, tt.want)
 			}
 		})
 	}
@@ -73,10 +73,10 @@ func TestEvaluateBoundaries(t *testing.T) {
 		repo := syncedRepo(now.AddDate(0, 0, -tt.days))
 		got := Evaluate(repo, model.SyncRun{}, defaultCfg, now, loc)
 		if got.State != tt.want || got.Days != tt.days {
-			t.Errorf("%d jours : état %s (%d j), attendu %s (%d j)", tt.days, got.State, got.Days, tt.want, tt.days)
+			t.Errorf("%d days: state %s (%d d), want %s (%d d)", tt.days, got.State, got.Days, tt.want, tt.days)
 		}
 		if got.Thresholds != (Thresholds{5, 15}) {
-			t.Errorf("%d jours : seuils %+v", tt.days, got.Thresholds)
+			t.Errorf("%d days: thresholds %+v", tt.days, got.Thresholds)
 		}
 	}
 }
@@ -87,28 +87,28 @@ func TestEvaluateRepoThresholds(t *testing.T) {
 	repo.FlemmeAfterDays = intPtr(3)
 	repo.DeadAfterDays = intPtr(4)
 	if got := Evaluate(repo, model.SyncRun{}, defaultCfg, now, time.UTC); got.State != StateFlemme {
-		t.Errorf("4 j avec seuils 3/4 : %s, attendu flemme", got.State)
+		t.Errorf("4 d with thresholds 3/4: %s, want flemme", got.State)
 	}
 	repo.LastCommitAt = now.AddDate(0, 0, -5)
 	if got := Evaluate(repo, model.SyncRun{}, defaultCfg, now, time.UTC); got.State != StateDead {
-		t.Errorf("5 j avec seuils 3/4 : %s, attendu dead", got.State)
+		t.Errorf("5 d with thresholds 3/4: %s, want dead", got.State)
 	}
 }
 
 func TestEvaluateTimezoneMidnight(t *testing.T) {
 	paris := mustLoc(t, "Europe/Paris")
-	// Commit le 14 mars à 23 h 30 à Paris ; maintenant le 20 mars à 0 h 10 à Paris : 40 minutes de plus
-	// que 5 jours, mais 6 jours calendaires → Flemme.
+	// Commit on March 14 at 11:30 pm in Paris; now March 20 at 0:10 am in Paris: 40 minutes more than
+	// 5 days, but 6 calendar days → Flemme.
 	commit := time.Date(2026, 3, 14, 23, 30, 0, 0, paris)
 	now := time.Date(2026, 3, 20, 0, 10, 0, 0, paris)
 	got := Evaluate(syncedRepo(commit), model.SyncRun{}, defaultCfg, now, paris)
 	if got.Days != 6 || got.State != StateFlemme {
-		t.Errorf("Paris : %d j %s, attendu 6 j flemme", got.Days, got.State)
+		t.Errorf("Paris: %d d %s, want 6 d flemme", got.Days, got.State)
 	}
-	// Mêmes instants vus en UTC (22 h 30 le 14, 23 h 10 le 19) : 5 jours → Actif.
+	// Same instants seen in UTC (10:30 pm on the 14th, 11:10 pm on the 19th): 5 days → Active.
 	got = Evaluate(syncedRepo(commit), model.SyncRun{}, defaultCfg, now, time.UTC)
 	if got.Days != 5 || got.State != StateActive {
-		t.Errorf("UTC : %d j %s, attendu 5 j active", got.Days, got.State)
+		t.Errorf("UTC: %d d %s, want 5 d active", got.Days, got.State)
 	}
 }
 
@@ -116,7 +116,7 @@ func TestEvaluateFutureCommit(t *testing.T) {
 	now := time.Date(2026, 3, 20, 12, 0, 0, 0, time.UTC)
 	got := Evaluate(syncedRepo(now.Add(48*time.Hour)), model.SyncRun{}, defaultCfg, now, time.UTC)
 	if got.Days != 0 || got.State != StateActive {
-		t.Errorf("commit futur : %d j %s, attendu 0 j active", got.Days, got.State)
+		t.Errorf("future commit: %d d %s, want 0 d active", got.Days, got.State)
 	}
 }
 
@@ -133,16 +133,16 @@ func TestEvaluateGrayStates(t *testing.T) {
 		want     State
 		wantDays int
 	}{
-		{"arrêté prime sur tout", func(r *model.Repository) { r.Enabled = false; r.Archived = true }, errRun, StateStopped, 40},
-		{"erreur prime sur archivé", func(r *model.Repository) { r.Archived = true }, errRun, StateError, 40},
-		{"erreur sans synchro réussie", func(r *model.Repository) { r.LastSyncedAt = time.Time{}; r.LastCommitAt = time.Time{} }, errRun, StateError, -1},
-		{"jamais synchronisé", func(r *model.Repository) { r.LastSyncedAt = time.Time{}; r.LastCommitAt = time.Time{} }, model.SyncRun{}, StateNeverSynced, -1},
-		{"synchro en cours, jamais réussie", func(r *model.Repository) { r.LastSyncedAt = time.Time{}; r.LastCommitAt = time.Time{} },
+		{"stopped prevails over everything", func(r *model.Repository) { r.Enabled = false; r.Archived = true }, errRun, StateStopped, 40},
+		{"error prevails over archived", func(r *model.Repository) { r.Archived = true }, errRun, StateError, 40},
+		{"error without successful sync", func(r *model.Repository) { r.LastSyncedAt = time.Time{}; r.LastCommitAt = time.Time{} }, errRun, StateError, -1},
+		{"never synced", func(r *model.Repository) { r.LastSyncedAt = time.Time{}; r.LastCommitAt = time.Time{} }, model.SyncRun{}, StateNeverSynced, -1},
+		{"sync in progress, never successful", func(r *model.Repository) { r.LastSyncedAt = time.Time{}; r.LastCommitAt = time.Time{} },
 			model.SyncRun{ID: 3, Status: model.SyncRunning}, StateNeverSynced, -1},
-		{"archivé, jamais Dead", func(r *model.Repository) { r.Archived = true }, okRun, StateArchived, 40},
-		{"vide", func(r *model.Repository) { r.LastCommitAt = time.Time{} }, okRun, StateEmpty, -1},
-		{"dead normal", func(r *model.Repository) {}, okRun, StateDead, 40},
-		{"run d'ID 0 ignoré", func(r *model.Repository) {}, model.SyncRun{Status: model.SyncError}, StateDead, 40},
+		{"archived, never Dead", func(r *model.Repository) { r.Archived = true }, okRun, StateArchived, 40},
+		{"empty", func(r *model.Repository) { r.LastCommitAt = time.Time{} }, okRun, StateEmpty, -1},
+		{"normal dead", func(r *model.Repository) {}, okRun, StateDead, 40},
+		{"run with ID 0 ignored", func(r *model.Repository) {}, model.SyncRun{Status: model.SyncError}, StateDead, 40},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -150,10 +150,10 @@ func TestEvaluateGrayStates(t *testing.T) {
 			tt.mod(&repo)
 			got := Evaluate(repo, tt.run, defaultCfg, now, time.UTC)
 			if got.State != tt.want || got.Days != tt.wantDays {
-				t.Errorf("état %s (%d j), attendu %s (%d j)", got.State, got.Days, tt.want, tt.wantDays)
+				t.Errorf("state %s (%d d), want %s (%d d)", got.State, got.Days, tt.want, tt.wantDays)
 			}
 			if got.State.Gray() != (tt.want != StateActive && tt.want != StateFlemme && tt.want != StateDead) {
-				t.Errorf("Gray() = %v pour %s", got.State.Gray(), got.State)
+				t.Errorf("Gray() = %v for %s", got.State.Gray(), got.State)
 			}
 		})
 	}
@@ -175,15 +175,15 @@ func TestStateLabelAndGray(t *testing.T) {
 	}
 	for s, w := range want {
 		if s.Label() != w.label || s.Gray() != w.gray {
-			t.Errorf("%s : Label %q Gray %v, attendu %q %v", s, s.Label(), s.Gray(), w.label, w.gray)
+			t.Errorf("%s: Label %q Gray %v, want %q %v", s, s.Label(), s.Gray(), w.label, w.gray)
 		}
 	}
-	// Valeurs JSON stables.
+	// Stable JSON values.
 	stable := map[State]string{StateActive: "active", StateFlemme: "flemme", StateDead: "dead", StateStopped: "stopped",
 		StateError: "error", StateNeverSynced: "never_synced", StateArchived: "archived", StateEmpty: "empty"}
 	for s, v := range stable {
 		if string(s) != v {
-			t.Errorf("valeur JSON %q, attendu %q", s, v)
+			t.Errorf("JSON value %q, want %q", s, v)
 		}
 	}
 }
@@ -196,20 +196,20 @@ func TestCalendarDays(t *testing.T) {
 		loc      *time.Location
 		want     int
 	}{
-		{"même jour", time.Date(2026, 1, 1, 0, 1, 0, 0, time.UTC), time.Date(2026, 1, 1, 23, 59, 0, 0, time.UTC), time.UTC, 0},
-		{"passage de minuit", time.Date(2026, 1, 1, 23, 59, 0, 0, time.UTC), time.Date(2026, 1, 2, 0, 1, 0, 0, time.UTC), time.UTC, 1},
-		{"négatif", time.Date(2026, 1, 3, 0, 0, 0, 0, time.UTC), time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), time.UTC, -2},
-		// Passage à l'heure d'été (29 mars 2026) : le jour ne fait que 23 h.
-		{"heure d'été", time.Date(2026, 3, 28, 12, 0, 0, 0, paris), time.Date(2026, 3, 30, 12, 0, 0, 0, paris), paris, 2},
-		// Retour à l'heure d'hiver (25 octobre 2026) : le jour fait 25 h.
-		{"heure d'hiver", time.Date(2026, 10, 24, 0, 30, 0, 0, paris), time.Date(2026, 10, 26, 0, 30, 0, 0, paris), paris, 2},
-		{"fin d'année", time.Date(2025, 12, 31, 22, 0, 0, 0, paris), time.Date(2026, 1, 1, 1, 0, 0, 0, paris), paris, 1},
-		{"fuseau du point de vue", time.Date(2026, 5, 1, 21, 30, 0, 0, time.UTC), time.Date(2026, 5, 1, 22, 30, 0, 0, time.UTC), paris, 1},
+		{"same day", time.Date(2026, 1, 1, 0, 1, 0, 0, time.UTC), time.Date(2026, 1, 1, 23, 59, 0, 0, time.UTC), time.UTC, 0},
+		{"past midnight", time.Date(2026, 1, 1, 23, 59, 0, 0, time.UTC), time.Date(2026, 1, 2, 0, 1, 0, 0, time.UTC), time.UTC, 1},
+		{"negative", time.Date(2026, 1, 3, 0, 0, 0, 0, time.UTC), time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), time.UTC, -2},
+		// Switch to summer time (March 29, 2026): the day only lasts 23 h.
+		{"summer time", time.Date(2026, 3, 28, 12, 0, 0, 0, paris), time.Date(2026, 3, 30, 12, 0, 0, 0, paris), paris, 2},
+		// Back to winter time (October 25, 2026): the day lasts 25 h.
+		{"winter time", time.Date(2026, 10, 24, 0, 30, 0, 0, paris), time.Date(2026, 10, 26, 0, 30, 0, 0, paris), paris, 2},
+		{"end of year", time.Date(2025, 12, 31, 22, 0, 0, 0, paris), time.Date(2026, 1, 1, 1, 0, 0, 0, paris), paris, 1},
+		{"time zone of the point of view", time.Date(2026, 5, 1, 21, 30, 0, 0, time.UTC), time.Date(2026, 5, 1, 22, 30, 0, 0, time.UTC), paris, 1},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := CalendarDays(tt.from, tt.to, tt.loc); got != tt.want {
-				t.Errorf("CalendarDays = %d, attendu %d", got, tt.want)
+				t.Errorf("CalendarDays = %d, want %d", got, tt.want)
 			}
 		})
 	}
@@ -218,6 +218,6 @@ func TestCalendarDays(t *testing.T) {
 func TestCalendarDaysNilLocation(t *testing.T) {
 	from := time.Date(2026, 1, 1, 12, 0, 0, 0, time.Local)
 	if got := CalendarDays(from, from.AddDate(0, 0, 3), nil); got != 3 {
-		t.Errorf("CalendarDays(nil) = %d, attendu 3", got)
+		t.Errorf("CalendarDays(nil) = %d, want 3", got)
 	}
 }

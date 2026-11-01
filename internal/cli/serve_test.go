@@ -83,7 +83,7 @@ func TestServeRefusesJSONArgsAndBadOptions(t *testing.T) {
 	h := newWorkspace(t)
 	h.run("serve", "--json").mustFail(t, "has no JSON output")
 	h.run("serve", "extra").mustFail(t, "takes no argument")
-	h.run("serve", "--interval", "5m").mustFail(t, "--interval", "minimum de 15 min")
+	h.run("serve", "--interval", "5m").mustFail(t, "--interval", "minimum of 15 min")
 	h.run("serve", "--addr", "not-an-address").mustFail(t, "--addr", "web.addr")
 }
 

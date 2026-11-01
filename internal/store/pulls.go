@@ -6,9 +6,10 @@ package store
 import (
 	"context"
 	"database/sql"
-	"fmt"
+	"errors"
 	"time"
 
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/store/db"
 )
@@ -18,14 +19,14 @@ import (
 func (s *Store) LatestPullRequestUpdate(ctx context.Context, repoID int64) (time.Time, error) {
 	v, err := s.queries.MaxPullRequestUpdatedAt(ctx, repoID)
 	if err != nil {
-		return time.Time{}, fmt.Errorf("dernière pull request du dépôt %d : %w", repoID, err)
+		return time.Time{}, wrapErr(i18n.T("store.pulls.latest", repoID), err)
 	}
 	if v == "" {
 		return time.Time{}, nil
 	}
 	t, err := ParseTime(v)
 	if err != nil {
-		return time.Time{}, fmt.Errorf("dernière pull request du dépôt %d : %w", repoID, err)
+		return time.Time{}, wrapErr(i18n.T("store.pulls.latest", repoID), err)
 	}
 	return t, nil
 }
@@ -45,11 +46,11 @@ func (s *Store) ListPullRequests(ctx context.Context, f PullRequestFilter) ([]Pu
 	case model.PullRequestStatusClosed:
 		params.State, params.Merged = model.PullRequestClosed, false
 	default:
-		return nil, fmt.Errorf("liste des pull requests : état %q inconnu", f.Status)
+		return nil, errors.New(i18n.T("store.pulls.unknown_state", f.Status))
 	}
 	rows, err := s.queries.ListPullRequests(ctx, params)
 	if err != nil {
-		return nil, fmt.Errorf("liste des pull requests : %w", err)
+		return nil, wrapErr(i18n.T("store.pulls.list"), err)
 	}
 	views := make([]PullRequestView, 0, len(rows))
 	for _, row := range rows {
@@ -66,7 +67,7 @@ func (s *Store) ListPullRequests(ctx context.Context, f PullRequestFilter) ([]Pu
 			BaseBranch:       row.BaseBranch,
 			HeadBranch:       row.HeadBranch,
 		}
-		if err := parseTimes(fmt.Sprintf("pull request n° %d", row.Number),
+		if err := parseTimes(i18n.T("store.pulls.number", row.Number),
 			[]string{row.CreatedAt, row.UpdatedAt}, []*time.Time{&pr.CreatedAt, &pr.UpdatedAt},
 			[]sql.NullString{row.ClosedAt, row.MergedAt}, []*time.Time{&pr.ClosedAt, &pr.MergedAt}); err != nil {
 			return nil, err
@@ -83,7 +84,7 @@ func (s *Store) ListPullRequests(ctx context.Context, f PullRequestFilter) ([]Pu
 func (s *Store) PullRequestCounts(ctx context.Context, repoID int64) (PullRequestCounts, error) {
 	row, err := s.queries.PullRequestCounts(ctx, repoID)
 	if err != nil {
-		return PullRequestCounts{}, fmt.Errorf("nombre de pull requests du dépôt %d : %w", repoID, err)
+		return PullRequestCounts{}, wrapErr(i18n.T("store.pulls.count", repoID), err)
 	}
 	return PullRequestCounts{Open: int(row.OpenCount), Merged: int(row.MergedCount), Closed: int(row.ClosedCount)}, nil
 }
@@ -93,7 +94,7 @@ func (s *Store) PullRequestCounts(ctx context.Context, repoID int64) (PullReques
 func (s *Store) ListReleases(ctx context.Context, f ReleaseFilter) ([]ReleaseView, error) {
 	rows, err := s.queries.ListReleases(ctx, db.ListReleasesParams{RepoID: optionalID(f.RepoID), RowLimit: rowLimit(f.Limit)})
 	if err != nil {
-		return nil, fmt.Errorf("liste des releases : %w", err)
+		return nil, wrapErr(i18n.T("store.releases.list"), err)
 	}
 	views := make([]ReleaseView, 0, len(rows))
 	for _, row := range rows {
@@ -119,7 +120,7 @@ func (s *Store) ListReleases(ctx context.Context, f ReleaseFilter) ([]ReleaseVie
 func (s *Store) ListTags(ctx context.Context, f ReleaseFilter) ([]TagView, error) {
 	rows, err := s.queries.ListTags(ctx, db.ListTagsParams{RepoID: optionalID(f.RepoID), RowLimit: rowLimit(f.Limit)})
 	if err != nil {
-		return nil, fmt.Errorf("liste des tags : %w", err)
+		return nil, wrapErr(i18n.T("store.tags.list"), err)
 	}
 	views := make([]TagView, 0, len(rows))
 	for _, row := range rows {
@@ -130,7 +131,7 @@ func (s *Store) ListTags(ctx context.Context, f ReleaseFilter) ([]TagView, error
 		}
 		if row.CommittedAt != "" {
 			if v.CommittedAt, err = ParseTime(row.CommittedAt); err != nil {
-				return nil, fmt.Errorf("tag du commit %s : %w", shortSHA(row.SHA), err)
+				return nil, wrapErr(i18n.T("store.tags.commit", shortSHA(row.SHA)), err)
 			}
 		}
 		views = append(views, v)
@@ -144,7 +145,7 @@ func releaseFromDB(row db.Release) (model.Release, error) {
 		RepoID: row.RepoID, ProviderID: row.ProviderID, TagName: row.TagName, Name: row.Name,
 		Draft: row.Draft, Prerelease: row.Prerelease, AuthorLogin: row.AuthorLogin, URL: row.URL,
 	}
-	if err := parseTimes(fmt.Sprintf("release %d", row.ProviderID),
+	if err := parseTimes(i18n.T("store.releases.id", row.ProviderID),
 		[]string{row.CreatedAt}, []*time.Time{&r.CreatedAt},
 		[]sql.NullString{row.PublishedAt}, []*time.Time{&r.PublishedAt}); err != nil {
 		return model.Release{}, err
@@ -158,14 +159,14 @@ func parseTimes(what string, required []string, dst []*time.Time, optional []sql
 	for i, v := range required {
 		t, err := ParseTime(v)
 		if err != nil {
-			return fmt.Errorf("%s : %w", what, err)
+			return wrapErr(what, err)
 		}
 		*dst[i] = t
 	}
 	for i, v := range optional {
 		t, err := parseNullTime(v)
 		if err != nil {
-			return fmt.Errorf("%s : %w", what, err)
+			return wrapErr(what, err)
 		}
 		*optDst[i] = t
 	}

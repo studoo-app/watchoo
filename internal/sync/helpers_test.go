@@ -1,7 +1,7 @@
 package sync_test
 
-// Outils communs aux tests du moteur : base SQLite temporaire, faux Provider (providertest), faux gh
-// (authtest), horloge, logs capturés et contrôle qu'aucun token ni donnée personnelle n'y apparaît.
+// Tools shared by the engine tests: temporary SQLite database, fake Provider (providertest), fake gh
+// (authtest), clock, captured logs and check that no token or personal data appears in them.
 
 import (
 	"bytes"
@@ -25,9 +25,9 @@ import (
 	"github.com/studoo-app/watchoo/internal/workspace"
 )
 
-// Données factices.
+// Dummy data.
 const (
-	testOwner = "promo-demo" // organisation des dépôts (peut apparaître dans les logs)
+	testOwner = "promo-demo" // organization of the repositories (may appear in the logs)
 
 	secretName    = "Eleve Confidentiel"
 	secretEmail   = "eleve.confidentiel@example.test"
@@ -35,21 +35,21 @@ const (
 	secretMessage = "Message de commit confidentiel"
 )
 
-// forbidden liste les chaînes qui ne doivent jamais apparaître dans les logs ni dans les rapports.
+// forbidden lists the strings that must never appear in the logs or in the reports.
 var forbidden = []string{
 	authtest.FakeToken, "gho_", "Bearer",
 	secretName, secretEmail, secretLogin, secretMessage,
-	// Identité factice de providertest.AppendCommits et githubtest.AppendCommits.
+	// Dummy identity of providertest.AppendCommits and githubtest.AppendCommits.
 	"Étudiant Test", "etudiant@example.test", "etudiant-test",
 }
 
-// appendMessage reconnaît les messages « commit N » d'AppendCommits.
+// appendMessage recognizes the "commit N" messages of AppendCommits.
 var appendMessage = regexp.MustCompile(`\bcommit [0-9]{1,5}\b`)
 
-// epoch est la date des premiers commits factices.
+// epoch is the date of the first dummy commits.
 var epoch = time.Date(2026, 9, 1, 8, 0, 0, 0, time.UTC)
 
-// safeBuffer est un bytes.Buffer protégé par un verrou (logs écrits par plusieurs goroutines).
+// safeBuffer is a bytes.Buffer protected by a lock (logs written by several goroutines).
 type safeBuffer struct {
 	mu  gosync.Mutex
 	buf bytes.Buffer
@@ -67,7 +67,7 @@ func (b *safeBuffer) String() string {
 	return b.buf.String()
 }
 
-// clock est une horloge réglable, sûre pour un usage concurrent.
+// clock is an adjustable clock, safe for concurrent use.
 type clock struct {
 	mu gosync.Mutex
 	t  time.Time
@@ -85,7 +85,7 @@ func (c *clock) Set(t time.Time) {
 	c.t = t
 }
 
-// env est un environnement de test du moteur.
+// env is a test environment of the engine.
 type env struct {
 	t      *testing.T
 	dbPath string
@@ -98,44 +98,44 @@ type env struct {
 	eng    *wsync.Engine
 
 	mu     gosync.Mutex
-	tokens []string // tokens reçus par la fabrique de Provider
+	tokens []string // tokens received by the Provider factory
 	wrap   func(provider.Provider) provider.Provider
 
-	// gitURL et reposDir : provider des clones Git locaux (withGit), utilisé quand gh est absent.
+	// gitURL and reposDir: provider of the local Git clones (withGit), used when gh is missing.
 	gitURL   string
 	reposDir string
-	gitCalls int // Provider Git construits
-	// gitWrap, si non nil, enveloppe le provider Git construit (annulation, comptage…).
+	gitCalls int // Git Providers built
+	// gitWrap, if not nil, wraps the built Git provider (cancellation, counting…).
 	gitWrap func(*gitprov.Provider) provider.Provider
-	// mirrored : commits déjà recopiés du dépôt Git vers le faux Provider (mirror), par dépôt.
+	// mirrored: commits already copied from the Git repository to the fake Provider (mirror), per repository.
 	mirrored map[int64]map[string]bool
 }
 
-// withGit branche le provider des clones Git locaux sur le faux serveur Git srvURL (gittest).
+// withGit plugs the provider of the local Git clones into the fake Git server srvURL (gittest).
 func withGit(srvURL string) envOption {
 	return func(e *env) { e.gitURL = srvURL }
 }
 
-// envOption modifie l'environnement avant la construction du moteur.
+// envOption changes the environment before the engine is built.
 type envOption func(*env)
 
-// withParallelism règle sync.parallelism.
+// withParallelism sets sync.parallelism.
 func withParallelism(n int) envOption {
 	return func(e *env) { e.cfg.Sync.Parallelism = n }
 }
 
-// withExclude règle branches.exclude.
+// withExclude sets branches.exclude.
 func withExclude(patterns ...string) envOption {
 	return func(e *env) { e.cfg.Branches.Exclude = patterns }
 }
 
-// withWrap enveloppe le Provider construit à chaque synchro (blocage, comptage…).
+// withWrap wraps the Provider built at every sync (blocking, counting…).
 func withWrap(w func(provider.Provider) provider.Provider) envOption {
 	return func(e *env) { e.wrap = w }
 }
 
-// newEnv construit un environnement : base temporaire migrée, faux Provider, gh connecté, horloge
-// au 20 octobre 2026, logs capturés au niveau Debug (vérifiés à la fin du test).
+// newEnv builds an environment: temporary migrated database, fake Provider, gh signed in, clock
+// on October 20, 2026, logs captured at the Debug level (checked at the end of the test).
 func newEnv(t *testing.T, opts ...envOption) *env {
 	t.Helper()
 	e := &env{
@@ -158,27 +158,27 @@ func newEnv(t *testing.T, opts ...envOption) *env {
 	return e
 }
 
-// openStore ouvre la base path (et la migre si migrate), fermée à la fin du test.
+// openStore opens the database path (and migrates it if migrate), closed at the end of the test.
 func openStore(t *testing.T, path string, migrate bool) *store.Store {
 	t.Helper()
 	st, err := store.Open(t.Context(), path)
 	if err != nil {
-		t.Fatalf("store.Open : %v", err)
+		t.Fatalf("store.Open: %v", err)
 	}
 	t.Cleanup(func() {
 		if err := st.Close(); err != nil {
-			t.Errorf("Close : %v", err)
+			t.Errorf("Close: %v", err)
 		}
 	})
 	if migrate {
 		if err := st.Migrate(t.Context()); err != nil {
-			t.Fatalf("Migrate : %v", err)
+			t.Fatalf("Migrate: %v", err)
 		}
 	}
 	return st
 }
 
-// newEngine construit un moteur sur st, avec le faux Provider de l'environnement.
+// newEngine builds an engine on st, with the fake Provider of the environment.
 func (e *env) newEngine(st *store.Store) *wsync.Engine {
 	e.t.Helper()
 	logger := slog.New(slog.NewTextHandler(e.logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
@@ -201,7 +201,7 @@ func (e *env) newEngine(st *store.Store) *wsync.Engine {
 			defer e.mu.Unlock()
 			e.gitCalls++
 			if e.gitURL == "" {
-				return nil, nil // clones désactivés : sans gh, « répertoire des clones non renseigné »
+				return nil, nil // clones disabled: without gh, "directory of the clones not set"
 			}
 			gp, err := gitprov.New(gitprov.Options{Dir: e.reposDir, Repos: repos, BaseURL: e.gitURL, Logger: logger})
 			if err != nil || e.gitWrap == nil {
@@ -213,20 +213,20 @@ func (e *env) newEngine(st *store.Store) *wsync.Engine {
 		Logger: logger,
 	})
 	if err != nil {
-		e.t.Fatalf("wsync.New : %v", err)
+		e.t.Fatalf("wsync.New: %v", err)
 	}
 	return eng
 }
 
-// receivedTokens renvoie les tokens reçus par la fabrique de Provider.
+// receivedTokens returns the tokens received by the Provider factory.
 func (e *env) receivedTokens() []string {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	return slices.Clone(e.tokens)
 }
 
-// addRepo ajoute le dépôt id (owner testOwner) au faux Provider et en base, suivi, avec les motifs
-// de branches patterns, et renvoie le dépôt enregistré.
+// addRepo adds the repository id (owner testOwner) to the fake Provider and to the database, tracked,
+// with the branch patterns patterns, and returns the recorded repository.
 func (e *env) addRepo(id int64, name string, patterns ...string) model.Repository {
 	e.t.Helper()
 	e.fake.AddRepository(provider.Repository{
@@ -238,13 +238,13 @@ func (e *env) addRepo(id int64, name string, patterns ...string) model.Repositor
 		Enabled: true, BranchPatterns: patterns,
 	})
 	if err != nil {
-		e.t.Fatalf("CreateRepository : %v", err)
+		e.t.Fatalf("CreateRepository: %v", err)
 	}
 	return repo
 }
 
-// commit ajoute au dépôt repoID un commit de l'auteur secret, de parents parents, daté at, et
-// renvoie son SHA (dérivé de seed).
+// commit adds to the repository repoID a commit of the secret author, with parents parents, dated
+// at, and returns its SHA (derived from seed).
 func (e *env) commit(repoID int64, seed string, at time.Time, parents ...string) string {
 	e.t.Helper()
 	sha := providertest.SHA(seed)
@@ -257,42 +257,42 @@ func (e *env) commit(repoID int64, seed string, at time.Time, parents ...string)
 	return sha
 }
 
-// syncAll lance une synchro de tous les dépôts, qui doit réussir globalement.
+// syncAll runs a sync of all the repositories, which must succeed globally.
 func (e *env) syncAll() wsync.Report {
 	e.t.Helper()
 	rep, err := e.eng.SyncAll(e.t.Context(), wsync.SyncOptions{})
 	if err != nil {
-		e.t.Fatalf("SyncAll : %v", err)
+		e.t.Fatalf("SyncAll: %v", err)
 	}
 	assertReportNoLeak(e.t, rep)
 	return rep
 }
 
-// syncOK synchronise le seul dépôt repoID et vérifie le succès ; renvoie son rapport.
+// syncOK syncs the single repository repoID and checks the success; returns its report.
 func (e *env) syncOK(repoID int64) wsync.RepoReport {
 	e.t.Helper()
 	rep, err := e.eng.SyncRepo(e.t.Context(), repoID, wsync.SyncOptions{})
 	if err != nil {
-		e.t.Fatalf("SyncRepo : %v", err)
+		e.t.Fatalf("SyncRepo: %v", err)
 	}
 	assertReportNoLeak(e.t, rep)
 	if len(rep.Repos) != 1 {
-		e.t.Fatalf("SyncRepo : %d rapports, 1 attendu", len(rep.Repos))
+		e.t.Fatalf("SyncRepo: %d reports, want 1", len(rep.Repos))
 	}
 	r := rep.Repos[0]
 	if r.Status != wsync.StatusSuccess {
-		e.t.Fatalf("SyncRepo : statut %q (%s), success attendu", r.Status, r.Error)
+		e.t.Fatalf("SyncRepo: status %q (%s), want success", r.Status, r.Error)
 	}
 	return r
 }
 
-// commitSHAs renvoie les SHA en base du dépôt repoID, filtrés par branche si branch n'est pas vide,
-// triés.
+// commitSHAs returns the SHAs in the database of the repository repoID, filtered by branch if branch
+// is not empty, sorted.
 func (e *env) commitSHAs(repoID int64, branch string) []string {
 	e.t.Helper()
 	views, err := e.st.ListRecentCommits(e.t.Context(), store.CommitFilter{RepoID: repoID, Branch: branch})
 	if err != nil {
-		e.t.Fatalf("ListRecentCommits : %v", err)
+		e.t.Fatalf("ListRecentCommits: %v", err)
 	}
 	shas := make([]string, 0, len(views))
 	for _, v := range views {
@@ -302,28 +302,28 @@ func (e *env) commitSHAs(repoID int64, branch string) []string {
 	return shas
 }
 
-// commitView renvoie le commit sha du dépôt repoID.
+// commitView returns the commit sha of the repository repoID.
 func (e *env) commitView(repoID int64, sha string) store.CommitView {
 	e.t.Helper()
 	views, err := e.st.ListRecentCommits(e.t.Context(), store.CommitFilter{RepoID: repoID})
 	if err != nil {
-		e.t.Fatalf("ListRecentCommits : %v", err)
+		e.t.Fatalf("ListRecentCommits: %v", err)
 	}
 	for _, v := range views {
 		if v.SHA == sha {
 			return v
 		}
 	}
-	e.t.Fatalf("commit %s absent de la base", provider.ShortSHA(sha))
+	e.t.Fatalf("commit %s missing from the database", provider.ShortSHA(sha))
 	return store.CommitView{}
 }
 
-// branches renvoie les branches en base du dépôt repoID, par nom.
+// branches returns the branches in the database of the repository repoID, by name.
 func (e *env) branches(repoID int64) map[string]model.Branch {
 	e.t.Helper()
 	list, err := e.st.ListBranches(e.t.Context(), repoID)
 	if err != nil {
-		e.t.Fatalf("ListBranches : %v", err)
+		e.t.Fatalf("ListBranches: %v", err)
 	}
 	out := make(map[string]model.Branch, len(list))
 	for _, b := range list {
@@ -332,47 +332,47 @@ func (e *env) branches(repoID int64) map[string]model.Branch {
 	return out
 }
 
-// lastRun renvoie le dernier sync_run du dépôt repoID.
+// lastRun returns the last sync_run of the repository repoID.
 func (e *env) lastRun(repoID int64) model.SyncRun {
 	e.t.Helper()
 	run, err := e.st.LastSyncRun(e.t.Context(), repoID)
 	if err != nil {
-		e.t.Fatalf("LastSyncRun : %v", err)
+		e.t.Fatalf("LastSyncRun: %v", err)
 	}
 	return run
 }
 
-// sorted renvoie une copie triée de shas.
+// sorted returns a sorted copy of shas.
 func sorted(shas ...string) []string {
 	out := slices.Clone(shas)
 	slices.Sort(out)
 	return out
 }
 
-// assertNoLeak vérifie que s ne contient ni token ni donnée personnelle factice.
+// assertNoLeak checks that s contains neither token nor dummy personal data.
 func assertNoLeak(t *testing.T, what, s string) {
 	t.Helper()
 	for _, f := range forbidden {
 		if strings.Contains(s, f) {
-			t.Errorf("%s : contient %q :\n%s", what, f, s)
+			t.Errorf("%s: contains %q:\n%s", what, f, s)
 		}
 	}
 	if m := appendMessage.FindString(s); m != "" {
-		t.Errorf("%s : contient un message de commit %q :\n%s", what, m, s)
+		t.Errorf("%s: contains a commit message %q:\n%s", what, m, s)
 	}
 }
 
-// assertReportNoLeak vérifie les messages d'un rapport.
+// assertReportNoLeak checks the messages of a report.
 func assertReportNoLeak(t *testing.T, rep wsync.Report) {
 	t.Helper()
 	for _, r := range rep.Repos {
-		assertNoLeak(t, "rapport "+r.FullName, r.Error+" "+r.FullName+" "+r.DisplayName+" "+strings.Join(r.Warnings, " "))
+		assertNoLeak(t, "report "+r.FullName, r.Error+" "+r.FullName+" "+r.DisplayName+" "+strings.Join(r.Warnings, " "))
 	}
 }
 
-// ----- Provider enveloppé -----
+// ----- Wrapped Provider -----
 
-// hookProvider enveloppe un Provider et appelle before avant chaque méthode interrogeant la forge.
+// hookProvider wraps a Provider and calls before before every method querying the forge.
 type hookProvider struct {
 	provider.Provider
 	before func(ctx context.Context, method string) error

@@ -19,7 +19,6 @@ package selfupdate
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -27,6 +26,8 @@ import (
 	"path"
 	"runtime"
 	"strings"
+
+	"github.com/studoo-app/watchoo/internal/i18n"
 )
 
 // DefaultReleasesURL est la racine des releases de Watchoo.
@@ -100,7 +101,7 @@ func New(opts Options) *Client {
 	if c.baseErr == nil {
 		c.allowHTTP = c.base.Scheme == "http" && isLoopback(c.base.Hostname())
 		if !c.allowedURL(c.base) {
-			c.baseErr = fmt.Errorf("adresse des releases refusée (HTTPS obligatoire) : %s", raw)
+			c.baseErr = errors.New(i18n.T("selfupdate.base.refused", raw))
 		}
 	}
 	transport := opts.Transport
@@ -140,10 +141,10 @@ func (c *Client) allowedURL(u *url.URL) bool {
 // checkRedirect refuse une redirection hors HTTPS et les chaînes trop longues.
 func (c *Client) checkRedirect(req *http.Request, via []*http.Request) error {
 	if len(via) >= maxRedirects {
-		return errors.New("trop de redirections")
+		return errors.New(i18n.T("selfupdate.redirect.too_many"))
 	}
 	if !c.allowedURL(req.URL) {
-		return fmt.Errorf("redirection refusée (HTTPS obligatoire) : %s", req.URL.Redacted())
+		return errors.New(i18n.T("selfupdate.redirect.refused", req.URL.Redacted()))
 	}
 	return nil
 }
@@ -165,12 +166,12 @@ func (c *Client) endpoint(elems ...string) (*url.URL, error) {
 func (c *Client) get(ctx context.Context, client *http.Client, u *url.URL) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
-		return nil, fmt.Errorf("requête vers %s : %w", u.Redacted(), err)
+		return nil, wrapErr(i18n.T("selfupdate.request", u.Redacted()), err)
 	}
 	req.Header.Set("User-Agent", c.userAgent)
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("requête vers %s : %w", u.Redacted(), err)
+		return nil, wrapErr(i18n.T("selfupdate.request", u.Redacted()), err)
 	}
 	return resp, nil
 }
@@ -190,21 +191,21 @@ func (c *Client) Latest(ctx context.Context) (tag, releaseURL string, err error)
 	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, maxPageSize))
 	if resp.StatusCode < 300 || resp.StatusCode >= 400 {
 		if resp.StatusCode == http.StatusOK {
-			return "", "", errors.New("aucune release publiée trouvée (pas de redirection vers une version)")
+			return "", "", errors.New(i18n.T("selfupdate.latest.none"))
 		}
-		return "", "", fmt.Errorf("dernière version illisible : réponse HTTP %d", resp.StatusCode)
+		return "", "", errors.New(i18n.T("selfupdate.latest.http", resp.StatusCode))
 	}
 	loc, err := resp.Location()
 	if err != nil || !isTagURL(loc) {
-		return "", "", errors.New("dernière version illisible : redirection sans version")
+		return "", "", errors.New(i18n.T("selfupdate.latest.no_version"))
 	}
 	if !c.allowedURL(loc) {
-		return "", "", fmt.Errorf("redirection refusée (HTTPS obligatoire) : %s", loc.Redacted())
+		return "", "", errors.New(i18n.T("selfupdate.redirect.refused", loc.Redacted()))
 	}
 	tag = path.Base(loc.Path)
 	v, ok := ParseVersion(tag)
 	if !ok || !strings.HasPrefix(tag, "v") || !v.IsFinal() {
-		return "", "", fmt.Errorf("dernière version illisible : tag %q inattendu (attendu : vX.Y.Z)", tag)
+		return "", "", errors.New(i18n.T("selfupdate.latest.bad_tag", tag))
 	}
 	page, err := c.endpoint("tag", tag)
 	if err != nil {

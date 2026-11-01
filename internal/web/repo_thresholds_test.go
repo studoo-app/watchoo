@@ -61,10 +61,10 @@ func TestRepoThresholdsInvalid(t *testing.T) {
 		form url.Values
 		want string
 	}{
-		{url.Values{"flemme": {"10"}, "dead": {"5"}}, "doit être strictement supérieur au seuil flemme"},
-		{url.Values{"flemme": {"-3"}}, "Slacking: &#34;-3&#34; : nombre entier de jours attendu"},
+		{url.Values{"flemme": {"10"}, "dead": {"5"}}, "must be strictly greater than the flemme threshold"},
+		{url.Values{"flemme": {"-3"}}, "Slacking: &#34;-3&#34;: whole number of days expected"},
 		{url.Values{"dead": {"<b>x</b>"}}, "Dead: &#34;&lt;b&gt;x&lt;/b&gt;&#34;"},
-		{url.Values{"dead": {"4000"}}, "de 1 à 3650"},
+		{url.Values{"dead": {"4000"}}, "from 1 to 3650"},
 	} {
 		w := e.post(repoPath(ids.Bob)+"/thresholds", tc.form, false)
 		assertStatus(t, w, http.StatusBadRequest)

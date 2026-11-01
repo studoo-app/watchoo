@@ -160,8 +160,7 @@ Prérequis : la CLI GitHub gh, installée et connectée (« gh auth login »).`,
 	"cli.core.expected.int":      {"expected an integer", "nombre entier attendu"},
 
 	// Carte d'en-tête (card.go) : sous-titre et astuces. Les astuces ne citent que des commandes qui
-	// existent. tip.init_done et tip.status sont aussi affichés par init.go et status.go, qui ne sont
-	// pas encore traduits : leurs constantes provisoires gardent le texte français en attendant.
+	// existent ; tip.init_done et tip.status sont affichés par init.go et status.go.
 	"cli.core.card.subtitle": {
 		"Who worked, on what, and when?",
 		"Qui a travaillé, sur quoi, et quand ?",

@@ -1,6 +1,6 @@
 package store
 
-// Tests du journal des synchronisations et du verrou par dépôt.
+// Tests of the sync log and of the per-repository lock.
 
 import (
 	"errors"
@@ -24,28 +24,28 @@ func TestBeginSyncRunLock(t *testing.T) {
 	}
 	if run.ID == 0 || run.RepoID != repoID || run.Status != model.SyncRunning || !run.StartedAt.Equal(now) ||
 		!run.FinishedAt.IsZero() || run.NewCommits != 0 {
-		t.Errorf("sync_run ouvert : %+v", run)
+		t.Errorf("open sync_run: %+v", run)
 	}
 
-	// 29 min plus tard : toujours verrouillé.
+	// 29 min later: still locked.
 	_, err = s.BeginSyncRun(ctx, repoID, now.Add(29*time.Minute), 30*time.Minute)
 	if !errors.Is(err, ErrLocked) {
-		t.Errorf("erreur %v, attendu ErrLocked", err)
+		t.Errorf("error %v, want ErrLocked", err)
 	}
 	if got := count(t, s, "SELECT count(*) FROM sync_runs WHERE repo_id = ?", repoID); got != 1 {
-		t.Errorf("%d sync_runs, attendu 1 (rien inséré quand verrouillé)", got)
+		t.Errorf("%d sync_runs, want 1 (nothing inserted when locked)", got)
 	}
-	// Le verrou est par dépôt.
+	// The lock is per repository.
 	if _, err := s.BeginSyncRun(ctx, other, now, 30*time.Minute); err != nil {
-		t.Errorf("autre dépôt : %v", err)
+		t.Errorf("other repository: %v", err)
 	}
 
-	// Une fois clos, le dépôt se synchronise de nouveau.
-	if err := s.FinishSyncRun(ctx, run.ID, now.Add(time.Minute), model.SyncError, 0, "échec factice"); err != nil {
+	// Once closed, the repository syncs again.
+	if err := s.FinishSyncRun(ctx, run.ID, now.Add(time.Minute), model.SyncError, 0, "fake failure"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := s.BeginSyncRun(ctx, repoID, now.Add(2*time.Minute), 30*time.Minute); err != nil {
-		t.Errorf("après clôture : %v", err)
+		t.Errorf("after closing: %v", err)
 	}
 }
 
@@ -61,19 +61,19 @@ func TestBeginSyncRunClosesStaleRun(t *testing.T) {
 	now := t0.Add(31 * time.Minute)
 	run, err := s.BeginSyncRun(ctx, repoID, now, 30*time.Minute)
 	if err != nil {
-		t.Fatalf("running périmé : %v, attendu un nouveau sync_run", err)
+		t.Fatalf("stale running: %v, want a new sync_run", err)
 	}
 	var status, msg, finished string
 	if err := s.DB().QueryRowContext(ctx, "SELECT status, error, finished_at FROM sync_runs WHERE id = ?", old.ID).
 		Scan(&status, &msg, &finished); err != nil {
 		t.Fatal(err)
 	}
-	if status != "error" || msg != InterruptedMessage || finished != FormatTime(now) {
-		t.Errorf("ancien sync_run : %s, %q, %s", status, msg, finished)
+	if status != "error" || msg != InterruptedMessage() || msg != "sync interrupted" || finished != FormatTime(now) {
+		t.Errorf("old sync_run: %s, %q, %s", status, msg, finished)
 	}
 	last, err := s.LastSyncRun(ctx, repoID)
 	if err != nil || last.ID != run.ID {
-		t.Errorf("LastSyncRun = %+v, %v ; attendu le nouveau", last, err)
+		t.Errorf("LastSyncRun = %+v, %v; want the new one", last, err)
 	}
 }
 
@@ -86,10 +86,10 @@ func TestBeginSyncRunClosesStaleEvenWhenLocked(t *testing.T) {
 
 	_, err := s.BeginSyncRun(ctx, repoID, t0.Add(60*time.Minute), 30*time.Minute)
 	if !errors.Is(err, ErrLocked) {
-		t.Fatalf("erreur %v, attendu ErrLocked", err)
+		t.Fatalf("error %v, want ErrLocked", err)
 	}
 	if got := count(t, s, "SELECT count(*) FROM sync_runs WHERE id = ? AND status = 'error'", stale); got != 1 {
-		t.Error("le running périmé n'a pas été clos")
+		t.Error("the stale running was not closed")
 	}
 }
 
@@ -115,18 +115,18 @@ func TestBeginSyncRunConcurrent(t *testing.T) {
 		case err == nil:
 			won++
 		case !errors.Is(err, ErrLocked):
-			t.Errorf("erreur inattendue : %v", err)
+			t.Errorf("unexpected error: %v", err)
 		}
 	}
 	if won != 1 {
-		t.Errorf("%d synchros ont pris le verrou, attendu 1", won)
+		t.Errorf("%d syncs took the lock, want 1", won)
 	}
 }
 
 func TestBeginSyncRunUnknownRepository(t *testing.T) {
 	s := newTestStore(t)
 	if _, err := s.BeginSyncRun(t.Context(), 42, t0, 30*time.Minute); !errors.Is(err, ErrNotFound) {
-		t.Errorf("erreur %v, attendu ErrNotFound", err)
+		t.Errorf("error %v, want ErrNotFound", err)
 	}
 }
 
@@ -138,32 +138,32 @@ func TestFinishSyncRun(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := s.FinishSyncRun(ctx, run.ID, t0.Add(time.Minute), model.SyncError, 3, "dépôt inaccessible"); err != nil {
+	if err := s.FinishSyncRun(ctx, run.ID, t0.Add(time.Minute), model.SyncError, 3, "repository inaccessible"); err != nil {
 		t.Fatal(err)
 	}
 	last, err := s.LastSyncRun(ctx, repoID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if last.Status != model.SyncError || last.Error != "dépôt inaccessible" || last.NewCommits != 3 ||
+	if last.Status != model.SyncError || last.Error != "repository inaccessible" || last.NewCommits != 3 ||
 		!last.FinishedAt.Equal(t0.Add(time.Minute)) {
-		t.Errorf("sync_run clos : %+v", last)
+		t.Errorf("closed sync_run: %+v", last)
 	}
 	repo, _ := s.GetRepository(ctx, repoID)
 	if !repo.LastSyncedAt.IsZero() {
-		t.Error("FinishSyncRun ne doit pas toucher last_synced_at")
+		t.Error("FinishSyncRun must not touch last_synced_at")
 	}
 
-	// Déjà clos, inexistant : ErrNotFound. Statut invalide : refusé.
+	// Already closed, nonexistent: ErrNotFound. Invalid status: refused.
 	if err := s.FinishSyncRun(ctx, run.ID, t0, model.SyncSuccess, 0, ""); !errors.Is(err, ErrNotFound) {
-		t.Errorf("déjà clos : %v, attendu ErrNotFound", err)
+		t.Errorf("already closed: %v, want ErrNotFound", err)
 	}
 	if err := s.FinishSyncRun(ctx, 999, t0, model.SyncSuccess, 0, ""); !errors.Is(err, ErrNotFound) {
-		t.Errorf("inexistant : %v, attendu ErrNotFound", err)
+		t.Errorf("nonexistent: %v, want ErrNotFound", err)
 	}
 	run2, _ := s.BeginSyncRun(ctx, repoID, t0.Add(time.Hour), 30*time.Minute)
 	if err := s.FinishSyncRun(ctx, run2.ID, t0, model.SyncRunning, 0, ""); err == nil {
-		t.Error("statut running accepté pour une clôture")
+		t.Error("running status accepted for a closing")
 	}
 }
 
@@ -172,13 +172,13 @@ func TestLastSyncRun(t *testing.T) {
 	ctx := t.Context()
 	repoID := mustCreateRepo(t, s, 1, "promo", "alice")
 	if _, err := s.LastSyncRun(ctx, repoID); !errors.Is(err, ErrNotFound) {
-		t.Errorf("aucun sync_run : %v, attendu ErrNotFound", err)
+		t.Errorf("no sync_run: %v, want ErrNotFound", err)
 	}
 	mustExec(t, s, insertRun, repoID, FormatTime(t0.Add(time.Hour)), "success")
 	mustExec(t, s, insertRun, repoID, FormatTime(t0), "error")
 	tie := mustExec(t, s, insertRun, repoID, FormatTime(t0.Add(time.Hour)), "error")
 	last, err := s.LastSyncRun(ctx, repoID)
 	if err != nil || last.ID != tie {
-		t.Errorf("LastSyncRun = %+v, %v ; attendu le plus récent, puis id le plus grand (%d)", last, err, tie)
+		t.Errorf("LastSyncRun = %+v, %v; want the most recent, then the largest id (%d)", last, err, tie)
 	}
 }

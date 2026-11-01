@@ -97,8 +97,8 @@ func TestThresholdsExportImport(t *testing.T) {
 
 func TestThresholdsParseRejects(t *testing.T) {
 	for in, want := range map[string]string{
-		`[{"repo": "alice/projet", "flemme_after_days": 10, "dead_after_days": 4}]`: "repository #1 (alice/projet): seuil dead (4 j) : doit être strictement supérieur",
-		`[{"repo": "alice/projet", "flemme_after_days": -1}]`:                       "seuil flemme : -1 jours invalide",
+		`[{"repo": "alice/projet", "flemme_after_days": 10, "dead_after_days": 4}]`: "repository #1 (alice/projet): dead threshold (4 d): must be strictly greater",
+		`[{"repo": "alice/projet", "flemme_after_days": -1}]`:                       "flemme threshold: -1 days is invalid",
 		`[{"repo": "alice/projet", "dead_after_days": "5"}]`:                        "type",
 	} {
 		_, err := configshare.Parse(strings.NewReader(doc("", in)))

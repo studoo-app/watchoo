@@ -21,6 +21,8 @@ import (
 	"strings"
 	"time"
 	"unicode"
+
+	"github.com/studoo-app/watchoo/internal/i18n"
 )
 
 // Valeurs par défaut de GH.
@@ -30,38 +32,48 @@ const (
 	DefaultTimeout = 10 * time.Second // délai maximum d'un appel à gh
 )
 
+// i18nError est une erreur sentinelle dont le message vient du catalogue i18n : le texte est traduit
+// au moment de l'affichage (Error), dans la langue du processus. La valeur reste comparable avec ==
+// (une structure d'un champ) : errors.Is retrouve l'erreur sentinelle à travers les emballages.
+type i18nError struct{ key string }
+
+func (e i18nError) Error() string { return i18n.T(e.key) }
+
+// wrapErr compose un texte traduit et une erreur enveloppée, avec la ponctuation de la langue
+// (« texte : err » en français, « texte: err » en anglais).
+func wrapErr(text string, err error) error {
+	return fmt.Errorf("%s%s%w", text, i18n.T("auth.err.sep"), err)
+}
+
 // Erreurs du package (à tester avec errors.Is). Les messages sont destinés à l'utilisateur et disent
 // quoi faire ; les fonctions les enveloppent avec du contexte, jamais avec le token.
 var (
 	// ErrGHNotFound : l'exécutable gh est introuvable (absent du PATH ou chemin github.gh_path inexistant).
-	ErrGHNotFound = errors.New("la CLI GitHub « gh » est introuvable : installez-la (https://cli.github.com) ou réglez github.gh_path")
+	ErrGHNotFound error = i18nError{"auth.err.gh_not_found"}
 	// ErrNotLoggedIn : gh n'est connecté à aucun compte utilisable pour l'hôte (ou pour github.user),
 	// ou GitHub a refusé le token (révoqué, expiré).
-	ErrNotLoggedIn = errors.New("gh n'est pas connecté à GitHub : lancez « gh auth login »")
+	ErrNotLoggedIn error = i18nError{"auth.err.not_logged_in"}
 	// ErrUnusableUser : le réglage github.user ne désigne pas un compte dont « gh auth token --user »
 	// peut lire le token (login écrit avec une autre casse, ou compte que gh ne connaît que par une
 	// variable d'environnement comme GH_TOKEN, que « --user » ignore). Elle enveloppe ErrNotLoggedIn,
 	// comme l'erreur que renverrait Token dans ce cas ; son message dit quoi changer au réglage.
-	ErrUnusableUser error = &userError{
-		msg: "corrigez le réglage github.user, ou videz-le pour utiliser le compte actif de gh",
-	}
+	ErrUnusableUser error = &userError{key: "auth.err.unusable_user"}
 	// ErrCheckFailed : gh n'a pas pu vérifier le token auprès de GitHub (réseau coupé, proxy, panne de
 	// GitHub…). Le token n'est pas en cause : se reconnecter avec « gh auth login » n'y changerait rien.
-	ErrCheckFailed = errors.New("gh n'a pas pu joindre GitHub pour vérifier le token : vérifiez la connexion " +
-		"réseau (proxy, pare-feu) ou l'état de GitHub, puis réessayez")
+	ErrCheckFailed error = i18nError{"auth.err.check_failed"}
 	// ErrTimeout : gh n'a pas répondu dans le délai maximum.
-	ErrTimeout = errors.New("gh n'a pas répondu dans le délai imparti")
+	ErrTimeout error = i18nError{"auth.err.timeout"}
 	// ErrUnexpectedOutput : gh a répondu quelque chose d'inattendu (JSON invalide, sortie vide…),
 	// par exemple avec une version de gh trop ancienne pour « auth status --json ».
-	ErrUnexpectedOutput = errors.New("réponse inattendue de gh (version trop ancienne ?)")
+	ErrUnexpectedOutput error = i18nError{"auth.err.unexpected_output"}
 )
 
 // userError est le type de ErrUnusableUser : son message donne le remède, sans reprendre celui de
 // ErrNotLoggedIn (« lancez gh auth login » ne réglerait pas une faute de casse), qu'il enveloppe pour
 // errors.Is.
-type userError struct{ msg string }
+type userError struct{ key string }
 
-func (e *userError) Error() string { return e.msg }
+func (e *userError) Error() string { return i18n.T(e.key) }
 func (e *userError) Unwrap() error { return ErrNotLoggedIn }
 
 // Status décrit le compte gh retenu pour un hôte. Il ne contient jamais le token.
@@ -182,17 +194,15 @@ func (g GH) Status(ctx context.Context) (Status, error) {
 	if res.exitCode != 0 {
 		detail := ""
 		if summary := summarize(res.stderr); summary != "" {
-			detail = fmt.Sprintf(", gh a répondu « %s »", summary)
+			detail = i18n.T("auth.status.gh_said", summary)
 		}
 		if looksNotLoggedIn(res.stderr) {
-			return Status{}, fmt.Errorf("vérification du compte gh sur %s (code %d%s) : %w",
-				host, res.exitCode, detail, ErrNotLoggedIn)
+			return Status{}, wrapErr(i18n.T("auth.status.check_account", host, res.exitCode, detail), ErrNotLoggedIn)
 		}
-		return Status{}, fmt.Errorf("« gh auth status » a échoué (code %d%s) : %w",
-			res.exitCode, detail, ErrUnexpectedOutput)
+		return Status{}, wrapErr(i18n.T("auth.status.failed", res.exitCode, detail), ErrUnexpectedOutput)
 	}
 	if res.overflow {
-		return Status{}, fmt.Errorf("réponse de « gh auth status » trop longue : %w", ErrUnexpectedOutput)
+		return Status{}, wrapErr(i18n.T("auth.status.too_long"), ErrUnexpectedOutput)
 	}
 	return parseStatus(res.stdout, host, g.User)
 }
@@ -211,27 +221,26 @@ func (g GH) Token(ctx context.Context) (string, error) {
 	target := host
 	if g.User != "" {
 		args = append(args, "--user", g.User)
-		target = fmt.Sprintf("%s, compte %q", host, g.User)
+		target = i18n.T("auth.token.target_user", host, g.User)
 	}
 	res, err := g.run(ctx, "auth token", args...)
 	if err != nil {
 		return "", err
 	}
 	if res.exitCode != 0 {
-		return "", fmt.Errorf("« gh auth token » a échoué (code %d) pour %s : %w",
-			res.exitCode, target, ErrNotLoggedIn)
+		return "", wrapErr(i18n.T("auth.token.failed", res.exitCode, target), ErrNotLoggedIn)
 	}
 	if res.overflow {
-		return "", fmt.Errorf("réponse de « gh auth token » trop longue pour %s : %w", target, ErrUnexpectedOutput)
+		return "", wrapErr(i18n.T("auth.token.too_long", target), ErrUnexpectedOutput)
 	}
 	token := strings.TrimSpace(string(res.stdout))
 	if token == "" {
-		return "", fmt.Errorf("« gh auth token » n'a renvoyé aucun token pour %s : %w", target, ErrUnexpectedOutput)
+		return "", wrapErr(i18n.T("auth.token.empty", target), ErrUnexpectedOutput)
 	}
 	// Un token est une seule chaîne sans espace ni caractère de contrôle ; sinon gh a écrit autre
 	// chose (plusieurs lignes, message…), qui n'est surtout pas recopié dans l'erreur.
 	if strings.IndexFunc(token, func(r rune) bool { return unicode.IsSpace(r) || unicode.IsControl(r) }) >= 0 {
-		return "", fmt.Errorf("« gh auth token » a renvoyé une sortie inattendue pour %s : %w", target, ErrUnexpectedOutput)
+		return "", wrapErr(i18n.T("auth.token.unexpected", target), ErrUnexpectedOutput)
 	}
 	return token, nil
 }

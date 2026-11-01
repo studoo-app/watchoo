@@ -17,7 +17,7 @@ import (
 	"github.com/studoo-app/watchoo/internal/provider"
 )
 
-// countingTransport compte les requêtes qui atteignent le transport de base.
+// countingTransport counts the requests that reach the base transport.
 type countingTransport struct {
 	n    atomic.Int64
 	next http.RoundTripper
@@ -32,10 +32,10 @@ func TestNewRejectsBadToken(t *testing.T) {
 	for _, token := range []string{"", " ", "gho_a b", "gho_x\n", "gho_\x00", "\xff"} {
 		p, err := New(token, Options{})
 		if p != nil || !errors.Is(err, provider.ErrUnauthorized) {
-			t.Errorf("New(%q) = %v, %v ; veut ErrUnauthorized", token, p, err)
+			t.Errorf("New(%q) = %v, %v; want ErrUnauthorized", token, p, err)
 		}
 		if err != nil && strings.HasPrefix(token, "gho_") && strings.Contains(err.Error(), token) {
-			t.Errorf("l'erreur cite le token : %v", err)
+			t.Errorf("the error quotes the token: %v", err)
 		}
 	}
 }
@@ -43,38 +43,38 @@ func TestNewRejectsBadToken(t *testing.T) {
 func TestNewOptions(t *testing.T) {
 	p, err := New(testToken, Options{})
 	if err != nil {
-		t.Fatalf("New : %v", err)
+		t.Fatalf("New: %v", err)
 	}
 	if got := p.client.BaseURL(); got != DefaultBaseURL {
-		t.Errorf("BaseURL = %q, veut %q", got, DefaultBaseURL)
+		t.Errorf("BaseURL = %q, want %q", got, DefaultBaseURL)
 	}
 	if p.tr.userAgent != DefaultUserAgent || p.client.UserAgent() != DefaultUserAgent {
 		t.Errorf("User-Agent = %q / %q", p.tr.userAgent, p.client.UserAgent())
 	}
 	if p.client.Client().Timeout != DefaultTimeout {
-		t.Errorf("Timeout = %s, veut %s", p.client.Client().Timeout, DefaultTimeout)
+		t.Errorf("Timeout = %s, want %s", p.client.Client().Timeout, DefaultTimeout)
 	}
 	if p.cache == nil || p.quota == nil || p.logger == nil || p.tr.base != http.DefaultTransport {
-		t.Error("valeurs par défaut manquantes")
+		t.Error("missing default values")
 	}
 	if p.Name() != model.ProviderGitHub {
 		t.Errorf("Name = %q", p.Name())
 	}
 
-	// Cache et quota partagés : les mêmes pointeurs.
+	// Shared cache and quota: the same pointers.
 	cache, quota := NewCache(10, 100), NewQuota()
 	p2, err := New(testToken, Options{
 		BaseURL: "http://127.0.0.1:8080/api/v3", UserAgent: "watchoo/v0.2.0", Timeout: time.Second,
 		Cache: cache, Quota: quota,
 	})
 	if err != nil {
-		t.Fatalf("New : %v", err)
+		t.Fatalf("New: %v", err)
 	}
 	if p2.cache != cache || p2.quota != quota || p2.tr.cache != cache || p2.tr.quota != quota {
-		t.Error("le cache et le quota passés en options doivent être partagés")
+		t.Error("the cache and the quota passed as options must be shared")
 	}
 	if got := p2.client.BaseURL(); got != "http://127.0.0.1:8080/api/v3/" {
-		t.Errorf("BaseURL = %q (le « / » final doit être ajouté)", got)
+		t.Errorf("BaseURL = %q (the trailing \"/\" must be added)", got)
 	}
 	if p2.tr.basePath != "/api/v3/" || p2.tr.origin.String() != "http://127.0.0.1:8080" {
 		t.Errorf("basePath = %q, origin = %q", p2.tr.basePath, p2.tr.origin)
@@ -83,13 +83,13 @@ func TestNewOptions(t *testing.T) {
 		t.Errorf("Timeout = %s", p2.client.Client().Timeout)
 	}
 	if p.fp != p2.fp {
-		t.Error("même token, même empreinte attendue")
+		t.Error("same token, want the same fingerprint")
 	}
 }
 
 func TestNewRejectsBadOptions(t *testing.T) {
 	bad := []Options{
-		{BaseURL: "http://api.github.com/"}, // http hors bouclage
+		{BaseURL: "http://api.github.com/"}, // http outside loopback
 		{BaseURL: "ftp://127.0.0.1/"},
 		{BaseURL: "api.github.com"},
 		{BaseURL: "https://user:pass@api.github.com/"},
@@ -101,14 +101,14 @@ func TestNewRejectsBadOptions(t *testing.T) {
 	}
 	for _, opts := range bad {
 		if p, err := New(testToken, opts); err == nil {
-			t.Errorf("New(%+v) = %v, veut une erreur", opts, p)
+			t.Errorf("New(%+v) = %v, want an error", opts, p)
 		} else if strings.Contains(err.Error(), testToken) {
-			t.Errorf("l'erreur cite le token : %v", err)
+			t.Errorf("the error quotes the token: %v", err)
 		}
 	}
 	for _, base := range []string{"http://localhost:1234", "http://[::1]:1234/", "https://ghe.example.com/api/v3/"} {
 		if _, err := New(testToken, Options{BaseURL: base}); err != nil {
-			t.Errorf("New(BaseURL %q) : %v", base, err)
+			t.Errorf("New(BaseURL %q): %v", base, err)
 		}
 	}
 }
@@ -123,13 +123,13 @@ func TestProviderNeverPrintsToken(t *testing.T) {
 		fmt.Sprintf("%v", p.tr), fmt.Sprintf("%+v", p.tr), fmt.Sprintf("%#v", p.tr),
 	} {
 		if strings.Contains(s, testToken) {
-			t.Errorf("le token apparaît dans %q", s)
+			t.Errorf("the token appears in %q", s)
 		}
 	}
 }
 
-// TestRequestHeaders vérifie, sur une vraie requête de go-github, que le transport pose le token
-// (Bearer) et le User-Agent.
+// TestRequestHeaders checks, on a real go-github request, that the transport sets the token
+// (Bearer) and the User-Agent.
 func TestRequestHeaders(t *testing.T) {
 	var gotAuth, gotUA atomic.Value
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -145,18 +145,18 @@ func TestRequestHeaders(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, _, err := p.client.RateLimit.Get(context.Background()); err != nil {
-		t.Fatalf("GET /rate_limit : %v", err)
+		t.Fatalf("GET /rate_limit: %v", err)
 	}
 	if gotAuth.Load() != "Bearer "+testToken {
-		t.Errorf("Authorization absent ou incorrect")
+		t.Errorf("Authorization missing or wrong")
 	}
 	if gotUA.Load() != "watchoo/test" {
 		t.Errorf("User-Agent = %v", gotUA.Load())
 	}
 }
 
-// TestTokenOnlyToBaseOrigin vérifie qu'une requête vers un autre hôte part sans le token, et qu'une
-// redirection vers un autre hôte est refusée.
+// TestTokenOnlyToBaseOrigin checks that a request to another host leaves without the token, and that
+// a redirection to another host is refused.
 func TestTokenOnlyToBaseOrigin(t *testing.T) {
 	var otherAuth atomic.Value
 	other := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -173,7 +173,7 @@ func TestTokenOnlyToBaseOrigin(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Requête directe vers un autre hôte (même un en-tête posé par l'appelant est retiré).
+	// Direct request to another host (even a header set by the caller is removed).
 	req, _ := http.NewRequest(http.MethodGet, other.URL+"/x", nil)
 	req.Header.Set("Authorization", "Bearer autre")
 	resp, err := p.tr.RoundTrip(req)
@@ -182,27 +182,27 @@ func TestTokenOnlyToBaseOrigin(t *testing.T) {
 	}
 	_ = resp.Body.Close()
 	if v, _ := otherAuth.Load().(string); v != "" {
-		t.Errorf("un autre hôte a reçu Authorization")
+		t.Errorf("another host received Authorization")
 	}
 	if req.Header.Get("Authorization") != "Bearer autre" {
-		t.Error("la requête de l'appelant ne doit pas être modifiée")
+		t.Error("the caller's request must not be modified")
 	}
 
-	// Redirection vers un autre hôte : refusée par le http.Client.
+	// Redirection to another host: refused by the http.Client.
 	otherAuth.Store("")
 	_, err = p.client.Client().Get(api.URL + "/repos/alice/projet")
 	if !errors.Is(err, provider.ErrUnexpected) {
-		t.Errorf("redirection vers un autre hôte : erreur = %v, veut ErrUnexpected", err)
+		t.Errorf("redirection to another host: error = %v, want ErrUnexpected", err)
 	}
 	if err != nil && strings.Contains(err.Error(), testToken) {
-		t.Errorf("l'erreur cite le token : %v", err)
+		t.Errorf("the error quotes the token: %v", err)
 	}
 }
 
-// TestWriteForbidden vérifie qu'une méthode d'écriture est refusée avant d'atteindre le réseau.
+// TestWriteForbidden checks that a write method is refused before reaching the network.
 func TestWriteForbidden(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		t.Errorf("requête %s reçue : elle aurait dû être bloquée", r.Method)
+		t.Errorf("request %s received: it should have been blocked", r.Method)
 	}))
 	defer srv.Close()
 	base := &countingTransport{next: http.DefaultTransport}
@@ -217,11 +217,11 @@ func TestWriteForbidden(t *testing.T) {
 		}
 		_, err = p.client.Client().Do(req)
 		if !errors.Is(err, provider.ErrWriteForbidden) {
-			t.Errorf("%s : erreur = %v, veut ErrWriteForbidden", method, err)
+			t.Errorf("%s: error = %v, want ErrWriteForbidden", method, err)
 		}
 	}
 	if n := base.n.Load(); n != 0 {
-		t.Errorf("%d requête(s) ont atteint le transport de base", n)
+		t.Errorf("%d request(s) reached the base transport", n)
 	}
 }
 
@@ -243,11 +243,11 @@ func TestSameOrigin(t *testing.T) {
 			t.Fatal(err)
 		}
 		if got := sameOrigin(u, origin); got != want {
-			t.Errorf("sameOrigin(%q) = %v, veut %v", raw, got, want)
+			t.Errorf("sameOrigin(%q) = %v, want %v", raw, got, want)
 		}
 	}
 	if sameOrigin(nil, origin) || sameOrigin(origin, nil) {
-		t.Error("sameOrigin avec nil doit renvoyer false")
+		t.Error("sameOrigin with nil must return false")
 	}
 }
 
@@ -256,15 +256,15 @@ func TestCheckRedirect(t *testing.T) {
 	check := checkRedirect(origin)
 	same, _ := http.NewRequest(http.MethodGet, "https://api.github.com/repositories/42", nil)
 	if err := check(same, make([]*http.Request, 1)); err != nil {
-		t.Errorf("redirection sur le même hôte : %v", err)
+		t.Errorf("redirection on the same host: %v", err)
 	}
 	if err := check(same, make([]*http.Request, maxRedirects)); !errors.Is(err, provider.ErrUnexpected) {
-		t.Errorf("trop de redirections : %v", err)
+		t.Errorf("too many redirections: %v", err)
 	}
 	foreign, _ := http.NewRequest(http.MethodGet, "https://evil.test/x?token=1", nil)
 	err := check(foreign, make([]*http.Request, 1))
 	if !errors.Is(err, provider.ErrUnexpected) || strings.Contains(err.Error(), "token=1") {
-		t.Errorf("redirection vers un autre hôte : %v", err)
+		t.Errorf("redirection to another host: %v", err)
 	}
 }
 
@@ -284,8 +284,8 @@ func TestAPIPath(t *testing.T) {
 	}
 }
 
-// ProfileURL construit la page de profil sans requête, comme html_url du compte ; vide pour un login
-// absent, mal formé ou de bot (page sous /apps/).
+// ProfileURL builds the profile page without a request, like the account's html_url; empty for a
+// missing, malformed or bot login (page under /apps/).
 func TestProfileURL(t *testing.T) {
 	ct := &countingTransport{next: http.DefaultTransport}
 	p, err := New(testToken, Options{Transport: ct})
@@ -302,10 +302,10 @@ func TestProfileURL(t *testing.T) {
 		"a b":             "",
 	} {
 		if got := p.ProfileURL(login); got != want {
-			t.Errorf("ProfileURL(%q) = %q, veut %q", login, got, want)
+			t.Errorf("ProfileURL(%q) = %q, want %q", login, got, want)
 		}
 	}
 	if n := ct.n.Load(); n != 0 {
-		t.Errorf("%d requêtes envoyées, aucune attendue", n)
+		t.Errorf("%d requests sent, want none", n)
 	}
 }

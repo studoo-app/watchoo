@@ -14,6 +14,8 @@ import (
 	"time"
 	"unicode"
 	"unicode/utf8"
+
+	"github.com/studoo-app/watchoo/internal/i18n"
 )
 
 // Limites appliquées à l'exécution de gh.
@@ -38,8 +40,9 @@ var ghEnv = []string{"GH_PROMPT_DISABLED=1", "GH_NO_UPDATE_NOTIFIER=1"}
 // github_pat_). Ils sont masqués dans tout extrait de stderr repris dans une erreur.
 var tokenPattern = regexp.MustCompile(`(?:gh[opusr]_|github_pat_)[A-Za-z0-9_]+`)
 
-// redacted remplace un token reconnu par tokenPattern.
-const redacted = "[masqué]"
+// redacted renvoie la marque qui remplace un token reconnu par tokenPattern, dans la langue du
+// processus.
+func redacted() string { return i18n.T("auth.redacted") }
 
 // result est le résultat d'un appel à gh qui a pu aller à son terme.
 type result struct {
@@ -106,11 +109,11 @@ func interpret(ctx, runCtx context.Context, runErr error, path, name string, tim
 	case runErr == nil:
 		return result{}, nil
 	case ctx.Err() != nil:
-		return result{}, fmt.Errorf("« gh %s » interrompu : %w", name, ctx.Err())
+		return result{}, wrapErr(i18n.T("auth.exec.interrupted", name), ctx.Err())
 	case runCtx.Err() != nil:
-		return result{}, fmt.Errorf("« gh %s » : %w (%s)", name, ErrTimeout, timeout)
+		return result{}, fmt.Errorf("%s%s%w (%s)", i18n.T("auth.exec.timeout", name), i18n.T("auth.err.sep"), ErrTimeout, timeout)
 	case errors.Is(runErr, exec.ErrNotFound), errors.Is(runErr, fs.ErrNotExist):
-		return result{}, fmt.Errorf("lancement de %q : %w", path, ErrGHNotFound)
+		return result{}, wrapErr(i18n.T("auth.exec.launch", path), ErrGHNotFound)
 	case errors.As(runErr, &exitErr):
 		code := exitErr.ExitCode()
 		if code == 0 {
@@ -119,10 +122,10 @@ func interpret(ctx, runCtx context.Context, runErr error, path, name string, tim
 		return result{exitCode: code}, nil
 	case errors.Is(runErr, exec.ErrWaitDelay):
 		// gh a fini mais un processus enfant garde ses tubes ouverts : sortie peut-être incomplète.
-		return result{}, fmt.Errorf("« gh %s » : sortie non terminée : %w", name, ErrUnexpectedOutput)
+		return result{}, wrapErr(i18n.T("auth.exec.unfinished", name), ErrUnexpectedOutput)
 	default:
 		// Erreur de démarrage (droits, format d'exécutable…) : elle ne cite que le chemin.
-		return result{}, fmt.Errorf("lancement de %q impossible : %w", path, runErr)
+		return result{}, wrapErr(i18n.T("auth.exec.launch_error", path), runErr)
 	}
 }
 
@@ -182,7 +185,7 @@ func summarize(stderr string) string {
 		}
 		return r
 	}, line)
-	line = tokenPattern.ReplaceAllString(line, redacted)
+	line = tokenPattern.ReplaceAllLiteralString(line, redacted())
 	if utf8.RuneCountInString(line) > maxSummaryRunes {
 		line = string([]rune(line)[:maxSummaryRunes]) + "…"
 	}

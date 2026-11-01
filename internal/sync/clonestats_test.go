@@ -1,8 +1,8 @@
 package sync_test
 
-// Statistiques de lignes par le clone Git local (« toujours cloner », 0.5.0) : avec gh, l'API
-// (providertest) et le dépôt Git (gittest) décrivent le même historique, aux mêmes SHA (mirror) ;
-// sans gh, le clone est la source.
+// Line statistics through the local Git clone ("always clone", 0.5.0): with gh, the API
+// (providertest) and the Git repository (gittest) describe the same history, with the same SHAs
+// (mirror); without gh, the clone is the source.
 
 import (
 	"context"
@@ -22,9 +22,9 @@ import (
 	wsync "github.com/studoo-app/watchoo/internal/sync"
 )
 
-// mirror recopie dans le faux Provider (dépôt repoID) les commits et les branches du dépôt Git
-// testOwner/name du serveur srvURL : l'API et le clone décrivent alors le même historique. Les commits
-// déjà recopiés ne le sont pas deux fois.
+// mirror copies into the fake Provider (repository repoID) the commits and branches of the Git
+// repository testOwner/name of the server srvURL: the API and the clone then describe the same
+// history. Commits already copied are not copied twice.
 func (e *env) mirror(srvURL string, repoID int64, name string) {
 	e.t.Helper()
 	gp, err := gitprov.New(gitprov.Options{Dir: filepath.Join(e.t.TempDir(), "miroir"), BaseURL: srvURL,
@@ -58,7 +58,7 @@ func (e *env) mirror(srvURL string, repoID int64, name string) {
 			}
 		}
 	}
-	// Parents d'abord.
+	// Parents first.
 	for len(pending) > 0 {
 		var rest []provider.Commit
 		for _, c := range pending {
@@ -74,7 +74,7 @@ func (e *env) mirror(srvURL string, repoID int64, name string) {
 			known[c.SHA] = true
 		}
 		if len(rest) == len(pending) {
-			e.t.Fatal("miroir : parents introuvables")
+			e.t.Fatal("mirror: parents not found")
 		}
 		pending = rest
 	}
@@ -83,14 +83,14 @@ func (e *env) mirror(srvURL string, repoID int64, name string) {
 	}
 }
 
-// stats renvoie les statistiques en base du commit sha du dépôt repoID.
+// stats returns the statistics in the database of the commit sha of the repository repoID.
 func (e *env) stats(repoID int64, sha string) (int, int, bool) {
 	e.t.Helper()
 	c := e.commitView(repoID, sha)
 	return c.Additions, c.Deletions, c.StatsKnown
 }
 
-// forgetStats remet en base les statistiques du commit sha à « inconnues » (base d'avant la 0.5.0).
+// forgetStats resets in the database the statistics of the commit sha to "unknown" (database from before 0.5.0).
 func (e *env) forgetStats(repoID int64, sha string) {
 	e.t.Helper()
 	if _, err := e.st.DB().ExecContext(e.t.Context(),
@@ -110,68 +110,68 @@ func TestCloneStatsWithGH(t *testing.T) {
 	x := r.Merge("main", "dev", secretMessage, secretAuthor, epoch.Add(3*time.Hour))
 	empty := r.EmptyCommit("main", secretMessage, secretAuthor, epoch.Add(4*time.Hour))
 
-	e := newEnv(t, withGit(srv.URL)) // gh connecté : API
+	e := newEnv(t, withGit(srv.URL)) // gh signed in: API
 	repo := e.addRepo(1, "projet")
 	e.mirror(srv.URL, 1, "projet")
 
-	// Premier import : toutes les statistiques par le clone, aucune requête CommitStats.
+	// First import: all statistics through the clone, no CommitStats request.
 	rep := e.syncAll()
 	if rep.Source.Kind != wsync.SourceAPI {
 		t.Fatalf("source %q", rep.Source.Kind)
 	}
 	r0 := rep.Repos[0]
 	if r0.Status != wsync.StatusSuccess || r0.NewCommits != 5 || r0.StatsFetched != 5 || len(r0.Warnings) != 0 {
-		t.Fatalf("premier import : %+v", r0)
+		t.Fatalf("first import: %+v", r0)
 	}
 	if n := e.fake.Calls(providertest.MethodCommitStats); n != 0 {
-		t.Errorf("%d appels CommitStats à l'API, aucun attendu", n)
+		t.Errorf("%d CommitStats calls to the API, none expected", n)
 	}
 	for _, tc := range []struct {
 		sha      string
 		add, del int
 	}{{m0, 2, 0}, {f1, 1, 0}, {m1, 1, 1}, {x, 1, 0}, {empty, 0, 0}} {
 		if add, del, known := e.stats(repo.ID, tc.sha); !known || add != tc.add || del != tc.del {
-			t.Errorf("commit %s : +%d −%d connu=%v, attendu +%d −%d", provider.ShortSHA(tc.sha), add, del, known,
+			t.Errorf("commit %s: +%d −%d known=%v, want +%d −%d", provider.ShortSHA(tc.sha), add, del, known,
 				tc.add, tc.del)
 		}
 	}
-	// Clone créé dans repos/, sur la branche par défaut de l'API.
+	// Clone created in repos/, on the default branch of the API.
 	if got, err := os.ReadFile(filepath.Join(e.reposDir, "projet", "a.txt")); err != nil || string(got) != "a\nc\n" {
-		t.Errorf("copie de travail : %q, %v", got, err)
+		t.Errorf("working copy: %q, %v", got, err)
 	}
 
-	// Commit ancien sans statistiques (base d'avant la migration 00006) et nouveau commit : les deux
-	// sont calculés ; le commit vide, connu à 0/0, n'est jamais recalculé.
+	// Old commit without statistics (database from before migration 00006) and new commit: both
+	// are computed; the empty commit, known at 0/0, is never computed again.
 	e.forgetStats(repo.ID, m0)
 	m2 := r.Commit("main", "c.txt", "1\n2\n3\n", secretMessage, secretAuthor, epoch.Add(5*time.Hour))
 	e.mirror(srv.URL, 1, "projet")
 	e.clock.Set(e.clock.Now().Add(time.Hour))
 	r0 = e.syncAll().Repos[0]
 	if r0.Status != wsync.StatusSuccess || r0.NewCommits != 1 || r0.StatsFetched != 2 {
-		t.Fatalf("synchro suivante : %+v", r0)
+		t.Fatalf("next sync: %+v", r0)
 	}
 	if add, _, known := e.stats(repo.ID, m0); !known || add != 2 {
-		t.Errorf("commit ancien : +%d connu=%v", add, known)
+		t.Errorf("old commit: +%d known=%v", add, known)
 	}
 	if add, _, known := e.stats(repo.ID, m2); !known || add != 3 {
-		t.Errorf("nouveau commit : +%d connu=%v", add, known)
+		t.Errorf("new commit: +%d known=%v", add, known)
 	}
 	r0 = e.syncAll().Repos[0]
 	if r0.StatsFetched != 0 {
-		t.Errorf("synchro sans changement : %d statistiques calculées, aucune attendue", r0.StatsFetched)
+		t.Errorf("sync without change: %d statistics computed, none expected", r0.StatsFetched)
 	}
 
-	// Totaux du dépôt : tous les commits comptés.
+	// Totals of the repository: all commits counted.
 	sum, err := e.st.RepositorySummary(t.Context(), repo.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if want := (model.LineTotals{Commits: 6, KnownCommits: 6, Additions: 8, Deletions: 1}); sum.Lines != want {
-		t.Errorf("totaux du dépôt = %+v, attendu %+v", sum.Lines, want)
+		t.Errorf("totals of the repository = %+v, want %+v", sum.Lines, want)
 	}
 }
 
-// Plus de MaxStatsPerRepo commits d'un coup : tous calculés par le clone (aucun plafond).
+// More than MaxStatsPerRepo commits at once: all computed by the clone (no cap).
 func TestCloneStatsNoCap(t *testing.T) {
 	srv := gittest.NewServer(t)
 	r := srv.Create(testOwner, "gros", "main")
@@ -186,7 +186,7 @@ func TestCloneStatsNoCap(t *testing.T) {
 	e.mirror(srv.URL, 1, "gros")
 	r0 := e.syncAll().Repos[0]
 	if r0.NewCommits != n || r0.StatsFetched != n {
-		t.Fatalf("synchro de %d commits : %+v", n, r0)
+		t.Fatalf("sync of %d commits: %+v", n, r0)
 	}
 	sum, err := e.st.RepositorySummary(t.Context(), repo.ID)
 	if err != nil {
@@ -197,9 +197,9 @@ func TestCloneStatsNoCap(t *testing.T) {
 	}
 }
 
-// Clone indisponible avec gh (emplacement occupé) : le dépôt réussit, avec un avertissement, et les
-// statistiques reviennent à l'API (rien au premier import, puis les nouveaux commits) ; le clone
-// revenu, les commits restés inconnus sont calculés.
+// Clone unavailable with gh (location occupied): the repository succeeds, with a warning, and the
+// statistics fall back to the API (nothing on the first import, then the new commits); once the
+// clone is back, the commits that stayed unknown are computed.
 func TestCloneUnavailableFallsBackToAPI(t *testing.T) {
 	srv := gittest.NewServer(t)
 	r := srv.Create(testOwner, "projet", "main")
@@ -217,46 +217,46 @@ func TestCloneUnavailableFallsBackToAPI(t *testing.T) {
 
 	r0 := e.syncAll().Repos[0]
 	if r0.Status != wsync.StatusSuccess || len(r0.Warnings) != 1 ||
-		!strings.Contains(r0.Warnings[0], "clone Git local indisponible, statistiques de lignes lues par l'API") ||
+		!strings.Contains(r0.Warnings[0], "local Git clone unavailable, line statistics read through the API") ||
 		!strings.Contains(r0.Warnings[0], "clone location occupied") {
-		t.Fatalf("clone occupé : %+v", r0)
+		t.Fatalf("clone occupied: %+v", r0)
 	}
 	if _, _, known := e.stats(repo.ID, m0); known || e.fake.Calls(providertest.MethodCommitStats) != 0 {
-		t.Errorf("premier import sans clone : statistiques connues=%v, %d appels", known,
+		t.Errorf("first import without clone: statistics known=%v, %d calls", known,
 			e.fake.Calls(providertest.MethodCommitStats))
 	}
 
-	// Nouveau commit : statistiques demandées à l'API (repli limité).
+	// New commit: statistics requested from the API (limited fallback).
 	m1 := r.Commit("main", "a.txt", "a\nb\n", secretMessage, secretAuthor, epoch.Add(time.Hour))
 	e.mirror(srv.URL, 1, "projet")
 	e.fake.SetStats(1, m1, provider.CommitStats{Additions: 7})
 	r0 = e.syncAll().Repos[0]
 	if r0.Status != wsync.StatusSuccess || r0.StatsFetched != 1 || len(r0.Warnings) != 1 {
-		t.Fatalf("repli sur l'API : %+v", r0)
+		t.Fatalf("fallback on the API: %+v", r0)
 	}
 	if add, _, known := e.stats(repo.ID, m1); !known || add != 7 {
-		t.Errorf("statistiques par l'API : +%d connu=%v", add, known)
+		t.Errorf("statistics through the API: +%d known=%v", add, known)
 	}
 
-	// Emplacement libéré : le clone est créé et rattrape le commit resté inconnu ; celui lu par
-	// l'API n'est pas recalculé.
+	// Location freed: the clone is created and catches up the commit that stayed unknown; the one read
+	// through the API is not computed again.
 	if err := os.RemoveAll(occupied); err != nil {
 		t.Fatal(err)
 	}
 	r0 = e.syncAll().Repos[0]
 	if r0.Status != wsync.StatusSuccess || len(r0.Warnings) != 0 || r0.StatsFetched != 1 {
-		t.Fatalf("clone revenu : %+v", r0)
+		t.Fatalf("clone back: %+v", r0)
 	}
 	if add, _, known := e.stats(repo.ID, m0); !known || add != 1 {
-		t.Errorf("rattrapage : +%d connu=%v", add, known)
+		t.Errorf("catch-up: +%d known=%v", add, known)
 	}
 	if add, _, _ := e.stats(repo.ID, m1); add != 7 {
-		t.Errorf("commit lu par l'API recalculé : +%d", add)
+		t.Errorf("commit read through the API computed again: +%d", add)
 	}
 	assertNoLeak(t, "logs", e.logs.String())
 }
 
-// Provider des clones impossible à construire avec gh : avertissement pour chaque dépôt, repli.
+// Provider of the clones impossible to build with gh: warning for each repository, fallback.
 func TestCloneProviderErrorWithGH(t *testing.T) {
 	e := newEnv(t)
 	e.addRepo(1, "projet")
@@ -277,11 +277,11 @@ func TestCloneProviderErrorWithGH(t *testing.T) {
 	}
 	if r0 := rep.Repos[0]; r0.Status != wsync.StatusSuccess || len(r0.Warnings) != 1 ||
 		!strings.Contains(r0.Warnings[0], "git not found") {
-		t.Errorf("git absent avec gh : %+v", r0)
+		t.Errorf("git missing with gh: %+v", r0)
 	}
 }
 
-// Sans gh : statistiques de tous les commits dès le premier import.
+// Without gh: statistics of all commits from the first import.
 func TestGitSourceStatsFromFirstImport(t *testing.T) {
 	srv := gittest.NewServer(t)
 	r := srv.Create(testOwner, "projet", "main")
@@ -296,17 +296,17 @@ func TestGitSourceStatsFromFirstImport(t *testing.T) {
 	}
 	r0 := e.syncAll().Repos[0]
 	if r0.Status != wsync.StatusSuccess || r0.StatsFetched != 2 || len(r0.Warnings) != 0 {
-		t.Fatalf("premier import sans gh : %+v", r0)
+		t.Fatalf("first import without gh: %+v", r0)
 	}
 	if add, _, known := e.stats(repo.ID, m0); !known || add != 2 {
-		t.Errorf("m0 : +%d connu=%v", add, known)
+		t.Errorf("m0: +%d known=%v", add, known)
 	}
 	if _, del, known := e.stats(repo.ID, m1); !known || del != 1 {
-		t.Errorf("m1 : −%d connu=%v", del, known)
+		t.Errorf("m1: −%d known=%v", del, known)
 	}
 }
 
-// cancelStats annule la synchro pendant le calcul des statistiques.
+// cancelStats cancels the sync during the computation of the statistics.
 type cancelStats struct {
 	*gitprov.Provider
 	cancel context.CancelFunc
@@ -318,7 +318,7 @@ func (c cancelStats) CommitStatsBatch(ctx context.Context, owner, name string, s
 	return nil, ctx.Err()
 }
 
-// Annulation pendant le calcul : le dépôt échoue (« synchro annulée »), rien n'est écrit.
+// Cancellation during the computation: the repository fails ("sync canceled"), nothing is written.
 func TestCloneStatsCanceled(t *testing.T) {
 	srv := gittest.NewServer(t)
 	r := srv.Create(testOwner, "projet", "main")
@@ -332,12 +332,12 @@ func TestCloneStatsCanceled(t *testing.T) {
 	e.mirror(srv.URL, 1, "projet")
 	rep, err := e.eng.SyncAll(ctx, wsync.SyncOptions{})
 	if err == nil {
-		t.Error("synchro annulée sans erreur")
+		t.Error("canceled sync without error")
 	}
-	if r0 := rep.Repos[0]; r0.Status != wsync.StatusError || r0.Error != "synchro annulée" {
-		t.Errorf("dépôt : %+v", r0)
+	if r0 := rep.Repos[0]; r0.Status != wsync.StatusError || r0.Error != "sync canceled" {
+		t.Errorf("repository: %+v", r0)
 	}
 	if n, err := e.st.CountCommits(t.Context(), repo.ID); err != nil || n != 0 {
-		t.Errorf("%d commits écrits malgré l'annulation (%v)", n, err)
+		t.Errorf("%d commits written despite the cancellation (%v)", n, err)
 	}
 }

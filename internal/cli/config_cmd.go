@@ -34,11 +34,8 @@ type configFlags struct {
 func newConfigCmd(deps Deps, opts *options) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "config",
-		Short: "Partage la configuration de l'espace avec d'autres superviseurs (export, import)",
-		Long: `Partage la configuration de l'espace avec les autres personnes qui supervisent le
-même groupe : « watchoo config export » écrit les dépôts suivis et les réglages
-communs dans un fichier JSON, « watchoo config import » le fusionne dans un autre
-espace, après un aperçu. Rien n'est jamais retiré à l'import.`,
+		Short: i18n.T("cli.repo.help.config_short"),
+		Long:  i18n.T("cli.repo.help.config_long"),
 		Example: `  watchoo config export -o licence.json
   watchoo config import licence.json --dry-run`,
 		Args: cobra.ArbitraryArgs,
@@ -58,14 +55,8 @@ func newConfigExportCmd(deps Deps, opts *options) *cobra.Command {
 	flags := &configFlags{}
 	cmd := &cobra.Command{
 		Use:   "export",
-		Short: "Écrit la configuration partageable de l'espace dans un fichier JSON",
-		Long: `Écrit la configuration partageable de l'espace dans un fichier JSON : les dépôts
-suivis (nom affiché, branches) et les réglages communs (sync.*, activity.*,
-branches.exclude, timezone, lang). Jamais les réglages propres à cette machine (github.*,
-web.*), ni token, ni commit, ni e-mail.
-
-Sans -o, le document est écrit sur la sortie standard. Avec -o, le fichier est créé
-en 0600 ; un fichier existant n'est écrasé qu'avec --force.`,
+		Short: i18n.T("cli.repo.help.export_short"),
+		Long:  i18n.T("cli.repo.help.export_long"),
 		Example: `  watchoo config export -o licence.json
   watchoo config export > licence.json`,
 		Args: noArgs,
@@ -74,8 +65,8 @@ en 0600 ; un fichier existant n'est écrasé qu'avec --force.`,
 		},
 	}
 	cmd.Flags().StringVarP(&flags.output, "output", "o", "",
-		"écrit le document dans ce `fichier` (créé en 0600) au lieu de la sortie standard")
-	cmd.Flags().BoolVar(&flags.force, "force", false, "écrase le fichier de -o s'il existe déjà")
+		i18n.T("cli.repo.help.export_flag_output"))
+	cmd.Flags().BoolVar(&flags.force, "force", false, i18n.T("cli.repo.help.export_flag_force"))
 	return cmd
 }
 
@@ -83,20 +74,9 @@ en 0600 ; un fichier existant n'est écrasé qu'avec --force.`,
 func newConfigImportCmd(deps Deps, opts *options) *cobra.Command {
 	flags := &configFlags{}
 	cmd := &cobra.Command{
-		Use:   "import fichier",
-		Short: "Fusionne un fichier de configuration partagé dans l'espace, après un aperçu",
-		Long: `Fusionne dans l'espace un fichier écrit par « watchoo config export », après un aperçu.
-
-Tout le fichier est validé avant de modifier quoi que ce soit. Les dépôts absents
-sont ajoutés (accès vérifié auprès de GitHub), les dépôts déjà suivis reçoivent le nom
-affiché et les branches du fichier, un dépôt arrêté reprend son suivi ; rien n'est
-jamais retiré. Si un réglage commun change, .watchoo/config.yaml est réécrit à partir
-du modèle commenté (copie de l'ancien dans config.yaml.bak).
-
-Sur un terminal, l'aperçu est suivi d'une question ; sinon --yes est obligatoire,
-ainsi qu'avec --json (sans --dry-run). « - » lit le fichier sur l'entrée standard
-(--yes obligatoire alors). Le code de retour est non nul s'il reste des dépôts
-inaccessibles. L'import ne lance pas de synchro : enchaînez avec « watchoo sync ».`,
+		Use:   "import " + i18n.T("cli.repo.help.file_arg"),
+		Short: i18n.T("cli.repo.help.config_import_short"),
+		Long:  i18n.T("cli.repo.help.config_import_long"),
 		Example: `  watchoo config import licence.json --dry-run
   watchoo config import licence.json
   watchoo config import - --yes < licence.json`,
@@ -106,8 +86,8 @@ inaccessibles. L'import ne lance pas de synchro : enchaînez avec « watchoo syn
 		},
 	}
 	cmd.Flags().BoolVar(&flags.dryRun, "dry-run", false,
-		"affiche l'aperçu et vérifie l'accès aux dépôts, sans rien écrire")
-	cmd.Flags().BoolVarP(&flags.yes, "yes", "y", false, "applique sans demander de confirmation")
+		i18n.T("cli.repo.help.config_import_flag_dry_run"))
+	cmd.Flags().BoolVarP(&flags.yes, "yes", "y", false, i18n.T("cli.repo.help.config_import_flag_yes"))
 	return cmd
 }
 

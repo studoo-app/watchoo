@@ -13,9 +13,9 @@ import (
 	"github.com/studoo-app/watchoo/internal/provider/git/gittest"
 )
 
-// CommitStatsBatch donne, en un passage, les mêmes statistiques que CommitStats : commit simple,
-// racine, merge (premier parent), commit vide (0/0, présent dans le résultat), fichier binaire non
-// compté ; un SHA absent du clone est omis, les doublons sont permis.
+// CommitStatsBatch gives, in one pass, the same statistics as CommitStats: simple commit, root,
+// merge (first parent), empty commit (0/0, present in the result), binary file not counted; a SHA
+// missing from the clone is left out, duplicates are allowed.
 func TestCommitStatsBatch(t *testing.T) {
 	srv := gittest.NewServer(t)
 	r := srv.Create("alice", "projet", "main")
@@ -38,39 +38,39 @@ func TestCommitStatsBatch(t *testing.T) {
 		m0:    {Additions: 2},
 		f1:    {Additions: 1},
 		m1:    {Additions: 1, Deletions: 1},
-		x:     {Additions: 1}, // le merge apporte b.txt à main
+		x:     {Additions: 1}, // the merge brings b.txt to main
 		empty: {},
 		bin:   {},
 	}
 	if len(got) != len(want) {
-		t.Errorf("CommitStatsBatch : %d résultats, attendu %d (%v)", len(got), len(want), got)
+		t.Errorf("CommitStatsBatch: %d results, want %d (%v)", len(got), len(want), got)
 	}
 	for sha, w := range want {
 		st, ok := got[sha]
 		if !ok || st != w {
-			t.Errorf("CommitStatsBatch[%s] = %+v (%v), attendu %+v", provider.ShortSHA(sha), st, ok, w)
+			t.Errorf("CommitStatsBatch[%s] = %+v (%v), want %+v", provider.ShortSHA(sha), st, ok, w)
 		}
 		if one, err := p.CommitStats(ctx, "alice", "projet", sha); err != nil || one != w {
-			t.Errorf("CommitStats(%s) = %+v, %v ; attendu %+v (même règle)", provider.ShortSHA(sha), one, err, w)
+			t.Errorf("CommitStats(%s) = %+v, %v; want %+v (same rule)", provider.ShortSHA(sha), one, err, w)
 		}
 	}
 	if _, ok := got[unknown]; ok {
-		t.Error("un SHA absent du clone figure dans le résultat")
+		t.Error("a SHA missing from the clone is in the result")
 	}
 	if strings.Contains(logs.String(), "alice@example.test") || strings.Contains(logs.String(), "Alice Martin") {
-		t.Errorf("donnée personnelle dans les logs :\n%s", logs.String())
+		t.Errorf("personal data in the logs:\n%s", logs.String())
 	}
 
-	// Liste vide : résultat vide, sans erreur ; SHA invalide refusé avant tout git.
+	// Empty list: empty result, no error; invalid SHA refused before any git.
 	if none, err := p.CommitStatsBatch(ctx, "alice", "projet", nil); err != nil || len(none) != 0 {
-		t.Errorf("liste vide : %v, %v", none, err)
+		t.Errorf("empty list: %v, %v", none, err)
 	}
 	if _, err := p.CommitStatsBatch(ctx, "alice", "projet", []string{"main"}); !errors.Is(err, provider.ErrInvalidRef) {
-		t.Errorf("SHA invalide : %v, ErrInvalidRef attendue", err)
+		t.Errorf("invalid SHA: %v, want ErrInvalidRef", err)
 	}
 }
 
-// Plus de StatsBatchSize commits : plusieurs paquets, tous calculés ; contexte annulé : erreur.
+// More than StatsBatchSize commits: several batches, all computed; canceled context: error.
 func TestCommitStatsBatchManyCommits(t *testing.T) {
 	srv := gittest.NewServer(t)
 	r := srv.Create("alice", "gros", "main")
@@ -83,30 +83,30 @@ func TestCommitStatsBatchManyCommits(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(commits) != n+1 {
-		t.Fatalf("%d commits, attendu %d", len(commits), n+1)
+		t.Fatalf("%d commits, want %d", len(commits), n+1)
 	}
 	got, err := p.CommitStatsBatch(t.Context(), "alice", "gros", shas(commits))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(got) != n+1 {
-		t.Errorf("%d statistiques, attendu %d", len(got), n+1)
+		t.Errorf("%d statistics, want %d", len(got), n+1)
 	}
-	for _, c := range commits[:n] { // chaque commit remplace une ligne
+	for _, c := range commits[:n] { // every commit replaces one line
 		if st := got[c.SHA]; st != (provider.CommitStats{Additions: 1, Deletions: 1}) {
-			t.Fatalf("commit %s : %+v", provider.ShortSHA(c.SHA), st)
+			t.Fatalf("commit %s: %+v", provider.ShortSHA(c.SHA), st)
 		}
 	}
 
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	if _, err := fresh(t, srv, dir).CommitStatsBatch(ctx, "alice", "gros", shas(commits)); !errors.Is(err, context.Canceled) {
-		t.Errorf("contexte annulé : %v", err)
+		t.Errorf("canceled context: %v", err)
 	}
 }
 
-// Prepare crée le clone et extrait la branche par défaut donnée (celle de l'API), sans ls-remote ;
-// une seconde fois, rien n'est refait.
+// Prepare creates the clone and checks out the given default branch (the API's one), without
+// ls-remote; the second time, nothing is redone.
 func TestPrepareUsesGivenDefaultBranch(t *testing.T) {
 	srv := gittest.NewServer(t)
 	r := srv.Create("alice", "projet", "main")
@@ -119,19 +119,19 @@ func TestPrepareUsesGivenDefaultBranch(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got := readFile(t, filepath.Join(dir, "projet", "a.txt")); got != "dev\n" {
-		t.Errorf("copie de travail = %q, branche dev (donnée) attendue", got)
+		t.Errorf("working copy = %q, want branch dev (given)", got)
 	}
 	if strings.Contains(logs.String(), "commande=ls-remote") {
-		t.Error("ls-remote lancé alors que la branche par défaut était donnée")
+		t.Error("ls-remote run although the default branch was given")
 	}
 	if err := p.Prepare(t.Context(), "alice", "projet", "dev"); err != nil {
-		t.Errorf("second Prepare : %v", err)
+		t.Errorf("second Prepare: %v", err)
 	}
 	if err := p.Prepare(t.Context(), "alice", "projet", "a\x01b"); !errors.Is(err, provider.ErrInvalidRef) {
-		t.Errorf("branche invalide : %v", err)
+		t.Errorf("invalid branch: %v", err)
 	}
-	// Dépôt absent : accès refusé, comme les autres commandes.
+	// Missing repository: access denied, like the other commands.
 	if err := fresh(t, srv, dir).Prepare(t.Context(), "alice", "absent", "main"); !errors.Is(err, provider.ErrAccessDenied) {
-		t.Errorf("dépôt absent : %v", err)
+		t.Errorf("missing repository: %v", err)
 	}
 }

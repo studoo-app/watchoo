@@ -15,14 +15,12 @@ import (
 )
 
 // Textes de la carte d'en-tête (voir documentation/fr/05-cli.md, « Carte d'en-tête »). Les astuces ne
-// citent que des commandes qui existent. Elles passent par internal/i18n, sauf tipInitDone et
-// tipStatus : affichées par init.go et status.go, qui ne sont pas encore traduits, elles restent des
-// constantes provisoires (clés cli.core.tip.init_done et cli.core.tip.status déjà dans le catalogue).
-const (
-	cardTitle   = "Watchoo"
-	tipInitDone = "Astuce : « watchoo repo add owner/repo » ajoute un premier dépôt à suivre."
-	tipStatus   = "Astuce : « watchoo sync » met à jour les dépôts suivis."
-)
+// citent que des commandes qui existent ; elles passent par internal/i18n.
+const cardTitle = "Watchoo"
+
+// tipInitDone est l'astuce de la carte de « watchoo init » (celle de « watchoo status » est la clé
+// cli.core.tip.status).
+func tipInitDone() string { return i18n.T("cli.core.tip.init_done") }
 
 // helpSubtitle est le sous-titre de la carte de l'aide générale.
 func helpSubtitle() string { return i18n.T("cli.core.card.subtitle") }

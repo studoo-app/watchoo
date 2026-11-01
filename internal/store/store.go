@@ -29,6 +29,7 @@ import (
 	"modernc.org/sqlite" // enregistre aussi le driver database/sql « sqlite »
 	sqlite3 "modernc.org/sqlite/lib"
 
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/store/db"
 	"github.com/studoo-app/watchoo/internal/store/migrations"
 )
@@ -51,12 +52,25 @@ const FileMode = 0o600
 // MigrationDialect est le dialecte goose utilisé pour appliquer les migrations.
 const MigrationDialect = goose.DialectSQLite3
 
+// i18nError est une erreur sentinelle dont le message vient du catalogue i18n : le texte est traduit
+// au moment de l'affichage (Error), dans la langue du processus. La valeur reste comparable avec ==
+// (une structure d'un champ) : errors.Is retrouve l'erreur sentinelle à travers les emballages.
+type i18nError struct{ key string }
+
+func (e i18nError) Error() string { return i18n.T(e.key) }
+
+// wrapErr compose un texte traduit et une erreur enveloppée, avec la ponctuation de la langue
+// (« texte : err » en français, « texte: err » en anglais).
+func wrapErr(text string, err error) error {
+	return fmt.Errorf("%s%s%w", text, i18n.T("store.err.sep"), err)
+}
+
 // Erreurs renvoyées par les méthodes de Store (à tester avec errors.Is).
 var (
 	// ErrNotFound : l'élément demandé n'existe pas (remplace sql.ErrNoRows hors de store).
-	ErrNotFound = errors.New("élément introuvable")
+	ErrNotFound error = i18nError{"store.err.not_found"}
 	// ErrAlreadyExists : une contrainte d'unicité est violée (ex. dépôt déjà suivi).
-	ErrAlreadyExists = errors.New("élément déjà existant")
+	ErrAlreadyExists error = i18nError{"store.err.already_exists"}
 )
 
 // Store donne accès à une base SQLite Watchoo ouverte. Il est sûr pour un usage concurrent
@@ -80,19 +94,19 @@ type Store struct {
 //   - crée le *db.Queries associé.
 func Open(ctx context.Context, path string) (*Store, error) {
 	if path == "" {
-		return nil, errors.New("ouverture de la base : chemin vide")
+		return nil, errors.New(i18n.T("store.open.empty_path"))
 	}
 	if err := CreateDBFile(path); err != nil {
-		return nil, fmt.Errorf("ouverture de la base %s : %w", path, err)
+		return nil, wrapErr(i18n.T("store.open", path), err)
 	}
 
 	sqlDB, err := sql.Open(DriverName, dsn(path))
 	if err != nil {
-		return nil, fmt.Errorf("ouverture de la base %s : %w", path, err)
+		return nil, wrapErr(i18n.T("store.open", path), err)
 	}
 	if err := checkConnection(ctx, sqlDB); err != nil {
 		_ = sqlDB.Close()
-		return nil, fmt.Errorf("ouverture de la base %s : %w", path, err)
+		return nil, wrapErr(i18n.T("store.open", path), err)
 	}
 
 	return &Store{db: sqlDB, queries: db.New(sqlDB)}, nil
@@ -102,14 +116,14 @@ func Open(ctx context.Context, path string) (*Store, error) {
 // clés étrangères sont bien actives : sans elles, les cascades du schéma seraient ignorées en silence.
 func checkConnection(ctx context.Context, sqlDB *sql.DB) error {
 	if err := sqlDB.PingContext(ctx); err != nil {
-		return fmt.Errorf("connexion impossible : %w", err)
+		return wrapErr(i18n.T("store.open.connect"), err)
 	}
 	var foreignKeys int
 	if err := sqlDB.QueryRowContext(ctx, "PRAGMA foreign_keys").Scan(&foreignKeys); err != nil {
-		return fmt.Errorf("lecture du pragma foreign_keys : %w", err)
+		return wrapErr(i18n.T("store.open.pragma"), err)
 	}
 	if foreignKeys != 1 {
-		return fmt.Errorf("les clés étrangères ne sont pas actives (foreign_keys = %d)", foreignKeys)
+		return errors.New(i18n.T("store.open.no_foreign_keys", foreignKeys))
 	}
 	return nil
 }
@@ -147,16 +161,16 @@ func (s *Store) Migrate(ctx context.Context) error {
 		goose.WithDisableGlobalRegistry(true),
 	)
 	if err != nil {
-		return fmt.Errorf("préparation des migrations : %w", err)
+		return wrapErr(i18n.T("store.migrate.prepare"), err)
 	}
 	// Ne pas appeler provider.Close() : il fermerait la connexion du Store.
 	results, err := provider.Up(ctx)
 	if err != nil {
-		return fmt.Errorf("application des migrations : %w", err)
+		return wrapErr(i18n.T("store.migrate.apply"), err)
 	}
 	version, err := provider.GetDBVersion(ctx)
 	if err != nil {
-		return fmt.Errorf("lecture de la version du schéma : %w", err)
+		return wrapErr(i18n.T("store.migrate.version"), err)
 	}
 	slog.DebugContext(ctx, "migrations de la base appliquées",
 		slog.Int("applied", len(results)),
@@ -168,7 +182,7 @@ func (s *Store) Migrate(ctx context.Context) error {
 // Close ferme la base. Après Close, le Store n'est plus utilisable.
 func (s *Store) Close() error {
 	if err := s.db.Close(); err != nil {
-		return fmt.Errorf("fermeture de la base : %w", err)
+		return wrapErr(i18n.T("store.close"), err)
 	}
 	return nil
 }
@@ -195,16 +209,16 @@ func FormatTime(t time.Time) string {
 // refusée avec une erreur qui cite la valeur reçue.
 func ParseTime(s string) (time.Time, error) {
 	if s == "" {
-		return time.Time{}, fmt.Errorf("date vide : format attendu %s", TimeLayout)
+		return time.Time{}, errors.New(i18n.T("store.time.empty", TimeLayout))
 	}
 	t, err := time.Parse(TimeLayout, s)
 	if err != nil {
-		return time.Time{}, fmt.Errorf("date %q invalide (format attendu %s) : %w", s, TimeLayout, err)
+		return time.Time{}, wrapErr(i18n.T("store.time.invalid", s, TimeLayout), err)
 	}
 	// time.Parse tolère des variantes que le format de stockage interdit (fraction de seconde après
 	// les secondes, heure sur un seul chiffre…) : seule la forme canonique est acceptée.
 	if t.Format(TimeLayout) != s {
-		return time.Time{}, fmt.Errorf("date %q invalide : format attendu %s (UTC, à la seconde)", s, TimeLayout)
+		return time.Time{}, errors.New(i18n.T("store.time.layout", s, TimeLayout))
 	}
 	return t.UTC(), nil
 }
@@ -221,23 +235,23 @@ func CreateDBFile(path string) error {
 	if errors.Is(err, fs.ErrExist) {
 		info, statErr := os.Stat(path)
 		if statErr != nil {
-			return fmt.Errorf("fichier de base %s : %w", path, statErr)
+			return wrapErr(i18n.T("store.file", path), statErr)
 		}
 		if !info.Mode().IsRegular() {
-			return fmt.Errorf("fichier de base %s : ce n'est pas un fichier ordinaire", path)
+			return errors.New(i18n.T("store.file.not_regular", path))
 		}
 		return nil
 	}
 	if err != nil {
-		return fmt.Errorf("création du fichier de base %s : %w", path, err)
+		return wrapErr(i18n.T("store.file.create", path), err)
 	}
 	if err := f.Close(); err != nil {
 		_ = os.Remove(path)
-		return fmt.Errorf("création du fichier de base %s : %w", path, err)
+		return wrapErr(i18n.T("store.file.create", path), err)
 	}
 	if err := os.Chmod(path, FileMode); err != nil {
 		_ = os.Remove(path)
-		return fmt.Errorf("droits du fichier de base %s : %w", path, err)
+		return wrapErr(i18n.T("store.file.perms", path), err)
 	}
 	return nil
 }

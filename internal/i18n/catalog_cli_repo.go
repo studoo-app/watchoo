@@ -1,7 +1,7 @@
 // Textes du paquet internal/cli pour les commandes init, repo (add, list, remove), repo import et
 // config (export, import) : résumés, comptes rendus, aperçus, bilans, confirmations, erreurs
-// d'usage et avertissements. Préfixe des clés : « cli.repo. ». L'aide des commandes (Short, Long,
-// usage des options, exemples) et les textes des autres commandes viendront dans leurs domaines.
+// d'usage et avertissements, et l'aide de ces commandes (Short, Long, usage des options : clés
+// « cli.repo.help. »). Préfixe des clés : « cli.repo. ».
 //
 // Les clés JSON des sorties --json ne changent jamais (schéma stable) : seules les valeurs de
 // message (erreurs, avertissements) passent par le catalogue.
@@ -365,6 +365,278 @@ var cliRepoTexts = map[string]entry{
 			"\"watchoo tui\" will pick them up on its next start.\n",
 		"Les réglages valent pour les commandes lancées ensuite ; un « watchoo serve » ou " +
 			"« watchoo tui » déjà ouvert les prendra en compte à son prochain lancement.\n",
+	},
+
+	// Aide des commandes init, repo, repo add / list / remove / import, config, config export / import
+	// (Short, Long, nom des arguments dans Use, usage des options).
+	"cli.repo.help.file_arg": {"file", "fichier"},
+	"cli.repo.help.init_short": {
+		"Makes the current directory a workspace",
+		"Fait du répertoire courant un espace de supervision",
+	},
+	"cli.repo.help.init_long": {
+		`Makes the current directory (or the one given by -C) a workspace: checks the
+GitHub CLI gh, then creates .watchoo/ with config.yaml, the SQLite database at the
+right schema and a .gitignore. The .watchoo/ directory is readable by you only
+(permissions 0700, files in 0600).
+
+Without gh installed and signed in, init warns that the repositories will be tracked
+through local Git clones (git must then be installed, otherwise init stops) and
+reminds "gh auth login" to go through the GitHub API.
+
+init refuses a directory that is already a workspace, so as to never overwrite data,
+and warns if the created workspace is nested in another workspace. It neither asks
+for nor stores any token: gh keeps it.`,
+		`Fait du répertoire courant (ou de celui donné par -C) un espace de supervision :
+vérifie la CLI GitHub gh, puis crée .watchoo/ avec config.yaml, la base SQLite au bon
+schéma et un .gitignore. Le répertoire .watchoo/ est lisible par vous seul (droits
+0700, fichiers en 0600).
+
+Sans gh installé et connecté, init prévient que les dépôts seront suivis par clones
+Git locaux (git doit alors être installé, sinon init s'arrête) et rappelle
+« gh auth login » pour passer par l'API GitHub.
+
+init refuse un répertoire qui est déjà un espace, pour ne jamais écraser de données,
+et prévient si l'espace créé est imbriqué dans un autre espace. Il ne demande ni ne
+stocke aucun token : gh le garde.`,
+	},
+	"cli.repo.help.repo_short": {
+		"Manages the tracked repositories (add, import, list, remove)",
+		"Gère les dépôts suivis (add, import, list, remove)",
+	},
+	"cli.repo.help.add_short": {
+		"Adds a repository to watch",
+		"Ajoute un dépôt à surveiller",
+	},
+	"cli.repo.help.add_long": {
+		`Adds a repository to watch, after checking with GitHub that the gh account can
+access it (without gh installed and signed in: that git can read it, with
+"git ls-remote", using the SSH key or the Git credentials of this machine). The
+repository is given as owner/repo or by its GitHub URL.
+
+Without --branch, all the branches of the repository are tracked, including those
+created later. --branch restricts the tracking to a list of names and patterns
+(release/* for example); --branch "" goes back to all the branches.
+
+--flemme and --dead set the activity thresholds of this repository, in days without
+a commit, instead of those of the workspace (activity.*); 0 goes back to the
+threshold of the workspace. When both are given, --dead must be greater than
+--flemme.
+
+A repository already tracked is not added twice: its label, branches and thresholds
+are updated if they are given, and its tracking resumes if it had been stopped. No
+sync is started: follow up with "watchoo sync".`,
+		`Ajoute un dépôt à surveiller, après avoir vérifié auprès de GitHub que le compte gh y a
+accès (sans gh installé et connecté : que git peut le lire, par « git ls-remote », avec la
+clé SSH ou les identifiants Git de cette machine). Le dépôt est désigné par owner/repo ou
+par son URL GitHub.
+
+Sans --branch, toutes les branches du dépôt sont suivies, y compris celles créées plus
+tard. --branch restreint le suivi à une liste de noms et de motifs (release/* par
+exemple) ; --branch "" revient à toutes les branches.
+
+--flemme et --dead règlent les seuils d'activité de ce dépôt, en jours sans commit, à la
+place de ceux de l'espace (activity.*) ; 0 revient au seuil de l'espace. Quand les deux
+sont donnés, --dead doit être plus grand que --flemme.
+
+Un dépôt déjà suivi n'est pas ajouté en double : son label, ses branches et ses seuils
+sont mis à jour s'ils sont donnés, et son suivi reprend s'il avait été arrêté. Aucune synchro
+n'est lancée : enchaînez avec « watchoo sync ».`,
+	},
+	"cli.repo.help.add_flag_branch": {
+		"`branches` to track, separated by commas, patterns accepted (e.g. main,dev,release/*); default: all",
+		"`branches` à suivre, séparées par des virgules, motifs acceptés (ex. main,dev,release/*) ; défaut : toutes",
+	},
+	"cli.repo.help.add_flag_label": {
+		"`name` displayed instead of owner/repo (e.g. \"Alice Martin\")",
+		"`nom` affiché à la place de owner/repo (ex. \"Alice Martin\")",
+	},
+	"cli.repo.help.add_flag_flemme": {
+		"Flemme threshold of this repository, in `days` without a commit (0 = threshold of the workspace)",
+		"seuil Flemme de ce dépôt, en `jours` sans commit (0 = seuil de l'espace)",
+	},
+	"cli.repo.help.add_flag_dead": {
+		"Dead threshold of this repository, in `days` without a commit, greater than --flemme (0 = threshold of the workspace)",
+		"seuil Dead de ce dépôt, en `jours` sans commit, plus grand que --flemme (0 = seuil de l'espace)",
+	},
+	"cli.repo.help.list_short": {
+		"Lists the tracked repositories: last commit, author, state",
+		"Liste les dépôts suivis : dernier commit, auteur, état",
+	},
+	"cli.repo.help.list_long": {
+		`Lists the repositories of the workspace with their last commit (all tracked
+branches together), its author and their state:
+  -        Active    (last commit 0 to 5 days ago, by default)
+  ~ 9 d    Slacking  (6 to 15 days)
+  ⚠ 42 d   Dead      (more than 15 days)
+In gray: stopped (tracking stopped), error (last sync failed), never (never
+synced), archived (archived on GitHub), empty (no commit).`,
+		`Liste les dépôts de l'espace avec leur dernier commit (toutes branches suivies
+confondues), son auteur et leur état :
+  -        Actif   (dernier commit il y a 0 à 5 jours, par défaut)
+  ~ 9 j    Flemme  (6 à 15 jours)
+  ⚠ 42 j   Dead    (plus de 15 jours)
+En gris : arrêté (suivi arrêté), erreur (dernière synchro en échec), jamais
+(jamais synchronisé), archivé (archivé sur GitHub), vide (aucun commit).`,
+	},
+	"cli.repo.help.remove_short": {
+		"Stops tracking a repository and deletes its history",
+		"Arrête le suivi d'un dépôt et supprime son historique",
+	},
+	"cli.repo.help.remove_long": {
+		`Stops tracking a repository and deletes its history from the database: branches,
+commits and sync log, as well as its local Git clone (repos/ in the workspace) if it
+exists. The contributors stay (they may have worked on other repositories). Nothing is
+changed on GitHub.
+
+With --keep-history, the tracking stops but the history can still be viewed (the
+repository appears "stopped" in "watchoo repo list") and the local Git clone is kept;
+"watchoo repo add" resumes it.
+
+The command asks for confirmation in a terminal; in a script (standard input that is
+not a terminal), the --yes option is required.`,
+		`Arrête le suivi d'un dépôt et supprime de la base son historique : branches, commits
+et journal des synchros, ainsi que son clone Git local (repos/ dans l'espace) s'il
+existe. Les contributeurs restent (ils peuvent avoir travaillé sur d'autres dépôts).
+Rien n'est modifié sur GitHub.
+
+Avec --keep-history, le suivi s'arrête mais l'historique reste consultable (le dépôt
+apparaît « arrêté » dans « watchoo repo list ») et le clone Git local est gardé ;
+« watchoo repo add » le reprend.
+
+La commande demande confirmation dans un terminal ; dans un script (entrée standard
+qui n'est pas un terminal), l'option --yes est obligatoire.`,
+	},
+	"cli.repo.help.remove_flag_keep": {
+		"stops the tracking but keeps the history in the database",
+		"arrête le suivi mais garde l'historique en base",
+	},
+	"cli.repo.help.remove_flag_yes": {
+		"confirms without asking (required outside a terminal)",
+		"confirme sans poser de question (obligatoire hors terminal)",
+	},
+	"cli.repo.help.import_short": {
+		"Adds a list of repositories at once (CSV or one repository per line)",
+		"Ajoute d'un coup une liste de dépôts (CSV ou un dépôt par ligne)",
+	},
+	"cli.repo.help.import_long": {
+		`Adds a list of repositories at once, for example those of a class.
+
+The file is a CSV with a header line repo,label,branches (only the repo column is
+required; flemme and dead, optional, give the activity thresholds of the repository
+in days, 0 to go back to the thresholds of the workspace), or a plain text with one
+repository per line. Empty lines and those starting with # are ignored. "-" reads
+the list from standard input.
+
+The whole file is validated before anything is added: a malformed line stops the
+import and gives its number. The access to each repository is then checked with
+GitHub; an inaccessible repository is reported without blocking the others. A
+repository already tracked is not added twice: its label, branches and thresholds are
+updated if the file gives them (an empty cell keeps the existing value). The import
+can therefore be run again safely.
+
+The exit code is non-zero if inaccessible repositories remain. The import does not
+start a sync: follow up with "watchoo sync".`,
+		`Ajoute d'un coup une liste de dépôts, par exemple ceux d'une promotion.
+
+Le fichier est un CSV avec une ligne d'en-tête repo,label,branches (seule la colonne
+repo est obligatoire ; flemme et dead, facultatives, donnent les seuils d'activité du
+dépôt en jours, 0 pour revenir aux seuils de l'espace), ou un simple texte avec un dépôt par ligne. Les lignes vides et
+celles qui commencent par # sont ignorées. « - » lit la liste sur l'entrée standard.
+
+Tout le fichier est validé avant d'ajouter quoi que ce soit : une ligne mal formée
+arrête l'import en indiquant son numéro. L'accès à chaque dépôt est ensuite vérifié
+auprès de GitHub ; un dépôt inaccessible est signalé sans bloquer les autres. Un dépôt
+déjà suivi n'est pas ajouté en double : son label, ses branches et ses seuils sont mis à
+jour si le fichier en donne (une cellule vide garde la valeur existante). L'import peut donc être
+relancé sans risque.
+
+Le code de retour est non nul s'il reste des dépôts inaccessibles. L'import ne lance
+pas de synchro : enchaînez avec « watchoo sync ».`,
+	},
+	"cli.repo.help.import_flag_dry_run": {
+		"validates the file and checks the access to the repositories, without recording anything",
+		"valide le fichier et vérifie l'accès aux dépôts, sans rien enregistrer",
+	},
+	"cli.repo.help.config_short": {
+		"Shares the configuration of the workspace with other supervisors (export, import)",
+		"Partage la configuration de l'espace avec d'autres superviseurs (export, import)",
+	},
+	"cli.repo.help.config_long": {
+		`Shares the configuration of the workspace with the other people who supervise the
+same group: "watchoo config export" writes the tracked repositories and the common
+settings to a JSON file, "watchoo config import" merges it into another workspace,
+after a preview. Nothing is ever removed by the import.`,
+		`Partage la configuration de l'espace avec les autres personnes qui supervisent le
+même groupe : « watchoo config export » écrit les dépôts suivis et les réglages
+communs dans un fichier JSON, « watchoo config import » le fusionne dans un autre
+espace, après un aperçu. Rien n'est jamais retiré à l'import.`,
+	},
+	"cli.repo.help.export_short": {
+		"Writes the shareable configuration of the workspace to a JSON file",
+		"Écrit la configuration partageable de l'espace dans un fichier JSON",
+	},
+	"cli.repo.help.export_long": {
+		`Writes the shareable configuration of the workspace to a JSON file: the tracked
+repositories (display name, branches) and the common settings (sync.*, activity.*,
+branches.exclude, timezone, lang). Never the settings specific to this machine
+(github.*, web.*), nor token, nor commit, nor e-mail.
+
+Without -o, the document is written to standard output. With -o, the file is created
+in 0600; an existing file is overwritten only with --force.`,
+		`Écrit la configuration partageable de l'espace dans un fichier JSON : les dépôts
+suivis (nom affiché, branches) et les réglages communs (sync.*, activity.*,
+branches.exclude, timezone, lang). Jamais les réglages propres à cette machine (github.*,
+web.*), ni token, ni commit, ni e-mail.
+
+Sans -o, le document est écrit sur la sortie standard. Avec -o, le fichier est créé
+en 0600 ; un fichier existant n'est écrasé qu'avec --force.`,
+	},
+	"cli.repo.help.export_flag_output": {
+		"writes the document to this `file` (created in 0600) instead of standard output",
+		"écrit le document dans ce `fichier` (créé en 0600) au lieu de la sortie standard",
+	},
+	"cli.repo.help.export_flag_force": {
+		"overwrites the file of -o if it already exists",
+		"écrase le fichier de -o s'il existe déjà",
+	},
+	"cli.repo.help.config_import_short": {
+		"Merges a shared configuration file into the workspace, after a preview",
+		"Fusionne un fichier de configuration partagé dans l'espace, après un aperçu",
+	},
+	"cli.repo.help.config_import_long": {
+		`Merges into the workspace a file written by "watchoo config export", after a preview.
+
+The whole file is validated before anything is changed. The missing repositories are
+added (access checked with GitHub), the repositories already tracked receive the
+display name and the branches of the file, a stopped repository resumes its tracking;
+nothing is ever removed. If a common setting changes, .watchoo/config.yaml is
+rewritten from the commented template (copy of the old one in config.yaml.bak).
+
+On a terminal, the preview is followed by a question; otherwise --yes is required, as
+well as with --json (without --dry-run). "-" reads the file from standard input (--yes
+required then). The exit code is non-zero if inaccessible repositories remain. The
+import does not start a sync: follow up with "watchoo sync".`,
+		`Fusionne dans l'espace un fichier écrit par « watchoo config export », après un aperçu.
+
+Tout le fichier est validé avant de modifier quoi que ce soit. Les dépôts absents
+sont ajoutés (accès vérifié auprès de GitHub), les dépôts déjà suivis reçoivent le nom
+affiché et les branches du fichier, un dépôt arrêté reprend son suivi ; rien n'est
+jamais retiré. Si un réglage commun change, .watchoo/config.yaml est réécrit à partir
+du modèle commenté (copie de l'ancien dans config.yaml.bak).
+
+Sur un terminal, l'aperçu est suivi d'une question ; sinon --yes est obligatoire,
+ainsi qu'avec --json (sans --dry-run). « - » lit le fichier sur l'entrée standard
+(--yes obligatoire alors). Le code de retour est non nul s'il reste des dépôts
+inaccessibles. L'import ne lance pas de synchro : enchaînez avec « watchoo sync ».`,
+	},
+	"cli.repo.help.config_import_flag_dry_run": {
+		"shows the preview and checks the access to the repositories, without writing anything",
+		"affiche l'aperçu et vérifie l'accès aux dépôts, sans rien écrire",
+	},
+	"cli.repo.help.config_import_flag_yes": {
+		"applies without asking for confirmation",
+		"applique sans demander de confirmation",
 	},
 }
 

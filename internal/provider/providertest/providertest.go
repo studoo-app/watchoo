@@ -1,35 +1,35 @@
-// Package providertest fournit un faux provider.Provider en mémoire, pour les tests du moteur de
-// synchro (phase 3), de la CLI, du web et du TUI. Aucune requête réseau, aucun serveur.
+// Package providertest provides a fake in-memory provider.Provider, for the tests of the sync
+// engine (phase 3), the CLI, the web and the TUI. No network request, no server.
 //
-// Le Fake reproduit le CONTRAT de provider.Provider (voir internal/provider) : validation des
-// arguments avec provider.Validate* (ErrInvalidRef), owner/nom comparés sans tenir compte de la casse,
-// suivi des renommages, ordre des commits, Since, Stop, Limit, MaxCommits, MaxBranches, dépôt vide,
-// ErrUnknownBase, slices vides non nil, copies indépendantes (modifier un résultat ne modifie pas le
-// Fake). Il ne dépend que de internal/provider et internal/model.
+// The Fake reproduces the CONTRACT of provider.Provider (see internal/provider): validation of the
+// arguments with provider.Validate* (ErrInvalidRef), owner/name compared case-insensitively,
+// tracking of renamings, order of the commits, Since, Stop, Limit, MaxCommits, MaxBranches, empty
+// repository, ErrUnknownBase, empty non-nil slices, independent copies (modifying a result does not
+// modify the Fake). It only depends on internal/provider, internal/model and internal/i18n.
 //
-// Erreurs : comme le Provider GitHub, les erreurs produites par le Fake lui-même (dépôt inconnu, dépôt
-// vide, quota épuisé…) sont des *provider.APIError {Op, Method: « GET », Path, Status} qui enveloppent
-// l'erreur sentinelle (Op et Path reprennent les libellés du Provider GitHub, par exemple « lecture du
-// dépôt alice/projet » et « /repos/alice/projet »). Les erreurs de validation, ctx.Err() et les
-// erreurs injectées (SetError, FailNext, SetRepoError) sont renvoyées telles quelles.
+// Errors: like the GitHub Provider, the errors produced by the Fake itself (unknown repository, empty
+// repository, exhausted quota…) are *provider.APIError {Op, Method: "GET", Path, Status} wrapping
+// the sentinel error (Op and Path reuse the labels of the GitHub Provider, from the i18n catalog, for
+// example "reading repository alice/projet" and "/repos/alice/projet"). Validation errors, ctx.Err()
+// and injected errors (SetError, FailNext, SetRepoError) are returned as is.
 //
-// Dates : comme sur GitHub, elles sont en UTC et à la seconde ; les dates reçues par AddRepository,
-// UpdateRepository, AddCommits et AppendCommits sont converties en UTC et tronquées à la seconde.
+// Dates: as on GitHub, they are in UTC and to the second; the dates received by AddRepository,
+// UpdateRepository, AddCommits and AppendCommits are converted to UTC and truncated to the second.
 //
-// Sûr pour un usage concurrent. Les méthodes de préparation (AddRepository, AddCommits…) paniquent sur
-// une préparation incohérente (dépôt inconnu, parent inconnu…) : c'est une erreur du test.
+// Safe for concurrent use. The setup methods (AddRepository, AddCommits…) panic on an inconsistent
+// setup (unknown repository, unknown parent…): it is an error of the test.
 //
-// Ordre des contrôles dans chaque méthode de provider.Provider :
-//  1. comptage de l'appel (Calls, CallLog) ;
-//  2. ctx.Err() (contexte terminé) : renvoyée telle quelle ;
-//  3. validation des arguments : erreur enveloppant provider.ErrInvalidRef ;
-//  4. erreur injectée : d'abord la file de FailNext pour cette méthode, puis SetError ;
-//  5. erreur propre au dépôt (SetRepoError), pour les méthodes portant sur un dépôt ;
-//  6. quota simulé (SetRateLimit) : voir SetRateLimit ;
-//  7. logique en mémoire.
+// Order of the checks in every method of provider.Provider:
+//  1. counting the call (Calls, CallLog);
+//  2. ctx.Err() (context done): returned as is;
+//  3. validation of the arguments: error wrapping provider.ErrInvalidRef;
+//  4. injected error: first the FailNext queue for this method, then SetError;
+//  5. error specific to the repository (SetRepoError), for the methods on a repository;
+//  6. simulated quota (SetRateLimit): see SetRateLimit;
+//  7. in-memory logic.
 //
-// Seule exception, comme pour le Provider GitHub qui n'envoie alors aucune requête : CompareCommits
-// avec base == head renvoie une liste vide juste après l'étape 3.
+// Only exception, as for the GitHub Provider which then sends no request: CompareCommits with
+// base == head returns an empty list right after step 3.
 package providertest
 
 import (
@@ -43,27 +43,28 @@ import (
 	"sync"
 	"time"
 
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/provider"
 )
 
-// Valeurs du quota simulé par défaut (comme GitHub : 5 000 requêtes par heure).
+// Default values of the simulated quota (like GitHub: 5,000 requests per hour).
 const (
 	defaultRateLimit = 5000
 	rateWindow       = time.Hour
 )
 
-// Codes HTTP des erreurs produites par le Fake (ceux que renverrait GitHub).
+// HTTP codes of the errors produced by the Fake (those GitHub would return).
 const (
 	statusForbidden = 403
 	statusNotFound  = 404
 	statusConflict  = 409
 )
 
-// Method nomme une méthode de provider.Provider, pour l'injection d'erreurs et le comptage des appels.
+// Method names a method of provider.Provider, for error injection and call counting.
 type Method string
 
-// Méthodes de provider.Provider (Name et LastRateLimit ne sont ni comptées ni injectables).
+// Methods of provider.Provider (Name and LastRateLimit are neither counted nor injectable).
 const (
 	MethodRepository     Method = "Repository"
 	MethodRepositoryByID Method = "RepositoryByID"
@@ -77,7 +78,7 @@ const (
 	MethodRateLimit      Method = "RateLimit"
 )
 
-// valid indique si m est l'une des méthodes ci-dessus.
+// valid reports whether m is one of the methods above.
 func (m Method) valid() bool {
 	switch m {
 	case MethodRepository, MethodRepositoryByID, MethodBranches, MethodListCommits, MethodCompareCommits,
@@ -87,62 +88,62 @@ func (m Method) valid() bool {
 	return false
 }
 
-// Call est un appel reçu par le Fake (CallLog). Seuls les champs utiles à la méthode sont remplis.
+// Call is a call received by the Fake (CallLog). Only the fields useful to the method are filled.
 type Call struct {
 	Method Method
-	Owner  string // owner tel que passé (toutes les méthodes portant sur un dépôt nommé)
-	Name   string // nom tel que passé
+	Owner  string // owner as passed (all the methods on a named repository)
+	Name   string // name as passed
 	ID     int64  // RepositoryByID
-	// Opts reprend les options de ListCommits, sauf Stop (toujours nil ici) ; StopSet indique si un
-	// Stop était fourni.
+	// Opts holds the options of ListCommits, except Stop (always nil here); StopSet reports whether a
+	// Stop was given.
 	Opts    provider.ListCommitsOptions
 	StopSet bool
 	Base    string // CompareCommits
 	Head    string // CompareCommits
 	SHA     string // CommitStats
-	// PullOpts reprend les options de PullRequests.
+	// PullOpts holds the options of PullRequests.
 	PullOpts provider.PullRequestsOptions
 }
 
-// Fake est un provider.Provider en mémoire. Construire avec New.
+// Fake is an in-memory provider.Provider. Build it with New.
 type Fake struct {
 	mu       sync.Mutex
 	repos    map[int64]*fakeRepo
-	names    map[string]int64 // nameKey (nom actuel ou ancien) → identifiant du dépôt
+	names    map[string]int64 // nameKey (current or old name) → repository identifier
 	errs     map[Method]error
 	next     map[Method][]error
-	repoErrs map[string]error // nameKey → erreur (SetRepoError)
+	repoErrs map[string]error // nameKey → error (SetRepoError)
 	calls    map[Method]int
 	log      []Call
-	rate     provider.RateLimit // quota simulé (si rateOn)
+	rate     provider.RateLimit // simulated quota (if rateOn)
 	rateOn   bool
 	now      func() time.Time
 }
 
-// fakeRepo est un dépôt en mémoire.
+// fakeRepo is an in-memory repository.
 type fakeRepo struct {
 	meta     provider.Repository
-	keys     []string // nameKey du nom actuel et des anciens noms encore redirigés
+	keys     []string // nameKey of the current name and of the old names still redirected
 	commits  map[string]*fakeCommit
-	seq      int               // nombre de commits ajoutés depuis la création (ordre d'ajout)
-	branches map[string]string // nom → SHA de tête
+	seq      int               // number of commits added since creation (order of addition)
+	branches map[string]string // name → head SHA
 	stats    map[string]provider.CommitStats
-	pulls    map[int]provider.PullRequest // numéro → pull request (SetPullRequests)
+	pulls    map[int]provider.PullRequest // number → pull request (SetPullRequests)
 	releases []provider.Release           // SetReleases
-	tags     []provider.Tag               // SetTags, dans l'ordre donné
+	tags     []provider.Tag               // SetTags, in the given order
 }
 
-// fakeCommit est un commit en mémoire et son rang d'ajout. Il n'est plus jamais modifié après
-// AddCommits : il peut donc être lu hors du verrou une fois obtenu sous le verrou.
+// fakeCommit is an in-memory commit and its rank of addition. It is never modified after
+// AddCommits: it can therefore be read outside the lock once obtained under the lock.
 type fakeCommit struct {
 	c   provider.Commit
 	seq int
 }
 
-// Vérifie à la compilation que *Fake implémente provider.Provider.
+// Checks at compile time that *Fake implements provider.Provider.
 var _ provider.Provider = (*Fake)(nil)
 
-// New renvoie un Fake vide : aucun dépôt, pas de quota simulé, horloge time.Now.
+// New returns an empty Fake: no repository, no simulated quota, clock time.Now.
 func New() *Fake {
 	return &Fake{
 		repos:    make(map[int64]*fakeRepo),
@@ -155,12 +156,12 @@ func New() *Fake {
 	}
 }
 
-// nameKey renvoie la clé d'un dépôt : « owner/name » en minuscules (GitHub ignore la casse).
+// nameKey returns the key of a repository: "owner/name" in lowercase (GitHub ignores case).
 func nameKey(owner, name string) string {
 	return strings.ToLower(owner + "/" + name)
 }
 
-// utcSecond convertit t en UTC à la seconde ; la valeur zéro reste zéro.
+// utcSecond converts t to UTC to the second; the zero value stays zero.
 func utcSecond(t time.Time) time.Time {
 	if t.IsZero() {
 		return time.Time{}
@@ -168,25 +169,25 @@ func utcSecond(t time.Time) time.Time {
 	return t.UTC().Truncate(time.Second)
 }
 
-// clock renvoie l'heure du Fake, en UTC. Appelée avec f.mu verrouillé.
+// clock returns the Fake's time, in UTC. Called with f.mu locked.
 func (f *Fake) clock() time.Time { return f.now().UTC() }
 
-// ----- Préparation -----
+// ----- Setup -----
 
-// AddRepository ajoute un dépôt (ID > 0 unique ; Owner et Name valides et uniques sans tenir compte
-// de la casse ; DefaultBranch vide = « main »). Le dépôt n'a ni branche ni commit : il est vide. Un
-// ancien nom d'un dépôt renommé peut être repris : il désigne alors le nouveau dépôt, comme sur GitHub.
+// AddRepository adds a repository (unique ID > 0; valid Owner and Name, unique case-insensitively;
+// empty DefaultBranch = "main"). The repository has neither branch nor commit: it is empty. An old
+// name of a renamed repository can be taken again: it then designates the new repository, as on GitHub.
 func (f *Fake) AddRepository(r provider.Repository) {
 	if err := provider.ValidateID(r.ID); err != nil {
-		panic("providertest.AddRepository : " + err.Error())
+		panic("providertest.AddRepository: " + err.Error())
 	}
 	if err := provider.ValidateRepo(r.Owner, r.Name); err != nil {
-		panic("providertest.AddRepository : " + err.Error())
+		panic("providertest.AddRepository: " + err.Error())
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if _, ok := f.repos[r.ID]; ok {
-		panic(fmt.Sprintf("providertest.AddRepository : identifiant %d déjà pris", r.ID))
+		panic(fmt.Sprintf("providertest.AddRepository: identifier %d already taken", r.ID))
 	}
 	key := nameKey(r.Owner, r.Name)
 	f.claimName(key, r.ID, "providertest.AddRepository")
@@ -202,7 +203,7 @@ func (f *Fake) AddRepository(r provider.Repository) {
 	f.names[key] = r.ID
 }
 
-// normalizeRepo applique les valeurs par défaut et les conventions de date.
+// normalizeRepo applies the default values and the date conventions.
 func normalizeRepo(r provider.Repository) provider.Repository {
 	if r.DefaultBranch == "" {
 		r.DefaultBranch = "main"
@@ -211,8 +212,8 @@ func normalizeRepo(r provider.Repository) provider.Repository {
 	return r
 }
 
-// claimName réserve key pour le dépôt id : panique si key est le nom ACTUEL d'un autre dépôt ; un
-// ancien nom d'un autre dépôt lui est retiré. Appelée avec f.mu verrouillé.
+// claimName reserves key for the repository id: panics if key is the CURRENT name of another
+// repository; an old name of another repository is taken from it. Called with f.mu locked.
 func (f *Fake) claimName(key string, id int64, op string) {
 	other, ok := f.names[key]
 	if !ok || other == id {
@@ -220,19 +221,19 @@ func (f *Fake) claimName(key string, id int64, op string) {
 	}
 	o := f.repos[other]
 	if nameKey(o.meta.Owner, o.meta.Name) == key {
-		panic(fmt.Sprintf("%s : dépôt %s déjà présent (identifiant %d)", op, o.meta.FullName(), other))
+		panic(fmt.Sprintf("%s: repository %s already present (identifier %d)", op, o.meta.FullName(), other))
 	}
 	o.keys = slices.DeleteFunc(o.keys, func(k string) bool { return k == key })
 	delete(f.names, key)
 }
 
-// UpdateRepository remplace les métadonnées du dépôt r.ID (qui doit exister ; DefaultBranch vide =
-// « main »). Si Owner ou Name changent, c'est un renommage ou un transfert : Repository(ancien owner,
-// ancien nom) et les autres méthodes appelées avec l'ancien nom continuent de trouver le dépôt (comme
-// la redirection 301 de GitHub) et renvoient les valeurs actuelles.
+// UpdateRepository replaces the metadata of the repository r.ID (which must exist; empty
+// DefaultBranch = "main"). If Owner or Name change, it is a renaming or a transfer: Repository(old
+// owner, old name) and the other methods called with the old name still find the repository (like
+// GitHub's 301 redirection) and return the current values.
 func (f *Fake) UpdateRepository(r provider.Repository) {
 	if err := provider.ValidateRepo(r.Owner, r.Name); err != nil {
-		panic("providertest.UpdateRepository : " + err.Error())
+		panic("providertest.UpdateRepository: " + err.Error())
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -246,8 +247,8 @@ func (f *Fake) UpdateRepository(r provider.Repository) {
 	repo.meta = normalizeRepo(r)
 }
 
-// RemoveRepository retire le dépôt id : toutes les méthodes répondent ensuite ErrNotFound pour lui,
-// comme pour un dépôt privé devenu inaccessible. Ses noms (actuel et anciens) sont libérés.
+// RemoveRepository removes the repository id: all the methods then answer ErrNotFound for it, as
+// for a private repository that became inaccessible. Its names (current and old) are released.
 func (f *Fake) RemoveRepository(id int64) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -258,18 +259,18 @@ func (f *Fake) RemoveRepository(id int64) {
 	delete(f.repos, id)
 }
 
-// repoLocked renvoie le dépôt id ; panique s'il est inconnu. Appelée avec f.mu verrouillé.
+// repoLocked returns the repository id; panics if it is unknown. Called with f.mu locked.
 func (f *Fake) repoLocked(op string, id int64) *fakeRepo {
 	repo, ok := f.repos[id]
 	if !ok {
-		panic(fmt.Sprintf("%s : dépôt %d inconnu", op, id))
+		panic(fmt.Sprintf("%s: unknown repository %d", op, id))
 	}
 	return repo
 }
 
-// AddCommits ajoute des commits au dépôt repoID, dans l'ordre (chaque parent doit déjà exister dans le
-// dépôt ou figurer plus tôt dans l'appel). Les commits sont copiés. Ajouter un commit ne déplace aucune
-// branche (voir SetBranch). SHA invalide (provider.ValidateSHA) ou déjà présent : panique.
+// AddCommits adds commits to the repository repoID, in order (every parent must already exist in the
+// repository or appear earlier in the call). The commits are copied. Adding a commit moves no branch
+// (see SetBranch). Invalid (provider.ValidateSHA) or already present SHA: panic.
 func (f *Fake) AddCommits(repoID int64, commits ...provider.Commit) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -279,17 +280,17 @@ func (f *Fake) AddCommits(repoID int64, commits ...provider.Commit) {
 	}
 }
 
-// addCommitLocked ajoute une copie de c à repo. Appelée avec f.mu verrouillé.
+// addCommitLocked adds a copy of c to repo. Called with f.mu locked.
 func (f *Fake) addCommitLocked(repo *fakeRepo, c provider.Commit) {
 	if err := provider.ValidateSHA(c.SHA); err != nil {
-		panic("providertest.AddCommits : " + err.Error())
+		panic("providertest.AddCommits: " + err.Error())
 	}
 	if _, ok := repo.commits[c.SHA]; ok {
-		panic(fmt.Sprintf("providertest.AddCommits : commit %s déjà présent dans le dépôt %d", c.SHA, repo.meta.ID))
+		panic(fmt.Sprintf("providertest.AddCommits: commit %s already present in repository %d", c.SHA, repo.meta.ID))
 	}
 	for _, p := range c.Parents {
 		if _, ok := repo.commits[p]; !ok {
-			panic(fmt.Sprintf("providertest.AddCommits : parent %s du commit %s inconnu dans le dépôt %d",
+			panic(fmt.Sprintf("providertest.AddCommits: parent %s of commit %s unknown in repository %d",
 				provider.ShortSHA(p), provider.ShortSHA(c.SHA), repo.meta.ID))
 		}
 	}
@@ -299,22 +300,22 @@ func (f *Fake) addCommitLocked(repo *fakeRepo, c provider.Commit) {
 	repo.commits[c.SHA] = &fakeCommit{c: c, seq: repo.seq}
 }
 
-// AppendCommits ajoute n commits linéaires au-dessus de la tête de branch (ou un historique neuf si la
-// branche n'existe pas), de SHA déterministes (SHA de « <repoID>/<branch>/<k> », k = rang du commit
-// dans le dépôt, augmenté si besoin) distincts de ceux déjà présents, datés start, start+step…
-// (AuthoredAt = CommittedAt, UTC), de messages « commit <k> », d'URL
-// « https://github.com/<owner>/<name>/commit/<sha> », par l'auteur factice {Name: « Étudiant Test »,
-// Email: « etudiant@example.test », Login: « etudiant-test », ID: 1001, AvatarURL:
-// « https://avatars.example.test/u/1001 », ProfileURL: « https://github.example.test/etudiant-test »}
-// (Committer identique), puis place branch sur le dernier.
-// Renvoie les commits créés dans l'ordre de création (du plus ancien au plus récent ; slice vide non
-// nil si n vaut 0, sans toucher à la branche). n négatif ou branche invalide : panique.
+// AppendCommits adds n linear commits on top of the head of branch (or a new history if the branch
+// does not exist), with deterministic SHAs (SHA of "<repoID>/<branch>/<k>", k = rank of the commit in
+// the repository, increased if needed) distinct from those already present, dated start, start+step…
+// (AuthoredAt = CommittedAt, UTC), with messages "commit <k>", URLs
+// "https://github.com/<owner>/<name>/commit/<sha>", by the dummy author {Name: "Étudiant Test",
+// Email: "etudiant@example.test", Login: "etudiant-test", ID: 1001, AvatarURL:
+// "https://avatars.example.test/u/1001", ProfileURL: "https://github.example.test/etudiant-test"}
+// (same Committer), then puts branch on the last one.
+// Returns the created commits in creation order (from oldest to newest; empty non-nil slice if n is
+// 0, without touching the branch). Negative n or invalid branch: panic.
 func (f *Fake) AppendCommits(repoID int64, branch string, n int, start time.Time, step time.Duration) []provider.Commit {
 	if err := provider.ValidateBranch(branch); err != nil {
-		panic("providertest.AppendCommits : " + err.Error())
+		panic("providertest.AppendCommits: " + err.Error())
 	}
 	if n < 0 {
-		panic(fmt.Sprintf("providertest.AppendCommits : nombre de commits %d négatif", n))
+		panic(fmt.Sprintf("providertest.AppendCommits: negative number of commits %d", n))
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -336,7 +337,7 @@ func (f *Fake) AppendCommits(repoID int64, branch string, n int, start time.Time
 			k++
 			sha = SHA(fmt.Sprintf("%d/%s/%d", repoID, branch, k))
 		}
-		repo.seq = k - 1 // addCommitLocked le porte à k
+		repo.seq = k - 1 // addCommitLocked brings it to k
 		at := start.Add(time.Duration(i) * step)
 		c := provider.Commit{
 			SHA:         sha,
@@ -360,68 +361,68 @@ func (f *Fake) AppendCommits(repoID int64, branch string, n int, start time.Time
 	return out
 }
 
-// SetBranch crée la branche name du dépôt repoID ou la déplace (y compris en arrière : force-push)
-// vers headSHA, qui doit exister dans le dépôt (sinon panique ; nom invalide aussi).
+// SetBranch creates the branch name of the repository repoID or moves it (including backwards:
+// force-push) to headSHA, which must exist in the repository (otherwise panic; invalid name too).
 func (f *Fake) SetBranch(repoID int64, name, headSHA string) {
 	if err := provider.ValidateBranch(name); err != nil {
-		panic("providertest.SetBranch : " + err.Error())
+		panic("providertest.SetBranch: " + err.Error())
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	repo := f.repoLocked("providertest.SetBranch", repoID)
 	if _, ok := repo.commits[headSHA]; !ok {
-		panic(fmt.Sprintf("providertest.SetBranch : commit %s inconnu dans le dépôt %d", headSHA, repoID))
+		panic(fmt.Sprintf("providertest.SetBranch: unknown commit %s in repository %d", headSHA, repoID))
 	}
 	repo.branches[name] = headSHA
 }
 
-// DeleteBranch supprime la branche name du dépôt repoID (les commits restent). Branche inconnue :
-// panique.
+// DeleteBranch deletes the branch name of the repository repoID (the commits stay). Unknown branch:
+// panic.
 func (f *Fake) DeleteBranch(repoID int64, name string) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	repo := f.repoLocked("providertest.DeleteBranch", repoID)
 	if _, ok := repo.branches[name]; !ok {
-		panic(fmt.Sprintf("providertest.DeleteBranch : branche %q inconnue dans le dépôt %d", name, repoID))
+		panic(fmt.Sprintf("providertest.DeleteBranch: unknown branch %q in repository %d", name, repoID))
 	}
 	delete(repo.branches, name)
 }
 
-// RemoveCommit retire le commit sha du dépôt repoID (nettoyage après un force-push) : CompareCommits
-// avec ce commit pour base renvoie ensuite ErrUnknownBase. Le commit ne doit plus être la tête d'une
-// branche (sinon panique) ; les commits qui le référencent comme parent le gardent dans Parents (le
-// parcours de l'historique s'y arrête).
+// RemoveCommit removes the commit sha from the repository repoID (cleanup after a force-push):
+// CompareCommits with this commit as base then returns ErrUnknownBase. The commit must no longer be
+// the head of a branch (otherwise panic); the commits referencing it as a parent keep it in Parents
+// (the history walk stops there).
 func (f *Fake) RemoveCommit(repoID int64, sha string) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	repo := f.repoLocked("providertest.RemoveCommit", repoID)
 	if _, ok := repo.commits[sha]; !ok {
-		panic(fmt.Sprintf("providertest.RemoveCommit : commit %s inconnu dans le dépôt %d", sha, repoID))
+		panic(fmt.Sprintf("providertest.RemoveCommit: unknown commit %s in repository %d", sha, repoID))
 	}
 	for name, head := range repo.branches {
 		if head == sha {
-			panic(fmt.Sprintf("providertest.RemoveCommit : le commit %s est la tête de la branche %q", sha, name))
+			panic(fmt.Sprintf("providertest.RemoveCommit: commit %s is the head of branch %q", sha, name))
 		}
 	}
 	delete(repo.commits, sha)
 	delete(repo.stats, sha)
 }
 
-// SetStats fixe les statistiques renvoyées par CommitStats pour le commit sha du dépôt repoID (zéro
-// par défaut pour un commit connu). Commit inconnu : panique.
+// SetStats sets the statistics returned by CommitStats for the commit sha of the repository repoID
+// (zero by default for a known commit). Unknown commit: panic.
 func (f *Fake) SetStats(repoID int64, sha string, s provider.CommitStats) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	repo := f.repoLocked("providertest.SetStats", repoID)
 	if _, ok := repo.commits[sha]; !ok {
-		panic(fmt.Sprintf("providertest.SetStats : commit %s inconnu dans le dépôt %d", sha, repoID))
+		panic(fmt.Sprintf("providertest.SetStats: unknown commit %s in repository %d", sha, repoID))
 	}
 	repo.stats[sha] = s
 }
 
-// SetPullRequests ajoute ou remplace (par numéro) des pull requests du dépôt repoID. Les dates sont
-// converties en UTC et tronquées à la seconde. Numéro <= 0, état autre que provider.PullRequestOpen ou
-// provider.PullRequestClosed, UpdatedAt nul ou dépôt inconnu : panique.
+// SetPullRequests adds or replaces (by number) pull requests of the repository repoID. The dates are
+// converted to UTC and truncated to the second. Number <= 0, state other than provider.PullRequestOpen
+// or provider.PullRequestClosed, zero UpdatedAt or unknown repository: panic.
 func (f *Fake) SetPullRequests(repoID int64, pulls ...provider.PullRequest) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -429,11 +430,11 @@ func (f *Fake) SetPullRequests(repoID int64, pulls ...provider.PullRequest) {
 	for _, pr := range pulls {
 		switch {
 		case pr.Number <= 0:
-			panic(fmt.Sprintf("providertest.SetPullRequests : numéro %d invalide", pr.Number))
+			panic(fmt.Sprintf("providertest.SetPullRequests: invalid number %d", pr.Number))
 		case pr.State != provider.PullRequestOpen && pr.State != provider.PullRequestClosed:
-			panic(fmt.Sprintf("providertest.SetPullRequests : état %q invalide", pr.State))
+			panic(fmt.Sprintf("providertest.SetPullRequests: invalid state %q", pr.State))
 		case pr.UpdatedAt.IsZero():
-			panic(fmt.Sprintf("providertest.SetPullRequests : PR n° %d sans UpdatedAt", pr.Number))
+			panic(fmt.Sprintf("providertest.SetPullRequests: PR #%d without UpdatedAt", pr.Number))
 		}
 		pr.CreatedAt, pr.UpdatedAt = utcSecond(pr.CreatedAt), utcSecond(pr.UpdatedAt)
 		pr.ClosedAt, pr.MergedAt = utcSecond(pr.ClosedAt), utcSecond(pr.MergedAt)
@@ -441,8 +442,8 @@ func (f *Fake) SetPullRequests(repoID int64, pulls ...provider.PullRequest) {
 	}
 }
 
-// SetReleases remplace les releases du dépôt repoID (dates en UTC à la seconde). Identifiant <= 0,
-// tag vide ou dépôt inconnu : panique.
+// SetReleases replaces the releases of the repository repoID (dates in UTC to the second). Identifier
+// <= 0, empty tag or unknown repository: panic.
 func (f *Fake) SetReleases(repoID int64, releases ...provider.Release) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -450,7 +451,7 @@ func (f *Fake) SetReleases(repoID int64, releases ...provider.Release) {
 	out := make([]provider.Release, 0, len(releases))
 	for _, r := range releases {
 		if r.ID <= 0 || r.TagName == "" {
-			panic(fmt.Sprintf("providertest.SetReleases : release %d (tag %q) invalide", r.ID, r.TagName))
+			panic(fmt.Sprintf("providertest.SetReleases: invalid release %d (tag %q)", r.ID, r.TagName))
 		}
 		r.CreatedAt, r.PublishedAt = utcSecond(r.CreatedAt), utcSecond(r.PublishedAt)
 		out = append(out, r)
@@ -458,36 +459,36 @@ func (f *Fake) SetReleases(repoID int64, releases ...provider.Release) {
 	repo.releases = out
 }
 
-// SetTags remplace les tags du dépôt repoID, renvoyés par Tags dans cet ordre. Nom vide, SHA invalide
-// (provider.ValidateSHA) ou dépôt inconnu : panique (le commit visé n'a pas besoin d'exister).
+// SetTags replaces the tags of the repository repoID, returned by Tags in that order. Empty name,
+// invalid SHA (provider.ValidateSHA) or unknown repository: panic (the target commit need not exist).
 func (f *Fake) SetTags(repoID int64, tags ...provider.Tag) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	repo := f.repoLocked("providertest.SetTags", repoID)
 	for _, t := range tags {
 		if t.Name == "" {
-			panic("providertest.SetTags : tag sans nom")
+			panic("providertest.SetTags: tag without name")
 		}
 		if err := provider.ValidateSHA(t.SHA); err != nil {
-			panic("providertest.SetTags : " + err.Error())
+			panic("providertest.SetTags: " + err.Error())
 		}
 	}
 	repo.tags = slices.Clone(tags)
 }
 
-// SHA renvoie un SHA-1 factice et déterministe (40 hex minuscules) dérivé de seed.
+// SHA returns a dummy, deterministic SHA-1 (40 lowercase hex) derived from seed.
 func SHA(seed string) string {
 	sum := sha1.Sum([]byte(seed))
 	return hex.EncodeToString(sum[:])
 }
 
-// ----- Erreurs injectées -----
+// ----- Injected errors -----
 
-// SetError fait échouer tous les appels suivants à m avec err (nil = rétablir le comportement normal).
-// Méthode inconnue : panique.
+// SetError makes all the following calls to m fail with err (nil = restore the normal behavior).
+// Unknown method: panic.
 func (f *Fake) SetError(m Method, err error) {
 	if !m.valid() {
-		panic(fmt.Sprintf("providertest.SetError : méthode %q inconnue", m))
+		panic(fmt.Sprintf("providertest.SetError: unknown method %q", m))
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -498,24 +499,24 @@ func (f *Fake) SetError(m Method, err error) {
 	f.errs[m] = err
 }
 
-// FailNext fait échouer le prochain appel à m avec err ; plusieurs FailNext s'enchaînent dans l'ordre
-// (file), avant SetError. Méthode inconnue ou err nil : panique.
+// FailNext makes the next call to m fail with err; several FailNext calls chain in order (queue),
+// before SetError. Unknown method or nil err: panic.
 func (f *Fake) FailNext(m Method, err error) {
 	if !m.valid() {
-		panic(fmt.Sprintf("providertest.FailNext : méthode %q inconnue", m))
+		panic(fmt.Sprintf("providertest.FailNext: unknown method %q", m))
 	}
 	if err == nil {
-		panic("providertest.FailNext : erreur nil")
+		panic("providertest.FailNext: nil error")
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.next[m] = append(f.next[m], err)
 }
 
-// SetRepoError fait échouer tous les appels portant sur le dépôt owner/name (sans tenir compte de la
-// casse, nom actuel ou ancien), quelle que soit la méthode (RepositoryByID compris, par l'ID du dépôt
-// s'il est connu), avec err ; nil = rétablir. Exemple : un *provider.SSORequiredError pour un seul
-// dépôt d'une organisation. L'erreur peut être posée avant l'ajout du dépôt.
+// SetRepoError makes all the calls on the repository owner/name fail (case-insensitively, current or
+// old name), whatever the method (RepositoryByID included, through the repository's ID if it is
+// known), with err; nil = restore. Example: a *provider.SSORequiredError for a single repository of
+// an organization. The error can be set before the repository is added.
 func (f *Fake) SetRepoError(owner, name string, err error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -532,23 +533,23 @@ func (f *Fake) SetRepoError(owner, name string, err error) {
 	}
 }
 
-// ----- Appels -----
+// ----- Calls -----
 
-// Calls renvoie le nombre d'appels reçus par m (y compris ceux qui ont échoué).
+// Calls returns the number of calls received by m (including those that failed).
 func (f *Fake) Calls(m Method) int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.calls[m]
 }
 
-// CallLog renvoie une copie du journal des appels, dans l'ordre.
+// CallLog returns a copy of the call log, in order.
 func (f *Fake) CallLog() []Call {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return slices.Clone(f.log)
 }
 
-// ResetCalls vide le journal et les compteurs.
+// ResetCalls empties the log and the counters.
 func (f *Fake) ResetCalls() {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -556,25 +557,25 @@ func (f *Fake) ResetCalls() {
 	clear(f.calls)
 }
 
-// ----- Quota simulé -----
+// ----- Simulated quota -----
 
-// SetRateLimit active le quota simulé avec l'état rl (Reset en UTC, tronqué à la seconde ; zéro =
-// maintenant + 1 h ; Limit nul ou négatif = 5 000 ; Used = Limit - Remaining si Used vaut 0 ;
-// Remaining négatif : panique). Dès lors, chaque appel de Repository, RepositoryByID, Branches,
-// ListCommits, CompareCommits, CommitStats, PullRequests, Releases ou Tags, après les étapes 1 à 5 :
-//   - si maintenant >= Reset : nouvelle fenêtre (Remaining = Limit, Used = 0, Reset avancé d'heure en
-//     heure jusqu'à dépasser maintenant) ;
-//   - si Remaining == 0 : erreur *provider.RateLimitError{Reset} (errors.Is ErrRateLimited), dans un
-//     *provider.APIError de code 403 ;
-//   - sinon : Remaining--, Used++, et l'appel continue.
+// SetRateLimit enables the simulated quota with the state rl (Reset in UTC, truncated to the second;
+// zero = now + 1 h; zero or negative Limit = 5,000; Used = Limit - Remaining if Used is 0; negative
+// Remaining: panic). From then on, every call to Repository, RepositoryByID, Branches,
+// ListCommits, CompareCommits, CommitStats, PullRequests, Releases or Tags, after steps 1 to 5:
+//   - if now >= Reset: new window (Remaining = Limit, Used = 0, Reset moved forward hour by hour
+//     until it passes now);
+//   - if Remaining == 0: error *provider.RateLimitError{Reset} (errors.Is ErrRateLimited), in a
+//     *provider.APIError with code 403;
+//   - otherwise: Remaining--, Used++, and the call goes on.
 //
-// LastRateLimit renvoie alors l'état courant (ObservedAt = maintenant) et true ; RateLimit aussi, sans
-// consommer. Sans SetRateLimit, LastRateLimit renvoie false (même après RateLimit) et RateLimit
-// renvoie {Limit: 5000, Remaining: 5000, Reset: maintenant + 1 h tronqué à la seconde, ObservedAt:
-// maintenant}.
+// LastRateLimit then returns the current state (ObservedAt = now) and true; RateLimit too, without
+// consuming. Without SetRateLimit, LastRateLimit returns false (even after RateLimit) and RateLimit
+// returns {Limit: 5000, Remaining: 5000, Reset: now + 1 h truncated to the second, ObservedAt:
+// now}.
 func (f *Fake) SetRateLimit(rl provider.RateLimit) {
 	if rl.Remaining < 0 {
-		panic(fmt.Sprintf("providertest.SetRateLimit : Remaining %d négatif", rl.Remaining))
+		panic(fmt.Sprintf("providertest.SetRateLimit: negative Remaining %d", rl.Remaining))
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -592,8 +593,8 @@ func (f *Fake) SetRateLimit(rl provider.RateLimit) {
 	f.rate, f.rateOn = rl, true
 }
 
-// SetClock remplace l'horloge du Fake (quota, ObservedAt) ; nil = time.Now. L'horloge est appelée sous
-// le verrou du Fake.
+// SetClock replaces the Fake's clock (quota, ObservedAt); nil = time.Now. The clock is called under
+// the Fake's lock.
 func (f *Fake) SetClock(now func() time.Time) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -603,8 +604,8 @@ func (f *Fake) SetClock(now func() time.Time) {
 	f.now = now
 }
 
-// renewRate ouvre une nouvelle fenêtre de quota si la précédente est échue. Appelée avec f.mu
-// verrouillé et le quota simulé actif.
+// renewRate opens a new quota window if the previous one has expired. Called with f.mu locked and
+// the simulated quota active.
 func (f *Fake) renewRate(now time.Time) {
 	if now.Before(f.rate.Reset) {
 		return
@@ -614,7 +615,7 @@ func (f *Fake) renewRate(now time.Time) {
 	f.rate.Reset = f.rate.Reset.Add(windows * rateWindow)
 }
 
-// consume décompte un appel sur le quota simulé (étape 6). Appelée avec f.mu verrouillé.
+// consume counts a call on the simulated quota (step 6). Called with f.mu locked.
 func (f *Fake) consume(op, path string) error {
 	if !f.rateOn {
 		return nil
@@ -628,9 +629,9 @@ func (f *Fake) consume(op, path string) error {
 	return nil
 }
 
-// ----- Étapes communes -----
+// ----- Common steps -----
 
-// begin compte l'appel (étape 1) et renvoie ctx.Err() (étape 2).
+// begin counts the call (step 1) and returns ctx.Err() (step 2).
 func (f *Fake) begin(ctx context.Context, c Call) error {
 	f.mu.Lock()
 	f.calls[c.Method]++
@@ -639,7 +640,7 @@ func (f *Fake) begin(ctx context.Context, c Call) error {
 	return ctx.Err()
 }
 
-// injected renvoie l'erreur injectée pour m (étape 4). Appelée avec f.mu verrouillé.
+// injected returns the injected error for m (step 4). Called with f.mu locked.
 func (f *Fake) injected(m Method) error {
 	if q := f.next[m]; len(q) > 0 {
 		err := q[0]
@@ -653,8 +654,8 @@ func (f *Fake) injected(m Method) error {
 	return f.errs[m]
 }
 
-// repoErrByName renvoie l'erreur posée par SetRepoError pour owner/name ou pour l'un des noms du dépôt
-// qu'il désigne (étape 5). Appelée avec f.mu verrouillé.
+// repoErrByName returns the error set by SetRepoError for owner/name or for one of the names of the
+// repository it designates (step 5). Called with f.mu locked.
 func (f *Fake) repoErrByName(owner, name string) error {
 	key := nameKey(owner, name)
 	if err := f.repoErrs[key]; err != nil {
@@ -666,8 +667,8 @@ func (f *Fake) repoErrByName(owner, name string) error {
 	return nil
 }
 
-// repoErrByID renvoie l'erreur posée par SetRepoError pour l'un des noms du dépôt id. Appelée avec
-// f.mu verrouillé.
+// repoErrByID returns the error set by SetRepoError for one of the names of the repository id.
+// Called with f.mu locked.
 func (f *Fake) repoErrByID(id int64) error {
 	repo, ok := f.repos[id]
 	if !ok {
@@ -681,7 +682,7 @@ func (f *Fake) repoErrByID(id int64) error {
 	return nil
 }
 
-// prepare enchaîne les étapes 4 à 6 pour un appel portant sur owner/name. Appelée avec f.mu verrouillé.
+// prepare chains steps 4 to 6 for a call on owner/name. Called with f.mu locked.
 func (f *Fake) prepare(m Method, owner, name, op, path string) error {
 	if err := f.injected(m); err != nil {
 		return err
@@ -692,8 +693,8 @@ func (f *Fake) prepare(m Method, owner, name, op, path string) error {
 	return f.consume(op, path)
 }
 
-// lookup renvoie le dépôt désigné par owner/name (nom actuel ou ancien), ou nil. Appelée avec f.mu
-// verrouillé.
+// lookup returns the repository designated by owner/name (current or old name), or nil. Called with
+// f.mu locked.
 func (f *Fake) lookup(owner, name string) *fakeRepo {
 	id, ok := f.names[nameKey(owner, name)]
 	if !ok {
@@ -702,25 +703,25 @@ func (f *Fake) lookup(owner, name string) *fakeRepo {
 	return f.repos[id]
 }
 
-// apiError renvoie l'erreur d'une requête GET simulée.
+// apiError returns the error of a simulated GET request.
 func apiError(op, path string, status int, err error) error {
 	return &provider.APIError{Op: op, Method: "GET", Path: path, Status: status, Err: err}
 }
 
-// repoPath renvoie le chemin de l'API du dépôt owner/name, tel que passé.
+// repoPath returns the API path of the repository owner/name, as passed.
 func repoPath(owner, name string) string {
 	return "/repos/" + owner + "/" + name
 }
 
-// copyCommit renvoie une copie indépendante de c (Parents non nil).
+// copyCommit returns an independent copy of c (non-nil Parents).
 func copyCommit(c provider.Commit) provider.Commit {
 	c.Parents = append([]string{}, c.Parents...)
 	return c
 }
 
-// ----- Graphe des commits -----
+// ----- Commit graph -----
 
-// resolve résout ref en SHA : nom de branche d'abord, puis SHA complet d'un commit présent.
+// resolve resolves ref to a SHA: branch name first, then full SHA of a present commit.
 func (r *fakeRepo) resolve(ref string) (string, bool) {
 	if sha, ok := r.branches[ref]; ok {
 		return sha, true
@@ -731,8 +732,8 @@ func (r *fakeRepo) resolve(ref string) (string, bool) {
 	return "", false
 }
 
-// reachable renvoie l'ensemble des SHA atteignables depuis head par les parents (head compris), en
-// ignorant les commits retirés (RemoveCommit).
+// reachable returns the set of SHAs reachable from head through the parents (head included),
+// ignoring the removed commits (RemoveCommit).
 func (r *fakeRepo) reachable(head string) map[string]bool {
 	seen := make(map[string]bool)
 	stack := []string{head}
@@ -749,7 +750,7 @@ func (r *fakeRepo) reachable(head string) map[string]bool {
 	return seen
 }
 
-// oldestFirst ordonne deux commits du plus ancien au plus récent : CommittedAt, puis ordre d'ajout.
+// oldestFirst orders two commits from oldest to newest: CommittedAt, then order of addition.
 func oldestFirst(a, b *fakeCommit) int {
 	if c := a.c.CommittedAt.Compare(b.c.CommittedAt); c != 0 {
 		return c
@@ -757,7 +758,7 @@ func oldestFirst(a, b *fakeCommit) int {
 	return cmp.Compare(a.seq, b.seq)
 }
 
-// sorted renvoie les commits de set du plus ancien au plus récent (oldestFirst).
+// sorted returns the commits of set from oldest to newest (oldestFirst).
 func (r *fakeRepo) sorted(set map[string]bool) []*fakeCommit {
 	out := make([]*fakeCommit, 0, len(set))
 	for sha := range set {
@@ -769,12 +770,12 @@ func (r *fakeRepo) sorted(set map[string]bool) []*fakeCommit {
 
 // ----- provider.Provider -----
 
-// Name implémente provider.Provider : « github » (model.ProviderGitHub), car le Fake tient lieu de
-// GitHub dans les tests.
+// Name implements provider.Provider: "github" (model.ProviderGitHub), since the Fake stands in for
+// GitHub in the tests.
 func (f *Fake) Name() string { return model.ProviderGitHub }
 
-// Repository implémente provider.Provider : dépôt trouvé par son nom actuel ou un ancien nom (les
-// valeurs renvoyées sont les actuelles) ; inconnu → erreur enveloppant provider.ErrNotFound.
+// Repository implements provider.Provider: repository found by its current name or an old name (the
+// returned values are the current ones); unknown → error wrapping provider.ErrNotFound.
 func (f *Fake) Repository(ctx context.Context, owner, name string) (provider.Repository, error) {
 	if err := f.begin(ctx, Call{Method: MethodRepository, Owner: owner, Name: name}); err != nil {
 		return provider.Repository{}, err
@@ -782,7 +783,7 @@ func (f *Fake) Repository(ctx context.Context, owner, name string) (provider.Rep
 	if err := provider.ValidateRepo(owner, name); err != nil {
 		return provider.Repository{}, err
 	}
-	op, path := fmt.Sprintf("lecture du dépôt %s/%s", owner, name), repoPath(owner, name)
+	op, path := i18n.T("provider.op.repo", owner, name), repoPath(owner, name)
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if err := f.prepare(MethodRepository, owner, name, op, path); err != nil {
@@ -795,7 +796,7 @@ func (f *Fake) Repository(ctx context.Context, owner, name string) (provider.Rep
 	return repo.meta, nil
 }
 
-// RepositoryByID implémente provider.Provider ; id inconnu → provider.ErrNotFound.
+// RepositoryByID implements provider.Provider; unknown id → provider.ErrNotFound.
 func (f *Fake) RepositoryByID(ctx context.Context, id int64) (provider.Repository, error) {
 	if err := f.begin(ctx, Call{Method: MethodRepositoryByID, ID: id}); err != nil {
 		return provider.Repository{}, err
@@ -803,7 +804,7 @@ func (f *Fake) RepositoryByID(ctx context.Context, id int64) (provider.Repositor
 	if err := provider.ValidateID(id); err != nil {
 		return provider.Repository{}, err
 	}
-	op, path := fmt.Sprintf("lecture du dépôt n° %d", id), fmt.Sprintf("/repositories/%d", id)
+	op, path := i18n.T("provider.github.op.repo_id", id), fmt.Sprintf("/repositories/%d", id)
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if err := f.injected(MethodRepositoryByID); err != nil {
@@ -822,8 +823,8 @@ func (f *Fake) RepositoryByID(ctx context.Context, id int64) (provider.Repositor
 	return repo.meta, nil
 }
 
-// Branches implémente provider.Provider : branches triées par nom, au plus provider.MaxBranches ;
-// dépôt vide → liste vide non nil.
+// Branches implements provider.Provider: branches sorted by name, at most provider.MaxBranches;
+// empty repository → empty non-nil list.
 func (f *Fake) Branches(ctx context.Context, owner, name string) ([]provider.Branch, error) {
 	if err := f.begin(ctx, Call{Method: MethodBranches, Owner: owner, Name: name}); err != nil {
 		return nil, err
@@ -831,7 +832,7 @@ func (f *Fake) Branches(ctx context.Context, owner, name string) ([]provider.Bra
 	if err := provider.ValidateRepo(owner, name); err != nil {
 		return nil, err
 	}
-	op, path := fmt.Sprintf("liste des branches de %s/%s", owner, name), repoPath(owner, name)+"/branches"
+	op, path := i18n.T("provider.github.op.branches", owner, name), repoPath(owner, name)+"/branches"
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if err := f.prepare(MethodBranches, owner, name, op, path); err != nil {
@@ -856,13 +857,13 @@ func (f *Fake) Branches(ctx context.Context, owner, name string) ([]provider.Bra
 	return out, nil
 }
 
-// ListCommits implémente provider.Provider : commits atteignables depuis opts.Branch (nom de branche ou
-// SHA complet connu ; vide = DefaultBranch) par les parents, triés par CommittedAt décroissant (à date
-// égale, le dernier ajouté d'abord), filtrés par Since (CommittedAt >= Since tronqué à la seconde,
-// comme le since envoyé à GitHub), coupés au premier commit pour lequel Stop renvoie true (exclu ; Stop
-// est appelé hors du verrou du Fake, dans l'ordre, et plus après la limite) et à la limite effective
-// (Limit, au plus provider.MaxCommits). Branche inconnue → provider.ErrNotFound ; dépôt vide (aucune
-// branche) → liste vide non nil, sans erreur.
+// ListCommits implements provider.Provider: commits reachable from opts.Branch (branch name or known
+// full SHA; empty = DefaultBranch) through the parents, sorted by descending CommittedAt (at equal
+// dates, the last added first), filtered by Since (CommittedAt >= Since truncated to the second,
+// like the since sent to GitHub), cut at the first commit for which Stop returns true (excluded; Stop
+// is called outside the Fake's lock, in order, and no more after the limit) and at the effective limit
+// (Limit, at most provider.MaxCommits). Unknown branch → provider.ErrNotFound; empty repository (no
+// branch) → empty non-nil list, without error.
 func (f *Fake) ListCommits(ctx context.Context, owner, name string, opts provider.ListCommitsOptions) ([]provider.Commit, error) {
 	logged := opts
 	logged.Stop = nil
@@ -896,10 +897,10 @@ func (f *Fake) ListCommits(ctx context.Context, owner, name string, opts provide
 	return out, nil
 }
 
-// listCandidates applique les étapes 4 à 7 de ListCommits sous le verrou et renvoie les commits filtrés
-// par Since, du plus récent au plus ancien (avant Stop et Limit).
+// listCandidates applies steps 4 to 7 of ListCommits under the lock and returns the commits filtered
+// by Since, from newest to oldest (before Stop and Limit).
 func (f *Fake) listCandidates(owner, name string, opts provider.ListCommitsOptions) ([]*fakeCommit, error) {
-	op, path := fmt.Sprintf("liste des commits de %s/%s", owner, name), repoPath(owner, name)+"/commits"
+	op, path := i18n.T("provider.github.op.commits", owner, name), repoPath(owner, name)+"/commits"
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if err := f.prepare(MethodListCommits, owner, name, op, path); err != nil {
@@ -910,7 +911,7 @@ func (f *Fake) listCandidates(owner, name string, opts provider.ListCommitsOptio
 		return nil, apiError(op, path, statusNotFound, provider.ErrNotFound)
 	}
 	if len(repo.branches) == 0 {
-		return nil, nil // dépôt vide : liste vide, sans erreur
+		return nil, nil // empty repository: empty list, without error
 	}
 	ref := opts.Branch
 	if ref == "" {
@@ -925,21 +926,21 @@ func (f *Fake) listCandidates(owner, name string, opts provider.ListCommitsOptio
 	if opts.Since.IsZero() {
 		return all, nil
 	}
-	// Comme le Provider GitHub, qui envoie since au format RFC 3339 à la seconde : Since est tronqué à
-	// la seconde (les dates des commits le sont déjà), et GitHub garde les commits de cette seconde.
+	// Like the GitHub Provider, which sends since in RFC 3339 format to the second: Since is truncated to
+	// the second (the commit dates already are), and GitHub keeps the commits of that second.
 	since := utcSecond(opts.Since)
 	return slices.DeleteFunc(all, func(c *fakeCommit) bool { return c.c.CommittedAt.Before(since) }), nil
 }
 
-// CompareCommits implémente provider.Provider : commits atteignables depuis head mais pas depuis base,
-// du plus récent au plus ancien (même ordre que ListCommits), au plus provider.MaxCommits (comme le
-// Provider GitHub, qui lit les pages du plus ancien au plus récent : au-delà, ce sont les plus
-// anciens qui sont gardés) ; base == head (sans aucun contrôle après la validation, voir l'ordre des
-// contrôles) ou head contenu dans base → liste vide non nil ; dépôt vide (aucune branche) →
-// provider.ErrEmptyRepository ; base ou head inconnu, ou aucun ancêtre commun entre base et head
-// (GitHub répond 404 dans les trois cas, et le Provider GitHub, qui ne peut pas les distinguer sur un
-// dépôt accessible, renvoie ErrUnknownBase) → provider.ErrUnknownBase (et pas ErrNotFound) ; dépôt
-// inconnu → provider.ErrNotFound.
+// CompareCommits implements provider.Provider: commits reachable from head but not from base, from
+// newest to oldest (same order as ListCommits), at most provider.MaxCommits (like the GitHub
+// Provider, which reads the pages from oldest to newest: beyond, the oldest are the ones kept);
+// base == head (without any check after the validation, see the order of the checks) or head
+// contained in base → empty non-nil list; empty repository (no branch) →
+// provider.ErrEmptyRepository; unknown base or head, or no common ancestor between base and head
+// (GitHub answers 404 in all three cases, and the GitHub Provider, which cannot tell them apart on an
+// accessible repository, returns ErrUnknownBase) → provider.ErrUnknownBase (and not ErrNotFound);
+// unknown repository → provider.ErrNotFound.
 func (f *Fake) CompareCommits(ctx context.Context, owner, name, base, head string) ([]provider.Commit, error) {
 	if err := f.begin(ctx, Call{Method: MethodCompareCommits, Owner: owner, Name: name, Base: base, Head: head}); err != nil {
 		return nil, err
@@ -956,7 +957,7 @@ func (f *Fake) CompareCommits(ctx context.Context, owner, name, base, head strin
 	if base == head {
 		return []provider.Commit{}, nil
 	}
-	op := fmt.Sprintf("comparaison %s...%s dans %s/%s", provider.ShortSHA(base), provider.ShortSHA(head), owner, name)
+	op := i18n.T("provider.github.op.compare", provider.ShortSHA(base), provider.ShortSHA(head), owner, name)
 	path := repoPath(owner, name) + "/compare/" + base + "..." + head
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -996,8 +997,8 @@ func (f *Fake) CompareCommits(ctx context.Context, owner, name, base, head strin
 	return out, nil
 }
 
-// CommitStats implémente provider.Provider : statistiques fixées par SetStats (zéro par défaut) ;
-// dépôt vide (aucune branche) → provider.ErrEmptyRepository ; commit inconnu → provider.ErrNotFound.
+// CommitStats implements provider.Provider: statistics set by SetStats (zero by default); empty
+// repository (no branch) → provider.ErrEmptyRepository; unknown commit → provider.ErrNotFound.
 func (f *Fake) CommitStats(ctx context.Context, owner, name, sha string) (provider.CommitStats, error) {
 	if err := f.begin(ctx, Call{Method: MethodCommitStats, Owner: owner, Name: name, SHA: sha}); err != nil {
 		return provider.CommitStats{}, err
@@ -1008,7 +1009,7 @@ func (f *Fake) CommitStats(ctx context.Context, owner, name, sha string) (provid
 	if err := provider.ValidateSHA(sha); err != nil {
 		return provider.CommitStats{}, err
 	}
-	op := fmt.Sprintf("statistiques du commit %s de %s/%s", provider.ShortSHA(sha), owner, name)
+	op := i18n.T("provider.github.op.commit_stats", provider.ShortSHA(sha), owner, name)
 	path := repoPath(owner, name) + "/commits/" + sha
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -1027,11 +1028,11 @@ func (f *Fake) CommitStats(ctx context.Context, owner, name, sha string) (provid
 	return repo.stats[sha], nil
 }
 
-// PullRequests implémente provider.Provider : pull requests posées par SetPullRequests, triées par
-// UpdatedAt décroissant (à date égale, numéro décroissant), coupées à la première modifiée strictement
-// avant opts.UpdatedSince tronqué à la seconde (exclue) et à la limite effective (Limit, au plus
-// provider.MaxPullRequests) ; dépôt inconnu → provider.ErrNotFound. Un dépôt vide (aucune branche)
-// renvoie ses PR comme les autres (GitHub répond 200).
+// PullRequests implements provider.Provider: pull requests set by SetPullRequests, sorted by
+// descending UpdatedAt (at equal dates, descending number), cut at the first one updated strictly
+// before opts.UpdatedSince truncated to the second (excluded) and at the effective limit (Limit, at
+// most provider.MaxPullRequests); unknown repository → provider.ErrNotFound. An empty repository (no
+// branch) returns its PRs like the others (GitHub answers 200).
 func (f *Fake) PullRequests(ctx context.Context, owner, name string, opts provider.PullRequestsOptions) ([]provider.PullRequest, error) {
 	if err := f.begin(ctx, Call{Method: MethodPullRequests, Owner: owner, Name: name, PullOpts: opts}); err != nil {
 		return nil, err
@@ -1039,7 +1040,7 @@ func (f *Fake) PullRequests(ctx context.Context, owner, name string, opts provid
 	if err := provider.ValidateRepo(owner, name); err != nil {
 		return nil, err
 	}
-	op, path := fmt.Sprintf("liste des pull requests de %s/%s", owner, name), repoPath(owner, name)+"/pulls"
+	op, path := i18n.T("provider.github.op.pulls", owner, name), repoPath(owner, name)+"/pulls"
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if err := f.prepare(MethodPullRequests, owner, name, op, path); err != nil {
@@ -1071,8 +1072,8 @@ func (f *Fake) PullRequests(ctx context.Context, owner, name string, opts provid
 	return out, nil
 }
 
-// Releases implémente provider.Provider : releases posées par SetReleases, triées par CreatedAt
-// décroissant (à date égale, identifiant décroissant), au plus provider.MaxReleases ; dépôt inconnu →
+// Releases implements provider.Provider: releases set by SetReleases, sorted by descending CreatedAt
+// (at equal dates, descending identifier), at most provider.MaxReleases; unknown repository →
 // provider.ErrNotFound.
 func (f *Fake) Releases(ctx context.Context, owner, name string) ([]provider.Release, error) {
 	if err := f.begin(ctx, Call{Method: MethodReleases, Owner: owner, Name: name}); err != nil {
@@ -1081,7 +1082,7 @@ func (f *Fake) Releases(ctx context.Context, owner, name string) ([]provider.Rel
 	if err := provider.ValidateRepo(owner, name); err != nil {
 		return nil, err
 	}
-	op, path := fmt.Sprintf("liste des releases de %s/%s", owner, name), repoPath(owner, name)+"/releases"
+	op, path := i18n.T("provider.github.op.releases", owner, name), repoPath(owner, name)+"/releases"
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if err := f.prepare(MethodReleases, owner, name, op, path); err != nil {
@@ -1104,8 +1105,8 @@ func (f *Fake) Releases(ctx context.Context, owner, name string) ([]provider.Rel
 	return out, nil
 }
 
-// Tags implémente provider.Provider : tags posés par SetTags, dans leur ordre, au plus
-// provider.MaxTags ; dépôt inconnu → provider.ErrNotFound.
+// Tags implements provider.Provider: tags set by SetTags, in their order, at most
+// provider.MaxTags; unknown repository → provider.ErrNotFound.
 func (f *Fake) Tags(ctx context.Context, owner, name string) ([]provider.Tag, error) {
 	if err := f.begin(ctx, Call{Method: MethodTags, Owner: owner, Name: name}); err != nil {
 		return nil, err
@@ -1113,7 +1114,7 @@ func (f *Fake) Tags(ctx context.Context, owner, name string) ([]provider.Tag, er
 	if err := provider.ValidateRepo(owner, name); err != nil {
 		return nil, err
 	}
-	op, path := fmt.Sprintf("liste des tags de %s/%s", owner, name), repoPath(owner, name)+"/tags"
+	op, path := i18n.T("provider.github.op.tags", owner, name), repoPath(owner, name)+"/tags"
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if err := f.prepare(MethodTags, owner, name, op, path); err != nil {
@@ -1133,8 +1134,8 @@ func (f *Fake) Tags(ctx context.Context, owner, name string) ([]provider.Tag, er
 	return out, nil
 }
 
-// RateLimit implémente provider.Provider (voir SetRateLimit) ; ne consomme pas de quota. Seules les
-// étapes 1, 2 et 4 s'appliquent.
+// RateLimit implements provider.Provider (see SetRateLimit); consumes no quota. Only steps 1, 2 and
+// 4 apply.
 func (f *Fake) RateLimit(ctx context.Context) (provider.RateLimit, error) {
 	if err := f.begin(ctx, Call{Method: MethodRateLimit}); err != nil {
 		return provider.RateLimit{}, err
@@ -1156,7 +1157,7 @@ func (f *Fake) RateLimit(ctx context.Context) (provider.RateLimit, error) {
 	return f.currentRate(now), nil
 }
 
-// LastRateLimit implémente provider.Provider (voir SetRateLimit) ; ni compté ni injectable.
+// LastRateLimit implements provider.Provider (see SetRateLimit); neither counted nor injectable.
 func (f *Fake) LastRateLimit() (provider.RateLimit, bool) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -1166,8 +1167,8 @@ func (f *Fake) LastRateLimit() (provider.RateLimit, bool) {
 	return f.currentRate(f.clock()), true
 }
 
-// currentRate renvoie l'état du quota simulé à now (fenêtre renouvelée si besoin). Appelée avec f.mu
-// verrouillé et le quota simulé actif.
+// currentRate returns the state of the simulated quota at now (window renewed if needed). Called with
+// f.mu locked and the simulated quota active.
 func (f *Fake) currentRate(now time.Time) provider.RateLimit {
 	f.renewRate(now)
 	rl := f.rate
@@ -1175,9 +1176,9 @@ func (f *Fake) currentRate(now time.Time) provider.RateLimit {
 	return rl
 }
 
-// ProfileURL implémente provider.Provider : « https://github.example.test/<login> » (même forme que
-// la ProfileURL de l'auteur factice d'AppendCommits), sans appel compté ; vide si login n'a pas la
-// forme d'un login (provider.ValidLogin).
+// ProfileURL implements provider.Provider: "https://github.example.test/<login>" (same form as the
+// ProfileURL of AppendCommits' dummy author), without counted call; empty if login does not have
+// the form of a login (provider.ValidLogin).
 func (f *Fake) ProfileURL(login string) string {
 	if !provider.ValidLogin(login) {
 		return ""

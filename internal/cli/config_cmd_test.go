@@ -434,8 +434,8 @@ func TestConfigImportCleansText(t *testing.T) {
 func TestConfigHelp(t *testing.T) {
 	h := newHarness(t)
 	r := h.run("config").mustSucceed(t)
-	assertContains(t, "config help", r.stdout, "export", "import", "Partage la configuration")
+	assertContains(t, "config help", r.stdout, "export", "import", "Shares the configuration")
 	r = h.run("config", "import", "--help").mustSucceed(t)
-	assertContains(t, "config import help", r.stdout, "--dry-run", "--yes", "rien n'est")
+	assertContains(t, "config import help", r.stdout, "--dry-run", "--yes", "nothing is ever removed")
 	h.run("config", "unknown").mustFail(t, `unknown command "unknown"`)
 }

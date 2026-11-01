@@ -1,10 +1,10 @@
 package cli
 
-// Test de bout en bout du partage de la configuration : un espace A exporte (CLI), un espace B
-// importe (CLI : aperçu --dry-run sans écriture, puis --yes), un espace C importe le même fichier par
-// l'interface web (« watchoo serve » réel, aperçu puis « Appliquer »). Vrai accès à gh (faux binaire),
-// vrai provider GitHub branché sur githubtest, vrai moteur, bases SQLite temporaires. Aucun réseau
-// hors de 127.0.0.1 ; données factices.
+// End-to-end test of configuration sharing: a workspace A exports (CLI), a workspace B imports (CLI:
+// --dry-run preview without writing, then --yes), a workspace C imports the same file through the web
+// interface (real "watchoo serve", preview then "Apply"). Real gh access (fake binary), real GitHub
+// provider wired to githubtest, real engine, temporary SQLite databases. No network outside
+// 127.0.0.1; dummy data.
 
 import (
 	"bytes"
@@ -50,7 +50,7 @@ func TestEndToEndConfigShare(t *testing.T) {
 	srv.AddRepo(githubtest.Repo{ID: 3, Owner: "carol", Name: "cache", Private: true})
 	srv.SetRepoAccess(3, githubtest.AccessHidden)
 
-	// Espace A : deux dépôts, un réglage commun modifié, puis export.
+	// Workspace A: two repositories, a shared setting changed, then export.
 	hA.run("init").mustSucceed(t)
 	hA.run("repo", "add", "alice/projet", "--label", "Alice Martin", "--branch", "main,release/*").mustSucceed(t)
 	hA.run("repo", "add", "bob/projet").mustSucceed(t)
@@ -59,15 +59,15 @@ func TestEndToEndConfigShare(t *testing.T) {
 	share := filepath.Join(t.TempDir(), "licence.json")
 	hA.run("config", "export", "-o", share).mustSucceed(t)
 	if info, err := os.Stat(share); err != nil || info.Mode().Perm() != 0o600 {
-		t.Fatalf("fichier exporté : %v, %v", info, err)
+		t.Fatalf("exported file: %v, %v", info, err)
 	}
 	exported := readFile(t, share)
 	for _, bad := range []string{"alice@example.test", "gh_path", "\"web\"", "\"github\":", hA.cwd, githubtest.Token} {
 		if strings.Contains(exported, bad) {
-			t.Errorf("l'export contient %q :\n%s", bad, exported)
+			t.Errorf("the export contains %q:\n%s", bad, exported)
 		}
 	}
-	// La personne qui partage ajoute à la main un dépôt qui sera inaccessible chez les autres.
+	// The person sharing adds by hand a repository that will be inaccessible to the others.
 	var doc map[string]any
 	if err := json.Unmarshal([]byte(exported), &doc); err != nil {
 		t.Fatal(err)
@@ -77,7 +77,7 @@ func TestEndToEndConfigShare(t *testing.T) {
 	edited, _ := json.MarshalIndent(doc, "", "  ")
 	writeFile(t, share, string(edited))
 
-	// Espace B : aperçu --dry-run (code 1 : un dépôt inaccessible), rien n'est écrit.
+	// Workspace B: --dry-run preview (code 1: an inaccessible repository), nothing is written.
 	hB := *hA
 	hB.cwd = newDir(t, t.TempDir(), "promo-b")
 	hB.run("init").mustSucceed(t)
@@ -86,33 +86,33 @@ func TestEndToEndConfigShare(t *testing.T) {
 	cfgBefore, dbBefore := readFile(t, cfgB), readFile(t, dbB)
 	dry := hB.run("config", "import", share, "--dry-run", "--json")
 	if dry.code != 1 || !strings.Contains(dry.stdout, `"dry_run": true`) {
-		t.Fatalf("import --dry-run : code %d\n%s\n%s", dry.code, dry.stdout, dry.stderr)
+		t.Fatalf("import --dry-run: code %d\n%s\n%s", dry.code, dry.stdout, dry.stderr)
 	}
 	var plan struct {
 		Summary struct{ Added, Inaccessible int } `json:"summary"`
 	}
 	decodeLoose(t, dry.stdout, &plan)
 	if plan.Summary.Added != 2 || plan.Summary.Inaccessible != 1 {
-		t.Errorf("aperçu = %+v\n%s", plan.Summary, dry.stdout)
+		t.Errorf("preview = %+v\n%s", plan.Summary, dry.stdout)
 	}
 	if readFile(t, cfgB) != cfgBefore || readFile(t, dbB) != dbBefore {
-		t.Error("--dry-run a modifié config.yaml ou la base")
+		t.Error("--dry-run changed config.yaml or the database")
 	}
 	if _, err := os.Stat(cfgB + ".bak"); !os.IsNotExist(err) {
-		t.Errorf("--dry-run a créé une sauvegarde : %v", err)
+		t.Errorf("--dry-run created a backup: %v", err)
 	}
-	hB.run("config", "import", share).mustFail(t, "--yes") // hors terminal
+	hB.run("config", "import", share).mustFail(t, "--yes") // off a terminal
 
-	// Import --yes : réglages réécrits, dépôts ajoutés, code 1 pour le dépôt inaccessible.
+	// Import --yes: settings rewritten, repositories added, code 1 for the inaccessible repository.
 	imp := hB.run("config", "import", share, "--yes")
 	if imp.code != 1 || !strings.Contains(imp.stdout, "carol/cache") {
-		t.Fatalf("import --yes : code %d\n%s\n%s", imp.code, imp.stdout, imp.stderr)
+		t.Fatalf("import --yes: code %d\n%s\n%s", imp.code, imp.stdout, imp.stderr)
 	}
 	e2eAssertShared(t, &hB, cfgB, cfgBefore)
 	if rep := e2eSync(t, &hB); rep.Summary.Success != 2 {
-		t.Errorf("synchro après import = %+v", rep.Summary)
+		t.Errorf("sync after import = %+v", rep.Summary)
 	}
-	// Réimporter le même fichier ne change rien (hors dépôt inaccessible).
+	// Importing the same file again changes nothing (except the inaccessible repository).
 	again := hB.run("config", "import", share, "--yes", "--json")
 	var againRep struct {
 		Settings struct {
@@ -128,7 +128,7 @@ func TestEndToEndConfigShare(t *testing.T) {
 		t.Errorf("second import = %+v", againRep)
 	}
 
-	// Espace C : import par l'interface web d'un « watchoo serve » réel.
+	// Workspace C: import through the web interface of a real "watchoo serve".
 	hC := *hA
 	hC.cwd = newDir(t, t.TempDir(), "promo-c")
 	hC.run("init").mustSucceed(t)
@@ -146,29 +146,29 @@ func TestEndToEndConfigShare(t *testing.T) {
 		"file", "licence.json", edited, http.StatusOK)
 	for _, want := range []string{"alice/projet", "bob/projet", "carol/cache", "Alice Martin"} {
 		if !strings.Contains(preview, want) {
-			t.Errorf("aperçu web sans %q", want)
+			t.Errorf("web preview without %q", want)
 		}
 	}
 	if readFile(t, cfgC) != cfgCBefore {
-		t.Error("l'aperçu web a modifié config.yaml")
+		t.Error("the web preview changed config.yaml")
 	}
 	document := e2eField(t, preview, "document")
 	e2eMultipart(t, client, base+"/settings/import/apply", map[string]string{"csrf_token": token,
 		"document": document}, "", "", nil, http.StatusSeeOther)
 	if r := run.stop(t); r.code != 0 {
-		t.Fatalf("serve : code %d\n%s", r.code, r.stderr)
+		t.Fatalf("serve: code %d\n%s", r.code, r.stderr)
 	}
 	e2eAssertShared(t, &hC, cfgC, cfgCBefore)
 
 	logs := testLogs.String()
 	for _, bad := range []string{"alice@example.test", "e2e-share-alice", "e2e-share-bob", githubtest.Token} {
 		if strings.Contains(logs, bad) {
-			t.Errorf("donnée sensible %q dans les logs", bad)
+			t.Errorf("sensitive data %q in the logs", bad)
 		}
 	}
 }
 
-// e2eAssertShared vérifie un espace après import : dépôts, réglages réécrits, sauvegarde en 0600.
+// e2eAssertShared checks a workspace after import: repositories, rewritten settings, backup in 0600.
 func e2eAssertShared(t *testing.T, h *harness, cfgPath, oldCfg string) {
 	t.Helper()
 	var out struct {
@@ -185,21 +185,21 @@ func e2eAssertShared(t *testing.T, h *harness, cfgPath, oldCfg string) {
 	}
 	want := map[string]string{"alice/projet": "Alice Martin|main,release/*", "bob/projet": "|"}
 	if len(got) != len(want) || got["alice/projet"] != want["alice/projet"] || got["bob/projet"] != want["bob/projet"] {
-		t.Errorf("dépôts = %v, attendu %v", got, want)
+		t.Errorf("repositories = %v, want %v", got, want)
 	}
 	cfg := readFile(t, cfgPath)
 	for _, line := range []string{"interval: 1h", "flemme_after_days: 3"} {
 		if !regexp.MustCompile(`\n  ` + regexp.QuoteMeta(line) + `\s`).MatchString(cfg) {
-			t.Errorf("config.yaml sans %q :\n%s", line, cfg)
+			t.Errorf("config.yaml without %q:\n%s", line, cfg)
 		}
 	}
 	for _, p := range []string{cfgPath, cfgPath + ".bak"} {
 		if info, err := os.Stat(p); err != nil || info.Mode().Perm() != 0o600 {
-			t.Errorf("%s : %v, %v", p, info, err)
+			t.Errorf("%s: %v, %v", p, info, err)
 		}
 	}
 	if readFile(t, cfgPath+".bak") != oldCfg {
-		t.Error("config.yaml.bak différent de l'ancien fichier")
+		t.Error("config.yaml.bak differs from the old file")
 	}
 }
 
@@ -214,15 +214,15 @@ func e2eHTTP(t *testing.T, c *http.Client, method, url, ctype string, body []byt
 	}
 	resp, err := c.Do(req)
 	if err != nil {
-		t.Fatalf("%s %s : %v", method, url, err)
+		t.Fatalf("%s %s: %v", method, url, err)
 	}
 	defer resp.Body.Close()
 	b, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode != status {
-		t.Fatalf("%s %s : %d, attendu %d\n%s", method, url, resp.StatusCode, status, b)
+		t.Fatalf("%s %s: %d, want %d\n%s", method, url, resp.StatusCode, status, b)
 	}
 	if strings.Contains(string(b), githubtest.Token) {
-		t.Errorf("token dans la réponse à %s", url)
+		t.Errorf("token in the response to %s", url)
 	}
 	return string(b)
 }
@@ -246,12 +246,12 @@ func e2eMultipart(t *testing.T, c *http.Client, url string, fields map[string]st
 	return e2eHTTP(t, c, http.MethodPost, url, mw.FormDataContentType(), buf.Bytes(), status)
 }
 
-// e2eField renvoie la valeur (décodée) du premier champ de formulaire name de la page.
+// e2eField returns the (decoded) value of the first form field name of the page.
 func e2eField(t *testing.T, page, name string) string {
 	t.Helper()
 	m := regexp.MustCompile(`name="` + regexp.QuoteMeta(name) + `" value="([^"]*)"`).FindStringSubmatch(page)
 	if m == nil {
-		t.Fatalf("champ %s absent de la page", name)
+		t.Fatalf("field %s missing from the page", name)
 	}
 	return html.UnescapeString(m[1])
 }

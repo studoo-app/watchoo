@@ -96,15 +96,13 @@ Le code de retour est non nul si un dépôt est en erreur.`,
 		`sync finished with %d repositories in error (details above, or "watchoo status")`,
 		"synchro terminée avec %d dépôts en erreur (détail ci-dessus, ou « watchoo status »)",
 	},
-	// Détail d'un dépôt reporté : la raison vient du message écrit par le moteur (internal/sync),
-	// les raisons connues sont traduites, une raison inconnue est affichée telle quelle.
+	// Détail d'un dépôt reporté : la raison vient du rapport du moteur (RepoReport.DeferReason,
+	// traduite par internal/sync), l'heure est convertie en heure locale.
 	"cli.sync.deferred_detail": {
 		"deferred: %s until %s",
 		"reporté : %s jusqu'à %s",
 	},
-	"cli.sync.deferred_reason_low":       {"low quota", "quota bas"},
-	"cli.sync.deferred_reason_exhausted": {"quota exhausted", "quota épuisé"},
-	"cli.sync.warnings_join":             {"; ", " ; "},
+	"cli.sync.warnings_join": {"; ", " ; "},
 
 	// Quota de l'API GitHub (sync.go, repris par status).
 	"cli.sync.rate_limit": {

@@ -1,8 +1,8 @@
 package workspace
 
-// Test dédié au français : quelques messages clés et le modèle de config.yaml rendus dans la langue
-// forcée i18n.French (le reste du paquet teste les textes anglais, forcée par TestMain). Ce test n'est
-// pas parallèle : il change la langue du processus.
+// Test dedicated to French: a few key messages and the config.yaml template rendered in the forced
+// language i18n.French (the rest of the package tests the English texts, forced by TestMain). This
+// test is not parallel: it changes the process language.
 
 import (
 	"strings"
@@ -15,7 +15,7 @@ import (
 func TestMessagesInFrench(t *testing.T) {
 	defer i18n.SetProcessForTest(i18n.French)()
 
-	// Erreurs sentinelles, rendues au moment de l'affichage.
+	// Sentinel errors, rendered at display time.
 	if got := ErrNotFound.Error(); got != "aucun espace Watchoo ici, lancez « watchoo init »" {
 		t.Errorf("ErrNotFound = %q", got)
 	}
@@ -23,19 +23,19 @@ func TestMessagesInFrench(t *testing.T) {
 		t.Errorf("ErrAlreadyInitialized = %q", got)
 	}
 
-	// Message de Load sans espace, et de Validate avec un intervalle trop court.
+	// Message of Load without a workspace, and of Validate with a too short interval.
 	assertErrorContains(t, Load(nil), "chargement des réglages : espace non renseigné")
 	cfg := DefaultConfig("espace")
 	cfg.Sync.Interval = 10 * time.Minute
 	assertErrorContains(t, cfg.Validate(),
 		"sync.interval : 10m0s est inférieur au minimum de 15 min (0 pour la synchro manuelle seule)")
 
-	// Ponctuation française : une espace avant « : » et « ; ».
+	// French punctuation: a space before ":" and ";".
 	if got := i18n.T("workspace.err.sep"); got != " : " {
-		t.Errorf("séparateur = %q", got)
+		t.Errorf("separator = %q", got)
 	}
 
-	// Modèle de config.yaml en français : sous-titre de la carte et quelques commentaires.
+	// config.yaml template in French: subtitle of the card and a few comments.
 	tpl := ConfigTemplate(i18n.French, "licence-projet")
 	for _, part := range []string{
 		"Réglages de l'espace de supervision Watchoo.",
@@ -46,11 +46,11 @@ func TestMessagesInFrench(t *testing.T) {
 		`name: "licence-projet"`,
 	} {
 		if !strings.Contains(tpl, part) {
-			t.Errorf("le modèle français ne contient pas %q :\n%s", part, tpl)
+			t.Errorf("the French template does not contain %q:\n%s", part, tpl)
 		}
 	}
-	// La carte d'en-tête porte le sous-titre français.
+	// The header card carries the French subtitle.
 	if !strings.Contains(tpl, "Réglages de l'espace de supervision  │") {
-		t.Errorf("la carte d'en-tête ne porte pas le sous-titre français :\n%s", tpl)
+		t.Errorf("the header card does not carry the French subtitle:\n%s", tpl)
 	}
 }

@@ -9,10 +9,10 @@ import (
 	"time"
 )
 
-// TestTokenNeverLeaks fait échouer gh de toutes les manières connues et vérifie que le faux token
-// (et ses variantes gho_fake_for_tests_*) n'apparaît dans aucun message d'erreur, aucun Status
-// renvoyé ni aucun log. Le faux gh place volontairement le token dans sa sortie d'erreur (scénario
-// error) et dans une sortie standard inattendue (scénario garbage).
+// TestTokenNeverLeaks makes gh fail in every known way and checks that the fake token (and its
+// variants gho_fake_for_tests_*) appears in no error message, no returned Status and no log. The
+// fake gh deliberately puts the token in its error output (error scenario) and in an unexpected
+// standard output (garbage scenario).
 func TestTokenNeverLeaks(t *testing.T) {
 	scenarios := []string{
 		"logged-in", "not-logged-in", "exit-not-logged-in", "multi-account", "env-token",
@@ -24,11 +24,11 @@ func TestTokenNeverLeaks(t *testing.T) {
 	var errs []error
 	check := func(label string, st Status, err error) {
 		if err != nil {
-			errs = append(errs, fmt.Errorf("%s : %w", label, err))
+			errs = append(errs, fmt.Errorf("%s: %w", label, err))
 		}
 		for _, s := range []string{fmt.Sprintf("%+v", st), fmt.Sprintf("%#v", st)} {
 			if strings.Contains(s, fakeToken) {
-				t.Errorf("%s : le Status renvoyé contient le token : %s", label, s)
+				t.Errorf("%s: the returned Status contains the token: %s", label, s)
 			}
 		}
 	}
@@ -36,7 +36,7 @@ func TestTokenNeverLeaks(t *testing.T) {
 	for _, scenario := range scenarios {
 		for _, user := range users {
 			if scenario == "hang" && user != "" {
-				continue // un seul passage suffit, chaque appel attend le délai
+				continue // a single pass is enough, every call waits for the timeout
 			}
 			t.Run(scenario+"/user="+user, func(t *testing.T) {
 				useScenario(t, scenario)
@@ -53,31 +53,31 @@ func TestTokenNeverLeaks(t *testing.T) {
 		}
 	}
 
-	// gh absent et contexte annulé.
+	// gh missing and canceled context.
 	missing := GH{Path: filepath.Join(t.TempDir(), "absent")}
 	_, err := missing.Token(context.Background())
 	check("absent/Token", Status{}, err)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	_, err = fakeGH().Token(ctx)
-	check("annulé/Token", Status{}, err)
+	check("canceled/Token", Status{}, err)
 
 	if len(errs) < 10 {
-		t.Fatalf("seulement %d erreurs obtenues : les scénarios d'échec n'ont pas tourné", len(errs))
+		t.Fatalf("only %d errors obtained: the failure scenarios did not run", len(errs))
 	}
 	for _, err := range errs {
 		for _, s := range []string{err.Error(), fmt.Sprintf("%+v", err), fmt.Sprintf("%#v", err)} {
 			if strings.Contains(s, fakeToken) {
-				t.Errorf("le token apparaît dans une erreur : %s", s)
+				t.Errorf("the token appears in an error: %s", s)
 			}
 		}
 	}
 
 	logs := testLogs.String()
-	if !strings.Contains(logs, "appel de gh") {
-		t.Fatal("aucun log capturé : la vérification des logs ne prouve rien")
+	if !strings.Contains(logs, "appel de gh") { // message of the Debug log of every call to gh
+		t.Fatal("no log captured: the check of the logs proves nothing")
 	}
 	if strings.Contains(logs, fakeToken) {
-		t.Errorf("le token apparaît dans les logs :\n%s", logs)
+		t.Errorf("the token appears in the logs:\n%s", logs)
 	}
 }

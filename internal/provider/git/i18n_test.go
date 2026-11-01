@@ -7,10 +7,10 @@ import (
 	"github.com/studoo-app/watchoo/internal/i18n"
 )
 
-// TestMessagesFrancais vérifie quelques messages clés du paquet en français : les messages viennent
-// du catalogue i18n, dans la langue du processus au moment de l'affichage. Non parallèle : il force
-// la langue du processus, restaurée à la fin (l'anglais remis par TestMain).
-func TestMessagesFrancais(t *testing.T) {
+// TestMessagesInFrench checks a few key messages of the package in French: the messages come from
+// the i18n catalog, in the process language at display time. Not parallel: it forces the process
+// language, restored at the end (English set back by TestMain).
+func TestMessagesInFrench(t *testing.T) {
 	defer i18n.SetProcessForTest(i18n.French)()
 
 	if got := ErrGitNotFound.Error(); !strings.Contains(got, "git est introuvable") ||
@@ -22,10 +22,10 @@ func TestMessagesFrancais(t *testing.T) {
 	}
 	_, err := New(Options{})
 	if got := err.Error(); got != "dépôts Git locaux : répertoire des clones non renseigné" {
-		t.Errorf("New sans répertoire = %q", got)
+		t.Errorf("New without directory = %q", got)
 	}
 	_, err = New(Options{Dir: t.TempDir(), Protocol: "ftp"})
 	if !strings.Contains(err.Error(), "protocole \"ftp\" inconnu") {
-		t.Errorf("New protocole inconnu = %q", err)
+		t.Errorf("New with unknown protocol = %q", err)
 	}
 }

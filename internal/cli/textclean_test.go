@@ -8,9 +8,9 @@ import (
 	"github.com/studoo-app/watchoo/internal/provider"
 )
 
-// Messages de commit et noms Git piégés (séquences OSC, CSI, BEL, CSI C1, marque bidi) : la sortie
-// texte de log, contributors et repo list n'envoie aucune séquence au terminal ; le JSON garde le
-// texte d'origine, échappé.
+// Booby-trapped commit messages and Git names (OSC, CSI, BEL, C1 CSI sequences, bidi mark): the text
+// output of log, contributors and repo list sends no sequence to the terminal; the JSON keeps the
+// original text, escaped.
 func TestTextOutputNeutralizesEscapes(t *testing.T) {
 	h := newWorkspace(t)
 	evil := provider.Person{Name: "Eve\x1b]0;titre\x07 ‮Nom", Email: "eve@example.test"}
@@ -24,7 +24,7 @@ func TestTextOutputNeutralizesEscapes(t *testing.T) {
 	for _, args := range [][]string{{"log"}, {"contributors"}, {"repo", "list"}} {
 		r := h.run(args...).mustSucceed(t)
 		if strings.ContainsAny(r.stdout, "\x1b\x07\u009b‮") {
-			t.Errorf("%v : séquence de contrôle dans la sortie texte :\n%q", args, r.stdout)
+			t.Errorf("%v: control sequence in the text output:\n%q", args, r.stdout)
 		}
 		assertContains(t, strings.Join(args, " "), r.stdout, "Eve")
 	}
@@ -35,10 +35,10 @@ func TestTextOutputNeutralizesEscapes(t *testing.T) {
 	var rep logReport
 	decodeStrict(t, r.stdout, &rep)
 	if len(rep.Commits) != 1 || !strings.Contains(rep.Commits[0].Message, "\x1b]0;PWNED") {
-		t.Errorf("log --json : message d'origine perdu : %+v", rep.Commits)
+		t.Errorf("log --json: original message lost: %+v", rep.Commits)
 	}
 	if strings.Contains(r.stdout, "\x1b") {
-		t.Errorf("log --json : ESC non échappé :\n%q", r.stdout)
+		t.Errorf("log --json: ESC not escaped:\n%q", r.stdout)
 	}
 }
 

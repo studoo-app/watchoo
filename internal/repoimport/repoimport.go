@@ -19,11 +19,18 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/provider"
 )
 
-// expectedRef rappelle les formes acceptées dans les messages d'erreur.
-const expectedRef = "attendu owner/repo ou https://github.com/owner/repo"
+// expectedRef rappelle les formes acceptées dans les messages d'erreur, dans la langue du processus.
+func expectedRef() string { return i18n.T("repoimport.ref.expected") }
+
+// wrapErr compose un texte traduit et une erreur enveloppée, avec la ponctuation de la langue
+// (« texte : err » en français, « texte: err » en anglais).
+func wrapErr(text string, err error) error {
+	return fmt.Errorf("%s%s%w", text, i18n.T("repoimport.err.sep"), err)
+}
 
 // maxQuoted borne la longueur (en caractères) d'une valeur citée dans un message d'erreur.
 const maxQuoted = 80
@@ -51,33 +58,33 @@ func (r Ref) key() string { return strings.ToLower(r.String()) }
 
 // ParseRef analyse « owner/repo » ou une URL GitHub « https://github.com/owner/repo », avec ou sans
 // « .git » final ni « / » final (http://, www.github.com et la casse de l'hôte acceptés ; autre hôte,
-// chemin plus long, paramètres ou fragment refusés). Espaces autour ignorés. Erreur en français qui
+// chemin plus long, paramètres ou fragment refusés). Espaces autour ignorés. Erreur traduite qui
 // cite la valeur reçue et la forme attendue (elle enveloppe provider.ErrInvalidRef si owner ou nom est
 // invalide).
 func ParseRef(s string) (Ref, error) {
 	raw := strings.TrimSpace(s)
 	if raw == "" {
-		return Ref{}, fmt.Errorf("dépôt vide : %s", expectedRef)
+		return Ref{}, errors.New(i18n.T("repoimport.ref.empty", expectedRef()))
 	}
 	p := raw
 	if strings.Contains(raw, "://") {
 		u, err := url.Parse(raw)
 		if err != nil {
 			// Valeur non citée : une URL illisible peut contenir des identifiants.
-			return Ref{}, fmt.Errorf("dépôt : URL illisible (valeur non reproduite), %s", expectedRef)
+			return Ref{}, errors.New(i18n.T("repoimport.ref.bad_url", expectedRef()))
 		}
 		scheme := strings.ToLower(u.Scheme)
 		host := strings.ToLower(u.Host)
 		switch {
 		case u.User != nil:
 			// La valeur n'est pas citée : elle pourrait contenir un mot de passe ou un token.
-			return Ref{}, fmt.Errorf("dépôt : identifiants interdits dans l'URL (valeur non reproduite), %s", expectedRef)
+			return Ref{}, errors.New(i18n.T("repoimport.ref.credentials", expectedRef()))
 		case scheme != "https" && scheme != "http":
-			return Ref{}, fmt.Errorf("dépôt %s : schéma %q non pris en charge, %s", quote(raw), u.Scheme, expectedRef)
+			return Ref{}, errors.New(i18n.T("repoimport.ref.scheme", quote(raw), u.Scheme, expectedRef()))
 		case host != "github.com" && host != "www.github.com":
-			return Ref{}, fmt.Errorf("dépôt %s : seul l'hôte github.com est pris en charge, %s", quote(raw), expectedRef)
+			return Ref{}, errors.New(i18n.T("repoimport.ref.host", quote(raw), expectedRef()))
 		case u.RawQuery != "" || u.ForceQuery || u.Fragment != "" || strings.Contains(raw, "#"):
-			return Ref{}, fmt.Errorf("dépôt %s : paramètres et fragment interdits dans l'URL, %s", quote(raw), expectedRef)
+			return Ref{}, errors.New(i18n.T("repoimport.ref.query", quote(raw), expectedRef()))
 		}
 		p = strings.TrimPrefix(u.Path, "/")
 	}
@@ -85,10 +92,10 @@ func ParseRef(s string) (Ref, error) {
 	p = strings.TrimSuffix(p, ".git")
 	parts := strings.Split(p, "/")
 	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
-		return Ref{}, fmt.Errorf("dépôt %s invalide : %s", quote(raw), expectedRef)
+		return Ref{}, errors.New(i18n.T("repoimport.ref.invalid", quote(raw), expectedRef()))
 	}
 	if err := provider.ValidateRepo(parts[0], parts[1]); err != nil {
-		return Ref{}, fmt.Errorf("dépôt %s (%s) : %w", quote(raw), expectedRef, err)
+		return Ref{}, wrapErr(i18n.T("repoimport.ref.wrapped", quote(raw), expectedRef()), err)
 	}
 	return Ref{Owner: parts[0], Name: parts[1]}, nil
 }
@@ -109,10 +116,10 @@ func ParseBranchPatterns(s string) ([]string, error) {
 			continue
 		}
 		if err := provider.ValidateBranch(p); err != nil {
-			return nil, fmt.Errorf("motif de branche %s : %w", quote(p), err)
+			return nil, wrapErr(i18n.T("repoimport.branch.pattern", quote(p)), err)
 		}
 		if _, err := path.Match(p, ""); err != nil {
-			return nil, fmt.Errorf("motif de branche %s invalide (syntaxe de motif : *, ?, [a-z]) : %w", quote(p), err)
+			return nil, wrapErr(i18n.T("repoimport.branch.syntax", quote(p)), err)
 		}
 		seen[p] = true
 		out = append(out, p)
@@ -147,24 +154,26 @@ const (
 // LineError est une erreur sur une ligne du fichier.
 type LineError struct {
 	Line int    // numéro de ligne (1 = première ligne)
-	Msg  string // message en français, sans le préfixe « ligne N »
+	Msg  string // message dans la langue du processus, sans le préfixe « ligne N »
 }
 
 // Error renvoie « ligne N : message ».
-func (e LineError) Error() string { return fmt.Sprintf("ligne %d : %s", e.Line, e.Msg) }
+func (e LineError) Error() string { return i18n.T("repoimport.line.prefix", e.Line, e.Msg) }
 
 // ParseError regroupe toutes les erreurs de lignes d'un fichier (au moins une), dans l'ordre.
 type ParseError struct {
 	Errors []LineError
+	// noEntry marque l'erreur d'un fichier sans aucun dépôt (errors.Is(err, ErrNoEntry)).
+	noEntry bool
 }
 
 // Error renvoie les erreurs, une par ligne de texte, précédées de leur nombre.
 func (e *ParseError) Error() string {
 	var b strings.Builder
 	if len(e.Errors) == 1 {
-		b.WriteString("1 ligne en erreur :")
+		b.WriteString(i18n.T("repoimport.parse.errors_one"))
 	} else {
-		fmt.Fprintf(&b, "%d lignes en erreur :", len(e.Errors))
+		b.WriteString(i18n.T("repoimport.parse.errors_many", len(e.Errors)))
 	}
 	for _, le := range e.Errors {
 		b.WriteString("\n  ")
@@ -175,11 +184,17 @@ func (e *ParseError) Error() string {
 
 // ErrNoEntry est l'erreur d'un fichier qui ne contient aucun dépôt (enveloppée dans la *ParseError,
 // testable avec errors.Is).
-var ErrNoEntry = errors.New("aucun dépôt dans le fichier")
+var ErrNoEntry error = i18nError{"repoimport.err.no_entry"}
+
+// i18nError est une erreur sentinelle dont le message vient du catalogue i18n : le texte est traduit
+// au moment de l'affichage (Error), dans la langue du processus. La valeur reste comparable avec ==.
+type i18nError struct{ key string }
+
+func (e i18nError) Error() string { return i18n.T(e.key) }
 
 // Is permet errors.Is(err, ErrNoEntry) sur la *ParseError d'un fichier vide.
 func (e *ParseError) Is(target error) bool {
-	return target == ErrNoEntry && len(e.Errors) == 1 && e.Errors[0].Msg == ErrNoEntry.Error()
+	return target == ErrNoEntry && e.noEntry
 }
 
 // column est une colonne connue du CSV.
@@ -227,7 +242,7 @@ func Parse(r io.Reader) ([]Entry, Format, error) {
 		return nil, "", err
 	}
 	if len(lines) == 0 {
-		return nil, "", &ParseError{Errors: []LineError{{Line: 1, Msg: ErrNoEntry.Error()}}}
+		return nil, "", &ParseError{Errors: []LineError{{Line: 1, Msg: ErrNoEntry.Error()}}, noEntry: true}
 	}
 
 	p := &parser{first: make(map[string]int)}
@@ -246,11 +261,13 @@ func Parse(r io.Reader) ([]Entry, Format, error) {
 		}
 	}
 
+	noEntry := false
 	if len(p.errs) == 0 && len(p.entries) == 0 {
 		p.fail(lines[len(lines)-1].num, ErrNoEntry.Error())
+		noEntry = true
 	}
 	if len(p.errs) > 0 {
-		return nil, format, &ParseError{Errors: p.errs}
+		return nil, format, &ParseError{Errors: p.errs, noEntry: noEntry}
 	}
 	return p.entries, format, nil
 }
@@ -274,9 +291,9 @@ func readLines(r io.Reader) ([]line, error) {
 	}
 	if err := sc.Err(); err != nil {
 		if errors.Is(err, bufio.ErrTooLong) {
-			return nil, fmt.Errorf("lecture du fichier d'import : ligne de plus de %d octets", maxLineBytes)
+			return nil, errors.New(i18n.T("repoimport.read.too_long", maxLineBytes))
 		}
-		return nil, fmt.Errorf("lecture du fichier d'import : %w", err)
+		return nil, wrapErr(i18n.T("repoimport.read.err"), err)
 	}
 	return out, nil
 }
@@ -317,9 +334,9 @@ func parseHeader(text string) (cols []column, isHeader bool, msg string) {
 		col, ok := columnNames[strings.ToLower(c)]
 		switch {
 		case !ok:
-			return nil, true, fmt.Sprintf("colonne %s inconnue dans l'en-tête (colonnes possibles : repo, label, branches, flemme, dead)", quote(c))
+			return nil, true, i18n.T("repoimport.header.unknown", quote(c))
 		case seen[col]:
-			return nil, true, fmt.Sprintf("colonne %s en double dans l'en-tête", quote(strings.ToLower(c)))
+			return nil, true, i18n.T("repoimport.header.duplicate", quote(strings.ToLower(c)))
 		}
 		seen[col] = true
 		cols = append(cols, col)
@@ -342,7 +359,7 @@ func (p *parser) fail(num int, msg string) {
 // add enregistre une entrée, ou une erreur si le dépôt est déjà apparu.
 func (p *parser) add(e Entry) {
 	if prev, ok := p.first[e.Ref.key()]; ok {
-		p.fail(e.Line, fmt.Sprintf("dépôt %s en double (déjà présent ligne %d)", e.Ref, prev))
+		p.fail(e.Line, i18n.T("repoimport.line.duplicate", e.Ref, prev))
 		return
 	}
 	p.first[e.Ref.key()] = e.Line
@@ -353,8 +370,7 @@ func (p *parser) add(e Entry) {
 func (p *parser) listLine(l line) {
 	text := strings.TrimSpace(l.text)
 	if strings.ContainsAny(text, ", \t;") {
-		p.fail(l.num, fmt.Sprintf("un seul dépôt par ligne attendu, reçu %s (pour un CSV, commencer par "+
-			"l'en-tête repo,label,branches)", quote(text)))
+		p.fail(l.num, i18n.T("repoimport.line.one_repo", quote(text)))
 		return
 	}
 	ref, err := ParseRef(text)
@@ -370,14 +386,14 @@ func (p *parser) listLine(l line) {
 func (p *parser) csvLine(l line, cols []column) {
 	cells, err := splitCSV(l.text)
 	if err != nil {
-		p.fail(l.num, "CSV mal formé (guillemets à vérifier)")
+		p.fail(l.num, i18n.T("repoimport.line.bad_csv"))
 		return
 	}
 	if cols == nil {
 		return
 	}
 	if len(cells) != len(cols) {
-		p.fail(l.num, fmt.Sprintf("%d cellule(s) au lieu de %d (comme l'en-tête)", len(cells), len(cols)))
+		p.fail(l.num, i18n.T("repoimport.line.cells", len(cells), len(cols)))
 		return
 	}
 	e := Entry{Line: l.num}
@@ -387,7 +403,7 @@ func (p *parser) csvLine(l line, cols []column) {
 		switch col {
 		case colRepo:
 			if v == "" {
-				msgs = append(msgs, "colonne repo vide")
+				msgs = append(msgs, i18n.T("repoimport.line.empty_repo"))
 				continue
 			}
 			ref, err := ParseRef(v)
@@ -416,7 +432,7 @@ func (p *parser) csvLine(l line, cols []column) {
 			}
 			n, err := ParseThreshold(v)
 			if err != nil {
-				msgs = append(msgs, name+" : "+err.Error())
+				msgs = append(msgs, name+i18n.T("repoimport.err.sep")+err.Error())
 				continue
 			}
 			if col == colFlemme {
@@ -430,7 +446,7 @@ func (p *parser) csvLine(l line, cols []column) {
 		msgs = append(msgs, err.Error())
 	}
 	if len(msgs) > 0 {
-		p.fail(l.num, strings.Join(msgs, " ; "))
+		p.fail(l.num, strings.Join(msgs, i18n.T("repoimport.err.semicolon")))
 		return
 	}
 	p.add(e)
@@ -438,7 +454,7 @@ func (p *parser) csvLine(l line, cols []column) {
 
 // ValidateLabel vérifie un label (nom affiché d'un dépôt), quelle que soit sa source (fichier
 // d'import, « repo add --label », plus tard le web) : UTF-8 valide, aucun caractère de contrôle (ESC,
-// saut de ligne…), MaxLabelRunes caractères au plus. Erreur en français sinon.
+// saut de ligne…), MaxLabelRunes caractères au plus. Erreur dans la langue du processus sinon.
 func ValidateLabel(v string) error {
 	if msg := checkLabel(v); msg != "" {
 		return errors.New(msg)
@@ -450,18 +466,18 @@ func ValidateLabel(v string) error {
 func checkLabel(v string) string {
 	switch {
 	case !utf8.ValidString(v):
-		return "label : texte UTF-8 invalide"
+		return i18n.T("repoimport.label.utf8")
 	case strings.IndexFunc(v, unicode.IsControl) >= 0:
-		return "label : caractère de contrôle interdit"
+		return i18n.T("repoimport.label.control")
 	case utf8.RuneCountInString(v) > MaxLabelRunes:
-		return fmt.Sprintf("label trop long (%d caractères au plus)", MaxLabelRunes)
+		return i18n.T("repoimport.label.too_long", MaxLabelRunes)
 	}
 	return ""
 }
 
 // ParseThreshold analyse un seuil d'activité saisi (cellule flemme ou dead, champ du web) : nombre
 // entier de jours, espaces autour ignorés. Chaîne vide : nil (non fourni) ; « 0 » : revenir à la
-// valeur globale. Erreur en français sinon (nombre négatif ou illisible).
+// valeur globale. Erreur dans la langue du processus sinon (nombre négatif ou illisible).
 func ParseThreshold(s string) (*int, error) {
 	s = strings.TrimSpace(s)
 	if s == "" {
@@ -469,7 +485,7 @@ func ParseThreshold(s string) (*int, error) {
 	}
 	n, err := strconv.Atoi(s)
 	if err != nil || n < 0 || n > MaxThresholdDays {
-		return nil, fmt.Errorf("%s : nombre entier de jours attendu, de 1 à %d (0 = valeur globale)", quote(s), MaxThresholdDays)
+		return nil, errors.New(i18n.T("repoimport.threshold.parse", quote(s), MaxThresholdDays))
 	}
 	return &n, nil
 }
@@ -477,18 +493,18 @@ func ParseThreshold(s string) (*int, error) {
 // ValidateThresholds vérifie les seuils d'activité demandés pour un dépôt, quelle que soit leur source
 // (« repo add --flemme / --dead », fichier d'import, partage de la configuration, web) : nil = non
 // fourni, 0 = valeur globale, sinon de 1 à MaxThresholdDays jours ; quand les deux sont donnés (non
-// nuls), Dead doit être strictement supérieur à Flemme. Erreur en français sinon.
+// nuls), Dead doit être strictement supérieur à Flemme. Erreur dans la langue du processus sinon.
 func ValidateThresholds(flemme, dead *int) error {
 	for _, t := range []struct {
 		name string
 		v    *int
 	}{{"flemme", flemme}, {"dead", dead}} {
 		if t.v != nil && (*t.v < 0 || *t.v > MaxThresholdDays) {
-			return fmt.Errorf("seuil %s : %d jours invalide (de 1 à %d, ou 0 pour la valeur globale)", t.name, *t.v, MaxThresholdDays)
+			return errors.New(i18n.T("repoimport.threshold.range", t.name, *t.v, MaxThresholdDays))
 		}
 	}
 	if flemme != nil && dead != nil && *flemme > 0 && *dead > 0 && *dead <= *flemme {
-		return fmt.Errorf("seuil dead (%d j) : doit être strictement supérieur au seuil flemme (%d j)", *dead, *flemme)
+		return errors.New(i18n.T("repoimport.threshold.order", *dead, *flemme))
 	}
 	return nil
 }

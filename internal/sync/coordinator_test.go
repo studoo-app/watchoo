@@ -1,8 +1,8 @@
 package sync_test
 
-// Tests du coordinateur de synchros (« watchoo serve ») avec un faux Syncer qu'on peut suspendre et
-// une horloge contrôlée : synchro au démarrage selon la dernière synchro, synchro périodique, refus
-// d'une synchro concurrente, progression, changement d'intervalle, arrêt propre.
+// Tests of the sync coordinator ("watchoo serve") with a fake Syncer that can be suspended and a
+// controlled clock: sync at startup depending on the last sync, periodic sync, refusal of a
+// concurrent sync, progress, interval change, clean shutdown.
 
 import (
 	"context"
@@ -16,11 +16,11 @@ import (
 	wsync "github.com/studoo-app/watchoo/internal/sync"
 )
 
-// blockingSyncer est un faux Syncer : chaque synchro envoie ses événements, puis attend release (ou
-// l'annulation de son contexte).
+// blockingSyncer is a fake Syncer: every sync sends its events, then waits for release (or the
+// cancellation of its context).
 type blockingSyncer struct {
 	mu      gosync.Mutex
-	calls   []int64 // 0 = SyncAll, sinon l'identifiant du dépôt
+	calls   []int64 // 0 = SyncAll, otherwise the identifier of the repository
 	started chan int64
 	release chan struct{}
 	err     error
@@ -60,8 +60,8 @@ func (s *blockingSyncer) callCount() int {
 	return len(s.calls)
 }
 
-// fakeTimer remplace time.After : chaque appel enregistre la durée demandée et renvoie un canal que
-// le test déclenche avec fire.
+// fakeTimer replaces time.After: every call records the requested duration and returns a channel
+// that the test triggers with fire.
 type fakeTimer struct {
 	mu    gosync.Mutex
 	waits []time.Duration
@@ -81,20 +81,20 @@ func (f *fakeTimer) after(d time.Duration) <-chan time.Time {
 	return ch
 }
 
-// waitAsk attend une nouvelle demande de minuterie et renvoie sa durée.
+// waitAsk waits for a new timer request and returns its duration.
 func (f *fakeTimer) waitAsk(t *testing.T) time.Duration {
 	t.Helper()
 	select {
 	case <-f.asked:
 	case <-time.After(5 * time.Second):
-		t.Fatal("aucune minuterie demandée")
+		t.Fatal("no timer requested")
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return f.waits[len(f.waits)-1]
 }
 
-// fire déclenche la dernière minuterie demandée.
+// fire triggers the last requested timer.
 func (f *fakeTimer) fire() {
 	f.mu.Lock()
 	ch := f.chans[len(f.chans)-1]
@@ -121,19 +121,19 @@ func newTestCoordinator(t *testing.T, s wsync.Syncer, interval time.Duration, la
 	return c
 }
 
-// waitStarted attend le début d'une synchro du faux Syncer et renvoie son dépôt (0 = tous).
+// waitStarted waits for the start of a sync of the fake Syncer and returns its repository (0 = all).
 func waitStarted(t *testing.T, s *blockingSyncer) int64 {
 	t.Helper()
 	select {
 	case id := <-s.started:
 		return id
 	case <-time.After(5 * time.Second):
-		t.Fatal("aucune synchro n'a démarré")
+		t.Fatal("no sync started")
 		return -1
 	}
 }
 
-// waitIdle attend la fin de la synchro en cours.
+// waitIdle waits for the end of the running sync.
 func waitIdle(t *testing.T, c *wsync.Coordinator) wsync.SyncState {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
@@ -143,17 +143,17 @@ func waitIdle(t *testing.T, c *wsync.Coordinator) wsync.SyncState {
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
-	t.Fatal("la synchro ne s'est pas terminée")
+	t.Fatal("the sync did not finish")
 	return wsync.SyncState{}
 }
 
 func TestNewCoordinatorValidates(t *testing.T) {
 	if _, err := wsync.NewCoordinator(wsync.CoordinatorOptions{}); err == nil {
-		t.Error("moteur absent accepté")
+		t.Error("missing engine accepted")
 	}
 	for _, d := range []time.Duration{-time.Minute, 10 * time.Minute} {
 		if _, err := wsync.NewCoordinator(wsync.CoordinatorOptions{Syncer: newBlockingSyncer(), Interval: d}); err == nil {
-			t.Errorf("intervalle %s accepté", d)
+			t.Errorf("interval %s accepted", d)
 		}
 	}
 }
@@ -161,7 +161,7 @@ func TestNewCoordinatorValidates(t *testing.T) {
 func TestCoordinatorNotStarted(t *testing.T) {
 	c := newTestCoordinator(t, newBlockingSyncer(), 0, time.Time{}, newFakeTimer())
 	if err := c.SyncAll(); !errors.Is(err, wsync.ErrCoordinatorNotStarted) {
-		t.Errorf("SyncAll avant Start : %v", err)
+		t.Errorf("SyncAll before Start: %v", err)
 	}
 }
 
@@ -171,34 +171,34 @@ func TestCoordinatorFirstSyncAtStartWhenStale(t *testing.T) {
 	c := newTestCoordinator(t, s, 30*time.Minute, coordNow.Add(-2*time.Hour), timer)
 	c.Start(t.Context())
 	if d := timer.waitAsk(t); d != 0 {
-		t.Errorf("première attente %s, attendu 0 (dernière synchro trop ancienne)", d)
+		t.Errorf("first wait %s, want 0 (last sync too old)", d)
 	}
 	timer.fire()
 	if id := waitStarted(t, s); id != 0 {
-		t.Errorf("synchro du dépôt %d, attendu tous les dépôts", id)
+		t.Errorf("sync of repository %d, want all repositories", id)
 	}
 	st := c.State()
 	if !st.Running || !st.Auto || st.Total != 2 || st.Current != "Alice Martin" {
-		t.Errorf("état pendant la synchro : %+v", st)
+		t.Errorf("state during the sync: %+v", st)
 	}
 	if want := coordNow.Add(30 * time.Minute); !st.NextAuto.Equal(want) {
-		t.Errorf("NextAuto = %v, attendu %v", st.NextAuto, want)
+		t.Errorf("NextAuto = %v, want %v", st.NextAuto, want)
 	}
-	// Une synchro manuelle pendant la synchro automatique est refusée.
+	// A manual sync during the automatic sync is refused.
 	if err := c.SyncAll(); !errors.Is(err, wsync.ErrSyncRunning) {
-		t.Errorf("SyncAll pendant une synchro : %v", err)
+		t.Errorf("SyncAll during a sync: %v", err)
 	}
 	if err := c.SyncRepo(1); !errors.Is(err, wsync.ErrSyncRunning) {
-		t.Errorf("SyncRepo pendant une synchro : %v", err)
+		t.Errorf("SyncRepo during a sync: %v", err)
 	}
 	close(s.release)
 	st = waitIdle(t, c)
 	if !st.HasReport || st.LastReport.NewCommits() != 3 || st.Done != 1 || st.LastError != "" ||
 		!st.LastFinishedAt.Equal(coordNow) {
-		t.Errorf("état après la synchro : %+v", st)
+		t.Errorf("state after the sync: %+v", st)
 	}
 	if s.callCount() != 1 {
-		t.Errorf("%d synchros, attendu 1", s.callCount())
+		t.Errorf("%d syncs, want 1", s.callCount())
 	}
 }
 
@@ -208,10 +208,10 @@ func TestCoordinatorWaitsForIntervalAfterRecentSync(t *testing.T) {
 	c := newTestCoordinator(t, s, 30*time.Minute, coordNow.Add(-10*time.Minute), timer)
 	c.Start(t.Context())
 	if d := timer.waitAsk(t); d != 20*time.Minute {
-		t.Errorf("première attente %s, attendu 20m (un intervalle après la dernière synchro)", d)
+		t.Errorf("first wait %s, want 20m (one interval after the last sync)", d)
 	}
 	if s.callCount() != 0 {
-		t.Error("synchro lancée au démarrage malgré une synchro récente")
+		t.Error("sync started at startup despite a recent sync")
 	}
 }
 
@@ -221,27 +221,27 @@ func TestCoordinatorManualOnly(t *testing.T) {
 	c := newTestCoordinator(t, s, 0, time.Time{}, timer)
 	c.Start(t.Context())
 	if st := c.State(); !st.NextAuto.IsZero() || st.Interval != 0 {
-		t.Errorf("manuelle seule : %+v", st)
+		t.Errorf("manual only: %+v", st)
 	}
 	if err := c.SyncRepo(7); err != nil {
 		t.Fatal(err)
 	}
 	if id := waitStarted(t, s); id != 7 {
-		t.Errorf("dépôt %d, attendu 7", id)
+		t.Errorf("repository %d, want 7", id)
 	}
 	if st := c.State(); st.Auto || st.RepoID != 7 || !st.Running {
-		t.Errorf("état : %+v", st)
+		t.Errorf("state: %+v", st)
 	}
 	close(s.release)
 	waitIdle(t, c)
 	if err := c.SyncRepo(0); err == nil {
-		t.Error("identifiant 0 accepté")
+		t.Error("identifier 0 accepted")
 	}
 }
 
 func TestCoordinatorRecordsGlobalError(t *testing.T) {
 	s := newBlockingSyncer()
-	s.err = errors.New("lecture du token GitHub : gh non connecté")
+	s.err = errors.New("reading the GitHub token: gh not signed in")
 	close(s.release)
 	c := newTestCoordinator(t, s, 0, time.Time{}, newFakeTimer())
 	c.Start(t.Context())
@@ -261,17 +261,17 @@ func TestCoordinatorSetInterval(t *testing.T) {
 	c.Start(t.Context())
 	for _, d := range []time.Duration{-time.Minute, 14 * time.Minute} {
 		if err := c.SetInterval(d); err == nil {
-			t.Errorf("SetInterval(%s) accepté", d)
+			t.Errorf("SetInterval(%s) accepted", d)
 		}
 	}
 	if err := c.SetInterval(time.Hour); err != nil {
 		t.Fatal(err)
 	}
 	if d := timer.waitAsk(t); d != time.Hour {
-		t.Errorf("attente %s, attendu 1h", d)
+		t.Errorf("wait %s, want 1h", d)
 	}
 	if st := c.State(); st.Interval != time.Hour || !st.NextAuto.Equal(coordNow.Add(time.Hour)) {
-		t.Errorf("état : %+v", st)
+		t.Errorf("state: %+v", st)
 	}
 	if c.Interval() != time.Hour {
 		t.Errorf("Interval() = %s", c.Interval())
@@ -280,7 +280,7 @@ func TestCoordinatorSetInterval(t *testing.T) {
 		t.Fatal(err)
 	}
 	if st := c.State(); !st.NextAuto.IsZero() {
-		t.Errorf("NextAuto = %v après SetInterval(0)", st.NextAuto)
+		t.Errorf("NextAuto = %v after SetInterval(0)", st.NextAuto)
 	}
 }
 
@@ -293,17 +293,17 @@ func TestCoordinatorCloseCancelsRunningSync(t *testing.T) {
 	}
 	waitStarted(t, s)
 	if err := c.Close(5 * time.Second); err != nil {
-		t.Fatalf("Close : %v", err)
+		t.Fatalf("Close: %v", err)
 	}
 	st := c.State()
-	if st.Running || st.LastError != "synchro annulée" {
-		t.Errorf("état après Close : %+v", st)
+	if st.Running || st.LastError != "sync canceled" {
+		t.Errorf("state after Close: %+v", st)
 	}
 	if err := c.SyncAll(); !errors.Is(err, wsync.ErrCoordinatorClosed) {
-		t.Errorf("SyncAll après Close : %v", err)
+		t.Errorf("SyncAll after Close: %v", err)
 	}
 	if err := c.Close(time.Second); err != nil {
-		t.Errorf("second Close : %v", err)
+		t.Errorf("second Close: %v", err)
 	}
 }
 
@@ -311,7 +311,7 @@ func TestCoordinatorCloseTimeout(t *testing.T) {
 	stuck := make(chan struct{})
 	defer close(stuck)
 	s := syncerFunc(func(ctx context.Context) (wsync.Report, error) {
-		<-stuck // ignore l'annulation
+		<-stuck // ignores the cancellation
 		return wsync.Report{}, nil
 	})
 	c, err := wsync.NewCoordinator(wsync.CoordinatorOptions{Syncer: s, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))})
@@ -323,11 +323,11 @@ func TestCoordinatorCloseTimeout(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := c.Close(20 * time.Millisecond); err == nil {
-		t.Error("Close sans erreur alors que la synchro ne s'arrête pas")
+		t.Error("Close without error although the sync does not stop")
 	}
 }
 
-// syncerFunc est un Syncer réduit à une fonction.
+// syncerFunc is a Syncer reduced to a function.
 type syncerFunc func(ctx context.Context) (wsync.Report, error)
 
 func (f syncerFunc) SyncAll(ctx context.Context, _ wsync.SyncOptions) (wsync.Report, error) {
@@ -338,8 +338,8 @@ func (f syncerFunc) SyncRepo(ctx context.Context, _ int64, _ wsync.SyncOptions) 
 	return f(ctx)
 }
 
-// TestCoordinatorWithEngine vérifie le coordinateur avec le vrai moteur : synchro manuelle
-// complète, puis arrêt propre.
+// TestCoordinatorWithEngine checks the coordinator with the real engine: complete manual sync,
+// then clean shutdown.
 func TestCoordinatorWithEngine(t *testing.T) {
 	env := newEnv(t)
 	env.addRepo(1, "alice")
@@ -354,7 +354,7 @@ func TestCoordinatorWithEngine(t *testing.T) {
 	}
 	st := waitIdle(t, c)
 	if st.LastError != "" || len(st.LastReport.Repos) != 1 || st.LastReport.Repos[0].Status != wsync.StatusSuccess {
-		t.Errorf("rapport : %+v", st)
+		t.Errorf("report: %+v", st)
 	}
 	if err := c.Close(5 * time.Second); err != nil {
 		t.Fatal(err)

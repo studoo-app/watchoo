@@ -17,14 +17,14 @@ import (
 	"github.com/studoo-app/watchoo/internal/logo"
 )
 
-// wideTerminal est un terminal simulé de 80 colonnes, Unicode, en couleur.
+// wideTerminal is a simulated 80-column terminal, with Unicode and color.
 var wideTerminal = TermInfo{IsTerminal: true, Width: 80, Unicode: true, Color: true}
 
-// ansiSeq reconnaît une séquence d'échappement ANSI de couleur ou d'attribut.
+// ansiSeq matches an ANSI color or attribute escape sequence.
 var ansiSeq = regexp.MustCompile("\x1b\\[[0-9;]*m")
 
-// onTerminal fait passer la sortie standard du harness pour le terminal décrit par info, et renvoie un
-// compteur des appels à Terminal.
+// onTerminal makes the harness's standard output pass for the terminal described by info, and returns a
+// counter of the calls to Terminal.
 func onTerminal(h *harness, info TermInfo) *int {
 	calls := new(int)
 	h.Terminal = func() TermInfo {
@@ -34,49 +34,49 @@ func onTerminal(h *harness, info TermInfo) *int {
 	return calls
 }
 
-// cardFor est la carte d'en-tête de Watchoo attendue sur le terminal info.
+// cardFor is the Watchoo header card expected on the terminal info.
 func cardFor(info TermInfo, subtitle, tip string) string {
 	return logo.Card(logo.CardOptions{Title: "Watchoo", Version: Version, Subtitle: subtitle, Tip: tip,
 		Width: info.Width, Unicode: info.Unicode, Color: info.Color})
 }
 
-// statusFor est la ligne d'état attendue sur le terminal info.
+// statusFor is the status line expected on the terminal info.
 func statusFor(info TermInfo, text string) string {
 	return logo.Status(text, logo.CardOptions{Unicode: info.Unicode, Color: info.Color})
 }
 
-// helpHeader est l'en-tête attendu en haut de l'aide générale sur le terminal info : la carte, une ligne
-// vide, la ligne d'état de l'espace, une ligne vide.
+// helpHeader is the header expected at the top of the general help on the terminal info: the card, a blank
+// line, the workspace status line, a blank line.
 func helpHeader(info TermInfo, status, tip string) string {
 	return cardFor(info, helpSubtitle(), tip) + "\n" + statusFor(info, status) + "\n"
 }
 
-// versionLine est la sortie de « watchoo version » hors terminal.
+// versionLine is the output of "watchoo version" off a terminal.
 func versionLine() string {
 	return "watchoo " + Version + " (" + runtime.Version() + ", " + runtime.GOOS + "/" + runtime.GOARCH + ")\n"
 }
 
-// versionCard est la sortie de « watchoo version » sur le terminal info.
+// versionCard is the output of "watchoo version" on the terminal info.
 func versionCard(info TermInfo) string {
 	return cardFor(info, runtime.Version()+" · "+runtime.GOOS+"/"+runtime.GOARCH, "")
 }
 
-// assertNoCard vérifie qu'out ne contient ni carte, ni ligne d'état, ni séquence d'échappement.
+// assertNoCard checks that out contains no card, no status line and no escape sequence.
 func assertNoCard(t *testing.T, what, out string) {
 	t.Helper()
 	for _, part := range []string{"╭", "█", "●", "+--", `|\    /|`, "Tip", "\x1b"} {
 		if strings.Contains(out, part) {
-			t.Errorf("%s : carte inattendue (%q) :\n%s", what, part, out)
+			t.Errorf("%s: unexpected card (%q):\n%s", what, part, out)
 			return
 		}
 	}
 }
 
-// generalHelp sont les façons d'afficher l'aide générale.
+// generalHelp lists the ways to display the general help.
 var generalHelp = [][]string{nil, {"help"}, {"--help"}, {"-h"}}
 
-// Sur un terminal, l'aide générale commence par la carte (astuce de « watchoo init » s'il n'y a pas
-// d'espace) et la ligne d'état, puis l'aide habituelle, inchangée.
+// On a terminal, the general help starts with the card (tip for "watchoo init" if there is no
+// workspace) and the status line, then the usual help, unchanged.
 func TestCardInGeneralHelp(t *testing.T) {
 	plain := newHarness(t)
 	h := newHarness(t)
@@ -84,26 +84,26 @@ func TestCardInGeneralHelp(t *testing.T) {
 	header := helpHeader(wideTerminal, "No workspace here", tipInit())
 	for _, part := range []string{"Watchoo", "dev", "Who worked, on what, and when?", "watchoo init", "╭", "╯"} {
 		if !strings.Contains(ansiSeq.ReplaceAllString(header, ""), part) {
-			t.Fatalf("en-tête sans %q :\n%s", part, header)
+			t.Fatalf("header without %q:\n%s", part, header)
 		}
 	}
 	for _, args := range generalHelp {
 		want := plain.run(args...).mustSucceed(t).stdout
 		r := h.run(args...).mustSucceed(t)
 		if r.stdout != header+want {
-			t.Errorf("watchoo %q sur un terminal :\n%s\nattendu la carte, la ligne d'état puis :\n%s", args, r.stdout, want)
+			t.Errorf("watchoo %q on a terminal:\n%s\nwant the card, the status line, then:\n%s", args, r.stdout, want)
 		}
 		if r.stderr != "" {
-			t.Errorf("watchoo %q : sortie d'erreur inattendue :\n%s", args, r.stderr)
+			t.Errorf("watchoo %q: unexpected stderr:\n%s", args, r.stderr)
 		}
 	}
-	// L'aide ne lance pas gh, même pour chercher l'espace.
+	// The help does not run gh, not even to look for the workspace.
 	if len(h.configs) != 0 || h.fake().StatusCalls() != 0 {
-		t.Error("l'aide a construit un accès à gh")
+		t.Error("the help built a gh access")
 	}
 }
 
-// La ligne d'état de l'aide décrit l'espace trouvé comme le feraient les autres commandes.
+// The help's status line describes the workspace found as the other commands would.
 func TestHelpWorkspaceStatus(t *testing.T) {
 	isolateEnv(t)
 	home := os.Getenv("HOME")
@@ -124,14 +124,14 @@ func TestHelpWorkspaceStatus(t *testing.T) {
 		want string
 		tip  string
 	}{
-		{"espace du répertoire courant, sous le répertoire personnel", root, nil, "", inHome, tipWorkspace()},
-		{"depuis un sous-répertoire", newDir(t, root, "src", "module"), []string{"help"}, "", inHome, tipWorkspace()},
-		{"hors d'un espace", empty, []string{"--help"}, "", "No workspace here", tipInit()},
-		{"option -C", empty, []string{"-C", other, "--help"}, "", inOther, tipWorkspace()},
-		{"option -C relative", root, []string{"-C", "src", "help"}, "", inHome, tipWorkspace()},
-		{"variable WATCHOO_DIR", empty, nil, other, inOther, tipWorkspace()},
-		{"option -C sans espace", root, []string{"-C", empty}, "", "No workspace here", tipInit()},
-		{"option -C inexistante", root, []string{"-C", "absent", "-h"}, "",
+		{"workspace of the current directory, under the home directory", root, nil, "", inHome, tipWorkspace()},
+		{"from a subdirectory", newDir(t, root, "src", "module"), []string{"help"}, "", inHome, tipWorkspace()},
+		{"outside a workspace", empty, []string{"--help"}, "", "No workspace here", tipInit()},
+		{"-C option", empty, []string{"-C", other, "--help"}, "", inOther, tipWorkspace()},
+		{"relative -C option", root, []string{"-C", "src", "help"}, "", inHome, tipWorkspace()},
+		{"WATCHOO_DIR variable", empty, nil, other, inOther, tipWorkspace()},
+		{"-C option without a workspace", root, []string{"-C", empty}, "", "No workspace here", tipInit()},
+		{"nonexistent -C directory", root, []string{"-C", "absent", "-h"}, "",
 			"Workspace: option -C: directory " + filepath.Join(root, "absent") + " does not exist", tipHelp()},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -142,17 +142,17 @@ func TestHelpWorkspaceStatus(t *testing.T) {
 			onTerminal(h, wideTerminal)
 			r := h.run(tt.args...).mustSucceed(t)
 			if want := helpHeader(wideTerminal, tt.want, tt.tip); !strings.HasPrefix(r.stdout, want) {
-				t.Errorf("aide :\n%s\nattendu l'en-tête :\n%s", r.stdout, want)
+				t.Errorf("help:\n%s\nwant the header:\n%s", r.stdout, want)
 			}
 			if len(h.configs) != 0 {
-				t.Error("l'aide a construit un accès à gh")
+				t.Error("the help built a gh access")
 			}
 		})
 	}
 }
 
-// Des réglages invalides, un nom d'espace avec des caractères de contrôle ou un répertoire courant
-// inaccessible ne font jamais échouer l'aide.
+// Invalid settings, a workspace name with control characters or an inaccessible current directory
+// never make the help fail.
 func TestHelpWorkspaceStatusErrors(t *testing.T) {
 	h := newHarness(t)
 	h.run("init").mustSucceed(t)
@@ -160,16 +160,16 @@ func TestHelpWorkspaceStatusErrors(t *testing.T) {
 	onTerminal(h, wideTerminal)
 	plainHelp := newHarness(t).run("--help").mustSucceed(t).stdout
 
-	// statusOf renvoie la ligne d'état de l'aide, sans couleur, et vérifie que l'aide habituelle suit.
+	// statusOf returns the help's status line, without color, and checks that the usual help follows.
 	statusOf := func(r result) string {
 		t.Helper()
-		_, rest, ok := strings.Cut(ansiSeq.ReplaceAllString(r.stdout, ""), "╯\n\n") // après la carte
+		_, rest, ok := strings.Cut(ansiSeq.ReplaceAllString(r.stdout, ""), "╯\n\n") // after the card
 		if !ok {
-			t.Fatalf("aide sans carte :\n%s", r.stdout)
+			t.Fatalf("help without a card:\n%s", r.stdout)
 		}
 		line, help, _ := strings.Cut(rest, "\n\n")
 		if help != plainHelp {
-			t.Errorf("aide habituelle absente ou modifiée :\n%s", r.stdout)
+			t.Errorf("usual help missing or changed:\n%s", r.stdout)
 		}
 		return line
 	}
@@ -177,40 +177,40 @@ func TestHelpWorkspaceStatusErrors(t *testing.T) {
 	writeFile(t, config, "sync:\n  intervall: 1h\n")
 	r := h.run("--help").mustSucceed(t)
 	if got := statusOf(r); !strings.HasPrefix(got, "● Workspace: ") || !strings.Contains(got, "intervall") {
-		t.Errorf(`invalid settings : status line %q`, got)
+		t.Errorf(`invalid settings: status line %q`, got)
 	}
 	if r.stderr != "" {
-		t.Errorf("sortie d'erreur inattendue :\n%s", r.stderr)
+		t.Errorf("unexpected stderr:\n%s", r.stderr)
 	}
 
 	writeFile(t, config, "sync:\n  interval: 5m\n")
 	if got := statusOf(h.run("help").mustSucceed(t)); !strings.HasPrefix(got, "● Workspace: invalid settings: ") {
-		t.Errorf("valeur hors limites : ligne d'état %q", got)
+		t.Errorf("value out of bounds: status line %q", got)
 	}
 
-	// Nom avec une séquence d'échappement et un saut de ligne (YAML « \e », « \n ») : neutralisés.
+	// Name with an escape sequence and a line break (YAML "\e", "\n"): neutralized.
 	writeFile(t, config, `name: "promo\e[2J\nlicence"`+"\n")
 	r = h.run().mustSucceed(t)
 	if got := statusOf(r); got != "● Workspace: promo?[2J licence ("+h.cwd+")" {
-		t.Errorf("nom avec caractères de contrôle : ligne d'état %q", got)
+		t.Errorf("name with control characters: status line %q", got)
 	}
 	if rest := ansiSeq.ReplaceAllString(r.stdout, ""); strings.Contains(rest, "\x1b") {
-		t.Errorf("séquence d'échappement venue du nom de l'espace :\n%q", r.stdout)
+		t.Errorf("escape sequence from the workspace name:\n%q", r.stdout)
 	}
 
-	// Répertoire courant inaccessible : signalé, sauf avec un -C absolu.
-	deps := Deps{Getwd: func() (string, error) { return "", errors.New("répertoire supprimé") }}
+	// Inaccessible current directory: reported, except with an absolute -C.
+	deps := Deps{Getwd: func() (string, error) { return "", errors.New("directory deleted") }}
 	status, tip := helpStatus(deps, &options{})
-	if status != "Workspace: current directory unavailable: répertoire supprimé" || tip != tipHelp() {
-		t.Errorf("répertoire courant inaccessible : %q, %q", status, tip)
+	if status != "Workspace: current directory unavailable: directory deleted" || tip != tipHelp() {
+		t.Errorf("inaccessible current directory: %q, %q", status, tip)
 	}
 	writeFile(t, config, "name: perso\n")
 	if status, _ := helpStatus(deps, &options{workspaceDir: h.cwd}); status != "Workspace: perso ("+h.cwd+")" {
-		t.Errorf("répertoire courant inaccessible, -C absolu : %q", status)
+		t.Errorf("inaccessible current directory, absolute -C: %q", status)
 	}
 }
 
-// Sur un terminal, « watchoo version » et « watchoo --version » affichent la carte et rien d'autre.
+// On a terminal, "watchoo version" and "watchoo --version" print the card and nothing else.
 func TestCardVersion(t *testing.T) {
 	original := Version
 	t.Cleanup(func() { Version = original })
@@ -223,47 +223,47 @@ func TestCardVersion(t *testing.T) {
 		want := versionCard(wideTerminal)
 		plain := ansiSeq.ReplaceAllString(want, "")
 		if !strings.Contains(plain, tt.shown) || !strings.Contains(plain, runtime.Version()+" · "+runtime.GOOS) ||
-			strings.Contains(plain, "Astuce") {
-			t.Fatalf("carte de version inattendue :\n%s", plain)
+			strings.Contains(plain, "Tip:") {
+			t.Fatalf("unexpected version card:\n%s", plain)
 		}
 		for _, args := range [][]string{{"version"}, {"--version"}, {"-C", "ailleurs", "--version"}} {
 			r := h.run(args...).mustSucceed(t)
 			if r.stdout != want || r.stderr != "" {
-				t.Errorf("watchoo %q sur un terminal = %q (stderr %q), attendu la carte :\n%s", args, r.stdout,
+				t.Errorf("watchoo %q on a terminal = %q (stderr %q), want the card:\n%s", args, r.stdout,
 					r.stderr, want)
 			}
 		}
 	}
 	if len(h.configs) != 0 {
-		t.Error("version a construit un accès à gh")
+		t.Error("version built a gh access")
 	}
 }
 
-// Sur un terminal, le compte rendu de « watchoo init » est la carte, puis des lignes d'état.
+// On a terminal, the report of "watchoo init" is the card, then status lines.
 func TestCardInit(t *testing.T) {
 	h := newHarness(t)
 	root := h.cwd
 	onTerminal(h, wideTerminal)
 	r := h.run("init").mustSucceed(t)
-	want := cardFor(wideTerminal, `Workspace "licence-projet" created`, tipInitDone) + "\n" +
+	want := cardFor(wideTerminal, `Workspace "licence-projet" created`, tipInitDone()) + "\n" +
 		statusFor(wideTerminal, "Workspace: licence-projet ("+root+")") +
 		statusFor(wideTerminal, "Settings: "+filepath.Join(root, ".watchoo", "config.yaml")) +
 		statusFor(wideTerminal, "Database: "+filepath.Join(root, ".watchoo", "watchoo.db")) +
 		statusFor(wideTerminal, "gh account: watchoo-test on github.com (scopes: gist, read:org, repo)")
 	if r.stdout != want {
-		t.Errorf("init sur un terminal :\n%s\nattendu :\n%s", r.stdout, want)
+		t.Errorf("init on a terminal:\n%s\nwant:\n%s", r.stdout, want)
 	}
-	if !strings.Contains(ansiSeq.ReplaceAllString(r.stdout, ""), tipInitDone) {
-		t.Errorf("astuce absente :\n%s", r.stdout)
+	if !strings.Contains(ansiSeq.ReplaceAllString(r.stdout, ""), tipInitDone()) {
+		t.Errorf("tip missing:\n%s", r.stdout)
 	}
 	if r.stderr != "" {
-		t.Errorf("sortie d'erreur inattendue :\n%s", r.stderr)
+		t.Errorf("unexpected stderr:\n%s", r.stderr)
 	}
 	if _, err := os.Stat(filepath.Join(root, ".watchoo", "watchoo.db")); err != nil {
-		t.Errorf("base absente : %v", err)
+		t.Errorf("database missing: %v", err)
 	}
 
-	// Sous le répertoire personnel : « ~ » dans les chemins ; sans droits indiqués par gh.
+	// Under the home directory: "~" in the paths; no scopes reported by gh.
 	h2 := newHarness(t)
 	h2.cwd = newDir(t, os.Getenv("HOME"), "perso")
 	h2.fake().SetStatus(auth.Status{Host: "github.com", Login: "ci-bot", TokenSource: "GH_TOKEN", Active: true,
@@ -277,14 +277,13 @@ func TestCardInit(t *testing.T) {
 		"● Database: " + filepath.Join("~", "perso", ".watchoo", "watchoo.db") + "\n" +
 		"● gh account: ci-bot on github.com (scopes not reported by gh)\n"
 	if report != wantReport {
-		t.Errorf("compte rendu :\n%s\nattendu :\n%s", report, wantReport)
+		t.Errorf("report:\n%s\nwant:\n%s", report, wantReport)
 	}
 }
 
-// Un espace dont le nom a des accents décomposés (« e » suivi de U+0301), comme un répertoire créé par le
-// Finder de macOS, ne décale pas la bordure de droite de la carte de « watchoo init » ; sans Unicode,
-// ses accents sont retirés, et non remplacés par « ? », dans la carte et les lignes d'état de init et de
-// l'aide.
+// A workspace whose name has decomposed accents ("e" followed by U+0301), like a directory created by the
+// macOS Finder, does not shift the right border of the "watchoo init" card; without Unicode, its accents
+// are removed, not replaced by "?", in the card and the status lines of init and of the help.
 func TestCardDecomposedWorkspaceName(t *testing.T) {
 	const name = "promo-re\u0301seaux"
 	for _, unicodeOK := range []bool{true, false} {
@@ -296,39 +295,39 @@ func TestCardDecomposedWorkspaceName(t *testing.T) {
 
 		card, report, ok := strings.Cut(initOut, "\n\n")
 		if !ok {
-			t.Fatalf("Unicode %t : init sans carte :\n%s", unicodeOK, initOut)
+			t.Fatalf("Unicode %t: init without a card:\n%s", unicodeOK, initOut)
 		}
 		lines := strings.Split(card, "\n")
 		for i, line := range lines {
 			if got, want := columns(line), columns(lines[0]); got != want {
-				t.Errorf("Unicode %t : ligne %d de la carte sur %d colonnes, attendu %d comme la première :\n%s",
+				t.Errorf("Unicode %t: card line %d is %d columns wide, want %d like the first one:\n%s",
 					unicodeOK, i+1, got, want, card)
 			}
 		}
 		shown, status := `"`+name+`"`, "● Workspace: "+name+" ("+h.cwd+")"
 		if !unicodeOK {
-			// Toute la ligne d'état est ramenée à l'ASCII, chemin compris.
+			// The whole status line is reduced to ASCII, path included.
 			shown = `"promo-reseaux"`
 			status = "* Workspace: promo-reseaux (" + strings.ReplaceAll(h.cwd, name, "promo-reseaux") + ")"
 		}
 		if !strings.Contains(card, shown) {
-			t.Errorf("Unicode %t : %s absent de la carte :\n%s", unicodeOK, shown, card)
+			t.Errorf("Unicode %t: %s missing from the card:\n%s", unicodeOK, shown, card)
 		}
 		if !strings.HasPrefix(report, status+"\n") {
-			t.Errorf("Unicode %t : compte rendu\n%s\nattendu en tête %q", unicodeOK, report, status)
+			t.Errorf("Unicode %t: report\n%s\nwant %q at the top", unicodeOK, report, status)
 		}
 		header, _, ok := strings.Cut(helpOut, "\n\n"+status+"\n\n")
 		if !ok {
-			t.Errorf("Unicode %t : aide sans la ligne d'état %q :\n%s", unicodeOK, status, helpOut)
+			t.Errorf("Unicode %t: help without the status line %q:\n%s", unicodeOK, status, helpOut)
 		}
 		if !unicodeOK && (!isASCII(initOut) || !isASCII(header) || strings.Contains(initOut, "re?s")) {
-			t.Errorf("sans Unicode : accents mal retirés :\n%s\n%s", initOut, header)
+			t.Errorf("without Unicode: accents badly removed:\n%s\n%s", initOut, header)
 		}
 	}
 }
 
-// columns renvoie la largeur affichée d'une ligne sans séquence ANSI : son nombre de caractères, sans
-// les marques combinantes (Mn, Me), que le terminal dessine dans la colonne du caractère précédent.
+// columns returns the displayed width of a line without ANSI sequences: its number of characters, without
+// the combining marks (Mn, Me), which the terminal draws in the column of the previous character.
 func columns(line string) int {
 	n := 0
 	for _, r := range line {
@@ -339,44 +338,44 @@ func columns(line string) int {
 	return n
 }
 
-// Hors terminal (sortie redirigée, tube), aucune sortie n'a de carte : elles restent identiques.
+// Off a terminal (redirected output, pipe), no output has a card: they stay identical.
 func TestNoCardOffTerminal(t *testing.T) {
-	h := newHarness(t) // Terminal par défaut : DetectTerminal du tampon de sortie
+	h := newHarness(t) // default Terminal: DetectTerminal of the output buffer
 	plainHelp := h.run("--help").mustSucceed(t).stdout
 	calls := 0
 	for _, info := range []func() TermInfo{nil, func() TermInfo {
 		calls++
-		return TermInfo{Width: 80, Unicode: true, Color: true} // pas un terminal
+		return TermInfo{Width: 80, Unicode: true, Color: true} // not a terminal
 	}} {
 		h.Terminal = info
 		for _, args := range generalHelp {
 			if r := h.run(args...).mustSucceed(t); r.stdout != plainHelp {
-				t.Errorf("watchoo %q hors terminal :\n%s", args, r.stdout)
+				t.Errorf("watchoo %q off a terminal:\n%s", args, r.stdout)
 			}
 		}
 		for _, args := range [][]string{{"version"}, {"--version"}} {
 			if r := h.run(args...).mustSucceed(t); r.stdout != versionLine() || r.stderr != "" {
-				t.Errorf("watchoo %q hors terminal = %q (stderr %q), attendu %q", args, r.stdout, r.stderr,
+				t.Errorf("watchoo %q off a terminal = %q (stderr %q), want %q", args, r.stdout, r.stderr,
 					versionLine())
 			}
 		}
 	}
 	if calls == 0 {
-		t.Error("Terminal n'a pas été consulté")
+		t.Error("Terminal was not consulted")
 	}
-	assertNoCard(t, "aide", plainHelp)
+	assertNoCard(t, "help", plainHelp)
 
 	h2 := newHarness(t)
 	h2.Terminal = func() TermInfo { return TermInfo{} }
 	r := h2.run("init").mustSucceed(t)
 	if !strings.HasPrefix(r.stdout, `Workspace "licence-projet" created.`+"\n  directory   "+h2.cwd+"\n") {
-		t.Errorf("init hors terminal : sortie inattendue :\n%s", r.stdout)
+		t.Errorf("init off a terminal: unexpected output:\n%s", r.stdout)
 	}
 	assertNoCard(t, "init", r.stdout)
 }
 
-// Avec --json, jamais de carte, même sur un terminal : la sortie reste du JSON pur. Le terminal n'est
-// même pas consulté.
+// With --json, never a card, even on a terminal: the output stays pure JSON. The terminal is not even
+// consulted.
 func TestNoCardWithJSON(t *testing.T) {
 	h := newHarness(t)
 	plainHelp := newHarness(t).run("--help").mustSucceed(t).stdout
@@ -386,25 +385,25 @@ func TestNoCardWithJSON(t *testing.T) {
 		r := h.run(args...).mustSucceed(t)
 		var got versionReport
 		if err := json.Unmarshal([]byte(r.stdout), &got); err != nil || got.Version != Version {
-			t.Errorf("watchoo %q : sortie JSON invalide (%v) :\n%s", args, err, r.stdout)
+			t.Errorf("watchoo %q: invalid JSON output (%v):\n%s", args, err, r.stdout)
 		}
 	}
 	for _, args := range [][]string{{"--json"}, {"--help", "--json"}, {"help", "--json"}} {
 		if r := h.run(args...).mustSucceed(t); r.stdout != plainHelp {
-			t.Errorf("watchoo %q : attendu l'aide sans en-tête :\n%s", args, r.stdout)
+			t.Errorf("watchoo %q: want the help without a header:\n%s", args, r.stdout)
 		}
 	}
 	r := h.run("init", "--json").mustSucceed(t)
 	if report := decodeInitReport(t, r.stdout); report.Name != "licence-projet" {
-		t.Errorf("init --json : rapport inattendu : %+v", report)
+		t.Errorf("init --json: unexpected report: %+v", report)
 	}
 	if *calls != 0 {
-		t.Errorf("Terminal consulté %d fois avec --json", *calls)
+		t.Errorf("Terminal consulted %d times with --json", *calls)
 	}
 }
 
-// La sortie d'erreur (erreurs, avertissements) n'a jamais de carte, et une commande qui échoue n'affiche
-// rien sur la sortie standard, même sur un terminal.
+// The error output (errors, warnings) never has a card, and a failing command prints nothing on the
+// standard output, even on a terminal.
 func TestNoCardOnStderr(t *testing.T) {
 	h := newHarness(t)
 	onTerminal(h, wideTerminal)
@@ -414,30 +413,30 @@ func TestNoCardOnStderr(t *testing.T) {
 		assertNoCard(t, strings.Join(args, " ")+" (stderr)", r.stderr)
 	}
 
-	// Avertissement d'un espace imbriqué : sur la sortie d'erreur, sans carte ; la carte reste en haut du
-	// compte rendu, sur la sortie standard.
+	// Warning for a nested workspace: on the error output, without a card; the card stays at the top of
+	// the report, on the standard output.
 	parent := h.cwd
 	h.run("init").mustSucceed(t)
 	h.cwd = newDir(t, parent, "groupe-a")
 	r := h.run("init").mustSucceed(t)
 	if !strings.HasPrefix(r.stderr, "warning: ") {
-		t.Errorf("avertissement attendu sur la sortie d'erreur :\n%s", r.stderr)
+		t.Errorf("want a warning on stderr:\n%s", r.stderr)
 	}
-	assertNoCard(t, "init imbriqué (stderr)", r.stderr)
-	if want := cardFor(wideTerminal, `Workspace "groupe-a" created`, tipInitDone); !strings.HasPrefix(r.stdout, want) {
-		t.Errorf("init imbriqué : carte absente du compte rendu :\n%s", r.stdout)
+	assertNoCard(t, "nested init (stderr)", r.stderr)
+	if want := cardFor(wideTerminal, `Workspace "groupe-a" created`, tipInitDone()); !strings.HasPrefix(r.stdout, want) {
+		t.Errorf("nested init: card missing from the report:\n%s", r.stdout)
 	}
 
-	// gh non connecté et git absent : erreur seulement.
+	// gh not signed in and git missing: error only.
 	h2 := newHarness(t)
 	h2.Client = authtest.NewLoggedOut()
 	h2.GitMissing = true
 	onTerminal(h2, wideTerminal)
 	r = h2.run("init").mustFail(t, "gh auth login")
-	assertNoCard(t, "init sans gh connecté (stderr)", r.stderr)
+	assertNoCard(t, "init without gh signed in (stderr)", r.stderr)
 }
 
-// L'aide d'une sous-commande n'a pas de carte, même sur un terminal.
+// A subcommand's help has no card, even on a terminal.
 func TestNoCardInSubcommandHelp(t *testing.T) {
 	plain := newHarness(t)
 	h := newHarness(t)
@@ -447,31 +446,31 @@ func TestNoCardInSubcommandHelp(t *testing.T) {
 		want := plain.run(args...).mustSucceed(t).stdout
 		r := h.run(args...).mustSucceed(t)
 		if r.stdout != want {
-			t.Errorf("watchoo %q sur un terminal :\n%s\nattendu, comme hors terminal :\n%s", args, r.stdout, want)
+			t.Errorf("watchoo %q on a terminal:\n%s\nwant, as off a terminal:\n%s", args, r.stdout, want)
 		}
 		assertNoCard(t, strings.Join(args, " "), r.stdout)
 	}
 }
 
-// La carte s'adapte au terminal décrit par l'environnement : largeur (COLUMNS), locale (Unicode ou ASCII
-// pur), NO_COLOR et TERM=dumb (sans couleur). Le terminal est simulé, avec une largeur système inconnue.
+// The card adapts to the terminal described by the environment: width (COLUMNS), locale (Unicode or pure
+// ASCII), NO_COLOR and TERM=dumb (no color). The terminal is simulated, with an unknown system width.
 func TestCardAdaptsToTerminal(t *testing.T) {
 	for _, tt := range []struct {
 		name string
 		env  map[string]string
-		want TermInfo // IsTerminal false : pas de carte (terminal trop étroit)
+		want TermInfo // IsTerminal false: no card (terminal too narrow)
 	}{
-		{"locale UTF-8, largeur inconnue", map[string]string{"LANG": "fr_FR.UTF-8", "TERM": "xterm-256color"},
+		{"UTF-8 locale, unknown width", map[string]string{"LANG": "fr_FR.UTF-8", "TERM": "xterm-256color"},
 			TermInfo{IsTerminal: true, Unicode: true, Color: true}},
-		{"50 colonnes", map[string]string{"LANG": "fr_FR.UTF-8", "COLUMNS": "50"},
+		{"50 columns", map[string]string{"LANG": "fr_FR.UTF-8", "COLUMNS": "50"},
 			TermInfo{IsTerminal: true, Width: 50, Unicode: true, Color: true}},
-		{"40 colonnes", map[string]string{"LANG": "fr_FR.UTF-8", "COLUMNS": "40"},
+		{"40 columns", map[string]string{"LANG": "fr_FR.UTF-8", "COLUMNS": "40"},
 			TermInfo{IsTerminal: true, Width: 40, Unicode: true, Color: true}},
-		{"30 colonnes", map[string]string{"LANG": "fr_FR.UTF-8", "COLUMNS": "30"}, TermInfo{}},
-		{"locale C", map[string]string{"LANG": "C", "LC_ALL": "C"}, TermInfo{IsTerminal: true, Color: true}},
-		{"locale C, 50 colonnes", map[string]string{"LC_ALL": "C", "COLUMNS": "50"},
+		{"30 columns", map[string]string{"LANG": "fr_FR.UTF-8", "COLUMNS": "30"}, TermInfo{}},
+		{"C locale", map[string]string{"LANG": "C", "LC_ALL": "C"}, TermInfo{IsTerminal: true, Color: true}},
+		{"C locale, 50 columns", map[string]string{"LC_ALL": "C", "COLUMNS": "50"},
 			TermInfo{IsTerminal: true, Width: 50, Color: true}},
-		{"locale non UTF-8", map[string]string{"LANG": "fr_FR.ISO-8859-1"}, TermInfo{IsTerminal: true, Color: true}},
+		{"non-UTF-8 locale", map[string]string{"LANG": "fr_FR.ISO-8859-1"}, TermInfo{IsTerminal: true, Color: true}},
 		{"Windows Terminal", map[string]string{"WT_SESSION": "c2a3f0e4"},
 			TermInfo{IsTerminal: true, Unicode: true, Color: true}},
 		{"NO_COLOR", map[string]string{"LANG": "fr_FR.UTF-8", "NO_COLOR": "1"},
@@ -487,54 +486,54 @@ func TestCardAdaptsToTerminal(t *testing.T) {
 			version := h.run("version").mustSucceed(t).stdout
 			help := h.run("--help").mustSucceed(t).stdout
 			initOut := h.run("init").mustSucceed(t).stdout
-			if !tt.want.IsTerminal { // trop étroit pour la carte : sorties habituelles
+			if !tt.want.IsTerminal { // too narrow for the card: usual outputs
 				if version != versionLine() || help != plainHelp ||
 					!strings.HasPrefix(initOut, `Workspace "licence-projet" created.`+"\n  directory   "+h.cwd+"\n") {
-					t.Errorf("terminal trop étroit : sorties modifiées :\n%s\n%s\n%s", version, help, initOut)
+					t.Errorf("terminal too narrow: outputs changed:\n%s\n%s\n%s", version, help, initOut)
 				}
 				assertNoCard(t, "init", initOut)
 				return
 			}
 			info := tt.want
 			if want := versionCard(info); version != want {
-				t.Errorf("version :\n%s\nattendu :\n%s", version, want)
+				t.Errorf("version:\n%s\nwant:\n%s", version, want)
 			}
 			header := helpHeader(info, "No workspace here", tipInit())
 			if help != header+plainHelp {
-				t.Errorf("aide :\n%s\nattendu l'en-tête :\n%s", help, header)
+				t.Errorf("help:\n%s\nwant the header:\n%s", help, header)
 			}
 			limit := tt.want.Width
 			if limit == 0 {
 				limit = 80
 			}
 			for _, out := range []string{version, header, initOut} {
-				// Les lignes de la carte tiennent dans le terminal (pas forcément les lignes d'état, qui
-				// citent des chemins).
+				// The card lines fit in the terminal (not necessarily the status lines, which quote
+				// paths).
 				for line := range strings.Lines(ansiSeq.ReplaceAllString(out, "")) {
 					line = strings.TrimSuffix(line, "\n")
 					if n := utf8.RuneCountInString(line); n > limit && !strings.HasPrefix(line, "● ") &&
 						!strings.HasPrefix(line, "* ") {
-						t.Errorf("ligne de %d colonnes sur un terminal de %d : %q", n, limit, line)
+						t.Errorf("line of %d columns on a %d-column terminal: %q", n, limit, line)
 					}
 				}
 				if !info.Unicode && !isASCII(out) {
-					t.Errorf("sortie pas en ASCII pur sans Unicode :\n%s", out)
+					t.Errorf("output not pure ASCII without Unicode:\n%s", out)
 				}
 				if !info.Color && strings.Contains(out, "\x1b") {
-					t.Errorf("séquence d'échappement sans couleur :\n%q", out)
+					t.Errorf("escape sequence without color:\n%q", out)
 				}
 				if info.Color && !strings.Contains(out, "\x1b[") {
-					t.Errorf("sortie sans couleur :\n%s", out)
+					t.Errorf("output without color:\n%s", out)
 				}
 			}
 			if !info.Unicode && (!strings.Contains(version, "+--") || !strings.Contains(ansiSeq.ReplaceAllString(version, ""), "| o##o |")) {
-				t.Errorf("version sans la carte en ASCII pur :\n%s", version)
+				t.Errorf("version without the pure ASCII card:\n%s", version)
 			}
 		})
 	}
 }
 
-// isASCII indique si s ne contient que des caractères ASCII.
+// isASCII reports whether s contains only ASCII characters.
 func isASCII(s string) bool {
 	for i := 0; i < len(s); i++ {
 		if s[i] >= utf8.RuneSelf {
@@ -549,29 +548,29 @@ func TestVersionFlag(t *testing.T) {
 	version := h.run("version").mustSucceed(t)
 	for _, args := range [][]string{{"--version"}, {"-C", "ailleurs", "--version"}} {
 		if r := h.run(args...).mustSucceed(t); r != version {
-			t.Errorf("watchoo %q = %+v, attendu comme « watchoo version » : %+v", args, r, version)
+			t.Errorf("watchoo %q = %+v, want the same as \"watchoo version\": %+v", args, r, version)
 		}
 	}
 	versionJSON := h.run("version", "--json").mustSucceed(t)
 	if r := h.run("--version", "--json").mustSucceed(t); r != versionJSON {
-		t.Errorf("watchoo --version --json = %+v, attendu %+v", r, versionJSON)
+		t.Errorf("watchoo --version --json = %+v, want %+v", r, versionJSON)
 	}
 
 	h.run("--version", "extra").mustFail(t, `"watchoo --version" takes no argument (got: extra)`)
-	// Option de la commande racine seulement, sans lettre courte.
+	// Option of the root command only, without a short letter.
 	h.run("init", "--version").mustFail(t, `unknown option: --version (help: "watchoo init --help")`)
 	h.run("-v").mustFail(t, "unknown short option: -v")
 	assertNoWorkspace(t, h.cwd)
 	if len(h.configs) != 0 {
-		t.Error("--version a construit un accès à gh")
+		t.Error("--version built a gh access")
 	}
 
-	// Documentée dans l'aide générale ; absente de l'aide des sous-commandes.
+	// Documented in the general help; absent from the subcommands' help.
 	if r := h.run("--help").mustSucceed(t); !strings.Contains(r.stdout, "--version") ||
 		!strings.Contains(r.stdout, "print the Watchoo version") {
-		t.Errorf("aide générale sans --version :\n%s", r.stdout)
+		t.Errorf("general help without --version:\n%s", r.stdout)
 	}
 	if r := h.run("help", "init").mustSucceed(t); strings.Contains(r.stdout, "--version") {
-		t.Errorf("aide de init avec --version :\n%s", r.stdout)
+		t.Errorf("init help with --version:\n%s", r.stdout)
 	}
 }

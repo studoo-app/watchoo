@@ -142,11 +142,11 @@ func TestSettingsAddRepositoryErrors(t *testing.T) {
 		{"invalid reference", url.Values{"repo": {"<b>not a repository</b>"}}, http.StatusBadRequest,
 			[]string{"is invalid", `value="&lt;b&gt;not a repository&lt;/b&gt;"`}},
 		{"URL with credentials", url.Values{"repo": {"https://user:secret@github.com/promo/x"}}, http.StatusBadRequest,
-			[]string{"identifiants interdits"}},
+			[]string{"credentials not allowed"}},
 		{"label with a control character", url.Values{"repo": {"promo/eve"}, "label": {"a\x1b[31mb"}}, http.StatusBadRequest,
-			[]string{"caractère de contrôle"}},
+			[]string{"control character"}},
 		{"invalid branch pattern", url.Values{"repo": {"promo/eve"}, "branches": {"main,[x"}}, http.StatusBadRequest,
-			[]string{"branches: motif de branche"}},
+			[]string{"branches: invalid branch pattern"}},
 		{"inaccessible repository", url.Values{"repo": {"promo/unknown"}, "label": {"Unknown"}}, http.StatusUnprocessableEntity,
 			[]string{"Repository promo/unknown inaccessible", `value="Unknown"`}},
 	}
@@ -309,7 +309,7 @@ func TestSettingsInterval(t *testing.T) {
 			t.Errorf("%q: interval changed to %s", input, got)
 		}
 	}
-	assertContains(t, e.post("/settings/interval", url.Values{"interval": {"5m"}}, false), "minimum de 15 min")
+	assertContains(t, e.post("/settings/interval", url.Values{"interval": {"5m"}}, false), "minimum of 15 min")
 	// GET on the action: 405, nothing changes.
 	assertStatus(t, e.get("/settings/interval?interval=0"), http.StatusMethodNotAllowed)
 	if e.coord.Interval() != 2*time.Hour {

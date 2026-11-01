@@ -1,6 +1,6 @@
 package store
 
-// Migration 00006 (0.5.0) : commits.stats_known, et son usage (écriture, pagination, totaux).
+// Migration 00006 (0.5.0): commits.stats_known, and its use (writing, pagination, totals).
 
 import (
 	"path/filepath"
@@ -26,10 +26,10 @@ func TestMigrationStatsKnown(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := p.UpTo(ctx, 5); err != nil {
-		t.Fatalf("UpTo(5) : %v", err)
+		t.Fatalf("UpTo(5): %v", err)
 	}
-	// Base au schéma 00005 : un commit lu par l'API (lignes non nulles), deux à 0/0 (jamais lus, ou
-	// réellement vides : indiscernables).
+	// Database at schema 00005: one commit read through the API (non-zero lines), two at 0/0 (never
+	// read, or really empty: indistinguishable).
 	repo := mustExec(t, s, `INSERT INTO repositories (provider, provider_id, owner, name) VALUES ('github', 1, 'promo', 'a')`)
 	for i, st := range [][2]int{{4, 1}, {0, 0}, {0, 3}, {0, 0}} {
 		mustExec(t, s, `INSERT INTO commits (repo_id, sha, authored_at, committed_at, additions, deletions)
@@ -37,40 +37,40 @@ func TestMigrationStatsKnown(t *testing.T) {
 	}
 
 	if err := s.Migrate(ctx); err != nil {
-		t.Fatalf("Migrate : %v", err)
+		t.Fatalf("Migrate: %v", err)
 	}
 	if got := count(t, s, "SELECT count(*) FROM commits WHERE stats_known = 1"); got != 2 {
-		t.Errorf("%d commits connus après la migration, attendu 2 (lignes non nulles)", got)
+		t.Errorf("%d known commits after the migration, want 2 (non-zero lines)", got)
 	}
 	unknown, err := s.UnknownStatsSHAs(ctx, repo, "", 10)
 	if err != nil || !slices.Equal(unknown, []string{sha(2), sha(4)}) {
 		t.Errorf("UnknownStatsSHAs = %v, %v", unknown, err)
 	}
 	if got := count(t, s, `SELECT count(*) FROM sqlite_master WHERE type = 'index' AND name = 'commits_stats_unknown'`); got != 1 {
-		t.Error("index commits_stats_unknown absent")
+		t.Error("index commits_stats_unknown missing")
 	}
 	if err := execErr(t, s, `UPDATE commits SET stats_known = 2`); err == nil {
-		t.Error("stats_known = 2 accepté")
+		t.Error("stats_known = 2 accepted")
 	}
 
-	// Retour arrière : colonne et index retirés, lignes et valeurs gardées.
+	// Rollback: column and index removed, rows and values kept.
 	if _, err := p.DownTo(ctx, 5); err != nil {
-		t.Fatalf("DownTo(5) : %v", err)
+		t.Fatalf("DownTo(5): %v", err)
 	}
 	if got := count(t, s, "SELECT count(*) FROM commits WHERE additions = 4 AND deletions = 1"); got != 1 {
-		t.Error("valeurs perdues au retour arrière")
+		t.Error("values lost on rollback")
 	}
 	if got := count(t, s, "SELECT count(*) FROM commits"); got != 4 {
-		t.Errorf("%d commits après le retour arrière, attendu 4", got)
+		t.Errorf("%d commits after the rollback, want 4", got)
 	}
 	if err := execErr(t, s, "SELECT stats_known FROM commits"); err == nil {
-		t.Error("colonne stats_known encore présente")
+		t.Error("stats_known column still present")
 	}
 	if got := count(t, s, `SELECT count(*) FROM sqlite_master WHERE name = 'commits_stats_unknown'`); got != 0 {
-		t.Error("index encore présent")
+		t.Error("index still present")
 	}
 	if _, err := p.UpTo(ctx, 6); err != nil {
-		t.Fatalf("UpTo(6) de nouveau : %v", err)
+		t.Fatalf("UpTo(6) again: %v", err)
 	}
 }
 
@@ -81,10 +81,10 @@ func TestApplyRepoSyncStats(t *testing.T) {
 	alice := person("Alice", "alice@example.test", "alice", 501)
 	main := []BranchState{{Name: "main", HeadSHA: sha(3)}}
 
-	// Nouveau commit connu (même à 0/0), nouveau commit inconnu.
+	// New known commit (even at 0/0), new unknown commit.
 	c1, c2, c3 := cw(1, alice, "main"), cw(2, alice, "main"), cw(3, alice, "main")
 	c1.Additions, c1.Deletions, c1.StatsKnown = 5, 1, true
-	c2.StatsKnown = true // commit vide : 0/0 connu
+	c2.StatsKnown = true // empty commit: 0/0 known
 	applySync(t, s, repoID, main, c1, c2, c3)
 	unknown, err := s.UnknownStatsSHAs(ctx, repoID, "", 10)
 	if err != nil || !slices.Equal(unknown, []string{sha(3)}) {
@@ -99,10 +99,10 @@ func TestApplyRepoSyncStats(t *testing.T) {
 		known[v.SHA] = v.StatsKnown
 	}
 	if !known[sha(1)] || !known[sha(2)] || known[sha(3)] {
-		t.Errorf("stats_known lus : %v", known)
+		t.Errorf("stats_known read: %v", known)
 	}
 
-	// Statistiques d'un commit déjà en base (et d'un SHA inconnu, ignoré), dans la même transaction.
+	// Statistics of a commit already in the database (and of an unknown SHA, ignored), in the same transaction.
 	now := t0.Add(2000 * time.Hour)
 	if _, err := s.ApplyRepoSync(ctx, RepoSyncWrite{
 		RepoID: repoID, RunID: beginRun(t, s, repoID, now), Metadata: meta("promo", "alice"), Branches: main,
@@ -112,32 +112,32 @@ func TestApplyRepoSyncStats(t *testing.T) {
 		t.Fatal(err)
 	}
 	if unknown, _ := s.UnknownStatsSHAs(ctx, repoID, "", 10); len(unknown) != 0 {
-		t.Errorf("encore inconnus : %v", unknown)
+		t.Errorf("still unknown: %v", unknown)
 	}
 	sum, err := s.RepositorySummary(ctx, repoID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if want := (model.LineTotals{Commits: 3, KnownCommits: 3, Additions: 12, Deletions: 3}); sum.Lines != want {
-		t.Errorf("totaux du dépôt = %+v, attendu %+v", sum.Lines, want)
+		t.Errorf("totals of the repository = %+v, want %+v", sum.Lines, want)
 	}
 
-	// Statistiques invalides : refusées avant toute écriture.
+	// Invalid statistics: refused before any write.
 	for _, bad := range []CommitStatsWrite{{SHA: ""}, {SHA: sha(1), Additions: -1}} {
 		if _, err := s.ApplyRepoSync(ctx, RepoSyncWrite{
 			RepoID: repoID, RunID: beginRun(t, s, repoID, now.Add(time.Hour)), Metadata: meta("promo", "alice"),
 			Branches: main, Stats: []CommitStatsWrite{bad}, SyncedAt: now.Add(time.Hour),
 		}); err == nil {
-			t.Errorf("statistiques %+v acceptées", bad)
+			t.Errorf("statistics %+v accepted", bad)
 		}
 		mustExec(t, s, `UPDATE sync_runs SET status = 'error', finished_at = ? WHERE status = 'running'`, testDate)
 	}
 	if _, err := s.UnknownStatsSHAs(ctx, repoID, "", 0); err == nil {
-		t.Error("limite 0 acceptée")
+		t.Error("limit 0 accepted")
 	}
 }
 
-// Pagination des commits inconnus et totaux partiels (contributeurs, dépôt).
+// Pagination of the unknown commits and partial totals (contributors, repository).
 func TestUnknownStatsPagingAndTotals(t *testing.T) {
 	s := newTestStore(t)
 	ctx := t.Context()
@@ -172,27 +172,27 @@ func TestUnknownStatsPagingAndTotals(t *testing.T) {
 
 	ranking, err := s.ContributorRanking(ctx, ContributorFilter{})
 	if err != nil || len(ranking) != 1 {
-		t.Fatalf("classement : %v, %v", ranking, err)
+		t.Fatalf("ranking: %v, %v", ranking, err)
 	}
 	if l := ranking[0].Lines(); !l.Known() || l.Uncounted() != 3 || l.Additions != 20 {
-		t.Errorf("totaux du contributeur = %+v", l)
+		t.Errorf("totals of the contributor = %+v", l)
 	}
 	profile, err := s.ContributorProfile(ctx, ranking[0].ID)
 	if err != nil || profile.Lines().Uncounted() != 3 {
-		t.Errorf("fiche : %+v, %v", profile.Lines(), err)
+		t.Errorf("record: %+v, %v", profile.Lines(), err)
 	}
 	repos, err := s.ContributorRepos(ctx, ranking[0].ID)
 	if err != nil || len(repos) != 1 || repos[0].Lines().KnownCommits != 2 {
-		t.Errorf("par dépôt : %+v, %v", repos, err)
+		t.Errorf("by repository: %+v, %v", repos, err)
 	}
 	sums, err := s.RepositorySummaries(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if total := SumLines(sums); total.Commits != 5 || total.KnownCommits != 2 || total.Additions != 20 {
-		t.Errorf("totaux de l'espace = %+v", total)
+		t.Errorf("totals of the workspace = %+v", total)
 	}
 	if (model.LineTotals{Commits: 2}).Known() {
-		t.Error("totaux sans commit connu : Known vrai")
+		t.Error("totals without a known commit: Known true")
 	}
 }

@@ -152,13 +152,13 @@ func runSync(ctx context.Context, deps Deps, opts *options, ref string) (err err
 	return nil
 }
 
-// pluralT renvoie le texte de la clé du pluriel si n > 1, sinon celle du singulier, chacune
-// formatée avec n (« 1 dépôt », « 2 dépôts »).
+// pluralT renvoie le texte de la clé du singulier pour 1, et aussi pour 0 en français (« 0 nouveau
+// commit », mais « 0 new commits » en anglais), sinon celle du pluriel, chacune formatée avec n.
 func pluralT(n int, one, many string) string {
-	if n > 1 {
-		return i18n.T(many, n)
+	if n == 1 || (n == 0 && i18n.Process().Lang() == i18n.French) {
+		return i18n.T(one, n)
 	}
-	return i18n.T(one, n)
+	return i18n.T(many, n)
 }
 
 // syncText renvoie le rapport texte d'une synchro : un tableau par dépôt, puis le bilan et le quota.
@@ -240,29 +240,24 @@ func syncStatusText(st textStyle, status wsync.RepoStatus) string {
 	}
 }
 
-// deferredReason traduit la raison d'un report extraite du message écrit par le moteur
-// (internal/sync écrit « reporté : <raison> jusqu'à HH:MM ») : les raisons connues du moteur sont
-// traduites, une raison inconnue est affichée telle quelle.
-func deferredReason(reason string) string {
-	switch reason {
-	case "quota bas":
-		return i18n.T("cli.sync.deferred_reason_low")
-	case "quota épuisé":
-		return i18n.T("cli.sync.deferred_reason_exhausted")
+// deferReason renvoie la raison du report d'un dépôt : celle donnée par le moteur (RepoReport.
+// DeferReason), sinon, par prudence, celle que cite le message (en anglais ou en français), sinon
+// celle du quota bas.
+func deferReason(r wsync.RepoReport) wsync.DeferReason {
+	if r.DeferReason != "" {
+		return r.DeferReason
 	}
-	return reason
+	if strings.Contains(r.Error, "quota exhausted") || strings.Contains(r.Error, "quota épuisé") {
+		return wsync.DeferQuotaExhausted
+	}
+	return wsync.DeferLowQuota
 }
 
-// syncDetail renvoie le détail d'un dépôt : message d'erreur, verrou, ou report avec l'heure de reprise
-// en heure locale (le moteur la donne en UTC). Le préfixe et le séparateur analysés sont ceux du
-// message « reporté : … jusqu'à … » écrit par le moteur (internal/sync).
+// syncDetail renvoie le détail d'un dépôt : message d'erreur, verrou, ou report avec sa raison
+// traduite et l'heure de reprise en heure locale (le moteur la donne en UTC).
 func (s *session) syncDetail(r wsync.RepoReport) string {
 	if r.Status == wsync.StatusDeferred && !r.ResumeAt.IsZero() {
-		reason, _, _ := strings.Cut(strings.TrimPrefix(r.Error, "reporté : "), " jusqu'à")
-		if reason == "" {
-			reason = i18n.T("cli.sync.deferred_reason_low")
-		}
-		return i18n.T("cli.sync.deferred_detail", deferredReason(reason), s.clockText(r.ResumeAt))
+		return i18n.T("cli.sync.deferred_detail", deferReason(r).Text(), s.clockText(r.ResumeAt))
 	}
 	if r.Status == wsync.StatusSuccess && len(r.Warnings) > 0 {
 		return strings.Join(r.Warnings, i18n.T("cli.sync.warnings_join"))

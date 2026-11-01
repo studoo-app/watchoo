@@ -1,6 +1,6 @@
 package store
 
-// Tests d'ApplyRepoSync et des lectures de la synchro (données factices uniquement).
+// Tests of ApplyRepoSync and of the sync reads (dummy data only).
 
 import (
 	"errors"
@@ -13,25 +13,25 @@ import (
 	"github.com/studoo-app/watchoo/internal/model"
 )
 
-// t0 est une date de référence fixe des tests.
+// t0 is a fixed reference date of the tests.
 var t0 = time.Date(2026, 10, 20, 9, 0, 0, 0, time.UTC)
 
-// sha fabrique un SHA factice de 40 caractères à partir de n.
+// sha builds a dummy 40-character SHA from n.
 func sha(n int) string {
 	return fmt.Sprintf("%040x", n)
 }
 
-// beginRun ouvre un sync_run « running » pour repoID et renvoie son identifiant.
+// beginRun opens a "running" sync_run for repoID and returns its identifier.
 func beginRun(t *testing.T, s *Store, repoID int64, now time.Time) int64 {
 	t.Helper()
 	run, err := s.BeginSyncRun(t.Context(), repoID, now, 30*time.Minute)
 	if err != nil {
-		t.Fatalf("BeginSyncRun : %v", err)
+		t.Fatalf("BeginSyncRun: %v", err)
 	}
 	return run.ID
 }
 
-// meta renvoie des métadonnées factices du dépôt.
+// meta returns dummy metadata of the repository.
 func meta(owner, name string) RepositoryMetadata {
 	return RepositoryMetadata{
 		Owner: owner, Name: name, DefaultBranch: "main",
@@ -39,12 +39,12 @@ func meta(owner, name string) RepositoryMetadata {
 	}
 }
 
-// person renvoie une identité factice avec compte (uid != 0) ou sans compte.
+// person returns a dummy identity with an account (uid != 0) or without one.
 func person(name, email, login string, uid int64) Identity {
 	return Identity{Name: name, Email: email, Login: login, ProviderUserID: uid}
 }
 
-// cw fabrique un commit factice n, commité à t0 + n heures, avec le même auteur et committer.
+// cw builds a dummy commit n, committed at t0 + n hours, with the same author and committer.
 func cw(n int, who Identity, branches ...string) CommitWrite {
 	at := t0.Add(time.Duration(n) * time.Hour)
 	return CommitWrite{
@@ -53,7 +53,7 @@ func cw(n int, who Identity, branches ...string) CommitWrite {
 	}
 }
 
-// applySync ouvre un sync_run puis applique une synchro avec les branches et commits donnés.
+// applySync opens a sync_run then applies a sync with the given branches and commits.
 func applySync(t *testing.T, s *Store, repoID int64, branches []BranchState, commits ...CommitWrite) RepoSyncResult {
 	t.Helper()
 	now := t0.Add(1000 * time.Hour)
@@ -62,7 +62,7 @@ func applySync(t *testing.T, s *Store, repoID int64, branches []BranchState, com
 		Branches: branches, Commits: commits, SyncedAt: now.Add(time.Minute),
 	})
 	if err != nil {
-		t.Fatalf("ApplyRepoSync : %v", err)
+		t.Fatalf("ApplyRepoSync: %v", err)
 	}
 	return res
 }
@@ -83,10 +83,10 @@ func TestApplyRepoSyncFirstImport(t *testing.T) {
 		Commits:  []CommitWrite{c2, c1}, SyncedAt: now.Add(time.Minute),
 	})
 	if err != nil {
-		t.Fatalf("ApplyRepoSync : %v", err)
+		t.Fatalf("ApplyRepoSync: %v", err)
 	}
 	if res.NewCommits != 2 || res.TrackedBranches != 1 || !res.LastCommitAt.Equal(c2.CommittedAt) {
-		t.Errorf("résultat %+v, attendu 2 nouveaux, 1 branche, dernier commit %v", res, c2.CommittedAt)
+		t.Errorf("result %+v, want 2 new, 1 branch, last commit %v", res, c2.CommittedAt)
 	}
 
 	repo, err := s.GetRepository(ctx, repoID)
@@ -95,7 +95,7 @@ func TestApplyRepoSyncFirstImport(t *testing.T) {
 	}
 	if repo.Owner != "Promo2" || repo.Name != "alice" || repo.DefaultBranch != "main" || repo.Stars != 3 ||
 		repo.OpenIssues != 1 || !repo.LastSyncedAt.Equal(now.Add(time.Minute)) || !repo.LastCommitAt.Equal(c2.CommittedAt) {
-		t.Errorf("dépôt après synchro : %+v", repo)
+		t.Errorf("repository after sync: %+v", repo)
 	}
 
 	run, err := s.LastSyncRun(ctx, repoID)
@@ -103,29 +103,29 @@ func TestApplyRepoSyncFirstImport(t *testing.T) {
 		t.Fatal(err)
 	}
 	if run.ID != runID || run.Status != model.SyncSuccess || run.NewCommits != 2 || !run.FinishedAt.Equal(now.Add(time.Minute)) {
-		t.Errorf("sync_run après synchro : %+v", run)
+		t.Errorf("sync_run after sync: %+v", run)
 	}
 
 	n, err := s.CountCommits(ctx, repoID)
 	if err != nil || n != 2 {
-		t.Errorf("CountCommits = %d, %v ; attendu 2", n, err)
+		t.Errorf("CountCommits = %d, %v; want 2", n, err)
 	}
 	if got := count(t, s, "SELECT count(*) FROM contributors"); got != 1 {
-		t.Errorf("%d contributeurs, attendu 1 (auteur et committer identiques)", got)
+		t.Errorf("%d contributors, want 1 (same author and committer)", got)
 	}
 	var email string
 	if err := s.DB().QueryRowContext(ctx, "SELECT email FROM contributor_emails").Scan(&email); err != nil {
 		t.Fatal(err)
 	}
 	if email != "alice@example.test" {
-		t.Errorf("e-mail enregistré %q, attendu en minuscules", email)
+		t.Errorf("stored e-mail %q, want lowercase", email)
 	}
 	var adds, dels int
 	if err := s.DB().QueryRowContext(ctx, "SELECT additions, deletions FROM commits WHERE sha = ?", sha(1)).Scan(&adds, &dels); err != nil {
 		t.Fatal(err)
 	}
 	if adds != 10 || dels != 2 {
-		t.Errorf("statistiques %d/%d, attendu 10/2", adds, dels)
+		t.Errorf("statistics %d/%d, want 10/2", adds, dels)
 	}
 }
 
@@ -138,13 +138,13 @@ func TestApplyRepoSyncIsIdempotent(t *testing.T) {
 
 	applySync(t, s, repoID, main, cw(1, alice, "main"), cw(2, alice, "main"))
 
-	// Le même commit revient avec d'autres données : il n'est pas modifié.
+	// The same commit comes back with other data: it is not changed.
 	changed := cw(1, person("Autre", "autre@example.test", "", 0), "main")
-	changed.Message = "modifié"
+	changed.Message = "changed"
 	changed.Additions = 99
 	res := applySync(t, s, repoID, main, changed, cw(2, alice, "main"))
 	if res.NewCommits != 0 {
-		t.Errorf("NewCommits = %d, attendu 0", res.NewCommits)
+		t.Errorf("NewCommits = %d, want 0", res.NewCommits)
 	}
 	var msg string
 	var adds int
@@ -152,17 +152,17 @@ func TestApplyRepoSyncIsIdempotent(t *testing.T) {
 		t.Fatal(err)
 	}
 	if msg != "message 1" || adds != 0 {
-		t.Errorf("commit déjà en base modifié : %q, %d", msg, adds)
+		t.Errorf("commit already in the database changed: %q, %d", msg, adds)
 	}
 	if got := count(t, s, "SELECT count(*) FROM contributors"); got != 1 {
-		t.Errorf("%d contributeurs, attendu 1 (identités des commits connus ignorées)", got)
+		t.Errorf("%d contributors, want 1 (identities of known commits ignored)", got)
 	}
 	if got := count(t, s, "SELECT count(*) FROM commit_branches"); got != 2 {
-		t.Errorf("%d lignes commit_branches, attendu 2 (sans doublon)", got)
+		t.Errorf("%d commit_branches rows, want 2 (without duplicate)", got)
 	}
 	run, _ := s.LastSyncRun(ctx, repoID)
 	if run.NewCommits != 0 || run.Status != model.SyncSuccess {
-		t.Errorf("dernier sync_run %+v", run)
+		t.Errorf("last sync_run %+v", run)
 	}
 }
 
@@ -173,23 +173,23 @@ func TestApplyRepoSyncCommitBranches(t *testing.T) {
 	bob := person("Bob", "bob@example.test", "", 0)
 	both := []BranchState{{Name: "main", HeadSHA: sha(1)}, {Name: "dev", HeadSHA: sha(2)}}
 
-	// Un SHA en double dans la liste : branches réunies.
+	// A duplicate SHA in the list: branches merged.
 	applySync(t, s, repoID, both, cw(1, bob, "main"), cw(1, bob, "dev"), cw(2, bob, "dev"))
 	if got := count(t, s, "SELECT count(*) FROM commits"); got != 2 {
-		t.Errorf("%d commits, attendu 2", got)
+		t.Errorf("%d commits, want 2", got)
 	}
 	if got := count(t, s, "SELECT count(*) FROM commit_branches WHERE sha = ?", sha(1)); got != 2 {
-		t.Errorf("commit 1 sur %d branches, attendu 2", got)
+		t.Errorf("commit 1 on %d branches, want 2", got)
 	}
 
-	// Un commit connu vu sur une nouvelle branche : seule la ligne commit_branches est ajoutée.
+	// A known commit seen on a new branch: only the commit_branches row is added.
 	three := append(slices.Clone(both), BranchState{Name: "feature", HeadSHA: sha(2)})
 	res := applySync(t, s, repoID, three, cw(2, bob, "feature"))
 	if res.NewCommits != 0 || res.TrackedBranches != 3 {
-		t.Errorf("résultat %+v", res)
+		t.Errorf("result %+v", res)
 	}
 	if got := count(t, s, "SELECT count(*) FROM commit_branches WHERE sha = ?", sha(2)); got != 2 {
-		t.Errorf("commit 2 sur %d branches, attendu 2", got)
+		t.Errorf("commit 2 on %d branches, want 2", got)
 	}
 
 	branches, err := s.ListBranches(ctx, repoID)
@@ -201,7 +201,7 @@ func TestApplyRepoSyncCommitBranches(t *testing.T) {
 		names = append(names, b.Name)
 	}
 	if !slices.Equal(names, []string{"dev", "feature", "main"}) {
-		t.Errorf("branches %v, attendu triées par nom", names)
+		t.Errorf("branches %v, want sorted by name", names)
 	}
 }
 
@@ -216,30 +216,30 @@ func TestApplyRepoSyncUntracksBranches(t *testing.T) {
 		cw(1, bob, "main"), cw(5, bob, "dev"))
 	repo, _ := s.GetRepository(ctx, repoID)
 	if !repo.LastCommitAt.Equal(t0.Add(5 * time.Hour)) {
-		t.Errorf("last_commit_at %v, attendu celui du commit de dev", repo.LastCommitAt)
+		t.Errorf("last_commit_at %v, want the one of the dev commit", repo.LastCommitAt)
 	}
 
-	// dev disparaît : elle n'est plus suivie, son historique reste, last_commit_at ne compte plus ses commits.
+	// dev disappears: it is no longer tracked, its history stays, last_commit_at no longer counts its commits.
 	res := applySync(t, s, repoID, []BranchState{{Name: "main", HeadSHA: sha(1)}})
 	if res.TrackedBranches != 1 || !res.LastCommitAt.Equal(t0.Add(time.Hour)) {
-		t.Errorf("résultat %+v", res)
+		t.Errorf("result %+v", res)
 	}
 	branches, _ := s.ListBranches(ctx, repoID)
 	for _, b := range branches {
 		if want := b.Name == "main"; b.Tracked != want {
-			t.Errorf("branche %s : tracked = %v, attendu %v", b.Name, b.Tracked, want)
+			t.Errorf("branch %s: tracked = %v, want %v", b.Name, b.Tracked, want)
 		}
 	}
 	if got := count(t, s, "SELECT count(*) FROM commits"); got != 2 {
-		t.Errorf("%d commits, attendu 2 (historique gardé)", got)
+		t.Errorf("%d commits, want 2 (history kept)", got)
 	}
 
-	// dev revient : elle est de nouveau suivie (même ligne, tête mise à jour).
+	// dev comes back: it is tracked again (same row, head updated).
 	applySync(t, s, repoID, []BranchState{{Name: "main", HeadSHA: sha(1)}, {Name: "dev", HeadSHA: sha(6)}},
 		cw(6, bob, "dev"))
 	branches, _ = s.ListBranches(ctx, repoID)
 	if len(branches) != 2 || !branches[0].Tracked || branches[0].HeadSHA != sha(6) {
-		t.Errorf("branches après retour de dev : %+v", branches)
+		t.Errorf("branches after dev came back: %+v", branches)
 	}
 }
 
@@ -248,11 +248,11 @@ func TestApplyRepoSyncEmptyRepository(t *testing.T) {
 	repoID := mustCreateRepo(t, s, 1, "promo", "alice")
 	res := applySync(t, s, repoID, nil)
 	if res.NewCommits != 0 || res.TrackedBranches != 0 || !res.LastCommitAt.IsZero() {
-		t.Errorf("résultat %+v pour un dépôt vide", res)
+		t.Errorf("result %+v for an empty repository", res)
 	}
 	repo, _ := s.GetRepository(t.Context(), repoID)
 	if repo.LastSyncedAt.IsZero() || !repo.LastCommitAt.IsZero() {
-		t.Errorf("dépôt vide après synchro : %+v", repo)
+		t.Errorf("empty repository after sync: %+v", repo)
 	}
 }
 
@@ -264,7 +264,7 @@ func TestApplyRepoSyncIdentityRules(t *testing.T) {
 
 	anon := person("Anonyme", "", "", 0)
 	c1 := cw(1, anon, "main")
-	// Auteur sans compte, committer avec compte (ex. merge via l'interface de GitHub).
+	// Author without account, committer with an account (e.g. merge through the GitHub interface).
 	c2 := cw(2, person("Carol", "carol@example.test", "", 0), "main")
 	c2.Committer = Identity{Name: "GitHub", Email: "noreply@example.test", Login: "web-flow", ProviderUserID: 900, AvatarURL: "https://example.test/a.png"}
 	applySync(t, s, repoID, main, c1, c2)
@@ -274,21 +274,21 @@ func TestApplyRepoSyncIdentityRules(t *testing.T) {
 		t.Fatal(err)
 	}
 	if author != nil || committer != nil {
-		t.Errorf("ni compte ni e-mail : author_id %v, committer_id %v, attendu NULL", author, committer)
+		t.Errorf("no account nor e-mail: author_id %v, committer_id %v, want NULL", author, committer)
 	}
 	if got := count(t, s, "SELECT count(*) FROM contributors WHERE name = 'Anonyme'"); got != 0 {
-		t.Error("un contributeur a été créé pour une identité sans compte ni e-mail")
+		t.Error("a contributor was created for an identity without account nor e-mail")
 	}
 	if got := count(t, s, "SELECT count(*) FROM contributors"); got != 2 {
-		t.Errorf("%d contributeurs, attendu 2", got)
+		t.Errorf("%d contributors, want 2", got)
 	}
 	if got := count(t, s, `SELECT count(*) FROM contributors
 		WHERE provider = 'github' AND provider_user_id = 900 AND provider_login = 'web-flow'
 		AND avatar_url = 'https://example.test/a.png'`); got != 1 {
-		t.Error("committer avec compte mal enregistré")
+		t.Error("committer with an account badly recorded")
 	}
 	if got := count(t, s, "SELECT count(*) FROM contributors WHERE provider IS NULL AND name = 'Carol'"); got != 1 {
-		t.Error("auteur sans compte mal enregistré")
+		t.Error("author without account badly recorded")
 	}
 }
 
@@ -298,53 +298,53 @@ func TestApplyRepoSyncMergesNoAccountContributor(t *testing.T) {
 	repoID := mustCreateRepo(t, s, 1, "promo", "alice")
 	main := []BranchState{{Name: "main", HeadSHA: sha(9)}}
 
-	// Synchro 1 : Dave committe sans compte lié, avec deux adresses (deux contributeurs sans compte),
-	// et un compte Erin possède une autre adresse.
+	// Sync 1: Dave commits without a linked account, with two addresses (two contributors without
+	// account), and an Erin account owns another address.
 	c1 := cw(1, person("Dave", "dave@school.test", "", 0), "main")
 	c2 := cw(2, person("", "Dave@Perso.test", "", 0), "main")
 	c3 := cw(3, person("Erin", "erin@example.test", "erin", 77), "main")
 	applySync(t, s, repoID, main, c1, c2, c3)
 	if got := count(t, s, "SELECT count(*) FROM contributors"); got != 3 {
-		t.Fatalf("%d contributeurs, attendu 3", got)
+		t.Fatalf("%d contributors, want 3", got)
 	}
 
-	// Synchro 2 : deux commits liés au compte de Dave, l'un avec l'adresse de l'école, l'autre avec
-	// l'adresse perso : les deux contributeurs sans compte sont fusionnés dans le compte.
+	// Sync 2: two commits linked to Dave's account, one with the school address, the other with the
+	// personal address: the two contributors without account are merged into the account.
 	c4 := cw(4, person("Dave D.", "DAVE@school.test", "dave", 42), "main")
 	c4.Author.AvatarURL = "https://example.test/dave.png"
 	c5 := cw(5, person("Dave D.", "dave@perso.test", "dave", 42), "main")
 	res := applySync(t, s, repoID, main, c4, c5)
 	if res.NewCommits != 2 {
-		t.Errorf("NewCommits = %d, attendu 2", res.NewCommits)
+		t.Errorf("NewCommits = %d, want 2", res.NewCommits)
 	}
 
 	if got := count(t, s, "SELECT count(*) FROM contributors"); got != 2 {
-		t.Errorf("%d contributeurs après fusion, attendu 2 (Dave, Erin)", got)
+		t.Errorf("%d contributors after merge, want 2 (Dave, Erin)", got)
 	}
 	var daveID int64
 	if err := s.DB().QueryRowContext(ctx, `SELECT id FROM contributors
 		WHERE provider = 'github' AND provider_user_id = 42 AND name = 'Dave D.' AND provider_login = 'dave'
 		AND avatar_url = 'https://example.test/dave.png'`).Scan(&daveID); err != nil {
-		t.Fatalf("contributeur avec compte de Dave : %v", err)
+		t.Fatalf("contributor with Dave's account: %v", err)
 	}
 	if got := count(t, s, "SELECT count(*) FROM contributor_emails WHERE contributor_id = ?", daveID); got != 2 {
-		t.Errorf("Dave a %d adresses, attendu 2", got)
+		t.Errorf("Dave has %d addresses, want 2", got)
 	}
 	if got := count(t, s, "SELECT count(*) FROM commits WHERE author_id = ? AND committer_id = ?", daveID, daveID); got != 4 {
-		t.Errorf("%d commits réattribués à Dave, attendu 4", got)
+		t.Errorf("%d commits reassigned to Dave, want 4", got)
 	}
 
-	// Une adresse tenue par un autre compte est simplement réattribuée (Erin n'est pas fusionnée).
+	// An address held by another account is simply reassigned (Erin is not merged).
 	c6 := cw(6, person("Dave D.", "erin@example.test", "dave", 42), "main")
 	applySync(t, s, repoID, main, c6)
 	if got := count(t, s, "SELECT count(*) FROM contributors"); got != 2 {
-		t.Errorf("%d contributeurs, attendu 2 (aucune fusion entre comptes)", got)
+		t.Errorf("%d contributors, want 2 (no merge between accounts)", got)
 	}
 	if got := count(t, s, "SELECT count(*) FROM contributor_emails WHERE email = 'erin@example.test' AND contributor_id = ?", daveID); got != 1 {
-		t.Error("adresse non réattribuée au dernier compte qui l'utilise")
+		t.Error("address not reassigned to the last account using it")
 	}
 	if got := count(t, s, "SELECT count(*) FROM commits WHERE sha = ? AND author_id <> ?", sha(3), daveID); got != 1 {
-		t.Error("les commits d'Erin ne doivent pas changer d'auteur")
+		t.Error("Erin's commits must not change author")
 	}
 }
 
@@ -355,15 +355,15 @@ func TestApplyRepoSyncMergeWithinOneSync(t *testing.T) {
 	noAccount := person("Fay", "fay@example.test", "", 0)
 	withAccount := person("", "fay@example.test", "fay", 13)
 
-	// Ordre par date : sans compte, puis avec compte (fusion), puis de nouveau sans compte : le
-	// troisième commit doit viser le contributeur avec compte, pas l'ancien supprimé.
+	// Order by date: without account, then with an account (merge), then without account again: the
+	// third commit must point to the contributor with an account, not to the old deleted one.
 	applySync(t, s, repoID, main, cw(3, noAccount, "main"), cw(1, noAccount, "main"), cw(2, withAccount, "main"))
 	if got := count(t, s, "SELECT count(*) FROM contributors"); got != 1 {
-		t.Errorf("%d contributeurs, attendu 1", got)
+		t.Errorf("%d contributors, want 1", got)
 	}
 	if got := count(t, s, `SELECT count(*) FROM commits c JOIN contributors ct ON ct.id = c.author_id
 		WHERE ct.provider_user_id = 13 AND ct.name = 'Fay'`); got != 3 {
-		t.Errorf("%d commits rattachés au compte (avec le nom repris), attendu 3", got)
+		t.Errorf("%d commits linked to the account (with the name taken over), want 3", got)
 	}
 }
 
@@ -381,14 +381,14 @@ func TestApplyRepoSyncLatestNameWins(t *testing.T) {
 		t.Fatal(err)
 	}
 	if name != "Nom récent" {
-		t.Errorf("nom %q, attendu celui du commit le plus récent", name)
+		t.Errorf("name %q, want the one of the most recent commit", name)
 	}
 
-	// Un compte change de login : mis à jour, sans doublon.
+	// An account changes login: updated, without duplicate.
 	applySync(t, s, repoID, main, cw(4, person("Hugo", "", "hugo-old", 5), "main"))
 	applySync(t, s, repoID, main, cw(5, person("", "", "hugo-new", 5), "main"))
 	if got := count(t, s, "SELECT count(*) FROM contributors WHERE provider_user_id = 5 AND provider_login = 'hugo-new' AND name = 'Hugo'"); got != 1 {
-		t.Error("login non mis à jour, ou nom effacé par un nom vide")
+		t.Error("login not updated, or name erased by an empty name")
 	}
 }
 
@@ -400,7 +400,7 @@ func TestApplyRepoSyncRollsBackOnError(t *testing.T) {
 	now := t0.Add(time.Hour)
 	runID := beginRun(t, s, repoID, now)
 
-	// owner/name déjà pris par un autre dépôt : ErrAlreadyExists, rien n'est écrit.
+	// owner/name already taken by another repository: ErrAlreadyExists, nothing is written.
 	_, err := s.ApplyRepoSync(ctx, RepoSyncWrite{
 		RepoID: repoID, RunID: runID, Metadata: meta("promo", "BOB"),
 		Branches: []BranchState{{Name: "main", HeadSHA: sha(1)}},
@@ -408,27 +408,27 @@ func TestApplyRepoSyncRollsBackOnError(t *testing.T) {
 		SyncedAt: now,
 	})
 	if !errors.Is(err, ErrAlreadyExists) {
-		t.Fatalf("erreur %v, attendu ErrAlreadyExists", err)
+		t.Fatalf("error %v, want ErrAlreadyExists", err)
 	}
 	for _, table := range []string{"branches", "commits", "contributors", "contributor_emails", "commit_branches"} {
 		if got := count(t, s, "SELECT count(*) FROM "+table); got != 0 {
-			t.Errorf("table %s : %d lignes après échec, attendu 0", table, got)
+			t.Errorf("table %s: %d rows after failure, want 0", table, got)
 		}
 	}
 	run, _ := s.LastSyncRun(ctx, repoID)
 	if run.Status != model.SyncRunning {
-		t.Errorf("sync_run %s après échec, attendu running", run.Status)
+		t.Errorf("sync_run %s after failure, want running", run.Status)
 	}
 	repo, _ := s.GetRepository(ctx, repoID)
 	if repo.Name != "alice" || !repo.LastSyncedAt.IsZero() {
-		t.Errorf("dépôt modifié malgré l'échec : %+v", repo)
+		t.Errorf("repository changed despite the failure: %+v", repo)
 	}
 
-	// La base reste utilisable : la connexion n'est pas restée en transaction.
+	// The database stays usable: the connection did not stay in a transaction.
 	if _, err := s.ApplyRepoSync(ctx, RepoSyncWrite{
 		RepoID: repoID, RunID: runID, Metadata: meta("promo", "alice"), SyncedAt: now,
 	}); err != nil {
-		t.Errorf("synchro après un échec : %v", err)
+		t.Errorf("sync after a failure: %v", err)
 	}
 }
 
@@ -445,43 +445,43 @@ func TestApplyRepoSyncValidation(t *testing.T) {
 	}
 
 	tests := map[string]func(w *RepoSyncWrite){
-		"branche inconnue": func(w *RepoSyncWrite) { w.Commits = []CommitWrite{cw(1, who, "dev")} },
-		"SHA vide":         func(w *RepoSyncWrite) { c := cw(1, who, "main"); c.SHA = ""; w.Commits = []CommitWrite{c} },
-		"date absente": func(w *RepoSyncWrite) {
+		"unknown branch": func(w *RepoSyncWrite) { w.Commits = []CommitWrite{cw(1, who, "dev")} },
+		"empty SHA":      func(w *RepoSyncWrite) { c := cw(1, who, "main"); c.SHA = ""; w.Commits = []CommitWrite{c} },
+		"missing date": func(w *RepoSyncWrite) {
 			c := cw(1, who, "main")
 			c.CommittedAt = time.Time{}
 			w.Commits = []CommitWrite{c}
 		},
-		"branche en double":   func(w *RepoSyncWrite) { w.Branches = append(slices.Clone(main), main...) },
-		"métadonnées vides":   func(w *RepoSyncWrite) { w.Metadata = RepositoryMetadata{} },
-		"fin absente":         func(w *RepoSyncWrite) { w.SyncedAt = time.Time{} },
-		"synchro inexistante": func(w *RepoSyncWrite) { w.RunID = 9999 },
-		"dépôt inexistant":    func(w *RepoSyncWrite) { w.RepoID = 9999 },
+		"duplicate branch":       func(w *RepoSyncWrite) { w.Branches = append(slices.Clone(main), main...) },
+		"empty metadata":         func(w *RepoSyncWrite) { w.Metadata = RepositoryMetadata{} },
+		"missing end":            func(w *RepoSyncWrite) { w.SyncedAt = time.Time{} },
+		"nonexistent sync":       func(w *RepoSyncWrite) { w.RunID = 9999 },
+		"nonexistent repository": func(w *RepoSyncWrite) { w.RepoID = 9999 },
 	}
 	for name, mutate := range tests {
 		t.Run(name, func(t *testing.T) {
 			w := valid()
 			mutate(&w)
 			if _, err := s.ApplyRepoSync(ctx, w); err == nil {
-				t.Fatal("erreur attendue")
+				t.Fatal("error expected")
 			} else if strings.Contains(err.Error(), "jo@example.test") || strings.Contains(err.Error(), "Jo") {
-				t.Errorf("l'erreur contient une donnée personnelle : %v", err)
+				t.Errorf("the error contains personal data: %v", err)
 			}
 		})
 	}
 	if got := count(t, s, "SELECT count(*) FROM commits"); got != 0 {
-		t.Errorf("%d commits écrits malgré les erreurs", got)
+		t.Errorf("%d commits written despite the errors", got)
 	}
-	// La synchro inexistante et le dépôt inexistant sont signalés par ErrNotFound.
+	// The nonexistent sync and the nonexistent repository are reported by ErrNotFound.
 	w := valid()
 	w.RunID = 9999
 	if _, err := s.ApplyRepoSync(ctx, w); !errors.Is(err, ErrNotFound) {
-		t.Errorf("synchro inexistante : %v, attendu ErrNotFound", err)
+		t.Errorf("nonexistent sync: %v, want ErrNotFound", err)
 	}
 	w = valid()
 	w.RepoID = 9999
 	if _, err := s.ApplyRepoSync(ctx, w); !errors.Is(err, ErrNotFound) {
-		t.Errorf("dépôt inexistant : %v, attendu ErrNotFound", err)
+		t.Errorf("nonexistent repository: %v, want ErrNotFound", err)
 	}
 }
 
@@ -493,7 +493,7 @@ func TestExistingCommitSHAs(t *testing.T) {
 	who := person("Kim", "kim@example.test", "", 0)
 	main := []BranchState{{Name: "main", HeadSHA: sha(1)}}
 
-	// Plus d'un paquet de SHA.
+	// More than one batch of SHAs.
 	var commits []CommitWrite
 	for i := range 1200 {
 		if i%2 == 0 {
@@ -504,22 +504,22 @@ func TestExistingCommitSHAs(t *testing.T) {
 
 	var shas []string
 	for i := range 1200 {
-		shas = append(shas, sha(i), sha(i)) // doublons permis
+		shas = append(shas, sha(i), sha(i)) // duplicates allowed
 	}
 	known, err := s.ExistingCommitSHAs(ctx, repoID, shas)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(known) != 600 || !known[sha(0)] || known[sha(1)] || !known[sha(1198)] {
-		t.Errorf("%d SHA connus, attendu 600 (pairs seulement)", len(known))
+		t.Errorf("%d known SHAs, want 600 (even ones only)", len(known))
 	}
 	known, err = s.ExistingCommitSHAs(ctx, other, shas)
 	if err != nil || len(known) != 0 {
-		t.Errorf("autre dépôt : %d SHA connus, %v ; attendu aucun", len(known), err)
+		t.Errorf("other repository: %d known SHAs, %v; want none", len(known), err)
 	}
 	known, err = s.ExistingCommitSHAs(ctx, repoID, nil)
 	if err != nil || known == nil || len(known) != 0 {
-		t.Errorf("liste vide : %v, %v ; attendu une map vide non nil", known, err)
+		t.Errorf("empty list: %v, %v; want a non-nil empty map", known, err)
 	}
 }
 
@@ -528,7 +528,7 @@ func TestListBranchesAndCountCommitsEmpty(t *testing.T) {
 	repoID := mustCreateRepo(t, s, 1, "promo", "alice")
 	branches, err := s.ListBranches(t.Context(), repoID)
 	if err != nil || branches == nil || len(branches) != 0 {
-		t.Errorf("ListBranches = %v, %v ; attendu une liste vide non nil", branches, err)
+		t.Errorf("ListBranches = %v, %v; want a non-nil empty list", branches, err)
 	}
 	if n, err := s.CountCommits(t.Context(), repoID); err != nil || n != 0 {
 		t.Errorf("CountCommits = %d, %v", n, err)
@@ -546,11 +546,11 @@ func TestDeleteRepositoryAfterSyncCascades(t *testing.T) {
 	}
 	for _, table := range []string{"branches", "commits", "commit_branches", "sync_runs"} {
 		if got := count(t, s, "SELECT count(*) FROM "+table); got != 0 {
-			t.Errorf("table %s : %d lignes après suppression du dépôt", table, got)
+			t.Errorf("table %s: %d rows after deleting the repository", table, got)
 		}
 	}
-	// Les contributeurs sont partagés entre dépôts : ils restent.
+	// The contributors are shared between repositories: they stay.
 	if got := count(t, s, "SELECT count(*) FROM contributors"); got != 1 {
-		t.Errorf("%d contributeurs, attendu 1", got)
+		t.Errorf("%d contributors, want 1", got)
 	}
 }

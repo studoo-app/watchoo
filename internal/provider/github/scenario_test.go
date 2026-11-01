@@ -1,15 +1,15 @@
 package github
 
-// Scénarios de bout en bout de la phase 2 : le VRAI Provider (transport, cache ETag, quota, conversion
-// des erreurs, appels d'API) contre le faux serveur programmable githubtest. Ils couvrent la section
-// « API GitHub simulée » de documentation/fr/09-tests.md. Aucun appel réseau réel : githubtest écoute sur
-// 127.0.0.1 et fait échouer le test sur toute requête autre que GET ou HEAD.
+// End-to-end scenarios of phase 2: the REAL Provider (transport, ETag cache, quota, error conversion,
+// API calls) against the programmable fake server githubtest. They cover the "Simulated GitHub API"
+// section of documentation/en/09-testing.md. No real network call: githubtest listens on 127.0.0.1
+// and fails the test on any request other than GET or HEAD.
 //
-// Chaque environnement (newScEnv) capture les logs du Provider au niveau Debug et vérifie à la fin du
-// test qu'ils ne contiennent ni token, ni en-tête Authorization, ni message de commit, nom, e-mail ou
-// login d'auteur, et qu'ils sont tous de niveau Debug. Les erreurs des scénarios passent par scNoLeak.
+// Every environment (newScEnv) captures the Provider's logs at Debug level and checks at the end of
+// the test that they contain neither token, nor Authorization header, nor commit message, author
+// name, e-mail or login, and that they are all at Debug level. The scenarios' errors go through scNoLeak.
 //
-// Helpers préfixés par sc ; ils réutilisent trClock, trEpoch, trLogs et trLogger (transport_test.go).
+// Helpers prefixed with sc; they reuse trClock, trEpoch, trLogs and trLogger (transport_test.go).
 
 import (
 	"errors"
@@ -28,35 +28,35 @@ import (
 	"github.com/studoo-app/watchoo/internal/provider/github/githubtest"
 )
 
-// Données factices des scénarios.
+// Dummy data of the scenarios.
 const (
-	scOwner      = "ecole-demo"            // organisation propriétaire des dépôts (elle peut apparaître dans les logs)
-	scOtherToken = "gho_autre_compte_fake" // token d'un autre compte gh, refusé par le faux serveur
+	scOwner      = "ecole-demo"            // organization owning the repositories (it may appear in the logs)
+	scOtherToken = "gho_autre_compte_fake" // token of another gh account, refused by the fake server
 	scBadToken   = "gho_token_revoque_fake"
 	scUserAgent  = "watchoo/v0.0.0-test"
 
-	// Identité et message des commits ajoutés par scEnv.commit : ils ne doivent apparaître ni dans un
-	// log ni dans une erreur.
+	// Identity and message of the commits added by scEnv.commit: they must appear neither in a log nor
+	// in an error.
 	scSecretName    = "Eleve Confidentiel"
 	scSecretEmail   = "eleve.confidentiel@example.test"
 	scSecretLogin   = "eleve-confidentiel"
 	scSecretMessage = "Message de commit confidentiel"
 )
 
-// scForbidden est la liste des chaînes interdites dans les logs et dans les messages d'erreur.
+// scForbidden is the list of strings forbidden in the logs and in the error messages.
 var scForbidden = []string{
 	testToken, scOtherToken, scBadToken, "gho_", "Bearer", "authorization_request",
 	scSecretName, scSecretEmail, scSecretLogin, scSecretMessage,
-	// Identité factice de githubtest.AppendCommits.
+	// Dummy identity of githubtest.AppendCommits.
 	"Étudiant Test", "etudiant@example.test", "etudiant-test",
 }
 
-// scAppendMessage reconnaît les messages « commit N » de githubtest.AppendCommits (un SHA court cité
-// après « commit » a 7 caractères : il ne correspond pas).
+// scAppendMessage recognizes the "commit N" messages of githubtest.AppendCommits (a short SHA quoted
+// after "commit" has 7 characters: it does not match).
 var scAppendMessage = regexp.MustCompile(`\bcommit [0-9]{1,4}\b`)
 
-// scEnv est un environnement de scénario : faux serveur GitHub, horloge commune au serveur et aux
-// Provider, logs capturés, cache ETag et état du quota partagés entre les Provider construits.
+// scEnv is a scenario environment: fake GitHub server, clock shared by the server and the Providers,
+// captured logs, ETag cache and quota state shared between the built Providers.
 type scEnv struct {
 	t     *testing.T
 	srv   *githubtest.Server
@@ -64,10 +64,10 @@ type scEnv struct {
 	logs  *trLogs
 	cache *Cache
 	quota *Quota
-	t0    time.Time // date de départ des commits factices (dans le passé de l'horloge)
+	t0    time.Time // start date of the dummy commits (in the clock's past)
 }
 
-// newScEnv prépare un environnement et programme la vérification des logs à la fin du test.
+// newScEnv prepares an environment and schedules the check of the logs at the end of the test.
 func newScEnv(t *testing.T) *scEnv {
 	t.Helper()
 	clock := newTrClock(trEpoch)
@@ -84,8 +84,8 @@ func newScEnv(t *testing.T) *scEnv {
 	return e
 }
 
-// provider construit un Provider authentifié par token, branché sur le faux serveur, avec le cache et
-// l'état du quota de l'environnement : comme le moteur de synchro, qui en construit un par synchro.
+// provider builds a Provider authenticated by token, plugged into the fake server, with the cache and
+// the quota state of the environment: like the sync engine, which builds one per sync.
 func (e *scEnv) provider(token string) *Provider {
 	e.t.Helper()
 	p, err := New(token, Options{
@@ -96,21 +96,21 @@ func (e *scEnv) provider(token string) *Provider {
 		Logger:    trLogger(e.logs, slog.LevelDebug),
 	})
 	if err != nil {
-		e.t.Fatalf("New : %v", err)
+		e.t.Fatalf("New: %v", err)
 	}
 	p.tr.now = e.clock.now
 	return p
 }
 
-// repo ajoute un dépôt privé de scOwner et renvoie le chemin de son API (« /repos/ecole-demo/… »).
+// repo adds a private repository of scOwner and returns its API path ("/repos/ecole-demo/…").
 func (e *scEnv) repo(id int64, name string) string {
 	e.t.Helper()
 	e.srv.AddRepo(githubtest.Repo{ID: id, Owner: scOwner, Name: name, Private: true})
 	return "/repos/" + scOwner + "/" + name
 }
 
-// commit ajoute au dépôt repoID un commit de l'auteur factice confidentiel, daté de at, et renvoie
-// son SHA. label rend le message unique.
+// commit adds to the repository repoID a commit by the confidential dummy author, dated at, and
+// returns its SHA. label makes the message unique.
 func (e *scEnv) commit(repoID int64, label string, at time.Time, parents ...string) string {
 	e.t.Helper()
 	return e.srv.AddCommit(repoID, githubtest.Commit{
@@ -123,7 +123,7 @@ func (e *scEnv) commit(repoID int64, label string, at time.Time, parents ...stri
 	})
 }
 
-// countLogs renvoie le nombre de logs de message msg.
+// countLogs returns the number of logs with message msg.
 func (e *scEnv) countLogs(msg string) int {
 	e.t.Helper()
 	n := 0
@@ -135,31 +135,31 @@ func (e *scEnv) countLogs(msg string) int {
 	return n
 }
 
-// checkNoLeak vérifie, en fin de test, les logs capturés et le journal du faux serveur.
+// checkNoLeak checks, at the end of the test, the captured logs and the fake server's log.
 func (e *scEnv) checkNoLeak() {
 	logs := e.logs.String()
 	for _, s := range scForbidden {
 		if strings.Contains(logs, s) {
-			e.t.Errorf("les logs contiennent %q", s)
+			e.t.Errorf("the logs contain %q", s)
 		}
 	}
 	if m := scAppendMessage.FindString(logs); m != "" {
-		e.t.Errorf("les logs contiennent un message de commit (%q)", m)
+		e.t.Errorf("the logs contain a commit message (%q)", m)
 	}
 	for _, rec := range e.logs.records(e.t) {
 		if rec["level"] != slog.LevelDebug.String() {
-			e.t.Errorf("log de niveau %v (%v) : seul le niveau Debug est permis", rec["level"], rec["msg"])
+			e.t.Errorf("log at level %v (%v): only the Debug level is allowed", rec["level"], rec["msg"])
 		}
 	}
 	for _, r := range e.srv.Requests() {
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
-			e.t.Errorf("requête %s %s reçue par le faux serveur", r.Method, r.Path)
+			e.t.Errorf("request %s %s received by the fake server", r.Method, r.Path)
 		}
 	}
 }
 
-// scNoLeak vérifie que le message de err ne cite ni token, ni donnée personnelle, ni paramètre de
-// requête.
+// scNoLeak checks that the message of err quotes neither token, nor personal data, nor request
+// parameter.
 func scNoLeak(t *testing.T, err error) {
 	t.Helper()
 	if err == nil {
@@ -168,46 +168,46 @@ func scNoLeak(t *testing.T, err error) {
 	msg := err.Error()
 	for _, s := range append(append([]string{}, scForbidden...), "per_page", "page=", "sha=") {
 		if strings.Contains(msg, s) {
-			t.Errorf("le message d'erreur %q contient %q", msg, s)
+			t.Errorf("the error message %q contains %q", msg, s)
 		}
 	}
 	if m := scAppendMessage.FindString(msg); m != "" {
-		t.Errorf("le message d'erreur %q cite un message de commit", msg)
+		t.Errorf("the error message %q quotes a commit message", msg)
 	}
 }
 
-// scAPIError vérifie que err est un *provider.APIError de code status (et de chemin path, s'il n'est
-// pas vide) et le renvoie.
+// scAPIError checks that err is a *provider.APIError with code status (and path path, if it is not
+// empty) and returns it.
 func scAPIError(t *testing.T, err error, status int, path string) *provider.APIError {
 	t.Helper()
 	apiErr, ok := errors.AsType[*provider.APIError](err)
 	if !ok {
-		t.Fatalf("erreur %v (%T) : *provider.APIError attendue", err, err)
+		t.Fatalf("error %v (%T): want *provider.APIError", err, err)
 	}
 	if apiErr.Status != status || (path != "" && apiErr.Path != path) {
-		t.Errorf("APIError {Path %q, Status %d}, veut {Path %q, Status %d} : %v", apiErr.Path, apiErr.Status, path, status, err)
+		t.Errorf("APIError {Path %q, Status %d}, want {Path %q, Status %d}: %v", apiErr.Path, apiErr.Status, path, status, err)
 	}
 	scNoLeak(t, err)
 	return apiErr
 }
 
-// scRateLimit vérifie que err est un *provider.RateLimitError conforme.
+// scRateLimit checks that err is a compliant *provider.RateLimitError.
 func scRateLimit(t *testing.T, err error, secondary bool, reset time.Time, retryAfter time.Duration) {
 	t.Helper()
 	if !errors.Is(err, provider.ErrRateLimited) {
-		t.Fatalf("erreur %v : ErrRateLimited attendue", err)
+		t.Fatalf("error %v: want ErrRateLimited", err)
 	}
 	rle, ok := errors.AsType[*provider.RateLimitError](err)
 	if !ok {
-		t.Fatalf("erreur %v : *provider.RateLimitError attendue", err)
+		t.Fatalf("error %v: want *provider.RateLimitError", err)
 	}
 	if rle.Secondary != secondary || !rle.Reset.Equal(reset) || rle.RetryAfter != retryAfter {
-		t.Errorf("RateLimitError = %+v, veut {Secondary %v, Reset %v, RetryAfter %v}", rle, secondary, reset, retryAfter)
+		t.Errorf("RateLimitError = %+v, want {Secondary %v, Reset %v, RetryAfter %v}", rle, secondary, reset, retryAfter)
 	}
 	scNoLeak(t, err)
 }
 
-// scSHAs renvoie les SHA de commits, dans l'ordre.
+// scSHAs returns the SHAs of commits, in order.
 func scSHAs(commits []provider.Commit) []string {
 	out := make([]string, 0, len(commits))
 	for _, c := range commits {
@@ -216,18 +216,18 @@ func scSHAs(commits []provider.Commit) []string {
 	return out
 }
 
-// scWantSHAs compare les SHA obtenus et attendus.
+// scWantSHAs compares the got and wanted SHAs.
 func scWantSHAs(t *testing.T, what string, got []provider.Commit, want ...string) {
 	t.Helper()
 	if got == nil {
-		t.Errorf("%s : liste nil (slice vide non nil attendue)", what)
+		t.Errorf("%s: nil list (want an empty non-nil slice)", what)
 	}
 	if g := scSHAs(got); !reflect.DeepEqual(g, append([]string{}, want...)) {
-		t.Errorf("%s : %d commits %v\nveut %d commits %v", what, len(g), shortSHAs(g), len(want), shortSHAs(want))
+		t.Errorf("%s: %d commits %v\nwant %d commits %v", what, len(g), shortSHAs(g), len(want), shortSHAs(want))
 	}
 }
 
-// shortSHAs raccourcit des SHA pour les messages d'échec.
+// shortSHAs shortens SHAs for the failure messages.
 func shortSHAs(shas []string) []string {
 	out := make([]string, len(shas))
 	for i, s := range shas {
@@ -236,7 +236,7 @@ func shortSHAs(shas []string) []string {
 	return out
 }
 
-// scReversed renvoie une copie de shas dans l'ordre inverse.
+// scReversed returns a copy of shas in reverse order.
 func scReversed(shas []string) []string {
 	out := make([]string, len(shas))
 	for i, s := range shas {
@@ -245,7 +245,7 @@ func scReversed(shas []string) []string {
 	return out
 }
 
-// scCheckPages vérifie que les requêtes reçues pour path sont exactement les pages 1 à n, avec
+// scCheckPages checks that the requests received for path are exactly the pages 1 to n, with
 // per_page=100.
 func scCheckPages(t *testing.T, reqs []githubtest.Request, path string, n int) {
 	t.Helper()
@@ -255,7 +255,7 @@ func scCheckPages(t *testing.T, reqs []githubtest.Request, path string, n int) {
 			continue
 		}
 		if pp := r.Query.Get("per_page"); pp != strconv.Itoa(PerPage) {
-			t.Errorf("%s : per_page=%q, veut %d", path, pp, PerPage)
+			t.Errorf("%s: per_page=%q, want %d", path, pp, PerPage)
 		}
 		pages = append(pages, r.Query.Get("page"))
 	}
@@ -264,25 +264,25 @@ func scCheckPages(t *testing.T, reqs []githubtest.Request, path string, n int) {
 		want[i] = strconv.Itoa(i + 1)
 	}
 	if !reflect.DeepEqual(pages, want) {
-		t.Errorf("%s : pages demandées %v, veut %v", path, pages, want)
+		t.Errorf("%s: requested pages %v, want %v", path, pages, want)
 	}
 }
 
-// scAll304 vérifie que les requêtes reçues sont n requêtes conditionnelles servies en 304.
+// scAll304 checks that the received requests are n conditional requests served as 304s.
 func scAll304(t *testing.T, reqs []githubtest.Request, n int) {
 	t.Helper()
 	if len(reqs) != n {
-		t.Errorf("%d requêtes reçues, veut %d", len(reqs), n)
+		t.Errorf("%d requests received, want %d", len(reqs), n)
 	}
 	for _, r := range reqs {
 		if r.Status != http.StatusNotModified || r.IfNoneMatch == "" {
-			t.Errorf("%s ?%s : code %d, If-None-Match %q ; veut 304 avec If-None-Match", r.Path, r.RawQuery, r.Status, r.IfNoneMatch)
+			t.Errorf("%s ?%s: code %d, If-None-Match %q; want 304 with If-None-Match", r.Path, r.RawQuery, r.Status, r.IfNoneMatch)
 		}
 	}
 }
 
-// TestScenarioPagination : branches et commits sur plusieurs pages (per_page=100), conversion des
-// commits, Limit et Since.
+// TestScenarioPagination: branches and commits over several pages (per_page=100), conversion of the
+// commits, Limit and Since.
 func TestScenarioPagination(t *testing.T) {
 	e := newScEnv(t)
 	const id = 1001
@@ -297,37 +297,37 @@ func TestScenarioPagination(t *testing.T) {
 		t.Errorf("Name() = %q", p.Name())
 	}
 
-	// 150 branches : 2 pages, ordre alphabétique de GitHub.
+	// 150 branches: 2 pages, GitHub's alphabetical order.
 	branches, err := p.Branches(ctx, scOwner, "projet-pagination")
 	if err != nil {
-		t.Fatalf("Branches : %v", err)
+		t.Fatalf("Branches: %v", err)
 	}
 	if len(branches) != 150 || branches[0] != (provider.Branch{Name: "feature/000", HeadSHA: shas[0]}) ||
 		branches[149] != (provider.Branch{Name: "main", HeadSHA: shas[249]}) {
-		t.Errorf("Branches : %d branches, première %+v, dernière %+v", len(branches), branches[0], branches[len(branches)-1])
+		t.Errorf("Branches: %d branches, first %+v, last %+v", len(branches), branches[0], branches[len(branches)-1])
 	}
 	scCheckPages(t, e.srv.Requests(), base+"/branches", 2)
 	for _, r := range e.srv.Requests() {
 		if !r.ValidToken || r.UserAgent != scUserAgent {
-			t.Errorf("requête %s : token valide %v, User-Agent %q", r.Path, r.ValidToken, r.UserAgent)
+			t.Errorf("request %s: valid token %v, User-Agent %q", r.Path, r.ValidToken, r.UserAgent)
 		}
 	}
 
-	// 250 commits : 3 pages, du plus récent au plus ancien.
+	// 250 commits: 3 pages, from newest to oldest.
 	e.srv.ResetRequests()
 	commits, err := p.ListCommits(ctx, scOwner, "projet-pagination", provider.ListCommitsOptions{Branch: "main"})
 	if err != nil {
-		t.Fatalf("ListCommits : %v", err)
+		t.Fatalf("ListCommits: %v", err)
 	}
 	scWantSHAs(t, "ListCommits", commits, scReversed(shas)...)
 	scCheckPages(t, e.srv.Requests(), base+"/commits", 3)
 	for _, r := range e.srv.Requests() {
 		if r.Query.Get("sha") != "main" {
-			t.Errorf("paramètre sha = %q, veut main", r.Query.Get("sha"))
+			t.Errorf("sha parameter = %q, want main", r.Query.Get("sha"))
 		}
 	}
 
-	// Conversion d'un commit (identité Git et compte GitHub lié, dates UTC, parents).
+	// Conversion of a commit (Git identity and linked GitHub account, UTC dates, parents).
 	if len(commits) == 250 {
 		c := commits[0]
 		at := e.t0.Add(249 * time.Minute)
@@ -336,7 +336,7 @@ func TestScenarioPagination(t *testing.T) {
 			t.Errorf("Author = %+v, Committer = %+v", c.Author, c.Committer)
 		}
 		if !c.AuthoredAt.Equal(at) || !c.CommittedAt.Equal(at) || c.AuthoredAt.Location() != time.UTC {
-			t.Errorf("dates %v / %v, veut %v en UTC", c.AuthoredAt, c.CommittedAt, at)
+			t.Errorf("dates %v / %v, want %v in UTC", c.AuthoredAt, c.CommittedAt, at)
 		}
 		if c.Message != "commit 250" || !strings.Contains(c.URL, c.SHA) {
 			t.Errorf("Message %q, URL %q", c.Message, c.URL)
@@ -345,39 +345,39 @@ func TestScenarioPagination(t *testing.T) {
 			t.Errorf("Parents = %v", c.Parents)
 		}
 		if root := commits[249]; root.Parents == nil || len(root.Parents) != 0 {
-			t.Errorf("commit racine : Parents = %#v, veut une slice vide non nil", root.Parents)
+			t.Errorf("root commit: Parents = %#v, want an empty non-nil slice", root.Parents)
 		}
 	}
 
-	// Limit : seules les pages nécessaires sont demandées.
+	// Limit: only the needed pages are requested.
 	e.srv.ResetRequests()
 	limited, err := p.ListCommits(ctx, scOwner, "projet-pagination", provider.ListCommitsOptions{Branch: "main", Limit: 150})
 	if err != nil {
-		t.Fatalf("ListCommits (Limit) : %v", err)
+		t.Fatalf("ListCommits (Limit): %v", err)
 	}
 	scWantSHAs(t, "ListCommits (Limit 150)", limited, scReversed(shas)[:150]...)
 	scCheckPages(t, e.srv.Requests(), base+"/commits", 2)
 
-	// Since (dans un autre fuseau) : passé en UTC, filtre sur la date de commit, une seule page.
+	// Since (in another time zone): converted to UTC, filters on the commit date, a single page.
 	e.srv.ResetRequests()
 	since := e.t0.Add(200 * time.Minute)
 	recent, err := p.ListCommits(ctx, scOwner, "projet-pagination", provider.ListCommitsOptions{
 		Branch: "main", Since: since.In(time.FixedZone("UTC+2", 2*3600)),
 	})
 	if err != nil {
-		t.Fatalf("ListCommits (Since) : %v", err)
+		t.Fatalf("ListCommits (Since): %v", err)
 	}
 	scWantSHAs(t, "ListCommits (Since)", recent, scReversed(shas[200:])...)
 	if reqs := e.srv.Requests(); len(reqs) != 1 || reqs[0].Query.Get("since") != since.UTC().Format(time.RFC3339) {
-		t.Errorf("requêtes %+v, veut une requête avec since=%s", reqs, since.UTC().Format(time.RFC3339))
+		t.Errorf("requests %+v, want one request with since=%s", reqs, since.UTC().Format(time.RFC3339))
 	}
 }
 
-// TestScenarioIncrementalSync suit la stratégie de « Synchronisation incrémentale »
-// (documentation/fr/03-architecture.md) : premier import de la branche par défaut par ListCommits, autre
-// branche par CompareCommits depuis la tête de la branche par défaut, puis synchro incrémentale par
-// CompareCommits entre l'ancienne et la nouvelle tête, y compris un merge qui apporte des commits plus
-// anciens que l'ancienne tête (et que l'arrêt au premier SHA connu manquerait).
+// TestScenarioIncrementalSync follows the "Incremental sync" strategy
+// (documentation/en/03-architecture.md): first import of the default branch by ListCommits, other
+// branch by CompareCommits from the head of the default branch, then incremental sync by
+// CompareCommits between the old and the new head, including a merge that brings commits older
+// than the old head (and that stopping at the first known SHA would miss).
 func TestScenarioIncrementalSync(t *testing.T) {
 	e := newScEnv(t)
 	const id, name = 1002, "projet-incremental"
@@ -393,7 +393,7 @@ func TestScenarioIncrementalSync(t *testing.T) {
 	p := e.provider(testToken)
 	ctx := t.Context()
 
-	// La base du moteur de synchro, simulée : les SHA déjà enregistrés.
+	// The sync engine's database, simulated: the SHAs already recorded.
 	known := map[string]bool{}
 	stop := func(sha string) bool { return known[sha] }
 	remember := func(commits []provider.Commit) {
@@ -402,88 +402,88 @@ func TestScenarioIncrementalSync(t *testing.T) {
 		}
 	}
 
-	// Premier import : main, la branche par défaut, par la liste des commits (rien n'est en base).
+	// First import: main, the default branch, through the list of commits (nothing in the database).
 	first, err := p.ListCommits(ctx, scOwner, name, provider.ListCommitsOptions{Branch: "main"})
 	if err != nil {
-		t.Fatalf("ListCommits main : %v", err)
+		t.Fatalf("ListCommits main: %v", err)
 	}
-	scWantSHAs(t, "premier import de main", first, m3, m2, m1)
+	scWantSHAs(t, "first import of main", first, m3, m2, m1)
 	remember(first)
 
-	// Autre branche : compare depuis la tête de main ; m2, partagé avec main, n'est pas renvoyé.
+	// Other branch: compare from the head of main; m2, shared with main, is not returned.
 	e.srv.ResetRequests()
 	dev, err := p.CompareCommits(ctx, scOwner, name, m3, d2)
 	if err != nil {
-		t.Fatalf("CompareCommits main...dev : %v", err)
+		t.Fatalf("CompareCommits main...dev: %v", err)
 	}
-	scWantSHAs(t, "premier import de dev", dev, d2, d1)
+	scWantSHAs(t, "first import of dev", dev, d2, d1)
 	if n := e.srv.Count(base + "/compare/" + m3 + "..." + d2); n != 1 || len(e.srv.Requests()) != 1 {
-		t.Errorf("%d requêtes (%d pour la comparaison), veut une seule comparaison", len(e.srv.Requests()), n)
+		t.Errorf("%d requests (%d for the comparison), want a single comparison", len(e.srv.Requests()), n)
 	}
 	remember(dev)
 
-	// Nouvelle activité sur main : une branche partie de m1, aux commits plus ANCIENS que l'ancienne
-	// tête m3, fusionnée dans main, puis un commit.
+	// New activity on main: a branch started from m1, with commits OLDER than the old head m3, merged
+	// into main, then a commit.
 	f1 := e.commit(id, "f1", h(1.5), m1)
 	f2 := e.commit(id, "f2", h(2.5), f1)
 	merge := e.commit(id, "merge", h(6), m3, f2)
 	m4 := e.commit(id, "m4", h(7), merge)
 	e.srv.SetBranch(id, "main", m4)
 
-	// Le piège : dans l'ordre chronologique, f2 et f1 viennent après m3 (déjà connu) ; s'arrêter au
-	// premier SHA connu les manque.
+	// The trap: in chronological order, f2 and f1 come after m3 (already known); stopping at the first
+	// known SHA misses them.
 	naive, err := p.ListCommits(ctx, scOwner, name, provider.ListCommitsOptions{Branch: "main", Stop: stop})
 	if err != nil {
-		t.Fatalf("ListCommits main (2) : %v", err)
+		t.Fatalf("ListCommits main (2): %v", err)
 	}
-	scWantSHAs(t, "ListCommits arrêté au premier SHA connu", naive, m4, merge)
+	scWantSHAs(t, "ListCommits stopped at the first known SHA", naive, m4, merge)
 
-	// La méthode exacte : compare entre l'ancienne et la nouvelle tête, du plus récent au plus ancien.
+	// The exact method: compare between the old and the new head, from newest to oldest.
 	got, err := p.CompareCommits(ctx, scOwner, name, m3, m4)
 	if err != nil {
-		t.Fatalf("CompareCommits : %v", err)
+		t.Fatalf("CompareCommits: %v", err)
 	}
 	scWantSHAs(t, "CompareCommits m3...m4", got, m4, merge, f2, f1)
 	if len(got) == 4 && !reflect.DeepEqual(got[1].Parents, []string{m3, f2}) {
-		t.Errorf("parents du merge = %v", shortSHAs(got[1].Parents))
+		t.Errorf("merge parents = %v", shortSHAs(got[1].Parents))
 	}
 	if len(got) == 4 && (got[0].Author.Login != scSecretLogin || got[0].Message == "") {
-		t.Errorf("commit converti : %+v", got[0].Author)
+		t.Errorf("converted commit: %+v", got[0].Author)
 	}
 
-	// base == head : liste vide, sans requête ; head en retard sur base : liste vide.
+	// base == head: empty list, without request; head behind base: empty list.
 	e.srv.ResetRequests()
 	same, err := p.CompareCommits(ctx, scOwner, name, m4, m4)
 	if err != nil || same == nil || len(same) != 0 || len(e.srv.Requests()) != 0 {
-		t.Errorf("CompareCommits(m4, m4) : %v, %v, %d requêtes ; veut liste vide sans requête", same, err, len(e.srv.Requests()))
+		t.Errorf("CompareCommits(m4, m4): %v, %v, %d requests; want an empty list without request", same, err, len(e.srv.Requests()))
 	}
 	behind, err := p.CompareCommits(ctx, scOwner, name, m4, m3)
 	if err != nil || behind == nil || len(behind) != 0 {
-		t.Errorf("CompareCommits(m4, m3) : %v, %v ; veut liste vide", behind, err)
+		t.Errorf("CompareCommits(m4, m3): %v, %v; want an empty list", behind, err)
 	}
 
-	// Compare paginé : 130 nouveaux commits, 2 pages, résultat du plus récent au plus ancien.
+	// Paginated compare: 130 new commits, 2 pages, result from newest to oldest.
 	news := e.srv.AppendCommits(id, "main", 130, h(8), time.Minute)
 	e.srv.ResetRequests()
 	got, err = p.CompareCommits(ctx, scOwner, name, m4, news[129])
 	if err != nil {
-		t.Fatalf("CompareCommits paginé : %v", err)
+		t.Fatalf("paginated CompareCommits: %v", err)
 	}
-	scWantSHAs(t, "CompareCommits paginé", got, scReversed(news)...)
+	scWantSHAs(t, "paginated CompareCommits", got, scReversed(news)...)
 	scCheckPages(t, e.srv.Requests(), base+"/compare/"+m4+"..."+news[129], 2)
 
-	// Statistiques d'un nouveau commit.
+	// Statistics of a new commit.
 	stats, err := p.CommitStats(ctx, scOwner, name, merge)
 	if err != nil || stats != (provider.CommitStats{Additions: 10, Deletions: 2}) {
-		t.Errorf("CommitStats : %+v, %v", stats, err)
+		t.Errorf("CommitStats: %+v, %v", stats, err)
 	}
 }
 
-// TestScenarioNewBranchWithMerge : cas courant chez les étudiants, non-régression de la stratégie de
-// « Synchronisation incrémentale » (documentation/fr/03-architecture.md). main est en base (M0 puis M1) ;
-// un étudiant pousse une nouvelle branche partie de M0, avec F1 (daté entre M0 et M1), puis un merge de
-// main (X). L'arrêt au premier SHA connu perd F1 sans erreur ; la comparaison depuis la tête de la
-// branche par défaut le donne, et la synchro suivante compare depuis la nouvelle tête.
+// TestScenarioNewBranchWithMerge: common case among students, non-regression of the "Incremental
+// sync" strategy (documentation/en/03-architecture.md). main is in the database (M0 then M1); a
+// student pushes a new branch started from M0, with F1 (dated between M0 and M1), then a merge of
+// main (X). Stopping at the first known SHA loses F1 without error; the comparison from the head of
+// the default branch gives it, and the next sync compares from the new head.
 func TestScenarioNewBranchWithMerge(t *testing.T) {
 	e := newScEnv(t)
 	const id, name = 1012, "projet-branche-fusion"
@@ -495,40 +495,40 @@ func TestScenarioNewBranchWithMerge(t *testing.T) {
 	p := e.provider(testToken)
 	ctx := t.Context()
 
-	// Premier import de main.
+	// First import of main.
 	known := map[string]bool{}
 	first, err := p.ListCommits(ctx, scOwner, name, provider.ListCommitsOptions{Branch: "main"})
 	if err != nil {
-		t.Fatalf("ListCommits main : %v", err)
+		t.Fatalf("ListCommits main: %v", err)
 	}
-	scWantSHAs(t, "premier import de main", first, m1, m0)
+	scWantSHAs(t, "first import of main", first, m1, m0)
 	for _, c := range first {
 		known[c.SHA] = true
 	}
 
-	// Nouvelle branche : F1 depuis M0, puis merge de main.
+	// New branch: F1 from M0, then merge of main.
 	f1 := e.commit(id, "f1", h(1), m0)
 	x := e.commit(id, "merge de main", h(3), f1, m1)
 	e.srv.SetBranch(id, "feature", x)
 
-	// Le piège : la liste chronologique donne X, M1, F1, M0 ; l'arrêt au premier SHA connu (M1) perd F1.
+	// The trap: the chronological list gives X, M1, F1, M0; stopping at the first known SHA (M1) loses F1.
 	all, err := p.ListCommits(ctx, scOwner, name, provider.ListCommitsOptions{Branch: "feature"})
 	if err != nil {
-		t.Fatalf("ListCommits feature : %v", err)
+		t.Fatalf("ListCommits feature: %v", err)
 	}
-	scWantSHAs(t, "liste chronologique de feature", all, x, m1, f1, m0)
+	scWantSHAs(t, "chronological list of feature", all, x, m1, f1, m0)
 	naive, err := p.ListCommits(ctx, scOwner, name, provider.ListCommitsOptions{
 		Branch: "feature", Stop: func(sha string) bool { return known[sha] },
 	})
 	if err != nil {
-		t.Fatalf("ListCommits feature (Stop) : %v", err)
+		t.Fatalf("ListCommits feature (Stop): %v", err)
 	}
-	scWantSHAs(t, "ListCommits arrêté au premier SHA connu (piège)", naive, x)
+	scWantSHAs(t, "ListCommits stopped at the first known SHA (trap)", naive, x)
 
-	// La méthode documentée : compare depuis la tête de la branche par défaut.
+	// The documented method: compare from the head of the default branch.
 	branches, err := p.Branches(ctx, scOwner, name)
 	if err != nil {
-		t.Fatalf("Branches : %v", err)
+		t.Fatalf("Branches: %v", err)
 	}
 	heads := map[string]string{}
 	for _, b := range branches {
@@ -536,34 +536,34 @@ func TestScenarioNewBranchWithMerge(t *testing.T) {
 	}
 	got, err := p.CompareCommits(ctx, scOwner, name, heads["main"], heads["feature"])
 	if err != nil {
-		t.Fatalf("CompareCommits main...feature : %v", err)
+		t.Fatalf("CompareCommits main...feature: %v", err)
 	}
-	scWantSHAs(t, "CompareCommits depuis la tête de main", got, x, f1)
+	scWantSHAs(t, "CompareCommits from the head of main", got, x, f1)
 	for _, c := range got {
 		known[c.SHA] = true
 	}
 
-	// Synchro suivante : compare depuis l'ancienne tête de feature.
+	// Next sync: compare from the old head of feature.
 	f2 := e.commit(id, "f2", h(4), x)
 	e.srv.SetBranch(id, "feature", f2)
 	got, err = p.CompareCommits(ctx, scOwner, name, x, f2)
 	if err != nil {
-		t.Fatalf("CompareCommits X...F2 : %v", err)
+		t.Fatalf("CompareCommits X...F2: %v", err)
 	}
-	scWantSHAs(t, "synchro suivante de feature", got, f2)
+	scWantSHAs(t, "next sync of feature", got, f2)
 	for _, c := range got {
 		known[c.SHA] = true
 	}
 	for _, sha := range []string{m0, m1, f1, x, f2} {
 		if !known[sha] {
-			t.Errorf("commit %s jamais rapporté", provider.ShortSHA(sha))
+			t.Errorf("commit %s never reported", provider.ShortSHA(sha))
 		}
 	}
 }
 
-// TestScenarioForcePush : historique réécrit. Tant que GitHub garde l'ancienne tête, compare donne les
-// nouveaux commits ; après son nettoyage, ErrUnknownBase (et pas ErrNotFound), puis repli sur
-// ListCommits sans Stop.
+// TestScenarioForcePush: rewritten history. As long as GitHub keeps the old head, compare gives the
+// new commits; after its cleanup, ErrUnknownBase (and not ErrNotFound), then fallback on
+// ListCommits without Stop.
 func TestScenarioForcePush(t *testing.T) {
 	e := newScEnv(t)
 	const id, name = 1003, "projet-force-push"
@@ -575,14 +575,14 @@ func TestScenarioForcePush(t *testing.T) {
 	known := map[string]bool{}
 	first, err := p.ListCommits(ctx, scOwner, name, provider.ListCommitsOptions{})
 	if err != nil {
-		t.Fatalf("ListCommits : %v", err)
+		t.Fatalf("ListCommits: %v", err)
 	}
-	scWantSHAs(t, "première synchro", first, scReversed(old)...)
+	scWantSHAs(t, "first sync", first, scReversed(old)...)
 	for _, c := range first {
 		known[c.SHA] = true
 	}
 
-	// Force-push : main revient à old[2], puis deux nouveaux commits.
+	// Force-push: main goes back to old[2], then two new commits.
 	oldHead := old[4]
 	e.srv.SetBranch(id, "main", old[2])
 	rewritten := e.srv.AppendCommits(id, "main", 2, e.t0.Add(10*time.Hour), time.Hour)
@@ -590,76 +590,76 @@ func TestScenarioForcePush(t *testing.T) {
 
 	got, err := p.CompareCommits(ctx, scOwner, name, oldHead, newHead)
 	if err != nil {
-		t.Fatalf("CompareCommits avant nettoyage : %v", err)
+		t.Fatalf("CompareCommits before cleanup: %v", err)
 	}
-	scWantSHAs(t, "historiques divergents", got, rewritten[1], rewritten[0])
+	scWantSHAs(t, "diverged histories", got, rewritten[1], rewritten[0])
 
-	// Nettoyage de GitHub : l'ancienne tête n'existe plus.
+	// GitHub's cleanup: the old head no longer exists.
 	e.srv.RemoveCommit(id, oldHead)
 	e.srv.ResetRequests()
 	_, err = p.CompareCommits(ctx, scOwner, name, oldHead, newHead)
 	if !errors.Is(err, provider.ErrUnknownBase) || errors.Is(err, provider.ErrNotFound) {
-		t.Fatalf("CompareCommits après nettoyage : %v ; veut ErrUnknownBase sans ErrNotFound", err)
+		t.Fatalf("CompareCommits after cleanup: %v; want ErrUnknownBase without ErrNotFound", err)
 	}
 	scAPIError(t, err, http.StatusNotFound, base+"/compare/"+oldHead+"..."+newHead)
 	if !strings.Contains(err.Error(), "force-push") {
-		t.Errorf("le message doit évoquer un force-push : %v", err)
+		t.Errorf("the message must mention a force-push: %v", err)
 	}
 	if n := e.srv.Count(base); n != 1 {
-		t.Errorf("%d lectures du dépôt pour départager le 404, veut 1", n)
+		t.Errorf("%d reads of the repository to settle the 404, want 1", n)
 	}
 
-	// Repli du moteur (main est la branche de référence : pas d'autre base à essayer) : ListCommits sans
-	// Stop, borné par Limit, en ignorant les SHA déjà en base.
+	// The engine's fallback (main is the reference branch: no other base to try): ListCommits without
+	// Stop, bounded by Limit, ignoring the SHAs already in the database.
 	again, err := p.ListCommits(ctx, scOwner, name, provider.ListCommitsOptions{Limit: 100})
 	if err != nil {
-		t.Fatalf("ListCommits après force-push : %v", err)
+		t.Fatalf("ListCommits after force-push: %v", err)
 	}
-	scWantSHAs(t, "repli sur ListCommits", again, rewritten[1], rewritten[0], old[2], old[1], old[0])
+	scWantSHAs(t, "fallback on ListCommits", again, rewritten[1], rewritten[0], old[2], old[1], old[0])
 	var unknown []provider.Commit
 	for _, c := range again {
 		if !known[c.SHA] {
 			unknown = append(unknown, c)
 		}
 	}
-	scWantSHAs(t, "nouveaux commits après force-push", unknown, rewritten[1], rewritten[0])
+	scWantSHAs(t, "new commits after force-push", unknown, rewritten[1], rewritten[0])
 
-	// Statistiques du commit disparu : GitHub répond 422, le Provider renvoie ErrNotFound.
+	// Statistics of the vanished commit: GitHub answers 422, the Provider returns ErrNotFound.
 	_, err = p.CommitStats(ctx, scOwner, name, oldHead)
 	if !errors.Is(err, provider.ErrNotFound) {
-		t.Errorf("CommitStats d'un commit disparu : %v ; veut ErrNotFound", err)
+		t.Errorf("CommitStats of a vanished commit: %v; want ErrNotFound", err)
 	}
 	scAPIError(t, err, http.StatusUnprocessableEntity, base+"/commits/"+oldHead)
 }
 
-// scSnapshot est le résultat d'une lecture complète d'un dépôt.
+// scSnapshot is the result of a full read of a repository.
 type scSnapshot struct {
 	Repo     provider.Repository
 	Branches []provider.Branch
 	Commits  []provider.Commit
 }
 
-// scRead lit le dépôt name, ses branches et les commits de main.
+// scRead reads the repository name, its branches and the commits of main.
 func scRead(t *testing.T, p *Provider, name string) scSnapshot {
 	t.Helper()
 	ctx := t.Context()
 	repo, err := p.Repository(ctx, scOwner, name)
 	if err != nil {
-		t.Fatalf("Repository : %v", err)
+		t.Fatalf("Repository: %v", err)
 	}
 	branches, err := p.Branches(ctx, scOwner, name)
 	if err != nil {
-		t.Fatalf("Branches : %v", err)
+		t.Fatalf("Branches: %v", err)
 	}
 	commits, err := p.ListCommits(ctx, scOwner, name, provider.ListCommitsOptions{Branch: "main"})
 	if err != nil {
-		t.Fatalf("ListCommits : %v", err)
+		t.Fatalf("ListCommits: %v", err)
 	}
 	return scSnapshot{Repo: repo, Branches: branches, Commits: commits}
 }
 
-// TestScenarioETag : deuxième appel identique servi depuis le cache (304, quota non décompté), cache
-// partagé entre deux Provider du même token, vidé par un autre token.
+// TestScenarioETag: second identical call served from the cache (304, quota not decremented), cache
+// shared between two Providers of the same token, emptied by another token.
 func TestScenarioETag(t *testing.T) {
 	e := newScEnv(t)
 	const id, name = 1004, "projet-etag"
@@ -668,103 +668,103 @@ func TestScenarioETag(t *testing.T) {
 	e.srv.SetBranch(id, "dev", shas[100])
 	ctx := t.Context()
 
-	// Première lecture : 5 requêtes (dépôt, branches, 3 pages de commits), toutes décomptées.
+	// First read: 5 requests (repository, branches, 3 pages of commits), all counted.
 	p1 := e.provider(testToken)
 	first := scRead(t, p1, name)
 	remaining := e.srv.Quota().Remaining
 	if remaining != githubtest.DefaultRateLimit-5 {
-		t.Errorf("quota restant %d, veut %d", remaining, githubtest.DefaultRateLimit-5)
+		t.Errorf("remaining quota %d, want %d", remaining, githubtest.DefaultRateLimit-5)
 	}
 	if rl, ok := p1.LastRateLimit(); !ok || rl.Remaining != remaining || rl.Limit != githubtest.DefaultRateLimit {
 		t.Errorf("LastRateLimit = %+v, %v", rl, ok)
 	}
 	if e.cache.Len() != 5 {
-		t.Errorf("%d entrées en cache, veut 5", e.cache.Len())
+		t.Errorf("%d cache entries, want 5", e.cache.Len())
 	}
 
-	// Deuxième lecture identique : 304 partout, mêmes données (pagination comprise), quota intact.
+	// Second identical read: 304 everywhere, same data (pagination included), quota intact.
 	served := e.countLogs("304 servi depuis le cache")
 	e.srv.ResetRequests()
 	if second := scRead(t, p1, name); !reflect.DeepEqual(second, first) {
-		t.Error("les données servies depuis le cache diffèrent de la première lecture")
+		t.Error("the data served from the cache differ from the first read")
 	}
 	scAll304(t, e.srv.Requests(), 5)
 	if got := e.srv.Quota().Remaining; got != remaining {
-		t.Errorf("quota restant %d après des 304, veut %d (inchangé)", got, remaining)
+		t.Errorf("remaining quota %d after 304s, want %d (unchanged)", got, remaining)
 	}
 	if rl, ok := p1.LastRateLimit(); !ok || rl.Remaining != remaining {
-		t.Errorf("LastRateLimit après des 304 = %+v, %v", rl, ok)
+		t.Errorf("LastRateLimit after 304s = %+v, %v", rl, ok)
 	}
 	if n := e.countLogs("304 servi depuis le cache") - served; n != 5 {
-		t.Errorf("%d logs « 304 servi depuis le cache », veut 5", n)
+		t.Errorf("%d \"304 servi depuis le cache\" logs, want 5", n)
 	}
 
-	// Synchro suivante : nouveau Provider, même token, même Cache et même Quota.
+	// Next sync: new Provider, same token, same Cache and same Quota.
 	p2 := e.provider(testToken)
 	if rl, ok := p2.LastRateLimit(); !ok || rl.Remaining != remaining {
-		t.Errorf("quota partagé : LastRateLimit du nouveau Provider = %+v, %v", rl, ok)
+		t.Errorf("shared quota: LastRateLimit of the new Provider = %+v, %v", rl, ok)
 	}
 	e.srv.ResetRequests()
 	if third := scRead(t, p2, name); !reflect.DeepEqual(third, first) {
-		t.Error("cache partagé : données différentes")
+		t.Error("shared cache: different data")
 	}
 	scAll304(t, e.srv.Requests(), 5)
 	if got := e.srv.Quota().Remaining; got != remaining {
-		t.Errorf("quota restant %d, veut %d (inchangé)", got, remaining)
+		t.Errorf("remaining quota %d, want %d (unchanged)", got, remaining)
 	}
 
-	// Un changement sur GitHub invalide l'entrée : réponse 200, nouvelles données, une unité de quota.
+	// A change on GitHub invalidates the entry: 200 response, new data, one unit of quota.
 	added := e.srv.AppendCommits(id, "main", 1, e.t0.Add(300*time.Minute), time.Minute)
 	e.srv.ResetRequests()
 	latest, err := p2.ListCommits(ctx, scOwner, name, provider.ListCommitsOptions{Branch: "main", Limit: 1})
 	if err != nil {
-		t.Fatalf("ListCommits après un push : %v", err)
+		t.Fatalf("ListCommits after a push: %v", err)
 	}
-	scWantSHAs(t, "après un push", latest, added[0])
+	scWantSHAs(t, "after a push", latest, added[0])
 	if reqs := e.srv.Requests(); len(reqs) != 1 || reqs[0].Status != http.StatusOK || reqs[0].IfNoneMatch == "" {
-		t.Errorf("requêtes %+v, veut une requête conditionnelle répondue 200", reqs)
+		t.Errorf("requests %+v, want one conditional request answered 200", reqs)
 	}
 	if got := e.srv.Quota().Remaining; got != remaining-1 {
-		t.Errorf("quota restant %d, veut %d", got, remaining-1)
+		t.Errorf("remaining quota %d, want %d", got, remaining-1)
 	}
 
-	// Autre token (autre compte gh) : le cache est vidé avant l'envoi, aucune réponse du premier compte
-	// ne lui est servie.
+	// Other token (other gh account): the cache is emptied before sending, no response of the first
+	// account is served to it.
 	other := e.provider(scOtherToken)
 	e.srv.ResetRequests()
 	_, err = other.Repository(ctx, scOwner, name)
 	if !errors.Is(err, provider.ErrUnauthorized) {
-		t.Errorf("Repository avec un autre token : %v ; veut ErrUnauthorized (token refusé par le faux serveur)", err)
+		t.Errorf("Repository with another token: %v; want ErrUnauthorized (token refused by the fake server)", err)
 	}
 	scAPIError(t, err, http.StatusUnauthorized, "/repos/"+scOwner+"/"+name)
 	if reqs := e.srv.Requests(); len(reqs) != 1 || reqs[0].IfNoneMatch != "" || reqs[0].ValidToken {
-		t.Errorf("requêtes %+v, veut une requête sans If-None-Match", reqs)
+		t.Errorf("requests %+v, want one request without If-None-Match", reqs)
 	}
 	if n := e.cache.Len(); n != 0 {
-		t.Errorf("%d entrées en cache après un changement de token, veut 0", n)
+		t.Errorf("%d cache entries after a token change, want 0", n)
 	}
 	if _, ok := other.LastRateLimit(); ok {
-		t.Error("LastRateLimit d'un autre token : aucun état attendu")
+		t.Error("LastRateLimit of another token: want no state")
 	}
 
-	// Retour au premier compte : plus rien en cache, réponse 200 complète, quota décompté.
+	// Back to the first account: nothing left in the cache, full 200 response, quota counted.
 	before := e.srv.Quota().Remaining
 	e.srv.ResetRequests()
 	repo, err := p1.Repository(ctx, scOwner, name)
 	if err != nil || repo != first.Repo {
-		t.Errorf("Repository : %+v, %v", repo, err)
+		t.Errorf("Repository: %+v, %v", repo, err)
 	}
 	if reqs := e.srv.Requests(); len(reqs) != 1 || reqs[0].Status != http.StatusOK || reqs[0].IfNoneMatch != "" {
-		t.Errorf("requêtes %+v, veut une requête non conditionnelle répondue 200", reqs)
+		t.Errorf("requests %+v, want one non-conditional request answered 200", reqs)
 	}
 	if got := e.srv.Quota().Remaining; got != before-1 {
-		t.Errorf("quota restant %d, veut %d", got, before-1)
+		t.Errorf("remaining quota %d, want %d", got, before-1)
 	}
 }
 
-// TestScenarioQuotaExhausted : quota épuisé (403 puis 429) → RateLimitError avec Reset ; requêtes
-// suivantes retenues sans envoi (même par un autre Provider qui partage le Quota) ; /rate_limit permis ;
-// reprise après la remise à zéro.
+// TestScenarioQuotaExhausted: exhausted quota (403 then 429) → RateLimitError with Reset; following
+// requests held back without sending (even by another Provider sharing the Quota); /rate_limit
+// allowed; resumption after the reset.
 func TestScenarioQuotaExhausted(t *testing.T) {
 	e := newScEnv(t)
 	const id, name = 1005, "projet-quota"
@@ -773,10 +773,10 @@ func TestScenarioQuotaExhausted(t *testing.T) {
 	p := e.provider(testToken)
 	ctx := t.Context()
 	if _, err := p.Repository(ctx, scOwner, name); err != nil {
-		t.Fatalf("Repository : %v", err)
+		t.Fatalf("Repository: %v", err)
 	}
 
-	// Quota épuisé dans la fenêtre courante.
+	// Quota exhausted in the current window.
 	q := e.srv.Quota()
 	q.Remaining = 0
 	e.srv.SetQuota(q)
@@ -785,10 +785,10 @@ func TestScenarioQuotaExhausted(t *testing.T) {
 	scRateLimit(t, err, false, reset, 0)
 	scAPIError(t, err, http.StatusForbidden, base+"/branches")
 	if !strings.Contains(err.Error(), reset.Format("2006-01-02 15:04:05 UTC")) {
-		t.Errorf("le message doit donner la remise à zéro : %v", err)
+		t.Errorf("the message must give the reset: %v", err)
 	}
 
-	// Requêtes suivantes retenues sans envoi, y compris par le Provider de la synchro suivante.
+	// Following requests held back without sending, including by the Provider of the next sync.
 	e.srv.ResetRequests()
 	_, err = p.ListCommits(ctx, scOwner, name, provider.ListCommitsOptions{})
 	scRateLimit(t, err, false, reset, 0)
@@ -796,31 +796,31 @@ func TestScenarioQuotaExhausted(t *testing.T) {
 	_, err = e.provider(testToken).Repository(ctx, scOwner, name)
 	scRateLimit(t, err, false, reset, 0)
 	if n := len(e.srv.Requests()); n != 0 {
-		t.Errorf("%d requêtes envoyées alors que le quota est connu comme épuisé, veut 0", n)
+		t.Errorf("%d requests sent while the quota is known as exhausted, want 0", n)
 	}
 
-	// GET /rate_limit reste permis (et gratuit).
+	// GET /rate_limit stays allowed (and free).
 	rl, err := p.RateLimit(ctx)
 	if err != nil || rl.Remaining != 0 || !rl.Reset.Equal(reset) || rl.Limit != githubtest.DefaultRateLimit || !rl.ObservedAt.Equal(trEpoch) {
-		t.Errorf("RateLimit : %+v, %v", rl, err)
+		t.Errorf("RateLimit: %+v, %v", rl, err)
 	}
 	if reqs := e.srv.Requests(); len(reqs) != 1 || reqs[0].Path != "/rate_limit" {
-		t.Errorf("requêtes %+v, veut GET /rate_limit seulement", reqs)
+		t.Errorf("requests %+v, want GET /rate_limit only", reqs)
 	}
 	if last, ok := p.LastRateLimit(); !ok || last.Remaining != 0 {
 		t.Errorf("LastRateLimit = %+v, %v", last, ok)
 	}
 
-	// Après la remise à zéro, les requêtes repartent : le Provider n'attend jamais lui-même.
+	// After the reset, the requests start again: the Provider never waits by itself.
 	e.clock.set(reset.Add(time.Second))
 	if _, err := p.Branches(ctx, scOwner, name); err != nil {
-		t.Fatalf("Branches après la remise à zéro : %v", err)
+		t.Fatalf("Branches after the reset: %v", err)
 	}
 	if last, ok := p.LastRateLimit(); !ok || last.Remaining != githubtest.DefaultRateLimit-1 || !last.Reset.After(reset) {
-		t.Errorf("LastRateLimit après la remise à zéro = %+v, %v", last, ok)
+		t.Errorf("LastRateLimit after the reset = %+v, %v", last, ok)
 	}
 
-	// Variante 429.
+	// 429 variant.
 	q = e.srv.Quota()
 	q.Remaining, q.Status = 0, http.StatusTooManyRequests
 	e.srv.SetQuota(q)
@@ -829,8 +829,8 @@ func TestScenarioQuotaExhausted(t *testing.T) {
 	scAPIError(t, err, http.StatusTooManyRequests, base+"/commits/"+shas[0])
 }
 
-// TestScenarioSecondaryLimit : limite secondaire avec Retry-After (RetryAfter, Reset) puis sans
-// (une minute d'attente, comme le recommande GitHub) ; requêtes retenues pendant l'attente.
+// TestScenarioSecondaryLimit: secondary limit with Retry-After (RetryAfter, Reset) then without
+// (one minute of waiting, as GitHub recommends); requests held back during the wait.
 func TestScenarioSecondaryLimit(t *testing.T) {
 	e := newScEnv(t)
 	const id, name = 1006, "projet-secondaire"
@@ -844,22 +844,22 @@ func TestScenarioSecondaryLimit(t *testing.T) {
 	scRateLimit(t, err, true, trEpoch.Add(90*time.Second), 90*time.Second)
 	scAPIError(t, err, http.StatusForbidden, base+"/branches")
 
-	// Pendant l'attente : requêtes retenues sans envoi ; /rate_limit reste permis.
+	// During the wait: requests held back without sending; /rate_limit stays allowed.
 	e.srv.ResetRequests()
 	_, err = p.Repository(ctx, scOwner, name)
 	scRateLimit(t, err, true, trEpoch.Add(90*time.Second), 90*time.Second)
 	if _, err := p.RateLimit(ctx); err != nil {
-		t.Errorf("RateLimit pendant une limite secondaire : %v", err)
+		t.Errorf("RateLimit during a secondary limit: %v", err)
 	}
 	if reqs := e.srv.Requests(); len(reqs) != 1 || reqs[0].Path != "/rate_limit" {
-		t.Errorf("requêtes %+v, veut GET /rate_limit seulement", reqs)
+		t.Errorf("requests %+v, want GET /rate_limit only", reqs)
 	}
 	e.clock.add(91 * time.Second)
 	if _, err := p.Branches(ctx, scOwner, name); err != nil {
-		t.Fatalf("Branches après Retry-After : %v", err)
+		t.Fatalf("Branches after Retry-After: %v", err)
 	}
 
-	// 429 sans Retry-After (message seul) : une minute d'attente.
+	// 429 without Retry-After (message only): one minute of waiting.
 	e.srv.TriggerSecondaryLimit(githubtest.SecondaryLimit{Status: http.StatusTooManyRequests})
 	start := e.clock.now()
 	_, err = p.ListCommits(ctx, scOwner, name, provider.ListCommitsOptions{})
@@ -870,22 +870,22 @@ func TestScenarioSecondaryLimit(t *testing.T) {
 	_, err = p.Branches(ctx, scOwner, name)
 	scRateLimit(t, err, true, start.Add(time.Minute), 30*time.Second)
 	if n := len(e.srv.Requests()); n != 0 {
-		t.Errorf("%d requêtes envoyées pendant la limite secondaire, veut 0", n)
+		t.Errorf("%d requests sent during the secondary limit, want 0", n)
 	}
 	e.clock.add(31 * time.Second)
 	if _, err := p.Branches(ctx, scOwner, name); err != nil {
-		t.Fatalf("Branches après une minute : %v", err)
+		t.Fatalf("Branches after one minute: %v", err)
 	}
 }
 
-// scCall est un appel du Provider portant sur un dépôt.
+// scCall is a Provider call on a repository.
 type scCall struct {
 	name string
 	call func() error
 }
 
-// scCalls renvoie un appel de chaque méthode du Provider sur le dépôt owner/name (id), avec des SHA
-// factices pour CompareCommits et CommitStats.
+// scCalls returns a call of each Provider method on the repository owner/name (id), with dummy SHAs
+// for CompareCommits and CommitStats.
 func scCalls(t *testing.T, p *Provider, owner, name string, id int64) []scCall {
 	ctx := t.Context()
 	a, b := githubtest.FakeSHA("a"), githubtest.FakeSHA("b")
@@ -902,8 +902,8 @@ func scCalls(t *testing.T, p *Provider, owner, name string, id int64) []scCall {
 	}
 }
 
-// TestScenarioAccess : dépôt privé sans accès (404), organisation qui impose le SSO (403), token
-// refusé (401), sur toutes les méthodes.
+// TestScenarioAccess: private repository without access (404), organization enforcing SSO (403),
+// refused token (401), on all the methods.
 func TestScenarioAccess(t *testing.T) {
 	e := newScEnv(t)
 	const hiddenID, ssoID = 1007, 1008
@@ -915,55 +915,55 @@ func TestScenarioAccess(t *testing.T) {
 	e.srv.SetRepoAccess(ssoID, githubtest.AccessSSO)
 	p := e.provider(testToken)
 
-	// 404 : jamais « supprimé », jamais ErrUnknownBase (CompareCommits relit le dépôt).
+	// 404: never "deleted", never ErrUnknownBase (CompareCommits reads the repository again).
 	for _, c := range scCalls(t, p, scOwner, "projet-prive", hiddenID) {
 		err := c.call()
 		if !errors.Is(err, provider.ErrNotFound) || errors.Is(err, provider.ErrUnknownBase) || errors.Is(err, provider.ErrForbidden) {
-			t.Errorf("%s sur un dépôt privé sans accès : %v ; veut ErrNotFound", c.name, err)
+			t.Errorf("%s on a private repository without access: %v; want ErrNotFound", c.name, err)
 			continue
 		}
 		scAPIError(t, err, http.StatusNotFound, "")
 		if !strings.Contains(err.Error(), "repository not found or account without access") {
-			t.Errorf("%s : message %q", c.name, err)
+			t.Errorf("%s: message %q", c.name, err)
 		}
 	}
 
-	// 403 SSO : *SSORequiredError, qui satisfait ErrForbidden ; le lien n'est pas cité dans le message.
+	// 403 SSO: *SSORequiredError, which satisfies ErrForbidden; the link is not quoted in the message.
 	for _, c := range scCalls(t, p, "ecole-sso", "projet-sso", ssoID) {
 		err := c.call()
 		sso, ok := errors.AsType[*provider.SSORequiredError](err)
 		if !ok || !errors.Is(err, provider.ErrForbidden) {
-			t.Errorf("%s sous SSO : %v ; veut *SSORequiredError", c.name, err)
+			t.Errorf("%s under SSO: %v; want *SSORequiredError", c.name, err)
 			continue
 		}
 		if sso.Organization != "ecole-sso" || sso.URL != "https://github.com/orgs/ecole-sso/sso?authorization_request=fake" {
-			t.Errorf("%s : SSORequiredError = %+v", c.name, sso)
+			t.Errorf("%s: SSORequiredError = %+v", c.name, sso)
 		}
 		scAPIError(t, err, http.StatusForbidden, "")
 		if msg := err.Error(); !strings.Contains(msg, "ecole-sso") || !strings.Contains(msg, "SSO") {
-			t.Errorf("%s : message %q", c.name, msg)
+			t.Errorf("%s: message %q", c.name, msg)
 		}
 	}
 
-	// 401 : token refusé (révoqué), « gh auth login » conseillé, token jamais cité.
+	// 401: refused (revoked) token, "gh auth login" advised, token never quoted.
 	bad := e.provider(scBadToken)
 	calls := append(scCalls(t, bad, scOwner, "projet-prive", hiddenID),
 		scCall{"RateLimit", func() error { _, err := bad.RateLimit(t.Context()); return err }})
 	for _, c := range calls {
 		err := c.call()
 		if !errors.Is(err, provider.ErrUnauthorized) {
-			t.Errorf("%s avec un token refusé : %v ; veut ErrUnauthorized", c.name, err)
+			t.Errorf("%s with a refused token: %v; want ErrUnauthorized", c.name, err)
 			continue
 		}
 		scAPIError(t, err, http.StatusUnauthorized, "")
 		if !strings.Contains(err.Error(), "gh auth login") {
-			t.Errorf("%s : le message doit conseiller « gh auth login » : %v", c.name, err)
+			t.Errorf("%s: the message must advise \"gh auth login\": %v", c.name, err)
 		}
 	}
 }
 
-// TestScenarioRenamedRepository : dépôt renommé puis transféré ; l'ancien nom suit la redirection 301
-// vers /repositories/{id} et les résultats portent les owner/nom actuels.
+// TestScenarioRenamedRepository: repository renamed then transferred; the old name follows the 301
+// redirection to /repositories/{id} and the results carry the current owner/name.
 func TestScenarioRenamedRepository(t *testing.T) {
 	e := newScEnv(t)
 	const id = 4242
@@ -975,50 +975,50 @@ func TestScenarioRenamedRepository(t *testing.T) {
 	e.srv.RenameRepo(id, scOwner, "projet-renomme")
 	repo, err := p.Repository(ctx, scOwner, "projet-ancien")
 	if err != nil || repo.ID != id || repo.Owner != scOwner || repo.Name != "projet-renomme" {
-		t.Fatalf("Repository après renommage : %+v, %v", repo, err)
+		t.Fatalf("Repository after renaming: %+v, %v", repo, err)
 	}
 	reqs := e.srv.Requests()
 	if len(reqs) != 2 || reqs[0].Status != http.StatusMovedPermanently || reqs[0].Path != "/repos/"+scOwner+"/projet-ancien" ||
 		reqs[1].Status != http.StatusOK || reqs[1].Path != "/repositories/4242" || !reqs[1].ValidToken {
-		t.Errorf("requêtes %+v, veut 301 puis 200 sur /repositories/4242", reqs)
+		t.Errorf("requests %+v, want 301 then 200 on /repositories/4242", reqs)
 	}
 
-	// Transfert vers une autre organisation : le nom d'origine suit encore.
+	// Transfer to another organization: the original name still follows.
 	e.srv.RenameRepo(id, "autre-ecole", "projet-transfere")
 	repo, err = p.Repository(ctx, scOwner, "projet-ancien")
 	if err != nil || repo.ID != id || repo.FullName() != "autre-ecole/projet-transfere" {
-		t.Fatalf("Repository après transfert : %+v, %v", repo, err)
+		t.Fatalf("Repository after transfer: %+v, %v", repo, err)
 	}
 	byID, err := p.RepositoryByID(ctx, id)
 	if err != nil || byID != repo {
-		t.Errorf("RepositoryByID : %+v, %v ; veut %+v", byID, err, repo)
+		t.Errorf("RepositoryByID: %+v, %v; want %+v", byID, err, repo)
 	}
 
-	// Les autres appels suivent aussi la redirection.
+	// The other calls follow the redirection too.
 	commits, err := p.ListCommits(ctx, scOwner, "projet-ancien", provider.ListCommitsOptions{})
 	if err != nil {
-		t.Fatalf("ListCommits par l'ancien nom : %v", err)
+		t.Fatalf("ListCommits by the old name: %v", err)
 	}
-	scWantSHAs(t, "ListCommits par l'ancien nom", commits, scReversed(shas)...)
+	scWantSHAs(t, "ListCommits by the old name", commits, scReversed(shas)...)
 	branches, err := p.Branches(ctx, scOwner, "projet-renomme")
 	if err != nil || len(branches) != 1 || branches[0] != (provider.Branch{Name: "main", HeadSHA: shas[2]}) {
-		t.Errorf("Branches par un nom intermédiaire : %+v, %v", branches, err)
+		t.Errorf("Branches by an intermediate name: %+v, %v", branches, err)
 	}
 	got, err := p.CompareCommits(ctx, scOwner, "projet-ancien", shas[0], shas[2])
 	if err != nil {
-		t.Fatalf("CompareCommits par l'ancien nom : %v", err)
+		t.Fatalf("CompareCommits by the old name: %v", err)
 	}
-	scWantSHAs(t, "CompareCommits par l'ancien nom", got, shas[2], shas[1])
+	scWantSHAs(t, "CompareCommits by the old name", got, shas[2], shas[1])
 	if _, err := p.CommitStats(ctx, scOwner, "projet-ancien", shas[1]); err != nil {
-		t.Errorf("CommitStats par l'ancien nom : %v", err)
+		t.Errorf("CommitStats by the old name: %v", err)
 	}
-	// Le nouveau nom répond directement.
+	// The new name answers directly.
 	if repo, err := p.Repository(ctx, "autre-ecole", "projet-transfere"); err != nil || repo.ID != id {
-		t.Errorf("Repository par le nouveau nom : %+v, %v", repo, err)
+		t.Errorf("Repository by the new name: %+v, %v", repo, err)
 	}
 }
 
-// TestScenarioEmptyAndArchived : dépôt vide (tout juste créé par un étudiant) et dépôt archivé.
+// TestScenarioEmptyAndArchived: empty repository (freshly created by a student) and archived repository.
 func TestScenarioEmptyAndArchived(t *testing.T) {
 	e := newScEnv(t)
 	base := e.repo(1009, "projet-vide")
@@ -1027,31 +1027,31 @@ func TestScenarioEmptyAndArchived(t *testing.T) {
 
 	repo, err := p.Repository(ctx, scOwner, "projet-vide")
 	if err != nil || repo.ID != 1009 || repo.DefaultBranch != "main" || !repo.Private || repo.Archived {
-		t.Errorf("Repository d'un dépôt vide : %+v, %v", repo, err)
+		t.Errorf("Repository of an empty repository: %+v, %v", repo, err)
 	}
 	branches, err := p.Branches(ctx, scOwner, "projet-vide")
 	if err != nil || branches == nil || len(branches) != 0 {
-		t.Errorf("Branches d'un dépôt vide : %#v, %v ; veut liste vide non nil", branches, err)
+		t.Errorf("Branches of an empty repository: %#v, %v; want an empty non-nil list", branches, err)
 	}
 	commits, err := p.ListCommits(ctx, scOwner, "projet-vide", provider.ListCommitsOptions{})
 	if err != nil || commits == nil || len(commits) != 0 {
-		t.Errorf("ListCommits d'un dépôt vide : %#v, %v ; veut liste vide non nil", commits, err)
+		t.Errorf("ListCommits of an empty repository: %#v, %v; want an empty non-nil list", commits, err)
 	}
 	a, b := githubtest.FakeSHA("a"), githubtest.FakeSHA("b")
 	_, err = p.CompareCommits(ctx, scOwner, "projet-vide", a, b)
 	if !errors.Is(err, provider.ErrEmptyRepository) {
-		t.Errorf("CompareCommits d'un dépôt vide : %v ; veut ErrEmptyRepository", err)
+		t.Errorf("CompareCommits of an empty repository: %v; want ErrEmptyRepository", err)
 	} else {
 		scAPIError(t, err, http.StatusConflict, base+"/compare/"+a+"..."+b)
 	}
 	_, err = p.CommitStats(ctx, scOwner, "projet-vide", a)
 	if !errors.Is(err, provider.ErrEmptyRepository) || !strings.Contains(err.Error(), "empty repository") {
-		t.Errorf("CommitStats d'un dépôt vide : %v ; veut ErrEmptyRepository", err)
+		t.Errorf("CommitStats of an empty repository: %v; want ErrEmptyRepository", err)
 	} else {
 		scAPIError(t, err, http.StatusConflict, base+"/commits/"+a)
 	}
 
-	// Dépôt archivé, branche par défaut « master » : métadonnées et commits toujours lisibles.
+	// Archived repository, default branch "master": metadata and commits still readable.
 	pushed := trEpoch.Add(-48 * time.Hour)
 	e.srv.AddRepo(githubtest.Repo{
 		ID: 1010, Owner: scOwner, Name: "projet-archive", Private: true, Archived: true,
@@ -1065,22 +1065,22 @@ func TestScenarioEmptyAndArchived(t *testing.T) {
 		Archived: true, Private: true, PushedAt: pushed,
 	}
 	if err != nil || repo != want || repo.PushedAt.Location() != time.UTC {
-		t.Errorf("Repository d'un dépôt archivé : %+v, %v\nveut %+v", repo, err, want)
+		t.Errorf("Repository of an archived repository: %+v, %v\nwant %+v", repo, err, want)
 	}
 	e.srv.ResetRequests()
 	commits, err = p.ListCommits(ctx, scOwner, "projet-archive", provider.ListCommitsOptions{})
 	if err != nil {
-		t.Fatalf("ListCommits d'un dépôt archivé : %v", err)
+		t.Fatalf("ListCommits of an archived repository: %v", err)
 	}
-	scWantSHAs(t, "ListCommits (branche par défaut)", commits, shas[1], shas[0])
+	scWantSHAs(t, "ListCommits (default branch)", commits, shas[1], shas[0])
 	if reqs := e.srv.Requests(); len(reqs) != 1 || reqs[0].Query.Has("sha") {
-		t.Errorf("requêtes %+v, veut une requête sans paramètre sha (branche par défaut)", reqs)
+		t.Errorf("requests %+v, want one request without sha parameter (default branch)", reqs)
 	}
 }
 
-// TestScenarioReadOnly : le transport refuse POST, PATCH, PUT et DELETE avant tout envoi, que la
-// requête vienne de go-github ou d'un http.Client branché sur lui. Le faux serveur ferait de toute
-// façon échouer le test s'il en recevait une.
+// TestScenarioReadOnly: the transport refuses POST, PATCH, PUT and DELETE before any sending, whether
+// the request comes from go-github or from an http.Client plugged into it. The fake server would fail
+// the test anyway if it received one.
 func TestScenarioReadOnly(t *testing.T) {
 	e := newScEnv(t)
 	base := e.repo(1011, "projet-lecture")
@@ -1091,50 +1091,49 @@ func TestScenarioReadOnly(t *testing.T) {
 	for _, method := range []string{http.MethodPost, http.MethodPatch, http.MethodPut, http.MethodDelete} {
 		req, err := p.client.NewRequest(ctx, method, "repos/"+scOwner+"/projet-lecture/issues", map[string]string{"title": "x"})
 		if err != nil {
-			t.Fatalf("NewRequest %s : %v", method, err)
+			t.Fatalf("NewRequest %s: %v", method, err)
 		}
 		_, err = p.client.Do(req, nil)
 		if !errors.Is(err, provider.ErrWriteForbidden) {
-			t.Errorf("%s par go-github : %v ; veut ErrWriteForbidden", method, err)
+			t.Errorf("%s through go-github: %v; want ErrWriteForbidden", method, err)
 		}
-		conv := p.convertError(ctx, "écriture", nil, err)
+		conv := p.convertError(ctx, "writing", nil, err)
 		if !errors.Is(conv, provider.ErrWriteForbidden) {
-			t.Errorf("%s converti : %v ; veut ErrWriteForbidden", method, conv)
+			t.Errorf("converted %s: %v; want ErrWriteForbidden", method, conv)
 		}
 		if apiErr := scAPIError(t, conv, 0, base+"/issues"); apiErr.Method != method {
-			t.Errorf("%s : APIError.Method = %q", method, apiErr.Method)
+			t.Errorf("%s: APIError.Method = %q", method, apiErr.Method)
 		}
 
 		hreq, err := http.NewRequestWithContext(ctx, method, e.srv.URL()+"repos/"+scOwner+"/projet-lecture", strings.NewReader(`{"archived":true}`))
 		if err != nil {
-			t.Fatalf("NewRequest : %v", err)
+			t.Fatalf("NewRequest: %v", err)
 		}
 		resp, err := (&http.Client{Transport: p.tr}).Do(hreq)
 		if resp != nil {
 			_ = resp.Body.Close()
 		}
 		if !errors.Is(err, provider.ErrWriteForbidden) {
-			t.Errorf("%s par http.Client : %v ; veut ErrWriteForbidden", method, err)
+			t.Errorf("%s through http.Client: %v; want ErrWriteForbidden", method, err)
 		}
 		scNoLeak(t, err)
 	}
 	if reqs := e.srv.Requests(); len(reqs) != 0 {
-		t.Errorf("%d requêtes reçues par le faux serveur, veut 0 : %+v", len(reqs), reqs)
+		t.Errorf("%d requests received by the fake server, want 0: %+v", len(reqs), reqs)
 	}
 
-	// Une lecture passe normalement.
+	// A read goes through normally.
 	if _, err := p.Repository(ctx, scOwner, "projet-lecture"); err != nil {
-		t.Errorf("Repository : %v", err)
+		t.Errorf("Repository: %v", err)
 	}
 	if reqs := e.srv.Requests(); len(reqs) != 1 || reqs[0].Method != http.MethodGet {
-		t.Errorf("requêtes %+v, veut un GET", reqs)
+		t.Errorf("requests %+v, want a GET", reqs)
 	}
 }
 
-// TestScenarioNoLeak : un parcours qui produit des logs Debug de chaque sorte (requêtes, 304, refus
-// préventif, erreurs) et des erreurs de chaque sorte ; ni le token ni une donnée personnelle
-// n'apparaissent (vérifié aussi par checkNoLeak à la fin du test). Un logger de niveau Info ne reçoit
-// rien.
+// TestScenarioNoLeak: a run that produces Debug logs of every kind (requests, 304, preventive
+// refusal, errors) and errors of every kind; neither the token nor a personal data item appears
+// (also checked by checkNoLeak at the end of the test). A logger at Info level receives nothing.
 func TestScenarioNoLeak(t *testing.T) {
 	e := newScEnv(t)
 	const id, name = 1012, "projet-fuites"
@@ -1142,7 +1141,7 @@ func TestScenarioNoLeak(t *testing.T) {
 	m1 := e.commit(id, "m1", e.t0)
 	m2 := e.commit(id, "m2", e.t0.Add(time.Hour), m1)
 	e.srv.SetBranch(id, "main", m2)
-	e.srv.SetBranch(id, "feature/"+scSecretLogin, m1) // nom de branche jamais journalisé
+	e.srv.SetBranch(id, "feature/"+scSecretLogin, m1) // branch name never logged
 	e.repo(1013, "projet-cache")
 	e.srv.SetRepoAccess(1013, githubtest.AccessHidden)
 	ctx := t.Context()
@@ -1154,7 +1153,7 @@ func TestScenarioNoLeak(t *testing.T) {
 				errs = append(errs, err)
 			}
 		}
-		for range 2 { // la deuxième fois, depuis le cache
+		for range 2 { // the second time, from the cache
 			_, err := p.Repository(ctx, scOwner, name)
 			keep(err)
 			_, err = p.Branches(ctx, scOwner, name)
@@ -1173,7 +1172,7 @@ func TestScenarioNoLeak(t *testing.T) {
 		e.srv.TriggerSecondaryLimit(githubtest.SecondaryLimit{RetryAfter: time.Minute})
 		_, err = p.Branches(ctx, scOwner, name)
 		keep(err)
-		_, err = p.Branches(ctx, scOwner, name) // retenue
+		_, err = p.Branches(ctx, scOwner, name) // held back
 		keep(err)
 		e.clock.add(2 * time.Minute)
 		_, err = e.provider(scBadToken).Repository(ctx, scOwner, name)
@@ -1183,57 +1182,57 @@ func TestScenarioNoLeak(t *testing.T) {
 
 	errs := run(e.provider(testToken))
 	if len(errs) != 5 {
-		t.Errorf("%d erreurs, veut 5 : %v", len(errs), errs)
+		t.Errorf("%d errors, want 5: %v", len(errs), errs)
 	}
 	for _, err := range errs {
 		scNoLeak(t, err)
 	}
 	for _, msg := range []string{"requête à l'API GitHub", "304 servi depuis le cache", "requête retenue : limite secondaire de l'API en cours", "commits listés", "commits comparés"} {
 		if e.countLogs(msg) == 0 {
-			t.Errorf("aucun log %q : la capture des logs Debug ne fonctionne pas", msg)
+			t.Errorf("no %q log: capturing Debug logs does not work", msg)
 		}
 	}
 	if strings.Contains(e.logs.String(), "feature/") {
-		t.Error("les logs citent un nom de branche")
+		t.Error("the logs quote a branch name")
 	}
 
-	// Niveau Info : aucun log.
+	// Info level: no log.
 	var info trLogs
 	p, err := New(testToken, Options{BaseURL: e.srv.URL(), Logger: trLogger(&info, slog.LevelInfo)})
 	if err != nil {
-		t.Fatalf("New : %v", err)
+		t.Fatalf("New: %v", err)
 	}
 	if _, err := p.ListCommits(ctx, scOwner, name, provider.ListCommitsOptions{}); err != nil {
-		t.Errorf("ListCommits : %v", err)
+		t.Errorf("ListCommits: %v", err)
 	}
 	if _, err := p.Repository(ctx, scOwner, "projet-cache"); err == nil {
-		t.Error("Repository d'un dépôt caché : erreur attendue")
+		t.Error("Repository of a hidden repository: want an error")
 	}
 	if s := info.String(); s != "" {
-		t.Errorf("logs au niveau Info : %s", s)
+		t.Errorf("logs at Info level: %s", s)
 	}
 }
 
-// scRepoSpec décrit un dépôt du scénario concurrent.
+// scRepoSpec describes a repository of the concurrent scenario.
 type scRepoSpec struct {
 	id        int64
 	name      string
 	main, dev []string
 }
 
-// scSyncResult est ce qu'une synchro simulée lit d'un dépôt.
+// scSyncResult is what a simulated sync reads from a repository.
 type scSyncResult struct {
 	Repo     provider.Repository
 	Branches []provider.Branch
-	Commits  map[string][]string // branche → SHA lus (liste pour la branche par défaut, compare sinon)
+	Commits  map[string][]string // branch → SHAs read (list for the default branch, compare otherwise)
 	Compare  []string
 	Stats    provider.CommitStats
 }
 
-// scSync lit un dépôt comme le ferait le moteur de synchro au premier import (« Synchronisation
-// incrémentale », documentation/fr/03-architecture.md) : métadonnées, branches, commits de la branche par
-// défaut par ListCommits, ceux de chaque autre branche par CompareCommits depuis la tête de la branche
-// par défaut, puis une comparaison et des statistiques.
+// scSync reads a repository as the sync engine would at the first import ("Incremental sync",
+// documentation/en/03-architecture.md): metadata, branches, commits of the default branch through
+// ListCommits, those of every other branch through CompareCommits from the head of the default
+// branch, then a comparison and statistics.
 func scSync(t *testing.T, p *Provider, s scRepoSpec) (scSyncResult, error) {
 	ctx := t.Context()
 	var res scSyncResult
@@ -1275,8 +1274,8 @@ func scSync(t *testing.T, p *Provider, s scRepoSpec) (scSyncResult, error) {
 	return res, err
 }
 
-// TestScenarioConcurrentRepositories : 4 dépôts synchronisés en parallèle avec un même Provider, puis
-// une deuxième synchro (nouveau Provider, même Cache et même Quota) entièrement servie en 304, sous
+// TestScenarioConcurrentRepositories: 4 repositories synced in parallel with a single Provider, then
+// a second sync (new Provider, same Cache and same Quota) entirely served as 304s, under
 // -race.
 func TestScenarioConcurrentRepositories(t *testing.T) {
 	e := newScEnv(t)
@@ -1300,7 +1299,7 @@ func TestScenarioConcurrentRepositories(t *testing.T) {
 		wg.Wait()
 		for i, err := range errs {
 			if err != nil {
-				t.Fatalf("synchro de %s : %v", specs[i].name, err)
+				t.Fatalf("sync of %s: %v", specs[i].name, err)
 			}
 		}
 		return results
@@ -1311,24 +1310,24 @@ func TestScenarioConcurrentRepositories(t *testing.T) {
 		s := specs[i]
 		if len(r.Commits["main"]) != 150 || len(r.Commits["dev"]) != 30 || len(r.Compare) != 50 ||
 			r.Repo.ID != s.id || r.Stats != (provider.CommitStats{}) {
-			t.Errorf("%s : main %d, dev %d, compare %d commits, dépôt %d, stats %+v",
+			t.Errorf("%s: main %d, dev %d, compare %d commits, repository %d, stats %+v",
 				s.name, len(r.Commits["main"]), len(r.Commits["dev"]), len(r.Compare), r.Repo.ID, r.Stats)
 		}
 		if len(r.Commits["main"]) == 150 && r.Commits["main"][0] != s.main[149] {
-			t.Errorf("%s : premier commit de main %s, veut %s", s.name, provider.ShortSHA(r.Commits["main"][0]), provider.ShortSHA(s.main[149]))
+			t.Errorf("%s: first commit of main %s, want %s", s.name, provider.ShortSHA(r.Commits["main"][0]), provider.ShortSHA(s.main[149]))
 		}
 		if len(r.Commits["dev"]) == 30 && r.Commits["dev"][0] != s.dev[29] {
-			t.Errorf("%s : premier commit de dev %s, veut %s", s.name, provider.ShortSHA(r.Commits["dev"][0]), provider.ShortSHA(s.dev[29]))
+			t.Errorf("%s: first commit of dev %s, want %s", s.name, provider.ShortSHA(r.Commits["dev"][0]), provider.ShortSHA(s.dev[29]))
 		}
 	}
 
-	// Deuxième synchro : tout est servi depuis le cache partagé, sans quota, sauf les statistiques d'un
-	// commit, jamais mises en cache (le moteur de synchro ne les redemande d'ailleurs pas).
+	// Second sync: everything is served from the shared cache, without quota, except the statistics
+	// of a commit, never cached (the sync engine does not ask for them again anyway).
 	remaining := e.srv.Quota().Remaining
 	e.srv.ResetRequests()
 	second := round(e.provider(testToken))
 	if !reflect.DeepEqual(second, first) {
-		t.Error("la deuxième synchro, servie depuis le cache, diffère de la première")
+		t.Error("the second sync, served from the cache, differs from the first")
 	}
 	var cached, stats []githubtest.Request
 	for _, r := range e.srv.Requests() {
@@ -1338,18 +1337,18 @@ func TestScenarioConcurrentRepositories(t *testing.T) {
 			cached = append(cached, r)
 		}
 	}
-	// Par dépôt : dépôt, branches, 2 pages de main, compare de dev, compare, puis les stats.
+	// Per repository: repository, branches, 2 pages of main, compare of dev, compare, then the stats.
 	scAll304(t, cached, 4*6)
 	if len(stats) != 4 {
-		t.Errorf("%d requêtes de statistiques, veut 4", len(stats))
+		t.Errorf("%d statistics requests, want 4", len(stats))
 	}
 	for _, r := range stats {
 		if r.Status != http.StatusOK || r.IfNoneMatch != "" || r.Query.Get("per_page") != "1" {
-			t.Errorf("%s ?%s : code %d, If-None-Match %q ; veut 200 sans If-None-Match, per_page=1",
+			t.Errorf("%s ?%s: code %d, If-None-Match %q; want 200 without If-None-Match, per_page=1",
 				r.Path, r.RawQuery, r.Status, r.IfNoneMatch)
 		}
 	}
 	if got := e.srv.Quota().Remaining; got != remaining-len(stats) {
-		t.Errorf("quota restant %d après la deuxième synchro, veut %d", got, remaining-len(stats))
+		t.Errorf("remaining quota %d after the second sync, want %d", got, remaining-len(stats))
 	}
 }

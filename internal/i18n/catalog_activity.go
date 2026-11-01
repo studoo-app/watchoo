@@ -46,3 +46,12 @@ var activityTexts = map[string]entry{
 func init() {
 	register(activityTexts)
 }
+
+// modelTexts regroupe les textes du paquet internal/model (nom affiché par défaut).
+var modelTexts = map[string]entry{
+	"model.contributor.unknown": {"unknown", "inconnu"},
+}
+
+func init() {
+	register(modelTexts)
+}

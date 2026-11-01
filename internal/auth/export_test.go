@@ -1,7 +1,7 @@
 package auth
 
-// Valeurs factices du faux gh exposées au package de test externe auth_test, qui vérifie qu'elles
-// concordent avec celles de authtest (les tests internes ne peuvent pas importer authtest).
+// Dummy values of the fake gh exposed to the external test package auth_test, which checks that they
+// match those of authtest (the internal tests cannot import authtest).
 const (
 	FakeTokenForTest = fakeToken
 	FakeLoginForTest = fakeLogin

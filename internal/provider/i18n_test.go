@@ -8,10 +8,10 @@ import (
 	"github.com/studoo-app/watchoo/internal/i18n"
 )
 
-// TestMessagesFrancais vérifie quelques messages clés du paquet en français : les messages viennent
-// du catalogue i18n, dans la langue du processus au moment de l'affichage. Non parallèle : il force
-// la langue du processus, restaurée à la fin (l'anglais remis par TestMain).
-func TestMessagesFrancais(t *testing.T) {
+// TestMessagesInFrench checks a few key messages of the package in French: the messages come from
+// the i18n catalog, in the process language at display time. Not parallel: it forces the process
+// language, restored at the end (English set back by TestMain).
+func TestMessagesInFrench(t *testing.T) {
 	defer i18n.SetProcessForTest(i18n.French)()
 
 	if got := ErrNotFound.Error(); got != "dépôt introuvable ou compte sans accès" {
@@ -20,7 +20,7 @@ func TestMessagesFrancais(t *testing.T) {
 	if got := ErrUnauthorized.Error(); !strings.Contains(got, "gh auth login") || !strings.Contains(got, " : ") {
 		t.Errorf("ErrUnauthorized = %q", got)
 	}
-	// Ponctuation française de l'*APIError : espace avant « : ».
+	// French punctuation of *APIError: a space before " : ".
 	if got := (&APIError{Op: "op", Err: ErrUnexpected}).Error(); got != "op : réponse inattendue de GitHub" {
 		t.Errorf("APIError = %q", got)
 	}
@@ -35,8 +35,8 @@ func TestMessagesFrancais(t *testing.T) {
 	if got := ValidateName("a/b"); !strings.Contains(got.Error(), "nom de dépôt") {
 		t.Errorf("ValidateName = %q", got)
 	}
-	// Les sentinelles restent comparables dans les deux langues : errors.Is traverse l'emballage.
+	// Sentinels stay comparable in both languages: errors.Is goes through the wrapping.
 	if !strings.Contains((&APIError{Op: "op", Err: ErrUnknownBase}).Error(), "force-push") {
-		t.Errorf("ErrUnknownBase enveloppée = %q", ErrUnknownBase)
+		t.Errorf("wrapped ErrUnknownBase = %q", ErrUnknownBase)
 	}
 }

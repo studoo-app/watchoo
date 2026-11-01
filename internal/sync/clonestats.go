@@ -10,8 +10,8 @@ package sync
 import (
 	"context"
 	"errors"
-	"fmt"
 
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/provider"
 	"github.com/studoo-app/watchoo/internal/store"
 )
@@ -76,7 +76,7 @@ func (s *repoSync) lineStats(ctx context.Context, h *halt, repoID int64, firstIm
 			return n, writes, "", nil
 		}
 		if ctxErr := ctx.Err(); ctxErr != nil {
-			return 0, nil, "", fmt.Errorf("statistiques des commits : %w", ctxErr)
+			return 0, nil, "", errWrapped(i18n.T("sync.stats.error"), ctxErr)
 		}
 		var storeErr *storeError
 		if errors.As(err, &storeErr) {
@@ -88,10 +88,9 @@ func (s *repoSync) lineStats(ctx context.Context, h *halt, repoID int64, firstIm
 	if cloneErr != nil {
 		s.e.logger.Info("clone Git local indisponible", "repo", s.full, "erreur", errorMessage(cloneErr))
 		if src.Kind == SourceGit {
-			return 0, nil, "statistiques de lignes non calculées : " + errorMessage(cloneErr), nil
+			return 0, nil, i18n.T("sync.stats.not_computed", errorMessage(cloneErr)), nil
 		}
-		warning = "clone Git local indisponible, statistiques de lignes lues par l'API (limitées) : " +
-			errorMessage(cloneErr)
+		warning = i18n.T("sync.stats.clone_unavailable", errorMessage(cloneErr))
 	}
 	if firstImport {
 		return 0, nil, warning, nil

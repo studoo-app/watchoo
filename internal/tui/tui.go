@@ -112,9 +112,15 @@ type IO struct {
 	Out io.Writer // sortie (os.Stdout)
 }
 
-// ErrNotTerminal est renvoyée par la CLI quand « watchoo tui » n'est pas lancé sur un terminal.
-var ErrNotTerminal = errors.New("« watchoo tui » doit être lancé dans un terminal interactif " +
-	"(utilisez les autres commandes, comme « watchoo repo list », dans un script)")
+// ErrNotTerminal est renvoyée par la CLI quand « watchoo tui » n'est pas lancé sur un terminal. Son
+// message est traduit à l'affichage, dans la langue du processus (comparable avec errors.Is).
+var ErrNotTerminal error = i18nError{"tui.err.not_terminal"}
+
+// i18nError est une erreur sentinelle dont le message vient du catalogue i18n, traduit au moment de
+// l'affichage (Error). La valeur reste comparable avec == : errors.Is la retrouve.
+type i18nError struct{ key string }
+
+func (e i18nError) Error() string { return i18n.T(e.key) }
 
 // Run lance le TUI (écran alternatif) jusqu'à « q », ctrl+c ou l'annulation de ctx, et renvoie
 // l'erreur éventuelle de Bubble Tea. La vérification « est-ce un terminal » est faite par l'appelant.
