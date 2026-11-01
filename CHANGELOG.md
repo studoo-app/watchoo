@@ -3,11 +3,40 @@
 All notable changes to Watchoo are recorded in this file.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to
-[semantic versioning](https://semver.org/spec/v2.0.0.html). While Watchoo is `0.y.z`,
-an incompatible change bumps MINOR and any compatible change bumps PATCH (see
-[Skills](documentation/en/11-skills.md#versions-and-changelogmd)).
+[semantic versioning](https://semver.org/spec/v2.0.0.html). Since `1.0.0`, the public surface
+is stable: an incompatible change bumps MAJOR, a compatible feature MINOR and a compatible fix
+PATCH (see [Skills](documentation/en/11-skills.md#versions-and-changelogmd)).
 
 ## [Unreleased]
+
+## [1.0.0] - 2026-11-01
+
+First stable release: after one more week of real usage, the public surface (commands, options,
+exit codes, `--json` keys, `config.yaml` settings and `WATCHOO_*` variables, database schema, web
+routes) is reviewed, documented and declared stable. From now on, an incompatible change requires a
+new major version. No incompatible change compared with 0.7.0: workspaces, databases and scripts
+keep working as they are.
+
+### Changed
+
+- **Versioning**: SemVer applies fully: incompatible change → MAJOR, compatible feature → MINOR,
+  compatible fix → PATCH; what is to be removed is first marked deprecated.
+- **"Slacking" in English**: `watchoo status` (text), the help of `repo add --flemme` and the comment
+  of `config.yaml` now say "Slacking" in English, like the rest of the interface; `flemme` remains the
+  machine name (state, option, column, setting, JSON keys).
+- **Dates in English**: the text outputs of `watchoo sync` (resume time), `watchoo status` (last sync)
+  and `watchoo contributors --weeks` (columns) write the month before the day in English
+  (`10/27/2026`, `10/12`); unchanged in French.
+- **Documentation of the public surface**: exit codes (`0` success, `1` any failure, partial
+  failures included), the complete list of the `WATCHOO_*` variables, what the JSON contract covers
+  (compatible additions, texts in the selected language, local IDs, `flemme`), the values of `status`
+  in `sync --json`, and the complete list of the web routes; the test of the JSON contract now
+  checks the English documentation as well as the French one.
+
+### Removed
+
+- From the documentation only (never built): `watchoo repo add-org` (planned for V3) and the CSV import
+  in the web interface (use `watchoo repo import`).
 
 ## [0.7.0] - 2026-11-01
 
@@ -295,7 +324,8 @@ First published release: the MVP (phases 1 to 5 of the [roadmap](documentation/e
   `gh` is the official binary verified by SHA-256; base images and GitHub actions pinned by
   digest.
 
-[Unreleased]: https://github.com/studoo-app/watchoo/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/studoo-app/watchoo/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/studoo-app/watchoo/compare/v0.7.0...v1.0.0
 [0.7.0]: https://github.com/studoo-app/watchoo/compare/v0.6.2...v0.7.0
 [0.6.2]: https://github.com/studoo-app/watchoo/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/studoo-app/watchoo/compare/v0.6.0...v0.6.1

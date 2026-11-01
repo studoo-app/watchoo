@@ -46,6 +46,18 @@ mettre à jour.
 | Avis de nouvelle version | À **chaque lancement** d'une commande, Watchoo vérifie, sans bloquer, si une version plus récente que la sienne est publiée, et l'annonce sur la sortie d'erreur à la fin de la commande (« Nouvelle version de Watchoo disponible : v0.5.0 → v0.6.0. Mettez-la à jour avec « watchoo update ». »). Aucun avis avec `--json`, hors terminal (scripts, CI), pour une version de développement, ni si la variable `WATCHOO_NO_UPDATE_CHECK` est posée (image Docker). `watchoo serve` vérifie au démarrage puis toutes les 30 min, et l'interface web montre alors un bandeau discret. **Publié en v0.6.0** |
 | Mise à jour en une commande | `watchoo update` affiche la version installée et la dernière, demande confirmation, télécharge l'archive de la release pour le système, vérifie sa somme SHA-256 et remplace le binaire d'un bloc ; `watchoo update --check` ne fait que vérifier. Refus expliqué dans l'image Docker (changer le tag), pour une version compilée depuis les sources (`go install …@latest` ou `git pull && make build`) et si le répertoire du binaire n'est pas accessible en écriture. Seules les pages publiques des releases de Watchoo sont lues : ni token, ni API GitHub, ni quota. **Publié en v0.6.0** |
 
+## 0.7.0
+
+| Fonctionnalité | Détail |
+| --- | --- |
+| Interface bilingue | CLI, TUI, interface web et script d'installation en **anglais par défaut**, disponibles aussi en **français** (`WATCHOO_LANG`, la locale du système, ou le réglage `lang` de l'espace pour le web). Les clés `--json` et les valeurs d'état ne changent pas. **Publié en v0.7.0** (voir [Langues et traductions](03-architecture.md#langues-et-traductions)) |
+
+## 1.0.0
+
+Aucune fonctionnalité nouvelle : la surface publique (commandes, options, codes de sortie, clés
+`--json`, réglages et variables `WATCHOO_*`, schéma de la base, routes web) est relue et déclarée
+**stable** ; désormais, un changement incompatible demande une version majeure. **Publié en v1.0.0**.
+
 ## V3
 
 | Fonctionnalité | Détail |

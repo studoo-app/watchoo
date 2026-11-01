@@ -10,7 +10,9 @@ previous one works end to end.**
 phase 6 (V2) was completed and released as **v0.4.0**; the per-contributor page was released as
 **v0.5.0**; Watchoo self-update (`watchoo update`) was released as **v0.6.0**; adding a repository
 from the TUI and a fixed profile link in **v0.6.1**; the new-version notice fixed (`watchoo` only,
-TUI) in **v0.6.2**; the bilingual interface was released as **v0.7.0** ([0.7.0](#070-bilingual-interface)).
+TUI) in **v0.6.2**; the bilingual interface was released as **v0.7.0** ([0.7.0](#070-bilingual-interface)); after one
+more week of real usage, the public surface was stabilized and released as **v1.0.0**
+([1.0.0](#100-stabilization)).
 
 ```mermaid
 flowchart LR
@@ -122,6 +124,15 @@ Importing a whole organization and the alerts move to V3 (see
   or the system locale, web language via the workspace's shared `lang` setting, displayed
   texts and errors translated, `config.yaml` written in the chosen language. See
   [Languages and translations](03-architecture.md#languages-and-translations).
+
+### 1.0.0: Stabilization
+- Exit criterion: Watchoo used for **one week** on real repositories (GitHub API and local Git
+  clones) with no blocking issue.
+- Review of the public surface (commands, flags, exit codes, `--json` keys, `config.yaml` settings and
+  `WATCHOO_*` variables, database schema, web routes) and of its documentation: **done**.
+- From now on, SemVer applies fully: an incompatible change bumps MAJOR (see
+  [Skills](11-skills.md#versions-and-changelogmd)). The V3 ([Features](02-features.md#v3)) comes in
+  MINOR releases.
 
 ## Definition of "done" for each phase
 

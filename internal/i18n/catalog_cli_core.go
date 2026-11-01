@@ -10,6 +10,10 @@ var cliCoreTexts = map[string]entry{
 	// Ponctuation des messages composés : le français garde une espace avant « : », l'anglais non.
 	"cli.core.err.sep": {": ", " : "},
 
+	// Formats de date des sorties texte (layouts Go) : mois avant le jour en anglais.
+	"cli.core.fmt.datetime": {"01/02/2006 15:04", "02/01/2006 15:04"},
+	"cli.core.fmt.daymonth": {"01/02", "02/01"},
+
 	// Commande racine (root.go) : description, options globales.
 	"cli.core.root.short": {
 		"watch GitHub repositories: what moved, when, and who did it",

@@ -165,14 +165,14 @@ func runContributors(ctx context.Context, deps Deps, opts *options, repoRef, sin
 }
 
 // weeklyContributorsTable renvoie le tableau de « contributors --weeks » : une ligne par contributeur
-// du classement, une colonne par semaine (lundi au format « 12/10 »), puis le total de la période, et
+// du classement, une colonne par semaine (lundi au format « 12/10 », « 10/12 » en anglais), puis le total de la période, et
 // une ligne d'explication.
 func weeklyContributorsTable(st textStyle, ranking []store.ContributorStats, weekly activity.ContributorWeekCounts) string {
 	headers := []string{i18n.T("cli.sync.header_contributor")}
 	for _, w := range weekly.Weeks {
 		label := w
 		if t, err := time.Parse(time.DateOnly, w); err == nil {
-			label = t.Format("02/01")
+			label = t.Format(i18n.T("cli.core.fmt.daymonth"))
 		}
 		headers = append(headers, label)
 	}

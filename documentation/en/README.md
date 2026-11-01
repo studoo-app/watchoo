@@ -2,9 +2,10 @@
 
 > Project definition document — version of November 1, 2026 · Benoit
 >
-> Status: **v0.7.0**. Phases 1 to 5 (MVP) and 6 (V2) of the [roadmap](07-roadmap.md) are done,
-> followed by the per-contributor page (0.5.0), Watchoo self-update (0.6.0) and the bilingual
-> interface, English by default and French (0.7.0). Release history: [CHANGELOG.md](../../CHANGELOG.md).
+> Status: **v1.0.0, stable release**. Phases 1 to 5 (MVP) and 6 (V2) of the [roadmap](07-roadmap.md)
+> are done, followed by the per-contributor page (0.5.0), Watchoo self-update (0.6.0), the bilingual
+> interface, English by default and French (0.7.0), and the stabilization of the public surface
+> (1.0.0). Release history: [CHANGELOG.md](../../CHANGELOG.md).
 
 Watchoo is a single Go binary that watches a list of GitHub repositories and answers three questions:
 **what moved, when, and who did it.** It is used on the command line (CLI), in interactive mode in

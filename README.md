@@ -9,12 +9,13 @@
 Watchoo watches a list of GitHub repositories and shows you
 their activity at a glance: new commits, contributors, and the repositories that stopped moving.
 
-> **Status: v0.7.0, MVP complete and V2 released, plus the per-contributor page, the one-command update (`watchoo update`) and a bilingual interface (English by default, French).** Phases 1 to 5 of the
+> **Status: v1.0.0, stable release: MVP and V2, the per-contributor page, the one-command update (`watchoo update`) and a bilingual interface (English by default, French).** Phases 1 to 5 of the
 > [roadmap](documentation/en/07-roadmap.md) are in place: command line, interactive mode
 > (`watchoo tui`), local web interface (`watchoo serve`), `--json` output, binaries and Docker image. The
 > V2 (phase 6) adds per-repository thresholds, per-contributor activity within a repository, pull requests,
-> releases and tags, and tracking through local Git clones without `gh`. Watchoo is `0.y.z`: the interface may still change from one
-> release to the next (see the [changelog](CHANGELOG.md)).
+> releases and tags, and tracking through local Git clones without `gh`. Since 1.0.0, the interface (commands,
+> options, `--json` keys, settings, web routes) is stable: an incompatible change only comes with a
+> new major version (see the [changelog](CHANGELOG.md)).
 
 <p align="center">
   <img src="assets/screenshots/contributeurs.png" alt="Table of the workspace's activity over 90 days, Actif, Flemme and Dead counters, repository cards and latest commits (dummy data)" width="900">
@@ -83,7 +84,7 @@ curl -fsSL https://raw.githubusercontent.com/studoo-app/watchoo/main/install.sh 
 
 The [script](install.sh) downloads the latest release for your system, verifies its SHA-256
 checksum, then installs `watchoo` into `~/.local/bin`, without sudo. It touches neither your PATH nor
-`gh`, and warns you if either is missing. Settings, placed before `sh`: `WATCHOO_VERSION=v0.7.0`
+`gh`, and warns you if either is missing. Settings, placed before `sh`: `WATCHOO_VERSION=v1.0.0`
 for a specific version, `WATCHOO_INSTALL_DIR=…` for another directory, `WATCHOO_LANG=fr` for French
 messages (default: the system locale, otherwise English). You can read the
 script before running it: `curl -fsSL …/install.sh -o install.sh`.
@@ -96,10 +97,10 @@ SHA-256 checksum file `watchoo_<version>_checksums.txt`.
 
 ```bash
 # example: Linux amd64
-curl -fsSLO https://github.com/studoo-app/watchoo/releases/download/v0.7.0/watchoo_0.7.0_linux_amd64.tar.gz
-curl -fsSLO https://github.com/studoo-app/watchoo/releases/download/v0.7.0/watchoo_0.7.0_checksums.txt
-sha256sum --check --ignore-missing watchoo_0.7.0_checksums.txt
-tar -xzf watchoo_0.7.0_linux_amd64.tar.gz watchoo
+curl -fsSLO https://github.com/studoo-app/watchoo/releases/download/v1.0.0/watchoo_1.0.0_linux_amd64.tar.gz
+curl -fsSLO https://github.com/studoo-app/watchoo/releases/download/v1.0.0/watchoo_1.0.0_checksums.txt
+sha256sum --check --ignore-missing watchoo_1.0.0_checksums.txt
+tar -xzf watchoo_1.0.0_linux_amd64.tar.gz watchoo
 sudo install -m 0755 watchoo /usr/local/bin/watchoo
 watchoo version
 ```
@@ -118,15 +119,15 @@ the interface listens outside the container's loopback, a password is **mandator
 export GH_TOKEN=…               # GitHub token, preferably fine-grained and read-only
 export WATCHOO_WEB_PASSWORD=…   # web interface password
 docker volume create watchoo-data
-docker run --rm -e GH_TOKEN -v watchoo-data:/data ghcr.io/studoo-app/watchoo:0.7.0 init
-docker run --rm -e GH_TOKEN -v watchoo-data:/data ghcr.io/studoo-app/watchoo:0.7.0 repo add owner/repo
+docker run --rm -e GH_TOKEN -v watchoo-data:/data ghcr.io/studoo-app/watchoo:1.0.0 init
+docker run --rm -e GH_TOKEN -v watchoo-data:/data ghcr.io/studoo-app/watchoo:1.0.0 repo add owner/repo
 docker run -d --name watchoo --restart unless-stopped \
   -e GH_TOKEN -e WATCHOO_WEB_PASSWORD -e WATCHOO_WEB_AUTH_USERNAME=prof \
   -e WATCHOO_TIMEZONE=Europe/Paris \
   -v watchoo-data:/data -p 127.0.0.1:8080:8080 \
   --read-only --tmpfs /tmp --tmpfs /home/nonroot:uid=65532,gid=65532,mode=0700 \
   --cap-drop ALL --security-opt no-new-privileges:true \
-  ghcr.io/studoo-app/watchoo:0.7.0
+  ghcr.io/studoo-app/watchoo:1.0.0
 ```
 
 Then open <http://127.0.0.1:8080/> (user `prof`). The
@@ -139,7 +140,7 @@ Details: [Distribution](documentation/en/03-architecture.md#distribution).
 With Go (version stated in `go.mod`):
 
 ```bash
-go install github.com/studoo-app/watchoo/cmd/watchoo@v0.7.0
+go install github.com/studoo-app/watchoo/cmd/watchoo@v1.0.0
 ```
 
 Or in a clone of the repository:
@@ -154,8 +155,8 @@ make docker   # local Docker image watchoo:dev
 
 Upgrading Watchoo means replacing the binary: your workspaces stay as they are, and the
 database is upgraded on its own (migrations) at the first command run with the new version.
-Read the [changelog](CHANGELOG.md) first: in `0.y.z`, a minor release may change
-the interface.
+Read the [changelog](CHANGELOG.md) first: since 1.0.0, only a major release (`2.0.0`)
+may change the interface in an incompatible way.
 
 - **`watchoo update`** (the simplest for an install done through the script or a release
   binary): the command shows the installed and latest versions, asks for confirmation, downloads
@@ -183,17 +184,17 @@ database may no longer open with an older version. To be able to go back, copy
 
 ```bash
 mkdir licence-projet && cd licence-projet
-watchoo init                              # crée l'espace de supervision (.watchoo/) ; sans gh : clones Git
+watchoo init                              # creates the workspace (.watchoo/); without gh: Git clones
 watchoo repo add alice/projet-licence --label "Alice Martin"
-watchoo repo import promo-licence.csv     # ou tous les dépôts d'un coup
-watchoo sync                              # récupère les commits
-watchoo repo list                         # qui est Actif, en Flemme ou Dead
-watchoo log --since 7d                    # les commits de la semaine
-watchoo contributors                      # qui contribue, et combien
-watchoo prs --state open                  # les pull requests ouvertes
-watchoo releases                          # releases et tags
-watchoo tui                               # naviguer au clavier
-watchoo serve                             # tableau de bord sur http://127.0.0.1:8080/
+watchoo repo import promo-licence.csv     # or all the repositories at once
+watchoo sync                              # fetches the commits
+watchoo repo list                         # who is Active, Slacking or Dead
+watchoo log --since 7d                    # the commits of the week
+watchoo contributors                      # who contributes, and how much
+watchoo prs --state open                  # the open pull requests
+watchoo releases                          # releases and tags
+watchoo tui                               # browse with the keyboard
+watchoo serve                             # dashboard on http://127.0.0.1:8080/
 ```
 
 The import file is a CSV (only the `repo` column is required) or a plain list, one repository

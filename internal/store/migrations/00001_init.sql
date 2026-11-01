@@ -1,4 +1,4 @@
--- Schéma initial du MVP : les 7 tables de documentation/04-modele-donnees.md.
+-- Schéma initial du MVP : les 7 tables de documentation/fr/04-modele-donnees.md.
 --
 -- Conventions :
 --   - dates en TEXT au format fixe « 2006-01-02T15:04:05Z » (UTC, à la seconde), imposé par une

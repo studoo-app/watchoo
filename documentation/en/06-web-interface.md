@@ -35,6 +35,38 @@ forces the language everywhere.
 | Contributor page (0.5.0) | `/contributors/{id}` (`?page=`) | `/contributors/{id}/commits` |
 | Settings | `/settings` | `/fragments/quota` |
 
+### Routes
+
+Complete list of the routes (part of the public surface since 1.0.0, see
+[Skills](11-skills.md#versions-and-changelogmd)). Every `GET` route also accepts `HEAD`; no `GET`
+changes anything; every `POST` goes through the CSRF check.
+
+| Method | Address | Role |
+| --- | --- | --- |
+| `GET` | `/` | Dashboard |
+| `GET` | `/fragments/dashboard/repos`, `/fragments/dashboard/feed` | Dashboard fragments (cards, feed) |
+| `GET` | `/repos/{id}` | Repository detail |
+| `GET` | `/repos/{id}/commits` | Commit history fragment of a repository |
+| `POST` | `/repos/{id}/thresholds` | Activity thresholds of a repository |
+| `POST` | `/repos/{id}/sync` | Sync a single repository |
+| `GET` | `/contributors` | Contributors |
+| `GET` | `/fragments/contributors` | Contributor table fragment |
+| `GET` | `/contributors/{id}` | Contributor page |
+| `GET` | `/contributors/{id}/commits` | Commit fragment of a contributor |
+| `GET` | `/settings` | Settings |
+| `POST` | `/settings/repos` | Add a repository |
+| `POST` | `/settings/repos/{id}` | Edit a repository (label, branches) |
+| `GET`, `POST` | `/settings/repos/{id}/remove` | Remove a repository: confirmation page, then removal |
+| `POST` | `/settings/interval` | Sync interval (lifetime of the process) |
+| `GET` | `/fragments/quota` | GitHub quota fragment |
+| `GET` | `/settings/export` | Configuration export (JSON) |
+| `POST` | `/settings/import`, `/settings/import/apply` | Configuration import: preview, then apply |
+| `POST` | `/sync` | Sync all the repositories |
+| `GET` | `/fragments/sync` | Sync status (navigation bar) |
+| `GET` | `/static/*`, `/favicon.ico`, `/apple-touch-icon.png`, `/manifest.webmanifest` | Embedded static files |
+
+`{id}` is a number of 1 to 18 digits (otherwise 404).
+
 All pages share the same navigation bar (DaisyUI `navbar`): logo, workspace name, links, sync status
 and the light/dark theme selector (the choice is kept in `localStorage`, key `watchoo-theme`; by
 default, the system's, `prefers-color-scheme`). Below 1024 px wide, the links then the sync status each
@@ -228,7 +260,8 @@ nor the templates: the profile link is the address stored in the database (see
   and the local Git clone (V2) if it exists. **Choice**: deletion is refused (`409`) during a sync, so
   that the engine does not write to a repository being deleted; stopping tracking remains possible. A
   stopped repository can resume tracking.
-- Bulk import from a CSV file (same format and same summary as `watchoo repo import`): V2.
+- Bulk import from a CSV file: not in the web interface; use `watchoo repo import`, or the
+  configuration import of this page.
 - Sync interval: value in effect, next sync and value from `config.yaml`, re-read from disk on every
   display (if an import changed it since startup, the page says it will apply at the next launch). It
   can be changed **for the lifetime of the process only** (a Go duration like `45m` or `1h30m`, a whole
@@ -323,7 +356,7 @@ per week with **one series per repository** (`buildRepoChart`; same counts by
   never with `innerHTML`) and redraws.
   A chart card is rendered only if the workspace has data when the page loads (at least one tracked
   repository for the dashboard, one known author for the contributors): on a still empty workspace, it
-  only appears on the page reload that follows the first sync (known limitation of 0.1.0). The two
+  only appears on the page reload that follows the first sync (known limitation). The two
   charts of the repository detail are always rendered (empty, with their summary, until the first
   commit); they re-read the same page, only once.
 - **Colors**: plain bars in the primary color of the theme; contributor series in a categorical palette
@@ -427,8 +460,8 @@ of the package, `internal/logo/art/` keeps a copy of them: after a change to `as
 ## Background synchronization
 
 `watchoo serve` also runs the periodic sync (`--interval`, **30 min** by default, **15 min** minimum,
-can be disabled with `--interval 0`). Manual sync remains possible at any time (settings for all
-repositories, detail page for a single one). During a sync, HTMX displays its progress. The pages
+can be disabled with `--interval 0`). Manual sync remains possible at any time (dashboard and
+settings for all repositories, detail page for a single one). During a sync, HTMX displays its progress. The pages
 reflect the state of the database; HTMX refreshes the relevant fragments.
 
 How it works (`wsync.Coordinator`, a single one per process, which reuses the engine):

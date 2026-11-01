@@ -14,7 +14,7 @@ func TestContributorsWeeks(t *testing.T) {
 	// Alice's repository: a1 (Alice, Sunday 25/10), a2 (Alice, 27/10) on main, a3 (Bob, 27/10) on dev
 	// only; Bob's commit in his own repository is excluded.
 	r := h.run("contributors", "--repo", "alice/projet", "--weeks", "3").mustSucceed(t)
-	assertContains(t, "contributors --repo --weeks", r.stdout, "CONTRIBUTOR", "12/10", "19/10", "26/10", "TOTAL")
+	assertContains(t, "contributors --repo --weeks", r.stdout, "CONTRIBUTOR", "10/12", "10/19", "10/26", "TOTAL")
 	if row := tableRow(t, r.stdout, "Alice Martin"); !slices.Equal(row, []string{"Alice Martin", "0", "1", "1", "2"}) {
 		t.Errorf("Alice Martin row = %q", row)
 	}

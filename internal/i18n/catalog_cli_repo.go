@@ -452,7 +452,7 @@ n'est lancée : enchaînez avec « watchoo sync ».`,
 		"`nom` affiché à la place de owner/repo (ex. \"Alice Martin\")",
 	},
 	"cli.repo.help.add_flag_flemme": {
-		"Flemme threshold of this repository, in `days` without a commit (0 = threshold of the workspace)",
+		"Slacking (flemme) threshold of this repository, in `days` without a commit (0 = threshold of the workspace)",
 		"seuil Flemme de ce dépôt, en `jours` sans commit (0 = seuil de l'espace)",
 	},
 	"cli.repo.help.add_flag_dead": {

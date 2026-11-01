@@ -34,7 +34,7 @@ name: "licence-projet"
 
 # Activity thresholds of the workspace, in days without a commit.
 # activity:
-#   flemme_after_days: 5     # beyond: "Flemme" (at least 1)
+#   flemme_after_days: 5     # beyond: "Slacking" (at least 1)
 #   dead_after_days: 15      # beyond: "Dead" (greater than flemme_after_days)
 
 # Ignored branches, by pattern (path.Match syntax).

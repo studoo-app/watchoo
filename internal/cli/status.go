@@ -267,7 +267,7 @@ func (s *session) statusText(st textStyle, r statusReport, lastSynced time.Time)
 		b.WriteString(i18n.T("cli.sync.status_last_sync_never") + "\n")
 	} else {
 		fmt.Fprintf(&b, "%s\n", i18n.T("cli.sync.status_last_sync",
-			activity.Relative(lastSynced, s.now(), s.loc, st.unicode()), lastSynced.In(s.loc).Format("02/01/2006 15:04")))
+			activity.Relative(lastSynced, s.now(), s.loc, st.unicode()), lastSynced.In(s.loc).Format(i18n.T("cli.core.fmt.datetime"))))
 	}
 	fmt.Fprintf(&b, "%s\n", i18n.T("cli.sync.status_tracked_branches", r.TrackedBranches))
 	return b.String()

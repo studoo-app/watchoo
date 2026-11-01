@@ -247,6 +247,9 @@ non suivie).
 | `commits(author_id, committed_at DESC)` | Vue « activité d'un contributeur » |
 | `commit_branches(branch_id)` | Filtre « commits d'une branche » |
 | `pull_requests(repo_id, updated_at DESC)` | Point de reprise de la synchro des PR, liste des PR d'un dépôt |
+| `contributor_emails(contributor_id)` | Technique : clé étrangère souvent parcourue (e-mails d'un contributeur) |
+| `sync_runs(repo_id, started_at DESC)` | Technique : dernière synchro d'un dépôt |
+| `commits(repo_id, sha) WHERE stats_known = 0` | Index partiel : commits dont les lignes `+/-` restent à lire (migration `00006`) |
 
 ## Fusion des identités
 

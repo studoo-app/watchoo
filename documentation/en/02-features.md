@@ -46,6 +46,18 @@ update itself.
 | New-version notice | At **every launch** of a command, Watchoo checks, without blocking, whether a version newer than its own has been released, and announces it on the error output at the end of the command ("New Watchoo version available: v0.5.0 → v0.6.0. Update with "watchoo update"."). No notice with `--json`, outside a terminal (scripts, CI), for a development version, nor if the `WATCHOO_NO_UPDATE_CHECK` variable is set (Docker image). `watchoo serve` checks at startup then every 30 min, and the web interface then shows a discreet banner. **Released in v0.6.0** |
 | One-command update | `watchoo update` shows the installed and latest versions, asks for confirmation, downloads the release archive for the system, verifies its SHA-256 checksum and replaces the binary in one piece; `watchoo update --check` only checks. Refused with an explanation in the Docker image (change the tag), for a version built from source (`go install …@latest` or `git pull && make build`) and when the binary's directory is not writable. Only the public pages of Watchoo's own releases are read: no token, no GitHub API, no quota. **Released in v0.6.0** |
 
+## 0.7.0
+
+| Feature | Detail |
+| --- | --- |
+| Bilingual interface | CLI, TUI, web interface and install script in **English by default**, also available in **French** (`WATCHOO_LANG`, the system locale, or the workspace's `lang` setting for the web). `--json` keys and state values do not change. **Released in v0.7.0** (see [Languages and translations](03-architecture.md#languages-and-translations)) |
+
+## 1.0.0
+
+No new feature: the public surface (commands, flags, exit codes, `--json` keys, settings and
+`WATCHOO_*` variables, database schema, web routes) is reviewed and declared **stable**; from now on,
+an incompatible change requires a major version. **Released in v1.0.0**.
+
 ## V3
 
 | Feature | Detail |

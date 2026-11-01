@@ -393,7 +393,7 @@ var workspaceTexts = map[string]entry{
 		"Seuils d'activité de l'espace, en jours sans commit.",
 	},
 	"workspace.cfg.flemme": {
-		`beyond: "Flemme" (at least 1)`,
+		`beyond: "Slacking" (at least 1)`,
 		"au-delà : « Flemme » (au moins 1)",
 	},
 	"workspace.cfg.dead": {

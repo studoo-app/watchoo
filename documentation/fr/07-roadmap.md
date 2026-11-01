@@ -9,7 +9,9 @@ la précédente marche de bout en bout.**
 critère de fin du MVP validé le 27 octobre 2026 ; phase 6 (V2) réalisée et publiée en **v0.4.0** ;
 page par contributeur publiée en **v0.5.0** ; mise à jour de Watchoo (`watchoo update`) publiée en
 **v0.6.0** ; ajout d'un dépôt depuis le TUI et lien de profil corrigé en **v0.6.1** ; avis de nouvelle version
-corrigé (`watchoo` seul, TUI) en **v0.6.2** ; l'interface bilingue est publiée en **v0.7.0** ([0.7.0](#070--interface-bilingue)).
+corrigé (`watchoo` seul, TUI) en **v0.6.2** ; l'interface bilingue est publiée en **v0.7.0** ([0.7.0](#070--interface-bilingue)) ; après une
+semaine de plus d'usage réel, la surface publique est stabilisée et publiée en **v1.0.0**
+([1.0.0](#100--stabilisation)).
 
 ```mermaid
 flowchart LR
@@ -120,6 +122,16 @@ L'import d'une organisation entière et les alertes passent en V3 (voir
   ou la locale du système, langue du web par le réglage `lang` de l'espace (partagé), textes
   affichés et erreurs traduits, `config.yaml` écrit dans la langue choisie. Voir
   [Langues et traductions](03-architecture.md#langues-et-traductions).
+
+### 1.0.0 : stabilisation
+- Critère : Watchoo utilisé **une semaine** sur des dépôts réels (API GitHub et clones Git locaux)
+  sans problème bloquant.
+- Relecture de la surface publique (commandes, options, codes de sortie, clés `--json`, réglages de
+  `config.yaml` et variables `WATCHOO_*`, schéma de la base, routes web) et de sa documentation :
+  **faite**.
+- Désormais, SemVer s'applique pleinement : un changement incompatible fait monter MAJOR (voir
+  [Skills](11-skills.md#versions-et-changelogmd)). La V3 ([Fonctionnalités](02-fonctionnalites.md#v3))
+  arrive en versions MINOR.
 
 ## Définition de « terminé » pour chaque phase
 

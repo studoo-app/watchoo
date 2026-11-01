@@ -248,6 +248,9 @@ branch).
 | `commits(author_id, committed_at DESC)` | "Activity of a contributor" view |
 | `commit_branches(branch_id)` | "Commits of a branch" filter |
 | `pull_requests(repo_id, updated_at DESC)` | Resume point of the PR sync, list of the PRs of a repository |
+| `contributor_emails(contributor_id)` | Technical: foreign key often walked (e-mails of a contributor) |
+| `sync_runs(repo_id, started_at DESC)` | Technical: last sync of a repository |
+| `commits(repo_id, sha) WHERE stats_known = 0` | Partial index: commits whose `+/-` lines are still to be read (migration `00006`) |
 
 ## Identity merging
 
@@ -294,7 +297,7 @@ following the procedure documented by SQLite (new table, copy, `DROP`, renaming)
   `00004` and checks that no row is lost, that `foreign_key_check` and `integrity_check` are
   clean, that the foreign keys are re-enabled and that the cascade still works;
 - rolling back (`Down`): same rebuild back to `NOT NULL`, an unknown `provider_id` receiving
-  the opposite of the internal ID (negative, unique, replaced at the sync by the next API).
+  the opposite of the internal ID (negative, unique, replaced at the next sync through the API).
 
 Written by the engine (`store.RepositoryMetadata`): `ProviderID` > 0 is written (resolution after the
 answer of `gh`), 0 keeps the value in the database; `Partial` (sync through local Git repositories) only writes the
