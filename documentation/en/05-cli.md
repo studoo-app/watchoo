@@ -38,14 +38,13 @@ stars. The choice is made again at each sync (see
 | `watchoo version` | Prints the Watchoo version, the compiled commit and its date, the Go version and the platform (`watchoo --version` does the same). Works outside a workspace and without `gh` | MVP |
 | `watchoo repo add owner/repo [--branch main,dev,release/*] [--label "Alice Martin"] [--flemme 3] [--dead 10]` | Adds a repository to watch (all its branches by default), with an optional display label and own activity thresholds | MVP (thresholds: V2) |
 | `watchoo repo import file.csv [--dry-run]` | Adds a list of repositories in one go (e.g. those of a class of students), checks access to each one and prints a summary | MVP |
-| `watchoo repo add-org mon-org` | Adds all the repositories of an organization | V2 |
 | `watchoo repo list` | Table: repository, last commit, author, state (Active / Slacking / Dead) | MVP |
-| `watchoo repo remove owner/repo [--keep-history]` | Stops tracking and deletes the repository history (and its local Git clone) after confirmation (`--keep-history` to keep them) | MVP |
+| `watchoo repo remove owner/repo [--keep-history] [--yes]` | Stops tracking and deletes the repository history (and its local Git clone) after confirmation (`--keep-history` to keep them) | MVP |
 | `watchoo sync [owner/repo]` | Syncs everything or a single repository | MVP |
 | `watchoo log [--repo X] [--author Y] [--branch B] [--since 7d] [-n 20]` | Latest commits, filtered | MVP |
 | `watchoo contributors [--repo X] [--since 30d \| --weeks 12]` | Contributor ranking; with `--weeks`, their commits week by week | MVP (`--weeks`: V2) |
 | `watchoo prs [--repo X] [--state open\|merged\|closed\|all] [-n 20]` | Pull requests of the tracked repositories, from the most recently updated to the oldest | V2 |
-| `watchoo releases [--repo X] [-n 20]` | Releases of the tracked repositories, then their tags | V2 |
+| `watchoo releases [--repo X] [-n 20]` | Releases of the tracked repositories, then their tags (`-n` or `--limit`) | V2 |
 | `watchoo status` | Summary: up-to-date, inactive and in-error repositories, source of the syncs (GitHub API or local Git repositories), remaining API quota, the `gh` account in use and its scopes (without showing the token) | MVP (source: V2) |
 | `watchoo serve [--addr 127.0.0.1:8080] [--interval 30m]` | Starts the web interface and the periodic sync (30 min by default, 15 min minimum) | MVP |
 | `watchoo tui [--interval 30m]` | Opens the interactive mode in the terminal | MVP |
@@ -116,7 +115,7 @@ stars. The choice is made again at each sync (see
   unknown, except for the 100 commits per sync that the API then gives).
   **`--weeks N`** (1 to 52) limits the period to the last N weeks (Monday to Sunday, in the display
   time zone, the current week included) and gives, for each contributor of that period, their commits
-  week by week: in text, one column per week (dated from the Monday, "12/10") then the total; in JSON,
+  week by week: in text, one column per week (dated from the Monday, "10/12"; "12/10" in French) then the total; in JSON,
   the `weekly` key. With `--repo`, only the commits of the repository count, each one once whatever its
   branch. `--weeks` and `--since` do not go together (refusal).
 - **`prs`** lists the pull requests recorded by the syncs (see
@@ -174,6 +173,41 @@ stars. The choice is made again at each sync (see
 - **`--version`**, option of `watchoo` alone (`watchoo init --version` is refused), has the same effect
   as `watchoo version`, `--json` included.
 
+## Exit codes
+
+| Code | Meaning |
+| --- | --- |
+| `0` | Success |
+| `1` | Any failure: invalid option or argument, missing workspace, error of the command, cancelled confirmation, Ctrl+C, and partial failures (`sync` with a repository in error, `repo import` and `config import` with a repository inaccessible or in error) |
+
+The message is on the error output. A finer distinction between failures, if it ever comes, will
+use new codes greater than `1` and will be a compatible change.
+
+## Environment variables
+
+Every setting of `config.yaml` can be overridden by a `WATCHOO_<SECTION>_<KEY>` variable (see
+[Workspaces](10-workspaces.md)); lists are written separated by commas (`"dependabot/*, renovate/*"`).
+
+| Variable | Role |
+| --- | --- |
+| `WATCHOO_NAME` | `name` setting |
+| `WATCHOO_SYNC_AUTO`, `WATCHOO_SYNC_INTERVAL`, `WATCHOO_SYNC_PARALLELISM` | `sync.*` settings |
+| `WATCHOO_ACTIVITY_FLEMME_AFTER_DAYS`, `WATCHOO_ACTIVITY_DEAD_AFTER_DAYS` | `activity.*` settings |
+| `WATCHOO_BRANCHES_EXCLUDE` | `branches.exclude` setting (list) |
+| `WATCHOO_WEB_ADDR`, `WATCHOO_WEB_AUTH_USERNAME`, `WATCHOO_WEB_TRUSTED_PROXY`, `WATCHOO_WEB_ALLOWED_HOSTS` | `web.*` settings (`allowed_hosts`: list) |
+| `WATCHOO_TIMEZONE` | `timezone` setting |
+| `WATCHOO_LANG` | Language of the CLI and the TUI, and `lang` setting of the web interface (`en` or `fr`) |
+| `WATCHOO_GITHUB_USER`, `WATCHOO_GITHUB_GH_PATH` | `github.*` settings |
+| `WATCHOO_GIT_PROTOCOL` | `git.protocol` setting |
+| `WATCHOO_DIR` | Workspace to use (like `-C`) |
+| `WATCHOO_WEB_PASSWORD` | Password of the web interface (never in a file) |
+| `WATCHOO_LOG_LEVEL` | Log level (`debug`, `info`, `warn` by default, `error`) |
+| `WATCHOO_NO_UPDATE_CHECK` | Disables the new-version check |
+| `WATCHOO_VERSION`, `WATCHOO_INSTALL_DIR` | Install script only (`install.sh`) |
+
+The other `WATCHOO_*` variables (`WATCHOO_DOCKER`, set by the Docker image; `WATCHOO_RELEASES_URL`, for
+the tests of the install script) are internal and not part of the public surface.
+
 ## JSON output
 
 With `--json`, every command that produces data writes **a single JSON object** (indented, followed by an
@@ -183,13 +217,29 @@ and `config import`, which write their summary then return a non-zero code if so
 inaccessible).
 
 Common rules, which form a **stable contract** for scripts (a key is neither renamed nor removed without
-an incompatible version: MINOR while Watchoo is in 0.y.z, MAJOR from 1.0.0, see [Skills](11-skills.md)):
+a new major version since 1.0.0, see [Skills](11-skills.md)):
 
-- keys in English, in `snake_case`; all the keys are always present;
+- keys in English, in `snake_case`; all the keys are always present (except in the document of
+  `config export`, whose optional keys follow [Configuration sharing](#configuration-sharing-watchoo-config));
 - dates in UTC, RFC 3339 to the second (`"2026-10-27T10:00:00Z"`), `null` if unknown;
 - empty lists written `[]`, never `null`; a missing string is `""`;
 - texts coming from the repositories (messages, names, labels) kept as is, escaped by the encoder;
 - never a token. `tui` and `serve` refuse `--json`.
+
+What the contract covers (1.0.0):
+
+- **compatible changes** (MINOR): adding a key to an object, adding a value to a list of values
+  (`state`, `status`, `outcome`, `action`…); a script ignores the keys it does not know and accepts an
+  unknown value;
+- **texts in the selected language** (`WATCHOO_LANG`): `state_label`, `message`, `error`, `reason`,
+  `rate_limit_error` and the `warnings` messages; a script tests the codes and states, not these texts;
+- **identifiers**: `id` is the local ID in the workspace's database (except `releases[].id`, the ID on
+  the forge); it does not carry over to another workspace, nor after a `repo remove` without
+  `--keep-history` followed by a `repo add`;
+- **`flemme`** (state, thresholds, `--flemme` option, import column, setting) is the stable machine
+  name of the "Slacking" state, whatever the language of the messages;
+- **not covered**: the text output (columns, wording), the logs (`WATCHOO_LOG_LEVEL`) and the
+  internal variables.
 
 Top-level keys (the list is checked by a test, `internal/cli/json_schema_test.go`):
 
@@ -201,7 +251,7 @@ Top-level keys (the list is checked by a test, `internal/cli/json_schema_test.go
 | `watchoo repo import` | `file`, `format`, `dry_run`, `summary`, `entries` | `format`: `csv` or `list`; `summary`: `added`, `already_tracked`, `updated`, `inaccessible`, `errors`; each entry: `line`, `repo`, `outcome`, `repository` (`null` if inaccessible or in error), `error` |
 | `watchoo repo list` | `repositories` | Each element: repository object plus `activity`, `commits`, `tracked_branches`, `last_commit` (commit object or `null`), `last_sync` (`null` if none) |
 | `watchoo repo remove` | `action`, `repository`, `deleted_commits` | `action`: `deleted`, `stopped` or `already_stopped` |
-| `watchoo sync` | `started_at`, `finished_at`, `summary`, `repositories`, `rate_limit`, `source` | `source`: `api`, `git` (local Git repositories, V2; `rate_limit` is then `null`) or `""` if the sync did not start; `summary`: `repositories`, `success`, `error`, `locked`, `deferred`, `new_commits`; each repository: `id`, `full_name`, `display_name`, `status`, `new_commits`, `tracked_branches`, `stats_fetched`, `duration_ms`, `error`, `resume_at`, `warnings` (messages in the selected language: pull requests, releases or tags not synced, or local Git clone unavailable with `gh`, while the repository succeeded; `[]` otherwise); `stats_fetched`: commit stats computed in the clone, or requested from the API as a fallback |
+| `watchoo sync` | `started_at`, `finished_at`, `summary`, `repositories`, `rate_limit`, `source` | `source`: `api`, `git` (local Git repositories, V2; `rate_limit` is then `null`) or `""` if the sync did not start; `summary`: `repositories`, `success`, `error`, `locked`, `deferred`, `new_commits`; each repository: `id`, `full_name`, `display_name`, `status` (`success`, `error`, `locked`: already being synced, `skipped` in text; `deferred`: low quota; `success` is `ok` in text), `new_commits`, `tracked_branches`, `stats_fetched`, `duration_ms`, `error`, `resume_at`, `warnings` (messages in the selected language: pull requests, releases or tags not synced, or local Git clone unavailable with `gh`, while the repository succeeded; `[]` otherwise); `stats_fetched`: commit stats computed in the clone, or requested from the API as a fallback |
 | `watchoo log` | `commits` | From newest to oldest; commit objects |
 | `watchoo contributors` | `contributors` | Each element: `id`, `name`, `login`, `display_name`, `avatar_url`, `commits`, `additions`, `deletions`, `repositories`, `last_commit_at`, `weekly` (with `--weeks N`: N `week` objects (Monday, `YYYY-MM-DD`, display time zone) and `count`, from the oldest to the newest; `[]` without `--weeks`) |
 | `watchoo prs` | `pull_requests` | From the most recently updated to the oldest; pull request objects |
@@ -344,8 +394,7 @@ New Watchoo version available: v0.5.0 → v0.6.0. Update with "watchoo update".
   like `watchoo repo` or `watchoo config` alone; not `watchoo --help` nor `watchoo help …`.
 - No check with `--json`, when the error output is not a terminal (scripts, CI, pipe), for a version
   that is not a release version (`dev`, pseudo-version of `go install` or `go build`, pre-release),
-  for `watchoo update` itself, `watchoo serve` and `watchoo tui` (which have their own), the help and
-  the completion.
+  for `watchoo update` itself, `watchoo serve` and `watchoo tui` (which have their own) and the help.
 - **`WATCHOO_NO_UPDATE_CHECK`**: set to a non-empty value other than `0` or `false`, it cuts off every
   check (commands, `serve` and `tui`). The Docker image sets it (`WATCHOO_NO_UPDATE_CHECK=1`): it updates
   itself by changing the tag.
@@ -476,7 +525,7 @@ IMPORT  licence-projet.csv
 - `--dry-run`: runs the validation and the access checks, prints the summary ("to add" instead of
   "added"), but records nothing.
 - `--json`: summary in JSON format.
-- Non-zero return code if some repositories remain inaccessible, for scripts.
+- Non-zero return code if some repositories remain inaccessible or in error, for scripts.
 - The import does not start a sync: follow with `watchoo sync`.
 
 ## Configuration sharing: `watchoo config`

@@ -34,6 +34,38 @@ définir impose la langue partout.
 | Page d'un contributeur (0.5.0) | `/contributors/{id}` (`?page=`) | `/contributors/{id}/commits` |
 | Réglages | `/settings` | `/fragments/quota` |
 
+### Routes
+
+Liste complète des routes (partie de la surface publique depuis la 1.0.0, voir
+[Skills](11-skills.md#versions-et-changelogmd)). Toute route `GET` accepte aussi `HEAD` ; aucun `GET`
+ne modifie quoi que ce soit ; tout `POST` passe par le contrôle CSRF.
+
+| Méthode | Adresse | Rôle |
+| --- | --- | --- |
+| `GET` | `/` | Tableau de bord |
+| `GET` | `/fragments/dashboard/repos`, `/fragments/dashboard/feed` | Fragments du tableau de bord (cartes, fil) |
+| `GET` | `/repos/{id}` | Détail d'un dépôt |
+| `GET` | `/repos/{id}/commits` | Fragment de l'historique des commits d'un dépôt |
+| `POST` | `/repos/{id}/thresholds` | Seuils d'activité d'un dépôt |
+| `POST` | `/repos/{id}/sync` | Synchro d'un seul dépôt |
+| `GET` | `/contributors` | Contributeurs |
+| `GET` | `/fragments/contributors` | Fragment du tableau des contributeurs |
+| `GET` | `/contributors/{id}` | Page d'un contributeur |
+| `GET` | `/contributors/{id}/commits` | Fragment des commits d'un contributeur |
+| `GET` | `/settings` | Réglages |
+| `POST` | `/settings/repos` | Ajout d'un dépôt |
+| `POST` | `/settings/repos/{id}` | Modification d'un dépôt (libellé, branches) |
+| `GET`, `POST` | `/settings/repos/{id}/remove` | Retrait d'un dépôt : page de confirmation, puis retrait |
+| `POST` | `/settings/interval` | Intervalle de synchro (durée de vie du processus) |
+| `GET` | `/fragments/quota` | Fragment du quota GitHub |
+| `GET` | `/settings/export` | Export de la configuration (JSON) |
+| `POST` | `/settings/import`, `/settings/import/apply` | Import de la configuration : aperçu, puis application |
+| `POST` | `/sync` | Synchro de tous les dépôts |
+| `GET` | `/fragments/sync` | État de la synchro (barre de navigation) |
+| `GET` | `/static/*`, `/favicon.ico`, `/apple-touch-icon.png`, `/manifest.webmanifest` | Fichiers statiques embarqués |
+
+`{id}` est un nombre de 1 à 18 chiffres (sinon 404).
+
 Toutes les pages ont la même barre de navigation (DaisyUI `navbar`) : logo, nom de l'espace, liens,
 état des synchros et sélecteur de thème clair / sombre (choix gardé dans `localStorage`, clé
 `watchoo-theme` ; par défaut, celui du système, `prefers-color-scheme`). Sous 1024 px de large, les
@@ -222,7 +254,8 @@ lien de profil est l'adresse enregistrée en base (voir [Liens vers les profils]
   l'historique et le clone Git local (V2) s'il existe. **Choix** : la
   suppression est refusée (`409`) pendant une synchro, pour que le moteur n'écrive pas dans un dépôt en
   cours de suppression ; l'arrêt du suivi reste possible. Un dépôt arrêté peut reprendre son suivi.
-- Import groupé depuis un fichier CSV (même format et même bilan que `watchoo repo import`) : V2.
+- Import groupé depuis un fichier CSV : pas dans l'interface web ; utiliser `watchoo repo import`, ou
+  l'import de la configuration de cette page.
 - Intervalle de synchronisation : valeur en vigueur, prochaine synchro et valeur de `config.yaml`,
   relue sur le disque à chaque affichage (si un import l'a changée depuis le lancement, la page dit
   qu'elle vaudra au prochain lancement). Il peut être changé **pour la durée du processus seulement** (durée Go comme `45m` ou `1h30m`, nombre
@@ -316,8 +349,8 @@ pour ses commits (`store.ContributorCommitTimes`), et empilé par semaine avec *
   jamais par `innerHTML`) et redessine.
   Une carte de graphique n'est rendue que si l'espace a des données au chargement de la page (au
   moins un dépôt suivi pour le tableau de bord, un auteur connu pour les contributeurs) : sur un espace
-  encore vide, elle n'apparaît qu'au rechargement de la page qui suit la première synchro (limite connue
-  de 0.1.0). Les deux graphiques du détail d'un dépôt sont toujours rendus (vides, avec leur résumé,
+  encore vide, elle n'apparaît qu'au rechargement de la page qui suit la première synchro (limite
+  connue). Les deux graphiques du détail d'un dépôt sont toujours rendus (vides, avec leur résumé,
   jusqu'au premier commit) ; ils relisent la même page, une seule fois.
 - **Couleurs** : barres simples de la couleur primaire du thème ; séries des contributeurs dans une
   palette catégorielle de 8 teintes en ordre fixe, avec une variante claire et une variante sombre
@@ -421,8 +454,8 @@ octet.
 ## Synchronisation en arrière-plan
 
 `watchoo serve` lance aussi la synchro périodique (`--interval`, **30 min** par défaut, **15 min** minimum,
-désactivable avec `--interval 0`). La synchro manuelle reste possible à tout moment (réglages pour tous
-les dépôts, page de détail pour un seul). Pendant une synchro, HTMX affiche sa progression. Les pages
+désactivable avec `--interval 0`). La synchro manuelle reste possible à tout moment (tableau de bord et
+réglages pour tous les dépôts, page de détail pour un seul). Pendant une synchro, HTMX affiche sa progression. Les pages
 reflètent l'état de la base ; HTMX rafraîchit les fragments concernés.
 
 Fonctionnement (`wsync.Coordinator`, un seul par processus, qui réutilise le moteur) :

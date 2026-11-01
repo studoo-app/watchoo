@@ -1,5 +1,5 @@
 -- Pull requests, releases et tags (V2) : les tables pull_requests, releases et tags de
--- documentation/04-modele-donnees.md (le modèle passe de 7 à 10 tables).
+-- documentation/fr/04-modele-donnees.md (le modèle passe de 7 à 10 tables).
 --
 -- Conventions de 00001_init.sql : dates en TEXT au format fixe « 2006-01-02T15:04:05Z » (contrainte
 -- CHECK), booléens en BOOLEAN (0 / 1), suppression en cascade avec le dépôt.

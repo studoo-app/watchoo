@@ -66,13 +66,16 @@ chaque release a un numéro SemVer et une entrée dans `CHANGELOG.md`.
   sortie de la CLI, clés de la sortie `--json` ([CLI](05-cli.md#sortie-json)), réglages de
   `config.yaml` et variables `WATCHOO_*`, schéma de la base `.watchoo/watchoo.db` (migrations), routes de
   l'interface web.
-- **Première version : `v0.1.0`** (MVP, phases 1 à 5). Tant que Watchoo est en `0.y.z`, rien n'est
-  garanti stable ; selon le skill `semver`, un changement incompatible (clé `--json` renommée ou
-  retirée, option supprimée…) fait monter **MINOR** (`0.1.3` → `0.2.0`), et tout changement compatible,
-  fonctionnalité ou correction, fait monter **PATCH** (`0.1.0` → `0.1.1`). À partir de `1.0.0`, la règle
-  habituelle s'applique (incompatible → MAJOR).
-- **`CHANGELOG.md`** (racine) suit [Keep a Changelog 1.1.0](https://keepachangelog.com/fr/1.1.0/), en
-  français : rubriques Ajouté, Modifié, Obsolète, Retiré, Corrigé, Sécurité ; section `[Unreleased]`
+- **Première version : `v0.1.0`** (MVP, phases 1 à 5). Jusqu'à `0.7.0`, rien n'était garanti stable :
+  un changement incompatible faisait monter **MINOR** et tout changement compatible **PATCH**.
+- **Depuis `v1.0.0`** (stabilisation, après une semaine d'usage réel), la surface publique ci-dessus
+  est stable et la règle habituelle du skill `semver` s'applique : un changement incompatible (clé
+  `--json` renommée ou retirée, option supprimée, route retirée…) fait monter **MAJOR** (`1.4.2` →
+  `2.0.0`), une fonctionnalité compatible **MINOR** (`1.0.3` → `1.1.0`), une correction compatible
+  **PATCH** (`1.0.0` → `1.0.1`). Ce qui doit disparaître est d'abord marqué obsolète (rubrique
+  Deprecated du `CHANGELOG.md`) dans une version MINOR.
+- **`CHANGELOG.md`** (racine) suit [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/), en
+  anglais depuis `0.7.0` : rubriques Added, Changed, Deprecated, Removed, Fixed, Security ; section `[Unreleased]`
   tenue au fil des commits ; liens de comparaison GitHub en bas du fichier. Le skill `semver-changelog`
   part du dernier tag SemVer (`git tag -l --sort=-v:refname`) et des commits depuis ce tag.
 - **Release** : on renomme `[Unreleased]` en `[X.Y.Z] - AAAA-MM-JJ`, on ajoute une section `[Unreleased]`

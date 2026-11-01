@@ -65,12 +65,16 @@ every release gets a SemVer number and a `CHANGELOG.md` entry.
   exit codes, keys of the `--json` output ([CLI](05-cli.md#json-output)), `config.yaml` settings and
   `WATCHOO_*` variables, schema of the `.watchoo/watchoo.db` database (migrations), routes of the
   web interface.
-- **First release: `v0.1.0`** (MVP, phases 1 to 5). While Watchoo is `0.y.z`, nothing is stable;
-  per the `semver` skill, an incompatible change (a renamed or removed `--json` key, a dropped
-  option…) bumps **MINOR** (`0.1.3` → `0.2.0`), and any compatible change, feature or fix, bumps
-  **PATCH** (`0.1.0` → `0.1.1`). From `1.0.0` on, the usual rule applies (incompatible → MAJOR).
-- **`CHANGELOG.md`** (root) follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/):
-  Added, Changed, Deprecated, Removed, Fixed, Security sections; a `[Unreleased]` section kept as
+- **First release: `v0.1.0`** (MVP, phases 1 to 5). Up to `0.7.0`, nothing was guaranteed stable:
+  an incompatible change bumped **MINOR** and any compatible change bumped **PATCH**.
+- **Since `v1.0.0`** (stabilization, after one week of real usage), the public surface above is
+  stable and the usual rule of the `semver` skill applies: an incompatible change (a renamed or
+  removed `--json` key, a dropped option, a removed route…) bumps **MAJOR** (`1.4.2` → `2.0.0`), a
+  compatible feature bumps **MINOR** (`1.0.3` → `1.1.0`), and a compatible fix bumps **PATCH**
+  (`1.0.0` → `1.0.1`). Something to be removed is first marked deprecated (Deprecated section of
+  `CHANGELOG.md`) in a MINOR release.
+- **`CHANGELOG.md`** (root) follows [Keep a Changelog 1.1.0](https://keepachangelog.com/en/1.1.0/),
+  in English since `0.7.0`: Added, Changed, Deprecated, Removed, Fixed, Security sections; a `[Unreleased]` section kept as
   commits land; GitHub compare links at the bottom of the file. The `semver-changelog` skill starts
   from the last SemVer tag (`git tag -l --sort=-v:refname`) and the commits since that tag.
 - **Release**: rename `[Unreleased]` to `[X.Y.Z] - YYYY-MM-DD`, add an empty `[Unreleased]` section

@@ -130,16 +130,31 @@ func TestJSONSchemaAllCommands(t *testing.T) {
 var contributorKeys = []string{"id", "name", "login", "display_name", "avatar_url", "commits", "additions",
 	"deletions", "repositories", "last_commit_at", "weekly"}
 
-// The contract is documented: the "Sortie JSON" table of documentation/fr/05-cli.md lists, for each
-// command, the same top-level keys as jsonTopLevelKeys.
+// The contract is documented: the "JSON output" table of documentation/en/05-cli.md and the "Sortie
+// JSON" table of its French mirror list, for each command, the same top-level keys as jsonTopLevelKeys.
 func TestJSONSchemaDocumented(t *testing.T) {
-	doc, err := os.ReadFile(filepath.Join("..", "..", "documentation", "fr", "05-cli.md"))
+	for _, doc := range []struct{ lang, section string }{
+		{"en", "\n## JSON output\n"},
+		{"fr", "\n## Sortie JSON\n"},
+	} {
+		t.Run(doc.lang, func(t *testing.T) {
+			checkJSONSchemaDoc(t, doc.lang, doc.section)
+		})
+	}
+}
+
+// checkJSONSchemaDoc compares the table of the JSON section of documentation/<lang>/05-cli.md with
+// jsonTopLevelKeys.
+func checkJSONSchemaDoc(t *testing.T, lang, heading string) {
+	t.Helper()
+	name := lang + "/05-cli.md"
+	doc, err := os.ReadFile(filepath.Join("..", "..", "documentation", lang, "05-cli.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, section, ok := strings.Cut(string(doc), "\n## Sortie JSON\n")
+	_, section, ok := strings.Cut(string(doc), heading)
 	if !ok {
-		t.Fatal(`section "## Sortie JSON" missing from documentation/fr/05-cli.md`)
+		t.Fatalf("section %q missing from documentation/%s", strings.TrimSpace(heading), name)
 	}
 	if end := strings.Index(section, "\n## "); end >= 0 {
 		section = section[:end]
@@ -161,17 +176,17 @@ func TestJSONSchemaDocumented(t *testing.T) {
 	for cmd, want := range jsonTopLevelKeys {
 		got, ok := documented[cmd]
 		if !ok {
-			t.Errorf("fr/05-cli.md: no line for \"watchoo %s\" in the Sortie JSON section", cmd)
+			t.Errorf("%s: no line for \"watchoo %s\" in the JSON section", name, cmd)
 			continue
 		}
 		got, want = slices.Sorted(slices.Values(got)), slices.Sorted(slices.Values(want))
 		if !slices.Equal(got, want) {
-			t.Errorf("fr/05-cli.md: keys of \"watchoo %s\" = %v, want %v", cmd, got, want)
+			t.Errorf("%s: keys of \"watchoo %s\" = %v, want %v", name, cmd, got, want)
 		}
 	}
 	for cmd := range documented {
 		if _, ok := jsonTopLevelKeys[cmd]; !ok && !pendingJSONCommands[cmd] {
-			t.Errorf("fr/05-cli.md: \"watchoo %s\" documented but missing from the tested contract", cmd)
+			t.Errorf("%s: \"watchoo %s\" documented but missing from the tested contract", name, cmd)
 		}
 	}
 }
