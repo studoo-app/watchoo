@@ -1,7 +1,7 @@
 package cli
 
 // « watchoo config export / import » : partage de la configuration d'un espace
-// (documentation/05-cli.md, « Partage de la configuration »). Affichage seulement : le cœur est
+// (documentation/fr/05-cli.md, « Partage de la configuration »). Affichage seulement : le cœur est
 // internal/configshare (Export, Parse, Plan, Apply).
 
 import (
@@ -550,7 +550,7 @@ func configImportFailure(sum configshare.Summary, changes []configshare.RepoChan
 
 // --- sortie texte ---
 
-// configPreviewText renvoie l'aperçu texte d'un import (documentation/05-cli.md, « watchoo config
+// configPreviewText renvoie l'aperçu texte d'un import (documentation/fr/05-cli.md, « watchoo config
 // import fichier ») : origine du fichier, réglages modifiés, dépôts par action, avertissements.
 func configPreviewText(file string, p *configshare.Preview, loc *time.Location, dryRun bool) string {
 	var b strings.Builder

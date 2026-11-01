@@ -1,182 +1,184 @@
 # AGENTS.md
 
-Instructions pour les agents de code qui travaillent sur Watchoo (format [agents.md](https://agents.md/)).
+Instructions for coding agents working on Watchoo ([agents.md](https://agents.md/) format).
 
-## Projet
+## Project
 
-Watchoo est un binaire Go unique qui surveille des dépôts GitHub, **majoritairement privés**, et répond à
-trois questions : qu'est-ce qui a bougé, quand, et qui l'a fait. Il propose une CLI, un mode interactif
-(`watchoo tui`) et une interface web locale (`watchoo serve`). Chaque groupe supervisé (ex. les projets des
-étudiants d'une promotion) vit dans son propre répertoire, initialisé par `watchoo init`.
+Watchoo is a single Go binary that watches GitHub repositories, **mostly private**, and answers
+three questions: what moved, when, and who did it. It offers a CLI, an interactive mode
+(`watchoo tui`) and a local web interface (`watchoo serve`). Every monitored group (e.g. a class's
+projects) lives in its own directory, initialized by `watchoo init`.
 
-**État actuel : v0.6.2 (MVP terminé, phases 1 à 6 de la [roadmap](documentation/07-roadmap.md) en place : MVP, partage de la configuration et V2, puis page par contributeur et mise à jour de Watchoo).**
-`watchoo init` crée un espace de supervision ; `repo add / import / list / remove`, `sync`, `log`,
-`contributors`, `prs`, `releases`, `status`, `version` et `update` fonctionnent en texte et en `--json` (schéma stable, documenté dans
-[05-cli.md](documentation/05-cli.md#sortie-json) et vérifié par `internal/cli/json_schema_test.go`) ;
-`watchoo tui` ouvre le mode interactif ; `watchoo serve` sert l'interface web locale (tableau de bord et
-contributeurs avec graphiques d'activité, détail d'un dépôt, page d'un contributeur, réglages) et synchronise en arrière-plan. Le
-cœur métier est dans `internal/sync` (moteur : synchro incrémentale, verrou, quota, ajout de dépôts ;
-`Coordinator` : une seule synchro à la fois dans un processus long), `internal/activity` (états Actif /
-Flemme / Dead et gris, séries d'activité par jour et par semaine) et `internal/repoimport` (références,
-motifs `--branch`, fichiers d'import) ; `internal/cli`, `internal/tui` et `internal/web` ne font
-qu'afficher. Deux tests de bout en bout enchaînent les commandes (`internal/cli/e2e_test.go`) et les
-pages web (`internal/web/e2e_test.go`) avec le faux `gh` et `githubtest`. Distribution : GoReleaser
-(`.goreleaser.yaml`), image Docker (`Dockerfile`, `docker-compose.yml`), workflow de release sur tag
-(`.github/workflows/release.yml`) ; historique dans [CHANGELOG.md](CHANGELOG.md). V2 : seuils d'activité
-par dépôt, activité par contributeur dans un dépôt, pull requests / releases / tags, et dépôts Git locaux
-(`internal/provider/git` : clones avec copie de travail dans `repos/` à la racine de l'espace, utilisés quand `gh` est absent ou non
-connecté). Le critère de fin du MVP (usage réel d'une semaine) est validé : le MVP est terminé.
-Depuis la 0.6.0 : avis de nouvelle version à chaque commande et dans `watchoo serve`, et
-commande `watchoo update` (`internal/selfupdate`, seule exception documentée à la règle GitHub : pages
-publiques des releases de Watchoo, sans token ni API).
+**Current state: v0.6.2 (MVP complete, phases 1 to 6 of the [roadmap](documentation/en/07-roadmap.md) in place: MVP, configuration sharing and V2, then the per-contributor page and updating Watchoo).**
+`watchoo init` creates a workspace; `repo add / import / list / remove`, `sync`, `log`,
+`contributors`, `prs`, `releases`, `status`, `version` and `update` work in text and `--json` (stable schema, documented in
+[05-cli.md](documentation/en/05-cli.md#json-output) and verified by `internal/cli/json_schema_test.go`);
+`watchoo tui` opens the interactive mode; `watchoo serve` serves the local web interface (dashboard and
+contributors with activity charts, repository detail, a contributor's page, settings) and syncs in the background. The
+business core is in `internal/sync` (engine: incremental sync, lock, quota, repository addition;
+`Coordinator`: a single sync at a time in a long-running process), `internal/activity` (Actif /
+Flemme / Dead and gray states, activity series by day and by week) and `internal/repoimport` (refs,
+`--branch` patterns, import files); `internal/cli`, `internal/tui` and `internal/web` only
+display. Two end-to-end tests run the commands (`internal/cli/e2e_test.go`) and the
+web pages (`internal/web/e2e_test.go`) with the fake `gh` and `githubtest`. Distribution: GoReleaser
+(`.goreleaser.yaml`), Docker image (`Dockerfile`, `docker-compose.yml`), release workflow on tag
+(`.github/workflows/release.yml`); history in [CHANGELOG.md](CHANGELOG.md). V2: per-repository
+activity thresholds, per-contributor activity within a repository, pull requests / releases / tags, and local Git
+repositories (`internal/provider/git`: clones with a working copy in `repos/` at the workspace root, used when `gh` is absent or not
+signed in). The MVP exit criterion (one week of real usage) is validated: the MVP is complete.
+Since 0.6.0: new-version notice on every command and in `watchoo serve`, and
+the `watchoo update` command (`internal/selfupdate`, the only documented exception to the GitHub rule: public
+pages of Watchoo's own releases, without token or API).
 
-## Documentation de référence
+## Reference documentation
 
-`documentation/` est la **source de vérité**. La lire avant de coder ; en cas de doute ou de
-contradiction, elle l'emporte sur toute autre source, skills compris.
+`documentation/` is the **source of truth**. Read it before coding; in case of doubt or
+contradiction, it takes precedence over any other source, skills included. It is bilingual
+(English in `documentation/en/`, French in `documentation/fr/`): any change to a document is
+mirrored in the other language **in the same commit**. The two trees contain the same files with
+the same numbering; the index is [INDEX.md](documentation/INDEX.md).
 
-| Sujet | Fichier |
+| Topic | File |
 | --- | --- |
-| Vision, périmètre | [01-vision.md](documentation/01-vision.md) |
-| Fonctionnalités et règles (états Actif / Flemme / Dead…) | [02-fonctionnalites.md](documentation/02-fonctionnalites.md) |
-| Architecture, stack, décisions techniques | [03-architecture.md](documentation/03-architecture.md) |
-| Modèle de données (10 tables) | [04-modele-donnees.md](documentation/04-modele-donnees.md) |
-| CLI, TUI, import groupé | [05-cli.md](documentation/05-cli.md) |
-| Interface web | [06-interface-web.md](documentation/06-interface-web.md) |
-| Roadmap par phases | [07-roadmap.md](documentation/07-roadmap.md) |
-| Tests | [09-tests.md](documentation/09-tests.md) |
-| Espaces de supervision (`watchoo init`) | [10-espaces-de-supervision.md](documentation/10-espaces-de-supervision.md) |
-| Skills | [11-skills.md](documentation/11-skills.md) |
+| Vision, scope | [01-vision.md](documentation/en/01-vision.md) |
+| Features and rules (Actif / Flemme / Dead states…) | [02-features.md](documentation/en/02-features.md) |
+| Architecture, stack, technical decisions | [03-architecture.md](documentation/en/03-architecture.md) |
+| Data model (10 tables) | [04-data-model.md](documentation/en/04-data-model.md) |
+| CLI, TUI, bulk import | [05-cli.md](documentation/en/05-cli.md) |
+| Web interface | [06-web-interface.md](documentation/en/06-web-interface.md) |
+| Roadmap by phases | [07-roadmap.md](documentation/en/07-roadmap.md) |
+| Testing | [09-testing.md](documentation/en/09-testing.md) |
+| Workspaces (`watchoo init`) | [10-workspaces.md](documentation/en/10-workspaces.md) |
+| Skills | [11-skills.md](documentation/en/11-skills.md) |
 
-Une décision qui change ce qui est documenté se fait **d'abord dans la documentation**, avec l'accord du
-mainteneur, puis dans le code.
+A decision that changes what is documented is made **in the documentation first**, with the
+maintainer's approval, then in the code.
 
-## Méthode de travail
+## Working method
 
-- Avancer **phase par phase** ; ne passer à la suivante que lorsque la précédente marche de bout en bout.
-- Avant d'écrire le code d'une phase, proposer l'arborescence et le plan.
-- À la fin de chaque phase : tests verts, `go vet` propre, résumé de ce qui marche.
-- Ne jamais ajouter une dépendance hors de la stack documentée sans accord.
+- Move forward **phase by phase**; only move to the next one when the previous one works end to end.
+- Before writing the code of a phase, propose the tree and the plan.
+- At the end of every phase: green tests, clean `go vet`, summary of what works.
+- Never add a dependency outside the documented stack without approval.
 
-## Stack (résumé)
+## Stack (summary)
 
-Go (dernière version stable, fixée dans `go.mod`) · cobra + viper · go-github (sans x/oauth2) · SQLite via
-`modernc.org/sqlite` (sans CGO) · migrations goose · requêtes sqlc · net/http + go-chi/chi ·
-html/template + HTMX + DaisyUI (CSS généré par la CLI autonome Tailwind) · Chart.js embarqué ·
-Bubble Tea + bubbles + lipgloss · log/slog · errgroup · binaire `git` (dépôts Git locaux, lancé par
-`os/exec`). Détail et justifications :
-[03-architecture.md](documentation/03-architecture.md).
+Go (latest stable, fixed in `go.mod`) · cobra + viper · go-github (without x/oauth2) · SQLite via
+`modernc.org/sqlite` (no CGO) · goose migrations · sqlc queries · net/http + go-chi/chi ·
+html/template + HTMX + DaisyUI (CSS generated by the standalone Tailwind CLI) · embedded Chart.js ·
+Bubble Tea + bubbles + lipgloss · log/slog · errgroup · the `git` binary (local Git repositories, run
+through `os/exec`). Details and rationale:
+[03-architecture.md](documentation/en/03-architecture.md).
 
-## Organisation du code (cible)
+## Code layout (target)
 
 ```
-cmd/watchoo/          point d'entrée
-internal/cli/         commandes cobra (affichage seulement)
-internal/tui/         mode interactif Bubble Tea (affichage seulement)
-internal/web/         handlers chi, templates, static (embed), tailwind/ (CSS DaisyUI, VERSIONS)
-internal/workspace/   espaces de supervision : init, recherche de .watchoo/, réglages
-internal/auth/        accès à gh (token, état de connexion)
-internal/provider/    interface Provider, types, erreurs ; providertest/ (faux Provider)
-                      github/ : implémentation GitHub ; github/githubtest/ (faux serveur GitHub)
-                      git/ : dépôts Git locaux (binaire git) ; git/gittest/ (dépôts de test en file://)
-internal/sync/        moteur de synchronisation (cœur métier)
-internal/activity/    règles d'activité (Actif / Flemme / Dead, états gris), séries, formats courts
-internal/repoimport/  références de dépôts, motifs --branch, fichiers d'import
-internal/configshare/ partage de la configuration (export JSON, validation, aperçu, import)
-internal/textclean/   nettoyage des textes affichés (séquences d'échappement), CLI et TUI
-internal/selfupdate/  mise à jour de Watchoo lui-même : dernière release (redirection de /releases/latest),
-                      téléchargement vérifié (SHA-256), remplacement du binaire ; selfupdatetest/ (faux serveur)
-internal/store/       SQLite : migrations/, queries/ (sqlc), db/ (généré)
-internal/model/       structs métier
-internal/logo/        hibou en versions texte (copie de assets/logo/) et carte d'en-tête
+cmd/watchoo/          entry point
+internal/cli/         cobra commands (display only)
+internal/tui/         Bubble Tea interactive mode (display only)
+internal/web/         chi handlers, templates, static (embed), tailwind/ (DaisyUI CSS, VERSIONS)
+internal/workspace/   workspaces: init, .watchoo/ discovery, settings
+internal/auth/        gh access (token, sign-in state)
+internal/provider/    Provider interface, types, errors; providertest/ (fake Provider)
+                      github/: GitHub implementation; github/githubtest/ (fake GitHub server)
+                      git/: local Git repositories (git binary); git/gittest/ (test repositories over file://)
+internal/sync/        sync engine (business core)
+internal/activity/    activity rules (Actif / Flemme / Dead, gray states), series, short formats
+internal/repoimport/  repository refs, --branch patterns, import files
+internal/configshare/ configuration sharing (JSON export, validation, preview, import)
+internal/textclean/   cleaning of displayed texts (escape sequences), CLI and TUI
+internal/selfupdate/  updating Watchoo itself: latest release (redirection of /releases/latest),
+                      verified download (SHA-256), binary replacement; selfupdatetest/ (fake server)
+internal/store/       SQLite: migrations/, queries/ (sqlc), db/ (generated)
+internal/model/       business structs
+internal/logo/        owl in text versions (copy of assets/logo/) and header card
 ```
 
-## Commandes
+## Commands
 
 ```bash
-make build        # bin/watchoo, sans CGO, version injectée par -ldflags
+make build        # bin/watchoo, no CGO, version injected by -ldflags
 make test         # go test -race ./...
-make vet          # go vet ./... (et le faux gh des tests, ignoré par ./...)
-make fmt-check    # échoue si gofmt -l trouve un fichier
+make vet          # go vet ./... (and the fake gh of the tests, ignored by ./...)
+make fmt-check    # fails if gofmt -l finds a file
 make sqlc         # sqlc generate
-make sqlc-check   # échoue si internal/store/db n'est pas à jour
-make check        # tous les contrôles, comme la CI (.github/workflows/ci.yml)
-make css          # CSS DaisyUI généré par la CLI autonome Tailwind (make css-check : à jour ?)
-make logo         # recopie assets/logo dans internal/logo/art/ et internal/web/static/ (copies embarquées)
+make sqlc-check   # fails if internal/store/db is out of date
+make check        # all the checks, like the CI (.github/workflows/ci.yml)
+make css          # DaisyUI CSS generated by the standalone Tailwind CLI (make css-check: up to date?)
+make logo         # copies assets/logo into internal/logo/art/ and internal/web/static/ (embedded copies)
 make release-check    # goreleaser check (.goreleaser.yaml)
-make release-snapshot # goreleaser release --snapshot --clean : release locale dans dist/, rien de publié
-make docker           # image Docker locale (IMAGE=watchoo:dev), jamais poussée
+make release-snapshot # goreleaser release --snapshot --clean: local release in dist/, nothing published
+make docker           # local Docker image (IMAGE=watchoo:dev), never pushed
 ```
 
-- `sqlc generate` après toute modification de `internal/store/queries/` ou des migrations ; le code
-  généré (`internal/store/db/`) est commité et **jamais modifié à la main**.
-- `make css` après toute modification des templates ; `internal/web/static/app.css` est commité.
-- `make logo` après toute modification de `assets/logo/` ; des tests vérifient que les copies sont à jour.
-- Les `-ldflags` (`internal/cli.Version`, `Commit`, `Date`) sont écrits dans le `Makefile`, le
-  `.goreleaser.yaml` et le `Dockerfile` : les garder identiques.
-- Toute modification visible va dans la section `[Unreleased]` de `CHANGELOG.md` (skills `semver` et
-  `semver-changelog`, voir [11-skills.md](documentation/11-skills.md)). Aucun tag, release ni
-  `docker push` sans demande explicite.
+- `sqlc generate` after any change to `internal/store/queries/` or the migrations; the generated code
+  (`internal/store/db/`) is committed and **never edited by hand**.
+- `make css` after any change to the templates; `internal/web/static/app.css` is committed.
+- `make logo` after any change to `assets/logo/`; tests verify that the copies are up to date.
+- The `-ldflags` (`internal/cli.Version`, `Commit`, `Date`) are written in the `Makefile`, the
+  `.goreleaser.yaml` and the `Dockerfile`: keep them identical.
+- Any visible change goes into the `[Unreleased]` section of `CHANGELOG.md` (skills `semver` and
+  `semver-changelog`, see [11-skills.md](documentation/en/11-skills.md)). No tag, release or
+  `docker push` without an explicit request.
 
-## Règles d'architecture
+## Architecture rules
 
-- **Aucune logique métier** dans `cli`, `tui` ou `web` : ces couches appellent le cœur métier.
-- Tout accès à GitHub passe par l'interface `Provider` ; rien de spécifique à GitHub hors de
-  `internal/provider/github/` (seul package qui importe go-github) et de `internal/provider/git/` (URL de
-  clone et de page des dépôts github.com). Seule exception : `internal/selfupdate/` lit les pages
-  publiques des releases de Watchoo lui-même (bibliothèque standard, ni token ni API GitHub).
-- Les types générés par sqlc ne sortent pas de `internal/store/` ; ils sont convertis vers `internal/model`.
-- Les handlers web restent des `http.Handler` standard.
-- Synchro **incrémentale** : ne jamais re-télécharger un commit déjà en base ; utiliser les ETag ;
-  respecter le rate limit ; au plus 4 dépôts synchronisés en parallèle.
-- Dates stockées en texte ISO 8601 UTC, format fixe `2006-01-02T15:04:05Z` ; conversion en heure locale
-  à l'affichage seulement.
-- Une base SQLite par espace de supervision (`.watchoo/watchoo.db`).
+- **No business logic** in `cli`, `tui` or `web`: these layers call the business core.
+- Every GitHub access goes through the `Provider` interface; nothing GitHub-specific outside of
+  `internal/provider/github/` (the only package importing go-github) and `internal/provider/git/` (clone
+  and page URLs of github.com repositories). Only exception: `internal/selfupdate/` reads the public
+  pages of Watchoo's own releases (standard library, no token and no GitHub API).
+- Types generated by sqlc never leave `internal/store/`; they are converted to `internal/model`.
+- Web handlers stay plain `http.Handler`.
+- **Incremental** sync: never re-download a commit already in the database; use ETags;
+  respect the rate limit; at most 4 repositories synced in parallel.
+- Dates stored as ISO 8601 UTC text, fixed format `2006-01-02T15:04:05Z`; conversion to local time
+  at display only.
+- One SQLite database per workspace (`.watchoo/watchoo.db`).
 
-## Sécurité (non négociable)
+## Security (non-negotiable)
 
-- `gh` est facultatif : sans `gh` installé et connecté, les dépôts sont suivis par clone local. Quand
-  l'API est utilisée, le token GitHub vient **uniquement** de `gh auth token`. Ne jamais lire
-  `GITHUB_TOKEN` ni stocker le token (config, base, fichier, trousseau).
-- Dépôts Git locaux : Watchoo ne lit, ne demande ni ne stocke aucun identifiant (git utilise la clé SSH
-  ou le gestionnaire d'identifiants de l'utilisateur, sans invite interactive).
-- Le token n'apparaît **jamais** dans les logs, les erreurs, la sortie CLI, le TUI ou le web.
-- **Lecture seule** : aucun appel GitHub en `POST`, `PATCH`, `PUT` ou `DELETE` (le transport du provider
-  les refuse avant l'envoi) ; en mode Git local, seulement `clone`, `fetch` et des commandes de lecture,
-  jamais `push`.
-- Les données viennent de dépôts privés et contiennent des données personnelles d'étudiants :
-  `.watchoo/` et `repos/` (clones Git locaux) en `0700`, fichiers en `0600` ; **ni message de commit ni e-mail dans les logs**.
-- Web : écoute sur `127.0.0.1` par défaut ; authentification obligatoire sur toute autre adresse.
+- `gh` is optional: without `gh` installed and signed in, repositories are tracked by local clone. When
+  the API is used, the GitHub token comes **only** from `gh auth token`. Never read
+  `GITHUB_TOKEN` or store the token (config, database, file, keychain).
+- Local Git repositories: Watchoo never reads, asks for or stores any credential (git uses the SSH key
+  or the user's credential helper, with no interactive prompt).
+- The token never appears in logs, errors, CLI output, the TUI or the web.
+- **Read-only**: no GitHub call in `POST`, `PATCH`, `PUT` or `DELETE` (the provider transport
+  refuses them before sending); in local Git mode, only `clone`, `fetch` and read commands,
+  never `push`.
+- The data comes from private repositories and holds students' personal data:
+  `.watchoo/` and `repos/` (local Git clones) at `0700`, files at `0600`; **no commit message nor e-mail in the logs**.
+- Web: listens on `127.0.0.1` by default; authentication mandatory on any other address.
 
 ## Tests
 
-- Tout code nouveau ou modifié a ses tests.
-- **Aucun service extérieur** dans les tests ni en CI : `gh` est mocké (interface Go + faux binaire dans
-  `internal/auth/testdata/fakegh/`, chemin réglable par `github.gh_path`), l'API GitHub est simulée par le
-  faux serveur `githubtest` (sur `httptest`), le provider par `providertest`, les dépôts Git locaux par
-  `gittest` (vrais dépôts créés dans un répertoire temporaire, servis en `file://` ; le binaire `git` est
-  requis), la base est une SQLite temporaire.
-- Détail des scénarios : [09-tests.md](documentation/09-tests.md).
+- Every new or changed piece of code has its tests.
+- **No external service** in tests or CI: `gh` is mocked (Go interface + fake binary in
+  `internal/auth/testdata/fakegh/`, path set by `github.gh_path`), the GitHub API is simulated by the
+  fake `githubtest` server (on `httptest`), the provider by `providertest`, local Git repositories by
+  `gittest` (real repositories created in a temporary directory, served over `file://`; the `git` binary is
+  required), the database is a temporary SQLite.
+- Scenario details: [09-testing.md](documentation/en/09-testing.md).
 
 ## Style
 
-- Code formaté avec `gofmt` ; `go vet` sans avertissement.
-- Identifiants Go en anglais, selon les conventions Go.
-- Documentation, messages affichés à l'utilisateur (CLI, TUI, web) et messages de commit en **français**.
-- Erreurs enveloppées avec du contexte (`fmt.Errorf("…: %w", err)`) ; logs structurés avec `log/slog`.
+- Code formatted with `gofmt`; `go vet` without warning.
+- Go identifiers in English, per Go conventions.
+- User-facing messages (CLI, TUI, web) in **French**; commit messages in French.
+- Errors wrapped with context (`fmt.Errorf("…: %w", err)`); structured logs with `log/slog`.
 
 ## Skills
 
-Les skills du projet viennent de [skills.sh](https://www.skills.sh/), installés dans `.agents/skills/`
-(liens dans `.claude/skills/` et `.vibe/skills/`), verrouillés par `skills-lock.json`.
+The project's skills come from [skills.sh](https://www.skills.sh/), installed in `.agents/skills/`
+(links in `.claude/skills/` and `.vibe/skills/`), locked by `skills-lock.json`.
 
-- `goland` pour le développement Go ; `semver` et `semver-changelog` pour les versions et `CHANGELOG.md`.
-- N'installer ni mettre à jour aucun skill sans accord. Voir [11-skills.md](documentation/11-skills.md).
+- `goland` for Go development; `semver` and `semver-changelog` for versions and `CHANGELOG.md`.
+- Never install or update any skill without approval. See [11-skills.md](documentation/en/11-skills.md).
 
 ## Git
 
-- Messages de commit au format **Conventional Commits**, en français : `feat: …`, `fix: …`, `docs: …`,
+- Commit messages in the **Conventional Commits** format, in French: `feat: …`, `fix: …`, `docs: …`,
   `test: …`, `chore: …`.
-- Ne pas commiter ni pousser sans demande explicite.
-- Ne jamais commiter de base `.watchoo/`, de token ni de données réelles d'étudiants (les tests utilisent
-  des données factices).
+- Do not commit or push without an explicit request.
+- Never commit a `.watchoo/` database, a token or real student data (the tests use dummy data).

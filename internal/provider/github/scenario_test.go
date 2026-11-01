@@ -2,7 +2,7 @@ package github
 
 // Scénarios de bout en bout de la phase 2 : le VRAI Provider (transport, cache ETag, quota, conversion
 // des erreurs, appels d'API) contre le faux serveur programmable githubtest. Ils couvrent la section
-// « API GitHub simulée » de documentation/09-tests.md. Aucun appel réseau réel : githubtest écoute sur
+// « API GitHub simulée » de documentation/fr/09-tests.md. Aucun appel réseau réel : githubtest écoute sur
 // 127.0.0.1 et fait échouer le test sur toute requête autre que GET ou HEAD.
 //
 // Chaque environnement (newScEnv) capture les logs du Provider au niveau Debug et vérifie à la fin du
@@ -374,7 +374,7 @@ func TestScenarioPagination(t *testing.T) {
 }
 
 // TestScenarioIncrementalSync suit la stratégie de « Synchronisation incrémentale »
-// (documentation/03-architecture.md) : premier import de la branche par défaut par ListCommits, autre
+// (documentation/fr/03-architecture.md) : premier import de la branche par défaut par ListCommits, autre
 // branche par CompareCommits depuis la tête de la branche par défaut, puis synchro incrémentale par
 // CompareCommits entre l'ancienne et la nouvelle tête, y compris un merge qui apporte des commits plus
 // anciens que l'ancienne tête (et que l'arrêt au premier SHA connu manquerait).
@@ -480,7 +480,7 @@ func TestScenarioIncrementalSync(t *testing.T) {
 }
 
 // TestScenarioNewBranchWithMerge : cas courant chez les étudiants, non-régression de la stratégie de
-// « Synchronisation incrémentale » (documentation/03-architecture.md). main est en base (M0 puis M1) ;
+// « Synchronisation incrémentale » (documentation/fr/03-architecture.md). main est en base (M0 puis M1) ;
 // un étudiant pousse une nouvelle branche partie de M0, avec F1 (daté entre M0 et M1), puis un merge de
 // main (X). L'arrêt au premier SHA connu perd F1 sans erreur ; la comparaison depuis la tête de la
 // branche par défaut le donne, et la synchro suivante compare depuis la nouvelle tête.
@@ -1231,7 +1231,7 @@ type scSyncResult struct {
 }
 
 // scSync lit un dépôt comme le ferait le moteur de synchro au premier import (« Synchronisation
-// incrémentale », documentation/03-architecture.md) : métadonnées, branches, commits de la branche par
+// incrémentale », documentation/fr/03-architecture.md) : métadonnées, branches, commits de la branche par
 // défaut par ListCommits, ceux de chaque autre branche par CompareCommits depuis la tête de la branche
 // par défaut, puis une comparaison et des statistiques.
 func scSync(t *testing.T, p *Provider, s scRepoSpec) (scSyncResult, error) {

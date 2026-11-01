@@ -130,16 +130,16 @@ func TestJSONSchemaAllCommands(t *testing.T) {
 var contributorKeys = []string{"id", "name", "login", "display_name", "avatar_url", "commits", "additions",
 	"deletions", "repositories", "last_commit_at", "weekly"}
 
-// Le contrat est documenté : la table « Sortie JSON » de 05-cli.md liste, pour chaque commande, les
-// mêmes clés de premier niveau que jsonTopLevelKeys.
+// Le contrat est documenté : la table « Sortie JSON » de documentation/fr/05-cli.md liste, pour
+// chaque commande, les mêmes clés de premier niveau que jsonTopLevelKeys.
 func TestJSONSchemaDocumented(t *testing.T) {
-	doc, err := os.ReadFile(filepath.Join("..", "..", "documentation", "05-cli.md"))
+	doc, err := os.ReadFile(filepath.Join("..", "..", "documentation", "fr", "05-cli.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	_, section, ok := strings.Cut(string(doc), "\n## Sortie JSON\n")
 	if !ok {
-		t.Fatal("section « ## Sortie JSON » absente de 05-cli.md")
+		t.Fatal("section « ## Sortie JSON » absente de documentation/fr/05-cli.md")
 	}
 	if end := strings.Index(section, "\n## "); end >= 0 {
 		section = section[:end]
@@ -161,17 +161,17 @@ func TestJSONSchemaDocumented(t *testing.T) {
 	for cmd, want := range jsonTopLevelKeys {
 		got, ok := documented[cmd]
 		if !ok {
-			t.Errorf("05-cli.md : pas de ligne pour « watchoo %s » dans la section Sortie JSON", cmd)
+			t.Errorf("fr/05-cli.md : pas de ligne pour « watchoo %s » dans la section Sortie JSON", cmd)
 			continue
 		}
 		got, want = slices.Sorted(slices.Values(got)), slices.Sorted(slices.Values(want))
 		if !slices.Equal(got, want) {
-			t.Errorf("05-cli.md : clés de « watchoo %s » = %v, attendu %v", cmd, got, want)
+			t.Errorf("fr/05-cli.md : clés de « watchoo %s » = %v, attendu %v", cmd, got, want)
 		}
 	}
 	for cmd := range documented {
 		if _, ok := jsonTopLevelKeys[cmd]; !ok && !pendingJSONCommands[cmd] {
-			t.Errorf("05-cli.md : « watchoo %s » documentée mais absente du contrat testé", cmd)
+			t.Errorf("fr/05-cli.md : « watchoo %s » documentée mais absente du contrat testé", cmd)
 		}
 	}
 }

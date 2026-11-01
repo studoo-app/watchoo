@@ -21,8 +21,8 @@ import (
 	"github.com/studoo-app/watchoo/internal/logo"
 )
 
-// Valeurs par défaut et bornes des réglages (voir documentation/03-architecture.md et
-// documentation/10-espaces-de-supervision.md).
+// Valeurs par défaut et bornes des réglages (voir documentation/fr/03-architecture.md et
+// documentation/fr/10-espaces-de-supervision.md).
 const (
 	DefaultSyncInterval    = 30 * time.Minute // sync.interval
 	MinSyncInterval        = 15 * time.Minute // minimum de sync.interval quand il n'est pas nul

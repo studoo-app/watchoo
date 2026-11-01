@@ -1,5 +1,5 @@
 // Package configshare partage la configuration d'un espace de supervision entre les personnes qui
-// supervisent le même groupe (documentation/05-cli.md, « Partage de la configuration »).
+// supervisent le même groupe (documentation/fr/05-cli.md, « Partage de la configuration »).
 //
 // Cœur métier de « watchoo config export / import » et de la page Réglages du web, qui ne font
 // qu'afficher :
@@ -60,7 +60,7 @@ var (
 )
 
 // Document est le fichier de partage (format v1). Les clés JSON sont en snake_case ; voir
-// documentation/05-cli.md pour leur sens. Les champs facultatifs à l'import sont des pointeurs (nil =
+// documentation/fr/05-cli.md pour leur sens. Les champs facultatifs à l'import sont des pointeurs (nil =
 // absent) ; Export les renseigne tous.
 type Document struct {
 	Format         string        `json:"format"`

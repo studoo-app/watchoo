@@ -1,6 +1,6 @@
 // Package sync est le moteur de synchronisation de Watchoo (cœur métier) : il lit les dépôts suivis
 // dans le store, interroge la forge par provider.Provider et enregistre de façon incrémentale
-// branches, commits et contributeurs (documentation/03-architecture.md, « Synchronisation
+// branches, commits et contributeurs (documentation/fr/03-architecture.md, « Synchronisation
 // incrémentale », « Branches suivies », « Fréquence de synchronisation »).
 //
 // Le nom du package masque le package sync de la bibliothèque standard : ses fichiers importent
@@ -228,7 +228,7 @@ func (e *Engine) SyncAll(ctx context.Context, opts SyncOptions) (Report, error) 
 // le même verrou et le même garde-fou de quota que SyncAll, et renvoie un rapport à une entrée.
 // Erreur enveloppant store.ErrNotFound si le dépôt n'existe pas.
 //
-// Stratégie pour un dépôt (documentation/03-architecture.md, « Synchronisation incrémentale ») :
+// Stratégie pour un dépôt (documentation/fr/03-architecture.md, « Synchronisation incrémentale ») :
 //   - RepositoryByID(provider_id) : suit renommage et transfert, donne les métadonnées à jour ;
 //   - Branches, filtrées par SelectBranches (branch_patterns du dépôt, branches.exclude) ; branche de
 //     référence (ReferenceBranch) traitée en premier ; branches disparues → tracked = false ;

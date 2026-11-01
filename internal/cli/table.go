@@ -73,7 +73,7 @@ func (st textStyle) bold(s string) string {
 
 // renderTable renvoie un tableau texte : une ligne d'en-têtes (headers, en majuscules), puis une ligne
 // par élément de rows, colonnes alignées et séparées par au moins deux espaces, sans bordure (comme
-// l'exemple de « watchoo repo list » dans documentation/05-cli.md), terminé par une fin de ligne.
+// l'exemple de « watchoo repo list » dans documentation/fr/05-cli.md), terminé par une fin de ligne.
 // gray, si non nil, indique les lignes à afficher en gris (états hors activité) quand la couleur est
 // permise.
 //

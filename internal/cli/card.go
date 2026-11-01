@@ -13,7 +13,7 @@ import (
 	"github.com/studoo-app/watchoo/internal/workspace"
 )
 
-// Textes de la carte d'en-tête (voir documentation/05-cli.md, « Carte d'en-tête »). Les astuces ne
+// Textes de la carte d'en-tête (voir documentation/fr/05-cli.md, « Carte d'en-tête »). Les astuces ne
 // citent que des commandes qui existent.
 const (
 	cardTitle    = "Watchoo"

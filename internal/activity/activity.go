@@ -1,4 +1,4 @@
-// Package activity applique les règles d'activité des dépôts (documentation/02-fonctionnalites.md,
+// Package activity applique les règles d'activité des dépôts (documentation/fr/02-fonctionnalites.md,
 // « Règles fonctionnelles ») : états Actif / Flemme / Dead calculés sur l'âge du dernier commit, et
 // états gris prioritaires (suivi arrêté, en erreur, jamais synchronisé, archivé, vide). Il fournit
 // aussi les formats courts communs à la CLI et au TUI (état « ~ 9 j », date relative « il y a 2 h »,

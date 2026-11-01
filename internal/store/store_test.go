@@ -17,7 +17,7 @@ import (
 	"github.com/studoo-app/watchoo/internal/store/migrations"
 )
 
-// expectedTables sont les 10 tables du modèle de données (documentation/04-modele-donnees.md) : les 7
+// expectedTables sont les 10 tables du modèle de données (documentation/fr/04-modele-donnees.md) : les 7
 // du MVP et les 3 de la V2 (migration 00003).
 var expectedTables = []string{
 	"repositories", "branches", "contributors", "contributor_emails", "commits", "commit_branches",

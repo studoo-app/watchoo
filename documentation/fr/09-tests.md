@@ -26,7 +26,7 @@ pas de token. Tout ce qui sort du binaire est simulé.
 
 Watchoo dépend de `gh` pour obtenir le token, et pour choisir entre l'API GitHub et les clones Git
 locaux (voir
-[Architecture](03-architecture.md#authentification--gh-imposé)). Pour que la CI n'ait besoin ni de `gh`
+[Architecture](03-architecture.md#authentification--gh-facultatif)). Pour que la CI n'ait besoin ni de `gh`
 ni d'un compte GitHub, `gh` est simulé à deux niveaux.
 
 ### Niveau 1 — interface Go (tests unitaires)

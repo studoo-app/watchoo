@@ -1,7 +1,7 @@
 // Package git est le provider des dépôts Git locaux (V2) : il lit les dépôts GitHub suivis depuis des
 // clones avec copie de travail rangés dans repos/, à la racine de l'espace (repos/<name>, voir Layout
 // pour les homonymes), mis à jour à chaque synchro par « git fetch » puis remis sur la branche par
-// défaut, sans API ni token (documentation/03-architecture.md, « Dépôts Git locaux »).
+// défaut, sans API ni token (documentation/fr/03-architecture.md, « Dépôts Git locaux »).
 //
 // Le moteur de synchro l'utilise comme source quand gh n'est pas installé ou pas connecté, et pour les
 // statistiques de lignes dans tous les cas (voir « Statistiques avec ou sans gh »). Il implémente

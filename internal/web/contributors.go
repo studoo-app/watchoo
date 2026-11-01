@@ -1,6 +1,6 @@
 package web
 
-// Contributeurs « /contributors » (documentation/06-interface-web.md, page 3). PROPRIÉTAIRE : agent
+// Contributeurs « /contributors » (documentation/fr/06-interface-web.md, page 3). PROPRIÉTAIRE : agent
 // contributors+settings (ce fichier, templates/contributors.html, contributors_test.go).
 //
 // La page montre le classement global des auteurs (store.ContributorRanking), complété par leurs

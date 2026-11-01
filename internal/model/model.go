@@ -1,5 +1,5 @@
 // Package model définit les structs métier de Watchoo, indépendantes du stockage (sqlc) et de la forge
-// (GitHub). Elles reprennent les tables décrites dans documentation/04-modele-donnees.md.
+// (GitHub). Elles reprennent les tables décrites dans documentation/fr/04-modele-donnees.md.
 //
 // Conventions communes à tous les types :
 //   - les dates sont des time.Time en UTC, à la seconde ; une date absente (colonne NULL en base) est

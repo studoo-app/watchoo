@@ -1,6 +1,6 @@
 package web
 
-// Détail d'un dépôt « /repos/{id} » (documentation/06-interface-web.md, page 2). PROPRIÉTAIRE : agent
+// Détail d'un dépôt « /repos/{id} » (documentation/fr/06-interface-web.md, page 2). PROPRIÉTAIRE : agent
 // repo (ce fichier, templates/repo.html, static/app.js, repo_test.go).
 //
 // La page se compose de trois fragments HTMX, rafraîchis à la fin d'une synchro

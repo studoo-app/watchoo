@@ -1,4 +1,4 @@
-// Package web est l'interface web locale de Watchoo (« watchoo serve », documentation/06-interface-web.md).
+// Package web est l'interface web locale de Watchoo (« watchoo serve », documentation/fr/06-interface-web.md).
 //
 // Couche d'affichage seulement, comme internal/cli et internal/tui : les données viennent de
 // internal/store, les états d'activité et formats de internal/activity, les synchros du coordinateur

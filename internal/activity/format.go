@@ -1,6 +1,6 @@
 package activity
 
-// Formats courts communs à la CLI et au TUI (documentation/05-cli.md).
+// Formats courts communs à la CLI et au TUI (documentation/fr/05-cli.md).
 
 import (
 	"fmt"

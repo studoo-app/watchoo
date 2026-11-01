@@ -1,273 +1,280 @@
-# Journal des modifications
+# Changelog
 
-Toutes les modifications notables de Watchoo sont consignées dans ce fichier.
+All notable changes to Watchoo are recorded in this file.
 
-Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), et le projet respecte le
-[versionnage sémantique](https://semver.org/lang/fr/spec/v2.0.0.html). Tant que Watchoo est en `0.y.z`,
-un changement incompatible fait monter MINOR et tout changement compatible fait monter PATCH (voir
-[Skills](documentation/11-skills.md#versions-et-changelogmd)).
+The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to
+[semantic versioning](https://semver.org/spec/v2.0.0.html). While Watchoo is `0.y.z`,
+an incompatible change bumps MINOR and any compatible change bumps PATCH (see
+[Skills](documentation/en/11-skills.md#versions-and-changelogmd)).
 
 ## [Unreleased]
 
+### Added
+
+- **Bilingual documentation**: the design documentation is now available in English and French,
+  reorganized into mirror trees `documentation/en/` and `documentation/fr/` with the same numbering
+  and a bilingual index ([INDEX.md](documentation/INDEX.md)); the root `README.md` is English with a
+  `README.fr.md` French version; `AGENTS.md` is English. Any change to a document is mirrored in the
+  other language in the same commit.
+
 ## [0.6.2] - 2026-10-27
 
-Avis de nouvelle version rétabli pour `watchoo` seul et dans `watchoo tui`, et plus jamais perdu après
-une commande longue.
+New-version notice restored for `watchoo` alone and in `watchoo tui`, and no longer lost after
+a long-running command.
 
-### Corrigé
+### Fixed
 
-- **Avis de nouvelle version** : il s'affiche maintenant aussi pour `watchoo` seul (après la carte et
-  l'aide) et dans `watchoo tui`, sur la ligne sous l'en-tête (« Quittez puis lancez « watchoo update ». ») ;
-  il n'est plus perdu, une fois sur deux, après une commande plus longue que 1,5 s (`sync`).
+- **New-version notice**: it now also shows for `watchoo` alone (after the card and
+  the help) and in `watchoo tui`, on the line under the header ("Quittez puis lancez « watchoo update »." ("Quit then run "watchoo update".")); it is no longer lost, one time out of two, after a command longer than 1.5 s (`sync`).
 
 ## [0.6.1] - 2026-10-27
 
-Ajout d'un dépôt depuis le TUI (touche `a`), lien « GitHub » rétabli pour les contributeurs connus
-avant la 0.5.0, et vérification des nouvelles versions toutes les 30 min dans `watchoo serve`.
+Adding a repository from the TUI (`a` key), the "GitHub" link restored for contributors known
+before 0.5.0, and a new-version check every 30 min in `watchoo serve`.
 
-### Ajouté
+### Added
 
-- **Ajout d'un dépôt depuis le mode interactif** : dans `watchoo tui`, la touche `a` (vue Dépôts) ouvre
-  une saisie « Dépôt à suivre (owner/nom ou URL GitHub) : » ; `entrée` valide, `échap` annule. Mêmes
-  références, mêmes vérifications et mêmes messages que `watchoo repo add` (toutes les branches, sans
-  label ni seuils propres). Une fois le dépôt ajouté, la liste est relue, le dépôt sélectionné et sa
-  synchro lancée ; pendant une synchro, celle du nouveau dépôt démarre à la fin de la synchro en cours.
+- **Adding a repository from the interactive mode**: in `watchoo tui`, the `a` key (Repositories view) opens
+  an input "Dépôt à suivre (owner/nom ou URL GitHub) :" ("Repository to track (owner/name or GitHub URL):"); `enter` confirms, `esc` cancels. Same
+  references, same checks and same messages as `watchoo repo add` (all branches, no
+  label nor own thresholds). Once the repository is added, the list is read again, the repository is selected and its
+  sync started; during a sync, the new repository's sync starts at the end of the running sync.
 
-### Modifié
+### Changed
 
-- `watchoo serve` vérifie s'il existe une nouvelle version de Watchoo toutes les 30 min (au lieu de
-  toutes les 24 h) : le bandeau de l'interface web apparaît peu après la publication d'une release.
+- `watchoo serve` checks whether a new version of Watchoo exists every 30 min (instead of
+  every 24 h): the web interface banner appears shortly after a release is published.
 
-### Corrigé
+### Fixed
 
-- **Lien « GitHub » absent** pour les contributeurs connus avant la 0.5.0 (login enregistré, adresse du
-  profil vide, car les commits déjà en base ne sont pas relus) : l'adresse est désormais complétée à
-  partir du login à la synchro suivante, par l'API comme par les clones Git locaux, sans requête
-  supplémentaire.
+- **Missing "GitHub" link** for contributors known before 0.5.0 (login recorded, profile address
+  empty, because commits already in the database are not read again): the address is now filled in
+  from the login at the next sync, through the API as well as through the local Git clones, with no extra
+  request.
 
 ## [0.6.0] - 2026-10-27
 
-Avis de nouvelle version (CLI et interface web) et mise à jour de Watchoo en une commande,
+New-version notice (CLI and web interface) and one-command Watchoo update,
 `watchoo update`.
 
-### Ajouté
+### Added
 
-- **Avis de nouvelle version** : à chaque commande, Watchoo vérifie en arrière-plan (1,5 s au plus, sans
-  jamais retarder davantage la commande) si une version plus récente est publiée, et l'annonce à la fin
-  sur la sortie d'erreur. Rien avec `--json`, hors terminal, pour une version de développement, ni si la
-  variable `WATCHOO_NO_UPDATE_CHECK` est posée (c'est le cas dans l'image Docker). `watchoo serve`
-  vérifie au démarrage puis toutes les 24 h, et l'interface web montre alors un bandeau discret sur
-  toutes les pages, avec le lien vers la release.
-- **Commande `watchoo update`** : affiche `v0.5.0 → v0.6.0` et le lien vers la release, demande
-  confirmation (`--yes` / `-y` pour s'en passer), télécharge l'archive de la release pour le système,
-  vérifie sa somme SHA-256 et remplace le binaire d'un bloc. `watchoo update --check` vérifie seulement
-  (`--json` : `current`, `latest`, `update_available`, `release_url`). Refus expliqué dans l'image
-  Docker (changer le tag), pour une version compilée depuis les sources et si le répertoire du binaire
-  n'est pas accessible en écriture. Seules les pages publiques des releases de Watchoo sont lues : ni
-  token, ni API GitHub, ni quota.
-- Image Docker : variables `WATCHOO_NO_UPDATE_CHECK=1` et `WATCHOO_DOCKER=1`.
+- **New-version notice**: at every command, Watchoo checks in the background (1.5 s at most, never
+  delaying the command any further) whether a newer version is released, and announces it at the end
+  on the error output. Nothing with `--json`, outside a terminal, for a development version, nor if the
+  `WATCHOO_NO_UPDATE_CHECK` variable is set (this is the case in the Docker image). `watchoo serve`
+  checks at startup then every 24 h, and the web interface then shows a discreet banner on
+  every page, with the link to the release.
+- **`watchoo update` command**: shows `v0.5.0 → v0.6.0` and the link to the release, asks
+  for confirmation (`--yes` / `-y` to skip it), downloads the release archive for the system,
+  verifies its SHA-256 checksum and replaces the binary in one piece. `watchoo update --check` only checks
+  (`--json`: `current`, `latest`, `update_available`, `release_url`). Refused with an explanation in the Docker
+  image (change the tag), for a version built from source and when the binary's directory
+  is not writable. Only the public pages of Watchoo's releases are read: no
+  token, no GitHub API, no quota.
+- Docker image: `WATCHOO_NO_UPDATE_CHECK=1` and `WATCHOO_DOCKER=1` variables.
 
 ## [0.5.0] - 2026-10-27
 
-Page par contributeur avec lien vers son profil GitHub, et lignes ajoutées et supprimées de tous les
-commits, calculées depuis un clone Git de chaque dépôt.
+Per-contributor page with a link to their GitHub profile, and lines added and removed of all
+commits, computed from a Git clone of every repository.
 
-### Ajouté
+### Added
 
-- **Page par contributeur** : l'interface web gagne la page `/contributors/{id}` : nom, login, avatar et
-  nombre d'identités Git connues (jamais les adresses), totaux (commits, lignes ajoutées et supprimées,
-  « — » si inconnues, dépôts, premier et dernier commit), commits par jour sur 90 jours, commits par
-  semaine et par dépôt sur 12 semaines (table des données repliable), ses dépôts (commits, lignes,
-  dernier commit, état du dépôt), ses commits paginés (50 par page) et ses pull requests, rapprochées par
-  son compte GitHub quand il est connu. Le nom d'un contributeur y mène depuis le classement des
-  contributeurs, les tables des graphiques par contributeur, les contributeurs de la page d'un dépôt,
-  l'auteur des commits des historiques et du tableau de bord. Dans le TUI, `entrée` sur la vue
-  Contributeurs ouvre le détail d'un contributeur (totaux, lignes `+/-`, courbe sur 12 semaines, ses
-  dépôts, ses derniers commits) ; `échap` revient à la liste.
-- **Lien vers le profil GitHub** des contributeurs dont le compte est connu, partout où l'interface web
-  en montre un (lien secondaire « GitHub », nouvel onglet). L'adresse est celle que donne l'API GitHub,
-  enregistrée dans la nouvelle colonne `contributors.profile_url` (migration `00005`, appliquée
-  automatiquement) ; pour les contributeurs déjà en base, elle arrive avec leur prochain commit lu par
-  l'API. Aucun lien pour un contributeur connu seulement par Git (clones Git locaux).
+- **Per-contributor page**: the web interface gains the `/contributors/{id}` page: name, login, avatar and
+  number of known Git identities (never the addresses), totals (commits, lines added and removed,
+  "—" if unknown, repositories, first and last commit), commits per day over 90 days, commits per
+  week and per repository over 12 weeks (collapsible data table), their repositories (commits, lines,
+  last commit, repository state), their paginated commits (50 per page) and their pull requests, matched through
+  their GitHub account when it is known. A contributor's name leads there from the contributors
+  ranking, the tables of the per-contributor charts, the contributors of a repository's page,
+  the author of the commits in the histories and on the dashboard. In the TUI, `enter` on the
+  Contributors view opens a contributor's detail (totals, `+/-` lines, curve over 12 weeks, their
+  repositories, their latest commits); `esc` goes back to the list.
+- **Link to the GitHub profile** of contributors whose account is known, wherever the web interface
+  shows one (secondary "GitHub" link, new tab). The address is the one the GitHub API gives,
+  stored in the new `contributors.profile_url` column (migration `00005`, applied
+  automatically); for the contributors already in the database, it arrives with their next commit read by
+  the API. No link for a contributor known only through Git (local Git clones).
 
-### Modifié
+### Changed
 
-- **Toujours cloner** : avec `gh` aussi, chaque dépôt suivi a désormais son clone Git local dans
-  `repos/` (créé à la première synchro, mis à jour à chacune). L'API reste la source des commits, des
-  métadonnées, des logins, des pull requests, des releases et des tags ; le clone donne les **lignes
-  ajoutées et supprimées de tous les commits**, premier import compris, sans plafond ni quota
-  (`git diff-tree --numstat` par paquets). Le clone utilise les identifiants Git de la machine
-  (`git.protocol`), jamais le token de `gh` ; en HTTPS, `gh auth setup-git` permet à `git` de
-  réutiliser le compte de `gh`. Si le clone d'un dépôt est indisponible, la synchro du dépôt réussit
-  quand même : ses statistiques sont demandées à l'API comme avant (au plus 100 nouveaux commits par
-  synchro), avec un avertissement dans le bilan (`watchoo sync`, TUI, indicateur de synchro du web).
-  `repos/` occupe à peu près la taille des dépôts suivis, et la première synchro d'un dépôt est plus
-  lente (clone complet). Sans `gh`, rien ne change, sinon que les statistiques couvrent tous les
+- **Always clone**: with `gh` too, every tracked repository now has its local Git clone in
+  `repos/` (created at the first sync, updated at each one). The API remains the source of commits,
+  metadata, logins, pull requests, releases and tags; the clone provides the **lines
+  added and removed of all commits**, first import included, with no cap and no quota
+  (`git diff-tree --numstat` in batches). The clone uses the machine's Git credentials
+  (`git.protocol`), never the `gh` token; over HTTPS, `gh auth setup-git` lets `git`
+  reuse the `gh` account. If a repository's clone is unavailable, the repository's sync still
+  succeeds: its statistics are requested from the API as before (at most 100 new commits per
+  sync), with a warning in the summary (`watchoo sync`, TUI, web sync indicator).
+  `repos/` takes up roughly the size of the tracked repositories, and a repository's first sync is slower
+  (full clone). Without `gh`, nothing changes, except that the statistics cover all
   commits.
-- **Statistiques inconnues ou nulles** : la nouvelle colonne `commits.stats_known` (migration `00006`,
-  appliquée automatiquement) distingue un commit dont les lignes sont inconnues (« — ») d'un commit
-  réellement à `+0 −0` (merge sans changement, commit vide), qui affiche désormais ses zéros. Les
-  commits déjà en base sans statistiques sont calculés par le clone à la synchro suivante. `watchoo log
-  --json` (et le dernier commit de `repo list --json`) gagne `stats_known` pour chaque commit.
-- **Lignes par commit et totaux partout** : chaque liste de commits montre les lignes `+/-` du commit
-  (« — » si inconnues) : fil du tableau de bord, historique d'un dépôt, commits d'un contributeur, vue
-  Commits et détails du TUI, colonne `+/-` de `watchoo log`. Les totaux sont donnés par contributeur,
-  par dépôt (carte du tableau de bord, en-tête et contributeurs de la page d'un dépôt, détail du TUI)
-  et pour tout l'espace (compteur « Lignes » du tableau de bord), avec « (dont N commits non comptés) »
-  quand une partie des commits n'a pas encore de statistiques.
-- L'indicateur de synchro du web compte les **avertissements** du dernier bilan (détail en infobulle).
+- **Unknown or zero statistics**: the new `commits.stats_known` column (migration `00006`,
+  applied automatically) distinguishes a commit whose lines are unknown ("—") from a commit
+  actually at `+0 −0` (merge without changes, empty commit), which now displays its zeros. The
+  commits already in the database without statistics are computed by the clone at the next sync. `watchoo log
+  --json` (and the last commit of `repo list --json`) gains `stats_known` for each commit.
+- **Lines per commit and totals everywhere**: every commit list shows the commit's `+/-` lines
+  ("—" if unknown): dashboard feed, repository history, a contributor's commits, the
+  Commits view and details of the TUI, the `+/-` column of `watchoo log`. Totals are given per contributor,
+  per repository (dashboard card, header and contributors of a repository's page, TUI detail)
+  and for the whole workspace (the dashboard's "Lines" counter), with "(dont N commits non comptés)" ("including N uncounted commits")
+  when some commits do not have statistics yet.
+- The web sync indicator counts the **warnings** of the last summary (details in a tooltip).
 
 ## [0.4.0] - 2026-10-27
 
-V2 : dépôts Git locaux sans `gh`, pull requests, releases et tags, seuils d'activité par dépôt et
-activité par contributeur dans un dépôt. Fin du MVP.
+V2: local Git repositories without `gh`, pull requests, releases and tags, per-repository activity
+thresholds and per-contributor activity within a repository. End of the MVP.
 
-### Ajouté
+### Added
 
-- **Dépôts Git locaux** : `gh` devient facultatif. Sans `gh` installé et connecté, Watchoo suit les
-  dépôts par clones Git **avec copie de travail** dans `repos/<name>`, à la racine de l'espace (homonymes :
-  `repos/<owner>-<name>`), mis à jour à chaque synchro par `git fetch` puis remis sur la branche par
-  défaut (une modification locale d'un fichier suivi est écrasée, un fichier non suivi gardé ; ni hook,
-  ni sous-module, ni téléchargement LFS), avec la clé SSH ou les identifiants Git de la machine, sans aucune invite (`git` doit être
-  installé) : commits, branches, statistiques et tags, sans quota, mais sans pull requests, releases,
-  étoiles ni login GitHub (contributeurs fusionnés par e-mail). La source est choisie à chaque synchro,
-  seulement selon `gh` : le connecter (`gh auth login`) fait repasser par l'API, qui complète alors
-  l'identifiant et les métadonnées des dépôts ajoutés sans `gh`. Nouveau réglage `git.protocol`
-  (`ssh` par défaut, ou `https`), propre à la machine et jamais partagé. `watchoo init` sans `gh` crée
-  l'espace et le signale au lieu de s'arrêter (il s'arrête si `git` manque aussi) ; `repo add` et
-  `repo import` vérifient l'accès par `git ls-remote` (« accès refusé » sinon) ; `repo remove` supprime
-  le clone, `--keep-history` le garde. Lancée depuis un clone, une commande ignore un `.watchoo/` commité
-  par l'étudiant et travaille sur l'espace qui contient `repos/`. `watchoo status`, le bilan de `watchoo sync` et la page Réglages
-  (quota « sans objet ») indiquent la source ; les sorties `--json` de `init`, `sync` et `status`
-  gagnent la clé `source`. La page d'un dépôt et le détail du TUI masquent étoiles, issues, pull requests
-  et releases d'un dépôt jamais lu par l'API. La base rend `repositories.provider_id` facultatif
-  (migration `00004`, appliquée automatiquement, sans perte de données). L'image Docker contient
-  désormais `git` et `ssh` : elle passe d'une base distroless à un système Alpine minimal installé pour
-  l'architecture cible (toujours sans émulation, utilisateur non root).
-- **Pull requests et releases** : chaque synchro lit aussi les pull requests (de façon incrémentale :
-  seulement celles modifiées depuis la synchro précédente), les releases et les tags de chaque dépôt ;
-  quand rien n'a changé, GitHub répond `304` et ces lectures ne coûtent rien. Nouvelles commandes
-  `watchoo prs [--repo X] [--state open|merged|closed|all] [-n 20]` et `watchoo releases [--repo X]
-  [-n 20]` (releases puis tags, avec la date du commit visé), en texte et en `--json` (clés
-  `pull_requests`, `releases` et `tags`). La page d'un dépôt de l'interface web gagne les cartes « Pull
-  requests » (ouvertes, dernières mergées, liens vers GitHub) et « Releases et tags » ; le tableau de
-  bord indique les PR ouvertes de chaque dépôt, et le détail d'un dépôt du TUI ses PR ouvertes et sa
-  dernière release. Un échec sur ces listes ne fait pas échouer la synchro des commits : il devient un
-  avertissement (colonne DÉTAIL de `watchoo sync`, clé `warnings` de chaque dépôt en `--json`, bilan du
-  TUI). La base passe à 10 tables (migration `00003`, appliquée automatiquement).
+- **Local Git repositories**: `gh` becomes optional. Without `gh` installed and signed in, Watchoo tracks
+  repositories through Git clones **with working copy** in `repos/<name>`, at the workspace root (name clashes:
+  `repos/<owner>-<name>`), updated at every sync by `git fetch` then reset to the default
+  branch (a local change to a tracked file is overwritten, an untracked file kept; no hook,
+  no submodule, no LFS download), with the machine's SSH key or Git credentials, without any prompt (`git` must be
+  installed): commits, branches, statistics and tags, without quota, but without pull requests, releases,
+  stars or GitHub login (contributors merged by e-mail). The source is chosen at every sync,
+  based on `gh` only: signing in (`gh auth login`) switches back to the API, which then completes
+  the identity and the metadata of the repositories added without `gh`. New `git.protocol` setting
+  (`ssh` by default, or `https`), specific to the machine and never shared. `watchoo init` without `gh` creates
+  the workspace and says so instead of stopping (it stops if `git` is missing too); `repo add` and
+  `repo import` check access with `git ls-remote` ("accès refusé" ("access denied") otherwise); `repo remove` deletes
+  the clone, `--keep-history` keeps it. Run from a clone, a command ignores a `.watchoo/` committed
+  by the student and works on the workspace containing `repos/`. `watchoo status`, the `watchoo sync` summary and the Settings page
+  (quota "sans objet" ("not applicable")) show the source; the `--json` outputs of `init`, `sync` and `status`
+  gain the `source` key. A repository's page and the TUI detail hide stars, issues, pull requests
+  and releases of a repository never read by the API. The database makes `repositories.provider_id` optional
+  (migration `00004`, applied automatically, without data loss). The Docker image now contains
+  `git` and `ssh`: it switches from a distroless base to a minimal Alpine system installed for
+  the target architecture (still without emulation, non-root user).
+- **Pull requests and releases**: every sync also reads the pull requests (incrementally:
+  only those modified since the previous sync), the releases and the tags of every repository;
+  when nothing changed, GitHub answers `304` and these reads cost nothing. New commands
+  `watchoo prs [--repo X] [--state open|merged|closed|all] [-n 20]` and `watchoo releases [--repo X]
+  [-n 20]` (releases then tags, with the date of the targeted commit), in text and `--json` (keys
+  `pull_requests`, `releases` and `tags`). A repository's page of the web interface gains the "Pull
+  requests" (open, latest merged, links to GitHub) and "Releases et tags" ("Releases and tags") cards; the dashboard
+  shows each repository's open PRs, and the TUI repository detail its open PRs and its
+  latest release. A failure on these lists does not fail the commit sync: it becomes a
+  warning (DÉTAIL column of `watchoo sync`, `warnings` key of each repository in `--json`, TUI
+  summary). The database goes to 10 tables (migration `00003`, applied automatically).
 
-- **Seuils d'activité par dépôt** : un dépôt peut avoir ses propres seuils Flemme et Dead à la place de
-  ceux de l'espace (`activity.*`). `watchoo repo add owner/repo --flemme 3 --dead 10` (`0` revient au
-  seuil de l'espace), colonnes facultatives `flemme` et `dead` du fichier de `watchoo repo import`
-  (cellule vide = seuil gardé), clés `flemme_after_days` et `dead_after_days` des dépôts dans le
-  partage de la configuration (écrites seulement pour un dépôt qui en a), et formulaire « Seuils
-  d'activité de ce dépôt » sur la page d'un dépôt de l'interface web (champ vide = seuil de l'espace).
-  L'en-tête de la page et le détail du TUI disent si les seuils appliqués sont propres au dépôt ou ceux
-  de l'espace. Les sorties `--json` gagnent les clés `flemme_after_days` et `dead_after_days` (`null` =
-  seuil de l'espace) dans l'objet dépôt et dans l'aperçu de `config import`.
-- **Activité par contributeur dans un dépôt** : la page d'un dépôt de l'interface web montre les
-  commits par semaine sur 12 semaines de ses 8 contributeurs les plus actifs (barres empilées, les
-  autres regroupés, table des données repliable), comme la page des contributeurs mais pour ce seul
-  dépôt (toutes les branches suivies, chaque commit une fois). Le détail d'un dépôt du TUI donne, pour
-  ses principaux contributeurs, leurs commits sur 12 semaines et une courbe semaine par semaine.
-  `watchoo contributors --weeks N` (avec ou sans `--repo`) limite le classement aux N dernières semaines
-  et affiche les commits de chacun semaine par semaine ; la sortie `--json` gagne la clé `weekly`
-  (objets `week` / `count`, `[]` sans `--weeks`) dans chaque contributeur.
+- **Per-repository activity thresholds**: a repository can have its own Flemme and Dead thresholds instead of
+  the workspace's (`activity.*`). `watchoo repo add owner/repo --flemme 3 --dead 10` (`0` falls back to
+  the workspace threshold), optional `flemme` and `dead` columns of the `watchoo repo import` file
+  (empty cell = threshold kept), `flemme_after_days` and `dead_after_days` keys of repositories in
+  configuration sharing (written only for a repository that has them), and a "Seuils
+  d'activité de ce dépôt" ("This repository's activity thresholds") form on a repository's page of the web interface (empty field = workspace threshold).
+  The page header and the TUI detail say whether the applied thresholds are the repository's own or the
+  workspace's. The `--json` outputs gain the `flemme_after_days` and `dead_after_days` keys (`null` =
+  workspace threshold) in the repository object and in the `config import` preview.
+- **Per-contributor activity within a repository**: a repository's page of the web interface shows the
+  commits per week over 12 weeks of its 8 most active contributors (stacked bars, the
+  others grouped, collapsible data table), like the contributors page but for this single
+  repository (all tracked branches, each commit once). The TUI repository detail gives, for
+  its main contributors, their commits over 12 weeks and a week-by-week curve.
+  `watchoo contributors --weeks N` (with or without `--repo`) limits the ranking to the last N weeks
+  and shows each person's commits week by week; the `--json` output gains the `weekly` key
+  (`week` / `count` objects, `[]` without `--weeks`) in each contributor.
 
 ## [0.2.0] - 2026-10-27
 
-Partage de la configuration entre superviseurs, script d'installation et nouveau logo.
+Configuration sharing between supervisors, install script and new logo.
 
-### Ajouté
+### Added
 
-- **Script d'installation** `install.sh` (Linux, macOS) : `curl -fsSL
-  https://raw.githubusercontent.com/studoo-app/watchoo/main/install.sh | sh` télécharge la dernière
-  release, vérifie sa somme SHA-256 et installe `watchoo` dans `~/.local/bin`, sans sudo
+- **Install script** `install.sh` (Linux, macOS): `curl -fsSL
+  https://raw.githubusercontent.com/studoo-app/watchoo/main/install.sh | sh` downloads the latest
+  release, verifies its SHA-256 checksum and installs `watchoo` into `~/.local/bin`, without sudo
   (`WATCHOO_VERSION`, `WATCHOO_INSTALL_DIR`).
-- **Partage de la configuration** entre superviseurs d'un même groupe : `watchoo config export [-o
-  fichier] [--force]` écrit un fichier JSON versionné (`format: watchoo-config`, `version: 1`) avec les
-  dépôts suivis (nom affiché, branches) et les réglages communs (`sync.*`, `activity.*`,
-  `branches.exclude`, `timezone`), jamais `github.*`, `web.*`, token, e-mail ni commit ;
-  `watchoo config import fichier [--dry-run] [--yes]` le valide entièrement, affiche un aperçu, puis
-  fusionne sans rien retirer (dépôts ajoutés ou mis à jour comme avec `repo import`, `config.yaml`
-  réécrit depuis le modèle commenté avec copie `config.yaml.bak`). Même fonction sur la page Réglages
-  de l'interface web (export, aperçu, application).
-- **README** : section « Mise à jour » (script, binaires, Docker, sources ; migrations automatiques,
-  sauvegarde de la base avant de changer de version).
+- **Configuration sharing** between supervisors of the same group: `watchoo config export [-o
+  file] [--force]` writes a versioned JSON file (`format: watchoo-config`, `version: 1`) with the
+  tracked repositories (display label, branches) and the shared settings (`sync.*`, `activity.*`,
+  `branches.exclude`, `timezone`), never `github.*`, `web.*`, token, e-mail or commit;
+  `watchoo config import file [--dry-run] [--yes]` fully validates it, shows a preview, then
+  merges without removing anything (repositories added or updated as with `repo import`, `config.yaml`
+  rewritten from the commented template with a `config.yaml.bak` copy). Same feature on the Settings
+  page of the web interface (export, preview, apply).
+- **README**: "Upgrading" section (script, binaries, Docker, sources; automatic migrations,
+  backing up the database before changing version).
 
-### Modifié
+### Changed
 
-- Interface web : un formulaire dont le corps dépasse la limite reçoit maintenant `413` (corps trop
-  gros) au lieu d'un `403` trompeur ; rien n'est appliqué dans les deux cas.
-- **Nouveau logo** : hibou pixelisé aux yeux magenta et pupilles vertes, avec le nom « WATCHOO »
-  (`assets/logo/watchoo-logo-final*.svg`, variantes pour fond sombre). L'en-tête de l'interface web
-  affiche le hibou et le nom, en version claire ou sombre selon le thème ; favicon, icônes du manifeste
-  et de l'écran d'accueil iOS refaits sur fond blanc ; README mis à jour. Les versions texte du hibou
-  (CLI, TUI, `config.yaml`) ne changent pas.
+- Web interface: a form whose body exceeds the limit now gets `413` (body too large) instead of a
+  misleading `403`; nothing is applied in either case.
+- **New logo**: pixelated owl with magenta eyes and green pupils, with the "WATCHOO" name
+  (`assets/logo/watchoo-logo-final*.svg`, dark-background variants). The web interface header
+  shows the owl and the name, in a light or dark version depending on the theme; favicon, manifest
+  and iOS home-screen icons redone on a white background; README updated. The text versions of the owl
+  (CLI, TUI, `config.yaml`) do not change.
 
 ## [0.1.0] - 2026-10-27
 
-Première version publiée : le MVP (phases 1 à 5 de la [roadmap](documentation/07-roadmap.md)).
+First published release: the MVP (phases 1 to 5 of the [roadmap](documentation/en/07-roadmap.md)).
 
-### Ajouté
+### Added
 
-- **Espaces de supervision** : `watchoo init` transforme un répertoire en espace indépendant
-  (`.watchoo/` en `0700`, config et base SQLite en `0600`, `.gitignore`) après avoir vérifié `gh` ;
-  recherche de l'espace dans les répertoires parents, option `-C` et variable `WATCHOO_DIR` ; réglages
-  en trois niveaux (utilisateur, espace, variables `WATCHOO_<SECTION>_<CLÉ>`) ; `config.example.yaml`.
-- **Base SQLite** sans CGO (`modernc.org/sqlite`), migrations goose embarquées, requêtes sqlc, dates
-  stockées en UTC au format fixe.
-- **Accès à GitHub** par la CLI `gh` uniquement (token de `gh auth token`, compte choisi par
-  `github.user`, cas `GH_TOKEN` pour Docker et la CI), et provider GitHub (go-github) : pagination,
-  arrêt au premier commit connu, comparaisons pour l'incrémental, cache ETag, suivi du quota, dépôts
-  vides, renommés ou transférés, SSO.
-- **Moteur de synchronisation incrémentale** : toutes les branches suivies (motifs `--branch`, branches
-  exclues), aucun commit re-téléchargé, statistiques bornées, verrou par synchro, garde-fou de quota,
-  au plus 4 dépôts en parallèle.
-- **Commandes** `repo add`, `repo import` (fichier CSV ou liste, vérification d'accès, `--dry-run`,
-  bilan), `repo list`, `repo remove`, `sync`, `log`, `contributors`, `status` et `version`.
-- **États d'activité** de chaque dépôt : Actif, Flemme (plus de 5 jours sans commit), Dead (plus de
-  15 jours), seuils réglables par espace (pas encore par dépôt), et états gris (jamais synchronisé, en
-  erreur, archivé, suivi arrêté, vide).
-- **Mode interactif** `watchoo tui` (Bubble Tea) : dépôts, commits, contributeurs, filtre et synchro au
-  clavier.
-- **Interface web locale** `watchoo serve` (HTMX, DaisyUI, Chart.js embarqués) : tableau de bord, détail
-  d'un dépôt (historique paginé, filtres par branche et par auteur, activité sur 90 jours),
-  contributeurs, réglages (ajout et retrait de dépôts, nom affiché, intervalle, quota) ; synchro
-  périodique en arrière-plan et synchro à la demande avec progression.
-- **Graphiques d'activité** : commits par jour sur 90 jours de tout l'espace sur le tableau de bord, et
-  commits par semaine sur 12 semaines des 8 contributeurs les plus actifs sur la page contributeurs,
-  calculés dans le fuseau d'affichage, lisibles en thème clair et sombre.
-- **Sortie `--json`** sur toutes les commandes qui produisent des données, avec un schéma stable
-  documenté dans [05-cli.md](documentation/05-cli.md#sortie-json) et vérifié par les tests.
-- `watchoo version` et `watchoo version --json` donnent la version, le commit et sa date, la version de
-  Go, le système et l'architecture.
-- **Carte d'en-tête** avec le hibou dans le terminal (seulement sur un terminal, jamais avec `--json`),
-  logo et icônes de l'interface web.
-- **Distribution** : binaires linux, macOS et Windows en amd64 et arm64 (GoReleaser), archives avec
-  sommes SHA-256 ; image Docker `ghcr.io/studoo-app/watchoo` (linux/amd64 et linux/arm64) avec `gh` ;
-  exemple `docker-compose.yml` ; cibles `make release-check`, `make release-snapshot` et `make docker`.
-- README complet, documentation de conception dans `documentation/`, licence Apache 2.0.
+- **Workspaces**: `watchoo init` turns a directory into an independent workspace
+  (`.watchoo/` at `0700`, config and SQLite database at `0600`, `.gitignore`) after checking `gh`;
+  workspace discovery in the parent directories, `-C` option and `WATCHOO_DIR` variable; settings
+  in three levels (user, workspace, `WATCHOO_<SECTION>_<KEY>` variables); `config.example.yaml`.
+- **SQLite database** without CGO (`modernc.org/sqlite`), embedded goose migrations, sqlc queries, dates
+  stored in UTC in a fixed format.
+- **GitHub access** through the `gh` CLI only (token from `gh auth token`, account chosen by
+  `github.user`, `GH_TOKEN` case for Docker and CI), and GitHub provider (go-github): pagination,
+  stop at the first known commit, comparisons for the incremental sync, ETag cache, quota tracking, empty,
+  renamed or transferred repositories, SSO.
+- **Incremental sync engine**: all tracked branches (`--branch` patterns, excluded
+  branches), no commit ever re-downloaded, bounded statistics, per-sync lock, quota guard,
+  at most 4 repositories in parallel.
+- **Commands** `repo add`, `repo import` (CSV or list file, access check, `--dry-run`,
+  summary), `repo list`, `repo remove`, `sync`, `log`, `contributors`, `status` and `version`.
+- **Activity states** of every repository: Actif, Flemme (more than 5 days without a commit), Dead (more
+  than 15 days), thresholds adjustable per workspace (not yet per repository), and gray states (never
+  synced, error, archived, tracking stopped, empty).
+- **Interactive mode** `watchoo tui` (Bubble Tea): repositories, commits, contributors, filter and sync from
+  the keyboard.
+- **Local web interface** `watchoo serve` (HTMX, DaisyUI, Chart.js embedded): dashboard, repository
+  detail (paginated history, branch and author filters, 90-day activity),
+  contributors, settings (repository addition and removal, display label, interval, quota); periodic
+  background sync and on-demand sync with progress.
+- **Activity charts**: 90-day daily commits of the whole workspace on the dashboard, and
+  weekly commits over 12 weeks of the 8 most active contributors on the contributors page,
+  computed in the display timezone, readable in light and dark theme.
+- **`--json` output** on every command that produces data, with a stable schema
+  documented in [05-cli.md](documentation/en/05-cli.md#json-output) and verified by tests.
+- `watchoo version` and `watchoo version --json` give the version, the commit and its date, the Go
+  version, the system and the architecture.
+- **Header card** with the owl in the terminal (only on a terminal, never with `--json`),
+  logo and icons of the web interface.
+- **Distribution**: Linux, macOS and Windows binaries in amd64 and arm64 (GoReleaser), archives with
+  SHA-256 checksums; Docker image `ghcr.io/studoo-app/watchoo` (linux/amd64 and linux/arm64) with `gh`;
+  `docker-compose.yml` example; `make release-check`, `make release-snapshot` and `make docker` targets.
+- Full README, design documentation in `documentation/`, Apache 2.0 license.
 
-### Sécurité
+### Security
 
-- Le token GitHub n'est jamais lu ailleurs que dans `gh`, jamais stocké, et n'apparaît dans aucun
-  journal, erreur ni sortie.
-- Lecture seule : le transport du provider refuse tout appel GitHub autre que `GET` ou `HEAD` avant
-  l'envoi, et n'envoie le token qu'à l'origine de l'API.
-- Seuls les espaces de l'utilisateur sont acceptés (Linux, macOS) : un `.watchoo/` qui ne lui
-  appartient pas ou qui dépasse les droits `0700` (`config.yaml` : `0600`), comme celui qu'un étudiant
-  aurait commité dans son dépôt cloné, est refusé avant toute lecture de ses réglages ;
-  `github.gh_path` doit être un nom cherché dans le `PATH` ou un chemin absolu.
-- Ni message de commit ni e-mail dans les journaux ; textes venus des dépôts nettoyés des séquences
-  d'échappement du terminal et échappés dans le web.
-- Interface web : écoute sur `127.0.0.1` par défaut, authentification obligatoire sur toute autre
-  adresse (authentification basique avec `WATCHOO_WEB_PASSWORD`, ou reverse proxy de confiance avec
-  `web.allowed_hosts`), protection CSRF (cookie posé seulement avec les pages HTML), contrôle de l'en-tête
-  `Host` contre le DNS rebinding, CSP stricte sans script en ligne, en-têtes de sécurité.
-- Image Docker sur une base distroless, utilisateur non root (uid 65532), sans token dans l'image ;
-  `gh` est le binaire officiel vérifié par SHA-256 ; images de base et actions GitHub épinglées par
-  empreinte.
+- The GitHub token is only ever read from `gh`, never stored, and never appears in any
+  log, error or output.
+- Read-only: the provider transport refuses any GitHub call other than `GET` or `HEAD` before
+  sending, and sends the token only to the API origin.
+- Only the user's workspaces are accepted (Linux, macOS): a `.watchoo/` that does not
+  belong to them or whose permissions exceed `0700` (`config.yaml`: `0600`), like the one a student
+  would commit into their cloned repository, is refused before any read of its settings;
+  `github.gh_path` must be a name looked up in the `PATH` or an absolute path.
+- No commit message nor e-mail in the logs; texts from the repositories cleaned of terminal escape
+  sequences and escaped on the web.
+- Web interface: listens on `127.0.0.1` by default, authentication mandatory on any other
+  address (basic authentication with `WATCHOO_WEB_PASSWORD`, or trusted reverse proxy with
+  `web.allowed_hosts`), CSRF protection (cookie set only with the HTML pages), `Host` header
+  check against DNS rebinding, strict CSP with no inline script, security headers.
+- Docker image on a distroless base, non-root user (uid 65532), no token in the image;
+  `gh` is the official binary verified by SHA-256; base images and GitHub actions pinned by
+  digest.
 
 [Unreleased]: https://github.com/studoo-app/watchoo/compare/v0.6.2...HEAD
 [0.6.2]: https://github.com/studoo-app/watchoo/compare/v0.6.1...v0.6.2

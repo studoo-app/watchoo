@@ -181,7 +181,7 @@ func readImportFile(deps Deps, file string) ([]repoimport.Entry, repoimport.Form
 	return entries, format, nil
 }
 
-// importText renvoie le bilan texte de l'import (voir documentation/05-cli.md, « Import groupé »),
+// importText renvoie le bilan texte de l'import (voir documentation/fr/05-cli.md, « Import groupé »),
 // suivi du détail des dépôts inaccessibles ou en erreur.
 func importText(r importReport) string {
 	var b strings.Builder

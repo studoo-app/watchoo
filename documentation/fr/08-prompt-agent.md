@@ -31,7 +31,7 @@ nouveaux commits, auteurs/contributeurs, date de dernière activité, évolution
 
 ## Modèle de données
 repositories, branches, contributors, contributor_emails, commits, commit_branches, sync_runs
-(voir documentation/04-modele-donnees.md).
+(voir 04-modele-donnees.md).
 commits : clé (repo_id, sha), colonnes author_id, committer_id, message, authored_at, committed_at,
 additions, deletions, url — un commit n'est stocké qu'une fois par dépôt.
 commit_branches(repo_id, sha, branch_id) : sur quelles branches suivies chaque commit a été vu.
@@ -43,7 +43,7 @@ Un répertoire = un groupe supervisé (ex. les projets des étudiants de licence
 .watchoo/ (config.yaml, watchoo.db, .gitignore ; droits 0700/0600) dans le répertoire courant et refuse
 s'il existe déjà. Les autres commandes cherchent .watchoo/ dans le répertoire courant puis les parents,
 comme Git ; -C <répertoire> ou WATCHOO_DIR pour en désigner un autre. Une base SQLite par espace.
-Voir documentation/10-espaces-de-supervision.md.
+Voir 10-espaces-de-supervision.md.
 
 ## Commandes CLI
 init, repo import <fichier.csv> (colonnes repo, label, branches ; vérifie l'accès, bilan, idempotent, --dry-run),
@@ -61,13 +61,13 @@ filtres, graphique 90 jours), page contributeurs, page réglages (ajout de dép�
 Les skills du projet sont installés depuis skills.sh (npx skills add), dans .agents/skills/ avec des liens
 dans .claude/skills/ et .vibe/skills/, verrouillés par skills-lock.json. Utilise goland pour le Go,
 semver et semver-changelog pour les versions et le CHANGELOG. N'installe aucun skill sans accord.
-Voir documentation/11-skills.md.
+Voir 11-skills.md.
 
 ## Méthode de travail
 - Avance par phases : 1) fondations, 2) provider GitHub, 3) synchro + CLI + TUI, 4) web, 5) finitions.
 - À chaque phase : code, tests (httptest pour simuler l'API GitHub), go vet, puis résumé de ce qui marche.
 - La CI n'utilise ni vrai gh ni vrai GitHub : gh est mocké (interface Go + faux binaire compilé depuis
-  internal/auth/testdata/fakegh, chemin réglable via github.gh_path). Voir documentation/09-tests.md.
+  internal/auth/testdata/fakegh, chemin réglable via github.gh_path). Voir 09-tests.md.
 - Synchro incrémentale : ne jamais re-télécharger un commit déjà en base.
 - Ne jamais écrire le token en clair dans les logs.
 

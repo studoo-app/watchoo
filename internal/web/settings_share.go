@@ -1,6 +1,6 @@
 package web
 
-// Partage de la configuration sur la page Réglages (documentation/06-interface-web.md, « Réglages »,
+// Partage de la configuration sur la page Réglages (documentation/fr/06-interface-web.md, « Réglages »,
 // « Partager la configuration »). Affichage seulement : le cœur est internal/configshare.
 //
 // PROPRIÉTAIRE : agent web (ce fichier, templates/settings_import.html, settings_share_test.go, et la

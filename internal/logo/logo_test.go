@@ -65,7 +65,7 @@ func TestArtMatchesAssets(t *testing.T) {
 	}
 }
 
-// Les tailles sont celles de documentation/06-interface-web.md, et les versions en ASCII pur ne
+// Les tailles sont celles de documentation/fr/06-interface-web.md, et les versions en ASCII pur ne
 // contiennent que de l'ASCII.
 func TestVariantSizes(t *testing.T) {
 	for _, tt := range []struct {

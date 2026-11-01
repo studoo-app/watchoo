@@ -1,7 +1,7 @@
 // Package logo fournit le logo de Watchoo, un hibou, en texte : les versions des fichiers
 // assets/logo/*.txt et la carte d'en-tête de la CLI et des fichiers de configuration (Card, Status),
-// construite autour de la version mini (voir documentation/06-interface-web.md, « Versions texte (CLI
-// et TUI) », et documentation/05-cli.md, « Carte d'en-tête »).
+// construite autour de la version mini (voir documentation/fr/06-interface-web.md, « Versions texte (CLI
+// et TUI) », et documentation/fr/05-cli.md, « Carte d'en-tête »).
 //
 // Les dessins viennent des fichiers assets/logo/*.txt, qui sont la référence. go:embed ne pouvant pas
 // remonter hors du package, internal/logo/art/ en garde une copie identique octet pour octet : un test

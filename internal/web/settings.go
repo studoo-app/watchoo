@@ -1,6 +1,6 @@
 package web
 
-// Réglages « /settings » (documentation/06-interface-web.md, page 4). PROPRIÉTAIRE : agent
+// Réglages « /settings » (documentation/fr/06-interface-web.md, page 4). PROPRIÉTAIRE : agent
 // contributors+settings (ce fichier, templates/settings.html, settings_test.go).
 //
 // Ce que la page permet, avec les mêmes vérifications que la CLI (internal/cli/repo.go) :

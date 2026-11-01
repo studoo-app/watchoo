@@ -5,7 +5,7 @@
 > Statut : **MVP v0.1.0**. Les phases 1 (fondations), 2 (provider GitHub), 3 (moteur de synchro, CLI et
 > TUI), 4 (interface web) et 5 (finitions : graphiques, `--json`, binaires, image Docker, README,
 > versions) de la [roadmap](07-roadmap.md) sont réalisées ; la phase 6 (V2) reste à faire. Historique
-> des versions : [CHANGELOG.md](../CHANGELOG.md).
+> des versions : [CHANGELOG.md](../../CHANGELOG.md).
 
 Watchoo est un binaire Go unique qui surveille une liste de dépôts GitHub et répond à trois questions :
 **qu'est-ce qui a bougé, quand, et qui l'a fait.** Il s'utilise en ligne de commande (CLI), en mode
@@ -53,6 +53,6 @@ flowchart LR
 
 ## Licence
 
-Code sous [licence Apache 2.0](../LICENSE) ; le nom et le logo restent réservés (voir [NOTICE](../NOTICE)).
+Code sous [licence Apache 2.0](../../LICENSE) ; le nom et le logo restent réservés (voir [NOTICE](../../NOTICE)).
 Les dépendances (cobra, viper, go-github, SQLite modernc, goose, chi, Bubble Tea, DaisyUI, HTMX, Chart.js)
 sont sous des licences compatibles (Apache 2.0, MIT, BSD).

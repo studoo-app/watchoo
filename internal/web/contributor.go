@@ -1,6 +1,6 @@
 package web
 
-// Page d'un contributeur « /contributors/{id} » (documentation/06-interface-web.md, page 4, 0.5.0) :
+// Page d'un contributeur « /contributors/{id} » (documentation/fr/06-interface-web.md, page 4, 0.5.0) :
 // sa fiche et ses totaux, ses commits par jour et par semaine (une série par dépôt), ses dépôts, ses
 // commits paginés et ses pull requests.
 //

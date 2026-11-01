@@ -1,6 +1,6 @@
 package sync
 
-// Pull requests, releases et tags d'un dépôt (V2 ; documentation/03-architecture.md, « Synchronisation
+// Pull requests, releases et tags d'un dépôt (V2 ; documentation/fr/03-architecture.md, « Synchronisation
 // incrémentale ») : lus après les commits, écrits dans la même transaction. Un échec sur l'une de ces
 // listes ne fait pas échouer le dépôt : il devient un avertissement du rapport, et ce qui est en base
 // pour cette liste est gardé. Seule l'annulation (contexte terminé) est une erreur.

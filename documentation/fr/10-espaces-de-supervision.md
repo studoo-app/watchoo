@@ -89,7 +89,7 @@ licence-projet/
 - `config.yaml` commence par la carte d'en-tête de Watchoo, en commentaires YAML : le hibou en petit
   format, « Watchoo » et « Réglages de l'espace de supervision », dans un cadre (le nom de l'espace n'y
   figure pas). Suivent les réglages, commentés en français ; seul le nom de l'espace est actif. Le fichier
-  [`config.example.yaml`](../config.example.yaml) montre ce contenu :
+  [`config.example.yaml`](../../config.example.yaml) montre ce contenu :
 
   ```yaml
   # ╭─────────────────────────────────────────────────╮

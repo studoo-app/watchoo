@@ -2,7 +2,7 @@
 // facultatif depuis la V2 : sans gh installé et connecté (Absent), les dépôts sont suivis par clone Git
 // local, sans token.
 //
-// Règles non négociables (voir documentation/03-architecture.md, « Authentification : gh imposé ») :
+// Règles non négociables (voir documentation/fr/03-architecture.md, « Authentification : gh imposé ») :
 //   - le token vient uniquement de « gh auth token » ; Watchoo ne lit jamais GITHUB_TOKEN lui-même
 //     et ne stocke jamais le token (ni config, ni base, ni fichier, ni trousseau) ;
 //   - le token n'apparaît jamais dans les logs, les erreurs ni aucune sortie : la sortie standard de
