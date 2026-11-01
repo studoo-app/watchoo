@@ -235,6 +235,10 @@ options.
 | `activity.flemme_after_days` / `dead_after_days` | `5` / `15` | Activity thresholds of the workspace (per repository: `repo add --flemme / --dead`, import columns, repository page) |
 | `branches.exclude` | `[]` | Ignored branches (e.g. `dependabot/*`) |
 | `timezone` | system timezone | Display timezone and day/week grouping |
+| `lang` | `en` | Language of the web interface (`en` or `fr`), shared with the other supervisors |
+
+The CLI and the TUI speak English by default; `WATCHOO_LANG=fr` (or a French system locale) switches
+them to French. `WATCHOO_LANG` also overrides the workspace's `lang` setting.
 | `web.addr` | `127.0.0.1:8080` | Web interface address |
 | `web.auth.username` | empty | Basic authentication (password in `WATCHOO_WEB_PASSWORD`) |
 | `github.user` | active `gh` account | `gh` account to use (empty with `GH_TOKEN`) |

@@ -13,12 +13,21 @@ an incompatible change bumps MINOR and any compatible change bumps PATCH (see
 
 - **Bilingual interface**: the CLI, TUI and web interface are available in English (default) and
   French; the CLI/TUI language comes from `WATCHOO_LANG` or the system locale, the web language from
-  the workspace's shared `lang` setting; no new dependency (the `internal/i18n` package).
+  the workspace's new `lang` setting (`en` by default, shared through `watchoo config export /
+  import`); no new dependency (the `internal/i18n` package). The `config.yaml` written by
+  `watchoo init` and `config.example.yaml` are now commented in English (in French when the language
+  is French).
 - **Bilingual documentation**: the design documentation is now available in English and French,
   reorganized into mirror trees `documentation/en/` and `documentation/fr/` with the same numbering
   and a bilingual index ([INDEX.md](documentation/INDEX.md)); the root `README.md` is English with a
   `README.fr.md` French version; `AGENTS.md` is English. Any change to a document is mirrored in the
   other language in the same commit.
+
+### Changed
+
+- **English by default**: messages, help, tables, dates ("2 h ago", "~ 9 d") and web pages are now
+  in English unless French is selected (`WATCHOO_LANG=fr`, a French system locale, or `lang: fr` for
+  the web). `--json` keys and state values do not change; message values follow the language.
 
 ## [0.6.2] - 2026-10-27
 

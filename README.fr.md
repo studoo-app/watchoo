@@ -238,6 +238,10 @@ commande.
 | `activity.flemme_after_days` / `dead_after_days` | `5` / `15` | Seuils d'activité de l'espace (par dépôt : `repo add --flemme / --dead`, colonnes de l'import, page du dépôt) |
 | `branches.exclude` | `[]` | Branches ignorées (ex. `dependabot/*`) |
 | `timezone` | fuseau du système | Fuseau d'affichage et de regroupement par jour ou semaine |
+| `lang` | `en` | Langue de l'interface web (`en` ou `fr`), partagée avec les autres superviseurs |
+
+La CLI et le TUI parlent anglais par défaut ; `WATCHOO_LANG=fr` (ou une locale système française) les
+passe en français. `WATCHOO_LANG` remplace aussi le réglage `lang` de l'espace.
 | `web.addr` | `127.0.0.1:8080` | Adresse de l'interface web |
 | `web.auth.username` | vide | Authentification basique (mot de passe dans `WATCHOO_WEB_PASSWORD`) |
 | `github.user` | compte actif de `gh` | Compte `gh` à utiliser (vide avec `GH_TOKEN`) |
