@@ -37,6 +37,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/store"
 	wsync "github.com/studoo-app/watchoo/internal/sync"
@@ -131,10 +132,10 @@ func Run(ctx context.Context, deps Deps, term IO) error {
 		tea.WithInput(term.In), tea.WithOutput(term.Out)).Run()
 	cancel()
 	if !m.tracker.closeAndWait(quitSyncTimeout) && err == nil {
-		err = errors.New("la synchro en cours ne s'est pas arrêtée à temps")
+		err = errors.New(i18n.T("tui.err.sync_timeout"))
 	}
 	if err != nil {
-		return fmt.Errorf("mode interactif : %w", err)
+		return fmt.Errorf(i18n.T("tui.err.run"), err)
 	}
 	return nil
 }

@@ -6,13 +6,13 @@ package tui
 // par Update. Une seule synchro à la fois côté TUI.
 
 import (
-	"fmt"
 	"strings"
 	gosync "sync"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/studoo-app/watchoo/internal/i18n"
 	wsync "github.com/studoo-app/watchoo/internal/sync"
 )
 
@@ -84,17 +84,17 @@ type syncDoneMsg struct {
 func (m Model) startSync(repoID int64, auto bool) (Model, tea.Cmd) {
 	if m.sync.running {
 		if !auto {
-			m.setStatus("une synchro est déjà en cours (" + m.sync.label + ") : patientez")
+			m.setStatus(i18n.T("tui.sync.busy", m.sync.label))
 		}
 		return m, nil
 	}
 	if m.deps.Syncer == nil {
-		m.setError("synchro indisponible")
+		m.setError(i18n.T("tui.sync.unavailable"))
 		return m, nil
 	}
-	label := "tous les dépôts"
+	label := i18n.T("tui.sync.all_repos")
 	if repoID != 0 {
-		label = fmt.Sprintf("dépôt n° %d", repoID)
+		label = i18n.T("tui.sync.repo_number", repoID)
 		if r, ok := m.repoByID(repoID); ok {
 			label = clean(r.DisplayName())
 		}
@@ -106,9 +106,9 @@ func (m Model) startSync(repoID int64, auto bool) (Model, tea.Cmd) {
 	gen := m.sync.gen + 1
 	m.sync = syncState{running: true, gen: gen, ch: ch, label: label, auto: auto, lastAt: m.sync.lastAt}
 	if auto {
-		m.setStatus("synchro automatique de " + label + "…")
+		m.setStatus(i18n.T("tui.sync.starting_auto", label, m.ellipsis()))
 	} else {
-		m.setStatus("synchro de " + label + "…")
+		m.setStatus(i18n.T("tui.sync.starting", label, m.ellipsis()))
 	}
 
 	ctx, syncer, tracker := m.ctx, m.deps.Syncer, m.tracker
@@ -182,7 +182,7 @@ func (m Model) handleSyncDone(msg syncDoneMsg) (tea.Model, tea.Cmd) {
 		if m.ctx.Err() != nil {
 			return m, nil // on quitte
 		}
-		m.setError("synchro impossible : " + clean(msg.err.Error()))
+		m.setError(i18n.T("tui.sync.failed", clean(msg.err.Error())))
 		return m.startPendingSync()
 	}
 	text, isErr := m.summarize(msg.report)
@@ -206,27 +206,27 @@ func (m Model) handleSyncDone(msg syncDoneMsg) (tea.Model, tea.Cmd) {
 func (m Model) summarize(rep wsync.Report) (string, bool) {
 	n := len(rep.Repos)
 	if n == 0 {
-		return "synchro terminée : aucun dépôt suivi", false
+		return i18n.T("tui.sync.done_none"), false
 	}
 	if n == 1 && rep.Repos[0].Status != wsync.StatusSuccess {
 		r := rep.Repos[0]
-		return clean(r.DisplayName) + " : " + m.repoIssue(r), true
+		return clean(r.DisplayName) + i18n.T("cli.core.err.sep") + m.repoIssue(r), true
 	}
-	parts := []string{fmt.Sprintf("synchro terminée : %s, %s", plural(n, "dépôt", "dépôts"),
-		plural(rep.NewCommits(), "nouveau commit", "nouveaux commits"))}
+	parts := []string{i18n.T("tui.sync.done", plural(n, "cli.sync.count_repo_one", "cli.sync.count_repo_many"),
+		plural(rep.NewCommits(), "cli.sync.count_new_commit_one", "cli.sync.count_new_commit_many"))}
 	bad := false
 	if e := rep.Count(wsync.StatusError); e > 0 {
-		parts = append(parts, fmt.Sprintf("%d en erreur", e))
+		parts = append(parts, i18n.T("cli.sync.count_errors", e))
 		bad = true
 	}
 	if l := rep.Count(wsync.StatusLocked); l > 0 {
-		parts = append(parts, fmt.Sprintf("%d déjà en cours ailleurs", l))
+		parts = append(parts, i18n.T("tui.sync.locked_count", l))
 	}
 	if d := rep.Count(wsync.StatusDeferred); d > 0 {
-		s := plural(d, "reporté", "reportés")
+		s := plural(d, "cli.sync.count_deferred_one", "cli.sync.count_deferred_many")
 		for _, r := range rep.Repos {
 			if r.Status == wsync.StatusDeferred && !r.ResumeAt.IsZero() {
-				s += " (quota GitHub bas, reprise vers " + r.ResumeAt.In(m.deps.Location).Format("15:04") + ")"
+				s += i18n.T("tui.sync.deferred_resume", r.ResumeAt.In(m.deps.Location).Format("15:04"))
 				break
 			}
 		}
@@ -235,7 +235,8 @@ func (m Model) summarize(rep wsync.Report) (string, bool) {
 	}
 	if w := rep.Warnings(); w > 0 {
 		// Pull requests, releases ou tags non synchronisés : signalé, sans changer l'état des dépôts.
-		parts = append(parts, plural(w, "avertissement", "avertissements")+" (pull requests, releases ou tags)")
+		parts = append(parts, plural(w, "cli.sync.count_warning_one", "cli.sync.count_warning_many")+
+			i18n.T("tui.sync.warnings_what"))
 	}
 	return strings.Join(parts, ", "), bad
 }
@@ -245,23 +246,24 @@ func (m Model) repoIssue(r wsync.RepoReport) string {
 	switch r.Status {
 	case wsync.StatusDeferred:
 		if !r.ResumeAt.IsZero() {
-			return "reporté : quota GitHub bas jusqu'à " + r.ResumeAt.In(m.deps.Location).Format("15:04")
+			return i18n.T("tui.sync.deferred_until", r.ResumeAt.In(m.deps.Location).Format("15:04"))
 		}
-		return "reporté : quota GitHub bas"
+		return i18n.T("tui.sync.deferred")
 	case wsync.StatusLocked:
-		return "déjà en cours de synchronisation"
+		return i18n.T("tui.sync.locked")
 	default:
 		if r.Error != "" {
 			return clean(r.Error)
 		}
-		return "échec de la synchro"
+		return i18n.T("tui.sync.repo_failed")
 	}
 }
 
-// plural renvoie « n mot » au singulier (0 ou 1) ou au pluriel.
+// plural renvoie le texte de la clé one ou many, formaté avec n (« %d dépôt ») : singulier pour 1,
+// et aussi pour 0 en français (« 0 nouveau commit », mais « 0 new commits »).
 func plural(n int, one, many string) string {
-	if n <= 1 {
-		return fmt.Sprintf("%d %s", n, one)
+	if n == 1 || (n == 0 && i18n.Process().Lang() == i18n.French) {
+		return i18n.T(one, n)
 	}
-	return fmt.Sprintf("%d %s", n, many)
+	return i18n.T(many, n)
 }

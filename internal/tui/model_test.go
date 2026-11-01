@@ -16,7 +16,7 @@ import (
 	wsync "github.com/studoo-app/watchoo/internal/sync"
 )
 
-// lineWith renvoie la première ligne de l'écran qui contient sub, ou "".
+// lineWith returns the first line of the screen that contains sub, or "".
 func lineWith(screen, sub string) string {
 	for line := range strings.Lines(screen) {
 		if strings.Contains(line, sub) {
@@ -26,22 +26,22 @@ func lineWith(screen, sub string) string {
 	return ""
 }
 
-// mustContain vérifie que l'écran contient chacun des extraits.
+// mustContain checks that the screen contains each of the parts.
 func mustContain(t *testing.T, screen string, parts ...string) {
 	t.Helper()
 	for _, p := range parts {
 		if !strings.Contains(screen, p) {
-			t.Errorf("l'écran ne contient pas %q :\n%s", p, screen)
+			t.Errorf("the screen does not contain %q:\n%s", p, screen)
 		}
 	}
 }
 
-// mustNotContain vérifie que l'écran ne contient aucun des extraits.
+// mustNotContain checks that the screen contains none of the parts.
 func mustNotContain(t *testing.T, screen string, parts ...string) {
 	t.Helper()
 	for _, p := range parts {
 		if strings.Contains(screen, p) {
-			t.Errorf("l'écran contient %q :\n%s", p, screen)
+			t.Errorf("the screen contains %q:\n%s", p, screen)
 		}
 	}
 }
@@ -60,10 +60,10 @@ func TestReposViewAndHeader(t *testing.T) {
 	screen := l.screen()
 
 	mustContain(t, screen, "█▄    ▄█", "█ ●██● █", "Watchoo v0.1.0", "licence-projet",
-		"[1 Dépôts]", "2 Commits", "3 Contributeurs", "Synchro manuelle (s)",
-		"DÉPÔT", "DERNIER COMMIT", "AUTEUR", "ÉTAT")
+		"[1 Repositories]", "2 Commits", "3 Contributors", "Manual sync (s)",
+		"REPOSITORY", "LAST COMMIT", "AUTHOR", "STATE")
 	if strings.Contains(screen, "\x1b") {
-		t.Errorf("écran sans couleur avec une séquence d'échappement :\n%q", screen)
+		t.Errorf("colorless screen with an escape sequence:\n%q", screen)
 	}
 
 	tests := []struct{ repo, when, state string }{
@@ -75,19 +75,19 @@ func TestReposViewAndHeader(t *testing.T) {
 	for _, tt := range tests {
 		line := lineWith(screen, tt.repo)
 		if line == "" || !strings.Contains(line, tt.when) || !strings.HasSuffix(line, tt.state) {
-			t.Errorf("ligne de %s = %q ; attendu %q et l'état %q à la fin", tt.repo, line, tt.when, tt.state)
+			t.Errorf("line of %s = %q; want %q and the state %q at the end", tt.repo, line, tt.when, tt.state)
 		}
 	}
-	// La première ligne est sélectionnée.
+	// The first line is selected.
 	if line := lineWith(screen, "Alice Martin"); !strings.HasPrefix(line, "› ") {
-		t.Errorf("ligne sélectionnée = %q ; attendu le marqueur « › »", line)
+		t.Errorf("selected line = %q; want the \"›\" marker", line)
 	}
-	// L'écran a exactement la hauteur du terminal.
+	// The screen has exactly the height of the terminal.
 	if n := strings.Count(screen, "\n") + 1; n != defaultHeight {
-		t.Errorf("écran de %d lignes ; attendu %d", n, defaultHeight)
+		t.Errorf("screen of %d lines; want %d", n, defaultHeight)
 	}
 	if v := l.m.View(); !v.AltScreen {
-		t.Error("View().AltScreen = false ; attendu l'écran alternatif")
+		t.Error("View().AltScreen = false; want the alternate screen")
 	}
 }
 
@@ -103,7 +103,7 @@ func TestASCIIAndColor(t *testing.T) {
 	deps.Color = true
 	l = newLoop(t, deps)
 	if screen := l.screen(); !strings.Contains(screen, "\x1b[") {
-		t.Errorf("écran en couleur sans séquence d'échappement :\n%s", screen)
+		t.Errorf("colored screen without an escape sequence:\n%s", screen)
 	}
 }
 
@@ -117,44 +117,44 @@ func TestNavigationBetweenViews(t *testing.T) {
 
 	l.press("tab")
 	screen = l.screen()
-	mustContain(t, screen, "[3 Contributeurs]", "CONTRIBUTEUR", "alice-gh", "+10/-2")
+	mustContain(t, screen, "[3 Contributors]", "CONTRIBUTOR", "alice-gh", "+10/-2")
 	if line := lineWith(screen, "Bob"); !strings.Contains(line, " - ") {
-		t.Errorf("ligne de Bob = %q ; attendu « - » pour un login absent", line)
+		t.Errorf("line of Bob = %q; want \"-\" for a missing login", line)
 	}
 
 	l.press("tab")
-	mustContain(t, l.screen(), "[1 Dépôts]")
+	mustContain(t, l.screen(), "[1 Repositories]")
 	l.press("shift+tab")
-	mustContain(t, l.screen(), "[3 Contributeurs]")
+	mustContain(t, l.screen(), "[3 Contributors]")
 	l.press("1")
-	mustContain(t, l.screen(), "[1 Dépôts]")
+	mustContain(t, l.screen(), "[1 Repositories]")
 	l.press("2")
 	mustContain(t, l.screen(), "[2 Commits]")
 	l.press("3")
-	mustContain(t, l.screen(), "[3 Contributeurs]")
+	mustContain(t, l.screen(), "[3 Contributors]")
 }
 
 func TestCursorMovement(t *testing.T) {
 	l := newLoop(t, testDeps(newFakeData(), &fakeSyncer{}))
 	l.press("j", "down")
 	if line := lineWith(l.screen(), "promo/chloe"); !strings.HasPrefix(line, "› ") {
-		t.Errorf("après deux descentes, ligne = %q ; attendu chloe sélectionné", line)
+		t.Errorf("after two moves down, line = %q; want chloe selected", line)
 	}
-	l.press("j", "j", "j") // borné à la dernière ligne
+	l.press("j", "j", "j") // bounded to the last line
 	if c := l.m.lists[viewRepos].cursor; c != 3 {
-		t.Errorf("curseur = %d ; attendu 3 (dernière ligne)", c)
+		t.Errorf("cursor = %d; want 3 (last line)", c)
 	}
 	l.press("k", "up", "up", "up", "up")
 	if c := l.m.lists[viewRepos].cursor; c != 0 {
-		t.Errorf("curseur = %d ; attendu 0", c)
+		t.Errorf("cursor = %d; want 0", c)
 	}
 	l.press("G")
 	if c := l.m.lists[viewRepos].cursor; c != 3 {
-		t.Errorf("après G, curseur = %d ; attendu 3", c)
+		t.Errorf("after G, cursor = %d; want 3", c)
 	}
 	l.press("g")
 	if c := l.m.lists[viewRepos].cursor; c != 0 {
-		t.Errorf("après g, curseur = %d ; attendu 0", c)
+		t.Errorf("after g, cursor = %d; want 0", c)
 	}
 }
 
@@ -171,20 +171,20 @@ func TestScrollingSmallTerminal(t *testing.T) {
 	}
 	screen := l.screen()
 	if n := strings.Count(screen, "\n") + 1; n != 12 {
-		t.Errorf("écran de %d lignes ; attendu 12", n)
+		t.Errorf("screen of %d lines; want 12", n)
 	}
 	if c := l.m.lists[viewRepos].cursor; c != len(data.repos)-1 {
-		t.Errorf("curseur = %d ; attendu la dernière ligne (%d)", c, len(data.repos)-1)
+		t.Errorf("cursor = %d; want the last line (%d)", c, len(data.repos)-1)
 	}
 	if !strings.Contains(screen, "› ") {
-		t.Errorf("la ligne sélectionnée n'est pas visible :\n%s", screen)
+		t.Errorf("the selected line is not visible:\n%s", screen)
 	}
 	for line := range strings.Lines(screen) {
 		if w := width(strings.TrimRight(line, "\n")); w > 60 && !strings.Contains(line, "Watchoo") {
-			t.Errorf("ligne de %d colonnes pour un terminal de 60 : %q", w, line)
+			t.Errorf("line of %d columns for a 60-column terminal: %q", w, line)
 		}
 	}
-	// Un terminal minuscule ne fait pas paniquer le rendu.
+	// A tiny terminal does not make the rendering panic.
 	l.send(tea.WindowSizeMsg{Width: 10, Height: 3})
 	_ = l.screen()
 }
@@ -193,43 +193,43 @@ func TestFilter(t *testing.T) {
 	l := newLoop(t, testDeps(newFakeData(), &fakeSyncer{}))
 	l.press("/", "B", "o")
 	screen := l.screen()
-	mustContain(t, screen, "promo/bob", "Filtre : Bo")
+	mustContain(t, screen, "promo/bob", "Filter: Bo")
 	mustNotContain(t, screen, "Alice Martin", "promo/chloe")
 
 	l.press("backspace", "backspace", "c", "h", "l", "enter")
 	screen = l.screen()
-	mustContain(t, screen, "promo/chloe", "Filtre : chl (échap pour l'effacer)")
+	mustContain(t, screen, "promo/chloe", "Filter: chl (esc to clear it)")
 	mustNotContain(t, screen, "promo/bob")
 	if l.m.filtering {
-		t.Error("saisie du filtre toujours active après entrée")
+		t.Error("filter input still active after enter")
 	}
-	// « S » synchronise la ligne filtrée sélectionnée : chloe.
+	// "S" syncs the selected filtered line: chloe.
 	if id, ok := l.m.selectedRepoID(); !ok || id != 3 {
-		t.Errorf("dépôt sélectionné = %d, %v ; attendu 3", id, ok)
+		t.Errorf("selected repository = %d, %v; want 3", id, ok)
 	}
 
 	l.press("esc")
 	mustContain(t, l.screen(), "promo/bob", "Alice Martin")
 
-	// Aucun résultat, puis échap pendant la saisie efface le filtre.
+	// No result, then esc during the input clears the filter.
 	l.press("/", "z", "z")
-	mustContain(t, l.screen(), "Aucune ligne ne correspond au filtre « zz »")
+	mustContain(t, l.screen(), `No row matches the filter "zz"`)
 	l.press("esc")
 	mustContain(t, l.screen(), "Alice Martin")
 
-	// Pendant la saisie, « q » s'écrit dans le filtre, ctrl+c quitte.
+	// During the input, "q" is typed into the filter, ctrl+c quits.
 	l.press("/", "q")
 	if l.quit || l.m.lists[viewRepos].filter != "q" {
-		t.Errorf("« q » pendant la saisie : quit=%v, filtre=%q", l.quit, l.m.lists[viewRepos].filter)
+		t.Errorf("\"q\" during the input: quit=%v, filter=%q", l.quit, l.m.lists[viewRepos].filter)
 	}
 	l.press("ctrl+u")
 	if f := l.m.lists[viewRepos].filter; f != "" {
-		t.Errorf("après ctrl+u, filtre = %q", f)
+		t.Errorf("after ctrl+u, filter = %q", f)
 	}
 	l.press("ctrl+c")
 	l.settle()
 	if !l.quit {
-		t.Error("ctrl+c pendant la saisie n'a pas quitté")
+		t.Error("ctrl+c during the input did not quit")
 	}
 }
 
@@ -254,47 +254,47 @@ func TestDetail(t *testing.T) {
 	l.until(func(m Model) bool { return m.detail.open && !m.detail.loading })
 	screen := l.screen()
 	mustContain(t, screen, "Alice Martin (promo/alice)", "https://github.com/promo/alice", "Active",
-		"seuils : Flemme après 5 j, Dead après 15 j", "2 branches suivies, par défaut : main, toutes les branches",
-		"2 h ago par Alice (abcdef0)", "réussie (1 nouveau commit)",
-		"Derniers commits", "Ajoute la page d'accueil", "Principaux contributeurs")
-	mustNotContain(t, screen, "corrige") // commit d'un autre dépôt
+		"thresholds: Slacking after 5 d, Dead after 15 d", "2 tracked branches, default: main, all branches",
+		"2 h ago by Alice (abcdef0)", "successful (1 new commit)",
+		"Latest commits", "Ajoute la page d'accueil", "Top contributors")
+	mustNotContain(t, screen, "corrige") // commit of another repository
 
-	// Activité par semaine des contributeurs du dépôt (12 semaines, la plus récente à droite) : Alice
-	// 3 commits (2 cette semaine, 1 il y a deux semaines) ; Bob, son seul commit hors fenêtre.
-	mustContain(t, screen, "activité sur 12 semaines, la plus récente à droite", "12 SEM.", "PAR SEMAINE")
+	// Weekly activity of the repository's contributors (12 weeks, most recent on the right): Alice
+	// 3 commits (2 this week, 1 two weeks ago); Bob, his only commit outside the window.
+	mustContain(t, screen, "activity over 12 weeks, most recent on the right", "12 WK", "PER WEEK")
 	alice := lineWith(screen, "▁▁▁▁▁▁▁▁▁▅▁█")
 	if !strings.Contains(alice, "Alice") || !strings.Contains(alice, " 3 ") {
-		t.Errorf("ligne d'Alice = %q ; attendu 3 commits sur 12 semaines et la courbe ▁▁▁▁▁▁▁▁▁▅▁█", alice)
+		t.Errorf("line of Alice = %q; want 3 commits over 12 weeks and the curve ▁▁▁▁▁▁▁▁▁▅▁█", alice)
 	}
 	bob := lineWith(screen, "▁▁▁▁▁▁▁▁▁▁▁▁")
 	if !strings.Contains(bob, "Bob") || !strings.Contains(bob, " 0 ") {
-		t.Errorf("ligne de Bob = %q ; attendu 0 commit sur 12 semaines", bob)
+		t.Errorf("line of Bob = %q; want 0 commits over 12 weeks", bob)
 	}
 
 	data.mu.Lock()
 	if !slices.Equal(data.authorReads, []int64{1}) {
-		t.Errorf("AuthorCommitTimes lu pour %v, attendu le seul dépôt 1", data.authorReads)
+		t.Errorf("AuthorCommitTimes read for %v, want only repository 1", data.authorReads)
 	}
 	last := data.commitFilters[len(data.commitFilters)-1]
 	data.mu.Unlock()
 	if last.RepoID != 1 || last.Limit != detailCommits {
-		t.Errorf("filtre du détail = %+v ; attendu RepoID 1, Limit %d", last, detailCommits)
+		t.Errorf("detail filter = %+v; want RepoID 1, Limit %d", last, detailCommits)
 	}
 
 	l.press("esc")
 	if l.m.detail.open {
-		t.Error("échap n'a pas fermé le détail")
+		t.Error("esc did not close the detail")
 	}
-	mustContain(t, l.screen(), "DERNIER COMMIT")
+	mustContain(t, l.screen(), "LAST COMMIT")
 
-	// Entrée sur un commit ouvre le détail de son dépôt.
+	// Enter on a commit opens the detail of its repository.
 	l.press("tab", "j", "enter")
 	l.until(func(m Model) bool { return m.detail.open && !m.detail.loading })
 	mustContain(t, l.screen(), "promo/bob", "Slacking (~ 9 d)")
-	// Entrée sur un contributeur ouvre son détail (0.5.0), pas celui d'un dépôt.
+	// Enter on a contributor opens their detail (0.5.0), not a repository's.
 	l.press("3", "enter")
 	if l.m.detail.open || !l.m.cdetail.open {
-		t.Error("entrée dans la vue contributeurs n'a pas ouvert le détail du contributeur")
+		t.Error("enter in the contributors view did not open the contributor detail")
 	}
 }
 
@@ -306,12 +306,12 @@ func TestDetailGrayAndError(t *testing.T) {
 	data.repos[2].BranchPatterns = []string{"main", "release/*"}
 	l := newLoop(t, testDeps(data, &fakeSyncer{}))
 	if line := lineWith(l.screen(), "promo/chloe"); !strings.HasSuffix(line, "stopped") {
-		t.Errorf("ligne de chloe = %q ; attendu l.état gris « stopped »", line)
+		t.Errorf("line of chloe = %q; want the gray state \"stopped\"", line)
 	}
 	l.press("j", "j", "enter")
 	l.until(func(m Model) bool { return m.detail.open && !m.detail.loading })
-	mustContain(t, l.screen(), "Tracking stopped", "motifs : main, release/*",
-		"5 min ago, erreur : dépôt introuvable ou inaccessible", "suivi arrêté")
+	mustContain(t, l.screen(), "Tracking stopped", "patterns: main, release/*",
+		"5 min ago, error: dépôt introuvable ou inaccessible", "tracking stopped")
 }
 
 func TestSyncAllWithProgress(t *testing.T) {
@@ -330,24 +330,24 @@ func TestSyncAllWithProgress(t *testing.T) {
 
 	l.press("s")
 	l.until(func(m Model) bool { return m.sync.done == 1 && m.sync.current == "promo/bob" })
-	mustContain(t, l.screen(), "Synchro en cours : 1/2 dépôts (promo/bob)…")
+	mustContain(t, l.screen(), "Sync in progress: 1/2 repositories (promo/bob)…")
 
-	// Une deuxième demande pendant la synchro est ignorée et signalée.
+	// A second request during the sync is ignored and reported.
 	l.press("S")
-	mustContain(t, l.screen(), "une synchro est déjà en cours (tous les dépôts)")
+	mustContain(t, l.screen(), "a sync is already running (all repositories)")
 	if all, repos := syncer.counts(); all != 1 || len(repos) != 0 {
-		t.Errorf("SyncAll %d fois, SyncRepo %v ; attendu une seule synchro", all, repos)
+		t.Errorf("SyncAll %d times, SyncRepo %v; want a single sync", all, repos)
 	}
 
 	close(gate)
 	l.until(func(m Model) bool { return !m.sync.running && !m.loading })
 	screen := l.screen()
-	mustContain(t, screen, "synchro terminée : 2 dépôts, 3 nouveaux commits", "Dernière synchro just now")
+	mustContain(t, screen, "sync finished: 2 repositories, 3 new commits", "Last sync just now")
 	if data.loadCount() <= loadsBefore {
-		t.Error("la base n'a pas été relue après la synchro")
+		t.Error("the database was not reread after the sync")
 	}
 	if l.m.statusErr {
-		t.Error("bilan sans erreur affiché comme une erreur")
+		t.Error("summary without error shown as an error")
 	}
 }
 
@@ -361,24 +361,24 @@ func TestSyncSelectedRepo(t *testing.T) {
 	l.press("j", "S")
 	l.until(func(m Model) bool { return !m.sync.running && !m.loading })
 	if _, repos := syncer.counts(); len(repos) != 1 || repos[0] != 2 {
-		t.Errorf("SyncRepo appelé avec %v ; attendu [2]", repos)
+		t.Errorf("SyncRepo called with %v; want [2]", repos)
 	}
-	mustContain(t, l.screen(), "promo/bob : dépôt introuvable ou inaccessible")
+	mustContain(t, l.screen(), "promo/bob: dépôt introuvable ou inaccessible")
 	if !l.m.statusErr {
-		t.Error("échec d'un dépôt non affiché comme une erreur")
+		t.Error("failure of a repository not shown as an error")
 	}
 
-	// Dans la vue contributeurs, aucun dépôt n'est sélectionné.
+	// In the contributors view, no repository is selected.
 	l.press("3", "S")
-	mustContain(t, l.screen(), "aucun dépôt sélectionné")
+	mustContain(t, l.screen(), "no repository selected")
 }
 
 func TestSyncSummaryDeferredLocalTime(t *testing.T) {
 	paris, err := time.LoadLocation("Europe/Paris")
 	if err != nil {
-		t.Skip("fuseau Europe/Paris indisponible")
+		t.Skip("Europe/Paris time zone unavailable")
 	}
-	resume := time.Date(2026, 10, 27, 13, 30, 0, 0, time.UTC) // 14:30 à Paris (heure d'hiver)
+	resume := time.Date(2026, 10, 27, 13, 30, 0, 0, time.UTC) // 14:30 in Paris (winter time)
 	syncer := &fakeSyncer{}
 	syncer.report = wsync.Report{Repos: []wsync.RepoReport{
 		{RepoID: 1, Status: wsync.StatusSuccess, NewCommits: 1},
@@ -392,30 +392,30 @@ func TestSyncSummaryDeferredLocalTime(t *testing.T) {
 	l.send(tea.WindowSizeMsg{Width: 200, Height: 30})
 	l.press("s")
 	l.until(func(m Model) bool { return !m.sync.running && !m.loading })
-	mustContain(t, l.screen(), "synchro terminée : 4 dépôts, 1 nouveau commit, 1 en erreur, "+
-		"1 déjà en cours ailleurs, 1 reporté (quota GitHub bas, reprise vers 14:30)")
+	mustContain(t, l.screen(), "sync finished: 4 repositories, 1 new commit, 1 in error, "+
+		"1 already running elsewhere, 1 deferred (low GitHub quota, resuming around 14:30)")
 	if !l.m.statusErr {
-		t.Error("bilan avec erreurs non signalé comme une erreur")
+		t.Error("summary with errors not reported as an error")
 	}
 
-	// Un seul dépôt reporté : son heure de reprise locale.
+	// A single deferred repository: its local resume time.
 	m := l.m
 	text, bad := m.summarize(wsync.Report{Repos: []wsync.RepoReport{
 		{DisplayName: "promo/bob", Status: wsync.StatusDeferred, ResumeAt: resume}}})
-	if text != "promo/bob : reporté : quota GitHub bas jusqu'à 14:30" || !bad {
+	if text != "promo/bob: deferred: low GitHub quota until 14:30" || !bad {
 		t.Errorf("summarize = %q, %v", text, bad)
 	}
-	if text, _ := m.summarize(wsync.Report{}); text != "synchro terminée : aucun dépôt suivi" {
-		t.Errorf("summarize(vide) = %q", text)
+	if text, _ := m.summarize(wsync.Report{}); text != "sync finished: no tracked repository" {
+		t.Errorf("summarize(empty) = %q", text)
 	}
 }
 
 func TestSyncGlobalError(t *testing.T) {
-	syncer := &fakeSyncer{err: errors.New("gh n'est pas connecté : lancez « gh auth login »")}
+	syncer := &fakeSyncer{err: errors.New(`gh is not signed in: run "gh auth login"`)}
 	l := newLoop(t, testDeps(newFakeData(), syncer))
 	l.press("s")
 	l.until(func(m Model) bool { return !m.sync.running })
-	mustContain(t, l.screen(), "synchro impossible : gh n'est pas connecté")
+	mustContain(t, l.screen(), "sync failed: gh is not signed in")
 }
 
 func TestAutoSync(t *testing.T) {
@@ -428,20 +428,20 @@ func TestAutoSync(t *testing.T) {
 
 	ticks := l.ticksOf(30 * time.Minute)
 	if len(ticks) != 1 {
-		t.Fatalf("%d synchros automatiques programmées ; attendu 1", len(ticks))
+		t.Fatalf("%d automatic syncs scheduled; want 1", len(ticks))
 	}
-	mustContain(t, l.screen(), "Synchro auto toutes les 30 min, prochaine à 12:30")
+	mustContain(t, l.screen(), "Auto sync every 30 min, next at 12:30")
 
 	l.send(ticks[0].msg)
 	l.until(func(m Model) bool { return !m.sync.running && !m.loading })
 	if all, _ := syncer.counts(); all != 1 {
-		t.Errorf("SyncAll appelé %d fois ; attendu 1 (synchro automatique)", all)
+		t.Errorf("SyncAll called %d times; want 1 (automatic sync)", all)
 	}
 	if n := len(l.ticksOf(30 * time.Minute)); n != 2 {
-		t.Errorf("%d synchros automatiques programmées ; attendu 2 (la suivante)", n)
+		t.Errorf("%d automatic syncs scheduled; want 2 (the next one)", n)
 	}
 
-	// Une synchro automatique pendant une synchro en cours est sautée, la suivante reste programmée.
+	// An automatic sync during a running sync is skipped, the next one stays scheduled.
 	gate := make(chan struct{})
 	syncer.gate = gate
 	syncer.repos = append(syncer.repos, wsync.RepoReport{RepoID: 2})
@@ -452,7 +452,7 @@ func TestAutoSync(t *testing.T) {
 	close(gate)
 	l.until(func(m Model) bool { return !m.sync.running })
 	if all, _ := syncer.counts(); all != 2 {
-		t.Errorf("SyncAll appelé %d fois ; attendu 2 (la synchro automatique sautée)", all)
+		t.Errorf("SyncAll called %d times; want 2 (the automatic sync skipped)", all)
 	}
 }
 
@@ -461,11 +461,11 @@ func TestManualOnlyHasNoAutoTick(t *testing.T) {
 	l.settle()
 	for _, tk := range l.ticks {
 		if tk.d != clockInterval {
-			t.Errorf("tick inattendu de %s en synchro manuelle", tk.d)
+			t.Errorf("unexpected tick of %s with manual sync", tk.d)
 		}
 	}
 	if len(l.ticksOf(clockInterval)) != 1 {
-		t.Error("rafraîchissement des dates non programmé")
+		t.Error("date refresh not scheduled")
 	}
 	l.send(clockMsg{})
 	l.until(func(Model) bool { return len(l.ticksOf(clockInterval)) == 2 })
@@ -477,15 +477,15 @@ func TestQuitCancelsContext(t *testing.T) {
 	l.press("q")
 	l.settle()
 	if !l.quit {
-		t.Error("« q » n'a pas quitté")
+		t.Error("\"q\" did not quit")
 	}
 	if ctx.Err() == nil {
-		t.Error("le contexte du modèle n'est pas annulé en quittant")
+		t.Error("the model context is not cancelled when quitting")
 	}
 }
 
 func TestQuitStopsRunningSync(t *testing.T) {
-	gate := make(chan struct{}) // jamais fermé : seule l'annulation arrête la synchro
+	gate := make(chan struct{}) // never closed: only the cancellation stops the sync
 	syncer := &fakeSyncer{repos: []wsync.RepoReport{{RepoID: 1}, {RepoID: 2}}, gate: gate}
 	l := newLoop(t, testDeps(newFakeData(), syncer))
 	l.press("s")
@@ -493,30 +493,30 @@ func TestQuitStopsRunningSync(t *testing.T) {
 	l.press("q")
 	l.settle()
 	if !l.quit {
-		t.Error("« q » n'a pas quitté pendant la synchro")
+		t.Error("\"q\" did not quit during the sync")
 	}
-	if strings.Contains(l.m.status, "impossible") {
-		t.Errorf("erreur affichée en quittant : %q", l.m.status)
+	if strings.Contains(l.m.status, "failed") {
+		t.Errorf("error shown when quitting: %q", l.m.status)
 	}
 }
 
 func TestHelpScreen(t *testing.T) {
 	l := newLoop(t, testDeps(newFakeData(), &fakeSyncer{}))
 	l.press("?")
-	mustContain(t, l.screen(), "Aide des touches", "synchroniser tout", "synchroniser ce dépôt", "relire la base",
-		"quitter", "détail du dépôt ou du contributeur")
-	l.press("j") // ignoré
+	mustContain(t, l.screen(), `Keys  ("?" or esc to close)`, "sync everything", "sync this repository",
+		"reload the database", "quit", "repository or contributor detail", "shift+tab", "pgup")
+	l.press("j") // ignored
 	l.press("esc")
-	mustContain(t, l.screen(), "DERNIER COMMIT")
+	mustContain(t, l.screen(), "LAST COMMIT")
 	l.press("?", "?")
-	mustNotContain(t, l.screen(), "Aide des touches")
+	mustNotContain(t, l.screen(), "or esc to close")
 }
 
 func TestReloadAndLoadError(t *testing.T) {
 	data := newFakeData()
 	data.err = errBoom
 	l := newLoop(t, testDeps(data, &fakeSyncer{}))
-	mustContain(t, l.screen(), "Impossible de lire la base", "lecture de la base impossible : base indisponible")
+	mustContain(t, l.screen(), "Cannot read the database", "cannot read the database: database unavailable")
 
 	data.mu.Lock()
 	data.err = nil
@@ -528,28 +528,28 @@ func TestReloadAndLoadError(t *testing.T) {
 
 func TestEmptyWorkspace(t *testing.T) {
 	l := newLoop(t, testDeps(&fakeData{}, &fakeSyncer{}))
-	mustContain(t, l.screen(), "Aucun dépôt suivi", "watchoo repo add owner/repo")
+	mustContain(t, l.screen(), "No tracked repository", "watchoo repo add owner/repo")
 	l.press("tab")
-	mustContain(t, l.screen(), "Aucun commit en base")
+	mustContain(t, l.screen(), "No commit in the database")
 	l.press("tab")
-	mustContain(t, l.screen(), "Aucun contributeur en base")
+	mustContain(t, l.screen(), "No contributor in the database")
 	l.press("enter", "S")
 	if l.m.detail.open {
-		t.Error("détail ouvert sans dépôt")
+		t.Error("detail opened without a repository")
 	}
 }
 
 func TestNewModelDefaults(t *testing.T) {
 	m := NewModel(t.Context(), Deps{})
 	if m.deps.Location != time.Local || m.deps.CommitLimit != defaultCommitLimit {
-		t.Errorf("valeurs par défaut : Location=%v, CommitLimit=%d", m.deps.Location, m.deps.CommitLimit)
+		t.Errorf("defaults: Location=%v, CommitLimit=%d", m.deps.Location, m.deps.CommitLimit)
 	}
 	if m.Init() == nil {
-		t.Error("Init ne renvoie aucune commande")
+		t.Error("Init returns no command")
 	}
-	// Sans Syncer, la synchro est refusée proprement.
+	// Without a Syncer, the sync is refused cleanly.
 	next, _ := m.startSync(0, false)
-	if !strings.Contains(next.status, "indisponible") {
+	if !strings.Contains(next.status, "unavailable") {
 		t.Errorf("status = %q", next.status)
 	}
 }
@@ -559,10 +559,10 @@ func TestHelpers(t *testing.T) {
 		t.Errorf("truncate = %q", got)
 	}
 	if got := truncate("abc", 1, "…"); got != "a" {
-		t.Errorf("truncate étroit = %q", got)
+		t.Errorf("narrow truncate = %q", got)
 	}
 	if got := pad("12", 4, true, ""); got != "  12" {
-		t.Errorf("pad à droite = %q", got)
+		t.Errorf("right pad = %q", got)
 	}
 	if got := clean("a\x1b[31mb\u202ec\nd\x1b]8;;http://x\x07e\x1b[0m"); got != "ab c de" {
 		t.Errorf("clean = %q", got)
@@ -573,7 +573,7 @@ func TestHelpers(t *testing.T) {
 	for d, want := range map[time.Duration]string{15 * time.Minute: "15 min", time.Hour: "1 h",
 		90 * time.Minute: "1 h 30"} {
 		if got := formatInterval(d); got != want {
-			t.Errorf("formatInterval(%s) = %q ; attendu %q", d, got, want)
+			t.Errorf("formatInterval(%s) = %q; want %q", d, got, want)
 		}
 	}
 	for v, want := range map[string]string{"0.1.0": "v0.1.0", "v0.1.0": "v0.1.0", "dev": "dev", "": ""} {
@@ -582,11 +582,11 @@ func TestHelpers(t *testing.T) {
 		}
 	}
 	if newStyles(false).Title.Render("x") != "x" {
-		t.Error("style sans couleur avec séquence d'échappement")
+		t.Error("colorless style with an escape sequence")
 	}
 }
 
-// TestWithRealStore lit une vraie base SQLite temporaire, remplie par l'API du store.
+// TestWithRealStore reads a real temporary SQLite database, filled through the store API.
 func TestWithRealStore(t *testing.T) {
 	ctx := context.Background()
 	st, err := store.Open(ctx, filepath.Join(t.TempDir(), "watchoo.db"))
@@ -623,7 +623,7 @@ func TestWithRealStore(t *testing.T) {
 	l := newLoop(t, testDeps(st, &fakeSyncer{}))
 	if line := lineWith(l.screen(), "Zoé Leroy"); !strings.Contains(line, "3 h ago") ||
 		!strings.Contains(line, "Zoé") || !strings.HasSuffix(line, "-") {
-		t.Errorf("ligne du dépôt = %q", line)
+		t.Errorf("repository line = %q", line)
 	}
 	l.press("tab")
 	mustContain(t, l.screen(), "Premier rendu", "cafe000")
@@ -631,26 +631,26 @@ func TestWithRealStore(t *testing.T) {
 	mustContain(t, l.screen(), "zoe-gh")
 	l.press("1", "enter")
 	l.until(func(m Model) bool { return m.detail.open && !m.detail.loading })
-	mustContain(t, l.screen(), "1 branche suivie, par défaut : main", "Premier rendu", "Principaux contributeurs")
+	mustContain(t, l.screen(), "1 tracked branch, default: main", "Premier rendu", "Top contributors")
 	mustNotContain(t, l.screen(), "zoe@example.test")
-	// Activité par semaine lue dans la vraie base : le commit de Zoé, cette semaine.
+	// Weekly activity read from the real database: Zoé's commit, this week.
 	if line := lineWith(l.screen(), "▁▁▁▁▁▁▁▁▁▁▁█"); !strings.Contains(line, "Zoé") {
-		t.Errorf("ligne de Zoé = %q ; attendu la courbe ▁▁▁▁▁▁▁▁▁▁▁█", line)
+		t.Errorf("line of Zoé = %q; want the curve ▁▁▁▁▁▁▁▁▁▁▁█", line)
 	}
 }
 
-// Seuils propres au dépôt : appliqués et signalés dans le détail.
+// Repository-specific thresholds: applied and reported in the detail.
 func TestDetailOwnThresholds(t *testing.T) {
 	data := newFakeData()
 	flemme := 1
-	data.repos[0].FlemmeAfterDays = &flemme // Alice : dernier commit 2 h ago, toujours Actif
+	data.repos[0].FlemmeAfterDays = &flemme // Alice: last commit 2 h ago, still Active
 	l := newLoop(t, testDeps(data, &fakeSyncer{}))
 	l.press("enter")
 	l.until(func(m Model) bool { return m.detail.open && !m.detail.loading })
-	mustContain(t, l.screen(), "seuils : Flemme après 1 j, Dead après 15 j (propres au dépôt)")
+	mustContain(t, l.screen(), "thresholds: Slacking after 1 d, Dead after 15 d (specific to the repository)")
 }
 
-// Détail d'un dépôt : pull requests ouvertes et dernière release (V2) ; avertissements dans le bilan.
+// Repository detail: open pull requests and latest release (V2); warnings in the summary.
 func TestDetailPullsAndRelease(t *testing.T) {
 	data := newFakeData()
 	data.repos[0].OpenPullRequests = 2
@@ -660,29 +660,29 @@ func TestDetailPullsAndRelease(t *testing.T) {
 	l.press("enter")
 	l.until(func(m Model) bool { return m.detail.open && !m.detail.loading })
 	screen := l.screen()
-	mustContain(t, screen, "Pull requests", "2 ouvertes, dernière release v1.0 (2 h ago)")
+	mustContain(t, screen, "Pull requests", "2 open, latest release v1.0 (2 h ago)")
 	mustNotContain(t, screen, "\x1b[2J")
 
-	if got := l.m.pullsText(0, model.Release{}); got != "aucune ouverte, aucune release" {
-		t.Errorf("pullsText sans rien = %q", got)
+	if got := l.m.pullsText(0, model.Release{}); got != "none open, no release" {
+		t.Errorf("pullsText without anything = %q", got)
 	}
 	text, bad := l.m.summarize(wsync.Report{Repos: []wsync.RepoReport{
 		{DisplayName: "a", Status: wsync.StatusSuccess, Warnings: []string{"tags non synchronisés : x"}},
 		{DisplayName: "b", Status: wsync.StatusSuccess}}})
-	if text != "synchro terminée : 2 dépôts, 0 nouveau commit, 1 avertissement (pull requests, releases ou tags)" || bad {
-		t.Errorf("summarize avec avertissement = %q, %v", text, bad)
+	if text != "sync finished: 2 repositories, 0 new commits, 1 warning (pull requests, releases or tags)" || bad {
+		t.Errorf("summarize with a warning = %q, %v", text, bad)
 	}
 }
 
-// Dépôt suivi seulement par clone Git local (identifiant de forge inconnu, V2) : étoiles, issues et
-// pull requests sont annoncées non disponibles.
+// Repository tracked only by local Git clone (unknown forge ID, V2): stars, issues and pull requests
+// are reported as not available.
 func TestDetailWithoutForgeDetails(t *testing.T) {
 	data := newFakeData()
 	data.repos[0].ProviderID = 0
 	l := newLoop(t, testDeps(data, &fakeSyncer{}))
 	l.press("enter")
 	l.until(func(m Model) bool { return m.detail.open && !m.detail.loading })
-	mustContain(t, l.screen(), "étoiles et issues non disponibles (clone Git local)",
-		"non disponibles (clone Git local, sans gh)")
-	mustNotContain(t, l.screen(), "aucune release")
+	mustContain(t, l.screen(), "stars and issues not available (local Git clone)",
+		"not available (local Git clone, without gh)")
+	mustNotContain(t, l.screen(), "no release")
 }

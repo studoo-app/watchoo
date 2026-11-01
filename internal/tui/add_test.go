@@ -22,9 +22,9 @@ import (
 	"github.com/studoo-app/watchoo/internal/workspace"
 )
 
-// fakeAdder est un Adder factice : il garde les demandes reçues et renvoie result (ou err). Un
-// résultat OutcomeAdded ajoute aussi le dépôt aux données (data), comme le ferait le vrai moteur. Si
-// gate n'est pas nil, il l'attend avant de répondre.
+// fakeAdder is a fake Adder: it keeps the requests it receives and returns result (or err). An
+// OutcomeAdded result also adds the repository to the data (data), like the real engine would. If
+// gate is not nil, it waits for it before answering.
 type fakeAdder struct {
 	mu     gosync.Mutex
 	data   *fakeData
@@ -61,27 +61,27 @@ func (f *fakeAdder) AddRepositories(ctx context.Context, reqs []wsync.AddRequest
 	return []wsync.AddResult{res}, nil
 }
 
-// requests renvoie les demandes reçues.
+// requests returns the received requests.
 func (f *fakeAdder) requests() []wsync.AddRequest {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	return slices.Clone(f.reqs)
 }
 
-// added renvoie un résultat d'ajout du dépôt owner/name, identifiant id.
+// added returns an addition result for the repository owner/name, with ID id.
 func added(outcome wsync.AddOutcome, id int64, owner, name string) wsync.AddResult {
 	return wsync.AddResult{Outcome: outcome, Repo: model.Repository{ID: id, Provider: model.ProviderGitHub,
 		ProviderID: 100 + id, Owner: owner, Name: name, Enabled: true}}
 }
 
-// typeText tape s dans le TUI, caractère par caractère.
+// typeText types s into the TUI, character by character.
 func typeText(l *loop, s string) {
 	for _, r := range s {
 		l.send(tea.KeyPressMsg{Code: r, Text: string(r)})
 	}
 }
 
-// addLoop renvoie une boucle dont l'Adder est adder (ses données sont data).
+// addLoop returns a loop whose Adder is adder (its data is data).
 func addLoop(t *testing.T, data *fakeData, syncer *fakeSyncer, adder *fakeAdder) *loop {
 	t.Helper()
 	deps := testDeps(data, syncer)
@@ -96,29 +96,29 @@ func TestAddOpensAndCancels(t *testing.T) {
 
 	l.press("a")
 	if !l.m.add.open {
-		t.Fatal("« a » n'a pas ouvert la saisie")
+		t.Fatal("\"a\" did not open the input")
 	}
-	mustContain(t, l.screen(), "Dépôt à suivre (owner/nom ou URL GitHub) : ▏", "entrée pour ajouter, échap pour annuler")
-	// Pendant la saisie, les touches s'écrivent : « q » ne quitte pas, « s » ne synchronise pas.
+	mustContain(t, l.screen(), "Repository to track (owner/name or GitHub URL): ▏", "enter to add, esc to cancel")
+	// During the input, keys are typed: "q" does not quit, "s" does not sync.
 	typeText(l, "promo/qs")
 	l.press("backspace")
 	if l.quit || l.m.sync.running {
-		t.Fatal("une touche de la saisie a été prise pour une commande")
+		t.Fatal("a key of the input was taken for a command")
 	}
-	mustContain(t, l.screen(), "Dépôt à suivre (owner/nom ou URL GitHub) : promo/q▏")
+	mustContain(t, l.screen(), "Repository to track (owner/name or GitHub URL): promo/q▏")
 	l.press("esc")
 	if l.m.add.open {
-		t.Fatal("échap n'a pas fermé la saisie")
+		t.Fatal("esc did not close the input")
 	}
-	mustContain(t, l.screen(), "ajout annulé")
-	mustNotContain(t, l.screen(), "Dépôt à suivre")
+	mustContain(t, l.screen(), "addition cancelled")
+	mustNotContain(t, l.screen(), "Repository to track")
 	if reqs := adder.requests(); len(reqs) != 0 {
-		t.Errorf("ajout appelé après échap : %v", reqs)
+		t.Errorf("addition called after esc: %v", reqs)
 	}
-	// La saisie rouverte est vide.
+	// The reopened input is empty.
 	l.press("a")
 	if l.m.add.input != "" {
-		t.Errorf("saisie rouverte = %q ; attendu vide", l.m.add.input)
+		t.Errorf("reopened input = %q; want empty", l.m.add.input)
 	}
 }
 
@@ -132,28 +132,28 @@ func TestAddInvalidReference(t *testing.T) {
 	l.press("enter")
 	_, want := repoimport.ParseRef("pas-de-barre")
 	if !l.m.statusErr || l.m.status != want.Error() {
-		t.Errorf("message = %q (erreur %v) ; attendu %q", l.m.status, l.m.statusErr, want)
+		t.Errorf("message = %q (error %v); want %q", l.m.status, l.m.statusErr, want)
 	}
 	if !l.m.add.open || l.m.add.input != "pas-de-barre" {
-		t.Errorf("saisie fermée ou effacée après une erreur : ouverte %v, %q", l.m.add.open, l.m.add.input)
+		t.Errorf("input closed or cleared after an error: open %v, %q", l.m.add.open, l.m.add.input)
 	}
-	mustContain(t, l.screen(), "Dépôt à suivre (owner/nom ou URL GitHub) : pas-de-barre", `dépôt "pas-de-barre" invalide`)
+	mustContain(t, l.screen(), "Repository to track (owner/name or GitHub URL): pas-de-barre", `dépôt "pas-de-barre" invalide`)
 
-	// Une URL avec identifiants est refusée et effacée, sans être réaffichée.
+	// A URL with credentials is refused and cleared, without being shown again.
 	l.press("ctrl+u")
 	l.send(tea.PasteMsg{Content: "https://eleve:jeton-secret@github.com/promo/eve"})
 	l.press("enter")
 	mustContain(t, l.screen(), "identifiants interdits dans l'URL")
 	mustNotContain(t, l.screen(), "jeton-secret")
 	if l.m.add.input != "" {
-		t.Errorf("saisie avec identifiants gardée : %q", l.m.add.input)
+		t.Errorf("input with credentials kept: %q", l.m.add.input)
 	}
 
-	// Saisie vide.
+	// Empty input.
 	l.press("enter")
 	mustContain(t, l.screen(), "dépôt vide")
 	if reqs := adder.requests(); len(reqs) != 0 {
-		t.Errorf("ajout appelé pour une référence invalide : %v", reqs)
+		t.Errorf("addition called for an invalid reference: %v", reqs)
 	}
 }
 
@@ -167,35 +167,35 @@ func TestAddSuccessReloadsSelectsAndSyncs(t *testing.T) {
 	loadsBefore := data.loadCount()
 
 	l.press("a")
-	// Collage d'une URL (retour à la ligne final retiré), séquence d'échappement nettoyée.
+	// Pasting a URL (final newline removed), escape sequence cleaned.
 	l.send(tea.PasteMsg{Content: "https://github.com/promo/\x1b[31meve\n"})
-	mustContain(t, l.screen(), "Dépôt à suivre (owner/nom ou URL GitHub) : https://github.com/promo/eve▏")
+	mustContain(t, l.screen(), "Repository to track (owner/name or GitHub URL): https://github.com/promo/eve▏")
 	l.press("enter")
 	if l.m.add.open || !l.m.add.running {
-		t.Fatalf("après entrée : saisie ouverte %v, ajout en cours %v", l.m.add.open, l.m.add.running)
+		t.Fatalf("after enter: input open %v, addition running %v", l.m.add.open, l.m.add.running)
 	}
 	l.until(func(m Model) bool { return !m.add.running })
-	mustContain(t, l.screen(), "promo/eve ajouté : synchro de promo/eve…")
+	mustContain(t, l.screen(), "promo/eve added: syncing promo/eve…")
 	l.until(func(m Model) bool { return !m.sync.running && !m.loading })
 
 	reqs := adder.requests()
 	if len(reqs) != 1 || reqs[0].Ref != (repoimport.Ref{Owner: "promo", Name: "eve"}) || reqs[0].Label != "" ||
 		reqs[0].BranchPatterns != nil || reqs[0].FlemmeAfterDays != nil || reqs[0].DeadAfterDays != nil {
-		t.Errorf("demandes = %+v ; attendu promo/eve sans option, comme « repo add »", reqs)
+		t.Errorf("requests = %+v; want promo/eve without option, like \"repo add\"", reqs)
 	}
 	if _, repos := syncer.counts(); !slices.Equal(repos, []int64{5}) {
-		t.Errorf("SyncRepo appelé avec %v ; attendu [5]", repos)
+		t.Errorf("SyncRepo called with %v; want [5]", repos)
 	}
 	if data.loadCount() <= loadsBefore {
-		t.Error("la liste n'a pas été relue après l'ajout")
+		t.Error("the list was not reread after the addition")
 	}
 	if id, ok := l.m.selectedRepoID(); !ok || id != 5 {
-		t.Errorf("dépôt sélectionné = %d (%v) ; attendu le dépôt ajouté (5)", id, ok)
+		t.Errorf("selected repository = %d (%v); want the added repository (5)", id, ok)
 	}
 	screen := l.screen()
-	mustContain(t, screen, "synchro terminée : 1 dépôt, 4 nouveaux commits", "promo/eve")
+	mustContain(t, screen, "sync finished: 1 repository, 4 new commits", "promo/eve")
 	if line := lineWith(screen, "› promo/eve"); line == "" {
-		t.Errorf("le dépôt ajouté n'est pas sélectionné ; écran :\n%s", screen)
+		t.Errorf("the added repository is not selected; screen:\n%s", screen)
 	}
 }
 
@@ -209,37 +209,37 @@ func TestAddAlreadyTrackedAndResumed(t *testing.T) {
 	typeText(l, "Promo/Chloe")
 	l.press("enter")
 	l.until(func(m Model) bool { return !m.add.running && !m.loading })
-	mustContain(t, l.screen(), "promo/chloe déjà suivi : rien à changer")
+	mustContain(t, l.screen(), "promo/chloe already tracked: nothing to change")
 	if l.m.statusErr {
-		t.Error("dépôt déjà suivi affiché comme une erreur")
+		t.Error("already tracked repository shown as an error")
 	}
 	if all, repos := syncer.counts(); all != 0 || len(repos) != 0 {
-		t.Errorf("synchro lancée pour un dépôt déjà suivi : SyncAll %d, SyncRepo %v", all, repos)
+		t.Errorf("sync started for an already tracked repository: SyncAll %d, SyncRepo %v", all, repos)
 	}
 	if id, _ := l.m.selectedRepoID(); id != 3 {
-		t.Errorf("dépôt sélectionné = %d ; attendu 3", id)
+		t.Errorf("selected repository = %d; want 3", id)
 	}
 
-	// Dépôt suivi mais arrêté : suivi repris et synchronisé.
+	// Tracked but stopped repository: tracking resumed and synced.
 	adder.result = added(wsync.OutcomeUpdated, 2, "promo", "bob")
 	l.press("a")
 	typeText(l, "promo/bob")
 	l.press("enter")
 	l.until(func(m Model) bool { return !m.add.running })
-	mustContain(t, l.screen(), "promo/bob déjà suivi : suivi repris : synchro de promo/bob…")
+	mustContain(t, l.screen(), "promo/bob already tracked: tracking resumed: syncing promo/bob…")
 	l.until(func(m Model) bool { return !m.sync.running && !m.loading })
 	if _, repos := syncer.counts(); !slices.Equal(repos, []int64{2}) {
-		t.Errorf("SyncRepo appelé avec %v ; attendu [2]", repos)
+		t.Errorf("SyncRepo called with %v; want [2]", repos)
 	}
 
-	// Dépôt renommé sur GitHub : signalé comme par « repo add ».
+	// Repository renamed on GitHub: reported like by "repo add".
 	l.m.width = 200
 	adder.result = added(wsync.OutcomeAlreadyTracked, 1, "promo", "alice")
 	l.press("a")
 	typeText(l, "promo/alice-old")
 	l.press("enter")
 	l.until(func(m Model) bool { return !m.add.running && !m.loading })
-	mustContain(t, l.screen(), "promo/alice déjà suivi : rien à changer (promo/alice-old s'appelle maintenant promo/alice")
+	mustContain(t, l.screen(), "promo/alice already tracked: nothing to change (promo/alice-old is now called promo/alice")
 }
 
 func TestAddFailures(t *testing.T) {
@@ -250,10 +250,10 @@ func TestAddFailures(t *testing.T) {
 		want   string
 	}{
 		{"inaccessible", wsync.AddResult{Outcome: wsync.OutcomeInaccessible, Error: "dépôt introuvable ou sans accès"},
-			nil, "dépôt promo/zoe inaccessible : dépôt introuvable ou sans accès (vérifiez son nom et que le compte gh"},
-		{"erreur", wsync.AddResult{Outcome: wsync.OutcomeError, Error: "quota \x1b[31mGitHub épuisé"},
-			nil, "ajout du dépôt promo/zoe : quota GitHub épuisé"},
-		{"erreur globale", wsync.AddResult{}, errors.New("ajout de dépôts : gh introuvable"),
+			nil, "repository promo/zoe is inaccessible: dépôt introuvable ou sans accès (check its name and that the gh account"},
+		{"error", wsync.AddResult{Outcome: wsync.OutcomeError, Error: "quota \x1b[31mGitHub épuisé"},
+			nil, "adding repository promo/zoe: quota GitHub épuisé"},
+		{"global error", wsync.AddResult{}, errors.New("ajout de dépôts : gh introuvable"),
 			"ajout de dépôts : gh introuvable"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -261,7 +261,7 @@ func TestAddFailures(t *testing.T) {
 			adder := &fakeAdder{data: data, result: tc.result, err: tc.err}
 			syncer := &fakeSyncer{}
 			l := addLoop(t, data, syncer, adder)
-			l.m.width = 300 // message entier à l'écran
+			l.m.width = 300 // whole message on the screen
 			l.press("a")
 			typeText(l, "promo/zoe")
 			l.press("enter")
@@ -269,10 +269,10 @@ func TestAddFailures(t *testing.T) {
 			mustContain(t, l.screen(), tc.want)
 			mustNotContain(t, l.screen(), "\x1b[31m")
 			if !l.m.statusErr {
-				t.Error("échec non affiché comme une erreur")
+				t.Error("failure not shown as an error")
 			}
 			if all, repos := syncer.counts(); all != 0 || len(repos) != 0 {
-				t.Errorf("synchro lancée après un échec : SyncAll %d, SyncRepo %v", all, repos)
+				t.Errorf("sync started after a failure: SyncAll %d, SyncRepo %v", all, repos)
 			}
 		})
 	}
@@ -300,9 +300,9 @@ func TestAddDuringSync(t *testing.T) {
 	l.press("enter")
 	l.until(func(m Model) bool { return !m.add.running })
 	mustContain(t, l.screen(),
-		"promo/eve ajouté : sa synchro commencera après la synchro en cours (tous les dépôts)")
+		"promo/eve added: its sync will start after the current sync (all repositories)")
 	if all, repos := syncer.counts(); all != 1 || len(repos) != 0 {
-		t.Errorf("SyncAll %d, SyncRepo %v ; attendu la seule synchro en cours", all, repos)
+		t.Errorf("SyncAll %d, SyncRepo %v; want only the running sync", all, repos)
 	}
 
 	close(gate)
@@ -311,20 +311,20 @@ func TestAddDuringSync(t *testing.T) {
 		return len(repos) == 1 && !m.sync.running && !m.loading
 	})
 	if _, repos := syncer.counts(); !slices.Equal(repos, []int64{5}) {
-		t.Errorf("SyncRepo appelé avec %v ; attendu [5] après la synchro en cours", repos)
+		t.Errorf("SyncRepo called with %v; want [5] after the running sync", repos)
 	}
 	if len(l.m.pendingSyncs) != 0 {
-		t.Errorf("dépôts encore en attente : %v", l.m.pendingSyncs)
+		t.Errorf("repositories still pending: %v", l.m.pendingSyncs)
 	}
 }
 
-// Une synchro de tous les dépôts lancée après l'ajout remplace la synchro en attente.
+// A sync of all repositories started after the addition replaces the pending sync.
 func TestAddPendingCoveredBySyncAll(t *testing.T) {
 	l := addLoop(t, newFakeData(), &fakeSyncer{}, &fakeAdder{})
 	l.m.pendingSyncs = []int64{5}
 	l.press("s")
 	if len(l.m.pendingSyncs) != 0 {
-		t.Errorf("dépôts en attente après une synchro de tous les dépôts : %v", l.m.pendingSyncs)
+		t.Errorf("repositories pending after a sync of all repositories: %v", l.m.pendingSyncs)
 	}
 	l.until(func(m Model) bool { return !m.sync.running && !m.loading })
 }
@@ -336,59 +336,59 @@ func TestAddKeyRefusals(t *testing.T) {
 	l := addLoop(t, data, &fakeSyncer{}, adder)
 	l.m.width = 200
 
-	// Hors de la liste de la vue Dépôts : la saisie ne s'ouvre pas.
+	// Outside the list of the Repositories view: the input does not open.
 	l.press("2", "a")
 	if l.m.add.open {
-		t.Error("saisie ouverte depuis la vue Commits")
+		t.Error("input opened from the Commits view")
 	}
-	mustContain(t, l.screen(), "« a » ajoute un dépôt depuis la liste de la vue Dépôts")
+	mustContain(t, l.screen(), `"a" adds a repository from the list of the Repositories view`)
 	l.press("1", "enter")
 	l.until(func(m Model) bool { return m.detail.open && !m.detail.loading })
 	l.press("a")
 	if l.m.add.open {
-		t.Error("saisie ouverte depuis le détail d'un dépôt")
+		t.Error("input opened from a repository detail")
 	}
 	l.press("esc")
 
-	// Un seul ajout à la fois.
+	// A single addition at a time.
 	l.press("a")
 	typeText(l, "promo/eve")
 	l.press("enter")
 	l.press("a")
 	if l.m.add.open {
-		t.Error("saisie ouverte pendant un ajout")
+		t.Error("input opened during an addition")
 	}
-	mustContain(t, l.screen(), "un ajout est déjà en cours (promo/eve) : patientez")
+	mustContain(t, l.screen(), "an addition is already in progress (promo/eve): please wait")
 	close(gate)
 	l.until(func(m Model) bool { return !m.add.running && !m.sync.running && !m.loading })
 
-	// Sans Adder : ajout indisponible.
+	// Without an Adder: addition unavailable.
 	l2 := newLoop(t, testDeps(newFakeData(), &fakeSyncer{}))
 	l2.press("a")
-	if l2.m.add.open || !l2.m.statusErr || l2.m.status != "ajout de dépôt indisponible" {
-		t.Errorf("sans Adder : saisie %v, message %q", l2.m.add.open, l2.m.status)
+	if l2.m.add.open || !l2.m.statusErr || l2.m.status != "adding a repository is unavailable" {
+		t.Errorf("without an Adder: input %v, message %q", l2.m.add.open, l2.m.status)
 	}
 }
 
 func TestAddHelpAndLongInput(t *testing.T) {
 	l := addLoop(t, newFakeData(), &fakeSyncer{}, &fakeAdder{})
 	l.press("?")
-	mustContain(t, l.screen(), "a ajouter un dépôt (vue Dépôts)")
+	mustContain(t, l.screen(), "a add a repository (Repositories view)")
 	l.press("?", "a")
 	long := strings.Repeat("x", 400)
 	l.send(tea.PasteMsg{Content: long})
 	if n := len([]rune(l.m.add.input)); n != addCharLimit {
-		t.Errorf("saisie de %d caractères ; attendu %d au plus", n, addCharLimit)
+		t.Errorf("input of %d characters; want %d at most", n, addCharLimit)
 	}
-	// La fin de la saisie reste visible, sans dépasser la largeur de l'écran.
-	line := lineWith(l.screen(), "Dépôt à suivre")
+	// The end of the input stays visible, without exceeding the screen width.
+	line := lineWith(l.screen(), "Repository to track")
 	if width(line) > defaultWidth || !strings.HasSuffix(line, "xx▏") || !strings.Contains(line, "…") {
-		t.Errorf("ligne de saisie = %q (largeur %d)", line, width(line))
+		t.Errorf("input line = %q (width %d)", line, width(line))
 	}
 }
 
-// Ajout avec le vrai moteur et une vraie base : le dépôt est vérifié auprès du provider, enregistré,
-// synchronisé, puis affiché avec ses commits.
+// Addition with the real engine and a real database: the repository is checked with the provider,
+// stored, synced, then shown with its commits.
 func TestAddWithRealEngine(t *testing.T) {
 	ctx := t.Context()
 	st, err := store.Open(ctx, filepath.Join(t.TempDir(), "watchoo.db"))
@@ -420,26 +420,26 @@ func TestAddWithRealEngine(t *testing.T) {
 	typeText(l, "https://github.com/promo/neo")
 	l.press("enter")
 	l.until(func(m Model) bool { return !m.add.running && !m.sync.running && !m.loading })
-	mustContain(t, l.screen(), "synchro terminée : 1 dépôt, 3 nouveaux commits")
+	mustContain(t, l.screen(), "sync finished: 1 repository, 3 new commits")
 
 	repos, err := st.ListRepositories(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(repos) != 1 || repos[0].FullName() != "promo/neo" || !repos[0].Enabled || repos[0].BranchPatterns != nil {
-		t.Fatalf("dépôts en base = %+v ; attendu promo/neo suivi, toutes les branches", repos)
+		t.Fatalf("repositories in the database = %+v; want promo/neo tracked, all branches", repos)
 	}
 	if line := lineWith(l.screen(), "promo/neo"); !strings.HasPrefix(line, "›") {
-		t.Errorf("ligne du dépôt ajouté = %q ; attendu sélectionnée", line)
+		t.Errorf("line of the added repository = %q; want selected", line)
 	}
 
-	// Un dépôt inconnu du provider : inaccessible, rien d'enregistré.
+	// A repository unknown to the provider: inaccessible, nothing stored.
 	l.press("a")
 	typeText(l, "promo/absent")
 	l.press("enter")
 	l.until(func(m Model) bool { return !m.add.running })
-	mustContain(t, l.screen(), "dépôt promo/absent inaccessible")
+	mustContain(t, l.screen(), "repository promo/absent is inaccessible")
 	if repos, _ := st.ListRepositories(ctx); len(repos) != 1 {
-		t.Errorf("%d dépôts en base ; attendu 1", len(repos))
+		t.Errorf("%d repositories in the database; want 1", len(repos))
 	}
 }

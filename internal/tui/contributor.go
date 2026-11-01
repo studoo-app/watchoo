@@ -15,6 +15,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/studoo-app/watchoo/internal/activity"
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/store"
 )
@@ -99,13 +100,13 @@ func (m Model) renderContribDetail() []string {
 // contribDetailLines renvoie toutes les lignes du détail du contributeur ouvert.
 func (m Model) contribDetailLines() []string {
 	d := m.cdetail
-	back := m.st.Muted.Render("  échap pour revenir")
+	back := m.st.Muted.Render(i18n.T("tui.detail.back"))
 	switch {
 	case d.err != nil:
-		return []string{m.st.Title.Render("Contributeur") + back, "",
-			"  " + m.st.Error.Render("lecture impossible : "+clean(d.err.Error()))}
+		return []string{m.st.Title.Render(i18n.T("tui.cdetail.title")) + back, "",
+			"  " + m.st.Error.Render(i18n.T("tui.detail.read_error", clean(d.err.Error())))}
 	case d.loading:
-		return []string{m.st.Title.Render("Contributeur") + back, "", "  Chargement" + m.ellipsis()}
+		return []string{m.st.Title.Render(i18n.T("tui.cdetail.title")) + back, "", "  " + i18n.T("tui.loading") + m.ellipsis()}
 	}
 	p := d.profile
 	now, loc, uni := m.now(), m.deps.Location, m.deps.Unicode
@@ -118,17 +119,19 @@ func (m Model) contribDetailLines() []string {
 		title += m.st.Muted.Render(" (@" + clean(p.ProviderLogin) + ")")
 	}
 	lines := []string{m.st.Title.Render(title) + back}
-	account := "aucun compte GitHub connu (identité Git seule)"
+	account := i18n.T("tui.cdetail.no_account")
 	if p.ProviderLogin != "" {
 		account = "@" + clean(p.ProviderLogin)
 	}
-	lines = append(lines, field("Compte", account))
-	lines = append(lines, field("Identités Git", plural(p.Identities, "adresse rattachée", "adresses rattachées")+
-		m.st.Muted.Render(" (non affichées)")))
-	lines = append(lines, field("Commits", fmt.Sprintf("%s dans %s, %s",
-		plural(p.Commits, "commit", "commits"), plural(p.Repos, "dépôt", "dépôts"), lineTotals(p.Lines()))))
-	lines = append(lines, field("Premier commit", activity.Relative(p.FirstCommitAt, now, loc, uni)))
-	lines = append(lines, field("Dernier commit", activity.Relative(p.LastCommitAt, now, loc, uni)))
+	lines = append(lines, field(i18n.T("tui.field.account"), account))
+	lines = append(lines, field(i18n.T("tui.field.identities"),
+		plural(p.Identities, "tui.cdetail.address_one", "tui.cdetail.address_many")+
+			m.st.Muted.Render(i18n.T("tui.cdetail.not_shown"))))
+	lines = append(lines, field(i18n.T("tui.field.commits"), i18n.T("tui.cdetail.commits_in",
+		plural(p.Commits, "tui.count.commit_one", "tui.count.commit_many"),
+		plural(p.Repos, "cli.sync.count_repo_one", "cli.sync.count_repo_many"), lineTotals(p.Lines()))))
+	lines = append(lines, field(i18n.T("tui.field.first_commit"), activity.Relative(p.FirstCommitAt, now, loc, uni)))
+	lines = append(lines, field(i18n.T("tui.field.last_commit"), activity.Relative(p.LastCommitAt, now, loc, uni)))
 	weeks := len(d.weekly.Weeks)
 	overall := make([]int, weeks)
 	for _, per := range d.weekly.Counts {
@@ -136,16 +139,17 @@ func (m Model) contribDetailLines() []string {
 			overall[i] += n
 		}
 	}
-	lines = append(lines, field(fmt.Sprintf("%d semaines", weeks), activity.Sparkline(overall, uni)+"  "+
-		plural(d.weekly.Total, "commit", "commits")+m.st.Muted.Render(", la semaine la plus récente à droite")))
+	lines = append(lines, field(i18n.T("tui.field.weeks", weeks), activity.Sparkline(overall, uni)+"  "+
+		plural(d.weekly.Total, "tui.count.commit_one", "tui.count.commit_many")+
+		m.st.Muted.Render(i18n.T("tui.cdetail.latest_right"))))
 
-	lines = append(lines, "", m.st.Header.Render("Dépôts"))
+	lines = append(lines, "", m.st.Header.Render(i18n.T("tui.view.repos")))
 	if len(d.repos) == 0 {
-		lines = append(lines, "  Aucun commit dont il ou elle est l'auteur.")
+		lines = append(lines, "  "+i18n.T("tui.cdetail.no_commits"))
 	} else {
-		cols := []column{{title: "DÉPÔT", flex: true}, {title: "COMMITS", right: true}, {title: "+/-", right: true},
-			{title: fmt.Sprintf("%d SEM.", weeks), right: true}, {title: "PAR SEMAINE"}, {title: "DERNIER COMMIT"},
-			{title: "ÉTAT"}}
+		cols := []column{{title: i18n.T("tui.col.repo"), flex: true}, {title: i18n.T("tui.col.commits"), right: true},
+			{title: "+/-", right: true}, {title: i18n.T("tui.col.weeks", weeks), right: true},
+			{title: i18n.T("tui.col.per_week")}, {title: i18n.T("tui.col.last_commit")}, {title: i18n.T("tui.col.state")}}
 		rows := make([]row, 0, len(d.repos))
 		for _, r := range d.repos {
 			state, short, gray, col := activity.State(""), "-", false, -1
@@ -161,12 +165,12 @@ func (m Model) contribDetailLines() []string {
 		lines = append(lines, m.renderTable(cols, rows, -1, 0, len(rows), false)...)
 	}
 
-	lines = append(lines, "", m.st.Header.Render("Derniers commits"))
+	lines = append(lines, "", m.st.Header.Render(i18n.T("tui.detail.recent_commits")))
 	if len(d.commits) == 0 {
-		lines = append(lines, "  Aucun commit.")
+		lines = append(lines, "  "+i18n.T("tui.detail.no_commit"))
 	} else {
-		cols := []column{{title: "QUAND"}, {title: "DÉPÔT", max: 24}, {title: "SHA"}, {title: "+/-", right: true},
-			{title: "MESSAGE", flex: true}}
+		cols := []column{{title: i18n.T("tui.col.when")}, {title: i18n.T("tui.col.repo"), max: 24}, {title: "SHA"},
+			{title: "+/-", right: true}, {title: i18n.T("tui.col.message"), flex: true}}
 		rows := make([]row, 0, len(d.commits))
 		for _, c := range d.commits {
 			rows = append(rows, row{cells: []string{activity.Relative(c.CommittedAt, now, loc, uni),
@@ -175,8 +179,7 @@ func (m Model) contribDetailLines() []string {
 		}
 		lines = append(lines, m.renderTable(cols, rows, -1, 0, len(rows), false)...)
 	}
-	lines = append(lines, "", m.st.Muted.Render("Lignes +/- : comptées dans le clone Git local de chaque dépôt "+
-		"(« - » : pas encore comptées, clone indisponible)."))
+	lines = append(lines, "", m.st.Muted.Render(i18n.T("tui.cdetail.lines_note")))
 	return lines
 }
 
@@ -198,7 +201,7 @@ func lineTotals(t model.LineTotals) string {
 	}
 	s := fmt.Sprintf("+%d/-%d", t.Additions, t.Deletions)
 	if n := t.Uncounted(); n > 0 {
-		s += fmt.Sprintf(" (%d non comptés)", n)
+		s += i18n.T("tui.lines.uncounted", n)
 	}
 	return s
 }

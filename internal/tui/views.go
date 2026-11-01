@@ -12,6 +12,7 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/studoo-app/watchoo/internal/activity"
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/store"
 )
 
@@ -87,13 +88,13 @@ func (m Model) updateLine(w int) string {
 		return ""
 	}
 	cur, latest := clean(u.Current), clean(u.Latest)
-	how, short := "Quittez puis lancez « watchoo update ».", "quittez puis lancez « watchoo update »."
+	how, short := i18n.T("tui.update.how"), i18n.T("tui.update.how_short")
 	if u.Docker {
-		how, short = "Changez le tag de l'image Docker pour la mettre à jour.", "changez le tag de l'image Docker."
+		how, short = i18n.T("tui.update.docker"), i18n.T("tui.update.docker_short")
 	}
-	s := fmt.Sprintf("Nouvelle version de Watchoo disponible : %s %s %s. %s", cur, m.sym("→", "->"), latest, how)
+	s := i18n.T("tui.update.full", cur, m.sym("→", "->"), latest, how)
 	if width(s) > w {
-		s = fmt.Sprintf("Watchoo %s disponible : %s", latest, short)
+		s = i18n.T("tui.update.short", latest, short)
 	}
 	return m.st.Notice.Render(truncate(s, w, m.ellipsis()))
 }
@@ -108,7 +109,7 @@ func (m Model) renderFooter(w int) []string {
 	ls := m.lists[m.view]
 	switch {
 	case m.filtering:
-		msg = "Filtre : " + ls.filter + m.sym("▏", "_") + m.st.Muted.Render("  (entrée pour garder, échap pour effacer)")
+		msg = i18n.T("tui.footer.filter") + ls.filter + m.sym("▏", "_") + m.st.Muted.Render(i18n.T("tui.footer.filter_keys"))
 	case m.status != "":
 		text := truncate(m.status, w, m.ellipsis())
 		if m.statusErr {
@@ -117,7 +118,7 @@ func (m Model) renderFooter(w int) []string {
 			msg = text
 		}
 	case ls.filter != "" && !m.detail.open && !m.cdetail.open && !m.showHelp:
-		msg = m.st.Muted.Render(truncate("Filtre : "+ls.filter+" (échap pour l'effacer)", w, m.ellipsis()))
+		msg = m.st.Muted.Render(truncate(i18n.T("tui.footer.filter_set", ls.filter), w, m.ellipsis()))
 	}
 	var keys []string
 	for _, h := range m.keys.shortHelp() {
@@ -125,7 +126,8 @@ func (m Model) renderFooter(w int) []string {
 	}
 	help := strings.Join(keys, m.st.Muted.Render(" "+m.sym("·", "|")+" "))
 	if lipgloss.Width(help) > w {
-		help = m.st.Key.Render("?") + " aide " + m.st.Muted.Render(m.sym("·", "|")) + " " + m.st.Key.Render("q") + " quitter"
+		help = m.st.Key.Render("?") + " " + i18n.T("tui.short.help") + " " + m.st.Muted.Render(m.sym("·", "|")) + " " +
+			m.st.Key.Render("q") + " " + i18n.T("tui.short.quit")
 	}
 	return []string{msg, help}
 }
@@ -150,9 +152,9 @@ type row struct {
 func (m Model) renderList() []string {
 	if !m.loaded {
 		if m.loadErr != nil {
-			return []string{m.st.Error.Render("Impossible de lire la base. « r » pour réessayer.")}
+			return []string{m.st.Error.Render(i18n.T("tui.list.load_error"))}
 		}
-		return []string{"Chargement" + m.ellipsis()}
+		return []string{i18n.T("tui.loading") + m.ellipsis()}
 	}
 	cols, rows := m.tableData(m.view)
 	if len(rows) == 0 {
@@ -165,15 +167,15 @@ func (m Model) renderList() []string {
 // emptyMessage renvoie le message d'une liste vide.
 func (m Model) emptyMessage() string {
 	if m.lists[m.view].filter != "" {
-		return "Aucune ligne ne correspond au filtre « " + m.lists[m.view].filter + " » (échap pour l'effacer)."
+		return i18n.T("tui.empty.filter", m.lists[m.view].filter)
 	}
 	switch m.view {
 	case viewRepos:
-		return "Aucun dépôt suivi. Ajoutez-en avec « a » (ou « watchoo repo add owner/repo »)."
+		return i18n.T("tui.empty.repos")
 	case viewCommits:
-		return "Aucun commit en base. « s » lance une synchro."
+		return i18n.T("tui.empty.commits")
 	default:
-		return "Aucun contributeur en base. « s » lance une synchro."
+		return i18n.T("tui.empty.contributors")
 	}
 }
 
@@ -184,8 +186,9 @@ func (m Model) tableData(v view) ([]column, []row) {
 	rows := make([]row, 0, len(vis))
 	switch v {
 	case viewRepos:
-		cols := []column{{title: "DÉPÔT", flex: true}, {title: "DERNIER COMMIT"}, {title: "AUTEUR", max: 20},
-			{title: "BRANCHES", right: true}, {title: "ÉTAT"}}
+		cols := []column{{title: i18n.T("tui.col.repo"), flex: true}, {title: i18n.T("tui.col.last_commit")},
+			{title: i18n.T("tui.col.author"), max: 20}, {title: i18n.T("tui.col.branches"), right: true},
+			{title: i18n.T("tui.col.state")}}
 		for _, i := range vis {
 			r := m.repos[i]
 			res := m.evaluate(r)
@@ -201,8 +204,9 @@ func (m Model) tableData(v view) ([]column, []row) {
 		}
 		return cols, rows
 	case viewCommits:
-		cols := []column{{title: "QUAND"}, {title: "DÉPÔT", max: 24}, {title: "AUTEUR", max: 18},
-			{title: "SHA"}, {title: "+/-", right: true}, {title: "MESSAGE", flex: true}}
+		cols := []column{{title: i18n.T("tui.col.when")}, {title: i18n.T("tui.col.repo"), max: 24},
+			{title: i18n.T("tui.col.author"), max: 18}, {title: "SHA"}, {title: "+/-", right: true},
+			{title: i18n.T("tui.col.message"), flex: true}}
 		for _, i := range vis {
 			c := m.commits[i]
 			rows = append(rows, row{
@@ -213,9 +217,9 @@ func (m Model) tableData(v view) ([]column, []row) {
 		}
 		return cols, rows
 	default:
-		cols := []column{{title: "CONTRIBUTEUR", flex: true}, {title: "LOGIN", max: 20},
-			{title: "COMMITS", right: true}, {title: "+/-", right: true}, {title: "DÉPÔTS", right: true},
-			{title: "DERNIER COMMIT"}}
+		cols := []column{{title: i18n.T("tui.col.contributor"), flex: true}, {title: i18n.T("tui.col.login"), max: 20},
+			{title: i18n.T("tui.col.commits"), right: true}, {title: "+/-", right: true},
+			{title: i18n.T("tui.col.repos"), right: true}, {title: i18n.T("tui.col.last_commit")}}
 		for _, i := range vis {
 			c := m.contribs[i]
 			login := clean(c.ProviderLogin)
@@ -319,7 +323,7 @@ func (m Model) renderTable(cols []column, rows []row, cursor, offset, height int
 // l'impose).
 func (m Model) renderHelp() []string {
 	w, _ := m.size()
-	out := []string{m.st.Title.Render("Aide des touches") + m.st.Muted.Render("  (« ? » ou échap pour fermer)"), ""}
+	out := []string{m.st.Title.Render(i18n.T("tui.help.title")) + m.st.Muted.Render(i18n.T("tui.help.close")), ""}
 	for _, g := range m.keys.helpGroups() {
 		out = append(out, m.st.Header.Render(g.Title))
 		line, lineW := "", 0
@@ -342,6 +346,6 @@ func (m Model) renderHelp() []string {
 			out = append(out, "  "+line)
 		}
 	}
-	out = append(out, "", m.st.Muted.Render("Le filtre (« / ») porte sur les colonnes de la vue courante."))
+	out = append(out, "", m.st.Muted.Render(i18n.T("tui.help.filter_note")))
 	return out
 }
