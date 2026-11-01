@@ -9,7 +9,7 @@ three questions: what moved, when, and who did it. It offers a CLI, an interacti
 (`watchoo tui`) and a local web interface (`watchoo serve`). Every monitored group (e.g. a class's
 projects) lives in its own directory, initialized by `watchoo init`.
 
-**Current state: v0.7.0 (MVP complete, phases 1 to 6 of the [roadmap](documentation/en/07-roadmap.md) in place: MVP, configuration sharing and V2, then the per-contributor page, updating Watchoo and the bilingual interface — English by default, French).**
+**Current state: v1.0.0, stable release (phases 1 to 6 of the [roadmap](documentation/en/07-roadmap.md) in place: MVP, configuration sharing and V2, then the per-contributor page, updating Watchoo, the bilingual interface — English by default, French — and the stabilization of the public surface). Since 1.0.0, an incompatible change to the public surface (commands, flags, exit codes, `--json` keys, settings, `WATCHOO_*` variables, database schema, web routes) requires a MAJOR version.**
 `watchoo init` creates a workspace; `repo add / import / list / remove`, `sync`, `log`,
 `contributors`, `prs`, `releases`, `status`, `version` and `update` work in text and `--json` (stable schema, documented in
 [05-cli.md](documentation/en/05-cli.md#json-output) and verified by `internal/cli/json_schema_test.go`);
