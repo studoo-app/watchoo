@@ -82,7 +82,7 @@ type RepoView struct {
 	ChartDays  int
 	ChartTotal int
 	ChartPeak  activity.DayCount
-	// ChartPeakDate : jour de ChartPeak au format « 26/10/2026 ».
+	// ChartPeakDate : jour de ChartPeak, au format de date de la langue (« 26/10/2026 », "Oct 26, 2026").
 	ChartPeakDate string
 	// ContributorsChart : commits par semaine des contributeurs du dépôt sur activity.ContributorWeeks
 	// semaines (même graphique que la page des contributeurs, restreint au dépôt).
@@ -126,6 +126,9 @@ func (v RepoCommitsView) Filtered() bool { return v.Branch != "" || v.Author != 
 type filterOption struct {
 	Value string
 	Label string
+	// Unknown : valeur sélectionnée absente des choix connus ; le template ajoute « (inconnue) » /
+	// "(unknown)" au libellé.
+	Unknown bool
 }
 
 // handleRepo sert GET /repos/{id} : la page complète, ou le fragment « repo-overview » ou
@@ -198,6 +201,7 @@ func (s *server) repoView(r *http.Request, id int64, overview bool) (RepoView, e
 		Thresholds: s.newThresholdsForm(sum.FlemmeAfterDays, sum.DeadAfterDays),
 	}
 	view.Thresholds.Saved = queryValue(r, "msg") == msgThresholds
+	view.Thresholds.SavedMessage = s.t(r, "web.thresholds.saved")
 
 	branches, err := s.store.ListBranches(ctx, id)
 	if err != nil {
@@ -221,13 +225,13 @@ func (s *server) repoView(r *http.Request, id int64, overview bool) (RepoView, e
 		if err != nil {
 			return RepoView{}, err
 		}
-		chart := newDailyChart(times, now, activity.ChartDays, s.loc)
+		chart := newDailyChart(s.tr(r), times, now, activity.ChartDays, s.loc)
 		view.Chart, view.ChartTotal, view.ChartPeak, view.ChartPeakDate = chart.Series, chart.Total, chart.Peak, chart.PeakDate
 		authors, err := s.store.AuthorCommitTimes(ctx, id, activity.WeeksStart(now, activity.ContributorWeeks, s.loc))
 		if err != nil {
 			return RepoView{}, err
 		}
-		view.ContributorsChart = buildContributorChart(contributors, authors, now, activity.ContributorWeeks,
+		view.ContributorsChart = buildContributorChart(s.tr(r), contributors, authors, now, activity.ContributorWeeks,
 			contributorChartTop, s.loc)
 		if view.Pulls, err = s.repoPulls(r, id); err != nil {
 			return RepoView{}, err
@@ -275,8 +279,8 @@ func (s *server) repoPulls(r *http.Request, id int64) (RepoPullsView, error) {
 }
 
 // branchOptions renvoie les choix du filtre branche : branches suivies, puis les autres. La branche
-// sélectionnée est ajoutée aux autres si elle n'est pas (ou plus) connue, pour que le filtre affiché
-// reste celui appliqué.
+// sélectionnée est ajoutée aux autres si elle n'est pas (ou plus) connue (Unknown), pour que le filtre
+// affiché reste celui appliqué.
 func branchOptions(tracked, other []model.Branch, selected string) (trackedOpts, otherOpts []filterOption) {
 	found := selected == ""
 	convert := func(branches []model.Branch) []filterOption {
@@ -289,14 +293,14 @@ func branchOptions(tracked, other []model.Branch, selected string) (trackedOpts,
 	}
 	trackedOpts, otherOpts = convert(tracked), convert(other)
 	if !found {
-		otherOpts = append(otherOpts, filterOption{Value: selected, Label: selected + " (inconnue)"})
+		otherOpts = append(otherOpts, filterOption{Value: selected, Label: selected, Unknown: true})
 	}
 	return trackedOpts, otherOpts
 }
 
 // authorOptions renvoie les choix du filtre auteur, triés par nom affiché : valeur = login de forge
 // s'il est connu, sinon nom Git (jamais d'e-mail). Doublons de valeur retirés ; l'auteur sélectionné
-// est ajouté s'il n'est pas dans la liste.
+// est ajouté s'il n'est pas dans la liste (Unknown).
 func authorOptions(contributors []store.ContributorStats, selected string) []filterOption {
 	opts := make([]filterOption, 0, len(contributors)+1)
 	seen := make(map[string]bool, len(contributors))
@@ -318,7 +322,7 @@ func authorOptions(contributors []store.ContributorStats, selected string) []fil
 		return cmp.Compare(strings.ToLower(a.Label), strings.ToLower(b.Label))
 	})
 	if selected != "" && !seen[strings.ToLower(selected)] {
-		opts = append(opts, filterOption{Value: selected, Label: selected + " (inconnu)"})
+		opts = append(opts, filterOption{Value: selected, Label: selected, Unknown: true})
 	}
 	return opts
 }

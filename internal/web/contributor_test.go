@@ -1,6 +1,6 @@
 package web
 
-// Page d'un contributeur « /contributors/{id} » (0.5.0) et liens vers elle et vers les profils.
+// A contributor's page "/contributors/{id}" (0.5.0) and links to it and to the profiles.
 
 import (
 	"html"
@@ -13,12 +13,12 @@ import (
 	wsync "github.com/studoo-app/watchoo/internal/sync"
 )
 
-// contributorIDs renvoie l'identifiant interne des contributeurs auteurs, par nom affiché.
+// contributorIDs returns the internal identifier of the author contributors, by display name.
 func (e *testEnv) contributorIDs() map[string]int64 {
 	e.t.Helper()
 	ranking, err := e.store.ContributorRanking(e.t.Context(), store.ContributorFilter{})
 	if err != nil {
-		e.t.Fatalf("ContributorRanking : %v", err)
+		e.t.Fatalf("ContributorRanking: %v", err)
 	}
 	out := make(map[string]int64, len(ranking))
 	for _, c := range ranking {
@@ -27,11 +27,12 @@ func (e *testEnv) contributorIDs() map[string]int64 {
 	return out
 }
 
-// hostileName est un nom de contributeur piégé : il doit toujours apparaître échappé.
+// hostileName is a booby-trapped contributor name: it must always appear escaped.
 const hostileName = `<img src=x onerror="alert(2)">Eve`
 
-// seedHostile ajoute au dépôt repoID (promo/name) deux commits d'un contributeur au nom piégé, avec des
-// statistiques de lignes, et un commit dont il n'est que le committer (l'auteur est « Zoé »).
+// seedHostile adds to repository repoID (promo/name) two commits of a contributor with a
+// booby-trapped name, with line statistics, and a commit of which he is only the committer (the
+// author is "Zoé").
 func (e *testEnv) seedHostile(repoID int64, name string) (eve, onlyCommitter store.Identity) {
 	e.t.Helper()
 	eve = store.Identity{Name: hostileName, Email: "eve@example.test"}
@@ -59,26 +60,26 @@ func TestContributorPage(t *testing.T) {
 	assertStatus(t, w, http.StatusOK)
 	assertContains(t, w,
 		"<title>Alice Martin · licence-projet · Watchoo</title>",
-		`<h1 id="contributor-title"`, "@alice-gh", "1 identité Git connue",
-		// Lien de profil : l'adresse enregistrée, en lien secondaire, nouvel onglet.
-		`href="https://github.com/alice-gh"`, `aria-label="Profil GitHub de alice-gh"`, `rel="noopener noreferrer"`,
-		// Totaux : 2 commits dans 1 dépôt, lignes inconnues.
-		`<div class="stat-value">2</div>`, "dans 1 dépôt", `title="Lignes inconnues : pas encore comptées`,
-		// Ses dépôts : lien, état du dépôt.
+		`<h1 id="contributor-title"`, "@alice-gh", "1 known Git identity",
+		// Profile link: the saved address, as a secondary link, new tab.
+		`href="https://github.com/alice-gh"`, `aria-label="GitHub profile of alice-gh"`, `rel="noopener noreferrer"`,
+		// Totals: 2 commits in 1 repository, lines unknown.
+		`<div class="stat-value">2</div>`, "in 1 repository", `title="Lines unknown: not counted yet`,
+		// Their repositories: link, state of the repository.
 		`href="`+repoPath(ids.Alice)+`"`, "badge-success",
-		// Ses commits : messages échappés, liens vers le dépôt.
+		// Their commits: escaped messages, links to the repository.
 		html.EscapeString(xssMessage), "premier commit", "2 commits",
 		`hx-get="`+path+`/commits?page=1"`,
-		// Graphiques : par jour et par dépôt (table des données, lien vers le dépôt).
+		// Charts: per day and per repository (data table, link to the repository).
 		`id="contributor-activity-data"`, `data-refresh-url="`+path+`"`, `id="contributor-repos-chart-data"`,
-		"Commits par semaine et par dépôt", "dans 1 dépôt depuis le",
-		// Pull requests rapprochées par le compte (identifiant 10), titre échappé.
-		`id="contributor-pulls"`, html.EscapeString(xssTitle), "mergée", "brouillon",
-		// Fragments rafraîchis après une synchro.
+		"Commits per week and per repository", "in 1 repository since",
+		// Pull requests matched by the account (identifier 10), escaped title.
+		`id="contributor-pulls"`, html.EscapeString(xssTitle), "merged", "draft",
+		// Fragments refreshed after a sync.
 		`hx-trigger="sync-finished from:body"`,
 	)
 	assertNotContains(t, w, xssMessage, xssTitle, "Bob Durand", "travail de Bob")
-	assertNoLeak(t, "page d'un contributeur", w.Body.String())
+	assertNoLeak(t, "contributor page", w.Body.String())
 }
 
 func TestContributorPageWithoutAccount(t *testing.T) {
@@ -87,29 +88,29 @@ func TestContributorPageWithoutAccount(t *testing.T) {
 	e.seedHostile(ids.Dave, "dave")
 	contribs := e.contributorIDs()
 
-	// Bob : identité Git seule, ni profil ni pull requests.
+	// Bob: Git identity only, neither profile nor pull requests.
 	w := e.get(contributorPath(contribs["Bob Durand"]))
 	assertStatus(t, w, http.StatusOK)
-	assertContains(t, w, "Bob Durand", "Non rapprochées", "2 commits", "dans 2 dépôts", "travail de Bob")
-	assertNotContains(t, w, "Profil GitHub", "@")
+	assertContains(t, w, "Bob Durand", "Not matched", "2 commits", "in 2 repositories", "travail de Bob")
+	assertNotContains(t, w, "GitHub profile", "@")
 
-	// Eve : nom piégé échappé partout, lignes connues.
+	// Eve: booby-trapped name escaped everywhere, lines known.
 	w = e.get(contributorPath(contribs[hostileName]))
 	assertStatus(t, w, http.StatusOK)
 	assertContains(t, w, html.EscapeString(hostileName), `<span class="text-success">+15</span>`,
 		`<span class="text-error">−2</span>`, html.EscapeString("<b>suite</b>"), "+10")
 	assertNotContains(t, w, hostileName, "<b>suite</b>")
 
-	// Carol : adresse de profil refusée (pas https://) : pas de lien.
+	// Carol: profile address refused (not https://): no link.
 	w = e.get(contributorPath(contribs["Carol"]))
 	assertStatus(t, w, http.StatusOK)
-	assertNotContains(t, w, "javascript:", "Profil GitHub", "evil.example.test")
-	assertContains(t, w, "Aucune pull request de ce compte en base.")
-	assertNoLeak(t, "pages des contributeurs", w.Body.String())
+	assertNotContains(t, w, "javascript:", "GitHub profile", "evil.example.test")
+	assertContains(t, w, "No pull request from this account in the database.")
+	assertNoLeak(t, "contributor pages", w.Body.String())
 }
 
-// TestContributorPageCommitterOnly vérifie la page d'un contributeur qui n'est l'auteur d'aucun commit
-// (seulement committer).
+// TestContributorPageCommitterOnly checks the page of a contributor who authored no commit (committer
+// only).
 func TestContributorPageCommitterOnly(t *testing.T) {
 	e := newTestEnv(t)
 	ids := e.seed()
@@ -125,12 +126,12 @@ func TestContributorPageCommitterOnly(t *testing.T) {
 		}
 	}
 	if fred == 0 {
-		t.Fatal("committer introuvable")
+		t.Fatal("committer not found")
 	}
 	w := e.get(contributorPath(fred))
 	assertStatus(t, w, http.StatusOK)
-	assertContains(t, w, "Fred Committer", "0 commit", "Aucun commit dont il ou elle est l'auteur en base.",
-		"Aucun commit depuis le", "jamais")
+	assertContains(t, w, "Fred Committer", "0 commits", "No commit they authored in the database.",
+		"No commit since", "never")
 }
 
 func TestContributorNotFoundAndFragments(t *testing.T) {
@@ -139,7 +140,7 @@ func TestContributorNotFoundAndFragments(t *testing.T) {
 	for _, target := range []string{"/contributors/999999", "/contributors/0", "/contributors/abc",
 		"/contributors/999999/commits", "/contributors/1234567890123456789"} {
 		if w := e.get(target); w.Code != http.StatusNotFound {
-			t.Errorf("GET %s : %d, attendu 404", target, w.Code)
+			t.Errorf("GET %s: %d, want 404", target, w.Code)
 		}
 	}
 
@@ -154,20 +155,20 @@ func TestContributorNotFoundAndFragments(t *testing.T) {
 		body := w.Body.String()
 		if !strings.Contains(body, `id="`+target+`"`) || strings.Contains(body, "<html") ||
 			strings.Contains(body, "<script") {
-			t.Errorf("fragment %s inattendu :\n%s", target, body)
+			t.Errorf("unexpected fragment %s:\n%s", target, body)
 		}
 	}
 	w := e.htmx(path + "/commits?page=7")
 	assertStatus(t, w, http.StatusOK)
 	assertContains(t, w, `id="contributor-commits"`, "premier commit")
 	assertNotContains(t, w, "<html", "<script")
-	// Sans HTMX : la page complète.
+	// Without HTMX: the full page.
 	if w := e.get(path + "/commits"); !strings.Contains(w.Body.String(), "<html") {
-		t.Error("GET …/commits sans HTMX : page complète attendue")
+		t.Error("GET …/commits without HTMX: full page expected")
 	}
 }
 
-// TestContributorPagination vérifie l'historique paginé d'un contributeur (50 par page).
+// TestContributorPagination checks the paginated history of a contributor (50 per page).
 func TestContributorPagination(t *testing.T) {
 	e := newTestEnv(t)
 	ids := e.seed()
@@ -181,14 +182,14 @@ func TestContributorPagination(t *testing.T) {
 	path := contributorPath(e.contributorIDs()["Prolifique"])
 	w := e.get(path + "?page=2")
 	assertStatus(t, w, http.StatusOK)
-	assertContains(t, w, "55 commits · page 2 sur 2", `rel="prev"`, `href="`+path+`?page=1"`)
+	assertContains(t, w, "55 commits · page 2 of 2", `rel="prev"`, `href="`+path+`?page=1"`)
 	if n := commitItems(w.Body.String()); n != 5 {
-		t.Errorf("page 2 : %d commits, attendu 5", n)
+		t.Errorf("page 2: %d commits, want 5", n)
 	}
 }
 
-// TestContributorLinks vérifie les liens vers la page d'un contributeur (lien principal) et vers son
-// profil (lien secondaire) depuis les autres pages.
+// TestContributorLinks checks the links to a contributor's page (main link) and to their profile
+// (secondary link) from the other pages.
 func TestContributorLinks(t *testing.T) {
 	e := newTestEnv(t)
 	ids := e.seed()
@@ -199,25 +200,25 @@ func TestContributorLinks(t *testing.T) {
 	for _, target := range []string{"/contributors", "/", repoPath(ids.Alice)} {
 		w := e.get(target)
 		assertStatus(t, w, http.StatusOK)
-		assertContains(t, w, `href="`+alice+`"`, `href="`+bob+`"`, profile, `aria-label="Profil GitHub de alice-gh"`)
-		assertNotContains(t, w, "javascript:", `Profil GitHub de Bob`)
+		assertContains(t, w, `href="`+alice+`"`, `href="`+bob+`"`, profile, `aria-label="GitHub profile of alice-gh"`)
+		assertNotContains(t, w, "javascript:", `GitHub profile of Bob`)
 	}
-	// Historique d'un dépôt (fragment) : auteur lié.
+	// History of a repository (fragment): linked author.
 	w := e.htmx(repoPath(ids.Alice) + "/commits")
 	assertContains(t, w, `href="`+alice+`"`, `href="`+bob+`"`, profile)
-	// Table des données du graphique par contributeur : nom lié.
+	// Data table of the per-contributor chart: linked name.
 	w = e.get("/contributors")
 	body := w.Body.String()
 	table := body[strings.Index(body, `id="contributors-chart-table"`):]
 	if !strings.Contains(table, `<a href="`+alice+`" class="link link-hover">Alice Martin</a>`) {
-		t.Error("table du graphique : nom sans lien vers la page du contributeur")
+		t.Error("chart table: name without a link to the contributor's page")
 	}
-	// Aucune adresse construite par l'interface : un profil inconnu ne donne pas de lien.
+	// No address built by the interface: an unknown profile gives no link.
 	assertNotContains(t, w, "https://github.com/carol-gh")
 }
 
-// TestContributorPageLogs vérifie que le journal n'écrit ni nom, ni login, ni message, ni identifiant
-// de contributeur : seulement le motif de route.
+// TestContributorPageLogs checks that the log writes neither name, nor login, nor message, nor
+// contributor identifier: only the route pattern.
 func TestContributorPageLogs(t *testing.T) {
 	e := newTestEnv(t)
 	e.seed()
@@ -226,28 +227,28 @@ func TestContributorPageLogs(t *testing.T) {
 	e.htmx(contributorPath(alice) + "/commits")
 	logs := e.logs.String()
 	if !strings.Contains(logs, "/contributors/{id") {
-		t.Errorf("journal sans le motif de route :\n%s", logs)
+		t.Errorf("log without the route pattern:\n%s", logs)
 	}
 	for _, s := range []string{"Alice Martin", "alice-gh", "premier commit", "xss", contributorPath(alice)} {
 		if strings.Contains(logs, s) {
-			t.Errorf("journal : contient %q\n%s", s, logs)
+			t.Errorf("log: contains %q\n%s", s, logs)
 		}
 	}
-	assertNoLeak(t, "journal", logs)
+	assertNoLeak(t, "log", logs)
 }
 
-// TestContributorPageAfterSync vérifie qu'une synchro par le moteur (faux provider) remplit l'adresse
-// de profil donnée par le provider et que la page la montre.
+// TestContributorPageAfterSync checks that a sync by the engine (fake provider) fills the profile
+// address given by the provider and that the page shows it.
 func TestContributorPageAfterSync(t *testing.T) {
 	e := newTestEnv(t)
 	ids := e.seed()
 	e.fake.AppendCommits(1, "main", 1, e.now.Add(-time.Hour), time.Minute)
 	if _, err := e.engine.SyncRepo(t.Context(), ids.Alice, wsync.SyncOptions{}); err != nil {
-		t.Fatalf("SyncRepo : %v", err)
+		t.Fatalf("SyncRepo: %v", err)
 	}
 	id := e.contributorIDs()["Étudiant Test"]
 	if id == 0 {
-		t.Fatal("contributeur du faux provider absent")
+		t.Fatal("contributor of the fake provider missing")
 	}
 	w := e.get(contributorPath(id))
 	assertStatus(t, w, http.StatusOK)
@@ -266,7 +267,7 @@ func TestProfileURL(t *testing.T) {
 		"":                                   "",
 	} {
 		if got := profileURL(in); got != want {
-			t.Errorf("profileURL(%q) = %q, attendu %q", in, got, want)
+			t.Errorf("profileURL(%q) = %q, want %q", in, got, want)
 		}
 	}
 	if got := contributorPath(42); got != "/contributors/42" {

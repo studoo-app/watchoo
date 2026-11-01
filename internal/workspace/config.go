@@ -33,6 +33,7 @@ const (
 	DefaultDeadAfterDays   = 15               // activity.dead_after_days
 	DefaultWebAddr         = "127.0.0.1:8080" // web.addr
 	DefaultGHPath          = "gh"             // github.gh_path
+	DefaultLang            = "en"             // lang : langue de l'interface web (« en » ou « fr »)
 	GitProtocolSSH         = "ssh"            // git.protocol : git@github.com:owner/name.git (défaut)
 	GitProtocolHTTPS       = "https"          // git.protocol : https://github.com/owner/name.git
 	EnvPrefix              = "WATCHOO"        // préfixe des variables d'environnement (WATCHOO_SYNC_INTERVAL…)
@@ -56,9 +57,14 @@ type Config struct {
 	Web      WebConfig      `mapstructure:"web"`
 	// Timezone est le fuseau d'affichage et de regroupement par jour / semaine : vide = fuseau du
 	// système, sinon un nom IANA valide (ex. « Europe/Paris »).
-	Timezone string       `mapstructure:"timezone"`
-	GitHub   GitHubConfig `mapstructure:"github"`
-	Git      GitConfig    `mapstructure:"git"`
+	Timezone string `mapstructure:"timezone"`
+	// Lang est la langue de l'interface web de l'espace : « en » (défaut) ou « fr ». Réglage commun,
+	// partagé comme timezone. Sa variable d'environnement est WATCHOO_LANG, la même que celle qui
+	// choisit la langue de la CLI et du TUI (i18n.Detect) : la définir force donc la langue partout,
+	// ce qui reste cohérent. Une valeur est ramenée en minuscules sans espaces autour avant validation.
+	Lang   string       `mapstructure:"lang"`
+	GitHub GitHubConfig `mapstructure:"github"`
+	Git    GitConfig    `mapstructure:"git"`
 }
 
 // SyncConfig regroupe les réglages de synchronisation (clés sync.*).
@@ -154,6 +160,7 @@ type GitConfig struct {
 //	branches: {exclude: []}       (slice vide non nil)
 //	web: {addr: "127.0.0.1:8080", auth: {username: ""}, trusted_proxy: false, allowed_hosts: []}
 //	timezone: ""
+//	lang: "en"
 //	github: {user: "", gh_path: "gh"}
 //	git: {protocol: "ssh"}
 func DefaultConfig(name string) Config {
@@ -171,6 +178,7 @@ func DefaultConfig(name string) Config {
 		Branches: BranchesConfig{Exclude: []string{}},
 		Web:      WebConfig{Addr: DefaultWebAddr, Auth: WebAuthConfig{Username: ""}, TrustedProxy: false, AllowedHosts: []string{}},
 		Timezone: "",
+		Lang:     DefaultLang,
 		GitHub:   GitHubConfig{User: "", GHPath: DefaultGHPath},
 		Git:      GitConfig{Protocol: GitProtocolSSH},
 	}
@@ -189,6 +197,7 @@ func DefaultConfig(name string) Config {
 //   - web.auth.username sans « : » (séparateur de l'authentification basique) ni caractère de
 //     contrôle, et sans espace autour ;
 //   - timezone vide ou accepté par time.LoadLocation ;
+//   - lang : « en » ou « fr » (i18n.Valid) ;
 //   - github.gh_path non vide, et soit absolu, soit un simple nom sans séparateur (cherché dans le
 //     PATH) : un chemin relatif comme « .watchoo/gh » dépendrait du répertoire courant ;
 //   - git.protocol : GitProtocolSSH ou GitProtocolHTTPS.
@@ -251,6 +260,10 @@ func (c Config) Validate() error {
 		}
 	}
 
+	if !i18n.Valid(i18n.Lang(c.Lang)) {
+		add("workspace.validate.lang_unknown", c.Lang, i18n.English, i18n.French)
+	}
+
 	if p := c.GitHub.GHPath; strings.TrimSpace(p) == "" {
 		add("workspace.validate.gh_path_empty", p)
 	} else if seps := `/` + string(filepath.Separator); !filepath.IsAbs(p) &&
@@ -296,6 +309,18 @@ func validateAddr(addr string) error {
 		return errors.New(i18n.T("workspace.validate.addr_port_invalid", port, addr))
 	}
 	return nil
+}
+
+// NormalizeLang ramène une valeur du réglage lang à sa forme canonique : minuscules, sans espaces
+// autour (« FR » → « fr », comme WATCHOO_LANG pour la CLI). La validité reste vérifiée par Validate.
+func NormalizeLang(v string) string {
+	return strings.ToLower(strings.TrimSpace(v))
+}
+
+// Translator renvoie le traducteur de la langue de l'interface web de l'espace (réglage lang ;
+// l'anglais si la valeur est inconnue).
+func (c Config) Translator() *i18n.Translator {
+	return i18n.For(i18n.Lang(c.Lang))
 }
 
 // Location renvoie le fuseau d'affichage : time.Local si Timezone est vide, sinon le fuseau IANA
@@ -450,6 +475,7 @@ func loadLayers(root, workspaceFile string, withEnv bool) (Config, error) {
 	if err := errors.Join(errs...); err != nil {
 		return Config{}, errWrapped(i18n.T("workspace.load.of", root), err)
 	}
+	cfg.Lang = NormalizeLang(cfg.Lang)
 	return cfg, nil
 }
 
@@ -984,6 +1010,11 @@ func renderConfig(tr *i18n.Translator, defaultName string, active map[string]any
 		"# "+tr.T("workspace.cfg.timezone_comment"),
 	)
 	setting("", "timezone", tr.T("workspace.cfg.timezone"))
+	text(
+		"",
+		"# "+tr.T("workspace.cfg.lang_comment"),
+	)
+	setting("", "lang", tr.T("workspace.cfg.lang"))
 	text(
 		"",
 		"# "+tr.T("workspace.cfg.github_l1"),

@@ -38,6 +38,9 @@
 //     script en ligne, jamais d'attribut on*, jamais de template.HTML construit à partir de données ;
 //   - textes venus de la base (messages, noms, labels) : html/template les échappe ; passer en plus par
 //     clean ou firstLine (textclean) pour les caractères de contrôle ; aucun e-mail affiché ;
+//   - textes de l'interface : catalogue i18n (clés « web. », internal/i18n/catalog_web.go), dans la
+//     langue de l'espace (réglage lang, lu à chaque requête : lang.go) ; fonctions t et tn dans les
+//     templates, s.t(r, …) dans les handlers ;
 //   - fragments rafraîchis après une synchro : hx-get vers leur URL et
 //     hx-trigger="sync-finished from:body" (événement envoyé par le fragment de synchro, syncview.go).
 package web
@@ -45,12 +48,12 @@ package web
 import (
 	"context"
 	"errors"
-	"fmt"
 	"html/template"
 	"log/slog"
 	"net/http"
 	"time"
 
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/provider"
 	"github.com/studoo-app/watchoo/internal/selfupdate"
@@ -105,12 +108,13 @@ type Options struct {
 	Store *store.Store   // base de l'espace (obligatoire)
 	Sync  SyncController // coordinateur des synchros (obligatoire)
 	Repos RepoManager    // ajout de dépôts et quota : le moteur (obligatoire)
-	// Config est la configuration de l'espace (nom, seuils d'activité, sync.*, web.*).
+	// Config est la configuration de l'espace (nom, seuils d'activité, sync.*, web.*, lang).
 	Config workspace.Config
 	// Workspace est l'espace servi (racine, .watchoo/) : export et import de la configuration
 	// (internal/configshare), qui réécrit .watchoo/config.yaml. nil = partage indisponible (les routes
 	// /settings/export et /settings/import* répondent 503). Config reste la configuration du processus :
-	// un import ne la change pas (prise en compte au prochain lancement).
+	// un import ne la change pas (prise en compte au prochain lancement), sauf la langue des pages,
+	// relue dans config.yaml à chaque requête (lang.go). nil : langue de Config.Lang.
 	Workspace *workspace.Workspace
 	// Location est le fuseau d'affichage (Config.Location) ; nil = time.Local.
 	Location *time.Location
@@ -147,8 +151,9 @@ type server struct {
 	now      func() time.Time
 	logger   *slog.Logger
 	version  string
-	pages    map[string]*template.Template // un ensemble de templates par page (render.go)
-	assets   *assetStore                   // fichiers statiques embarqués (assets.go)
+	pages    map[i18n.Lang]map[string]*template.Template // par langue, un ensemble de templates par page (render.go)
+	lang     *langSource                                 // langue des pages (lang.go)
+	assets   *assetStore                                 // fichiers statiques embarqués (assets.go)
 	csrf     *csrfProtector
 	auth     Auth
 	hosts    *hostPolicy // valeurs acceptées de l'en-tête Host ; nil = pas de contrôle
@@ -172,11 +177,11 @@ func New(opts Options) (http.Handler, error) {
 func newServer(opts Options) (*server, error) {
 	switch {
 	case opts.Store == nil:
-		return nil, errors.New("interface web : base non renseignée")
+		return nil, errors.New(i18n.T("web.start.no_store"))
 	case opts.Sync == nil:
-		return nil, errors.New("interface web : coordinateur de synchro non renseigné")
+		return nil, errors.New(i18n.T("web.start.no_sync"))
 	case opts.Repos == nil:
-		return nil, errors.New("interface web : moteur de synchro non renseigné")
+		return nil, errors.New(i18n.T("web.start.no_engine"))
 	}
 	s := &server{
 		store:    opts.Store,
@@ -192,6 +197,7 @@ func newServer(opts Options) (*server, error) {
 		listenAt: opts.ListenAddr,
 		updates:  opts.Updates,
 		docker:   opts.UpdateDocker,
+		lang:     newLangSource(opts.Workspace, opts.Config.Lang),
 	}
 	if s.loc == nil {
 		s.loc = time.Local
@@ -206,8 +212,7 @@ func newServer(opts Options) (*server, error) {
 		s.listenAt = workspace.DefaultWebAddr
 	}
 	if s.auth.Username != "" && s.auth.Password == "" {
-		return nil, fmt.Errorf("interface web : mot de passe vide pour l'identifiant de web.auth.username (variable %s)",
-			workspace.WebPasswordEnv)
+		return nil, errors.New(i18n.T("web.start.empty_password", workspace.WebPasswordEnv))
 	}
 	hosts, err := allowedHosts(s.listenAt, opts.AllowedHosts, opts.TrustedProxy, s.auth.Enabled())
 	if err != nil {

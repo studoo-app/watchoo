@@ -19,7 +19,10 @@ messages d'erreur, dates relatives (« il y a 2 h » → "2 h ago") — existe d
 par le paquet `internal/i18n`, sans dépendance (voir
 [Architecture](03-architecture.md#langues-et-traductions)). `lang` est un réglage commun : il est
 partagé avec les autres superviseurs comme `timezone`. Les données saisies (noms affichés, messages
-de commit, logins) ne sont pas traduites. Le réglage se change dans `config.yaml`.
+de commit, logins) ne sont pas traduites. Le réglage se change dans `config.yaml` (ou par l'import d'une
+configuration partagée) ; il est relu à chaque requête : un changement s'applique sans redémarrer
+`watchoo serve`. Sa variable d'environnement est `WATCHOO_LANG`, la même que celle de la CLI : la
+définir impose la langue partout.
 
 ## Pages
 

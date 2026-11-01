@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 	"time"
-	_ "time/tzdata" // fuseaux IANA disponibles même sans base système (CI minimale)
+	_ "time/tzdata" // IANA time zones available even without a system database (minimal CI)
 	"unicode/utf8"
 
 	"github.com/spf13/viper"
@@ -20,7 +20,7 @@ import (
 	"github.com/studoo-app/watchoo/internal/logo"
 )
 
-var update = flag.Bool("update", false, "réécrit config.example.yaml à partir de ConfigTemplate")
+var update = flag.Bool("update", false, "rewrites config.example.yaml from ConfigTemplate")
 
 func TestDefaultConfig(t *testing.T) {
 	cfg := DefaultConfig("licence-projet")
@@ -31,17 +31,18 @@ func TestDefaultConfig(t *testing.T) {
 		Branches: BranchesConfig{Exclude: []string{}},
 		Web:      WebConfig{Addr: "127.0.0.1:8080", Auth: WebAuthConfig{Username: ""}, TrustedProxy: false, AllowedHosts: []string{}},
 		Timezone: "",
+		Lang:     "en",
 		GitHub:   GitHubConfig{User: "", GHPath: "gh"},
 		Git:      GitConfig{Protocol: "ssh"},
 	}
 	if !reflect.DeepEqual(cfg, want) {
-		t.Errorf("DefaultConfig = %+v\nattendu %+v", cfg, want)
+		t.Errorf("DefaultConfig = %+v\nwant %+v", cfg, want)
 	}
 	if cfg.Branches.Exclude == nil {
-		t.Error("Branches.Exclude doit être une slice vide non nil")
+		t.Error("Branches.Exclude must be an empty non-nil slice")
 	}
 	if err := cfg.Validate(); err != nil {
-		t.Errorf("la configuration par défaut doit être valide : %v", err)
+		t.Errorf("the default configuration must be valid: %v", err)
 	}
 }
 
@@ -55,48 +56,49 @@ func TestSettingKeys(t *testing.T) {
 	wantKeys := []string{
 		"name", "sync.auto", "sync.interval", "sync.parallelism",
 		"activity.flemme_after_days", "activity.dead_after_days", "branches.exclude",
-		"web.addr", "web.auth.username", "web.trusted_proxy", "web.allowed_hosts", "timezone", "github.user", "github.gh_path",
+		"web.addr", "web.auth.username", "web.trusted_proxy", "web.allowed_hosts", "timezone", "lang", "github.user", "github.gh_path",
 		"git.protocol",
 	}
 	if !slices.Equal(keys, wantKeys) {
-		t.Errorf("clés = %v\nattendu %v", keys, wantKeys)
+		t.Errorf("keys = %v\nwant %v", keys, wantKeys)
 	}
 	wantEnvs := []string{
 		"WATCHOO_NAME", "WATCHOO_SYNC_AUTO", "WATCHOO_SYNC_INTERVAL", "WATCHOO_SYNC_PARALLELISM",
 		"WATCHOO_ACTIVITY_FLEMME_AFTER_DAYS", "WATCHOO_ACTIVITY_DEAD_AFTER_DAYS", "WATCHOO_BRANCHES_EXCLUDE",
-		"WATCHOO_WEB_ADDR", "WATCHOO_WEB_AUTH_USERNAME", "WATCHOO_WEB_TRUSTED_PROXY", "WATCHOO_WEB_ALLOWED_HOSTS", "WATCHOO_TIMEZONE", "WATCHOO_GITHUB_USER", "WATCHOO_GITHUB_GH_PATH",
+		"WATCHOO_WEB_ADDR", "WATCHOO_WEB_AUTH_USERNAME", "WATCHOO_WEB_TRUSTED_PROXY", "WATCHOO_WEB_ALLOWED_HOSTS", "WATCHOO_TIMEZONE", "WATCHOO_LANG", "WATCHOO_GITHUB_USER", "WATCHOO_GITHUB_GH_PATH",
 		"WATCHOO_GIT_PROTOCOL",
 	}
 	if !slices.Equal(envs, wantEnvs) {
-		t.Errorf("variables = %v\nattendu %v", envs, wantEnvs)
+		t.Errorf("variables = %v\nwant %v", envs, wantEnvs)
 	}
 }
 
 func TestValidateAcceptsBoundaries(t *testing.T) {
 	cases := map[string]func(*Config){
-		"synchro manuelle seule": func(c *Config) { c.Sync.Interval = 0 },
-		"intervalle minimum":     func(c *Config) { c.Sync.Interval = 15 * time.Minute },
-		"intervalle long":        func(c *Config) { c.Sync.Interval = 24 * time.Hour },
-		"parallélisme 1":         func(c *Config) { c.Sync.Parallelism = 1 },
-		"flemme 1, dead 2":       func(c *Config) { c.Activity = ActivityConfig{FlemmeAfterDays: 1, DeadAfterDays: 2} },
-		"motifs d'exclusion":     func(c *Config) { c.Branches.Exclude = []string{"dependabot/*", "renovate/*", "wip-?"} },
-		"noms publics du proxy": func(c *Config) {
+		"manual sync only":   func(c *Config) { c.Sync.Interval = 0 },
+		"minimum interval":   func(c *Config) { c.Sync.Interval = 15 * time.Minute },
+		"long interval":      func(c *Config) { c.Sync.Interval = 24 * time.Hour },
+		"parallelism 1":      func(c *Config) { c.Sync.Parallelism = 1 },
+		"flemme 1, dead 2":   func(c *Config) { c.Activity = ActivityConfig{FlemmeAfterDays: 1, DeadAfterDays: 2} },
+		"exclusion patterns": func(c *Config) { c.Branches.Exclude = []string{"dependabot/*", "renovate/*", "wip-?"} },
+		"public names of the proxy": func(c *Config) {
 			c.Web.AllowedHosts = []string{"watchoo.example.org", "Watchoo-2.example.org", "192.168.1.5", "::1", "[fe80::1]"}
 		},
-		"toutes les interfaces":      func(c *Config) { c.Web.Addr = ":8080" },
-		"IPv6":                       func(c *Config) { c.Web.Addr = "[::1]:8080" },
-		"port choisi par le système": func(c *Config) { c.Web.Addr = "localhost:0" },
-		"fuseau IANA":                func(c *Config) { c.Timezone = "Europe/Paris" },
-		"fuseau UTC":                 func(c *Config) { c.Timezone = "UTC" },
-		"compte gh":                  func(c *Config) { c.GitHub.User = "prof-dupont" },
-		"chemin de gh":               func(c *Config) { c.GitHub.GHPath = "/opt/homebrew/bin/gh" },
+		"all interfaces":            func(c *Config) { c.Web.Addr = ":8080" },
+		"IPv6":                      func(c *Config) { c.Web.Addr = "[::1]:8080" },
+		"port chosen by the system": func(c *Config) { c.Web.Addr = "localhost:0" },
+		"IANA time zone":            func(c *Config) { c.Timezone = "Europe/Paris" },
+		"UTC time zone":             func(c *Config) { c.Timezone = "UTC" },
+		"french":                    func(c *Config) { c.Lang = "fr" },
+		"gh account":                func(c *Config) { c.GitHub.User = "prof-dupont" },
+		"gh path":                   func(c *Config) { c.GitHub.GHPath = "/opt/homebrew/bin/gh" },
 	}
 	for name, mutate := range cases {
 		t.Run(name, func(t *testing.T) {
 			cfg := DefaultConfig("espace")
 			mutate(&cfg)
 			if err := cfg.Validate(); err != nil {
-				t.Errorf("Validate : %v", err)
+				t.Errorf("Validate: %v", err)
 			}
 		})
 	}
@@ -108,53 +110,56 @@ func TestValidateRejectsInvalidValues(t *testing.T) {
 		mutate func(*Config)
 		want   []string
 	}{
-		{"nom vide", func(c *Config) { c.Name = "  " }, []string{"name:", "empty"}},
-		{"intervalle trop court", func(c *Config) { c.Sync.Interval = 10 * time.Minute },
+		{"empty name", func(c *Config) { c.Name = "  " }, []string{"name:", "empty"}},
+		{"interval too short", func(c *Config) { c.Sync.Interval = 10 * time.Minute },
 			[]string{"sync.interval: 10m0s is below the minimum of 15 min (0 for manual sync only)"}},
-		{"intervalle négatif", func(c *Config) { c.Sync.Interval = -time.Minute },
+		{"negative interval", func(c *Config) { c.Sync.Interval = -time.Minute },
 			[]string{"sync.interval", "-1m0s", "negative"}},
-		{"parallélisme nul", func(c *Config) { c.Sync.Parallelism = 0 },
+		{"zero parallelism", func(c *Config) { c.Sync.Parallelism = 0 },
 			[]string{"sync.parallelism: 0", "between 1 and 4"}},
-		{"parallélisme trop grand", func(c *Config) { c.Sync.Parallelism = 5 },
+		{"parallelism too large", func(c *Config) { c.Sync.Parallelism = 5 },
 			[]string{"sync.parallelism: 5", "between 1 and 4"}},
-		{"flemme nulle", func(c *Config) { c.Activity.FlemmeAfterDays = 0 },
+		{"zero flemme", func(c *Config) { c.Activity.FlemmeAfterDays = 0 },
 			[]string{"activity.flemme_after_days: 0", "at least 1"}},
-		{"dead égal à flemme", func(c *Config) { c.Activity = ActivityConfig{FlemmeAfterDays: 7, DeadAfterDays: 7} },
+		{"dead equal to flemme", func(c *Config) { c.Activity = ActivityConfig{FlemmeAfterDays: 7, DeadAfterDays: 7} },
 			[]string{"activity.dead_after_days: 7", "strictly greater", "(7)"}},
-		{"dead inférieur à flemme", func(c *Config) { c.Activity = ActivityConfig{FlemmeAfterDays: 10, DeadAfterDays: 3} },
+		{"dead below flemme", func(c *Config) { c.Activity = ActivityConfig{FlemmeAfterDays: 10, DeadAfterDays: 3} },
 			[]string{"activity.dead_after_days: 3"}},
-		{"motif vide", func(c *Config) { c.Branches.Exclude = []string{"main", " "} },
+		{"empty pattern", func(c *Config) { c.Branches.Exclude = []string{"main", " "} },
 			[]string{"branches.exclude", "#2", "empty"}},
-		{"motif invalide", func(c *Config) { c.Branches.Exclude = []string{"release/[a"} },
+		{"invalid pattern", func(c *Config) { c.Branches.Exclude = []string{"release/[a"} },
 			[]string{"branches.exclude", `"release/[a"`, "invalid"}},
-		{"nom public avec port", func(c *Config) { c.Web.AllowedHosts = []string{"watchoo.example.org:443"} },
+		{"public name with port", func(c *Config) { c.Web.AllowedHosts = []string{"watchoo.example.org:443"} },
 			[]string{"web.allowed_hosts", "#1", "invalid"}},
-		{"nom public joker", func(c *Config) { c.Web.AllowedHosts = []string{"ok.example.org", "*"} },
+		{"wildcard public name", func(c *Config) { c.Web.AllowedHosts = []string{"ok.example.org", "*"} },
 			[]string{"web.allowed_hosts", "#2", `"*"`}},
-		{"nom public avec schéma", func(c *Config) { c.Web.AllowedHosts = []string{"https://watchoo.example.org"} },
+		{"public name with scheme", func(c *Config) { c.Web.AllowedHosts = []string{"https://watchoo.example.org"} },
 			[]string{"web.allowed_hosts", "invalid"}},
-		{"nom public vide", func(c *Config) { c.Web.AllowedHosts = []string{""} },
+		{"empty public name", func(c *Config) { c.Web.AllowedHosts = []string{""} },
 			[]string{"web.allowed_hosts", "invalid"}},
-		{"adresse sans port", func(c *Config) { c.Web.Addr = "127.0.0.1" },
+		{"address without port", func(c *Config) { c.Web.Addr = "127.0.0.1" },
 			[]string{"web.addr", `"127.0.0.1"`, "host:port"}},
-		{"adresse vide", func(c *Config) { c.Web.Addr = "" }, []string{"web.addr", "host:port"}},
-		{"port vide", func(c *Config) { c.Web.Addr = "127.0.0.1:" }, []string{"web.addr", "missing port"}},
-		{"port non numérique", func(c *Config) { c.Web.Addr = "127.0.0.1:80a" }, []string{"web.addr", `port "80a"`}},
-		{"port trop grand", func(c *Config) { c.Web.Addr = "127.0.0.1:70000" }, []string{"web.addr", "65535"}},
-		{"identifiant web avec deux-points", func(c *Config) { c.Web.Auth.Username = "prof:x" },
+		{"empty address", func(c *Config) { c.Web.Addr = "" }, []string{"web.addr", "host:port"}},
+		{"empty port", func(c *Config) { c.Web.Addr = "127.0.0.1:" }, []string{"web.addr", "missing port"}},
+		{"non-numeric port", func(c *Config) { c.Web.Addr = "127.0.0.1:80a" }, []string{"web.addr", `port "80a"`}},
+		{"port too large", func(c *Config) { c.Web.Addr = "127.0.0.1:70000" }, []string{"web.addr", "65535"}},
+		{"web login with a colon", func(c *Config) { c.Web.Auth.Username = "prof:x" },
 			[]string{"web.auth.username", `"prof:x"`, "invalid"}},
-		{"identifiant web avec contrôle", func(c *Config) { c.Web.Auth.Username = "prof\n" },
+		{"web login with a control character", func(c *Config) { c.Web.Auth.Username = "prof\n" },
 			[]string{"web.auth.username", "invalid"}},
-		{"identifiant web entouré d'espaces", func(c *Config) { c.Web.Auth.Username = " prof" },
+		{"web login surrounded by spaces", func(c *Config) { c.Web.Auth.Username = " prof" },
 			[]string{"web.auth.username", "invalid"}},
-		{"fuseau inconnu", func(c *Config) { c.Timezone = "Mars/Olympus" },
+		{"unknown time zone", func(c *Config) { c.Timezone = "Mars/Olympus" },
 			[]string{"timezone", `"Mars/Olympus"`, "IANA"}},
-		{"chemin de gh vide", func(c *Config) { c.GitHub.GHPath = "" }, []string{"github.gh_path", "empty"}},
-		{"chemin de gh relatif", func(c *Config) { c.GitHub.GHPath = ".watchoo/gh" },
+		{"unknown language", func(c *Config) { c.Lang = "de" },
+			[]string{"lang", `"de"`, `"en"`, `"fr"`}},
+		{"empty language", func(c *Config) { c.Lang = "" }, []string{"lang", `""`}},
+		{"empty gh path", func(c *Config) { c.GitHub.GHPath = "" }, []string{"github.gh_path", "empty"}},
+		{"relative gh path", func(c *Config) { c.GitHub.GHPath = ".watchoo/gh" },
 			[]string{"github.gh_path", `".watchoo/gh"`, "relative", "absolute"}},
-		{"chemin de gh relatif en ./", func(c *Config) { c.GitHub.GHPath = "./gh" },
+		{"relative gh path with ./", func(c *Config) { c.GitHub.GHPath = "./gh" },
 			[]string{"github.gh_path", "relative"}},
-		{"protocole git inconnu", func(c *Config) { c.Git.Protocol = "ftp" },
+		{"unknown git protocol", func(c *Config) { c.Git.Protocol = "ftp" },
 			[]string{"git.protocol", `"ftp"`, "ssh", "https"}},
 	}
 	for _, tc := range cases {
@@ -174,18 +179,18 @@ func TestValidateReportsEveryProblem(t *testing.T) {
 	err := cfg.Validate()
 	assertErrorContains(t, err, "sync.interval", "sync.parallelism", "timezone")
 	if n := len(strings.Split(err.Error(), "\n")); n != 3 {
-		t.Errorf("%d messages, attendu 3 (un par problème) :\n%v", n, err)
+		t.Errorf("%d messages, want 3 (one per problem):\n%v", n, err)
 	}
 }
 
 func TestLocation(t *testing.T) {
 	cfg := DefaultConfig("espace")
 	if loc, err := cfg.Location(); err != nil || loc != time.Local {
-		t.Errorf("Location() avec timezone vide = %v, %v ; attendu time.Local", loc, err)
+		t.Errorf("Location() with empty timezone = %v, %v; want time.Local", loc, err)
 	}
 	cfg.Timezone = "Europe/Paris"
 	if loc, err := cfg.Location(); err != nil || loc.String() != "Europe/Paris" {
-		t.Errorf("Location() = %v, %v ; attendu Europe/Paris", loc, err)
+		t.Errorf("Location() = %v, %v; want Europe/Paris", loc, err)
 	}
 	cfg.Timezone = "Pas/Un/Fuseau"
 	_, err := cfg.Location()
@@ -198,21 +203,21 @@ func TestUserConfigPath(t *testing.T) {
 
 	t.Setenv("XDG_CONFIG_HOME", "/srv/xdg")
 	if got, err := UserConfigPath(); err != nil || got != filepath.Join("/srv/xdg", "watchoo", "config.yaml") {
-		t.Errorf("avec XDG_CONFIG_HOME : %q, %v", got, err)
+		t.Errorf("with XDG_CONFIG_HOME: %q, %v", got, err)
 	}
 
 	want := filepath.Join(home, ".config", "watchoo", "config.yaml")
-	for _, xdg := range []string{"", "relatif/xdg"} {
+	for _, xdg := range []string{"", "relative/xdg"} {
 		t.Setenv("XDG_CONFIG_HOME", xdg)
 		if got, err := UserConfigPath(); err != nil || got != want {
-			t.Errorf("XDG_CONFIG_HOME=%q : %q, %v ; attendu %q (jamais ~/Library/Application Support)",
+			t.Errorf("XDG_CONFIG_HOME=%q: %q, %v; want %q (never ~/Library/Application Support)",
 				xdg, got, err, want)
 		}
 	}
 }
 
-// newLoadWorkspace crée un espace « licence-projet » (isolé de l'environnement) et renvoie l'espace
-// et le chemin du fichier de réglages utilisateur.
+// newLoadWorkspace creates a "licence-projet" workspace (isolated from the environment) and returns
+// the workspace and the path of the user settings file.
 func newLoadWorkspace(t *testing.T) (*Workspace, string) {
 	t.Helper()
 	userConfig := isolateEnv(t)
@@ -223,10 +228,10 @@ func newLoadWorkspace(t *testing.T) (*Workspace, string) {
 func TestLoadDefaults(t *testing.T) {
 	ws, _ := newLoadWorkspace(t)
 	if err := Load(ws); err != nil {
-		t.Fatalf("Load : %v", err)
+		t.Fatalf("Load: %v", err)
 	}
 	if !reflect.DeepEqual(ws.Config, DefaultConfig("licence-projet")) {
-		t.Errorf("Config = %+v, attendu les valeurs par défaut", ws.Config)
+		t.Errorf("Config = %+v, want the default values", ws.Config)
 	}
 }
 
@@ -237,12 +242,12 @@ func TestLoadBeforeInit(t *testing.T) {
 	t.Setenv("WATCHOO_GITHUB_GH_PATH", "/opt/gh")
 
 	if err := Load(ws); err != nil {
-		t.Fatalf("Load sans .watchoo : %v", err)
+		t.Fatalf("Load without .watchoo: %v", err)
 	}
 	want := DefaultConfig("pas-encore")
 	want.GitHub.GHPath = "/opt/gh"
 	if !reflect.DeepEqual(ws.Config, want) {
-		t.Errorf("Config = %+v, attendu %+v", ws.Config, want)
+		t.Errorf("Config = %+v, want %+v", ws.Config, want)
 	}
 }
 
@@ -254,14 +259,14 @@ func TestLoadUserConfig(t *testing.T) {
 
 	cfg, err := LoadUserConfig(root)
 	if err != nil {
-		t.Fatalf("LoadUserConfig : %v", err)
+		t.Fatalf("LoadUserConfig: %v", err)
 	}
 	want := DefaultConfig("licence-projet")
-	want.GitHub.User = "compte-utilisateur" // utilisateur > défaut
+	want.GitHub.User = "compte-utilisateur" // user > default
 	want.Timezone = "Europe/Paris"
-	want.GitHub.GHPath = "/opt/gh" // environnement > utilisateur
+	want.GitHub.GHPath = "/opt/gh" // environment > user
 	if !reflect.DeepEqual(cfg, want) {
-		t.Errorf("Config = %+v\nattendu  %+v", cfg, want)
+		t.Errorf("Config = %+v\nwant  %+v", cfg, want)
 	}
 }
 
@@ -269,15 +274,15 @@ func TestLoadUserConfigIgnoresWorkspaceFile(t *testing.T) {
 	isolateEnv(t)
 	root := newDir(t, t.TempDir(), "licence-projet")
 	ws := mustInit(t, root)
-	// Un config.yaml d'espace invalide ne doit pas être lu : init refusera l'espace existant ensuite.
+	// An invalid workspace config.yaml must not be read: init will refuse the existing workspace next.
 	writeFile(t, ws.ConfigPath(), "cle_inconnue: 1\nsync:\n  interval: 1m\n")
 
 	cfg, err := LoadUserConfig(root)
 	if err != nil {
-		t.Fatalf("LoadUserConfig : %v", err)
+		t.Fatalf("LoadUserConfig: %v", err)
 	}
 	if !reflect.DeepEqual(cfg, DefaultConfig("licence-projet")) {
-		t.Errorf("Config = %+v, attendu les valeurs par défaut", cfg)
+		t.Errorf("Config = %+v, want the default values", cfg)
 	}
 }
 
@@ -326,18 +331,18 @@ branches:
 	t.Setenv("WATCHOO_GITHUB_USER", "compte-env")
 
 	if err := Load(ws); err != nil {
-		t.Fatalf("Load : %v", err)
+		t.Fatalf("Load: %v", err)
 	}
 	want := DefaultConfig("licence-projet")
-	want.Name = "Licence 2026"                                            // espace > défaut
-	want.Timezone = "Europe/Paris"                                        // utilisateur > défaut
-	want.Sync.Interval = 3 * time.Hour                                    // environnement > espace > utilisateur
-	want.Sync.Parallelism = 2                                             // utilisateur, non remplacé par l'espace
-	want.Activity = ActivityConfig{FlemmeAfterDays: 3, DeadAfterDays: 20} // fusion clé par clé
-	want.Branches.Exclude = []string{"renovate/*", "wip"}                 // la liste de l'espace remplace celle de l'utilisateur
-	want.GitHub.User = "compte-env"                                       // environnement > utilisateur
+	want.Name = "Licence 2026"                                            // workspace > default
+	want.Timezone = "Europe/Paris"                                        // user > default
+	want.Sync.Interval = 3 * time.Hour                                    // environment > workspace > user
+	want.Sync.Parallelism = 2                                             // user, not replaced by the workspace
+	want.Activity = ActivityConfig{FlemmeAfterDays: 3, DeadAfterDays: 20} // merge key by key
+	want.Branches.Exclude = []string{"renovate/*", "wip"}                 // the list of the workspace replaces the user's
+	want.GitHub.User = "compte-env"                                       // environment > user
 	if !reflect.DeepEqual(ws.Config, want) {
-		t.Errorf("Config = %+v\nattendu  %+v", ws.Config, want)
+		t.Errorf("Config = %+v\nwant  %+v", ws.Config, want)
 	}
 }
 
@@ -346,15 +351,15 @@ func TestLoadUserConfigFromHome(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", "")
 	home := os.Getenv("HOME")
 	writeFile(t, filepath.Join(home, ".config", "watchoo", "config.yaml"), "timezone: UTC\n")
-	// Ce fichier ne doit jamais être lu (os.UserConfigDir sous macOS).
+	// This file must never be read (os.UserConfigDir on macOS).
 	writeFile(t, filepath.Join(home, "Library", "Application Support", "watchoo", "config.yaml"),
 		"timezone: Asia/Tokyo\n")
 
 	if err := Load(ws); err != nil {
-		t.Fatalf("Load : %v", err)
+		t.Fatalf("Load: %v", err)
 	}
 	if ws.Config.Timezone != "UTC" {
-		t.Errorf("Timezone = %q, attendu UTC (lu dans ~/.config/watchoo/config.yaml)", ws.Config.Timezone)
+		t.Errorf("Timezone = %q, want UTC (read in ~/.config/watchoo/config.yaml)", ws.Config.Timezone)
 	}
 }
 
@@ -363,7 +368,7 @@ func TestLoadWithoutHome(t *testing.T) {
 	t.Setenv("XDG_CONFIG_HOME", "")
 	t.Setenv("HOME", "")
 	if err := Load(ws); err != nil {
-		t.Fatalf("Load sans répertoire personnel : %v", err)
+		t.Fatalf("Load without home directory: %v", err)
 	}
 	if !reflect.DeepEqual(ws.Config, DefaultConfig("licence-projet")) {
 		t.Errorf("Config = %+v", ws.Config)
@@ -383,6 +388,7 @@ func TestLoadEnvironmentVariables(t *testing.T) {
 		"WATCHOO_WEB_ADDR":                   "0.0.0.0:9090",
 		"WATCHOO_WEB_ALLOWED_HOSTS":          "watchoo.example.org, autre.example.org",
 		"WATCHOO_TIMEZONE":                   "America/Montreal",
+		"WATCHOO_LANG":                       "fr",
 		"WATCHOO_GITHUB_USER":                "prof",
 		"WATCHOO_GITHUB_GH_PATH":             "/usr/local/bin/gh",
 		"WATCHOO_GIT_PROTOCOL":               "https",
@@ -391,7 +397,7 @@ func TestLoadEnvironmentVariables(t *testing.T) {
 		t.Setenv(k, v)
 	}
 	if err := Load(ws); err != nil {
-		t.Fatalf("Load : %v", err)
+		t.Fatalf("Load: %v", err)
 	}
 	want := Config{
 		Name:     "Depuis l'environnement",
@@ -400,11 +406,12 @@ func TestLoadEnvironmentVariables(t *testing.T) {
 		Branches: BranchesConfig{Exclude: []string{"dependabot/*", "renovate/*"}},
 		Web:      WebConfig{Addr: "0.0.0.0:9090", AllowedHosts: []string{"watchoo.example.org", "autre.example.org"}},
 		Timezone: "America/Montreal",
+		Lang:     "fr",
 		GitHub:   GitHubConfig{User: "prof", GHPath: "/usr/local/bin/gh"},
 		Git:      GitConfig{Protocol: "https"},
 	}
 	if !reflect.DeepEqual(ws.Config, want) {
-		t.Errorf("Config = %+v\nattendu  %+v", ws.Config, want)
+		t.Errorf("Config = %+v\nwant  %+v", ws.Config, want)
 	}
 }
 
@@ -412,13 +419,53 @@ func TestLoadEmptyEnvironmentVariableIgnored(t *testing.T) {
 	ws, userConfig := newLoadWorkspace(t)
 	writeFile(t, userConfig, "timezone: Europe/Paris\n")
 	t.Setenv("WATCHOO_TIMEZONE", "")
-	t.Setenv(EnvDir, ws.Root) // n'est pas un réglage
+	t.Setenv(EnvDir, ws.Root) // not a setting
 	if err := Load(ws); err != nil {
-		t.Fatalf("Load : %v", err)
+		t.Fatalf("Load: %v", err)
 	}
 	if ws.Config.Timezone != "Europe/Paris" {
-		t.Errorf("Timezone = %q, une variable vide doit être ignorée", ws.Config.Timezone)
+		t.Errorf("Timezone = %q, an empty variable must be ignored", ws.Config.Timezone)
 	}
+}
+
+// TestLoadLang checks the lang setting: read from config.yaml, normalized ("FR" → "fr"), and
+// overridden by WATCHOO_LANG, the same variable that selects the CLI and TUI language (one variable
+// forces the language everywhere). An unknown value is refused, from the file or the variable.
+func TestLoadLang(t *testing.T) {
+	t.Run("file", func(t *testing.T) {
+		ws, _ := newLoadWorkspace(t)
+		writeFile(t, ws.ConfigPath(), "lang: \" FR \"\n")
+		if err := Load(ws); err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+		if ws.Config.Lang != "fr" || ws.Config.Translator().Lang() != i18n.French {
+			t.Errorf("Lang = %q, want fr", ws.Config.Lang)
+		}
+	})
+	t.Run("WATCHOO_LANG overrides the file", func(t *testing.T) {
+		ws, _ := newLoadWorkspace(t)
+		writeFile(t, ws.ConfigPath(), "lang: fr\n")
+		t.Setenv("WATCHOO_LANG", "en")
+		if err := Load(ws); err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+		if ws.Config.Lang != "en" {
+			t.Errorf("Lang = %q, want en (WATCHOO_LANG)", ws.Config.Lang)
+		}
+		if got := i18n.Detect(os.Getenv); got != i18n.English {
+			t.Errorf("i18n.Detect = %q, want en: the same variable selects the CLI language", got)
+		}
+	})
+	t.Run("unknown value in the file", func(t *testing.T) {
+		ws, _ := newLoadWorkspace(t)
+		writeFile(t, ws.ConfigPath(), "lang: de\n")
+		assertErrorContains(t, Load(ws), "lang", `"de"`)
+	})
+	t.Run("unknown value in WATCHOO_LANG", func(t *testing.T) {
+		ws, _ := newLoadWorkspace(t)
+		t.Setenv("WATCHOO_LANG", "es")
+		assertErrorContains(t, Load(ws), "lang", `"es"`)
+	})
 }
 
 func TestLoadFileValues(t *testing.T) {
@@ -433,28 +480,28 @@ branches:
   exclude: [2024, "dependabot/*"]
 `)
 	if err := Load(ws); err != nil {
-		t.Fatalf("Load : %v", err)
+		t.Fatalf("Load: %v", err)
 	}
 	want := DefaultConfig("licence-projet")
 	want.Name = "2026"
 	want.Sync = SyncConfig{Auto: false, Interval: 0, Parallelism: 3}
 	want.Branches.Exclude = []string{"2024", "dependabot/*"}
 	if !reflect.DeepEqual(ws.Config, want) {
-		t.Errorf("Config = %+v\nattendu  %+v", ws.Config, want)
+		t.Errorf("Config = %+v\nwant  %+v", ws.Config, want)
 	}
 }
 
 func TestLoadEmptyValuesIgnored(t *testing.T) {
 	ws, userConfig := newLoadWorkspace(t)
 	writeFile(t, userConfig, "timezone: Europe/Paris\nsync:\n  auto: false\nbranches:\n  exclude: [a]\n")
-	// Sections vides et clés sans valeur : rien n'est remplacé.
+	// Empty sections and keys without value: nothing is replaced.
 	writeFile(t, ws.ConfigPath(), "timezone:\nsync:\n  auto:\nbranches:\n  exclude:\nweb:\nactivity: {}\n")
 	if err := Load(ws); err != nil {
-		t.Fatalf("Load : %v", err)
+		t.Fatalf("Load: %v", err)
 	}
 	if ws.Config.Timezone != "Europe/Paris" || ws.Config.Sync.Auto ||
 		!slices.Equal(ws.Config.Branches.Exclude, []string{"a"}) {
-		t.Errorf("Config = %+v : les valeurs de l'utilisateur doivent être conservées", ws.Config)
+		t.Errorf("Config = %+v: the user's values must be kept", ws.Config)
 	}
 }
 
@@ -463,15 +510,15 @@ func TestLoadRejectsUnknownKeys(t *testing.T) {
 		name, content string
 		want          []string
 	}{
-		{"faute de frappe", "sync:\n  intervall: 1h\n",
+		{"typo", "sync:\n  intervall: 1h\n",
 			[]string{`unknown key "sync.intervall"`, `did you mean "sync.interval"?`}},
-		{"clé hors de sa section", "interval: 1h\n",
+		{"key outside its section", "interval: 1h\n",
 			[]string{`unknown key "interval"`, `"sync.interval"`}},
-		{"clé inconnue", "couleur: bleu\n", []string{`unknown key "couleur"`}},
-		{"clé inconnue sans valeur", "couleur:\n", []string{`unknown key "couleur"`}},
-		{"section inconnue", "token:\n  value: x\n", []string{`unknown key "token.value"`}},
-		{"section avec une valeur", "sync: 5\n", []string{`"sync" is a section`, "sync.auto"}},
-		{"réglage avec des sous-clés", "web:\n  addr:\n    host: x\n",
+		{"unknown key", "couleur: bleu\n", []string{`unknown key "couleur"`}},
+		{"unknown key without value", "couleur:\n", []string{`unknown key "couleur"`}},
+		{"unknown section", "token:\n  value: x\n", []string{`unknown key "token.value"`}},
+		{"section with a value", "sync: 5\n", []string{`"sync" is a section`, "sync.auto"}},
+		{"setting with sub-keys", "web:\n  addr:\n    host: x\n",
 			[]string{`"web.addr" takes no sub-keys`}},
 	}
 	for _, tc := range cases {
@@ -482,7 +529,7 @@ func TestLoadRejectsUnknownKeys(t *testing.T) {
 			err := Load(ws)
 			assertErrorContains(t, err, append([]string{ws.ConfigPath()}, tc.want...)...)
 			if !reflect.DeepEqual(ws.Config, before) {
-				t.Errorf("ws.Config modifié malgré l'erreur")
+				t.Errorf("ws.Config changed despite the error")
 			}
 		})
 	}
@@ -493,23 +540,23 @@ func TestLoadRejectsInvalidFileValues(t *testing.T) {
 		name, content string
 		want          []string
 	}{
-		{"durée illisible", "sync:\n  interval: bientôt\n",
+		{"unreadable duration", "sync:\n  interval: bientôt\n",
 			[]string{"sync.interval", `invalid duration "bientôt"`}},
-		{"durée sans unité", "sync:\n  interval: 30\n", []string{"sync.interval", "duration without a unit 30"}},
-		{"intervalle trop court", "sync:\n  interval: 5m\n",
+		{"duration without unit", "sync:\n  interval: 30\n", []string{"sync.interval", "duration without a unit 30"}},
+		{"interval too short", "sync:\n  interval: 5m\n",
 			[]string{"invalid settings", "sync.interval: 5m0s is below the minimum of 15 min"}},
-		{"booléen", "sync:\n  auto: oui\n", []string{"sync.auto", "expected true or false", `"oui"`}},
-		{"entier", "sync:\n  parallelism: deux\n", []string{"sync.parallelism", "expected an integer"}},
-		{"entier décimal", "activity:\n  flemme_after_days: 2.5\n",
+		{"boolean", "sync:\n  auto: oui\n", []string{"sync.auto", "expected true or false", `"oui"`}},
+		{"integer", "sync:\n  parallelism: deux\n", []string{"sync.parallelism", "expected an integer"}},
+		{"decimal integer", "activity:\n  flemme_after_days: 2.5\n",
 			[]string{"activity.flemme_after_days", "expected an integer", "2.5"}},
-		{"liste attendue", "branches:\n  exclude: {a: 1}\n", []string{"branches.exclude"}},
-		{"élément de liste", "branches:\n  exclude: [[a]]\n", []string{"branches.exclude", "item #1"}},
-		{"chaîne attendue", "web:\n  addr: [a, b]\n", []string{"web.addr", "expected a string"}},
-		{"parallélisme hors limites", "sync:\n  parallelism: 9\n", []string{"sync.parallelism: 9", "between 1 and 4"}},
-		{"seuils incohérents", "activity:\n  flemme_after_days: 20\n",
+		{"list expected", "branches:\n  exclude: {a: 1}\n", []string{"branches.exclude"}},
+		{"list item", "branches:\n  exclude: [[a]]\n", []string{"branches.exclude", "item #1"}},
+		{"string expected", "web:\n  addr: [a, b]\n", []string{"web.addr", "expected a string"}},
+		{"parallelism out of bounds", "sync:\n  parallelism: 9\n", []string{"sync.parallelism: 9", "between 1 and 4"}},
+		{"inconsistent thresholds", "activity:\n  flemme_after_days: 20\n",
 			[]string{"activity.dead_after_days: 15", "strictly greater"}},
-		{"fuseau inconnu", "timezone: Lune/Base\n", []string{"timezone", "Lune/Base"}},
-		{"plusieurs erreurs", "sync:\n  auto: peut-être\n  parallelism: x\n",
+		{"unknown time zone", "timezone: Lune/Base\n", []string{"timezone", "Lune/Base"}},
+		{"several errors", "sync:\n  auto: peut-être\n  parallelism: x\n",
 			[]string{"sync.auto", "sync.parallelism"}},
 	}
 	for _, tc := range cases {
@@ -544,7 +591,7 @@ func TestLoadUnreadableFile(t *testing.T) {
 	if err := os.Remove(ws.ConfigPath()); err != nil {
 		t.Fatal(err)
 	}
-	newDir(t, ws.ConfigPath()) // un répertoire à la place du fichier
+	newDir(t, ws.ConfigPath()) // a directory instead of the file
 	assertErrorContains(t, Load(ws), "reading the settings", ws.ConfigPath())
 }
 
@@ -555,7 +602,7 @@ func TestLoadMissingWorkspaceFile(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := Load(ws); err != nil {
-		t.Fatalf("Load sans config.yaml : %v", err)
+		t.Fatalf("Load without config.yaml: %v", err)
 	}
 	if ws.Config.Sync.Parallelism != 2 || ws.Config.Name != "licence-projet" {
 		t.Errorf("Config = %+v", ws.Config)
@@ -577,13 +624,13 @@ func TestLoadRejectsInvalidEnvironment(t *testing.T) {
 		})
 	}
 
-	t.Run("durée sans unité", func(t *testing.T) {
+	t.Run("duration without unit", func(t *testing.T) {
 		ws, _ := newLoadWorkspace(t)
 		t.Setenv("WATCHOO_SYNC_INTERVAL", "10")
 		assertErrorContains(t, Load(ws), "variable WATCHOO_SYNC_INTERVAL", `duration without a unit "10"`)
 	})
 
-	t.Run("valeur refusée par Validate", func(t *testing.T) {
+	t.Run("value refused by Validate", func(t *testing.T) {
 		ws, _ := newLoadWorkspace(t)
 		t.Setenv("WATCHOO_SYNC_INTERVAL", "1m")
 		assertErrorContains(t, Load(ws), "sync.interval: 1m0s is below the minimum")
@@ -594,10 +641,10 @@ func TestLoadCaseInsensitiveKeys(t *testing.T) {
 	ws, _ := newLoadWorkspace(t)
 	writeFile(t, ws.ConfigPath(), "Sync:\n  Interval: 45m\n")
 	if err := Load(ws); err != nil {
-		t.Fatalf("Load : %v", err)
+		t.Fatalf("Load: %v", err)
 	}
 	if ws.Config.Sync.Interval != 45*time.Minute {
-		t.Errorf("Interval = %v, attendu 45m", ws.Config.Sync.Interval)
+		t.Errorf("Interval = %v, want 45m", ws.Config.Sync.Interval)
 	}
 }
 
@@ -606,7 +653,7 @@ func TestLoadRequiresWorkspace(t *testing.T) {
 	assertErrorContains(t, Load(&Workspace{}), "workspace not provided")
 }
 
-// trickyNames sont des noms d'espace qui exigent un échappement YAML correct.
+// trickyNames are workspace names that need a correct YAML escaping.
 var trickyNames = []string{
 	"licence-projet",
 	"Licence 2026 : groupe #3",
@@ -625,21 +672,21 @@ func TestConfigTemplateRoundTrip(t *testing.T) {
 			ws, _ := newLoadWorkspace(t)
 			writeFile(t, ws.ConfigPath(), ConfigTemplate(i18n.English, name))
 			if err := Load(ws); err != nil {
-				t.Fatalf("Load : %v\n%s", err, ConfigTemplate(i18n.English, name))
+				t.Fatalf("Load: %v\n%s", err, ConfigTemplate(i18n.English, name))
 			}
 			if !reflect.DeepEqual(ws.Config, DefaultConfig(name)) {
-				t.Errorf("Config = %+v\nattendu  %+v", ws.Config, DefaultConfig(name))
+				t.Errorf("Config = %+v\nwant  %+v", ws.Config, DefaultConfig(name))
 			}
 		})
 	}
 }
 
 func TestConfigTemplateKeepsUserSettings(t *testing.T) {
-	// Seul le nom est actif dans le modèle : les réglages de l'utilisateur continuent de s'appliquer.
+	// Only the name is active in the template: the user's settings keep applying.
 	ws, userConfig := newLoadWorkspace(t)
 	writeFile(t, userConfig, "name: ignoré\ntimezone: Europe/Paris\nsync:\n  interval: 1h\n")
 	if err := Load(ws); err != nil {
-		t.Fatalf("Load : %v", err)
+		t.Fatalf("Load: %v", err)
 	}
 	if ws.Config.Name != "licence-projet" || ws.Config.Timezone != "Europe/Paris" ||
 		ws.Config.Sync.Interval != time.Hour {
@@ -647,8 +694,8 @@ func TestConfigTemplateKeepsUserSettings(t *testing.T) {
 	}
 }
 
-// settingLine reconnaît une ligne de réglage en commentaire du modèle : « # clé: valeur » ou
-// « #   clé: valeur » (dans une section).
+// settingLine recognizes a commented setting line of the template: "# key: value" or
+// "#   key: value" (in a section).
 var settingLine = regexp.MustCompile(`^# ( *)([a-z_]+):(.*)$`)
 
 func TestConfigTemplateUncommentedEqualsDefaults(t *testing.T) {
@@ -660,11 +707,11 @@ func TestConfigTemplateUncommentedEqualsDefaults(t *testing.T) {
 	}
 	uncommented := b.String()
 
-	// Toutes les clés connues figurent dans le modèle.
+	// All the known keys are in the template.
 	fv := viper.New()
 	fv.SetConfigType("yaml")
 	if err := fv.ReadConfig(bytes.NewReader([]byte(uncommented))); err != nil {
-		t.Fatalf("modèle décommenté illisible : %v\n%s", err, uncommented)
+		t.Fatalf("unreadable uncommented template: %v\n%s", err, uncommented)
 	}
 	var cfg Config
 	var want []string
@@ -675,22 +722,22 @@ func TestConfigTemplateUncommentedEqualsDefaults(t *testing.T) {
 	slices.Sort(got)
 	slices.Sort(want)
 	if !slices.Equal(got, want) {
-		t.Errorf("clés du modèle décommenté = %v\nattendu %v", got, want)
+		t.Errorf("keys of the uncommented template = %v\nwant %v", got, want)
 	}
 
-	// Et leurs valeurs sont bien les valeurs par défaut.
+	// And their values are the default values.
 	ws, _ := newLoadWorkspace(t)
 	writeFile(t, ws.ConfigPath(), uncommented)
 	if err := Load(ws); err != nil {
-		t.Fatalf("Load : %v\n%s", err, uncommented)
+		t.Fatalf("Load: %v\n%s", err, uncommented)
 	}
 	if !reflect.DeepEqual(ws.Config, DefaultConfig(name)) {
-		t.Errorf("Config = %+v\nattendu  %+v", ws.Config, DefaultConfig(name))
+		t.Errorf("Config = %+v\nwant  %+v", ws.Config, DefaultConfig(name))
 	}
 }
 
-// Le modèle de la langue du processus (anglais, forcée par TestMain) contient les repères attendus,
-// et seule la clé name y est active.
+// The template in the process language (English, forced by TestMain) contains the expected
+// landmarks, and only the name key is active in it.
 func TestConfigTemplateIsCommentedInEnglish(t *testing.T) {
 	tpl := ConfigTemplate(i18n.English, "licence-projet")
 	for _, part := range []string{
@@ -701,20 +748,20 @@ func TestConfigTemplateIsCommentedInEnglish(t *testing.T) {
 		`name: "licence-projet"`,
 	} {
 		if !strings.Contains(tpl, part) {
-			t.Errorf("le modèle ne contient pas %q", part)
+			t.Errorf("the template does not contain %q", part)
 		}
 	}
 	for line := range strings.Lines(tpl) {
 		line = strings.TrimSuffix(line, "\n")
 		if line != "" && !strings.HasPrefix(line, "#") && !strings.HasPrefix(line, "name: ") {
-			t.Errorf("seule la clé name doit être active, ligne trouvée : %q", line)
+			t.Errorf("only the name key must be active, line found: %q", line)
 		}
 	}
 }
 
-// Le fichier commence par la carte d'en-tête en commentaires (hibou mini en blocs, « Watchoo » sans
-// version, sous-titre, sans astuce ni couleur, 80 colonnes au plus), suivie d'une ligne « # » puis de
-// l'en-tête des réglages. Le nom de l'espace n'est pas dans la carte.
+// The file starts with the header card in comments (mini owl in blocks, "Watchoo" without version,
+// subtitle, without tip or color, 80 columns at most), followed by a "#" line then by the settings
+// header. The name of the workspace is not in the card.
 func TestConfigTemplateStartsWithCard(t *testing.T) {
 	want := strings.Join([]string{
 		"# ╭────────────────────────────────╮",
@@ -729,7 +776,7 @@ func TestConfigTemplateStartsWithCard(t *testing.T) {
 	for _, name := range trickyNames {
 		tpl := ConfigTemplate(i18n.English, name)
 		if !strings.HasPrefix(tpl, want) {
-			t.Errorf("ConfigTemplate(%q) ne commence pas par la carte :\n%s", name, tpl)
+			t.Errorf("ConfigTemplate(%q) does not start with the card:\n%s", name, tpl)
 		}
 	}
 	tr := i18n.For(i18n.English)
@@ -739,19 +786,19 @@ func TestConfigTemplateStartsWithCard(t *testing.T) {
 	}
 	if header != commentLines(logo.Card(logo.CardOptions{Title: "Watchoo",
 		Subtitle: tr.T("workspace.cfg.card_subtitle"), Width: 80, Unicode: true})) {
-		t.Errorf("configHeader n'est pas la carte de logo.Card en commentaires :\n%s", header)
+		t.Errorf("configHeader is not the logo.Card card in comments:\n%s", header)
 	}
 	if strings.Contains(header, "\x1b") {
-		t.Errorf("séquence d'échappement dans l'en-tête :\n%q", header)
+		t.Errorf("escape sequence in the header:\n%q", header)
 	}
 	for line := range strings.Lines(header) {
 		if n := utf8.RuneCountInString(strings.TrimPrefix(strings.TrimSuffix(line, "\n"), "# ")); n > 80 {
-			t.Errorf("ligne de %d colonnes, plus de 80 : %q", n, line)
+			t.Errorf("line of %d columns, more than 80: %q", n, line)
 		}
 	}
 }
 
-// commentLines précède chaque ligne de s de « # ».
+// commentLines prefixes each line of s with "#".
 func commentLines(s string) string {
 	var b strings.Builder
 	for line := range strings.Lines(s) {
@@ -770,11 +817,11 @@ func TestConfigExampleFile(t *testing.T) {
 	}
 	got, err := os.ReadFile(path)
 	if err != nil {
-		t.Fatalf("lecture de config.example.yaml : %v (régénérer avec -update)", err)
+		t.Fatalf("reading config.example.yaml: %v (regenerate with -update)", err)
 	}
 	if string(got) != want {
-		t.Errorf("config.example.yaml n'est pas à jour : relancez « go test ./internal/workspace " +
-			"-run TestConfigExampleFile -update »")
+		t.Errorf("config.example.yaml is not up to date: run \"go test ./internal/workspace " +
+			"-run TestConfigExampleFile -update\"")
 	}
 }
 
@@ -795,11 +842,11 @@ func TestDecodeSettingErrors(t *testing.T) {
 	}
 	for _, tc := range cases {
 		if err := decodeSetting(tc.ptr, tc.raw); err == nil {
-			t.Errorf("decodeSetting(%T, %#v) : erreur attendue", tc.ptr, tc.raw)
+			t.Errorf("decodeSetting(%T, %#v): error expected", tc.ptr, tc.raw)
 		}
 	}
 	if err := decodeSetting(new(float64), 1.0); err == nil {
-		t.Error("un type de champ non géré doit être signalé")
+		t.Error("an unsupported field type must be reported")
 	}
 }
 
@@ -815,10 +862,10 @@ func TestShortDuration(t *testing.T) {
 	}
 	for d, want := range cases {
 		if got := shortDuration(d); got != want {
-			t.Errorf("shortDuration(%v) = %q, attendu %q", d, got, want)
+			t.Errorf("shortDuration(%v) = %q, want %q", d, got, want)
 		}
 		if parsed, err := time.ParseDuration(shortDuration(d)); err != nil || parsed != d {
-			t.Errorf("shortDuration(%v) ne se relit pas : %v, %v", d, parsed, err)
+			t.Errorf("shortDuration(%v) does not read back: %v, %v", d, parsed, err)
 		}
 	}
 }

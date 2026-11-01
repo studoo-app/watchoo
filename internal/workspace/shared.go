@@ -34,13 +34,14 @@ const (
 	KeyDeadAfterDays   = "activity.dead_after_days"
 	KeyBranchesExclude = "branches.exclude"
 	KeyTimezone        = "timezone"
+	KeyLang            = "lang"
 )
 
 // SharedKeys liste les clés des réglages communs, dans l'ordre du modèle de config.yaml.
 var SharedKeys = []string{
 	KeySyncAuto, KeySyncInterval, KeySyncParallelism,
 	KeyFlemmeAfterDays, KeyDeadAfterDays,
-	KeyBranchesExclude, KeyTimezone,
+	KeyBranchesExclude, KeyTimezone, KeyLang,
 }
 
 // SharedSettings regroupe des valeurs de réglages communs. Chaque champ nil veut dire « non fourni » :
@@ -53,6 +54,7 @@ type SharedSettings struct {
 	DeadAfterDays   *int
 	BranchesExclude *[]string // liste vide (non nil) = aucune branche exclue
 	Timezone        *string   // "" = fuseau du système
+	Lang            *string   // langue de l'interface web : « en » ou « fr »
 }
 
 // SharedSettingsFrom renvoie tous les réglages communs de c (chaque champ renseigné, listes copiées ;
@@ -70,6 +72,7 @@ func SharedSettingsFrom(c Config) SharedSettings {
 		DeadAfterDays:   &c.Activity.DeadAfterDays,
 		BranchesExclude: &exclude,
 		Timezone:        &c.Timezone,
+		Lang:            &c.Lang,
 	}
 }
 
@@ -101,6 +104,9 @@ func (s SharedSettings) Values() map[string]any {
 	}
 	if s.Timezone != nil {
 		out[KeyTimezone] = *s.Timezone
+	}
+	if s.Lang != nil {
+		out[KeyLang] = *s.Lang
 	}
 	return out
 }
@@ -151,6 +157,9 @@ func (s SharedSettings) ApplyTo(c Config) Config {
 	}
 	if s.Timezone != nil {
 		out.Timezone = *s.Timezone
+	}
+	if s.Lang != nil {
+		out.Lang = *s.Lang
 	}
 	return out
 }

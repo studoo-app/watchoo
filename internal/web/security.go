@@ -5,12 +5,14 @@ package web
 // (protection contre le DNS rebinding, web.allowed_hosts pour les noms publics d'un reverse proxy).
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"net/netip"
 	"slices"
 	"strings"
 
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/workspace"
 )
 
@@ -40,39 +42,31 @@ func IsLoopbackHost(host string) bool {
 //     publics transmis par le proxy dans l'en-tête Host) ; un avertissement est alors renvoyé, à
 //     afficher au démarrage.
 //
-// Les messages sont en français et ne citent jamais le mot de passe.
+// Les messages sont dans la langue du processus (affichés par la CLI au démarrage) et ne citent
+// jamais le mot de passe.
 func CheckExposure(addr string, auth Auth, trustedProxy bool, hosts []string) (warning string, err error) {
 	host, _, err := net.SplitHostPort(addr)
 	if err != nil {
-		return "", fmt.Errorf("adresse d'écoute %q invalide (hôte:port attendu)", addr)
+		return "", errors.New(i18n.T("web.expose.addr_invalid", addr))
 	}
 	switch {
 	case auth.Username != "" && auth.Password == "":
-		return "", fmt.Errorf("web.auth.username est réglé mais la variable %s est vide : "+
-			"définissez le mot de passe dans cette variable (jamais dans un fichier de réglages)", workspace.WebPasswordEnv)
+		return "", errors.New(i18n.T("web.expose.no_password", workspace.WebPasswordEnv))
 	case auth.Username == "" && auth.Password != "":
-		return "", fmt.Errorf("la variable %s est définie mais web.auth.username est vide : "+
-			"réglez l'identifiant dans config.yaml", workspace.WebPasswordEnv)
+		return "", errors.New(i18n.T("web.expose.no_username", workspace.WebPasswordEnv))
 	case auth.Password != "" && len(auth.Password) < MinPasswordLength:
-		return "", fmt.Errorf("mot de passe de %s trop court : au moins %d caractères",
-			workspace.WebPasswordEnv, MinPasswordLength)
+		return "", errors.New(i18n.T("web.expose.short_password", workspace.WebPasswordEnv, MinPasswordLength))
 	}
 	if IsLoopbackHost(host) || auth.Enabled() {
 		return "", nil
 	}
 	if trustedProxy && len(hosts) == 0 {
-		return "", fmt.Errorf("écoute sur %s derrière un reverse proxy (web.trusted_proxy) refusée sans "+
-			"web.allowed_hosts : listez le ou les noms publics que le proxy transmet dans l'en-tête Host "+
-			"(protection contre le DNS rebinding)", addr)
+		return "", errors.New(i18n.T("web.expose.proxy_no_hosts", addr))
 	}
 	if trustedProxy {
-		return fmt.Sprintf("écoute sur %s sans authentification basique : web.trusted_proxy déclare qu'un "+
-			"reverse proxy authentifiant protège l'accès ; sans lui, les données des dépôts privés seraient "+
-			"exposées", addr), nil
+		return i18n.T("web.expose.proxy_warning", addr), nil
 	}
-	return "", fmt.Errorf("écoute sur %s (hors de la boucle locale) refusée sans authentification : "+
-		"réglez web.auth.username et la variable %s, ou web.trusted_proxy: true (avec web.allowed_hosts) "+
-		"derrière un reverse proxy authentifiant, ou écoutez sur 127.0.0.1", addr, workspace.WebPasswordEnv)
+	return "", errors.New(i18n.T("web.expose.refused", addr, workspace.WebPasswordEnv))
 }
 
 // hostPolicy est la liste des valeurs acceptées de l'en-tête Host (protection contre le DNS
@@ -113,7 +107,7 @@ func (p *hostPolicy) allows(host string) bool {
 func allowedHosts(listenAddr string, extra []string, trustedProxy, authEnabled bool) (*hostPolicy, error) {
 	host, port, err := net.SplitHostPort(listenAddr)
 	if err != nil {
-		return nil, fmt.Errorf("interface web : adresse d'écoute %q invalide : %w", listenAddr, err)
+		return nil, fmt.Errorf("%s%s%w", i18n.T("web.start.addr_invalid", listenAddr), i18n.T("web.colon"), err)
 	}
 	loopback := IsLoopbackHost(host)
 	if !loopback && !(trustedProxy && !authEnabled) && len(extra) == 0 {

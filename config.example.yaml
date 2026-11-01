@@ -56,6 +56,9 @@ name: "licence-projet"
 # Time zone used for display and grouping by day or by week.
 # timezone: ""               # empty: system time zone; otherwise an IANA name, e.g. "Europe/Paris"
 
+# Language of the web interface (the CLI and the TUI follow WATCHOO_LANG or the system locale).
+# lang: "en"                 # "en" (English) or "fr" (French)
+
 # Access to the GitHub API through the gh CLI, when it is installed and signed in. With
 # GH_TOKEN (Docker, CI), leave user empty: "gh auth token --user" ignores GH_TOKEN.
 # github:

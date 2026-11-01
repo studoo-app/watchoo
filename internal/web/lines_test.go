@@ -1,7 +1,7 @@
 package web
 
-// Lignes ajoutées et supprimées (0.5.0) : par commit (« — » si inconnues, « +0 −0 » si réellement
-// nulles), et totaux par dépôt, par contributeur et pour l'espace (« dont N commits non comptés »).
+// Added and deleted lines (0.5.0): per commit ("—" if unknown, "+0 −0" if really zero), and totals
+// per repository, per contributor and for the workspace ("including N commits not counted").
 
 import (
 	"context"
@@ -15,11 +15,12 @@ import (
 )
 
 const (
-	unknownLines = `<span class="text-base-content/40" title="Lignes inconnues : pas encore comptées`
+	unknownLines = `<span class="text-base-content/40" title="Lines unknown: not counted yet`
 	zeroLines    = `<span class="text-success">+0</span> <span class="text-error">−0</span>`
 )
 
-// seedLines crée un dépôt de trois commits d'Alice : connu (+12 −3), vide connu (+0 −0), inconnu.
+// seedLines creates a repository of three commits by Alice: known (+12 −3), known empty (+0 −0),
+// unknown.
 func (e *testEnv) seedLines() int64 {
 	e.t.Helper()
 	alice := store.Identity{Name: "Alice Martin", Email: "alice@example.test"}
@@ -37,42 +38,42 @@ func TestLinesPerCommitAndTotals(t *testing.T) {
 	e := newTestEnv(t)
 	id := e.seedLines()
 
-	// Historique du dépôt : chaque commit avec ses lignes, « — » pour l'inconnu.
+	// History of the repository: each commit with its lines, "—" for the unknown one.
 	w := e.get(repoPath(id))
 	assertStatus(t, w, http.StatusOK)
 	assertContains(t, w, `<span class="text-success">+12</span> <span class="text-error">−3</span>`, zeroLines,
 		unknownLines,
-		// Totaux du dépôt : 1 commit non compté.
-		"Lignes : ", "(dont 1 commit non compté)")
+		// Totals of the repository: 1 commit not counted.
+		"Lines: ", "(including 1 commit not counted)")
 
-	// Tableau de bord : totaux de l'espace, carte du dépôt, fil des commits.
+	// Dashboard: totals of the workspace, card of the repository, commit feed.
 	w = e.get("/")
 	assertStatus(t, w, http.StatusOK)
 	body := w.Body.String()
-	if n := strings.Count(body, "(dont 1 commit non compté)"); n != 2 {
-		t.Errorf("totaux partiels sur le tableau de bord : %d, attendu 2 (compteur et carte)", n)
+	if n := strings.Count(body, "(including 1 commit not counted)"); n != 2 {
+		t.Errorf("partial totals on the dashboard: %d, want 2 (counter and card)", n)
 	}
-	assertContains(t, w, `<div class="stat-title">Lignes</div>`, "ajoutées / supprimées, 3 commits", zeroLines,
+	assertContains(t, w, `<div class="stat-title">Lines</div>`, "added / deleted, 3 commits", zeroLines,
 		unknownLines)
 
-	// Contributeurs : classement et page.
-	assertContains(t, e.get("/contributors"), `+12</span>`, "(dont 1 commit non compté)")
+	// Contributors: ranking and page.
+	assertContains(t, e.get("/contributors"), `+12</span>`, "(including 1 commit not counted)")
 	contribs := e.contributorIDs()
-	assertContains(t, e.get(contributorPath(contribs["Alice Martin"])), "(dont 1 commit non compté)", zeroLines,
+	assertContains(t, e.get(contributorPath(contribs["Alice Martin"])), "(including 1 commit not counted)", zeroLines,
 		unknownLines)
 }
 
-// Aucun commit compté : totaux « — », sans « dont ».
+// No commit counted: totals "—", without "including".
 func TestLinesAllUnknown(t *testing.T) {
 	e := newTestEnv(t)
 	ids := e.seed()
 	w := e.get(repoPath(ids.Bob))
 	assertStatus(t, w, http.StatusOK)
 	assertContains(t, w, unknownLines)
-	assertNotContains(t, w, "non compté", zeroLines)
+	assertNotContains(t, w, "(including", zeroLines)
 }
 
-// Avertissements du dernier rapport (clone Git local indisponible…) : badge et infobulle.
+// Warnings of the last report (local Git clone unavailable…): badge and tooltip.
 func TestSyncStatusWarnings(t *testing.T) {
 	e := newTestEnv(t, withSyncer(&reportSyncer{report: wsync.Report{Repos: []wsync.RepoReport{{
 		DisplayName: "promo/alice", Status: wsync.StatusSuccess,
@@ -81,10 +82,10 @@ func TestSyncStatusWarnings(t *testing.T) {
 	assertStatus(t, e.post("/sync", nil, true), http.StatusOK)
 	e.waitSyncIdle()
 	w := e.htmx("/fragments/sync?gen=0&run=0")
-	assertContains(t, w, "1 avertissement", `title="promo/alice : clone Git local indisponible`)
+	assertContains(t, w, "1 warning", `title="promo/alice: clone Git local indisponible`)
 }
 
-// reportSyncer est un faux moteur qui renvoie aussitôt report.
+// reportSyncer is a fake engine that returns report right away.
 type reportSyncer struct{ report wsync.Report }
 
 func (r *reportSyncer) SyncAll(_ context.Context, opts wsync.SyncOptions) (wsync.Report, error) {

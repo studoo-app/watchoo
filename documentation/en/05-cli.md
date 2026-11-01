@@ -16,7 +16,8 @@ current directory or its parents (see [Workspaces](10-workspaces.md)).
 **Message language**: the CLI and the TUI speak **English by default**. The `WATCHOO_LANG`
 variable (`en` or `fr`) picks the language; without it, the system locale decides (`LC_ALL`,
 `LC_MESSAGES`, then `LANG`: `fr` prefix → French); failing that, English. The web interface
-language is set separately, by the workspace's `lang` setting (see
+language is set separately, by the workspace's `lang` setting; since `WATCHOO_LANG` is also the
+variable of that setting, setting it forces the language everywhere (see
 [Web interface](06-web-interface.md#interface-language)). The same texts exist in both
 languages, served by the `internal/i18n` package with no dependency (see
 [Architecture](03-architecture.md#languages-and-translations)).
@@ -507,7 +508,8 @@ sharing student data or a machine-specific setting.
     "branches": {
       "exclude": []
     },
-    "timezone": ""
+    "timezone": "",
+    "lang": "en"
   },
   "repositories": [
     {
@@ -526,7 +528,7 @@ sharing student data or a machine-specific setting.
 | `version` | Version of the format, `1` (required). A greater version is refused: "fichier créé par une version plus récente de Watchoo" ("file created by a newer version of Watchoo") |
 | `exported_at`, `watchoo_version` | Export date (UTC, RFC 3339) and version of Watchoo that made it; informative, optional |
 | `workspace.name` | Name of the exported workspace; informative: the import never renames the workspace |
-| `settings` | Common settings, values **in effect** in the exported workspace (files and `WATCHOO_*` variables included): `sync.auto`, `sync.interval` (Go duration in quotes: `"30m"`, `"1h30m"`, `"0"`), `sync.parallelism`, `activity.flemme_after_days`, `activity.dead_after_days`, `branches.exclude`, `timezone` |
+| `settings` | Common settings, values **in effect** in the exported workspace (files and `WATCHOO_*` variables included): `sync.auto`, `sync.interval` (Go duration in quotes: `"30m"`, `"1h30m"`, `"0"`), `sync.parallelism`, `activity.flemme_after_days`, `activity.dead_after_days`, `branches.exclude`, `timezone`, `lang` (`"en"` or `"fr"`; optional key of version 1: a file without it remains valid) |
 | `repositories` | Repositories whose tracking is active (stopped repositories are not exported), sorted by `owner/repo`: `provider` (`github`), `repo` (`owner/repo`), `label` (display label, `""` without one), `branches` (tracked patterns, `[]` = all branches), and, **only for a repository that has them**, `flemme_after_days` and `dead_after_days` (own thresholds, in days). These two keys are optional in version 1 of the format: a file without own thresholds stays readable by the versions of Watchoo that do not know them |
 
 **Never exported**: the settings specific to the machine or to the person (`name` of the file,

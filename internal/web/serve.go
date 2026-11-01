@@ -11,6 +11,8 @@ import (
 	"net"
 	"net/http"
 	"time"
+
+	"github.com/studoo-app/watchoo/internal/i18n"
 )
 
 // Délais du serveur HTTP.
@@ -47,7 +49,7 @@ type ServeOptions struct {
 // nil après un arrêt demandé, ou l'erreur du serveur (ex. écoute impossible) et celles de l'arrêt.
 func Serve(ctx context.Context, o ServeOptions) error {
 	if o.Listener == nil || o.Handler == nil {
-		return errors.New("interface web : écoute ou handler non renseigné")
+		return errors.New(i18n.T("web.start.no_listener"))
 	}
 	logger := o.Logger
 	if logger == nil {
@@ -77,18 +79,18 @@ func Serve(ctx context.Context, o ServeOptions) error {
 	case <-ctx.Done():
 	case err := <-serveErr:
 		if !errors.Is(err, http.ErrServerClosed) {
-			errs = append(errs, fmt.Errorf("serveur web : %w", err))
+			errs = append(errs, fmt.Errorf("%s%s%w", i18n.T("web.serve.server"), i18n.T("web.colon"), err))
 		}
 	}
 	shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), timeout)
 	defer cancel()
 	if err := srv.Shutdown(shutdownCtx); err != nil {
-		errs = append(errs, fmt.Errorf("arrêt du serveur web : %w", err))
+		errs = append(errs, fmt.Errorf("%s%s%w", i18n.T("web.serve.shutdown"), i18n.T("web.colon"), err))
 		_ = srv.Close()
 	}
 	if o.Syncs != nil {
 		if err := o.Syncs.Close(timeout); err != nil {
-			errs = append(errs, fmt.Errorf("arrêt des synchros : %w", err))
+			errs = append(errs, fmt.Errorf("%s%s%w", i18n.T("web.serve.syncs_shutdown"), i18n.T("web.colon"), err))
 		}
 	}
 	return errors.Join(errs...)

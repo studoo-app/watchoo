@@ -10,8 +10,8 @@
 {{define "settings-main"}}{{$c := .Content}}{{$page := .}}
 <div class="flex flex-wrap items-end justify-between gap-3 mb-4">
   <div>
-    <h1 class="text-2xl font-bold">Réglages</h1>
-    <p class="text-sm text-base-content/70">Dépôts suivis, synchronisation et quota de l'API GitHub. Rien n'est jamais écrit sur GitHub.</p>
+    <h1 class="text-2xl font-bold">{{t "web.nav.settings"}}</h1>
+    <p class="text-sm text-base-content/70">{{t "web.settings.intro"}}</p>
   </div>
   {{template "sync-all-button" .}}
 </div>
@@ -19,10 +19,10 @@
 
 <div class="grid gap-6 lg:grid-cols-3">
   <section class="lg:col-span-2 space-y-3" aria-labelledby="repos-heading">
-    <h2 id="repos-heading" class="text-lg font-semibold">Dépôts suivis <span class="badge badge-ghost align-middle">{{len $c.Repos}}</span></h2>
+    <h2 id="repos-heading" class="text-lg font-semibold">{{t "web.dash.repos_title"}} <span class="badge badge-ghost align-middle">{{len $c.Repos}}</span></h2>
     {{- if not $c.Repos}}
     <div class="card bg-base-100 shadow-sm"><div class="card-body text-base-content/70">
-      <p>Aucun dépôt dans cet espace. Ajoutez-en un avec le formulaire « Ajouter un dépôt ».</p>
+      <p>{{t "web.settings.empty"}}</p>
     </div></div>
     {{- end}}
     <ul class="space-y-3">
@@ -37,26 +37,26 @@
             {{template "state-badge" .State}}
           </div>
           <dl class="grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-1 text-sm">
-            <div><dt class="inline text-base-content/60">Branches :</dt> <dd class="inline break-words">{{truncate 120 .BranchesText}}</dd></div>
-            <div><dt class="inline text-base-content/60">Commits :</dt> <dd class="inline tabular-nums">{{.Commits}}</dd></div>
-            <div><dt class="inline text-base-content/60">Synchro :</dt> <dd class="inline">{{template "rel-time" .LastSyncedAt}}</dd></div>
+            <div><dt class="inline text-base-content/60">{{t "web.settings.branches_label"}}</dt> <dd class="inline break-words">{{truncate 120 (branchesText .BranchPatterns)}}</dd></div>
+            <div><dt class="inline text-base-content/60">{{t "web.settings.commits_label"}}</dt> <dd class="inline tabular-nums">{{.Commits}}</dd></div>
+            <div><dt class="inline text-base-content/60">{{t "web.settings.sync_label"}}</dt> <dd class="inline">{{template "rel-time" .LastSyncedAt}}</dd></div>
           </dl>
           <div class="flex flex-wrap items-start gap-2">
             <details class="collapse collapse-arrow bg-base-200 flex-1 min-w-64"{{if .EditError}} open{{end}}>
-              <summary class="collapse-title text-sm font-medium min-h-0 py-2">Modifier le nom affiché et les branches</summary>
+              <summary class="collapse-title text-sm font-medium min-h-0 py-2">{{t "web.settings.edit_summary"}}</summary>
               <div class="collapse-content">
                 <form method="post" action="/settings/repos/{{.ID}}" class="space-y-2">
                   {{template "csrf-field" $page}}
                   {{- if .EditError}}{{template "flash" (dict "Message" .EditError "Error" true)}}{{end}}
                   <label class="form-control w-full block">
-                    <span class="label text-sm whitespace-normal mb-1">Nom affiché (vide : {{.FullName}})</span>
+                    <span class="label text-sm whitespace-normal mb-1">{{t "web.settings.label_field_edit" .FullName}}</span>
                     <input type="text" name="label" value="{{.Edit.Label}}" maxlength="200" class="input input-sm w-full" autocomplete="off">
                   </label>
                   <label class="form-control w-full block">
-                    <span class="label text-sm whitespace-normal mb-1">Branches suivies, séparées par des virgules (vide : toutes)</span>
+                    <span class="label text-sm whitespace-normal mb-1">{{t "web.settings.branches_field_edit"}}</span>
                     <input type="text" name="branches" value="{{.Edit.Branches}}" maxlength="1000" placeholder="main, dev, release/*" class="input input-sm w-full" autocomplete="off" spellcheck="false">
                   </label>
-                  <button type="submit" class="btn btn-sm btn-primary">Enregistrer</button>
+                  <button type="submit" class="btn btn-sm btn-primary">{{t "web.settings.save"}}</button>
                 </form>
               </div>
             </details>
@@ -65,10 +65,10 @@
               <form method="post" action="/settings/repos">
                 {{template "csrf-field" $page}}
                 <input type="hidden" name="repo" value="{{.FullName}}">
-                <button type="submit" class="btn btn-sm btn-outline btn-success" title="Vérifie l'accès auprès de GitHub et reprend le suivi">Reprendre le suivi</button>
+                <button type="submit" class="btn btn-sm btn-outline btn-success" title="{{t "web.settings.resume_title"}}">{{t "web.settings.resume"}}</button>
               </form>
               {{- end}}
-              <a href="/settings/repos/{{.ID}}/remove" class="btn btn-sm btn-ghost text-error">Retirer…</a>
+              <a href="/settings/repos/{{.ID}}/remove" class="btn btn-sm btn-ghost text-error">{{t "web.settings.remove_button"}}</a>
             </div>
           </div>
         </div>
@@ -80,47 +80,47 @@
   <div class="space-y-6">
     <section class="card bg-base-100 shadow-sm" aria-labelledby="add-heading">
       <div class="card-body p-4">
-        <h2 id="add-heading" class="card-title text-lg">Ajouter un dépôt</h2>
-        <p class="text-sm text-base-content/70">L'accès est vérifié auprès de GitHub avec le compte gh (sans gh : par git, avec la clé SSH ou les identifiants Git de cette machine) ; aucune synchro n'est lancée.</p>
+        <h2 id="add-heading" class="card-title text-lg">{{t "web.settings.add_title"}}</h2>
+        <p class="text-sm text-base-content/70">{{t "web.settings.add_help"}}</p>
         {{template "flash" (dict "Message" $c.AddError "Error" true)}}
         <form method="post" action="/settings/repos" class="space-y-2">
           {{template "csrf-field" .}}
           <label class="form-control w-full block">
-            <span class="label text-sm whitespace-normal mb-1">Dépôt (owner/repo ou URL GitHub)</span>
+            <span class="label text-sm whitespace-normal mb-1">{{t "web.settings.repo_field"}}</span>
             <input type="text" name="repo" value="{{$c.Add.Repo}}" required maxlength="300" placeholder="alice/projet-licence" class="input input-sm w-full" autocomplete="off" spellcheck="false">
           </label>
           <label class="form-control w-full block">
-            <span class="label text-sm whitespace-normal mb-1">Nom affiché (facultatif)</span>
+            <span class="label text-sm whitespace-normal mb-1">{{t "web.settings.label_field"}}</span>
             <input type="text" name="label" value="{{$c.Add.Label}}" maxlength="200" placeholder="Alice Martin" class="input input-sm w-full" autocomplete="off">
           </label>
           <label class="form-control w-full block">
-            <span class="label text-sm whitespace-normal mb-1">Branches (facultatif, vide : toutes)</span>
+            <span class="label text-sm whitespace-normal mb-1">{{t "web.settings.branches_field"}}</span>
             <input type="text" name="branches" value="{{$c.Add.Branches}}" maxlength="1000" placeholder="main, dev, release/*" class="input input-sm w-full" autocomplete="off" spellcheck="false">
           </label>
-          <button type="submit" class="btn btn-primary btn-sm w-full">Ajouter</button>
+          <button type="submit" class="btn btn-primary btn-sm w-full">{{t "web.settings.add"}}</button>
         </form>
       </div>
     </section>
 
     <section class="card bg-base-100 shadow-sm" aria-labelledby="interval-heading">
       <div class="card-body p-4">
-        <h2 id="interval-heading" class="card-title text-lg">Synchronisation automatique</h2>
-        <p>Intervalle en vigueur : <strong>{{interval $c.Interval}}</strong></p>
+        <h2 id="interval-heading" class="card-title text-lg">{{t "web.settings.auto_title"}}</h2>
+        <p>{{t "web.settings.current_interval"}} <strong>{{interval $c.Interval}}</strong></p>
         {{- if not $c.NextAuto.IsZero}}
-        <p class="text-sm">Prochaine synchro : <time datetime="{{isoTime $c.NextAuto}}">{{localTime $c.NextAuto}}</time></p>
+        <p class="text-sm">{{t "web.settings.next_sync"}} <time datetime="{{isoTime $c.NextAuto}}">{{localTime $c.NextAuto}}</time></p>
         {{- end}}
-        <p class="text-sm text-base-content/70">Fichier config.yaml : {{if $c.FileAuto}}{{interval $c.FileInterval}}{{else}}synchro automatique désactivée (sync.auto){{end}}.
-          {{- if $c.FileChanged}} config.yaml a changé depuis le lancement de « watchoo serve » : cette valeur vaudra au prochain lancement.{{end}}
-          {{- if $c.Overridden}} L'intervalle a été changé pour ce processus (option --interval ou cette page).{{end}}</p>
+        <p class="text-sm text-base-content/70">{{t "web.settings.file_label"}} {{if $c.FileAuto}}{{interval $c.FileInterval}}{{else}}{{t "web.settings.auto_disabled"}}{{end}}.
+          {{- if $c.FileChanged}} {{t "web.settings.file_changed"}}{{end}}
+          {{- if $c.Overridden}} {{t "web.settings.overridden"}}{{end}}</p>
         {{template "flash" (dict "Message" $c.IntervalError "Error" true)}}
         <form method="post" action="/settings/interval" class="flex flex-wrap items-end gap-2">
           {{template "csrf-field" .}}
           <label class="form-control grow block min-w-0">
-            <span class="label text-sm whitespace-normal mb-1">Nouvel intervalle (0 = manuelle seule, sinon au moins {{interval $c.MinInterval}})</span>
+            <span class="label text-sm whitespace-normal mb-1">{{t "web.settings.new_interval" (interval $c.MinInterval)}}</span>
             <input type="text" name="interval" value="{{$c.IntervalInput}}" required maxlength="20" list="interval-presets" placeholder="30m, 1h, 0" class="input input-sm w-full" autocomplete="off" spellcheck="false">
           </label>
           <datalist id="interval-presets">
-            <option value="0">manuelle seule</option>
+            <option value="0">{{t "web.interval.manual"}}</option>
             <option value="15m">15 min</option>
             <option value="30m">30 min</option>
             <option value="1h">1 h</option>
@@ -128,36 +128,36 @@
             <option value="6h">6 h</option>
             <option value="24h">24 h</option>
           </datalist>
-          <button type="submit" class="btn btn-sm">Appliquer</button>
+          <button type="submit" class="btn btn-sm">{{t "web.settings.apply"}}</button>
         </form>
-        <p class="text-xs text-base-content/60">Le changement vaut jusqu'à l'arrêt de « watchoo serve » : ce formulaire ne réécrit jamais config.yaml. Pour un réglage durable, modifiez sync.interval dans le fichier ou importez une configuration partagée (ci-dessous).</p>
+        <p class="text-xs text-base-content/60">{{t "web.settings.interval_note"}}</p>
       </div>
     </section>
 
     <section class="card bg-base-100 shadow-sm" aria-labelledby="share-heading">
       <div class="card-body p-4">
-        <h2 id="share-heading" class="card-title text-lg">Partager la configuration</h2>
-        <p class="text-sm text-base-content/70">Un fichier JSON avec les dépôts suivis (noms affichés, branches) et les réglages communs, pour les autres personnes qui supervisent ce groupe. Ni commit, ni e-mail, ni token, ni réglage propre à cette machine.</p>
-        <a href="/settings/export" class="btn btn-sm w-full" download>Exporter</a>
+        <h2 id="share-heading" class="card-title text-lg">{{t "web.share.title"}}</h2>
+        <p class="text-sm text-base-content/70">{{t "web.share.intro"}}</p>
+        <a href="/settings/export" class="btn btn-sm w-full" download>{{t "web.share.export"}}</a>
         <form method="post" action="/settings/import" enctype="multipart/form-data" class="space-y-2">
           {{template "csrf-field" .}}
           <label class="form-control w-full block">
-            <span class="label text-sm whitespace-normal mb-1">Importer un fichier (JSON, 1 Mio au plus)</span>
+            <span class="label text-sm whitespace-normal mb-1">{{t "web.share.import_field"}}</span>
             <input type="file" name="file" accept="application/json,.json" required class="file-input file-input-sm w-full">
           </label>
-          <button type="submit" class="btn btn-sm w-full">Voir l'aperçu</button>
+          <button type="submit" class="btn btn-sm w-full">{{t "web.share.preview_button"}}</button>
         </form>
-        <p class="text-xs text-base-content/60">Un aperçu s'affiche d'abord : rien n'est appliqué sans votre confirmation. L'import ajoute et met à jour des dépôts, il n'en retire jamais. Le fichier peut révéler la liste des étudiants suivis : partagez-le seulement avec les personnes concernées.</p>
+        <p class="text-xs text-base-content/60">{{t "web.share.note"}}</p>
       </div>
     </section>
 
     <section class="card bg-base-100 shadow-sm" aria-labelledby="quota-heading">
       <div class="card-body p-4">
-        <h2 id="quota-heading" class="card-title text-lg">Quota de l'API GitHub</h2>
+        <h2 id="quota-heading" class="card-title text-lg">{{t "web.quota.title"}}</h2>
         <div id="settings-quota" hx-get="/fragments/quota" hx-trigger="load" hx-swap="outerHTML" aria-live="polite">
-          <p class="flex items-center gap-2 text-sm text-base-content/70"><span class="loading loading-dots loading-sm" aria-hidden="true"></span>Lecture du quota…</p>
+          <p class="flex items-center gap-2 text-sm text-base-content/70"><span class="loading loading-dots loading-sm" aria-hidden="true"></span>{{t "web.quota.loading"}}</p>
         </div>
-        <p class="text-xs text-base-content/60">Lecture gratuite (elle ne consomme pas de quota). Sous 10 % restants, les synchros sont reportées jusqu'à la remise à zéro.</p>
+        <p class="text-xs text-base-content/60">{{t "web.quota.note"}}</p>
       </div>
     </section>
   </div>
@@ -169,16 +169,16 @@
 <div id="settings-quota" hx-get="/fragments/quota" hx-trigger="sync-finished from:body" hx-swap="outerHTML" aria-live="polite">
   {{- if $q.Known}}
   <div class="flex items-baseline justify-between gap-2">
-    <p><span class="text-2xl font-bold tabular-nums">{{$q.Remaining}}</span> <span class="text-base-content/70">/ {{$q.Limit}} requêtes restantes</span></p>
-    {{- if $q.Low}}<span class="badge badge-warning">quota bas</span>{{else}}<span class="badge badge-success badge-soft">{{$q.Percent}} %</span>{{end}}
+    <p><span class="text-2xl font-bold tabular-nums">{{$q.Remaining}}</span> <span class="text-base-content/70">{{t "web.quota.remaining" $q.Limit}}</span></p>
+    {{- if $q.Low}}<span class="badge badge-warning">{{t "web.sync.quota_low"}}</span>{{else}}<span class="badge badge-success badge-soft">{{t "web.percent" $q.Percent}}</span>{{end}}
   </div>
-  <progress class="progress {{if $q.Low}}progress-warning{{else}}progress-success{{end}} w-full" value="{{$q.Percent}}" max="100" aria-label="Part du quota restante"></progress>
-  <p class="text-sm text-base-content/70">{{if not $q.Reset.IsZero}}Remise à zéro à <time datetime="{{isoTime $q.Reset}}" title="{{localTime $q.Reset}}">{{localClock $q.Reset}}</time>{{end}}{{if $q.Low}} ; synchros reportées jusque-là{{end}}.</p>
+  <progress class="progress {{if $q.Low}}progress-warning{{else}}progress-success{{end}} w-full" value="{{$q.Percent}}" max="100" aria-label="{{t "web.quota.share_aria"}}"></progress>
+  <p class="text-sm text-base-content/70">{{if not $q.Reset.IsZero}}{{t "web.quota.reset_at"}} <time datetime="{{isoTime $q.Reset}}" title="{{localTime $q.Reset}}">{{localClock $q.Reset}}</time>{{end}}{{if $q.Low}}{{t "web.quota.deferred_until"}}{{end}}.</p>
   {{- else if $q.Local}}
-  <p><span class="badge badge-info badge-soft">sans objet</span></p>
-  <p class="text-sm text-base-content/70">gh n'est pas installé ou pas connecté : les dépôts sont suivis par clones Git locaux (repos/ à la racine de l'espace), avec la clé SSH ou les identifiants Git de cette machine, sans quota. Pull requests, releases et étoiles ne sont alors pas lus ; « gh auth login » fait repasser par l'API GitHub.</p>
+  <p><span class="badge badge-info badge-soft">{{t "web.quota.not_applicable"}}</span></p>
+  <p class="text-sm text-base-content/70">{{t "web.quota.local"}}</p>
   {{- else}}
-  <p><span class="badge badge-neutral">quota inconnu</span></p>
+  <p><span class="badge badge-neutral">{{t "web.quota.unknown"}}</span></p>
   <p class="text-sm text-base-content/70 break-words">{{truncate 300 $q.Error}}</p>
   {{- end}}
 </div>
@@ -186,36 +186,36 @@
 
 {{/* Confirmation du retrait d'un dépôt (GET, ne modifie rien). Donnée : PageData, Content.Confirm. */}}
 {{define "settings-confirm"}}{{$r := .Content.Confirm}}
-<nav class="breadcrumbs text-sm mb-2" aria-label="Fil d'Ariane"><ul><li><a href="/settings">Réglages</a></li><li>Retirer un dépôt</li></ul></nav>
+<nav class="breadcrumbs text-sm mb-2" aria-label="{{t "web.breadcrumb"}}"><ul><li><a href="/settings">{{t "web.nav.settings"}}</a></li><li>{{t "web.remove.crumb"}}</li></ul></nav>
 <section class="card bg-base-100 shadow-sm max-w-2xl">
   <div class="card-body">
-    <h1 class="card-title text-xl break-words">Retirer « {{truncate 80 $r.Repo.DisplayName}} » ?</h1>
-    <p class="text-sm text-base-content/70 break-all">{{$r.Repo.FullName}} · {{plural $r.Commits "commit" "commits"}} en base</p>
-    <p>Rien n'est modifié sur GitHub : seul le suivi par Watchoo change. Les contributeurs restent (ils peuvent avoir travaillé sur d'autres dépôts).</p>
+    <h1 class="card-title text-xl break-words">{{t "web.remove.question" (truncate 80 $r.Repo.DisplayName)}}</h1>
+    <p class="text-sm text-base-content/70 break-all">{{$r.Repo.FullName}} · {{tn "web.n.commit_db" $r.Commits}}</p>
+    <p>{{t "web.remove.intro"}}</p>
     <div class="grid gap-4 sm:grid-cols-2 mt-2">
       <form method="post" action="/settings/repos/{{$r.Repo.ID}}/remove" class="card card-border p-4 gap-2">
         {{template "csrf-field" .}}
         <input type="hidden" name="keep_history" value="1">
-        <h2 class="font-semibold">Arrêter le suivi</h2>
-        <p class="text-sm text-base-content/70">L'historique reste consultable ; le dépôt n'est plus synchronisé (« Reprendre le suivi » le relance).</p>
+        <h2 class="font-semibold">{{t "web.remove.stop_title"}}</h2>
+        <p class="text-sm text-base-content/70">{{t "web.remove.stop_help"}}</p>
         {{- if $r.Repo.Enabled}}
-        <button type="submit" class="btn btn-warning btn-sm mt-auto">Arrêter le suivi, garder l'historique</button>
+        <button type="submit" class="btn btn-warning btn-sm mt-auto">{{t "web.remove.stop_button"}}</button>
         {{- else}}
-        <p class="badge badge-neutral mt-auto">suivi déjà arrêté</p>
+        <p class="badge badge-neutral mt-auto">{{t "web.remove.already_stopped"}}</p>
         {{- end}}
       </form>
       <form method="post" action="/settings/repos/{{$r.Repo.ID}}/remove" class="card card-border border-error/40 p-4 gap-2">
         {{template "csrf-field" .}}
-        <h2 class="font-semibold text-error">Supprimer avec l'historique</h2>
-        <p class="text-sm text-base-content/70">Le dépôt, ses branches, les commits en base ({{plural $r.Commits "commit" "commits"}}) et le journal de ses synchros sont effacés de la base. Irréversible.</p>
+        <h2 class="font-semibold text-error">{{t "web.remove.delete_title"}}</h2>
+        <p class="text-sm text-base-content/70">{{t "web.remove.delete_help" (tn "web.n.commit" $r.Commits)}}</p>
         {{- if $r.Running}}
-        <p class="text-sm text-warning">Une synchro était en cours à l'ouverture de cette page : tant qu'elle tourne, la suppression est refusée ; réessayez quand elle est terminée.</p>
+        <p class="text-sm text-warning">{{t "web.remove.running"}}</p>
         {{- end}}
-        <button type="submit" class="btn btn-error btn-sm mt-auto">Supprimer le dépôt et son historique</button>
+        <button type="submit" class="btn btn-error btn-sm mt-auto">{{t "web.remove.delete_button"}}</button>
       </form>
     </div>
     <div class="card-actions justify-end mt-2">
-      <a href="/settings" class="btn btn-ghost">Annuler</a>
+      <a href="/settings" class="btn btn-ghost">{{t "web.cancel"}}</a>
     </div>
   </div>
 </section>

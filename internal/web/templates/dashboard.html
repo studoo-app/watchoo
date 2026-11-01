@@ -10,8 +10,8 @@
 {{define "content"}}
 <div class="flex flex-wrap items-center justify-between gap-3 mb-6">
   <div>
-    <h1 class="text-2xl font-bold">Tableau de bord</h1>
-    <p class="text-sm text-base-content/70">Ce qui a bougé, quand, et qui l'a fait, dans l'espace {{.Workspace}}.</p>
+    <h1 class="text-2xl font-bold">{{t "web.nav.dashboard"}}</h1>
+    <p class="text-sm text-base-content/70">{{t "web.dash.intro" .Workspace}}</p>
   </div>
   {{template "sync-all-button" .}}
 </div>
@@ -26,32 +26,32 @@
 {{define "dashboard-repos"}}{{$c := .Content.Counts}}
 <section id="dashboard-repos" aria-labelledby="dashboard-repos-title"
          hx-get="/fragments/dashboard/repos" hx-trigger="sync-finished from:body" hx-swap="outerHTML">
-  <h2 id="dashboard-repos-title" class="sr-only">Dépôts suivis</h2>
+  <h2 id="dashboard-repos-title" class="sr-only">{{t "web.dash.repos_title"}}</h2>
   <div class="stats stats-vertical sm:stats-horizontal w-full bg-base-100 shadow-sm mb-6">
     <div class="stat">
-      <div class="stat-title">Actifs</div>
+      <div class="stat-title">{{t "web.dash.stat_active"}}</div>
       <div class="stat-value text-success">{{$c.Active}}</div>
-      <div class="stat-desc">sur {{plural $c.Total "dépôt" "dépôts"}}</div>
+      <div class="stat-desc">{{t "web.dash.out_of" (tn "web.n.repo" $c.Total)}}</div>
     </div>
     <div class="stat">
-      <div class="stat-title">Flemme</div>
+      <div class="stat-title">{{stateLabel "flemme"}}</div>
       <div class="stat-value text-warning">{{$c.Flemme}}</div>
-      <div class="stat-desc">plus de {{plural .Content.Thresholds.FlemmeAfterDays "jour" "jours"}} sans commit</div>
+      <div class="stat-desc">{{t "web.dash.more_than" (tn "web.n.day" .Content.Thresholds.FlemmeAfterDays)}}</div>
     </div>
     <div class="stat">
-      <div class="stat-title">Dead</div>
+      <div class="stat-title">{{stateLabel "dead"}}</div>
       <div class="stat-value text-error">{{$c.Dead}}</div>
-      <div class="stat-desc">plus de {{plural .Content.Thresholds.DeadAfterDays "jour" "jours"}} sans commit</div>
+      <div class="stat-desc">{{t "web.dash.more_than" (tn "web.n.day" .Content.Thresholds.DeadAfterDays)}}</div>
     </div>
     <div class="stat">
-      <div class="stat-title">Autres</div>
+      <div class="stat-title">{{t "web.dash.stat_other"}}</div>
       <div class="stat-value text-base-content/60">{{$c.Gray}}</div>
-      <div class="stat-desc">jamais synchronisés, en erreur, archivés…</div>
+      <div class="stat-desc">{{t "web.dash.other_desc"}}</div>
     </div>
     <div class="stat">
-      <div class="stat-title">Lignes</div>
+      <div class="stat-title">{{t "web.col.lines"}}</div>
       <div class="stat-value text-lg tabular-nums">{{template "line-totals" $c.Lines}}</div>
-      <div class="stat-desc">ajoutées / supprimées, {{plural $c.Lines.Commits "commit" "commits"}}</div>
+      <div class="stat-desc">{{t "web.dash.lines_desc" (tn "web.n.commit" $c.Lines.Commits)}}</div>
     </div>
   </div>
   {{if .Content.Repos}}
@@ -69,14 +69,14 @@
         {{if .LastCommit.SHA}}
         <p class="text-sm truncate" title="{{firstLine .LastCommit.Message}}">{{firstLine .LastCommit.Message}}</p>
         <p class="text-xs text-base-content/70">
-          {{template "rel-time" .LastCommitAt}} · par {{template "contributor-link" (dict "ID" .LastCommit.AuthorID "Name" .LastCommit.AuthorDisplayName "Class" "font-medium")}}
+          {{template "rel-time" .LastCommitAt}} · {{t "web.by"}} {{template "contributor-link" (dict "ID" .LastCommit.AuthorID "Name" .LastCommit.AuthorDisplayName "Class" "font-medium")}}
           {{- if .LastCommit.AuthorProfileURL}} {{template "profile-link" (dict "URL" .LastCommit.AuthorProfileURL "Login" .LastCommit.AuthorLogin)}}{{end}}
         </p>
         {{else}}
-        <p class="text-sm text-base-content/60">Aucun commit connu{{if .LastSyncedAt.IsZero}} : pas encore synchronisé{{end}}.</p>
+        <p class="text-sm text-base-content/60">{{if .LastSyncedAt.IsZero}}{{t "web.dash.no_commit_unsynced"}}{{else}}{{t "web.dash.no_commit"}}{{end}}</p>
         {{end}}
         <div class="card-actions justify-end text-xs text-base-content/60">
-          <span>{{plural .Commits "commit" "commits"}}{{if .Commits}} · <span class="tabular-nums">{{template "line-totals" .Lines}}</span>{{end}} · {{plural .TrackedBranches "branche suivie" "branches suivies"}}{{if .OpenPullRequests}} · {{plural .OpenPullRequests "PR ouverte" "PR ouvertes"}}{{end}}</span>
+          <span>{{tn "web.n.commit" .Commits}}{{if .Commits}} · <span class="tabular-nums">{{template "line-totals" .Lines}}</span>{{end}} · {{tn "web.n.tracked_branch" .TrackedBranches}}{{if .OpenPullRequests}} · {{tn "web.n.open_pr" .OpenPullRequests}}{{end}}</span>
         </div>
       </div>
     </li>
@@ -85,9 +85,9 @@
   {{else}}
   <div class="card bg-base-100 shadow-sm">
     <div class="card-body items-center text-center">
-      <h3 class="card-title">Aucun dépôt suivi</h3>
-      <p class="text-base-content/70">Ajoutez un dépôt dans les réglages, ou avec « watchoo repo add ».</p>
-      <div class="card-actions"><a href="/settings" class="btn btn-primary btn-sm">Ajouter un dépôt</a></div>
+      <h3 class="card-title">{{t "web.dash.empty_title"}}</h3>
+      <p class="text-base-content/70">{{t "web.dash.empty_text"}}</p>
+      <div class="card-actions"><a href="/settings" class="btn btn-primary btn-sm">{{t "web.settings.add_title"}}</a></div>
     </div>
   </div>
   {{end}}
@@ -99,7 +99,7 @@
 <section id="dashboard-feed" class="card bg-base-100 shadow-sm" aria-labelledby="dashboard-feed-title"
          hx-get="/fragments/dashboard/feed" hx-trigger="sync-finished from:body" hx-swap="outerHTML">
   <div class="card-body p-4">
-    <h2 id="dashboard-feed-title" class="card-title text-lg">Derniers commits</h2>
+    <h2 id="dashboard-feed-title" class="card-title text-lg">{{t "web.dash.feed_title"}}</h2>
     {{if .Content.Feed}}
     <ul class="list -mx-4" role="list">
       {{range .Content.Feed}}
@@ -112,13 +112,13 @@
             · {{template "contributor-link" (dict "ID" .AuthorID "Name" .AuthorDisplayName)}}{{if .AuthorProfileURL}} {{template "profile-link" (dict "URL" .AuthorProfileURL "Login" .AuthorLogin)}}{{end}} · {{template "rel-time" .CommittedAt}} · {{template "commit-lines" .Commit}}
           </p>
         </div>
-        {{if .URL}}<a href="{{.URL}}" class="font-mono text-xs link link-hover text-base-content/60" target="_blank" rel="noopener noreferrer" title="Voir le commit sur la forge">{{shortSHA .SHA}}</a>
+        {{if .URL}}<a href="{{.URL}}" class="font-mono text-xs link link-hover text-base-content/60" target="_blank" rel="noopener noreferrer" title="{{t "web.commit.view_forge"}}">{{shortSHA .SHA}}</a>
         {{else}}<span class="font-mono text-xs text-base-content/60">{{shortSHA .SHA}}</span>{{end}}
       </li>
       {{end}}
     </ul>
     {{else}}
-    <p class="text-base-content/70">Aucun commit pour l'instant. Lancez une synchro pour remplir le fil.</p>
+    <p class="text-base-content/70">{{t "web.dash.feed_empty"}}</p>
     {{end}}
   </div>
 </section>
@@ -129,17 +129,17 @@
 <section class="card bg-base-100 shadow-sm mb-6 min-w-0" aria-labelledby="workspace-activity-title">
   <div class="card-body p-4 md:p-6">
     <div class="flex flex-wrap items-baseline justify-between gap-2">
-      <h2 id="workspace-activity-title" class="card-title text-lg">Activité de l'espace sur {{$a.Days}} jours</h2>
+      <h2 id="workspace-activity-title" class="card-title text-lg">{{t "web.dash.activity_title" $a.Days}}</h2>
       <p class="text-sm text-base-content/70" id="workspace-activity-summary">
-        {{plural $a.Total "commit" "commits"}}{{if $a.Peak.Count}}, au plus {{$a.Peak.Count}} le {{$a.PeakDate}}{{end}}
+        {{tn "web.n.commit" $a.Total}}{{if $a.Peak.Count}}{{t "web.chart.peak" $a.Peak.Count $a.PeakDate}}{{end}}
       </p>
     </div>
     <div class="relative h-48 md:h-56 w-full">
       <canvas id="workspace-activity-chart" role="img" data-chart="daily" data-source="workspace-activity-data"
               data-summary="workspace-activity-summary" data-refresh-url="/"
-              aria-label="Commits par jour sur les {{$a.Days}} derniers jours, tous dépôts confondus : {{plural $a.Total "commit" "commits"}} au total"></canvas>
+              aria-label="{{t "web.dash.activity_aria" $a.Days (tn "web.n.commit" $a.Total)}}"></canvas>
     </div>
-    <p class="text-xs text-base-content/60">Commits par jour (date de commit), tous dépôts confondus, dans le fuseau d'affichage de l'espace.</p>
+    <p class="text-xs text-base-content/60">{{t "web.dash.activity_legend"}}</p>
   </div>
   <script type="application/json" id="workspace-activity-data">{{$a.Series}}</script>
 </section>

@@ -156,19 +156,58 @@
     }
   }
 
+  // Textes de l'interface, dans la langue de l'espace : JSON du layout (<script type="application/json"
+  // id="watchoo-texts">, lang.go), anglais par défaut s'il est absent ou invalide.
+  var TEXTS = (function () {
+    var t = {
+      locale: "en-US", commit: "{n} commit", commits: "{n} commits",
+      week: "Week of {start} to {end}", total: "Total: {n}", sep: ": "
+    };
+    var el = document.getElementById("watchoo-texts");
+    if (!el) {
+      return t;
+    }
+    try {
+      var raw = JSON.parse(el.textContent || "null");
+      if (raw && typeof raw === "object") {
+        Object.keys(t).forEach(function (k) {
+          if (typeof raw[k] === "string" && raw[k] !== "") {
+            t[k] = raw[k];
+          }
+        });
+      }
+    } catch (e) {
+      // textes par défaut
+    }
+    return t;
+  })();
+  var FRENCH = TEXTS.locale.indexOf("fr") === 0;
+
+  // fill remplace les marques {nom} de text par les valeurs de values (texte, jamais du HTML).
+  function fill(text, values) {
+    return text.replace(/\{(\w+)\}/g, function (m, k) {
+      return Object.prototype.hasOwnProperty.call(values, k) ? String(values[k]) : m;
+    });
+  }
+
   // Dates : les séries donnent des jours calendaires (fuseau d'affichage) ; on les formate sans
   // conversion de fuseau, en les traitant comme des dates UTC.
-  var longDate = new Intl.DateTimeFormat("fr-FR", {
+  var longDate = new Intl.DateTimeFormat(TEXTS.locale, {
     weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC"
   });
-  var dayMonth = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", timeZone: "UTC" });
+  var dayMonth = new Intl.DateTimeFormat(TEXTS.locale, { day: "numeric", month: "long", timeZone: "UTC" });
+  var shortDayMonth = new Intl.DateTimeFormat(TEXTS.locale, { day: "numeric", month: "short", timeZone: "UTC" });
 
   function dayDate(s) {
     var p = s.split("-");
     return new Date(Date.UTC(Number(p[0]), Number(p[1]) - 1, Number(p[2])));
   }
 
+  // shortLabel écrit un jour de l'axe : « 26/10 » en français, "Oct 26" sinon.
   function shortLabel(s) {
+    if (!FRENCH) {
+      return shortDayMonth.format(dayDate(s));
+    }
     var p = s.split("-");
     return p[2] + "/" + p[1];
   }
@@ -176,11 +215,14 @@
   function weekTitle(s) {
     var start = dayDate(s);
     var end = new Date(start.getTime() + 6 * 24 * 3600 * 1000);
-    return "Semaine du " + dayMonth.format(start) + " au " + longDate.format(end).replace(/^\S+ /, "");
+    // Le jour de la semaine (premier mot) est retiré de la date de fin.
+    return fill(TEXTS.week, { start: dayMonth.format(start), end: longDate.format(end).replace(/^\S+ /, "") });
   }
 
+  // commits écrit « n commits » : singulier pour 0 et 1 en français, pour 1 seulement sinon.
   function commits(n) {
-    return n + (n > 1 ? " commits" : " commit");
+    var one = FRENCH ? n <= 1 : n === 1;
+    return fill(one ? TEXTS.commit : TEXTS.commits, { n: n });
   }
 
   function reducedMotion() {
@@ -267,13 +309,13 @@
               title: function (items) {
                 return items.length ? weekTitle(data.weeks[items[0].dataIndex]) : "";
               },
-              label: function (item) { return item.dataset.label + " : " + commits(item.parsed.y); },
+              label: function (item) { return item.dataset.label + TEXTS.sep + commits(item.parsed.y); },
               footer: function (items) {
                 var total = 0;
                 for (var i = 0; i < items.length; i++) {
                   total += items[i].parsed.y;
                 }
-                return items.length > 1 ? "Total : " + commits(total) : "";
+                return items.length > 1 ? fill(TEXTS.total, { n: commits(total) }) : "";
               }
             }
           }

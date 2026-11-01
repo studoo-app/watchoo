@@ -14,7 +14,7 @@
 {{define "content"}}{{$r := .Content.Repo}}
 <div class="breadcrumbs text-sm mb-2">
   <ul>
-    <li><a href="/">Tableau de bord</a></li>
+    <li><a href="/">{{t "web.nav.dashboard"}}</a></li>
     <li><span class="truncate max-w-64" aria-current="page">{{clean $r.DisplayName}}</span></li>
   </ul>
 </div>
@@ -25,23 +25,23 @@
     <section class="card bg-base-100 shadow-sm lg:col-span-2 min-w-0" aria-labelledby="activity-title">
       <div class="card-body p-4 md:p-6">
         <div class="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 id="activity-title" class="card-title text-lg">Activité sur {{.Content.ChartDays}} jours</h2>
+          <h2 id="activity-title" class="card-title text-lg">{{t "web.repo.activity_title" .Content.ChartDays}}</h2>
           <p class="text-sm text-base-content/70" id="activity-summary">
-            {{plural .Content.ChartTotal "commit" "commits"}}{{if .Content.ChartPeak.Count}}, au plus {{.Content.ChartPeak.Count}} le {{.Content.ChartPeakDate}}{{end}}
+            {{tn "web.n.commit" .Content.ChartTotal}}{{if .Content.ChartPeak.Count}}{{t "web.chart.peak" .Content.ChartPeak.Count .Content.ChartPeakDate}}{{end}}
           </p>
         </div>
         <div class="relative h-56 md:h-64 w-full">
           <canvas id="activity-chart" role="img" data-chart="daily" data-source="activity-data"
                   data-summary="activity-summary" data-refresh-url="{{repoPath $r.ID}}"
-                  aria-label="Commits par jour sur les {{.Content.ChartDays}} derniers jours : {{plural .Content.ChartTotal "commit" "commits"}} au total"></canvas>
+                  aria-label="{{t "web.repo.activity_aria" .Content.ChartDays (tn "web.n.commit" .Content.ChartTotal)}}"></canvas>
         </div>
-        <p class="text-xs text-base-content/60">Commits par jour (date de commit), dans le fuseau d'affichage de l'espace.</p>
+        <p class="text-xs text-base-content/60">{{t "web.repo.activity_legend"}}</p>
       </div>
       <script type="application/json" id="activity-data">{{.Content.Chart}}</script>
     </section>
     {{template "repo-contributors" .}}
   </div>
-  {{template "contributors-chart" (dict "Chart" .Content.ContributorsChart "ID" "repo-contributors-chart" "RefreshURL" (repoPath $r.ID) "Title" (print "Activité par contributeur sur " .Content.ContributorsChart.Weeks " semaines") "Scope" " de ce dépôt" "Note" "Toutes les branches suivies ; un commit présent sur plusieurs branches n'est compté qu'une fois.")}}
+  {{template "contributors-chart" (dict "Chart" .Content.ContributorsChart "ID" "repo-contributors-chart" "RefreshURL" (repoPath $r.ID) "Title" (t "web.repo.contributors_chart_title" .Content.ContributorsChart.Weeks) "Scope" (t "web.repo.chart_scope") "Note" (t "web.repo.chart_note"))}}
   {{template "repo-pulls" .}}
   {{template "repo-commits" .}}
 </div>
@@ -57,8 +57,8 @@
         <div class="flex flex-wrap items-center gap-2">
           <h1 id="repo-title" class="text-2xl font-bold break-words">{{clean $r.DisplayName}}</h1>
           {{template "state-badge" .Content.State}}
-          {{if $r.Archived}}<span class="badge badge-ghost">archivé</span>{{end}}
-          {{if not $r.Enabled}}<span class="badge badge-ghost">suivi arrêté</span>{{end}}
+          {{if $r.Archived}}<span class="badge badge-ghost">{{t "web.repo.archived"}}</span>{{end}}
+          {{if not $r.Enabled}}<span class="badge badge-ghost">{{t "web.repo.stopped"}}</span>{{end}}
         </div>
         <p class="text-sm text-base-content/70 mt-1 break-all">
           {{if $r.URL}}<a href="{{$r.URL}}" class="link link-hover" target="_blank" rel="noopener noreferrer">{{clean $r.FullName}}</a>
@@ -66,8 +66,8 @@
         </p>
         <p class="text-xs text-base-content/60 mt-1">
           {{- $t := .Content.Thresholds}}
-          Seuils : Flemme après {{plural .Content.State.Thresholds.FlemmeAfterDays "jour" "jours"}} ({{if $t.FlemmeOwn}}propre à ce dépôt{{else}}de l'espace{{end}}), Dead après {{plural .Content.State.Thresholds.DeadAfterDays "jour" "jours"}} ({{if $t.DeadOwn}}propre à ce dépôt{{else}}de l'espace{{end}}) sans commit.
-          <a href="#repo-thresholds" class="link link-hover">Modifier</a>
+          {{t "web.repo.thresholds_line" (tn "web.n.day" .Content.State.Thresholds.FlemmeAfterDays) (thresholdOrigin $t.FlemmeOwn) (tn "web.n.day" .Content.State.Thresholds.DeadAfterDays) (thresholdOrigin $t.DeadOwn)}}
+          <a href="#repo-thresholds" class="link link-hover">{{t "web.repo.edit"}}</a>
         </p>
       </div>
       {{if $r.Enabled}}{{template "sync-repo-button" (dict "Page" . "RepoID" $r.ID)}}{{end}}
@@ -75,38 +75,38 @@
 
     <dl class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 text-sm">
       <div>
-        <dt class="text-base-content/60">Dernier commit</dt>
-        <dd class="font-medium">{{template "rel-time" $r.LastCommitAt}}{{if $r.LastCommit.SHA}} par {{clean $r.LastCommit.AuthorDisplayName}}{{end}}</dd>
+        <dt class="text-base-content/60">{{t "web.repo.last_commit"}}</dt>
+        <dd class="font-medium">{{template "rel-time" $r.LastCommitAt}}{{if $r.LastCommit.SHA}} {{t "web.by"}} {{clean $r.LastCommit.AuthorDisplayName}}{{end}}</dd>
         {{if $r.LastCommit.SHA}}<dd class="text-base-content/70 truncate" title="{{firstLine $r.LastCommit.Message}}">{{firstLine $r.LastCommit.Message}}</dd>{{end}}
       </div>
       <div>
-        <dt class="text-base-content/60">Dernière synchro</dt>
+        <dt class="text-base-content/60">{{t "web.repo.last_sync"}}</dt>
         <dd class="font-medium">
-          {{- if eq $r.LastRun.ID 0}}jamais
-          {{- else if eq (print $r.LastRun.Status) "running"}}<span class="loading loading-dots loading-xs" aria-hidden="true"></span> en cours
+          {{- if eq $r.LastRun.ID 0}}{{t "activity.rel.never"}}
+          {{- else if eq (print $r.LastRun.Status) "running"}}<span class="loading loading-dots loading-xs" aria-hidden="true"></span> {{t "web.repo.running"}}
           {{- else}}{{template "rel-time" $r.LastRun.StartedAt}}
-            {{- if eq (print $r.LastRun.Status) "error"}} <span class="badge badge-error badge-sm" title="{{truncate 200 $r.LastRun.Error}}">échec</span>
-            {{- else if $r.LastRun.NewCommits}} · {{plural $r.LastRun.NewCommits "nouveau commit" "nouveaux commits"}}{{end}}
+            {{- if eq (print $r.LastRun.Status) "error"}} <span class="badge badge-error badge-sm" title="{{truncate 200 $r.LastRun.Error}}">{{t "web.sync.failed"}}</span>
+            {{- else if $r.LastRun.NewCommits}} · {{tn "web.n.new_commit" $r.LastRun.NewCommits}}{{end}}
           {{- end}}
         </dd>
-        <dd class="text-base-content/70">{{plural $r.Commits "commit en base" "commits en base"}}</dd>
-        {{if $r.Commits}}<dd class="text-base-content/70 tabular-nums">Lignes : {{template "line-totals" $r.Lines}}</dd>{{end}}
+        <dd class="text-base-content/70">{{tn "web.n.commit_db" $r.Commits}}</dd>
+        {{if $r.Commits}}<dd class="text-base-content/70 tabular-nums">{{t "web.repo.lines"}} {{template "line-totals" $r.Lines}}</dd>{{end}}
       </div>
       <div class="min-w-0">
-        <dt class="text-base-content/60">Branches</dt>
-        <dd class="font-medium">{{plural $r.TrackedBranches "branche suivie" "branches suivies"}}{{if $r.DefaultBranch}} · par défaut : <code>{{clean $r.DefaultBranch}}</code>{{end}}</dd>
+        <dt class="text-base-content/60">{{t "web.repo.branches"}}</dt>
+        <dd class="font-medium">{{tn "web.n.tracked_branch" $r.TrackedBranches}}{{if $r.DefaultBranch}} · {{t "web.repo.default_branch"}} <code>{{clean $r.DefaultBranch}}</code>{{end}}</dd>
         <dd class="text-base-content/70 break-words">
-          {{- if $r.BranchPatterns}}Motifs :{{range $i, $p := $r.BranchPatterns}}{{if $i}},{{end}} <code>{{clean $p}}</code>{{end}}
-          {{- else}}Toutes les branches du dépôt{{end}}
+          {{- if $r.BranchPatterns}}{{t "web.repo.patterns"}}{{range $i, $p := $r.BranchPatterns}}{{if $i}},{{end}} <code>{{clean $p}}</code>{{end}}
+          {{- else}}{{t "web.repo.all_branches"}}{{end}}
         </dd>
         {{if .Content.TrackedBranches}}<dd class="flex flex-wrap gap-1 mt-1">{{range .Content.TrackedBranches}}<span class="badge badge-outline badge-sm" title="{{clean .Name}}">{{truncate 30 .Name}}</span>{{end}}</dd>{{end}}
       </div>
       <div>
-        <dt class="text-base-content/60">Sur GitHub</dt>
+        <dt class="text-base-content/60">{{t "web.repo.on_github"}}</dt>
         {{- if $r.ForgeDetails}}
-        <dd class="font-medium">{{plural $r.Stars "étoile" "étoiles"}} · {{plural $r.OpenIssues "issue ouverte" "issues ouvertes"}}</dd>
+        <dd class="font-medium">{{tn "web.n.star" $r.Stars}} · {{tn "web.n.open_issue" $r.OpenIssues}}</dd>
         {{- else}}
-        <dd class="text-base-content/70">Étoiles et issues non disponibles : dépôt suivi par clone Git local (sans gh).</dd>
+        <dd class="text-base-content/70">{{t "web.repo.no_forge_details"}}</dd>
         {{- end}}
       </div>
     </dl>
@@ -119,22 +119,22 @@
      (Content.Repo, Content.Thresholds). */}}
 {{define "repo-thresholds"}}{{$r := .Content.Repo}}{{$t := .Content.Thresholds}}
 <details id="repo-thresholds" class="collapse collapse-arrow bg-base-100 shadow-sm"{{if $t.Open}} open{{end}}>
-  <summary class="collapse-title text-sm font-medium min-h-0 py-3">Seuils d'activité de ce dépôt</summary>
+  <summary class="collapse-title text-sm font-medium min-h-0 py-3">{{t "web.repo.thresholds_title"}}</summary>
   <div class="collapse-content space-y-2">
     {{- if $t.Error}}{{template "flash" (dict "Message" $t.Error "Error" true)}}
     {{- else if $t.Saved}}{{template "flash" (dict "Message" $t.SavedMessage "Error" false)}}{{end}}
-    <p class="text-sm text-base-content/70">Nombre de jours sans commit avant de passer en Flemme, puis en Dead. Un champ vide (ou 0) reprend le seuil de l'espace : Flemme après {{plural $t.GlobalFlemme "jour" "jours"}}, Dead après {{plural $t.GlobalDead "jour" "jours"}}.</p>
+    <p class="text-sm text-base-content/70">{{t "web.repo.thresholds_help" (tn "web.n.day" $t.GlobalFlemme) (tn "web.n.day" $t.GlobalDead)}}</p>
     <form method="post" action="/repos/{{$r.ID}}/thresholds" class="flex flex-wrap items-end gap-3">
       {{template "csrf-field" .}}
       <label class="form-control block">
-        <span class="label text-sm mb-1">Flemme après (jours)</span>
+        <span class="label text-sm mb-1">{{t "web.repo.flemme_field"}}</span>
         <input type="number" name="flemme" value="{{$t.Flemme}}" min="0" max="3650" step="1" inputmode="numeric" placeholder="{{$t.GlobalFlemme}}" class="input input-sm w-32">
       </label>
       <label class="form-control block">
-        <span class="label text-sm mb-1">Dead après (jours)</span>
+        <span class="label text-sm mb-1">{{t "web.repo.dead_field"}}</span>
         <input type="number" name="dead" value="{{$t.Dead}}" min="0" max="3650" step="1" inputmode="numeric" placeholder="{{$t.GlobalDead}}" class="input input-sm w-32">
       </label>
-      <button type="submit" class="btn btn-sm btn-primary">Enregistrer les seuils</button>
+      <button type="submit" class="btn btn-sm btn-primary">{{t "web.repo.save_thresholds"}}</button>
     </form>
   </div>
 </details>
@@ -145,7 +145,7 @@
 <section id="repo-contributors" class="card bg-base-100 shadow-sm min-w-0" aria-labelledby="repo-contributors-title"
          hx-get="{{repoPath .Content.Repo.ID}}" hx-trigger="sync-finished from:body" hx-swap="outerHTML">
   <div class="card-body p-4 md:p-6">
-    <h2 id="repo-contributors-title" class="card-title text-lg">Contributeurs</h2>
+    <h2 id="repo-contributors-title" class="card-title text-lg">{{t "web.nav.contributors"}}</h2>
     {{if .Content.Contributors}}
     <ul class="divide-y divide-base-200" role="list">
       {{range .Content.Contributors}}
@@ -155,16 +155,16 @@
           <p class="font-medium truncate" title="{{clean .DisplayName}}">{{template "contributor-link" (dict "ID" .ID "Name" .DisplayName)}}</p>
           <p class="text-xs text-base-content/60 truncate">
             {{- if .ProviderLogin}}@{{clean .ProviderLogin}} {{template "profile-link" (dict "URL" .ProfileURL "Login" .ProviderLogin)}} · {{end -}}
-            dernier commit {{template "rel-time" .LastCommitAt}}
+            {{t "web.repo.contributor_last_commit"}} {{template "rel-time" .LastCommitAt}}
           </p>
         </div>
         <span class="text-xs tabular-nums whitespace-nowrap">{{template "line-totals" .Lines}}</span>
-        <span class="badge badge-ghost whitespace-nowrap">{{plural .Commits "commit" "commits"}}</span>
+        <span class="badge badge-ghost whitespace-nowrap">{{tn "web.n.commit" .Commits}}</span>
       </li>
       {{end}}
     </ul>
     {{else}}
-    <p class="text-sm text-base-content/70">Aucun commit en base pour ce dépôt.</p>
+    <p class="text-sm text-base-content/70">{{t "web.repo.no_commit_db"}}</p>
     {{end}}
   </div>
 </section>
@@ -177,31 +177,31 @@
   <section class="card bg-base-100 shadow-sm min-w-0" aria-labelledby="repo-pulls-title">
     <div class="card-body p-4 md:p-6">
       <div class="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 id="repo-pulls-title" class="card-title text-lg">Pull requests</h2>
-        {{if .Content.Repo.ForgeDetails}}<p class="text-sm text-base-content/70">{{plural $p.Counts.Open "ouverte" "ouvertes"}} · {{plural $p.Counts.Merged "mergée" "mergées"}} · {{plural $p.Counts.Closed "fermée sans merge" "fermées sans merge"}}</p>{{end}}
+        <h2 id="repo-pulls-title" class="card-title text-lg">{{t "web.pr.title"}}</h2>
+        {{if .Content.Repo.ForgeDetails}}<p class="text-sm text-base-content/70">{{tn "web.n.pr_open" $p.Counts.Open}} · {{tn "web.n.pr_merged" $p.Counts.Merged}} · {{tn "web.n.pr_closed" $p.Counts.Closed}}</p>{{end}}
       </div>
       {{if not .Content.Repo.ForgeDetails}}
-      <p class="text-sm text-base-content/70">Non disponibles : ce dépôt est suivi par clone Git local, sans gh. Connectez gh (« gh auth login ») pour les lire par l'API GitHub.</p>
+      <p class="text-sm text-base-content/70">{{t "web.pr.unavailable"}}</p>
       {{else if or $p.Open $p.Merged}}
       {{if $p.Open}}
-      <h3 class="text-sm font-semibold mt-2">Ouvertes</h3>
+      <h3 class="text-sm font-semibold mt-2">{{t "web.pr.open_heading"}}</h3>
       <ul class="divide-y divide-base-200" role="list">{{range $p.Open}}{{template "pull-item" .}}{{end}}</ul>
       {{end}}
       {{if $p.Merged}}
-      <h3 class="text-sm font-semibold mt-2">Dernières mergées</h3>
+      <h3 class="text-sm font-semibold mt-2">{{t "web.pr.merged_heading"}}</h3>
       <ul class="divide-y divide-base-200" role="list">{{range $p.Merged}}{{template "pull-item" .}}{{end}}</ul>
       {{end}}
       {{else}}
-      <p class="text-sm text-base-content/70">Aucune pull request en base pour ce dépôt.</p>
+      <p class="text-sm text-base-content/70">{{t "web.pr.none_repo"}}</p>
       {{end}}
     </div>
   </section>
   <section class="card bg-base-100 shadow-sm min-w-0" aria-labelledby="repo-releases-title">
     <div class="card-body p-4 md:p-6">
-      <h2 id="repo-releases-title" class="card-title text-lg">Releases et tags</h2>
+      <h2 id="repo-releases-title" class="card-title text-lg">{{t "web.release.title"}}</h2>
       {{if or $p.Releases $p.Tags}}
       {{if $p.Releases}}
-      <h3 class="text-sm font-semibold mt-2">Releases</h3>
+      <h3 class="text-sm font-semibold mt-2">{{t "web.release.releases"}}</h3>
       <ul class="divide-y divide-base-200" role="list">
         {{range $p.Releases}}
         <li class="py-2 flex items-start justify-between gap-3 min-w-0">
@@ -212,21 +212,21 @@
             </p>
             <p class="text-xs text-base-content/60">{{if .AuthorLogin}}{{clean .AuthorLogin}} · {{end}}{{template "rel-time" .Date}}</p>
           </div>
-          {{if .Draft}}<span class="badge badge-ghost badge-sm whitespace-nowrap">brouillon</span>
-          {{- else if .Prerelease}}<span class="badge badge-warning badge-sm whitespace-nowrap">pré-release</span>{{end}}
+          {{if .Draft}}<span class="badge badge-ghost badge-sm whitespace-nowrap">{{t "web.pr.badge_draft"}}</span>
+          {{- else if .Prerelease}}<span class="badge badge-warning badge-sm whitespace-nowrap">{{t "web.release.prerelease"}}</span>{{end}}
         </li>
         {{end}}
       </ul>
       {{end}}
       {{if $p.Tags}}
-      <h3 class="text-sm font-semibold mt-2">Tags</h3>
+      <h3 class="text-sm font-semibold mt-2">{{t "web.release.tags"}}</h3>
       <ul class="divide-y divide-base-200" role="list">
         {{range $p.Tags}}
         <li class="py-2 flex items-center justify-between gap-3 min-w-0">
           <span class="font-medium truncate" title="{{clean .Name}}">{{clean .Name}}</span>
           <span class="text-xs text-base-content/60 whitespace-nowrap">
             {{- if not .CommittedAt.IsZero}}{{template "rel-time" .CommittedAt}} · {{end -}}
-            {{if .CommitURL}}<a href="{{.CommitURL}}" class="badge badge-ghost font-mono link-hover" target="_blank" rel="noopener noreferrer" title="Voir le commit du tag sur GitHub">{{shortSHA .SHA}}</a>
+            {{if .CommitURL}}<a href="{{.CommitURL}}" class="badge badge-ghost font-mono link-hover" target="_blank" rel="noopener noreferrer" title="{{t "web.release.tag_commit"}}">{{shortSHA .SHA}}</a>
             {{- else}}<span class="badge badge-ghost font-mono">{{shortSHA .SHA}}</span>{{end}}
           </span>
         </li>
@@ -234,9 +234,9 @@
       </ul>
       {{end}}
       {{else}}
-      <p class="text-sm text-base-content/70">Aucune release ni aucun tag en base pour ce dépôt.</p>
+      <p class="text-sm text-base-content/70">{{t "web.release.none"}}</p>
       {{end}}
-      {{if not .Content.Repo.ForgeDetails}}<p class="text-xs text-base-content/60">Releases non disponibles par clone Git local (sans gh) ; les tags, eux, sont lus.</p>{{end}}
+      {{if not .Content.Repo.ForgeDetails}}<p class="text-xs text-base-content/60">{{t "web.release.local"}}</p>{{end}}
     </div>
   </section>
 </div>
@@ -253,10 +253,10 @@
     <p class="text-xs text-base-content/60 break-all">
       {{- if .AuthorLogin}}{{clean .AuthorLogin}} · {{end -}}
       {{if .HeadBranch}}<code>{{truncate 30 .HeadBranch}}</code> → <code>{{truncate 30 .BaseBranch}}</code> · {{end -}}
-      {{if .MergedAt.IsZero}}ouverte {{template "rel-time" .CreatedAt}}{{else}}mergée {{template "rel-time" .MergedAt}}{{end}}
+      {{if .MergedAt.IsZero}}{{t "web.pr.opened_at"}} {{template "rel-time" .CreatedAt}}{{else}}{{t "web.pr.merged_at"}} {{template "rel-time" .MergedAt}}{{end}}
     </p>
   </div>
-  {{if .Draft}}<span class="badge badge-ghost badge-sm whitespace-nowrap">brouillon</span>{{end}}
+  {{if .Draft}}<span class="badge badge-ghost badge-sm whitespace-nowrap">{{t "web.pr.badge_draft"}}</span>{{end}}
 </li>
 {{end}}
 
@@ -269,60 +269,60 @@
   <div class="card-body p-4 md:p-6 gap-4">
     <div class="flex flex-wrap items-end justify-between gap-3">
       <div>
-        <h2 id="repo-commits-title" class="card-title text-lg">Historique</h2>
+        <h2 id="repo-commits-title" class="card-title text-lg">{{t "web.repo.history"}}</h2>
         <p class="text-sm text-base-content/70">
-          {{plural $p.Total "commit" "commits"}}{{if $c.Filtered}} correspondant aux filtres{{end}}
-          {{- if gt $p.Pages 1}} · page {{$p.Page}} sur {{$p.Pages}}{{end}}
+          {{tn "web.n.commit" $p.Total}}{{if $c.Filtered}} {{t "web.repo.matching_filters"}}{{end}}
+          {{- if gt $p.Pages 1}} · {{t "web.page_of" $p.Page $p.Pages}}{{end}}
         </p>
       </div>
       <form id="repo-filters" method="get" action="{{$base}}" class="flex flex-wrap items-end gap-2"
             hx-get="{{$frag}}" hx-trigger="change" hx-target="#repo-commits" hx-swap="outerHTML">
         <label class="flex flex-col gap-1">
-          <span class="text-xs text-base-content/70">Branche</span>
+          <span class="text-xs text-base-content/70">{{t "web.repo.filter_branch"}}</span>
           <select id="filter-branch" name="branch" class="select select-sm w-44">
-            <option value="">Toutes les branches</option>
-            {{if $c.TrackedOptions}}<optgroup label="Branches suivies">{{range $c.TrackedOptions}}<option value="{{.Value}}"{{if eq .Value $c.Branch}} selected{{end}}>{{truncate 40 .Label}}</option>{{end}}</optgroup>{{end}}
-            {{if $c.OtherOptions}}<optgroup label="Autres branches">{{range $c.OtherOptions}}<option value="{{.Value}}"{{if eq .Value $c.Branch}} selected{{end}}>{{truncate 40 .Label}}</option>{{end}}</optgroup>{{end}}
+            <option value="">{{t "web.repo.all_branches_option"}}</option>
+            {{if $c.TrackedOptions}}<optgroup label="{{t "web.repo.tracked_branches"}}">{{range $c.TrackedOptions}}<option value="{{.Value}}"{{if eq .Value $c.Branch}} selected{{end}}>{{truncate 40 .Label}}{{if .Unknown}} {{t "web.repo.unknown_branch"}}{{end}}</option>{{end}}</optgroup>{{end}}
+            {{if $c.OtherOptions}}<optgroup label="{{t "web.repo.other_branches"}}">{{range $c.OtherOptions}}<option value="{{.Value}}"{{if eq .Value $c.Branch}} selected{{end}}>{{truncate 40 .Label}}{{if .Unknown}} {{t "web.repo.unknown_branch"}}{{end}}</option>{{end}}</optgroup>{{end}}
           </select>
         </label>
         <label class="flex flex-col gap-1">
-          <span class="text-xs text-base-content/70">Auteur</span>
+          <span class="text-xs text-base-content/70">{{t "web.repo.filter_author"}}</span>
           <select id="filter-author" name="author" class="select select-sm w-44">
-            <option value="">Tous les auteurs</option>
-            {{range $c.Authors}}<option value="{{.Value}}"{{if eq .Value $c.Author}} selected{{end}}>{{truncate 40 .Label}}</option>{{end}}
+            <option value="">{{t "web.repo.all_authors"}}</option>
+            {{range $c.Authors}}<option value="{{.Value}}"{{if eq .Value $c.Author}} selected{{end}}>{{truncate 40 .Label}}{{if .Unknown}} {{t "web.repo.unknown_author"}}{{end}}</option>{{end}}
           </select>
         </label>
-        <noscript><button type="submit" class="btn btn-sm">Filtrer</button></noscript>
-        {{if $c.Filtered}}<a href="{{$base}}" class="btn btn-ghost btn-sm" hx-get="{{$frag}}" hx-target="#repo-commits" hx-swap="outerHTML" hx-push-url="{{$base}}">Effacer les filtres</a>{{end}}
+        <noscript><button type="submit" class="btn btn-sm">{{t "web.repo.filter"}}</button></noscript>
+        {{if $c.Filtered}}<a href="{{$base}}" class="btn btn-ghost btn-sm" hx-get="{{$frag}}" hx-target="#repo-commits" hx-swap="outerHTML" hx-push-url="{{$base}}">{{t "web.repo.clear_filters"}}</a>{{end}}
       </form>
     </div>
 
-    {{if $c.AuthorIgnored}}{{template "flash" (dict "Message" "Le filtre par adresse e-mail n'est pas proposé ici : choisissez un auteur dans la liste.")}}{{end}}
+    {{if $c.AuthorIgnored}}{{template "flash" (dict "Message" (t "web.repo.email_filter_ignored"))}}{{end}}
 
     {{if $p.Commits}}
     <ul class="divide-y divide-base-200" role="list">
       {{range $p.Commits}}{{template "commit-item" (dict "Commit" . "ShowAuthor" true)}}{{end}}
     </ul>
     {{else}}
-    <p class="text-sm text-base-content/70 py-4">{{if $c.Filtered}}Aucun commit ne correspond à ces filtres.{{else}}Aucun commit en base pour ce dépôt : lancez une synchro.{{end}}</p>
+    <p class="text-sm text-base-content/70 py-4">{{if $c.Filtered}}{{t "web.repo.no_match"}}{{else}}{{t "web.repo.no_commit_sync"}}{{end}}</p>
     {{end}}
 
     {{if gt $p.Pages 1}}
-    <nav class="flex justify-center" aria-label="Pages de l'historique">
+    <nav class="flex justify-center" aria-label="{{t "web.repo.history_pages"}}">
       <div class="join">
         {{if $p.HasPrev}}{{$prev := sub $p.Page 1}}
         <a class="join-item btn btn-sm" rel="prev" href="{{withQuery $base "branch" $c.Branch "author" $c.Author "page" $prev}}"
            hx-get="{{withQuery $frag "branch" $c.Branch "author" $c.Author "page" $prev}}"
            hx-push-url="{{withQuery $base "branch" $c.Branch "author" $c.Author "page" $prev}}"
-           hx-target="#repo-commits" hx-swap="outerHTML show:#repo-commits:top">« Précédent</a>
-        {{else}}<span class="join-item btn btn-sm btn-disabled" aria-disabled="true">« Précédent</span>{{end}}
+           hx-target="#repo-commits" hx-swap="outerHTML show:#repo-commits:top">{{t "web.prev"}}</a>
+        {{else}}<span class="join-item btn btn-sm btn-disabled" aria-disabled="true">{{t "web.prev"}}</span>{{end}}
         <span class="join-item btn btn-sm btn-active pointer-events-none" aria-current="page">{{$p.Page}} / {{$p.Pages}}</span>
         {{if $p.HasNext}}{{$next := add $p.Page 1}}
         <a class="join-item btn btn-sm" rel="next" href="{{withQuery $base "branch" $c.Branch "author" $c.Author "page" $next}}"
            hx-get="{{withQuery $frag "branch" $c.Branch "author" $c.Author "page" $next}}"
            hx-push-url="{{withQuery $base "branch" $c.Branch "author" $c.Author "page" $next}}"
-           hx-target="#repo-commits" hx-swap="outerHTML show:#repo-commits:top">Suivant »</a>
-        {{else}}<span class="join-item btn btn-sm btn-disabled" aria-disabled="true">Suivant »</span>{{end}}
+           hx-target="#repo-commits" hx-swap="outerHTML show:#repo-commits:top">{{t "web.next"}}</a>
+        {{else}}<span class="join-item btn btn-sm btn-disabled" aria-disabled="true">{{t "web.next"}}</span>{{end}}
       </div>
     </nav>
     {{end}}

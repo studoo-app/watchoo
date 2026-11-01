@@ -213,6 +213,10 @@ var workspaceTexts = map[string]entry{
 		`timezone: unknown time zone %q`,
 		"timezone : fuseau %q inconnu",
 	},
+	"workspace.validate.lang_unknown": {
+		`lang: unknown language %q (%q or %q)`,
+		"lang : langue %q inconnue (%q ou %q)",
+	},
 	"workspace.validate.gh_path_empty": {
 		`github.gh_path: the gh path is empty (got %q; "gh" to look it up in the PATH)`,
 		"github.gh_path : le chemin de gh est vide (reçu %q ; « gh » pour le chercher dans le PATH)",
@@ -447,6 +451,14 @@ var workspaceTexts = map[string]entry{
 	"workspace.cfg.timezone": {
 		`empty: system time zone; otherwise an IANA name, e.g. "Europe/Paris"`,
 		`vide : fuseau du système ; sinon nom IANA, ex. "Europe/Paris"`,
+	},
+	"workspace.cfg.lang_comment": {
+		"Language of the web interface (the CLI and the TUI follow WATCHOO_LANG or the system locale).",
+		"Langue de l'interface web (la CLI et le TUI suivent WATCHOO_LANG ou la locale du système).",
+	},
+	"workspace.cfg.lang": {
+		`"en" (English) or "fr" (French)`,
+		`"en" (anglais) ou "fr" (français)`,
 	},
 	"workspace.cfg.github_l1": {
 		"Access to the GitHub API through the gh CLI, when it is installed and signed in. With",

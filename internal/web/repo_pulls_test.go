@@ -1,7 +1,7 @@
 package web
 
-// Pull requests, releases et tags sur la page d'un dépôt (fragment « repo-pulls », V2) et nombre de
-// PR ouvertes sur le tableau de bord.
+// Pull requests, releases and tags on a repository page ("repo-pulls" fragment, V2) and number of
+// open PRs on the dashboard.
 
 import (
 	"html"
@@ -15,10 +15,10 @@ import (
 	wsync "github.com/studoo-app/watchoo/internal/sync"
 )
 
-// xssTitle est un titre de PR piégé : il doit être échappé.
+// xssTitle is a booby-trapped PR title: it must be escaped.
 const xssTitle = `<img src=x onerror="alert(1)">PR piégée`
 
-// seedPulls enregistre des PR, une release et deux tags pour le dépôt repoID (promo/name).
+// seedPulls saves PRs, a release and two tags for repository repoID (promo/name).
 func (e *testEnv) seedPulls(repoID int64, name, tagSHA string) {
 	e.t.Helper()
 	ctx := e.t.Context()
@@ -57,7 +57,7 @@ func (e *testEnv) seedPulls(repoID int64, name, tagSHA string) {
 		Tags:        []model.Tag{{Name: "v1.0", SHA: tagSHA}, {Name: "v0.9", SHA: strings.Repeat("e", 40)}},
 		SyncedAt:    e.now.Add(-29 * time.Minute),
 	}); err != nil {
-		e.t.Fatalf("ApplyRepoSync : %v", err)
+		e.t.Fatalf("ApplyRepoSync: %v", err)
 	}
 }
 
@@ -72,40 +72,40 @@ func TestRepoPulls(t *testing.T) {
 	assertStatus(t, w, http.StatusOK)
 	assertContains(t, w,
 		`id="repo-pulls"`, `hx-trigger="sync-finished from:body"`,
-		"2 ouvertes · 1 mergée · 1 fermée sans merge",
+		"2 open · 1 merged · 1 closed without merge",
 		html.EscapeString(xssTitle), `href="https://github.com/promo/alice/pull/1"`,
-		"Brouillon de PR", ">brouillon<", "Dernières mergées", "PR mergée",
+		"Brouillon de PR", ">draft<", "Latest merged", "PR mergée",
 		"<code>feature-x</code> → <code>main</code>",
-		"Releases et tags", `href="https://github.com/promo/alice/releases/tag/v1.0"`, "Première version", "pré-release",
-		">v1.0<", ">v0.9<", `title="Voir le commit du tag sur GitHub"`, shortSHA(aliceHead),
+		"Releases and tags", `href="https://github.com/promo/alice/releases/tag/v1.0"`, "Première version", "pre-release",
+		">v1.0<", ">v0.9<", `title="View the tag&#39;s commit on GitHub"`, shortSHA(aliceHead),
 	)
 	assertNotContains(t, w, xssTitle, "PR abandonnée")
 	if strings.Index(w.Body.String(), "Brouillon de PR") > strings.Index(w.Body.String(), html.EscapeString(xssTitle)) {
-		t.Error("PR ouvertes : la plus récemment modifiée d'abord")
+		t.Error("open PRs: the most recently updated first")
 	}
 
-	// Fragment seul (rafraîchissement après une synchro).
+	// Fragment alone (refresh after a sync).
 	frag := e.htmxWith(path, map[string]string{"HX-Target": repoPullsID})
 	assertStatus(t, frag, http.StatusOK)
 	body := frag.Body.String()
 	if !strings.HasPrefix(strings.TrimSpace(body), `<div id="repo-pulls"`) || strings.Contains(body, `id="repo-commits"`) ||
 		strings.Contains(body, "<html") {
-		t.Errorf("fragment repo-pulls :\n%s", body)
+		t.Errorf("repo-pulls fragment:\n%s", body)
 	}
 
-	// Dépôt sans PR ni release : états vides.
+	// Repository without PR or release: empty states.
 	w = e.get(repoPath(ids.Bob))
-	assertContains(t, w, "Aucune pull request en base pour ce dépôt.", "Aucune release ni aucun tag en base pour ce dépôt.",
-		"0 ouverte · 0 mergée · 0 fermée sans merge")
+	assertContains(t, w, "No pull request in the database for this repository.", "No release and no tag in the database for this repository.",
+		"0 open · 0 merged · 0 closed without merge")
 
-	// Tableau de bord : nombre de PR ouvertes sur la carte du dépôt.
+	// Dashboard: number of open PRs on the card of the repository.
 	w = e.get("/")
-	assertContains(t, w, "2 PR ouvertes")
-	assertNotContains(t, w, "0 PR ouverte")
+	assertContains(t, w, "2 open PRs")
+	assertNotContains(t, w, "0 open PR")
 }
 
-// Dépôt suivi seulement par clone Git local (identifiant de forge inconnu, V2) : étoiles, issues, pull
-// requests et releases sont masquées ; les tags restent.
+// Repository tracked only by local Git clone (forge identifier unknown, V2): stars, issues, pull
+// requests and releases are hidden; the tags remain.
 func TestRepoWithoutForgeDetails(t *testing.T) {
 	e := newTestEnv(t)
 	repo, err := e.store.CreateRepository(t.Context(), model.Repository{Provider: model.ProviderGitHub,
@@ -116,7 +116,7 @@ func TestRepoWithoutForgeDetails(t *testing.T) {
 	id := repo.ID
 	w := e.get(repoPath(id))
 	assertStatus(t, w, http.StatusOK)
-	assertContains(t, w, "Étoiles et issues non disponibles", "suivi par clone Git local",
-		"Releases non disponibles par clone Git local")
-	assertNotContains(t, w, "0 étoile", "Aucune pull request en base", "0 ouverte · 0 mergée")
+	assertContains(t, w, "Stars and issues not available", "tracked by local Git clone",
+		"Releases not available through a local Git clone")
+	assertNotContains(t, w, "0 star", "No pull request in the database", "0 open · 0 merged")
 }

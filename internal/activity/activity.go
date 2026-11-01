@@ -45,23 +45,29 @@ func (s State) Gray() bool {
 // « Dead », « Suivi arrêté », « En erreur », « Jamais synchronisé », « Archivé », « Vide »
 // (anglais : Active, Slacking, Dead, Tracking stopped, Error, Never synced, Archived, Empty).
 func (s State) Label() string {
+	return s.LabelIn(i18n.Process())
+}
+
+// LabelIn renvoie le libellé de l'état dans la langue du traducteur tr (web : langue de l'espace de
+// supervision).
+func (s State) LabelIn(tr *i18n.Translator) string {
 	switch s {
 	case StateActive:
-		return i18n.T("activity.state.active")
+		return tr.T("activity.state.active")
 	case StateFlemme:
-		return i18n.T("activity.state.flemme")
+		return tr.T("activity.state.flemme")
 	case StateDead:
-		return i18n.T("activity.state.dead")
+		return tr.T("activity.state.dead")
 	case StateStopped:
-		return i18n.T("activity.state.stopped")
+		return tr.T("activity.state.stopped")
 	case StateError:
-		return i18n.T("activity.state.error")
+		return tr.T("activity.state.error")
 	case StateNeverSynced:
-		return i18n.T("activity.state.never_synced")
+		return tr.T("activity.state.never_synced")
 	case StateArchived:
-		return i18n.T("activity.state.archived")
+		return tr.T("activity.state.archived")
 	case StateEmpty:
-		return i18n.T("activity.state.empty")
+		return tr.T("activity.state.empty")
 	default:
 		return string(s)
 	}

@@ -18,40 +18,42 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/studoo-app/watchoo/internal/i18n"
 	wsync "github.com/studoo-app/watchoo/internal/sync"
 )
 
 // SyncFinishedEvent est l'événement HTMX envoyé à la fin d'une synchro (en-tête HX-Trigger).
 const SyncFinishedEvent = "sync-finished"
 
-// Messages des synchros manuelles.
+// Messages des synchros manuelles (clés du catalogue i18n).
 const (
-	msgSyncStarted = "Synchro lancée."
-	msgSyncRunning = "Synchro déjà en cours : attendez qu'elle se termine."
-	msgSyncClosed  = "Arrêt de Watchoo en cours : aucune nouvelle synchro."
+	msgSyncStarted = "web.sync.started"
+	msgSyncRunning = "web.sync.already_running"
+	msgSyncClosed  = "web.sync.closing"
 )
 
 // SyncView est l'état des synchros affiché par le fragment « sync-status ».
 type SyncView struct {
 	wsync.SyncState
 	Percent      int    // progression de la synchro en cours, de 0 à 100
-	Message      string // message d'une action (synchro lancée, déjà en cours) ; vide sinon
+	Message      string // message traduit d'une action (synchro lancée, déjà en cours) ; vide sinon
 	MessageError bool   // Message signale un refus
 	QuotaLow     bool   // le dernier quota connu est sous le garde-fou (wsync.QuotaLow)
 	Errors       int    // dépôts en erreur dans le dernier rapport
 	Deferred     int    // dépôts reportés (quota) dans le dernier rapport
 	NewCommits   int    // nouveaux commits du dernier rapport
 	Warnings     int    // avertissements du dernier rapport (listes non lues, clone Git local indisponible)
-	// WarningText reprend ces avertissements (« dépôt : message », séparés par « ; »), pour
-	// l'infobulle ; tronqué à maxWarningText caractères.
+	// WarningText reprend ces avertissements (« dépôt : message », séparés par « ; », ponctuation de
+	// la langue de la page), pour l'infobulle ; tronqué à maxWarningText caractères.
 	WarningText string
 }
 
 // maxWarningText borne le texte des avertissements de l'indicateur de synchro.
 const maxWarningText = 500
 
-// syncView renvoie l'état courant des synchros, avec un éventuel message.
-func (s *server) syncView(message string) SyncView {
+// syncView renvoie l'état courant des synchros, avec un éventuel message (déjà traduit) ; la
+// ponctuation de WarningText suit la langue de tr.
+func (s *server) syncView(tr *i18n.Translator, message string) SyncView {
 	st := s.sync.State()
 	v := SyncView{SyncState: st, Message: message, Percent: percent(st.Done, st.Total)}
 	if st.HasReport {
@@ -62,10 +64,10 @@ func (s *server) syncView(message string) SyncView {
 		var parts []string
 		for _, r := range st.LastReport.Repos {
 			for _, w := range r.Warnings {
-				parts = append(parts, r.DisplayName+" : "+w)
+				parts = append(parts, r.DisplayName+tr.T("web.colon")+w)
 			}
 		}
-		v.WarningText = truncate(maxWarningText, strings.Join(parts, " ; "))
+		v.WarningText = truncate(maxWarningText, strings.Join(parts, tr.T("web.semicolon")))
 		v.QuotaLow = st.LastReport.RateLimitKnown && wsync.QuotaLow(st.LastReport.RateLimit, s.now())
 	}
 	return v
@@ -122,14 +124,14 @@ func (s *server) startSync(w http.ResponseWriter, r *http.Request, err error, ba
 	}
 	if !isHTMX(r) {
 		if refused {
-			s.renderError(w, r, http.StatusConflict, "Synchro impossible", msg)
+			s.renderError(w, r, http.StatusConflict, s.t(r, "web.sync.impossible"), s.t(r, msg))
 			return
 		}
 		redirect(w, r, back)
 		return
 	}
 	data := s.page(r, "", "", nil)
-	data.Sync.Message, data.Sync.MessageError = msg, refused
+	data.Sync.Message, data.Sync.MessageError = s.t(r, msg), refused
 	if !refused && !data.Sync.Running {
 		// La synchro lancée est déjà terminée (échec immédiat du moteur, dépôt vite synchronisé) : le
 		// fragment rendu porte sa génération avec run=0, et le sondage suivant ne verrait jamais sa

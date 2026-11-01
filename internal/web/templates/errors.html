@@ -9,10 +9,10 @@
       <p class="text-6xl font-bold text-base-content/30">{{.Content.Status}}</p>
       <h1 class="text-2xl font-bold mt-2">{{.Content.Heading}}</h1>
       <p class="py-4">{{.Content.Message}}</p>
-      {{if not .Public}}<a href="/" class="btn btn-primary">Retour au tableau de bord</a>{{end}}
+      {{if not .Public}}<a href="/" class="btn btn-primary">{{t "web.error.back"}}</a>{{end}}
     </div>
   </div>
 </section>
 {{end}}
 
-{{define "error-alert"}}<div role="alert" class="alert alert-error my-2"><span><strong>{{.Content.Heading}}</strong> : {{.Content.Message}}</span></div>{{end}}
+{{define "error-alert"}}<div role="alert" class="alert alert-error my-2"><span><strong>{{.Content.Heading}}</strong>{{t "web.colon"}}{{.Content.Message}}</span></div>{{end}}

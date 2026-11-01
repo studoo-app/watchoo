@@ -61,7 +61,7 @@ func newConfigExportCmd(deps Deps, opts *options) *cobra.Command {
 		Short: "Écrit la configuration partageable de l'espace dans un fichier JSON",
 		Long: `Écrit la configuration partageable de l'espace dans un fichier JSON : les dépôts
 suivis (nom affiché, branches) et les réglages communs (sync.*, activity.*,
-branches.exclude, timezone). Jamais les réglages propres à cette machine (github.*,
+branches.exclude, timezone, lang). Jamais les réglages propres à cette machine (github.*,
 web.*), ni token, ni commit, ni e-mail.
 
 Sans -o, le document est écrit sur la sortie standard. Avec -o, le fichier est créé
@@ -183,6 +183,7 @@ func sharedKeysOf(doc *configshare.Document) []string {
 		add(b.Exclude != nil, "branches.exclude")
 	}
 	add(doc.Settings.Timezone != nil, "timezone")
+	add(doc.Settings.Lang != nil, "lang")
 	return keys
 }
 

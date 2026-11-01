@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/repoimport"
 )
 
@@ -21,7 +22,6 @@ const (
 	fieldFlemme      = "flemme"
 	fieldDead        = "dead"
 	msgThresholds    = "thresholds"
-	thresholdsSaved  = "Seuils enregistrés : l'état du dépôt est recalculé avec ces valeurs."
 	thresholdsFormID = "repo-thresholds"
 )
 
@@ -34,13 +34,11 @@ type thresholdsForm struct {
 	GlobalFlemme, GlobalDead int
 	Error                    string // saisie refusée ; le formulaire est alors ouvert
 	Saved                    bool   // enregistrement réussi (msg=thresholds)
+	SavedMessage             string // message traduit affiché après l'enregistrement
 }
 
 // Open indique que le formulaire est ouvert à l'affichage (erreur ou enregistrement réussi).
 func (f thresholdsForm) Open() bool { return f.Error != "" || f.Saved }
-
-// SavedMessage est le message affiché après l'enregistrement.
-func (f thresholdsForm) SavedMessage() string { return thresholdsSaved }
 
 // newThresholdsForm renvoie le formulaire avec les valeurs propres du dépôt (vide = seuil de l'espace).
 func (s *server) newThresholdsForm(flemme, dead *int) thresholdsForm {
@@ -55,15 +53,16 @@ func (s *server) newThresholdsForm(flemme, dead *int) thresholdsForm {
 }
 
 // parseThresholdsForm lit les deux champs (repoimport.ParseThreshold) et vérifie leur cohérence
-// (repoimport.ValidateThresholds), comme « repo add --flemme / --dead ». L'erreur cite le champ.
-func parseThresholdsForm(flemme, dead string) (*int, *int, error) {
+// (repoimport.ValidateThresholds), comme « repo add --flemme / --dead ». L'erreur cite le champ, dans
+// la langue de tr.
+func parseThresholdsForm(tr *i18n.Translator, flemme, dead string) (*int, *int, error) {
 	f, err := repoimport.ParseThreshold(flemme)
 	if err != nil {
-		return nil, nil, errors.New("Flemme : " + err.Error())
+		return nil, nil, errors.New(tr.T("web.thresholds.field_error", tr.T("activity.state.flemme"), err))
 	}
 	d, err := repoimport.ParseThreshold(dead)
 	if err != nil {
-		return nil, nil, errors.New("Dead : " + err.Error())
+		return nil, nil, errors.New(tr.T("web.thresholds.field_error", tr.T("activity.state.dead"), err))
 	}
 	if err := repoimport.ValidateThresholds(f, d); err != nil {
 		return nil, nil, err
@@ -79,7 +78,7 @@ func (s *server) handleRepoThresholds(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	input := thresholdsForm{Flemme: formValue(r, fieldFlemme), Dead: formValue(r, fieldDead)}
-	flemme, dead, err := parseThresholdsForm(input.Flemme, input.Dead)
+	flemme, dead, err := parseThresholdsForm(s.tr(r), input.Flemme, input.Dead)
 	if err != nil {
 		view, verr := s.repoView(r, id, true)
 		if verr != nil {
@@ -88,7 +87,7 @@ func (s *server) handleRepoThresholds(w http.ResponseWriter, r *http.Request) {
 		}
 		form := s.newThresholdsForm(view.Repo.FlemmeAfterDays, view.Repo.DeadAfterDays)
 		form.Flemme, form.Dead = truncate(20, input.Flemme), truncate(20, input.Dead)
-		form.Error = "Seuils refusés : " + err.Error()
+		form.Error = s.t(r, "web.thresholds.refused", err)
 		view.Thresholds = form
 		s.render(w, r, http.StatusBadRequest, pageRepo, s.page(r, view.Repo.DisplayName(), "", view))
 		return
@@ -100,17 +99,18 @@ func (s *server) handleRepoThresholds(w http.ResponseWriter, r *http.Request) {
 	redirect(w, r, repoPath(id)+"?msg="+msgThresholds+"#"+thresholdsFormID)
 }
 
-// thresholdsText décrit des seuils propres pour l'aperçu d'un import : « Flemme 3 j · Dead espace »
-// (« espace » = seuil de l'espace), ou « espace » si aucun n'est propre au dépôt.
-func thresholdsText(flemme, dead *int) string {
+// thresholdsText décrit des seuils propres pour l'aperçu d'un import, dans la langue de tr :
+// « Flemme 3 j · Dead espace » / "Slacking 3 d · Dead workspace" (« espace » = seuil de l'espace), ou
+// « espace » si aucun n'est propre au dépôt.
+func thresholdsText(tr *i18n.Translator, flemme, dead *int) string {
 	if flemme == nil && dead == nil {
-		return "espace"
+		return tr.T("web.thresholds.workspace")
 	}
 	days := func(p *int) string {
 		if p == nil {
-			return "espace"
+			return tr.T("web.thresholds.workspace")
 		}
-		return strconv.Itoa(*p) + " j"
+		return tr.T("web.thresholds.days", *p)
 	}
-	return "Flemme " + days(flemme) + " · Dead " + days(dead)
+	return tr.T("activity.state.flemme") + " " + days(flemme) + " · " + tr.T("activity.state.dead") + " " + days(dead)
 }

@@ -19,14 +19,14 @@ package web
 // Les réglages de l'espace sont relus sur le disque à chaque requête (workspace.Load sur une copie
 // de s.ws) : l'export et l'aperçu partent ainsi de config.yaml tel qu'il est, y compris après un
 // import fait par ce processus ou par la CLI. La configuration du processus (s.cfg, intervalle du
-// coordinateur…) n'est jamais changée à chaud : les réglages importés valent au prochain lancement.
+// coordinateur…) n'est jamais changée à chaud : les réglages importés valent au prochain lancement,
+// sauf la langue des pages, relue à chaque requête (lang.go).
 //
 // Un seul import à la fois par processus (importMu) : deux « Appliquer » simultanés réécriraient
 // config.yaml l'un après l'autre sans se voir.
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -40,6 +40,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/studoo-app/watchoo/internal/configshare"
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/textclean"
 	"github.com/studoo-app/watchoo/internal/workspace"
 )
@@ -78,7 +79,8 @@ const (
 var importMu sync.Mutex
 
 // importView est le Content de templates/settings_import.html : aperçu d'un import, ou fichier refusé
-// (Error). Tous les textes sont déjà nettoyés (textclean) et bornés ; html/template les échappe.
+// (Error). Tous les textes sont déjà traduits, nettoyés (textclean) et bornés ; html/template les
+// échappe.
 type importView struct {
 	FileName string // nom du fichier envoyé (sans chemin) ; "" s'il est inconnu
 
@@ -123,28 +125,29 @@ type importRepo struct {
 	// Label et Branches : valeurs après l'import ; *Before : valeurs actuelles (dépôt déjà présent).
 	Label, LabelBefore       string
 	Branches, BranchesBefore string
-	// Thresholds : seuils propres après l'import (« Flemme 3 j · Dead espace ») ; *Before : actuels.
+	// Thresholds : seuils propres après l'import (« Flemme 3 j · Dead espace », thresholdsText) ;
+	// *Before : actuels.
 	Thresholds, ThresholdsBefore string
 	LabelChanged                 bool
 	BranchesChanged              bool
 	ThresholdsChanged            bool
 }
 
-// ActionText est le libellé de l'action.
-func (r importRepo) ActionText() string {
+// actionText est le libellé de l'action, dans la langue de tr (fonction de template importAction).
+func (r importRepo) actionText(tr *i18n.Translator) string {
 	switch {
 	case r.Action == configshare.ActionAdd:
-		return "à ajouter"
+		return tr.T("web.import.action_add")
 	case r.Reenable:
-		return "à reprendre"
+		return tr.T("web.import.action_resume")
 	case r.Action == configshare.ActionUpdate:
-		return "à mettre à jour"
+		return tr.T("web.import.action_update")
 	case r.Action == configshare.ActionUnchanged:
-		return "inchangé"
+		return tr.T("web.import.action_unchanged")
 	case r.Action == configshare.ActionInaccessible:
-		return "inaccessible"
+		return tr.T("web.import.action_inaccessible")
 	}
-	return "en erreur"
+	return tr.T("web.import.action_error")
 }
 
 // ActionClass est la classe DaisyUI du badge de l'action.
@@ -174,18 +177,15 @@ func (s *server) shareWorkspace() (*workspace.Workspace, error) {
 
 // shareUnavailable répond 503 quand l'espace n'est pas connu du serveur (Options.Workspace nil).
 func (s *server) shareUnavailable(w http.ResponseWriter, r *http.Request) {
-	s.renderError(w, r, http.StatusServiceUnavailable, "Partage indisponible",
-		"Le partage de la configuration n'est pas disponible pour ce serveur. Utilisez « watchoo config export » "+
-			"ou « watchoo config import » dans l'espace.")
+	s.renderError(w, r, http.StatusServiceUnavailable, s.t(r, "web.share.unavailable"), s.t(r, "web.share.unavailable_text"))
 }
 
 // settingsUnreadable répond quand les réglages de l'espace ne peuvent pas être relus (config.yaml
 // devenu invalide, droits…) : rien n'est fait.
 func (s *server) settingsUnreadable(w http.ResponseWriter, r *http.Request, err error) {
 	s.logger.Error("réglages de l'espace illisibles", "erreur", err)
-	s.renderError(w, r, http.StatusInternalServerError, "Réglages illisibles",
-		"Les réglages de l'espace ne peuvent pas être relus : "+truncate(maxImportError, firstLineOf(err.Error()))+
-			". Corrigez config.yaml, puis recommencez. Rien n'a été modifié.")
+	s.renderError(w, r, http.StatusInternalServerError, s.t(r, "web.share.unreadable"),
+		s.t(r, "web.share.unreadable_text", truncate(maxImportError, firstLineOf(err.Error()))))
 }
 
 // handleSettingsExport répond à GET /settings/export : le document de partage en pièce jointe. Aucun
@@ -228,7 +228,7 @@ func (s *server) handleSettingsImport(w http.ResponseWriter, r *http.Request) {
 	}
 	var v importView
 	if r.MultipartForm == nil || len(r.MultipartForm.File[fieldImportFile]) == 0 {
-		v.Error = "Aucun fichier reçu : choisissez le fichier JSON exporté par « watchoo config export » ou par le lien « Exporter »."
+		v.Error = s.t(r, "web.import.no_file")
 		s.renderImport(w, r, http.StatusBadRequest, v)
 		return
 	}
@@ -240,7 +240,7 @@ func (s *server) handleSettingsImport(w http.ResponseWriter, r *http.Request) {
 	data, err := readUpload(fh)
 	if err != nil {
 		s.logger.Warn("fichier de configuration illisible", "erreur", err)
-		v.Error = "Le fichier envoyé n'a pas pu être lu. Rien n'a été modifié."
+		v.Error = s.t(r, "web.import.unreadable")
 		s.renderImport(w, r, http.StatusBadRequest, v)
 		return
 	}
@@ -275,7 +275,7 @@ func (s *server) previewImport(w http.ResponseWriter, r *http.Request, v importV
 		s.importRefused(w, r, v, err)
 		return
 	}
-	fillPreview(&v, p)
+	fillPreview(s.tr(r), &v, p)
 	v.Document = string(data)
 	s.renderImport(w, r, http.StatusOK, v)
 }
@@ -293,13 +293,14 @@ func (s *server) importRefused(w http.ResponseWriter, r *http.Request, v importV
 		s.serverError(w, r, err)
 		return
 	}
-	setImportError(&v, err.Error())
+	setImportError(s.tr(r), &v, err.Error())
 	s.renderImport(w, r, status, v)
 }
 
 // setImportError découpe un message de validation (première ligne, puis un problème par ligne), nettoie
-// et borne chaque ligne.
-func setImportError(v *importView, msg string) {
+// et borne chaque ligne. Le message vient du cœur (configshare, workspace), dans la langue du
+// processus ; la conclusion « Rien n'a été importé. » ajoutée ici est dans la langue de tr.
+func setImportError(tr *i18n.Translator, v *importView, msg string) {
 	lines := strings.Split(textclean.CleanLines(msg), "\n")
 	v.Error = upperFirst(truncate(maxImportError, lines[0]))
 	if !strings.HasSuffix(v.Error, ".") && !strings.HasSuffix(v.Error, ":") && !strings.HasSuffix(v.Error, "…") {
@@ -311,14 +312,14 @@ func setImportError(v *importView, msg string) {
 			v.ErrorDetails = append(v.ErrorDetails, l)
 		}
 	}
-	if !strings.Contains(msg, "rien n'a été importé") {
-		v.ErrorDetails = append(v.ErrorDetails, "Rien n'a été importé.")
+	if !strings.Contains(msg, i18n.T("configshare.apply.nothing_imported")) {
+		v.ErrorDetails = append(v.ErrorDetails, tr.T("web.import.nothing_imported"))
 	}
 	v.Document, v.HasChanges = "", false
 }
 
-// fillPreview recopie l'aperçu p dans v, textes nettoyés et bornés.
-func fillPreview(v *importView, p *configshare.Preview) {
+// fillPreview recopie l'aperçu p dans v, textes traduits (langue de tr), nettoyés et bornés.
+func fillPreview(tr *i18n.Translator, v *importView, p *configshare.Preview) {
 	v.Source = importSource{
 		WorkspaceName:  truncate(maxImportText, p.Source.WorkspaceName),
 		WatchooVersion: truncate(maxImportText, p.Source.WatchooVersion),
@@ -335,15 +336,15 @@ func fillPreview(v *importView, p *configshare.Preview) {
 	for _, c := range p.Repositories {
 		row := importRepo{
 			Index: c.Index, Repo: truncate(maxImportText, c.Repo), Action: c.Action, Reenable: c.Reenable,
-			Label: truncate(maxImportText, c.After.Label), Branches: truncate(maxImportBranches, branchesText(c.After.Branches)),
-			Thresholds: thresholdsText(c.After.FlemmeAfterDays, c.After.DeadAfterDays),
+			Label: truncate(maxImportText, c.After.Label), Branches: truncate(maxImportBranches, branchesText(tr, c.After.Branches)),
+			Thresholds: thresholdsText(tr, c.After.FlemmeAfterDays, c.After.DeadAfterDays),
 		}
 		if c.Before != nil {
 			row.LabelBefore = truncate(maxImportText, c.Before.Label)
-			row.BranchesBefore = truncate(maxImportBranches, branchesText(c.Before.Branches))
+			row.BranchesBefore = truncate(maxImportBranches, branchesText(tr, c.Before.Branches))
 			row.LabelChanged = c.Before.Label != c.After.Label
 			row.BranchesChanged = row.BranchesBefore != row.Branches
-			row.ThresholdsBefore = thresholdsText(c.Before.FlemmeAfterDays, c.Before.DeadAfterDays)
+			row.ThresholdsBefore = thresholdsText(tr, c.Before.FlemmeAfterDays, c.Before.DeadAfterDays)
 			row.ThresholdsChanged = row.ThresholdsBefore != row.Thresholds
 		}
 		if c.Action == configshare.ActionUnchanged {
@@ -354,14 +355,37 @@ func fillPreview(v *importView, p *configshare.Preview) {
 	}
 	v.Summary = p.Summary
 	for _, warn := range p.Warnings {
-		v.Warnings = append(v.Warnings, truncate(maxImportError, warn.Message))
+		v.Warnings = append(v.Warnings, truncate(maxImportError, warningText(tr, p, warn)))
 	}
 	v.HasChanges = p.Settings.Rewrite || p.Summary.Added+p.Summary.Updated > 0
 }
 
+// warningText renvoie le texte d'un avertissement de l'aperçu dans la langue de tr, d'après son code
+// (Warning.Message est dans la langue du processus) ; un code inconnu garde Warning.Message.
+func warningText(tr *i18n.Translator, p *configshare.Preview, w configshare.Warning) string {
+	switch w.Code {
+	case configshare.WarnEnvOverride:
+		for _, o := range p.Settings.Masked {
+			if o.Key != w.Key {
+				continue
+			}
+			detail := tr.T("configshare.warn.env_already")
+			for _, c := range p.Settings.Changes {
+				if c.Key == w.Key {
+					detail = tr.T("configshare.warn.env_written")
+				}
+			}
+			return tr.T("configshare.warn.env_override", o.Var, o.Key, detail)
+		}
+	case configshare.WarnCommentsLost:
+		return tr.T("configshare.warn.comments_lost", workspace.BackupFileName)
+	}
+	return w.Message
+}
+
 // renderImport écrit la page d'aperçu / de refus d'un import.
 func (s *server) renderImport(w http.ResponseWriter, r *http.Request, status int, v importView) {
-	s.render(w, r, status, pageSettingsImport, s.page(r, "Importer une configuration", navSettings, v))
+	s.render(w, r, status, pageSettingsImport, s.page(r, s.t(r, "web.import.title"), navSettings, v))
 }
 
 // handleSettingsImportApply répond à POST /settings/import/apply : le document renvoyé par l'aperçu
@@ -375,7 +399,7 @@ func (s *server) handleSettingsImportApply(w http.ResponseWriter, r *http.Reques
 	data := []byte(r.PostFormValue(fieldImportDocument))
 	var v importView
 	if len(strings.TrimSpace(string(data))) == 0 {
-		v.Error = "Aucun document à appliquer : envoyez d'abord le fichier pour voir l'aperçu."
+		v.Error = s.t(r, "web.import.no_document")
 		s.renderImport(w, r, http.StatusBadRequest, v)
 		return
 	}
@@ -385,8 +409,7 @@ func (s *server) handleSettingsImportApply(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	if !importMu.TryLock() {
-		s.renderError(w, r, http.StatusConflict, "Import déjà en cours",
-			"Un autre import de configuration est en cours : attendez qu'il se termine, puis recommencez. Rien n'a été modifié.")
+		s.renderError(w, r, http.StatusConflict, s.t(r, "web.import.busy"), s.t(r, "web.import.busy_text"))
 		return
 	}
 	defer importMu.Unlock()
@@ -402,7 +425,7 @@ func (s *server) handleSettingsImportApply(w http.ResponseWriter, r *http.Reques
 			return
 		}
 		s.logger.Error("import de la configuration impossible", "erreur", err)
-		setImportError(&v, "Import impossible : "+firstLineOf(err.Error()))
+		setImportError(s.tr(r), &v, s.t(r, "web.import.failed", firstLineOf(err.Error())))
 		s.renderImport(w, r, http.StatusInternalServerError, v)
 		return
 	}
@@ -410,6 +433,9 @@ func (s *server) handleSettingsImportApply(w http.ResponseWriter, r *http.Reques
 		// Erreur globale en cours de route (gh, contexte) : les dépôts non traités sont comptés en
 		// erreur dans le bilan ; les réglages ont pu être écrits.
 		s.logger.Error("import des dépôts interrompu", "erreur", err)
+	}
+	if res.Settings.Written {
+		s.lang.invalidate() // la langue des pages a pu changer (réglage lang importé)
 	}
 	for _, c := range res.Preview.Repositories {
 		if c.Action == configshare.ActionInaccessible || c.Action == configshare.ActionError {
@@ -442,9 +468,10 @@ func importRedirectTarget(res *configshare.Result) string {
 	return settingsPath + "?" + q.Encode()
 }
 
-// importFlash construit le message du bilan d'un import à partir des nombres de l'adresse (bornés ;
-// rien d'autre de la requête n'est repris). Le second résultat signale des dépôts non importés.
-func importFlash(r *http.Request) (string, bool) {
+// importFlash construit le message du bilan d'un import, dans la langue de tr, à partir des nombres
+// de l'adresse (bornés ; rien d'autre de la requête n'est repris). Le second résultat signale des
+// dépôts non importés.
+func importFlash(tr *i18n.Translator, r *http.Request) (string, bool) {
 	count := func(key string) int {
 		n, err := strconv.Atoi(queryValue(r, key))
 		if err != nil || n < 0 {
@@ -458,42 +485,39 @@ func importFlash(r *http.Request) (string, bool) {
 
 	var parts []string
 	if added > 0 {
-		parts = append(parts, pluralize(added, "dépôt ajouté", "dépôts ajoutés"))
+		parts = append(parts, pluralText(tr, "web.n.repo_added", added))
 	}
 	if updated > 0 {
-		p := pluralize(updated, "dépôt mis à jour", "dépôts mis à jour")
+		p := pluralText(tr, "web.n.repo_updated", updated)
 		if reenabled > 0 {
-			p += fmt.Sprintf(" (dont %d repris)", min(reenabled, updated))
+			p += tr.T("web.import.flash_resumed", min(reenabled, updated))
 		}
 		parts = append(parts, p)
 	}
 	if already > 0 {
-		parts = append(parts, pluralize(already, "dépôt déjà suivi", "dépôts déjà suivis"))
+		parts = append(parts, pluralText(tr, "web.n.repo_already", already))
 	}
 	var b strings.Builder
-	b.WriteString("Configuration importée")
-	if len(parts) == 0 && !written && inaccessible+failed == 0 {
-		b.WriteString(" : rien n'a changé.")
-	} else if len(parts) > 0 {
-		b.WriteString(" : " + strings.Join(parts, ", ") + ".")
-	} else {
-		b.WriteString(".")
+	switch {
+	case len(parts) == 0 && !written && inaccessible+failed == 0:
+		b.WriteString(tr.T("web.import.flash_nothing"))
+	case len(parts) > 0:
+		b.WriteString(tr.T("web.import.flash_done_parts", strings.Join(parts, ", ")))
+	default:
+		b.WriteString(tr.T("web.import.flash_done"))
 	}
 	if written {
-		b.WriteString(" config.yaml est réécrit (ancien fichier gardé dans " + workspace.BackupFileName +
-			") : les réglages importés seront pris en compte au prochain lancement de « watchoo serve ».")
+		b.WriteString(" " + tr.T("web.import.flash_written", workspace.BackupFileName))
 	}
 	if inaccessible+failed > 0 {
 		var ko []string
 		if inaccessible > 0 {
-			ko = append(ko, pluralize(inaccessible, "dépôt inaccessible", "dépôts inaccessibles"))
+			ko = append(ko, pluralText(tr, "web.n.repo_inaccessible", inaccessible))
 		}
 		if failed > 0 {
-			ko = append(ko, pluralize(failed, "dépôt en erreur", "dépôts en erreur"))
+			ko = append(ko, pluralText(tr, "web.n.repo_error", failed))
 		}
-		b.WriteString(" Non importés : " + strings.Join(ko, ", ") + ". Vérifiez leur nom et l'accès du compte gh, " +
-			"puis importez de nouveau le fichier (sans risque) ; le détail est dans le journal de « watchoo serve » " +
-			"et « watchoo config import --dry-run » vérifie chaque dépôt.")
+		b.WriteString(" " + tr.T("web.import.flash_not_imported", strings.Join(ko, ", ")))
 	}
 	return b.String(), inaccessible+failed > 0
 }

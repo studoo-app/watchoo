@@ -20,7 +20,10 @@ error messages, relative dates (« il y a 2 h » → "2 h ago") — exists in bo
 by the `internal/i18n` package, with no dependency (see
 [Architecture](03-architecture.md#languages-and-translations)). `lang` is a shared setting: it is
 shared with the other supervisors like `timezone`. Entered data (display labels, commit
-messages, logins) is not translated. The setting is changed in `config.yaml`.
+messages, logins) is not translated. The setting is changed in `config.yaml` (or by importing a
+shared configuration); it is read again at each request, so a change applies without restarting
+`watchoo serve`. Its environment variable is `WATCHOO_LANG`, the same one as the CLI's: setting it
+forces the language everywhere.
 
 ## Pages
 

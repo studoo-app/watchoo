@@ -161,7 +161,7 @@ func (s *server) dashboardFeed(ctx context.Context) ([]store.CommitView, error) 
 	return feed, nil
 }
 
-// handleDashboard sert GET / (page complète, Nav navDashboard, titre « Tableau de bord »).
+// handleDashboard sert GET / (page complète, Nav navDashboard, titre « Dashboard » / « Tableau de bord »).
 func (s *server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	repos, err := s.dashboardRepos(r.Context())
 	if err != nil {
@@ -180,8 +180,8 @@ func (s *server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	view := DashboardView{Repos: repos, Counts: countStates(repos), Feed: feed, Thresholds: s.dashboardThresholds(),
-		Activity: newDailyChart(times, now, activity.ChartDays, s.loc)}
-	s.render(w, r, http.StatusOK, pageDashboard, s.page(r, "Tableau de bord", navDashboard, view))
+		Activity: newDailyChart(s.tr(r), times, now, activity.ChartDays, s.loc)}
+	s.render(w, r, http.StatusOK, pageDashboard, s.page(r, s.t(r, "web.nav.dashboard"), navDashboard, view))
 }
 
 // handleDashboardRepos sert GET /fragments/dashboard/repos (fragment « dashboard-repos » : compteurs
@@ -194,7 +194,7 @@ func (s *server) handleDashboardRepos(w http.ResponseWriter, r *http.Request) {
 	}
 	view := DashboardView{Repos: repos, Counts: countStates(repos), Thresholds: s.dashboardThresholds()}
 	s.renderFragment(w, r, http.StatusOK, pageDashboard, "dashboard-repos",
-		s.page(r, "Tableau de bord", navDashboard, view))
+		s.page(r, s.t(r, "web.nav.dashboard"), navDashboard, view))
 }
 
 // handleDashboardFeed sert GET /fragments/dashboard/feed (fragment « dashboard-feed »).
@@ -205,5 +205,5 @@ func (s *server) handleDashboardFeed(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.renderFragment(w, r, http.StatusOK, pageDashboard, "dashboard-feed",
-		s.page(r, "Tableau de bord", navDashboard, DashboardView{Feed: feed}))
+		s.page(r, s.t(r, "web.nav.dashboard"), navDashboard, DashboardView{Feed: feed}))
 }

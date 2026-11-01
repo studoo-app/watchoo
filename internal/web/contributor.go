@@ -167,8 +167,8 @@ func (s *server) contributorView(r *http.Request, id int64, full bool) (Contribu
 	for _, t := range times {
 		plain = append(plain, t.CommittedAt)
 	}
-	view.Daily = newDailyChart(plain, now, activity.ChartDays, s.loc)
-	view.Weekly = buildRepoChart(repos, times, now, activity.ContributorWeeks, contributorChartTop, s.loc)
+	view.Daily = newDailyChart(s.tr(r), plain, now, activity.ChartDays, s.loc)
+	view.Weekly = buildRepoChart(s.tr(r), repos, times, now, activity.ContributorWeeks, contributorChartTop, s.loc)
 
 	if view.HasAccount {
 		if view.Pulls, err = s.store.ListPullRequests(ctx, store.PullRequestFilter{
