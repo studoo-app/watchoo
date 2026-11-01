@@ -68,7 +68,7 @@ watchoo/
     git/               local Git repositories (V2): git binary, clones in repos/ ; gittest/ (file:// repositories)
   internal/sync/       synchronization engine (Engine: SyncAll, SyncRepo, AddRepositories) and
                        coordinator of a long-lived process's syncs (Coordinator, "watchoo serve")
-  internal/activity/   activity rules (Actif / Flemme / Dead, gray states), short formats
+  internal/activity/   activity rules (Active / Slacking / Dead, gray states), short formats
   internal/repoimport/ parsing of repository references, of --branch and of import files
   internal/configshare/ sharing of a workspace's configuration (JSON export, validation, preview and
                        application of an import; "watchoo config", Settings page)
@@ -129,8 +129,8 @@ Common rules:
   SSO enforced by the organization), `*RateLimitError` (quota exhausted or secondary rate limit, with the
   time to retry), `ErrEmptyRepository` (empty repository), `ErrUnknownBase` (base of a comparison gone),
   `ErrUnavailable` (network, timeout, `5xx`), `ErrUnexpected`, `ErrWriteForbidden`, `ErrUnsupported`,
-  `ErrAccessDenied` (V2: `git` could not read the remote repository, "accès refusé" ("access denied")).
-  Their messages are in French and never mention the token, a response body, a commit message, a name or
+  `ErrAccessDenied` (V2: `git` could not read the remote repository, "access denied").
+  Their messages go through the `internal/i18n` catalog (English or French) and never mention the token, a response body, a commit message, a name or
   an email;
 - safe for concurrent use: 4 repositories synced in parallel with the same instance.
 
@@ -204,7 +204,7 @@ Fakes for the tests: `providertest` (in-memory Provider), `githubtest` (simulate
   (`watchoo sync`).
 - **Manual sync**, possible at any time, for all repositories or a single one:
   - CLI: `watchoo sync` (all repositories) or `watchoo sync owner/repo` (a single one);
-  - web: "Synchroniser maintenant" (Sync now) button in the settings (all repositories) and on the detail
+  - web: "Sync now" button in the settings (all repositories) and "Sync this repository" on the detail
     page of a repository (that repository only);
   - TUI: one key for all repositories, another for the selected repository.
 
@@ -215,20 +215,19 @@ Fakes for the tests: `providertest` (in-memory Provider), `githubtest` (simulate
 - **Quota guard**: if the remaining quota drops below **10%**, Watchoo spaces out the syncs until the
   quota resets and reports it in `status`, the web UI and the TUI.
 - **Quota guard, details**: before each repository, the engine reads the last observed quota state; below
-  10% of the limit, that repository and the following ones are **postponed** ("reporté : quota bas
-  jusqu'à HH:MM" — "postponed: low quota until HH:MM"). An exhausted quota (`RateLimitError`) stops the
+  10% of the limit, that repository and the following ones are **postponed** ("deferred: low quota
+  until HH:MM"). An exhausted quota (`RateLimitError`) stops the
   sync of the remaining repositories, postponed until the resume time. An error on one repository does not
   stop the others: it is recorded in `sync_runs`. The recorded message gives the time in UTC; the CLI and
   the TUI display the resume time in local time. A quota state whose reset time has passed is ignored
   (new window).
 - **Cancellation** (Ctrl+C, leaving the TUI): the repositories in progress are closed as errored
-  ("synchro annulée" — "sync canceled"), those that have not started are untouched.
+  ("sync canceled"), those that have not started are untouched.
 - **No double sync**: if `serve` and `tui` run at the same time on the same database, a lock in SQLite
   prevents two simultaneous syncs of the same repository. Before each repository, a transaction checks
   that no `running` `sync_run` of that repository started less than **30 min** ago, then inserts its own;
-  an older `running` one (process stopped in the middle of a sync) is closed as errored ("synchro
-  interrompue" — "sync interrupted"). A locked repository is skipped and reported ("déjà en cours de
-  synchronisation" — "already being synced").
+  an older `running` one (process stopped in the middle of a sync) is closed as errored ("sync
+  interrupted"). A locked repository is skipped and reported ("already being synced").
 - Order of magnitude, in the worst case where everything has changed at each pass: 100 repositories × 2
   branches every 30 min ≈ 800 requests / hour, far from the 5,000 of the quota. `304` responses cost
   nothing.
@@ -311,9 +310,8 @@ Fakes for the tests: `providertest` (in-memory Provider), `githubtest` (simulate
   request); the others stay unknown. An exhausted quota during these statistics does not fail the
   repository (its commits are stored) but postpones the following repositories; another error stops the
   statistics of that repository only (a `404` skips only the commit concerned). The sync report then
-  carries a **warning** for this repository ("clone Git local indisponible, statistiques de lignes lues
-  par l'API (limitées) : …" — "local Git clone unavailable, line statistics read by the API (limited):
-  …"), displayed by `watchoo sync`, the TUI summary and the sync indicator of the web. The commits left
+  carries a **warning** for this repository ("local Git clone unavailable, line statistics read
+  through the API (limited): …"), displayed by `watchoo sync`, the TUI summary and the sync indicator of the web. The commits left
   unknown are computed by the clone as soon as it becomes available again. Without `gh`, the clone is the
   source itself: its unavailability fails the repository, as before.
 - **Pull requests, releases and tags** (V2): read after the commits, at each sync of a repository
@@ -375,7 +373,7 @@ Fakes for the tests: `providertest` (in-memory Provider), `githubtest` (simulate
   - any other failure of `gh` (timeout, unreadable response) remains an **error**: it does not switch to
     `git`. `gh auth token` does not contact GitHub: a `gh` logged in but without network gives a token,
     so the API, and the network failure remains an API error as before; a revoked token too (`401`,
-    "reconnectez-vous avec gh auth login" ("reconnect with gh auth login")).
+    "GitHub token refused: sign in again with "gh auth login"").
 
   Installing or connecting `gh` goes back through the API at the next sync, with no other manipulation.
   No per-repository nor per-workspace setting chooses the source. In both cases, each tracked repository
@@ -409,8 +407,9 @@ Fakes for the tests: `providertest` (in-memory Provider), `githubtest` (simulate
   `github.user` that became unusable after `init` makes the syncs go through the local Git clones, like a
   `gh` not logged in; `watchoo status` displays it.)
 - `watchoo status` shows the `gh` account in use and the rights (scopes) of the token, without ever
-  displaying the token, and the **source** of the syncs ("API GitHub" ("GitHub API") or "clones Git
-  locaux" ("local Git clones"), with the reason); the web (Settings, "sans objet" ("not applicable")
+  displaying the token, and the **source** of the syncs ("Source: GitHub API (gh signed in)" or
+  "Source: local Git clones (repos/ in the workspace), with this machine's SSH key or Git
+  credentials; …"); the web (Settings, "not applicable"
   quota) and the summary of `watchoo sync` report it too.
 - **Never** a token in clear text in the logs, the web interface or the TUI; the output of `gh auth token`
   is never logged.
@@ -429,8 +428,8 @@ Fakes for the tests: `providertest` (in-memory Provider), `githubtest` (simulate
 The tracked repositories are mainly **private**. Consequences:
 
 - **Access**: the account logged in `gh` must have read access to each tracked private repository. Without
-  access, GitHub answers `404` (and not `403`): Watchoo displays it as "en erreur : dépôt introuvable ou
-  compte sans accès" ("error: repository not found or account without access"), without concluding that
+  access, GitHub answers `404` (and not `403`): Watchoo displays it as an error, "repository not found or
+  account without access", without concluding that
   the repository was deleted.
 - **What the token of `gh` implies**:
   - it covers **all the owners** the account has access to (personal account and organizations): a single
@@ -525,7 +524,7 @@ In place since phase 6 ([Roadmap](07-roadmap.md#phase-6--v2)).
   it (`owner/name` in lowercase). Watchoo updates, moves or deletes **only** its clones signed for that
   repository: a location occupied by something else (directory of the user, clone made by hand, clone
   signed for another repository, symbolic link) is never touched and the sync of the repository fails
-  ("emplacement du clone occupé" ("clone location occupied")); an empty directory is replaced.
+  ("clone location occupied by a directory that Watchoo did not create for this repository"); an empty directory is replaced.
 - **Creation**: first need of a repository in a sync: `git init` in a temporary directory of `repos/`
   (`.clone+…`, a name no repository can have), signature, update (below), then renaming (an interrupted
   clone leaves nothing broken). No `git clone`: a single way to read the remote, and no registered remote.
@@ -537,7 +536,7 @@ In place since phase 6 ([Roadmap](07-roadmap.md#phase-6--v2)).
   2. the default branch is the one of `git ls-remote --symref` (already read by `Repository` in the same
      sync) or, with `gh`, the one given by the API (`Prepare`); `origin/HEAD` designates it
      (`git symbolic-ref`);
-  3. `git checkout --force -B <défaut> origin/<défaut>` then `git reset --hard origin/<défaut>`: the
+  3. `git checkout --force -B <default> origin/<default>` then `git reset --hard origin/<default>`: the
      working copy is on the default branch, as on GitHub. **The clone belongs to Watchoo**: a local
      modification of a tracked file, another branch checked out, a merge in progress are **overwritten**
      at each sync; the **untracked** files are kept (no `git clean`). Empty repository (or default branch
@@ -546,7 +545,7 @@ In place since phase 6 ([Roadmap](07-roadmap.md#phase-6--v2)).
   The reads (`Branches`, `ListCommits`…) happen in `refs/remotes/origin/` and `refs/tags/`, never in the
   local branches: a branch created by hand in the clone is not a branch of the repository.
 - **Students' repositories, nothing runs**: the hooks of a remote repository are never copied, and
-  `-c core.hooksPath=<périphérique nul>` also prevents those of the configuration of the user from running
+  `-c core.hooksPath=<null device>` also prevents those of the configuration of the user from running
   in a clone; neither submodule (`submodule.recurse=false`, `fetch.recurseSubmodules=false`,
   `--no-recurse-submodules`), nor `core.fsmonitor`; `GIT_LFS_SKIP_SMUDGE=1`: no LFS file downloaded (the
   pointers stay in the working copy). `core.symlinks` keeps its value: Git already refuses any path that
@@ -579,13 +578,13 @@ In place since phase 6 ([Roadmap](07-roadmap.md#phase-6--v2)).
   and Watchoo adds nothing: replacing it would break an intended configuration (dedicated key, proxy); it
   must then itself ask for nothing. `git` is run with `LC_ALL=C` to classify its failures. An access
   failure (key refused, unknown host, missing credentials, repository not found or private without access)
-  gives `ErrAccessDenied`: "en erreur : accès refusé : vérifiez la clé SSH ou les identifiants Git de
-  cette machine" ("error: access denied: check the SSH key or the Git credentials of this machine"); a
+  gives `ErrAccessDenied`: "access denied: check the SSH key or the Git credentials of this machine"
+  (the repository is then in error); a
   network failure gives `ErrUnavailable`. The output of `git` is never copied into an error nor into the
   logs (Debug level: command, duration and return code only).
 - **Adding a repository** (`repo add`, `repo import`, web): the access is checked by
   `git ls-remote --symref <url> HEAD`, without cloning anything (`--dry-run` included); it also gives the
-  default branch. Inaccessible: `OutcomeInaccessible` with "accès refusé" ("access denied"). The
+  default branch. Inaccessible: `OutcomeInaccessible` with "access denied: check the SSH key or the Git credentials of this machine". The
   repository is recorded with an unknown `provider_id` (`NULL`, see [Data model](04-data-model.md)), the
   URL `https://github.com/owner/name` and stars and issues at 0; it is found afterwards by owner/name.
 - **Sync**: the same incremental strategy as with the API (see
@@ -608,7 +607,7 @@ In place since phase 6 ([Roadmap](07-roadmap.md#phase-6--v2)).
   - `Tags` reads `refs/tags/` (SHA of the commit pointed to, annotated tag dereferenced);
   - no quota: `RateLimit` returns `ErrUnsupported` and `LastRateLimit` nothing. The quota guard never
     postpones a repository, the initial read of the quota is skipped, `status` and the Settings page
-    display "sans objet" ("not applicable").
+    display "not applicable".
 - **Metadata**: `Repository` returns `Partial`. The engine then writes only the default branch (if it is
   known) and the sync date; owner, name, URL, stars, issues, archived state and `provider_id` keep their
   value in the database, **never replaced by zeros**. When `gh` comes back, the next sync goes through the
@@ -764,7 +763,7 @@ display.
 - Chosen for a clean implementation: the routes are grouped by area (pages, HTMX fragments, settings,
   static assets), each with its middlewares.
 - **Implementation (phase 4)**: `go-chi/chi/v5`. Middlewares, in order: panic recovery (500 page in
-  French, without details), `slog` access log (route pattern, code, duration), security headers (CSP…),
+  the workspace's language, without details), `slog` access log (route pattern, code, duration), security headers (CSP…),
   check of the `Host` header (DNS rebinding), basic authentication (all routes), bounded body size, CSRF,
   then chi's `middleware.Timeout`. `RequestID` is not used (nothing to correlate); `RealIP` neither: it
   would trust `X-Forwarded-For`, which can be forged, and the log contains no IP address anyway. Recovery

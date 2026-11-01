@@ -14,11 +14,11 @@ tracking the projects of several classes of students.
 
 ```
 ~/supervision/
-  licence-projet/        ← watchoo init : les projets des étudiants de licence
+  licence-projet/        ← watchoo init: the undergraduate students' projects
     .watchoo/
-  master-projet/         ← watchoo init : les projets des étudiants de master
+  master-projet/         ← watchoo init: the master's students' projects
     .watchoo/
-  perso/                 ← watchoo init : mes propres dépôts
+  perso/                 ← watchoo init: my own repositories
     .watchoo/
 ```
 
@@ -30,12 +30,12 @@ deletes all the data of that group, and only those.
 ```bash
 mkdir licence-projet
 cd licence-projet
-watchoo init                          # crée l'espace : .watchoo/ avec config et base SQLite
-watchoo repo import promo-licence.csv  # ajoute d'un coup les dépôts de toute la promotion
-watchoo sync                          # première récupération des commits
-watchoo repo list                     # qui travaille, qui est en Flemme, qui est Dead
-watchoo contributors --since 7d       # activité de chaque étudiant sur la semaine
-watchoo serve                         # tableau de bord web de la promotion
+watchoo init                          # creates the workspace: .watchoo/ with config and SQLite database
+watchoo repo import promo-licence.csv  # adds the repositories of the whole class at once
+watchoo sync                          # first fetch of the commits
+watchoo repo list                     # who is working, who is Slacking, who is Dead
+watchoo contributors --since 7d       # each student's activity over the week
+watchoo serve                         # web dashboard of the class
 ```
 
 All commands run inside `licence-projet/` (or one of its subdirectories) work on **that workspace
@@ -58,12 +58,12 @@ access). You rerun the same import later, without creating duplicates.
 ```
 licence-projet/
   .watchoo/
-    config.yaml      réglages de l'espace (nom, intervalle, seuils, branches exclues…)
-    watchoo.db       base SQLite : dépôts, commits, contributeurs, journal des synchros
-    .gitignore       contient « * » : le contenu n'est jamais commité par erreur
-  repos/             clones Git des dépôts suivis, avec ou sans gh (V2), créé au premier clone
-    projet-licence/      alice/projet-licence, avec sa copie de travail
-    bob-projet-licence/  bob/projet-licence : homonyme ajouté après
+    config.yaml      workspace settings (name, interval, thresholds, excluded branches…)
+    watchoo.db       SQLite database: repositories, commits, contributors, sync log
+    .gitignore       contains "*": the content is never committed by mistake
+  repos/             Git clones of the tracked repositories, with or without gh (V2), created at the first clone
+    projet-licence/      alice/projet-licence, with its working copy
+    bob-projet-licence/  bob/projet-licence: same name, added later
 ```
 
 - The `.watchoo/` directory is created with **`0700`** permissions, and its files with **`0600`**:
@@ -90,18 +90,19 @@ licence-projet/
   date. A directory in `repos/` that Watchoo did not create for this repository is never modified
   nor deleted.
 - `config.yaml` starts with the Watchoo header card, as YAML comments: the owl in small format,
-  "Watchoo" and "Réglages de l'espace de supervision" ("Workspace settings"), in a frame (the
-  workspace name does not appear there). The settings follow, commented in French; only the workspace
-  name is active. The [`config.example.yaml`](../../config.example.yaml) file shows this content:
+  "Watchoo" and "Workspace settings", in a frame (the
+  workspace name does not appear there). The settings follow, commented in the language of the
+  messages (English by default; in French, the subtitle is "Réglages de l'espace de supervision");
+  only the workspace name is active. The [`config.example.yaml`](../../config.example.yaml) file shows this content:
 
   ```yaml
-  # ╭─────────────────────────────────────────────────╮
-  # │  █▄    ▄█  Watchoo                              │
-  # │  █ ●██● █  Réglages de l'espace de supervision  │
-  # │  ▀██▙▟██▀                                       │
-  # ╰─────────────────────────────────────────────────╯
+  # ╭────────────────────────────────╮
+  # │  █▄    ▄█  Watchoo             │
+  # │  █ ●██● █  Workspace settings  │
+  # │  ▀██▙▟██▀                      │
+  # ╰────────────────────────────────╯
   #
-  # Réglages de l'espace de supervision Watchoo.
+  # Watchoo workspace settings.
   ```
 - **Workspace name**: the directory name by default (`licence-projet`), changeable in `config.yaml`.
   It is displayed in the web and TUI titles and in `watchoo status`.
@@ -116,7 +117,7 @@ one found is used.
 | Command run inside the workspace or a subdirectory | Uses that workspace |
 | Option `-C <directory>` (or `--workspace <directory>`) | Uses the workspace of that directory, wherever the command is run from |
 | `WATCHOO_DIR` variable | Same effect as `-C`, handy for Docker and scripts |
-| No workspace found | Clear error: "aucun espace Watchoo ici, lancez `watchoo init`" ("no Watchoo workspace here, run `watchoo init`") |
+| No workspace found | Clear error: "no Watchoo workspace here, run "watchoo init"" |
 
 ### Only the user's workspaces are accepted
 

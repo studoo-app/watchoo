@@ -162,8 +162,9 @@ refait à chaque synchro (voir [Architecture](03-architecture.md#authentificatio
   une synchro n'est lancée que si la dernière date de plus d'un intervalle. `--json` est refusé. Ctrl+C
   (ou SIGTERM) arrête proprement : plus de nouvelle requête, synchro en cours annulée et attendue, base
   fermée ensuite. Voir [Interface web](06-interface-web.md).
-- `watchoo help [commande]` et l'option `-h` / `--help` affichent l'aide en français. Il n'y a pas de
-  commande `completion` (celle que `cobra` ajoute d'office est désactivée : son aide est en anglais).
+- `watchoo help [commande]` et l'option `-h` / `--help` affichent l'aide dans la langue des messages
+  (anglais par défaut, français). Il n'y a pas de
+  commande `completion` (celle que `cobra` ajoute d'office est désactivée : son aide n'existe qu'en anglais).
 - **`--version`**, option de `watchoo` seul (`watchoo init --version` est refusée), a le même effet que
   `watchoo version`, `--json` compris.
 

@@ -109,7 +109,7 @@ Two fakes, written in phase 2 and reused by the following phases:
 ## Phase 3: engine, CLI and TUI
 
 - **Store** (`internal/store/`, temporary database): sync lock (8 concurrent goroutines, only one takes
-  it; stale `running` closed as "synchro interrompue" ("sync interrupted")), writing of a sync in one
+  it; stale `running` closed as "sync interrupted"), writing of a sync in one
   transaction (rolled back entirely on error), `INSERT … ON CONFLICT DO NOTHING`, identity merging,
   `last_commit_at` on the tracked branches, read views (repository, author, branch, period, limit
   filters; ranking; summaries).
@@ -118,7 +118,7 @@ Two fakes, written in phase 2 and reused by the following phases:
   daylight saving time), priority of the gray states; CSV (BOM, CRLF, quotes, columns in disorder),
   plain list, comments, duplicates, each error with its line number, no login credentials in the
   messages; `flemme` and `dead` columns (empty cell, `0`, unreadable value, Dead less than or equal to
-  Flemme).
+  Slacking).
 - **Per-repository thresholds**: creation, update, threshold kept when not provided and reset to the
   workspace threshold with `0` (`internal/sync`, `DryRun` included), `repo add --flemme / --dead` and
   import columns (`internal/cli`, state recomputed by `repo list`), export, preview and import of the
@@ -129,8 +129,8 @@ Two fakes, written in phase 2 and reused by the following phases:
   single-line curve (`activity.Sparkline`, Unicode and ASCII); `store.AuthorCommitTimes` filtered by
   repository (a commit on two branches counted once, other repositories excluded); chart of the
   repository page (`TestRepoContributorsChart`: series of that repository only, absent from the
-  fragments; repository without a commit over the period); detail of the TUI ("12 SEM." ("12 WKS.")
-  and "PAR SEMAINE" ("PER WEEK") columns, fake `DataSource` and real database); `watchoo contributors
+  fragments; repository without a commit over the period); detail of the TUI ("12 WK"
+  and "PER WEEK" columns, fake `DataSource` and real database); `watchoo contributors
   --weeks` (text, `--repo`, `weekly` JSON, `[]` without the option, bounds and refusal with `--since`,
   `TestContributorsWeeks`).
 - **Contributor page** (0.5.0): store (`TestContributorProfile`: totals, identities counted without
@@ -141,8 +141,8 @@ Two fakes, written in phase 2 and reused by the following phases:
   commits, pull requests matched by account, card absent without an account, contributor without a
   commit, `404`, HTMX fragments, hostile names and messages escaped, no email address nor name in the
   log, links from the ranking, the repository page, the history and the dashboard; step "7 bis" of the
-  web end-to-end test); TUI (opening with `entrée` (Enter) in the Contributors view, rendering,
-  `échap` (Esc), help, fake `DataSource` and real database).
+  web end-to-end test); TUI (opening with `enter` in the Contributors view, rendering,
+  `esc`, help, fake `DataSource` and real database).
 - **Links to the profiles** (0.5.0): `html_url` read by the GitHub provider (`toPerson`), empty for the
   local Git provider; `profile_url` column (migration `00005` on an existing database, value kept when
   an identity arrives without an address); "GitHub" link present with a known login, absent without an
@@ -186,14 +186,14 @@ Two fakes, written in phase 2 and reused by the following phases:
 - **End to end** (`internal/cli/e2e_test.go`): real `auth.GH` with the fake `gh`, real GitHub provider
   against `githubtest`, real engine, temporary database: `init` → `repo add` → `repo import` (with
   `--dry-run`, an already tracked repository and an unreachable one) → `sync` → `log` (filters) →
-  `contributors` → `repo list` (Actif (Active) / Flemme (Slacking) / Dead) → `status` → new commits and
+  `contributors` → `repo list` (Active / Slacking / Dead) → `status` → new commits and
   incremental sync (compare, never the full list; nothing when nothing has changed; only `GET`s) →
   `repo remove` (`--keep-history`, then deletion). No token, commit message or email in the logs.
 - **TUI** (`internal/tui/`): `Init` / `Update` / `View` called directly (without `teatest`), with a
   fake `Syncer` that can be suspended and a real temporary database: views, ASCII and color modes,
   scrolling, filter, detail, sync (progress, refusal during a sync, errors, deferral in Paris time),
   automatic sync, quitting during a sync, help; adding a repository (`a`: input opened then canceled by
-  `échap` (Esc), invalid reference refused without a call to the core, repository added with a message,
+  `esc`, invalid reference refused without a call to the core, repository added with a message,
   reading back, selecting and syncing the repository, already tracked without a sync, tracking resumed,
   unreachable and error displayed as with `repo add`, adding during a sync: sync of the new repository
   queued then started, key without effect outside the Repositories view) with a fake add, and with the
@@ -217,7 +217,7 @@ Two fakes, written in phase 2 and reused by the following phases:
   the sync, shutdown timeout exceeded; one scenario with the real engine.
 - **Web** (`internal/web/`, `httptest` on the full router, temporary database filled with dummy data,
   real engine on `providertest` and `authtest`): each page (200, key content, commit message containing
-  `<script>` escaped), 404 and 405 in French, pagination and filters, HTMX fragments (`HX-Request`
+  `<script>` escaped), 404 and 405 in the test's language, pagination and filters, HTMX fragments (`HX-Request`
   header), `POST` without a CSRF token, with a wrong token or from a foreign origin refused (`403`,
   nothing is modified), no `GET` that modifies, foreign `Host` refused (`421`, page that shows nothing
   of the workspace), including behind `web.trusted_proxy` (names of `web.allowed_hosts` accepted),
@@ -228,7 +228,7 @@ Two fakes, written in phase 2 and reused by the following phases:
   shutdown of `Serve` (running sync canceled), static files (Content-Type, cache, `ETag` and `304`),
   logo copies identical to `assets/logo`, `app.css` present and up to date, checksums of
   `tailwind/VERSIONS`, and neither token nor email in any response nor in the log.
-- **Pages**: dashboard (Dead, Flemme, Actif sorting then gray, counters, feed capped at 20, commit URL
+- **Pages**: dashboard (Dead, Slacking, Active sorting then gray, counters, feed capped at 20, commit URL
   in `javascript:` neutralized, empty workspace); detail (each state, stopped tracking without a sync
   button, pagination over 120 commits with bounds, branch and author filters kept from one page to the
   next, filter containing an email ignored, `HX-Push-Url`, chart data in the display timezone);
@@ -319,7 +319,7 @@ through `git.Options.BaseURL` (`file://…`).
 - **Engine** (`internal/sync/gitsource_test.go`): choice of the source (gh signed in, absent, not
   signed in, unusable `github.user`: clones; timeout and unreadable response: error); adding without
   `gh` (`--dry-run` that plans once a repository written with a different case, missing repository
-  "accès refusé" ("access denied"), second addition found by name); first import (branches, commits
+  "access denied", second addition found by name); first import (branches, commits
   specific to a branch, tags, contributor without a login), incremental sync with statistics,
   repository that became unreachable, return of `gh` that resolves `provider_id` and the metadata;
   repository known by the API synced without `gh` (stars, issues, archived, URL and identifier kept,
@@ -343,7 +343,7 @@ through `git.Options.BaseURL` (`file://…`).
   and `stats_known` of `log --json` in the CLI): an unknown commit displays "—" ("-" in a terminal), a
   known commit at `+0 −0` displays its zeros, everywhere a commit is listed (history of a repository,
   dashboard feed, contributor page); totals per repository, per contributor and for the workspace with
-  "(dont N commits non comptés)" ("including N uncounted commits"), "—" if no commit is known; badge
+  "(including N commits not counted)", "—" if no commit is known; badge
   of the warnings of the sync indicator, detail in the tooltip.
 - **CLI** (`internal/cli/gitsource_test.go` and tests of `init`, `status`, `sync`, `repo`): `repo add`
   without clone, `sync` (text and `--json`, `source: "git"`, no quota; working copy in
@@ -357,7 +357,7 @@ through `git.Options.BaseURL` (`file://…`).
   depth, `0700` permissions) is ignored by `Find`, which returns the enclosing workspace; `Init` is
   refused there; a nested workspace elsewhere is still found.
 - **Web and TUI**: repository page without a forge identifier (stars, issues, pull requests and
-  releases hidden), quota fragment "sans objet" ("not applicable") without `gh`; matching TUI detail.
+  releases hidden), quota fragment "not applicable" without `gh`; matching TUI detail.
 
 ## Configuration sharing
 
@@ -387,7 +387,7 @@ through `git.Options.BaseURL` (`file://…`).
   (`repo add`, `config export -o`), workspace B (`config import --dry-run` without any writing, refusal
   outside a terminal without `--yes`, `--yes` with an unreachable repository and code `1`, repositories
   and `config.yaml` checked, `.bak`, sync, re-import without change), workspace C (preview then
-  "Appliquer" ("Apply") in a real `watchoo serve`, CSRF token and cookie included); neither token nor
+  "Apply these changes" in a real `watchoo serve`, CSRF token and cookie included); neither token nor
   email in the responses and the logs.
 
 ## Logo and header card
@@ -418,8 +418,8 @@ No test reaches GitHub: the root of the releases is that of a fake `httptest` se
   `update` itself, and when the server answers after the deadline (the command does not wait any
   longer); notice after plain `watchoo` (card and help); notice always written when the command lasts
   longer than the deadline and the answer has arrived (no coin toss between answer and deadline); no
-  CLI notice for `watchoo tui`, which receives its check function (sentence "Quittez puis lancez …"
-  ("Quit then run …"), Docker included; absent with `WATCHOO_NO_UPDATE_CHECK` or a `dev` version);
+  CLI notice for `watchoo tui`, which receives its check function (sentence "Quit, then run …",
+  Docker included; absent with `WATCHOO_NO_UPDATE_CHECK` or a `dev` version);
   `update --check` in text and in JSON (contract of `json_schema_test.go`); `update` confirmed,
   refused, with `--yes`, without a terminal nor `--yes`, already up to date, in Docker, on a `dev`
   version.

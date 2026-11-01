@@ -16,7 +16,7 @@
 | **Contributor** | Identified person, possibly grouping several Git emails and a GitHub login |
 | **Author / committer** | The author wrote the change; the committer recorded it in the history |
 | **Inactivity** | Time elapsed since the last commit of a repository, across all tracked branches |
-| **Actif / Flemme / Dead** | Activity states of a repository: 0 to 5 days, 6 to 15 days, more than 15 days since the last commit (adjustable thresholds) |
+| **Active / Slacking / Dead** | Activity states of a repository: 0 to 5 days, 6 to 15 days, more than 15 days since the last commit (adjustable thresholds); in French, Actif / Flemme / Dead |
 | **Sync run** | One execution of a repository sync, logged in `sync_runs` |
 | **Skill** | Reusable know-how for a coding agent (instructions, references), installed from skills.sh |
 | **HTMX** | Library refreshing HTML fragments without any application JavaScript |

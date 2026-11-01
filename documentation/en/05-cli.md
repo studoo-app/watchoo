@@ -7,7 +7,7 @@
 | Option | Effect |
 | --- | --- |
 | `--json` | JSON output to make every command scriptable |
-| `-C <répertoire>` / `--workspace <répertoire>` | Works on the workspace of this directory instead of the one found from the current directory |
+| `-C <directory>` / `--workspace <directory>` | Works on the workspace of this directory instead of the one found from the current directory |
 | `--verbose` | Detailed logs (debug level) on the error output. Without it, the level comes from the `WATCHOO_LOG_LEVEL` variable (`debug`, `info`, `warn` by default, `error`). No short letter: `-v` would be confused with `--version` |
 
 All commands except `init`, `version` and `update` work on a **workspace**: the `.watchoo/` directory found in the
@@ -37,9 +37,9 @@ stars. The choice is made again at each sync (see
 | `watchoo init` | Makes the current directory a workspace: checks `gh` (without `gh`: `git`), then creates `.watchoo/` with the config and the SQLite database. Refuses if the workspace already exists | MVP (without `gh`: V2) |
 | `watchoo version` | Prints the Watchoo version, the compiled commit and its date, the Go version and the platform (`watchoo --version` does the same). Works outside a workspace and without `gh` | MVP |
 | `watchoo repo add owner/repo [--branch main,dev,release/*] [--label "Alice Martin"] [--flemme 3] [--dead 10]` | Adds a repository to watch (all its branches by default), with an optional display label and own activity thresholds | MVP (thresholds: V2) |
-| `watchoo repo import fichier.csv [--dry-run]` | Adds a list of repositories in one go (e.g. those of a class of students), checks access to each one and prints a summary | MVP |
+| `watchoo repo import file.csv [--dry-run]` | Adds a list of repositories in one go (e.g. those of a class of students), checks access to each one and prints a summary | MVP |
 | `watchoo repo add-org mon-org` | Adds all the repositories of an organization | V2 |
-| `watchoo repo list` | Table: repository, last commit, author, state (Actif (Active) / Flemme (Slacking) / Dead) | MVP |
+| `watchoo repo list` | Table: repository, last commit, author, state (Active / Slacking / Dead) | MVP |
 | `watchoo repo remove owner/repo [--keep-history]` | Stops tracking and deletes the repository history (and its local Git clone) after confirmation (`--keep-history` to keep them) | MVP |
 | `watchoo sync [owner/repo]` | Syncs everything or a single repository | MVP |
 | `watchoo log [--repo X] [--author Y] [--branch B] [--since 7d] [-n 20]` | Latest commits, filtered | MVP |
@@ -49,9 +49,9 @@ stars. The choice is made again at each sync (see
 | `watchoo status` | Summary: up-to-date, inactive and in-error repositories, source of the syncs (GitHub API or local Git repositories), remaining API quota, the `gh` account in use and its scopes (without showing the token) | MVP (source: V2) |
 | `watchoo serve [--addr 127.0.0.1:8080] [--interval 30m]` | Starts the web interface and the periodic sync (30 min by default, 15 min minimum) | MVP |
 | `watchoo tui [--interval 30m]` | Opens the interactive mode in the terminal | MVP |
-| `watchoo config export [-o fichier] [--force]` | Writes the shareable configuration of the workspace (tracked repositories and common settings) to a JSON file, for the other people supervising the same group | After MVP |
+| `watchoo config export [-o file] [--force]` | Writes the shareable configuration of the workspace (tracked repositories and common settings) to a JSON file, for the other people supervising the same group | After MVP |
 | `watchoo update [--check] [--yes]` | Self-updates Watchoo from the GitHub releases after confirmation (archive verified by SHA-256 checksum, binary replaced in one go); `--check` only checks. Works outside a workspace and without `gh` (see [Self-update](#self-update-watchoo-update)) | 0.6.0 |
-| `watchoo config import fichier [--dry-run] [--yes]` | Merges a shared configuration file into the workspace, after a preview: adds the missing repositories, updates the others, rewrites the common settings; never removes anything | After MVP |
+| `watchoo config import file [--dry-run] [--yes]` | Merges a shared configuration file into the workspace, after a preview: adds the missing repositories, updates the others, rewrites the common settings; never removes anything | After MVP |
 
 ### Details
 
@@ -66,40 +66,41 @@ stars. The choice is made again at each sync (see
   `--dead` must be strictly greater than `--flemme` (otherwise refusal before any call to GitHub). An
   already tracked repository is not added twice: its label, its branches and its thresholds are updated
   if they are given, and tracking resumes if it had been stopped. The report quotes the own thresholds
-  ("seuils : flemme 3 j, dead 10 j" ("thresholds: flemme 3 d, dead 10 d")). Access is checked with
+  ("thresholds: flemme 3 d, dead 10 d"). Access is checked with
   GitHub (one request); `repo add` does not start a sync. Without `gh` (V2), access is checked with
-  `git ls-remote`, cloning nothing: a failure gives "accès refusé" ("access denied"); the repository is
+  `git ls-remote`, cloning nothing: a failure gives "access denied: check the SSH key or the Git credentials of this machine"; the repository is
   recorded without a GitHub ID (`provider_id` unknown, resolved at the first sync through the API) and
   with the URL `https://github.com/owner/repo`.
-- **`repo list`** prints all the repositories of the workspace, stopped tracking included. The DÉPÔT
+- **`repo list`** prints all the repositories of the workspace, stopped tracking included. The REPOSITORY
   column shows the label if there is one, otherwise `owner/repo`; the author is the one of the last
-  commit. Gray states: `arrêté` (Stopped, tracking stopped), `erreur` (Error), `jamais` (Never synced),
-  `archivé` (Archived), `vide` (Empty, synced without any commit).
-- **`repo remove`** asks for confirmation (`[o/N]`) when standard input is a terminal; otherwise (script,
+  commit. Gray states: `stopped` (tracking stopped), `error`, `never` (never synced), `archived`,
+  `empty` (synced without any commit).
+- **`repo remove`** asks for confirmation (`[y/N]`) when standard input is a terminal; otherwise (script,
   pipe) the **`--yes` / `-y` option is required**. Any answer other than `o`, `oui`, `y` or `yes`, or a
   Ctrl+C during the question (taken into account immediately), cancels with a non-zero return code.
   Without `--keep-history`, the repository, its branches, commits and syncs are deleted from the database
   (the contributors remain), as well as its local Git clone (`repos/<name>` at the root of the workspace,
   V2) if it exists, and the clone of a same-named repository that takes this name is moved (see
   [Local Git repositories](03-architecture.md#local-git-repositories-v2)); with `--keep-history`, tracking
-  stops (the repository is no longer synced by `watchoo sync`, it shows as `arrêté` (Stopped)), the
+  stops (the repository is no longer synced by `watchoo sync`, it shows as `stopped`), the
   history in the database **and** the clone are kept, and `repo add` resumes it.
-- **`sync`** prints a table per repository (status `ok`, `erreur` (Error), `ignoré` (Skipped) if it is already
-  being synced, `reporté` (Deferred) if the quota is low, with the resume time in local time), the
+- **`sync`** prints a table per repository (status `ok`, `error`, `skipped` if it is already
+  being synced, `deferred` if the quota is low, with the resume time in local time), the
   summary and the remaining quota. `watchoo sync owner/repo` syncs that repository even if its tracking
   is stopped. Non-zero return code if a repository is in error. A synced repository whose pull
   requests, releases or tags could not be read, or whose local Git clone is unavailable with `gh` (line
   stats then read through the API, limited), stays `ok`: the warning is in the DETAILS column (and
   `warnings` in JSON), and does not change the return code. Without `gh` (V2), the summary ends with
-  "Source : clones Git locaux (gh absent ou non connecté ; « gh auth login » pour passer par l'API GitHub)" ("Source: local Git repositories (gh absent or signed out; 'gh auth login' to go through the GitHub API)") and
-  gives no quota; a repository that `git` cannot read is `erreur` with "accès refusé" ("access denied").
+  "Source: local Git clones (gh absent or signed out; "gh auth login" to use the GitHub API instead)." and
+  gives no quota; a repository that `git` cannot read is `error` with "access denied: check the SSH key or
+  the Git credentials of this machine".
 - **`--since`** accepts a relative duration: an integer followed by `d` (days), `h` (hours) or `m`
   (minutes), for example `7d`, `30d`, `12h`.
 - **`log`** prints, for each commit, the date, the repository, the author, the short SHA, its lines
   (`+/-` column: "+12/-3", "+0/-0" for a commit really without any line, "-" if they are still
   unknown; 0.5.0) and the first line of the message.
 - **`+/-` lines in the TUI** (0.5.0): per commit, "+12/-3", "+0/-0" or "-" (unknown); the totals
-  (contributor, repository) sum the known commits and add "(N non comptés)" ("(N not counted)") when a
+  (contributor, repository) sum the known commits and add "(N uncounted)" when a
   part of the commits has none yet, "-" if none has.
 - **`log -n`** (or `--limit`) limits the number of commits printed (20 by default, `0` = all). A commit
   present on several branches appears only once.
@@ -120,30 +121,31 @@ stars. The choice is made again at each sync (see
   branch. `--weeks` and `--since` do not go together (refusal).
 - **`prs`** lists the pull requests recorded by the syncs (see
   [Incremental sync](03-architecture.md#incremental-sync)), from the most recently updated to the
-  oldest: update (relative date), repository, number, state (`ouverte` (Open), `brouillon` (Draft),
-  `mergée` (Merged), `fermée` (Closed); closed = without merge), author (login), title (first line,
+  oldest: update (relative date), repository, number, state (`open`, `draft`, `merged`, `closed`; closed =
+  without merge), author (login), title (first line,
   cleaned like a commit message). `--state` filters: `open` (open ones, drafts included), `merged`,
   `closed` (closed without merge) or `all` (default). `-n` (or `--limit`): 20 by default,
   `0` = all.
 - **`releases`** prints two tables: the **releases** (publication, or creation for a draft, as a
-  relative date; repository, tag, title, state `publiée` (Published), `pré-release` (Pre-release) or
-  `brouillon` (Draft), author), from the newest to the oldest, then the **tags** (repository, tag,
+  relative date; repository, tag, title, state `published`, `pre-release` or `draft`,
+  author), from the newest to the oldest, then the **tags** (repository, tag,
   short SHA of the targeted commit and date of that commit if it is in the database, otherwise `-`),
   from the most recent commit to the oldest. `-n` limits each table (20 by default, `0` = all).
   Drafts are only visible if the `gh` account has write access to the repository (GitHub rule).
-- **`status`**: `gh` account and its scopes, **source** of the syncs (V2: "Source : API GitHub (gh
-  connecté)" ("Source: GitHub API (gh signed in)") or "Source : clones Git locaux" ("Source: local Git
-  repositories"), with the `gh auth login` reminder), remaining quota (reading it is free; "sans objet"
-  ("not applicable") with the local Git repositories), repositories by state, repositories in error,
+- **`status`**: `gh` account and its scopes, **source** of the syncs (V2: "Source: GitHub API (gh signed
+  in)" or "Source: local Git clones (repos/ in the workspace), …", with the `gh auth login` reminder),
+  remaining quota (reading it is free; "not applicable: local Git clones, no quota" with the local Git
+  repositories), repositories by state, repositories in error,
   last successful sync, tracked branches. Below 10% of remaining quota, the quota guard is reported
-  ("Quota bas : synchros reportées jusqu'à HH:MM" ("Quota low: syncs deferred until HH:MM"),
+  ("Low quota: syncs postponed until HH:MM (less than 10% of the quota left).",
   `quota_low` in JSON), with the same rule as the engine. An absent or signed-out `gh` is reported
   without failing the command. The source is the one a sync started now would take (`gh auth token`,
   without contacting GitHub). The token is never displayed.
 - **Outputs**: an aligned text table, without borders, headers in uppercase; relative dates
-  ("il y a 2 h" ("2 h ago")) in local time (`timezone` setting, otherwise the time zone of the system).
+  ("2 h ago") in local time (`timezone` setting, otherwise the time zone of the system).
   Colors (headers in bold, gray states in gray) only on a terminal, without `NO_COLOR` nor `TERM=dumb`.
-  On a terminal without Unicode, ASCII symbols and headers (`! 42 j`, `DEPOT`); redirected output stays
+  On a terminal without Unicode, ASCII symbols (`! 42 d`; in French, headers without accents too:
+  `DEPOT`); redirected output stays
   in UTF-8. Texts coming from the repositories or the database (commit messages, Git names, labels,
   error messages) are **cleaned** before being written, in text mode as in the TUI: escape sequences
   (ESC, CSI, OSC) removed, other control and formatting characters (line breaks, writing-direction
@@ -154,9 +156,8 @@ stars. The choice is made again at each sync (see
 - **`--json`**: every command that produces data writes a stable JSON object (English keys,
   `snake_case`, UTC RFC 3339 dates or `null`); its keys are listed in [JSON output](#json-output) and
   checked by the tests. Errors go to the error output.
-- **Outside a workspace**: every command except `init`, `version`, `update` and `help` stops with "aucun espace
-  Watchoo ici, lancez « watchoo init » (ou indiquez un espace avec -C <répertoire>)" ("no Watchoo
-  workspace here, run 'watchoo init' (or point to a workspace with -C <directory>)").
+- **Outside a workspace**: every command except `init`, `version`, `update` and `help` stops with "no Watchoo
+  workspace here, run "watchoo init" (or designate a workspace with -C <directory>)".
 - **`serve`** listens on `web.addr` (`127.0.0.1:8080` by default; `--addr` overrides it) and prints the
   URL to open (header card on a terminal). Outside the loopback (`127.0.0.0/8`, `::1`, `localhost`), it
   refuses to start without authentication: `web.auth.username` with the password in the
@@ -167,7 +168,8 @@ stars. The choice is made again at each sync (see
   interval old. `--json` is refused. Ctrl+C (or SIGTERM) shuts down cleanly: no more new requests, sync
   in progress cancelled and waited for, database closed afterwards. See
   [Web interface](06-web-interface.md).
-- `watchoo help [commande]` and the `-h` / `--help` option print the help in French. There is no
+- `watchoo help [command]` and the `-h` / `--help` option print the help in the language of the
+  messages (English by default, French). There is no
   `completion` command (the one `cobra` adds by default is disabled: its help is in English).
 - **`--version`**, option of `watchoo` alone (`watchoo init --version` is refused), has the same effect
   as `watchoo version`, `--json` included.
@@ -199,7 +201,7 @@ Top-level keys (the list is checked by a test, `internal/cli/json_schema_test.go
 | `watchoo repo import` | `file`, `format`, `dry_run`, `summary`, `entries` | `format`: `csv` or `list`; `summary`: `added`, `already_tracked`, `updated`, `inaccessible`, `errors`; each entry: `line`, `repo`, `outcome`, `repository` (`null` if inaccessible or in error), `error` |
 | `watchoo repo list` | `repositories` | Each element: repository object plus `activity`, `commits`, `tracked_branches`, `last_commit` (commit object or `null`), `last_sync` (`null` if none) |
 | `watchoo repo remove` | `action`, `repository`, `deleted_commits` | `action`: `deleted`, `stopped` or `already_stopped` |
-| `watchoo sync` | `started_at`, `finished_at`, `summary`, `repositories`, `rate_limit`, `source` | `source`: `api`, `git` (local Git repositories, V2; `rate_limit` is then `null`) or `""` if the sync did not start; `summary`: `repositories`, `success`, `error`, `locked`, `deferred`, `new_commits`; each repository: `id`, `full_name`, `display_name`, `status`, `new_commits`, `tracked_branches`, `stats_fetched`, `duration_ms`, `error`, `resume_at`, `warnings` (messages in French: pull requests, releases or tags not synced, or local Git clone unavailable with `gh`, while the repository succeeded; `[]` otherwise); `stats_fetched`: commit stats computed in the clone, or requested from the API as a fallback |
+| `watchoo sync` | `started_at`, `finished_at`, `summary`, `repositories`, `rate_limit`, `source` | `source`: `api`, `git` (local Git repositories, V2; `rate_limit` is then `null`) or `""` if the sync did not start; `summary`: `repositories`, `success`, `error`, `locked`, `deferred`, `new_commits`; each repository: `id`, `full_name`, `display_name`, `status`, `new_commits`, `tracked_branches`, `stats_fetched`, `duration_ms`, `error`, `resume_at`, `warnings` (messages in the selected language: pull requests, releases or tags not synced, or local Git clone unavailable with `gh`, while the repository succeeded; `[]` otherwise); `stats_fetched`: commit stats computed in the clone, or requested from the API as a fallback |
 | `watchoo log` | `commits` | From newest to oldest; commit objects |
 | `watchoo contributors` | `contributors` | Each element: `id`, `name`, `login`, `display_name`, `avatar_url`, `commits`, `additions`, `deletions`, `repositories`, `last_commit_at`, `weekly` (with `--weeks N`: N `week` objects (Monday, `YYYY-MM-DD`, display time zone) and `count`, from the oldest to the newest; `[]` without `--weeks`) |
 | `watchoo prs` | `pull_requests` | From the most recently updated to the oldest; pull request objects |
@@ -271,37 +273,37 @@ right, "Watchoo", the version and a subtitle; below, sometimes, a tip. Status li
 may follow the card. Example, `watchoo` run in a workspace:
 
 ```
-╭───────────────────────────────────────────────────────────────────╮
-│  █▄    ▄█  Watchoo v0.1.0                                         │
-│  █ ●██● █  Qui a travaillé, sur quoi, et quand ?                  │
-│  ▀██▙▟██▀                                                         │
-│                                                                   │
-│  Astuce : « watchoo repo add owner/repo » puis « watchoo sync ».  │
-╰───────────────────────────────────────────────────────────────────╯
+╭────────────────────────────────────────────────────────────╮
+│  █▄    ▄█  Watchoo v0.1.0                                  │
+│  █ ●██● █  Who worked, on what, and when?                  │
+│  ▀██▙▟██▀                                                  │
+│                                                            │
+│  Tip: "watchoo repo add owner/repo", then "watchoo sync".  │
+╰────────────────────────────────────────────────────────────╯
 
-● Espace : licence-projet (~/supervision/licence-projet)
+● Workspace: licence-projet (~/supervision/licence-projet)
 
-Watchoo supervise des dépôts GitHub, surtout privés, et répond à trois questions :
+Watchoo watches GitHub repositories, mostly private, and answers three questions:
 …
 ```
 
 | Output | Card subtitle and tip | After the card |
 | --- | --- | --- |
-| General help: `watchoo`, `watchoo help`, `watchoo --help` / `-h` | "Qui a travaillé, sur quoi, et quand ?" ("Who worked, on what, and when?"); tip "`watchoo init` fait de ce répertoire un espace de supervision" ("`watchoo init` turns this directory into a workspace") if no workspace is found, "`watchoo repo add owner/repo` puis `watchoo sync`" ("`watchoo repo add owner/repo` then `watchoo sync`") in a workspace, "`watchoo help <commande>` détaille une commande" ("`watchoo help <command>` details a command") if the workspace is unreadable | An empty line, the workspace status line, an empty line, then the usual help |
+| General help: `watchoo`, `watchoo help`, `watchoo --help` / `-h` | "Who worked, on what, and when?"; tip `Tip: "watchoo init" makes this directory a workspace.` if no workspace is found, `Tip: "watchoo repo add owner/repo", then "watchoo sync".` in a workspace, `Tip: "watchoo help <command>" details a command.` if the workspace is unreadable | An empty line, the workspace status line, an empty line, then the usual help |
 | `watchoo version`, `watchoo --version` | Go version and platform (`go1.27.3 · darwin/arm64`); no tip | Nothing |
-| `watchoo init` successful | "Espace de supervision « nom » créé" ("Workspace "name" created"); tip "`watchoo repo add owner/repo` ajoute un premier dépôt à suivre" ("`watchoo repo add owner/repo` adds a first repository to track") | An empty line, then the report as status lines: workspace, settings, database, `gh` account and its scopes (without `gh`: "Source : clones Git locaux" ("Source: local Git repositories")) |
-| `watchoo status` | "État de l'espace « nom »" ("State of the workspace "name""); tip "`watchoo sync` met à jour les dépôts suivis" ("`watchoo sync` updates the tracked repositories") | An empty line, then the usual summary |
+| `watchoo init` successful | `Workspace "name" created`; tip `Tip: "watchoo repo add owner/repo" adds a first repository to track.` | An empty line, then the report as status lines: workspace, settings, database, `gh` account and its scopes (without `gh`: "Source: local Git clones (gh absent or not signed in)") |
+| `watchoo status` | `Status of workspace "name"`; tip `Tip: "watchoo sync" updates the tracked repositories.` | An empty line, then the usual summary |
 
 - **Scripts**: the card is printed only if standard output is a terminal, and never with `--json`.
   Redirected output (file, pipe) stays the same: help without a card, `watchoo version` on a single line
   (`watchoo v0.1.0 (commit 1a2b3c4, 2026-10-27, go1.27.3, darwin/arm64)`), usual report of `init`. The
   error output (errors, warnings) never has a card, nor has the help of subcommands
   (`watchoo help init`).
-- **Workspace status line** (general help): `● Espace : <nom> (<racine>)`, with `~` for the home
-  directory, or `● Aucun espace de supervision ici`. The workspace is looked up as the other commands
+- **Workspace status line** (general help): `● Workspace: <name> (<root>)`, with `~` for the home
+  directory, or `● No workspace here`. The workspace is looked up as the other commands
   would do (current directory and its parents, `-C`, `WATCHOO_DIR`), locally, without running
   `gh`. The lookup never fails the help: an error (invalid settings, non-existent `-C` directory…) is
-  summarized on the status line, `● Espace : <message>`.
+  summarized on the status line, `● Workspace: <message>`.
 - **Width**: that of the content, without exceeding 80 columns or the width of the terminal (`COLUMNS`
   variable if it is a positive integer, otherwise the one given by the system). Text that is too long is
   broken at spaces. On a terminal of less than 40 columns, no card: the output is that of a redirected
@@ -310,7 +312,7 @@ Watchoo supervise des dépôts GitHub, surtout privés, et répond à trois ques
   a workspace).
 - **Unicode**: if the locale is UTF-8 (first non-empty variable among `LC_ALL`, `LC_CTYPE` and `LANG`)
   or in Windows Terminal (`WT_SESSION`). Otherwise, the card and the status lines are pure ASCII:
-  borders `+`, `-` and `|`, owl `ascii-mini-pur.txt`, straight quotes instead of « », accents removed,
+  borders `+`, `-` and `|`, owl `ascii-mini-pur.txt`, straight quotes instead of « » (French), accents removed,
   bullet `*`.
 - **Colors**: border, version, subtitle and status lines in gray, "Watchoo" in bold, owl pupils in
   green, command quoted in the tip in cyan. No color if `NO_COLOR` is set and non-empty, if `TERM=dumb`,
@@ -330,7 +332,7 @@ At **every launch** of a command, Watchoo checks in the background whether a ver
 own is published. At the end of the command, it writes to the **error output**:
 
 ```
-Nouvelle version de Watchoo disponible : v0.5.0 → v0.6.0. Mettez-la à jour avec « watchoo update ».
+New Watchoo version available: v0.5.0 → v0.6.0. Update with "watchoo update".
 ```
 
 - The check starts at the very beginning of the command and has **1.5 s** in total: a command is never
@@ -355,10 +357,11 @@ Nouvelle version de Watchoo disponible : v0.5.0 → v0.6.0. Mettez-la à jour av
 - **`watchoo tui`** checks once, in the background, when it opens (10 s at most, without delaying the
   display); if a newer version is published, the interactive mode announces it on the line under its
   header, while it stays open:
-  "Nouvelle version de Watchoo disponible : v0.6.1 → v0.6.2. Quittez puis lancez « watchoo update »."
-  ("Nouvelle version de Watchoo disponible : v0.6.1 → v0.6.2. Quit and then run "watchoo update".")
-  (in the Docker image: "Changez le tag de l'image Docker pour la mettre à jour." ("Change the tag of the Docker image to update it.")); on a
-  terminal too narrow, a short form: "Watchoo v0.6.2 disponible : quittez puis lancez « watchoo update »." ("Watchoo v0.6.2 available: quit then run "watchoo update".").
+  "A new version of Watchoo is available: v0.6.2 → v0.7.0. Quit, then run "watchoo update"."
+  (in the Docker image: "Change the tag of the Docker image to update it."); on a
+  terminal too narrow, a short form: "Watchoo v0.7.0 available: quit, then run "watchoo update".".
+  In French: « Nouvelle version de Watchoo disponible : v0.6.2 → v0.7.0. Quittez puis lancez
+  « watchoo update ». ».
   Failure or delay exceeded: nothing. No extra notice on the error output when quitting. Same exceptions
   as the commands: `WATCHOO_NO_UPDATE_CHECK`, a version that is not a release version.
 
@@ -371,10 +374,10 @@ last version is printed, `update_available` is `false`.
 
 ```
 $ watchoo update --check
-Version installée : v0.5.0
-Dernière version : v0.6.0
-Nouvelle version disponible : https://github.com/studoo-app/watchoo/releases/tag/v0.6.0
-Mettez-la à jour avec « watchoo update ».
+Installed version: v0.5.0
+Latest version: v0.6.0
+New version available: https://github.com/studoo-app/watchoo/releases/tag/v0.6.0
+Update with "watchoo update".
 ```
 
 `watchoo update --check --json`:
@@ -398,9 +401,9 @@ Mettez-la à jour avec « watchoo update ».
      `git pull && make build` in the clone;
    - if the **directory of the binary** is not writable: directory permissions, `sudo`, or
      reinstalling with `install.sh` and `WATCHOO_INSTALL_DIR` (see the README).
-2. Reads the last version. Already up to date: "Watchoo v0.6.0 est à jour (dernière version publiée : v0.6.0)." ("Watchoo v0.6.0 is up to date (last published version: v0.6.0)."), code 0.
+2. Reads the last version. Already up to date: "Watchoo v0.6.0 is up to date (latest published version: v0.6.0).", code 0.
 3. Prints `v0.5.0 → v0.6.0`, the link to the release and to the `CHANGELOG.md` of that version, then
-   asks for confirmation (`[o/N]`) on the error output. As for `repo remove`, `--yes` / `-y` skips
+   asks for confirmation (`Install Watchoo v0.6.0? [y/N]`) on the error output. As for `repo remove`, `--yes` / `-y` skips
    the question, and it is **required** when standard input is not a terminal; an answer other than
    `o`, `oui`, `y` or `yes` cancels with a non-zero code, changing nothing.
 4. Downloads the release archive for the system and the architecture
@@ -434,7 +437,7 @@ mon-org/projet-groupe-3,Groupe 3 (Dan et Eva),
 | `repo` | yes | `owner/repo` or GitHub URL |
 | `label` | no | Display label used instead of `owner/repo` (name of the student, the pair, the group) |
 | `branches` | no | Branches to track, list and patterns like `--branch`; empty = all branches |
-| `flemme` | no | Own Flemme (Slacking) threshold of the repository, in days without a commit, like `--flemme` (`0` = workspace threshold) |
+| `flemme` | no | Own Slacking threshold of the repository, in days without a commit, like `--flemme` (`0` = workspace threshold) |
 | `dead` | no | Own Dead threshold, like `--dead`; greater than `flemme` on the same line |
 
 A plain text file is also accepted: one repository per line, no header; empty lines and lines starting
@@ -456,11 +459,11 @@ with `#` are ignored.
 
 ```
 IMPORT  licence-projet.csv
-  ajoutés          18
-  déjà suivis       3
-  mis à jour        1
-  inaccessibles     2   carol/projet-licence, dave/projet-licence
-  lignes en erreur  0
+  added             18
+  already tracked    3
+  updated            1
+  inaccessible       2   carol/projet-licence, dave/projet-licence
+  lines in error     0
 ```
 
 - An **empty** `label`, `branches`, `flemme` or `dead` cell means "not provided": the existing value is
@@ -470,8 +473,8 @@ IMPORT  licence-projet.csv
   `flemme` of the same line is an error line.
 - `-` instead of the file reads the list from standard input.
 - The summary then details each inaccessible or in-error repository, with its line number.
-- `--dry-run`: runs the validation and the access checks, prints the summary ("à ajouter" ("to add")
-  instead of "ajoutés" ("added")), but records nothing.
+- `--dry-run`: runs the validation and the access checks, prints the summary ("to add" instead of
+  "added"), but records nothing.
 - `--json`: summary in JSON format.
 - Non-zero return code if some repositories remain inaccessible, for scripts.
 - The import does not start a sync: follow with `watchoo sync`.
@@ -525,7 +528,7 @@ sharing student data or a machine-specific setting.
 | Key | Content |
 | --- | --- |
 | `format` | Always `watchoo-config` (required) |
-| `version` | Version of the format, `1` (required). A greater version is refused: "fichier créé par une version plus récente de Watchoo" ("file created by a newer version of Watchoo") |
+| `version` | Version of the format, `1` (required). A greater version is refused: "file created by a newer version of Watchoo" |
 | `exported_at`, `watchoo_version` | Export date (UTC, RFC 3339) and version of Watchoo that made it; informative, optional |
 | `workspace.name` | Name of the exported workspace; informative: the import never renames the workspace |
 | `settings` | Common settings, values **in effect** in the exported workspace (files and `WATCHOO_*` variables included): `sync.auto`, `sync.interval` (Go duration in quotes: `"30m"`, `"1h30m"`, `"0"`), `sync.parallelism`, `activity.flemme_after_days`, `activity.dead_after_days`, `branches.exclude`, `timezone`, `lang` (`"en"` or `"fr"`; optional key of version 1: a file without it remains valid) |
@@ -543,12 +546,12 @@ it only with the people concerned.
 
 - Without `-o`, writes the document to standard output (`watchoo config export > licence.json`), without
   a header card or tip, with or without `--json`.
-- `-o fichier` (`--output`) creates the file in `0600` and prints one confirmation line (repositories and
+- `-o file` (`--output`) creates the file in `0600` and prints one confirmation line (repositories and
   settings exported); it **refuses to overwrite** an existing file without `--force`. With `--json`,
   nothing is written to standard output: the file is the result.
 - Contacts neither `gh` nor GitHub: everything comes from the database and the settings of the workspace.
 
-### `watchoo config import fichier`
+### `watchoo config import file`
 
 The file comes from another person: it is **untrusted data**, fully validated before changing anything.
 
@@ -576,11 +579,11 @@ The file comes from another person: it is **untrusted data**, fully validated be
      value is written to `config.yaml`, or is already there, but the variable wins as long as it is
      set); `config.yaml` rewritten, therefore
      **its personal comments lost** (copy kept in `config.yaml.bak`).
-3. **Confirmation**: on a terminal, `Appliquer ces changements ? [o/N]` (same answers as
+3. **Confirmation**: on a terminal, `Apply these changes? [y/N]` (same answers as
    `repo remove`); otherwise (script, pipe, file read from standard input with `-`) the
    **`--yes` / `-y` option is required**: without it, the command stops before printing anything (the
    preview is then obtained with `--dry-run`). Without confirmation, nothing is changed. If the preview
-   shows no change, the workspace says so ("Rien à changer" ("Nothing to change")) without asking a
+   shows no change, the workspace says so ("Nothing to change: the workspace is already up to date.") without asking a
    question or requiring `--yes` in text output (in `--json` without `--dry-run`, `--yes` remains
    required).
 4. **Applying**, in this order:
@@ -602,30 +605,30 @@ The file comes from another person: it is **untrusted data**, fully validated be
      An inaccessible repository is reported without blocking the others. **No repository is ever
      removed** and no sync is started.
 5. **Summary**: settings written (and `.bak` copy), then repositories added, already tracked, updated,
-   inaccessible, in error (line "dont repris" ("of which resumed") for the stopped repositories that
-   resume), with the details of each failed repository (`dépôt n° N  owner/repo : message`). Non-zero
+   inaccessible, in error (line "resumed" for the stopped repositories that
+   resume), with the details of each failed repository (`repository #N  owner/repo: message`). Non-zero
    return code if some repositories remain inaccessible or in error (run the import again once access is
    granted: it is risk-free).
 
 ```
-IMPORT  licence.json  (espace « licence-projet », exporté le 27/10/2026 avec Watchoo v0.1.0)
-Réglages
+IMPORT  licence.json  (workspace "licence-projet", exported on 10/27/2026 with Watchoo v0.1.0)
+Settings
   sync.interval              30m → 1h
   activity.dead_after_days   15 → 21
-Dépôts
-  à ajouter         18
-  à mettre à jour    1   bob/projet-licence (branches : toutes → main, dev)
-  à reprendre        1   carol/projet-licence
-  inchangés          3
-! config.yaml sera réécrit : ses commentaires personnels seront perdus (copie dans config.yaml.bak)
-Appliquer ces changements ? [o/N]
+Repositories
+  to add            18
+  to update          1   bob/projet-licence (branches: all → main, dev)
+  to resume          1   carol/projet-licence
+  unchanged          3
+! config.yaml will be rewritten from the "watchoo init" template: its personal comments will be lost (the old file is copied to config.yaml.bak)
+(repository access will be checked against GitHub when applying)
+Apply these changes? [y/N]
 ```
 
 - **`--dry-run`**: validation and preview only, plus the access check of each repository (like
   `repo import --dry-run`); nothing is written, neither the database nor `config.yaml` (byte for byte).
   The preview without `--dry-run` does not check access (that is done when applying): a repository
-  renamed on GitHub may appear there as "à ajouter" ("to add") and turn out to be "déjà suivi"
-  ("already tracked").
+  renamed on GitHub may appear there as "to add" and turn out to be "already tracked".
 - **`--json`**: preview (with `--dry-run`) or summary in JSON format (see [JSON output](#json-output));
   without `--dry-run`, `--yes` remains required and the preview is not written separately.
 - `-` instead of the file reads the document from standard input (`--yes` then required, standard input
@@ -653,16 +656,16 @@ sync or add a repository to track from there. See
   `sync.interval`.
 - During the TUI, logs are not written (they would break the display). `watchoo tui --json` is refused,
   like an extra argument; the command also stops if standard input or standard output is not a terminal.
-- **Views**: Dépôts (Repositories) (repository, last commit, author, branches, state), Commits (when,
+- **Views**: Repositories (repository, last commit, author, branches, state), Commits (when,
   repository, author, short SHA, `+/-` of the commit, first line of the message; the last 200) and
-  Contributeurs (Contributors) (name, login, commits, `+/-` totals, repositories, last commit). The
+  Contributors (name, login, commits, `+/-` totals, repositories, last commit). The
   **detail of a repository** shows the URL, the state and its thresholds, the last commit, the branches,
   the number of commits and their `+/-` lines, the last sync (or its error), stars and issues, the open
   pull requests and the last published release (V2), the last 15 commits (with their `+/-`) and the top
   5 contributors, with their `+/-` lines in the repository and their commits over the last 12 weeks
-  ("12 SEM." ("12 WKS.") column) and a one-character curve per week, the most recent on the right ("PER
-  WEEK" ("PER WEEK"): `▁` to `█`, or `.` `-` `=` `#` without Unicode; `▁` or `.` = no commit).
-- **Detail of a contributor** (0.5.0, `entrée` in the Contributeurs view; `échap` goes back to the
+  ("12 WK" column) and a one-character curve per week, the most recent on the right ("PER
+  WEEK": `▁` to `█`, or `.` `-` `=` `#` without Unicode; `▁` or `.` = no commit).
+- **Detail of a contributor** (0.5.0, `enter` in the Contributors view; `esc` goes back to the
   list): name, login (the TUI displays no address, nor the one of the profile), number of attached Git
   identities (never the addresses); totals (commits, `+/-` lines or `-` if unknown, repositories, first
   and last commit); activity over 12 weeks (total and one-character curve per week, as
@@ -672,23 +675,22 @@ sync or add a repository to track from there. See
   unknown (unavailable clone), `+0/-0` a commit really without any line (reminder at the bottom of the
   detail). The detail scrolls with `↑` `↓`. **Selection**: the table of the main contributors of the
   detail of a repository is not selectable (the detail scrolls, it has no cursor); go through the
-  Contributeurs view (filter `/`).
+  Contributors view (filter `/`).
 - **Header**: mini owl (green pupils), version and workspace, tabs, sync line (in progress with the
-  progress, last sync, next automatic sync at HH:MM, or "Synchro manuelle (s)" ("Manual sync (s)")).
+  progress, last sync, next automatic sync at HH:MM, or "manual sync (s)").
   When a new version of Watchoo is published, the line under the header announces it (see
   [New-version notice](#new-version-notice)).
-- **Adding a repository** (`a`, Dépôts view): an input line "Dépôt à suivre (owner/nom ou URL
-  GitHub) :" ("Repository to track (owner/name or GitHub URL):") opens at the bottom of the screen;
-  `entrée` validates, `échap` cancels. The input accepts the same references as `watchoo repo add`
+- **Adding a repository** (`a`, Repositories view): an input line "Repository to track (owner/name
+  or GitHub URL):" opens at the bottom of the screen; `enter` validates, `esc` cancels. The input accepts the same references as `watchoo repo add`
   (`owner/repo` or GitHub URL, same rules and same messages); an invalid reference is reported without
   calling anything and the input stays open to correct it (an input containing `@`, which can carry
   credentials, is cleared). The addition goes through the same core as `repo add` (access checked with
   GitHub, or without `gh` by reading the remote repository) and follows the rules of `repo add` without
   option: all branches, without label or own thresholds (label, branches and thresholds are set later
   with `repo add`, the import or the web Settings page). It runs in the background, one at a time.
-  Summary at the bottom of the screen: "owner/nom ajouté" ("owner/name added") (or "déjà suivi"
-  ("already tracked"), "suivi repris" ("tracking resumed") for a stopped repository, "inaccessible"
-  with the reason, like `repo add`); the list is re-read, the repository selected and its sync started,
+  Summary at the bottom of the screen: "owner/name added" (or "owner/name already tracked: nothing to
+  change", "owner/name already tracked: tracking resumed" for a stopped repository, "repository
+  owner/name is inaccessible" with the reason, like `repo add`); the list is re-read, the repository selected and its sync started,
   like `S`. If a sync is already in progress, the addition still happens and the sync of the new
   repository starts at the end of the one in progress (a sync of all the repositories started in
   between replaces it). An already tracked repository is neither modified nor re-synced.
@@ -697,18 +699,18 @@ sync or add a repository to track from there. See
   pull requests, releases, tags or an unavailable local Git clone), then the views are reloaded. An
   automatic sync falling during a sync is skipped, the next one stays scheduled. Quitting during a sync
   cancels it: `watchoo tui` then waits for the engine to have closed its syncs
-  ("synchro annulée" ("sync cancelled"), a few seconds at most) before closing the database, so that no
+  ("sync canceled", a few seconds at most) before closing the database, so that no
   repository stays locked.
 
 | Key | Effect |
 | --- | --- |
-| `tab` / `maj+tab`, `1` `2` `3` | Next / previous view, Dépôts, Commits, Contributeurs views |
-| `↑` `↓` or `k` `j`, `pg.préc` `pg.suiv`, `g` `G` | Move the selection, by page, to the start and end of the list |
-| `entrée` | Detail of the selected repository (Dépôts or Commits view) or of the selected contributor (Contributeurs view, 0.5.0) |
-| `échap` | Go back, or clear the filter |
-| `/` | Filter the view (substring, case-insensitive); `entrée` keeps the filter, `ctrl+u` clears it |
+| `tab` / `shift+tab`, `1` `2` `3` | Next / previous view, Repositories, Commits, Contributors views |
+| `↑` `↓` or `k` `j`, `pgup` `pgdown`, `g` `G` | Move the selection, by page, to the start and end of the list |
+| `enter` | Detail of the selected repository (Repositories or Commits view) or of the selected contributor (Contributors view, 0.5.0) |
+| `esc` | Go back, or clear the filter |
+| `/` | Filter the view (substring, case-insensitive); `enter` keeps the filter, `ctrl+u` clears it |
 | `s` / `S` | Sync all the repositories / the selected repository |
-| `a` | Add a repository to track (Dépôts view); `entrée` validates, `échap` cancels |
+| `a` | Add a repository to track (Repositories view); `enter` validates, `esc` cancels |
 | `r` | Reload the database |
 | `?` | Key help |
 | `q`, `ctrl+c` | Quit (while typing a filter or a repository, only `ctrl+c` quits) |
@@ -718,14 +720,14 @@ sync or add a repository to track from there. See
 `watchoo repo list`:
 
 ```
-DÉPÔT                 DERNIER COMMIT     AUTEUR      ÉTAT
-moi/projet-api        il y a 2 h         moi         -
-moi/outils-reseau     il y a 5 j         bob         -
-moi/scripts           il y a 9 j         moi         ~ 9 j
-mon-org/site-web      il y a 42 j        alice       ⚠ 42 j
+REPOSITORY         LAST COMMIT  AUTHOR  STATE
+moi/projet-api     2 h ago      moi     -
+moi/outils-reseau  5 d ago      bob     -
+moi/scripts        9 d ago      moi     ~ 9 d
+mon-org/site-web   42 d ago     alice   ⚠ 42 d
 ```
 
-`-` = Actif (0 to 5 days), `~` = Flemme (6 to 15 days), `⚠` = Dead (more than 15 days). See the
+`-` = Active (0 to 5 days), `~` = Slacking (6 to 15 days), `⚠` = Dead (more than 15 days). See the
 [activity rules](02-features.md#functional-rules).
 
 ## Typical workflow
@@ -748,9 +750,9 @@ watchoo serve
 Sharing the configuration with a colleague, who imports it into their own workspace:
 
 ```bash
-watchoo config export -o licence.json          # chez soi
-watchoo config import licence.json --dry-run    # chez la collègue : aperçu
-watchoo config import licence.json              # puis application, après confirmation
+watchoo config export -o licence.json          # on your machine
+watchoo config import licence.json --dry-run    # on the colleague's machine: preview
+watchoo config import licence.json              # then apply, after confirmation
 watchoo sync
 ```
 
