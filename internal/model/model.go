@@ -8,7 +8,11 @@
 //   - un identifiant interne facultatif absent vaut 0 (SQLite n'attribue jamais l'identifiant 0).
 package model
 
-import "time"
+import (
+	"time"
+
+	"github.com/studoo-app/watchoo/internal/i18n"
+)
 
 // ProviderGitHub est l'identifiant de la forge GitHub, seule forge du MVP (colonnes provider).
 const ProviderGitHub = "github"
@@ -102,7 +106,7 @@ type Contributor struct {
 }
 
 // DisplayName renvoie le nom à afficher d'un contributeur : Name s'il est renseigné, sinon
-// ProviderLogin, sinon « inconnu ».
+// ProviderLogin, sinon « inconnu » (« unknown » en anglais : langue du processus).
 func (c Contributor) DisplayName() string {
 	switch {
 	case c.Name != "":
@@ -110,7 +114,7 @@ func (c Contributor) DisplayName() string {
 	case c.ProviderLogin != "":
 		return c.ProviderLogin
 	default:
-		return "inconnu"
+		return i18n.T("model.contributor.unknown")
 	}
 }
 

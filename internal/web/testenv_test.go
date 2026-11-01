@@ -1,10 +1,13 @@
 package web
 
-// Environnement de test commun à tous les tests du package (socle ; les agents des pages s'en
-// servent sans le modifier, ou en ajoutant des options) : base SQLite temporaire remplie de données
-// factices, vrai moteur de synchro sur un faux Provider (providertest) et un faux gh (authtest), vrai
-// coordinateur, handler complet (middlewares compris), requêtes par httptest sans réseau. Chaque
-// réponse et le journal sont vérifiés : ni le faux token, ni un e-mail des données factices.
+// Test environment shared by all the tests of the package (foundation; the page agents use it
+// without changing it, or by adding options): temporary SQLite database filled with dummy data, real
+// sync engine on a fake Provider (providertest) and a fake gh (authtest), real coordinator, full
+// handler (middlewares included), requests through httptest without network. Every response and the
+// log are checked: neither the fake token, nor an e-mail of the dummy data.
+//
+// Language: the pages are rendered in the lang setting of the test configuration, "en" by default
+// (withLang changes it); the process language is English (TestMain).
 
 import (
 	"bytes"
@@ -30,23 +33,23 @@ import (
 	"github.com/studoo-app/watchoo/internal/workspace"
 )
 
-// Valeurs des tests.
+// Test values.
 const (
-	testHost      = "127.0.0.1:8080" // adresse écoutée et en-tête Host des requêtes
+	testHost      = "127.0.0.1:8080" // listened address and Host header of the requests
 	testOrigin    = "http://" + testHost
 	testWorkspace = "licence-projet"
-	// xssMessage est le message d'un commit factice : il doit toujours apparaître échappé.
+	// xssMessage is the message of a dummy commit: it must always appear escaped.
 	xssMessage = "<script>alert('xss')</script> corrige le bug"
 )
 
-// testEmails sont les e-mails des données factices : jamais dans une réponse ni dans le journal.
+// testEmails are the e-mails of the dummy data: never in a response or in the log.
 var testEmails = []string{"alice@example.test", "bob@example.test", "carol@example.test", "etudiant@example.test",
 	"eve@example.test", "zoe@example.test", "fred@example.test", "prolifique@example.test"}
 
-// testNow est l'horloge des tests : 27 octobre 2026, 10 h UTC.
+// testNow is the clock of the tests: October 27, 2026, 10:00 UTC.
 var testNow = time.Date(2026, 10, 27, 10, 0, 0, 0, time.UTC)
 
-// safeBuffer est un tampon sûr pour un usage concurrent (journal).
+// safeBuffer is a buffer safe for concurrent use (log).
 type safeBuffer struct {
 	mu  gosync.Mutex
 	buf bytes.Buffer
@@ -64,11 +67,11 @@ func (b *safeBuffer) String() string {
 	return b.buf.String()
 }
 
-// testEnv est un environnement de test de l'interface.
+// testEnv is a test environment of the interface.
 type testEnv struct {
 	t       *testing.T
 	store   *store.Store
-	fake    *providertest.Fake // faux GitHub du moteur
+	fake    *providertest.Fake // fake GitHub of the engine
 	auth    *authtest.Fake
 	engine  *wsync.Engine
 	coord   *wsync.Coordinator
@@ -78,58 +81,61 @@ type testEnv struct {
 	cfg     workspace.Config
 	now     time.Time
 
-	// Options appliquées avant la construction (voir envOption).
-	syncer       wsync.Syncer // nil = le vrai moteur
+	// Options applied before the construction (see envOption).
+	syncer       wsync.Syncer // nil = the real engine
 	listenAddr   string
 	webAuth      Auth
 	trusted      bool
 	allowedHosts []string
 	interval     time.Duration
-	// newProvider remplace le faux Provider du moteur (nil = e.fake) : vrai provider GitHub sur
-	// githubtest pour le test de bout en bout.
+	// newProvider replaces the fake Provider of the engine (nil = e.fake): real GitHub provider on
+	// githubtest for the end-to-end test.
 	newProvider func(token string) (provider.Provider, error)
-	// updates et updateDocker : bandeau de nouvelle version (0.6.0).
+	// updates and updateDocker: new version banner (0.6.0).
 	updates      UpdateSource
 	updateDocker bool
 }
 
-// envOption modifie l'environnement avant la construction du handler.
+// envOption changes the environment before the construction of the handler.
 type envOption func(*testEnv)
 
-// withSyncer remplace le moteur dans le coordinateur (synchro bloquante…).
+// withSyncer replaces the engine in the coordinator (blocking sync…).
 func withSyncer(s wsync.Syncer) envOption { return func(e *testEnv) { e.syncer = s } }
 
-// withListenAddr change l'adresse écoutée (contrôle Host, cookie CSRF).
+// withListenAddr changes the listened address (Host check, CSRF cookie).
 func withListenAddr(addr string) envOption { return func(e *testEnv) { e.listenAddr = addr } }
 
-// withAuth active l'authentification basique.
+// withAuth enables basic authentication.
 func withAuth(user, pass string) envOption {
 	return func(e *testEnv) { e.webAuth = Auth{Username: user, Password: pass} }
 }
 
-// withTrustedProxy déclare un reverse proxy authentifiant.
+// withTrustedProxy declares an authenticating reverse proxy.
 func withTrustedProxy() envOption { return func(e *testEnv) { e.trusted = true } }
 
-// withAllowedHosts règle web.allowed_hosts (noms publics acceptés dans l'en-tête Host).
+// withAllowedHosts sets web.allowed_hosts (public names accepted in the Host header).
 func withAllowedHosts(hosts ...string) envOption {
 	return func(e *testEnv) { e.allowedHosts = hosts }
 }
 
-// withInterval règle l'intervalle de synchro automatique du coordinateur (0 par défaut : manuelle).
+// withInterval sets the automatic sync interval of the coordinator (0 by default: manual).
 func withInterval(d time.Duration) envOption { return func(e *testEnv) { e.interval = d } }
 
-// withProvider branche le moteur sur un autre Provider que e.fake (vrai provider GitHub sur
+// withLang sets the lang setting of the test configuration (language of the pages).
+func withLang(lang string) envOption { return func(e *testEnv) { e.cfg.Lang = lang } }
+
+// withProvider plugs the engine on another Provider than e.fake (real GitHub provider on
 // githubtest…).
 func withProvider(f func(token string) (provider.Provider, error)) envOption {
 	return func(e *testEnv) { e.newProvider = f }
 }
 
-// withUpdates branche la source du bandeau de nouvelle version (docker : texte de l'image Docker).
+// withUpdates plugs the source of the new version banner (docker: Docker image text).
 func withUpdates(src UpdateSource, docker bool) envOption {
 	return func(e *testEnv) { e.updates, e.updateDocker = src, docker }
 }
 
-// newTestEnv construit l'environnement, sans données (voir seed).
+// newTestEnv builds the environment, without data (see seed).
 func newTestEnv(t *testing.T, opts ...envOption) *testEnv {
 	t.Helper()
 	e := &testEnv{
@@ -151,10 +157,10 @@ func newTestEnv(t *testing.T, opts ...envOption) *testEnv {
 
 	st, err := store.Open(t.Context(), filepath.Join(t.TempDir(), "watchoo.db"))
 	if err != nil {
-		t.Fatalf("store.Open : %v", err)
+		t.Fatalf("store.Open: %v", err)
 	}
 	if err := st.Migrate(t.Context()); err != nil {
-		t.Fatalf("Migrate : %v", err)
+		t.Fatalf("Migrate: %v", err)
 	}
 	e.store = st
 	newProvider := e.newProvider
@@ -166,7 +172,7 @@ func newTestEnv(t *testing.T, opts ...envOption) *testEnv {
 		Auth:        e.auth,
 		Config:      e.cfg,
 		NewProvider: newProvider,
-		// Sans gh : clones Git locaux vers un « serveur » vide (aucun réseau, accès refusé).
+		// Without gh: local Git clones to an empty "server" (no network, access refused).
 		NewGitProvider: func(repos []gitprov.Ref) (provider.Provider, error) {
 			return gitprov.New(gitprov.Options{Dir: filepath.Join(t.TempDir(), "repos"), Repos: repos,
 				BaseURL: "file://" + filepath.ToSlash(t.TempDir()), Logger: logger})
@@ -175,7 +181,7 @@ func newTestEnv(t *testing.T, opts ...envOption) *testEnv {
 		Logger: logger,
 	})
 	if err != nil {
-		t.Fatalf("wsync.New : %v", err)
+		t.Fatalf("wsync.New: %v", err)
 	}
 	syncer := e.syncer
 	if syncer == nil {
@@ -185,19 +191,19 @@ func newTestEnv(t *testing.T, opts ...envOption) *testEnv {
 		Syncer: syncer, Interval: e.interval, LastSync: st.LastSyncFinishedAt, Now: clock, Logger: logger,
 	})
 	if err != nil {
-		t.Fatalf("NewCoordinator : %v", err)
+		t.Fatalf("NewCoordinator: %v", err)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	e.coord.Start(ctx)
 	t.Cleanup(func() {
 		cancel()
 		if err := e.coord.Close(5 * time.Second); err != nil {
-			t.Errorf("Close du coordinateur : %v", err)
+			t.Errorf("Close of the coordinator: %v", err)
 		}
 		if err := st.Close(); err != nil {
-			t.Errorf("Close de la base : %v", err)
+			t.Errorf("Close of the database: %v", err)
 		}
-		assertNoLeak(t, "journal", e.logs.String())
+		assertNoLeak(t, "log", e.logs.String())
 	})
 
 	e.server, err = newServer(Options{
@@ -207,23 +213,24 @@ func newTestEnv(t *testing.T, opts ...envOption) *testEnv {
 		Updates: e.updates, UpdateDocker: e.updateDocker,
 	})
 	if err != nil {
-		t.Fatalf("newServer : %v", err)
+		t.Fatalf("newServer: %v", err)
 	}
 	e.handler = e.server.routes()
 	return e
 }
 
-// Identifiants des dépôts créés par seed.
+// Identifiers of the repositories created by seed.
 type seededRepos struct {
-	Alice int64 // « Alice Martin » (promo/alice) : Actif, commit d'hier, message xssMessage
-	Bob   int64 // promo/bob : Flemme (dernier commit il y a 9 jours)
-	Carol int64 // promo/carol : Dead (dernier commit il y a 40 jours)
-	Dave  int64 // promo/dave : jamais synchronisé
+	Alice int64 // "Alice Martin" (promo/alice): Active, commit of yesterday, message xssMessage
+	Bob   int64 // promo/bob: Flemme (last commit 9 days ago)
+	Carol int64 // promo/carol: Dead (last commit 40 days ago)
+	Dave  int64 // promo/dave: never synced
 }
 
-// seed remplit la base avec quatre dépôts et leurs commits (sans passer par le moteur). Contributeurs :
-// Alice (compte de forge 10, profil https://github.com/alice-gh), Bob (identité Git seule, sans compte),
-// Carol (compte 30, avatar d'un autre hôte et adresse de profil refusée, « javascript: »).
+// seed fills the database with four repositories and their commits (without the engine).
+// Contributors: Alice (forge account 10, profile https://github.com/alice-gh), Bob (Git identity
+// only, without account), Carol (account 30, avatar on another host and refused profile address,
+// "javascript:").
 func (e *testEnv) seed() seededRepos {
 	e.t.Helper()
 	alice := store.Identity{Name: "Alice Martin", Email: "alice@example.test", Login: "alice-gh",
@@ -248,8 +255,8 @@ func (e *testEnv) seed() seededRepos {
 	return ids
 }
 
-// addRepo crée le dépôt promo/name (identifiant de forge providerID) en base et dans le faux
-// Provider.
+// addRepo creates the repository promo/name (forge identifier providerID) in the database and in the
+// fake Provider.
 func (e *testEnv) addRepo(providerID int64, name, label string) int64 {
 	e.t.Helper()
 	e.fake.AddRepository(provider.Repository{ID: providerID, Owner: "promo", Name: name, DefaultBranch: "main",
@@ -259,12 +266,12 @@ func (e *testEnv) addRepo(providerID int64, name, label string) int64 {
 		URL: "https://github.com/promo/" + name, Enabled: true,
 	})
 	if err != nil {
-		e.t.Fatalf("CreateRepository : %v", err)
+		e.t.Fatalf("CreateRepository: %v", err)
 	}
 	return r.ID
 }
 
-// commitWrite fabrique un commit factice n, daté de testNow - ago.
+// commitWrite builds a dummy commit n, dated testNow - ago.
 func (e *testEnv) commitWrite(n int, who store.Identity, ago time.Duration, msg string, branches ...string) store.CommitWrite {
 	at := e.now.Add(-ago)
 	sha := providertest.SHA("commit-" + string(rune('a'+n)))
@@ -272,13 +279,13 @@ func (e *testEnv) commitWrite(n int, who store.Identity, ago time.Duration, msg 
 		Author: who, Committer: who, AuthoredAt: at, CommittedAt: at, Branches: branches}
 }
 
-// applySync enregistre une synchro réussie du dépôt repoID avec commits (branches main et dev).
+// applySync saves a successful sync of repository repoID with commits (main and dev branches).
 func (e *testEnv) applySync(repoID int64, name string, commits ...store.CommitWrite) {
 	e.t.Helper()
 	ctx := e.t.Context()
 	run, err := e.store.BeginSyncRun(ctx, repoID, e.now.Add(-time.Hour), wsync.LockStaleAfter)
 	if err != nil {
-		e.t.Fatalf("BeginSyncRun : %v", err)
+		e.t.Fatalf("BeginSyncRun: %v", err)
 	}
 	branches := []store.BranchState{{Name: "main", HeadSHA: commits[len(commits)-1].SHA}}
 	for _, c := range commits {
@@ -294,37 +301,37 @@ func (e *testEnv) applySync(repoID int64, name string, commits ...store.CommitWr
 			URL: "https://github.com/promo/" + name},
 		Branches: branches, Commits: commits, SyncedAt: e.now.Add(-time.Hour + time.Minute),
 	}); err != nil {
-		e.t.Fatalf("ApplyRepoSync : %v", err)
+		e.t.Fatalf("ApplyRepoSync: %v", err)
 	}
 }
 
-// request construit une requête vers le handler, avec l'en-tête Host attendu.
+// request builds a request to the handler, with the expected Host header.
 func (e *testEnv) request(method, target string, body io.Reader) *http.Request {
 	r := httptest.NewRequestWithContext(e.t.Context(), method, target, body)
 	r.Host = testHost
 	return r
 }
 
-// do envoie r au handler et renvoie la réponse, après avoir vérifié qu'elle ne contient ni le faux
-// token ni un e-mail des données factices.
+// do sends r to the handler and returns the response, after checking that it contains neither the
+// fake token nor an e-mail of the dummy data.
 func (e *testEnv) do(r *http.Request) *httptest.ResponseRecorder {
 	e.t.Helper()
 	w := httptest.NewRecorder()
 	e.handler.ServeHTTP(w, r)
 	assertNoLeak(e.t, r.Method+" "+r.URL.Path, w.Body.String())
 	for name, values := range w.Header() {
-		assertNoLeak(e.t, "en-tête "+name, strings.Join(values, " "))
+		assertNoLeak(e.t, "header "+name, strings.Join(values, " "))
 	}
 	return w
 }
 
-// get envoie GET target (page complète).
+// get sends GET target (full page).
 func (e *testEnv) get(target string) *httptest.ResponseRecorder {
 	e.t.Helper()
 	return e.do(e.request(http.MethodGet, target, nil))
 }
 
-// htmx envoie GET target avec l'en-tête HX-Request (fragment).
+// htmx sends GET target with the HX-Request header (fragment).
 func (e *testEnv) htmx(target string) *httptest.ResponseRecorder {
 	e.t.Helper()
 	r := e.request(http.MethodGet, target, nil)
@@ -332,7 +339,7 @@ func (e *testEnv) htmx(target string) *httptest.ResponseRecorder {
 	return e.do(r)
 }
 
-// csrfCookie fait un GET et renvoie le cookie CSRF posé par le serveur.
+// csrfCookie makes a GET and returns the CSRF cookie set by the server.
 func (e *testEnv) csrfCookie() *http.Cookie {
 	e.t.Helper()
 	w := e.get("/fragments/sync")
@@ -341,11 +348,11 @@ func (e *testEnv) csrfCookie() *http.Cookie {
 			return c
 		}
 	}
-	e.t.Fatalf("aucun cookie CSRF posé par GET /fragments/sync (en-têtes %v)", w.Header())
+	e.t.Fatalf("no CSRF cookie set by GET /fragments/sync (headers %v)", w.Header())
 	return nil
 }
 
-// post envoie un formulaire POST valide (même origine, cookie et jeton CSRF), en HTMX si htmx.
+// post sends a valid POST form (same origin, cookie and CSRF token), as HTMX if htmx.
 func (e *testEnv) post(target string, form url.Values, htmx bool) *httptest.ResponseRecorder {
 	e.t.Helper()
 	ck := e.csrfCookie()
@@ -364,50 +371,50 @@ func (e *testEnv) post(target string, form url.Values, htmx bool) *httptest.Resp
 	return e.do(r)
 }
 
-// assertNoLeak vérifie que s ne contient ni le faux token, ni un e-mail des données factices.
+// assertNoLeak checks that s contains neither the fake token, nor an e-mail of the dummy data.
 func assertNoLeak(t *testing.T, what, s string) {
 	t.Helper()
 	if strings.Contains(s, authtest.FakeToken) {
-		t.Errorf("%s : contient le token", what)
+		t.Errorf("%s: contains the token", what)
 	}
 	for _, email := range testEmails {
 		if strings.Contains(strings.ToLower(s), email) {
-			t.Errorf("%s : contient l'e-mail %s", what, email)
+			t.Errorf("%s: contains the e-mail %s", what, email)
 		}
 	}
 }
 
-// assertStatus vérifie le code de réponse.
+// assertStatus checks the response code.
 func assertStatus(t *testing.T, w *httptest.ResponseRecorder, want int) {
 	t.Helper()
 	if w.Code != want {
-		t.Fatalf("code %d, attendu %d\n%s", w.Code, want, w.Body.String())
+		t.Fatalf("code %d, want %d\n%s", w.Code, want, w.Body.String())
 	}
 }
 
-// assertContains vérifie que le corps contient chacun des extraits.
+// assertContains checks that the body contains each of the parts.
 func assertContains(t *testing.T, w *httptest.ResponseRecorder, parts ...string) {
 	t.Helper()
 	body := w.Body.String()
 	for _, p := range parts {
 		if !strings.Contains(body, p) {
-			t.Errorf("corps sans %q :\n%s", p, body)
+			t.Errorf("body without %q:\n%s", p, body)
 		}
 	}
 }
 
-// assertNotContains vérifie que le corps ne contient aucun des extraits.
+// assertNotContains checks that the body contains none of the parts.
 func assertNotContains(t *testing.T, w *httptest.ResponseRecorder, parts ...string) {
 	t.Helper()
 	body := w.Body.String()
 	for _, p := range parts {
 		if strings.Contains(body, p) {
-			t.Errorf("corps avec %q :\n%s", p, body)
+			t.Errorf("body with %q:\n%s", p, body)
 		}
 	}
 }
 
-// waitSyncIdle attend la fin de la synchro en cours du coordinateur.
+// waitSyncIdle waits for the end of the running sync of the coordinator.
 func (e *testEnv) waitSyncIdle() wsync.SyncState {
 	e.t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
@@ -417,6 +424,6 @@ func (e *testEnv) waitSyncIdle() wsync.SyncState {
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
-	e.t.Fatal("la synchro ne s'est pas terminée")
+	e.t.Fatal("the sync did not finish")
 	return wsync.SyncState{}
 }

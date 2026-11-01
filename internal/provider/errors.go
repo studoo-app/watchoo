@@ -1,12 +1,20 @@
 package provider
 
 import (
-	"errors"
 	"fmt"
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/studoo-app/watchoo/internal/i18n"
 )
+
+// i18nError est une erreur sentinelle dont le message vient du catalogue i18n : le texte est traduit
+// au moment de l'affichage (Error), dans la langue du processus. La valeur reste comparable avec ==
+// (une structure d'un champ) : errors.Is retrouve l'erreur sentinelle à travers les emballages.
+type i18nError struct{ key string }
+
+func (e i18nError) Error() string { return i18n.T(e.key) }
 
 // Erreurs sentinelles du package, à tester avec errors.Is. Les implémentations les enveloppent avec du
 // contexte (le plus souvent dans un *APIError), jamais avec le token, le corps d'une réponse, un message
@@ -14,40 +22,40 @@ import (
 var (
 	// ErrNotFound : réponse 404. Sur GitHub, un dépôt privé auquel le compte n'a pas accès répond
 	// exactement comme un dépôt inexistant : ne jamais en conclure que le dépôt a été supprimé.
-	ErrNotFound = errors.New("dépôt introuvable ou compte sans accès")
+	ErrNotFound = i18nError{"provider.err.not_found"}
 	// ErrUnauthorized : réponse 401, le token est refusé (révoqué, expiré, ou vide).
-	ErrUnauthorized = errors.New("token GitHub refusé : reconnectez-vous avec « gh auth login »")
+	ErrUnauthorized = i18nError{"provider.err.unauthorized"}
 	// ErrForbidden : réponse 403 (ou 451) hors quota, par exemple une organisation qui restreint
 	// l'accès des applications OAuth tierces. *SSORequiredError la satisfait aussi.
-	ErrForbidden = errors.New("accès refusé par GitHub")
+	ErrForbidden = i18nError{"provider.err.forbidden"}
 	// ErrRateLimited : quota de l'API épuisé ou limite secondaire atteinte. Toujours portée par un
 	// *RateLimitError (errors.As) qui donne le moment où réessayer.
-	ErrRateLimited = errors.New("quota de l'API GitHub épuisé")
+	ErrRateLimited = i18nError{"provider.err.rate_limited"}
 	// ErrEmptyRepository : réponse 409 d'un dépôt sans aucun commit (dépôt d'étudiant tout juste créé).
 	// Branches et ListCommits la traduisent en liste vide ; les autres méthodes la renvoient.
-	ErrEmptyRepository = errors.New("dépôt vide : aucun commit")
+	ErrEmptyRepository = i18nError{"provider.err.empty_repository"}
 	// ErrUnknownBase : CompareCommits ne trouve plus le commit de base (historique réécrit, par exemple
 	// après un force-push). Le moteur de synchro se replie alors (voir Provider.CompareCommits).
-	ErrUnknownBase = errors.New("commit de base introuvable : l'historique a peut-être été réécrit (force-push)")
+	ErrUnknownBase = i18nError{"provider.err.unknown_base"}
 	// ErrWriteForbidden : une requête autre que GET ou HEAD a été bloquée avant tout envoi. Watchoo
 	// n'accède à la forge qu'en lecture : cette erreur signale un défaut de programmation.
-	ErrWriteForbidden = errors.New("requête en écriture refusée : Watchoo n'accède à GitHub qu'en lecture")
+	ErrWriteForbidden = i18nError{"provider.err.write_forbidden"}
 	// ErrInvalidRef : owner, nom de dépôt, branche, SHA ou identifiant invalide ; aucune requête n'est
 	// partie.
-	ErrInvalidRef = errors.New("référence invalide")
+	ErrInvalidRef = i18nError{"provider.err.invalid_ref"}
 	// ErrUnavailable : GitHub injoignable (réseau, DNS, proxy), délai dépassé ou erreur serveur (5xx).
 	// Erreur passagère : réessayer plus tard.
-	ErrUnavailable = errors.New("GitHub est injoignable ou indisponible : réessayez plus tard")
+	ErrUnavailable = i18nError{"provider.err.unavailable"}
 	// ErrUnexpected : réponse illisible (JSON invalide) ou code HTTP imprévu.
-	ErrUnexpected = errors.New("réponse inattendue de GitHub")
+	ErrUnexpected = i18nError{"provider.err.unexpected"}
 	// ErrUnsupported : la source ne connaît pas la notion demandée (par exemple les pull requests ou
 	// les releases d'un dépôt suivi par clone Git local) ; aucune requête n'est partie. Le moteur de
 	// synchro la traite comme « non disponible pour cette source », pas comme un échec.
-	ErrUnsupported = errors.New("non disponible pour cette source")
+	ErrUnsupported = i18nError{"provider.err.unsupported"}
 	// ErrAccessDenied : git n'a pas pu lire le dépôt distant (clone Git local, V2) : clé SSH ou
 	// identifiants Git absents ou refusés, hôte SSH inconnu, dépôt introuvable ou sans accès. git ne
 	// distingue pas ces cas de façon fiable ; Watchoo ne demande ni ne stocke aucun identifiant.
-	ErrAccessDenied = errors.New("accès refusé : vérifiez la clé SSH ou les identifiants Git de cette machine")
+	ErrAccessDenied = i18nError{"provider.err.access_denied"}
 )
 
 // APIError est l'erreur renvoyée pour une requête à la forge qui a échoué (ou qui a été bloquée avant
@@ -56,7 +64,7 @@ var (
 //
 // Elle ne contient jamais le token, ni le corps de la réponse, ni les paramètres de requête.
 type APIError struct {
-	Op     string // opération, en français (ex. « lecture du dépôt alice/projet »)
+	Op     string // opération, dans la langue de l'interface (ex. « lecture du dépôt alice/projet »)
 	Method string // méthode HTTP (GET) ; vide si sans objet
 	Path   string // chemin de l'API, sans paramètres de requête (ex. « /repos/alice/projet ») ; vide si sans objet
 	Status int    // code HTTP reçu ; 0 si aucune réponse (réseau, délai, requête bloquée)
@@ -64,6 +72,7 @@ type APIError struct {
 }
 
 // Error renvoie « <Op> (GET /repos/alice/projet, HTTP 404) : <cause> », en omettant les parties vides.
+// La ponctuation (l'espace avant « : ») suit la langue du processus.
 func (e *APIError) Error() string {
 	var b strings.Builder
 	b.WriteString(e.Op)
@@ -82,7 +91,7 @@ func (e *APIError) Error() string {
 	}
 	if e.Err != nil {
 		if b.Len() > 0 {
-			b.WriteString(" : ")
+			b.WriteString(i18n.T("provider.err.sep"))
 		}
 		b.WriteString(e.Err.Error())
 	}
@@ -120,16 +129,16 @@ func (e *RateLimitError) Error() string {
 		if e.Reset.IsZero() {
 			return ErrRateLimited.Error()
 		}
-		return fmt.Sprintf("%s jusqu'au %s", ErrRateLimited, e.Reset.UTC().Format(timeLayout))
+		return i18n.T("provider.ratelimit.until", ErrRateLimited.Error(), e.Reset.UTC().Format(timeLayout))
 	}
-	const msg = "limite secondaire de l'API GitHub atteinte (requêtes trop rapprochées)"
+	msg := i18n.T("provider.ratelimit.secondary")
 	switch {
 	case !e.Reset.IsZero():
-		return fmt.Sprintf("%s : réessayez après le %s", msg, e.Reset.UTC().Format(timeLayout))
+		return i18n.T("provider.ratelimit.secondary_at", msg, e.Reset.UTC().Format(timeLayout))
 	case e.RetryAfter > 0:
-		return fmt.Sprintf("%s : réessayez dans %s", msg, e.RetryAfter.Round(time.Second))
+		return i18n.T("provider.ratelimit.secondary_in", msg, e.RetryAfter.Round(time.Second))
 	default:
-		return msg + " : réessayez plus tard"
+		return i18n.T("provider.ratelimit.secondary_later", msg)
 	}
 }
 
@@ -152,14 +161,13 @@ type SSORequiredError struct {
 
 // Error explique quoi faire, sans reprendre les paramètres du lien d'autorisation.
 func (e *SSORequiredError) Error() string {
-	org := "de ce dépôt"
+	org := i18n.T("provider.sso.org_default")
 	if e.Organization != "" {
-		org = "« " + e.Organization + " »"
+		org = i18n.T("provider.sso.org_named", e.Organization)
 	}
-	msg := fmt.Sprintf("l'organisation %s impose l'authentification unique (SAML SSO) : autorisez GitHub CLI "+
-		"pour cette organisation (« gh auth refresh », puis accordez l'accès à l'organisation", org)
+	msg := i18n.T("provider.sso.msg", org)
 	if page := ssoPage(e.URL); page != "" {
-		msg += ", ou ouvrez " + page
+		msg += i18n.T("provider.sso.or_open", page)
 	}
 	return msg + ")"
 }

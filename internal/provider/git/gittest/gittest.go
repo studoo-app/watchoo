@@ -1,10 +1,10 @@
-// Package gittest crée, pour les tests, de faux dépôts « distants » : de vrais dépôts Git nus dans un
-// répertoire temporaire, servis par le système de fichiers (file://), sans aucun service extérieur. Le
-// provider des clones Git locaux (internal/provider/git) s'y branche par Options.BaseURL = Server.URL.
+// Package gittest creates, for tests, fake "remote" repositories: real bare Git repositories in a
+// temporary directory, served through the file system (file://), without any external service. The
+// local Git clones provider (internal/provider/git) plugs into them with Options.BaseURL = Server.URL.
 //
-// Les commandes de ce package ignorent la configuration Git de l'utilisateur (GIT_CONFIG_GLOBAL vers
-// un fichier vide, GIT_CONFIG_NOSYSTEM) : ni signature, ni hook, ni alias ne s'en mêlent. Les tests qui
-// l'utilisent sont sautés si git est absent (la CI l'a).
+// The commands of this package ignore the user's Git configuration (GIT_CONFIG_GLOBAL pointing to
+// an empty file, GIT_CONFIG_NOSYSTEM): no signing, hook or alias interferes. The tests that use it
+// are skipped if git is missing (the CI has it).
 package gittest
 
 import (
@@ -19,32 +19,32 @@ import (
 	"time"
 )
 
-// Server regroupe des dépôts distants rangés comme sur une forge : <root>/<owner>/<name>.git.
+// Server groups remote repositories laid out as on a forge: <root>/<owner>/<name>.git.
 type Server struct {
 	t    testing.TB
 	root string
 	work string
-	// URL est la racine à passer à git.Options.BaseURL (« file:///… »).
+	// URL is the root to pass to git.Options.BaseURL ("file:///…").
 	URL string
 }
 
-// Repo est un dépôt distant et la copie de travail qui sert à le remplir.
+// Repo is a remote repository and the working copy used to fill it.
 type Repo struct {
 	s           *Server
 	Owner, Name string
-	Bare        string // chemin du dépôt nu « distant »
+	Bare        string // path of the "remote" bare repository
 	work        string
 }
 
-// Skip saute le test si git est absent.
+// Skip skips the test if git is missing.
 func Skip(t testing.TB) {
 	t.Helper()
 	if _, err := exec.LookPath("git"); err != nil {
-		t.Skip("git absent : test sauté")
+		t.Skip("git missing: test skipped")
 	}
 }
 
-// NewServer crée un serveur vide dans un répertoire temporaire du test (saute le test sans git).
+// NewServer creates an empty server in a temporary directory of the test (skips the test without git).
 func NewServer(t testing.TB) *Server {
 	t.Helper()
 	Skip(t)
@@ -52,16 +52,16 @@ func NewServer(t testing.TB) *Server {
 	work := t.TempDir()
 	u := url.URL{Scheme: "file", Path: filepath.ToSlash(root)}
 	if !strings.HasPrefix(u.Path, "/") {
-		u.Path = "/" + u.Path // Windows : file:///C:/…
+		u.Path = "/" + u.Path // Windows: file:///C:/…
 	}
 	return &Server{t: t, root: root, work: work, URL: u.String()}
 }
 
-// Create crée le dépôt distant owner/name, vide, dont la branche par défaut est defaultBranch.
+// Create creates the remote repository owner/name, empty, whose default branch is defaultBranch.
 func (s *Server) Create(owner, name, defaultBranch string) *Repo {
 	s.t.Helper()
-	// En minuscules, comme les cherche le provider (Options.BaseURL) : owner/name sont comparés sans
-	// tenir compte de la casse, comme sur GitHub, même sur un système de fichiers qui la distingue.
+	// In lowercase, as the provider looks for them (Options.BaseURL): owner/name are compared
+	// case-insensitively, as on GitHub, even on a case-sensitive file system.
 	bare := filepath.Join(s.root, strings.ToLower(owner), strings.ToLower(name)+".git")
 	work := filepath.Join(s.work, owner, name)
 	for _, d := range []string{filepath.Dir(bare), work} {
@@ -76,7 +76,7 @@ func (s *Server) Create(owner, name, defaultBranch string) *Repo {
 	return r
 }
 
-// Remove supprime le dépôt distant (dépôt devenu inaccessible).
+// Remove deletes the remote repository (repository that became inaccessible).
 func (r *Repo) Remove() {
 	r.s.t.Helper()
 	if err := os.RemoveAll(r.Bare); err != nil {
@@ -84,13 +84,13 @@ func (r *Repo) Remove() {
 	}
 }
 
-// Author est l'identité d'un commit de test (données factices).
+// Author is the identity of a test commit (dummy data).
 type Author struct {
 	Name, Email string
 }
 
-// Commit ajoute à la branche branch (créée depuis la branche courante si elle n'existe pas) un commit
-// qui écrit content dans file, publie la branche et renvoie son SHA.
+// Commit adds to the branch branch (created from the current branch if it does not exist) a commit
+// that writes content to file, publishes the branch and returns its SHA.
 func (r *Repo) Commit(branch, file, content, message string, who Author, when time.Time) string {
 	r.s.t.Helper()
 	r.checkout(branch)
@@ -107,8 +107,8 @@ func (r *Repo) Commit(branch, file, content, message string, who Author, when ti
 	return r.Head(branch)
 }
 
-// EmptyCommit ajoute à la branche branch un commit sans aucun changement (« --allow-empty »), publie
-// la branche et renvoie son SHA : un commit réellement à +0 −0.
+// EmptyCommit adds to the branch branch a commit without any change ("--allow-empty"), publishes
+// the branch and returns its SHA: a commit really at +0 −0.
 func (r *Repo) EmptyCommit(branch, message string, who Author, when time.Time) string {
 	r.s.t.Helper()
 	r.checkout(branch)
@@ -117,8 +117,8 @@ func (r *Repo) EmptyCommit(branch, message string, who Author, when time.Time) s
 	return r.Head(branch)
 }
 
-// ManyCommits ajoute à la branche branch n commits qui réécrivent chacun la ligne unique de file
-// (+1 −1 chacun), une minute d'écart à partir de start, puis publie la branche une seule fois.
+// ManyCommits adds to the branch branch n commits that each rewrite the single line of file
+// (+1 −1 each), one minute apart starting from start, then publishes the branch only once.
 func (r *Repo) ManyCommits(branch, file string, n int, who Author, start time.Time) {
 	r.s.t.Helper()
 	r.checkout(branch)
@@ -134,8 +134,8 @@ func (r *Repo) ManyCommits(branch, file string, n int, who Author, start time.Ti
 	r.Push()
 }
 
-// Merge fusionne la branche from dans into (commit de merge, même sans conflit), publie into et
-// renvoie le SHA du merge.
+// Merge merges the branch from into into (merge commit, even without conflict), publishes into and
+// returns the SHA of the merge.
 func (r *Repo) Merge(into, from, message string, who Author, when time.Time) string {
 	r.s.t.Helper()
 	r.checkout(into)
@@ -144,14 +144,14 @@ func (r *Repo) Merge(into, from, message string, who Author, when time.Time) str
 	return r.Head(into)
 }
 
-// Branch crée la branche name sur le commit from (SHA ou branche) et la publie.
+// Branch creates the branch name on the commit from (SHA or branch) and publishes it.
 func (r *Repo) Branch(name, from string) {
 	r.s.t.Helper()
 	r.git(r.work, "branch", "--force", name, from)
 	r.Push()
 }
 
-// DeleteBranch supprime la branche name (localement et sur le distant).
+// DeleteBranch deletes the branch name (locally and on the remote).
 func (r *Repo) DeleteBranch(name string) {
 	r.s.t.Helper()
 	r.git(r.work, "checkout", "--quiet", "--detach")
@@ -159,7 +159,7 @@ func (r *Repo) DeleteBranch(name string) {
 	r.Push()
 }
 
-// Reset replace la branche branch sur le commit sha (historique réécrit) et la publie de force.
+// Reset moves the branch branch back to the commit sha (history rewritten) and force-publishes it.
 func (r *Repo) Reset(branch, sha string) {
 	r.s.t.Helper()
 	r.checkout(branch)
@@ -167,7 +167,7 @@ func (r *Repo) Reset(branch, sha string) {
 	r.Push()
 }
 
-// Tag crée le tag name sur rev (annoté si message n'est pas vide) et le publie.
+// Tag creates the tag name on rev (annotated if message is not empty) and publishes it.
 func (r *Repo) Tag(name, rev, message string) {
 	r.s.t.Helper()
 	if message == "" {
@@ -179,28 +179,28 @@ func (r *Repo) Tag(name, rev, message string) {
 	r.Push()
 }
 
-// SetDefaultBranch change la branche par défaut (HEAD) du dépôt distant.
+// SetDefaultBranch changes the default branch (HEAD) of the remote repository.
 func (r *Repo) SetDefaultBranch(branch string) {
 	r.s.t.Helper()
 	r.git("", "--git-dir="+r.Bare, "symbolic-ref", "HEAD", "refs/heads/"+branch)
 }
 
-// Head renvoie le SHA de la tête de branch.
+// Head returns the SHA of the head of branch.
 func (r *Repo) Head(branch string) string {
 	r.s.t.Helper()
 	return strings.TrimSpace(r.git(r.work, "rev-parse", "refs/heads/"+branch))
 }
 
-// Push publie toutes les branches et tous les tags de la copie de travail, de force, en retirant du
-// distant ce qui a disparu.
+// Push publishes all the branches and all the tags of the working copy, by force, removing from the
+// remote what has disappeared.
 func (r *Repo) Push() {
 	r.s.t.Helper()
 	r.git(r.work, "push", "--quiet", "--force", "--prune", "origin", "+refs/heads/*:refs/heads/*",
 		"+refs/tags/*:refs/tags/*")
 }
 
-// checkout passe sur branch, créée depuis HEAD si elle n'existe pas (première branche d'un dépôt vide
-// comprise).
+// checkout switches to branch, created from HEAD if it does not exist (first branch of an empty
+// repository included).
 func (r *Repo) checkout(branch string) {
 	r.s.t.Helper()
 	if _, err := r.run(r.work, nil, "rev-parse", "--verify", "--quiet", "refs/heads/"+branch); err == nil {
@@ -214,8 +214,8 @@ func (r *Repo) checkout(branch string) {
 	r.git(r.work, "checkout", "--quiet", "-b", branch)
 }
 
-// commitEnv lance une commande qui crée un commit (ou un tag annoté) avec l'identité et la date
-// données.
+// commitEnv runs a command that creates a commit (or an annotated tag) with the given identity and
+// date.
 func (r *Repo) commitEnv(who Author, when time.Time, args ...string) {
 	r.s.t.Helper()
 	date := when.UTC().Format(time.RFC3339)
@@ -224,23 +224,23 @@ func (r *Repo) commitEnv(who Author, when time.Time, args ...string) {
 		"GIT_COMMITTER_NAME=" + who.Name, "GIT_COMMITTER_EMAIL=" + who.Email, "GIT_COMMITTER_DATE=" + date,
 	}
 	if out, err := r.run(r.work, env, args...); err != nil {
-		r.s.t.Fatalf("git %s : %v\n%s", strings.Join(args, " "), err, out)
+		r.s.t.Fatalf("git %s: %v\n%s", strings.Join(args, " "), err, out)
 	}
 }
 
-// git lance une commande git (dir vide : répertoire courant) et renvoie sa sortie ; échec fatal.
+// git runs a git command (empty dir: current directory) and returns its output; fatal on failure.
 func (r *Repo) git(dir string, args ...string) string {
 	r.s.t.Helper()
 	out, err := r.run(dir, nil, args...)
 	if err != nil {
-		r.s.t.Fatalf("git %s : %v\n%s", strings.Join(args, " "), err, out)
+		r.s.t.Fatalf("git %s: %v\n%s", strings.Join(args, " "), err, out)
 	}
 	return out
 }
 
-// run lance git avec une configuration isolée de celle de l'utilisateur.
+// run runs git with a configuration isolated from the user's.
 func (r *Repo) run(dir string, env []string, args ...string) (string, error) {
-	// Aucun entretien automatique en arrière-plan : il garderait la sortie ouverte après la fin de git.
+	// No automatic background maintenance: it would keep the output open after git ends.
 	cmd := exec.Command("git", append([]string{"-c", "gc.auto=0", "-c", "maintenance.auto=false"}, args...)...)
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(), "GIT_CONFIG_GLOBAL="+os.DevNull, "GIT_CONFIG_NOSYSTEM=1",
@@ -249,7 +249,7 @@ func (r *Repo) run(dir string, env []string, args ...string) (string, error) {
 	var out bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &out, &out
 	if err := cmd.Run(); err != nil {
-		return out.String(), fmt.Errorf("git %s : %w", args[0], err)
+		return out.String(), fmt.Errorf("git %s: %w", args[0], err)
 	}
 	return out.String(), nil
 }

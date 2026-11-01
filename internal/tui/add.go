@@ -11,18 +11,20 @@ package tui
 // (presse-papiers), hors de la stack documentée. Le collage (tea.PasteMsg) est accepté.
 
 import (
-	"fmt"
 	"slices"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/repoimport"
 	wsync "github.com/studoo-app/watchoo/internal/sync"
 )
 
-// addPrompt est l'invite de la saisie d'un dépôt.
-const addPrompt = "Dépôt à suivre (owner/nom ou URL GitHub) : "
+// addPrompt renvoie l'invite de la saisie d'un dépôt.
+func addPrompt() string {
+	return i18n.T("tui.add.prompt")
+}
 
 // addCharLimit borne la longueur de la saisie, en caractères (une URL GitHub tient largement).
 const addCharLimit = 300
@@ -46,13 +48,13 @@ type addDoneMsg struct {
 func (m Model) openAdd() (tea.Model, tea.Cmd) {
 	switch {
 	case m.view != viewRepos || m.detail.open || m.cdetail.open:
-		m.setStatus("« a » ajoute un dépôt depuis la liste de la vue Dépôts (touche 1)")
+		m.setStatus(i18n.T("tui.add.only_repos_view"))
 		return m, nil
 	case m.deps.Adder == nil:
-		m.setError("ajout de dépôt indisponible")
+		m.setError(i18n.T("tui.add.unavailable"))
 		return m, nil
 	case m.add.running:
-		m.setStatus("un ajout est déjà en cours (" + m.add.label + ") : patientez")
+		m.setStatus(i18n.T("tui.add.busy", m.add.label))
 		return m, nil
 	}
 	m.add.open, m.add.input = true, ""
@@ -66,7 +68,7 @@ func (m Model) handleAddKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
 		m.add.open, m.add.input = false, ""
-		m.setStatus("ajout annulé")
+		m.setStatus(i18n.T("tui.add.cancelled"))
 	case "enter":
 		return m.submitAdd()
 	case "backspace":
@@ -111,7 +113,7 @@ func (m Model) submitAdd() (tea.Model, tea.Cmd) {
 	}
 	m.add.open, m.add.input = false, ""
 	m.add.running, m.add.label = true, clean(ref.String())
-	m.setStatus("ajout de " + m.add.label + " : vérification de l'accès" + m.ellipsis())
+	m.setStatus(i18n.T("tui.add.checking", m.add.label, m.ellipsis()))
 	return m, m.addCmd(ref)
 }
 
@@ -143,7 +145,7 @@ func (m Model) handleAddDone(msg addDoneMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	if len(msg.results) != 1 {
-		m.setError(fmt.Sprintf("ajout du dépôt %s : résultat manquant", ref))
+		m.setError(i18n.T("tui.add.missing_result", ref))
 		return m, nil
 	}
 	res := msg.results[0]
@@ -151,21 +153,20 @@ func (m Model) handleAddDone(msg addDoneMsg) (tea.Model, tea.Cmd) {
 	var text string
 	switch res.Outcome {
 	case wsync.OutcomeInaccessible:
-		m.setError(fmt.Sprintf("dépôt %s inaccessible : %s (vérifiez son nom et que le compte gh, ou sans gh "+
-			"la clé SSH ou les identifiants Git de cette machine, y a accès)", ref, clean(res.Error)))
+		m.setError(i18n.T("tui.add.inaccessible", ref, clean(res.Error)))
 		return m, nil
 	case wsync.OutcomeAdded:
-		text = name + " ajouté"
+		text = i18n.T("tui.add.added", name)
 	case wsync.OutcomeUpdated:
-		text = name + " déjà suivi : suivi repris"
+		text = i18n.T("tui.add.resumed", name)
 	case wsync.OutcomeAlreadyTracked:
-		text = name + " déjà suivi : rien à changer"
+		text = i18n.T("tui.add.unchanged", name)
 	default:
-		m.setError(fmt.Sprintf("ajout du dépôt %s : %s", ref, clean(res.Error)))
+		m.setError(i18n.T("tui.add.error", ref, clean(res.Error)))
 		return m, nil
 	}
 	if !strings.EqualFold(msg.ref.String(), res.Repo.FullName()) {
-		text += " (" + ref + " s'appelle maintenant " + name + " sur GitHub)"
+		text += i18n.T("tui.add.renamed", ref, name)
 	}
 
 	m.selectRepo = res.Repo.ID
@@ -179,13 +180,13 @@ func (m Model) handleAddDone(msg addDoneMsg) (tea.Model, tea.Cmd) {
 		if !slices.Contains(m.pendingSyncs, res.Repo.ID) {
 			m.pendingSyncs = append(m.pendingSyncs, res.Repo.ID)
 		}
-		m.setStatus(text + " : sa synchro commencera après la synchro en cours (" + m.sync.label + ")")
+		m.setStatus(i18n.T("tui.add.sync_after", text, m.sync.label))
 		return m, tea.Batch(cmds...)
 	}
 	var cmd tea.Cmd
 	m, cmd = m.startSyncNamed(res.Repo.ID, name)
 	if m.sync.running {
-		m.setStatus(text + " : synchro de " + name + m.ellipsis())
+		m.setStatus(i18n.T("tui.add.syncing", text, name, m.ellipsis()))
 	} else if !m.statusErr {
 		m.setStatus(text)
 	}
@@ -196,7 +197,7 @@ func (m Model) handleAddDone(msg addDoneMsg) (tea.Model, tea.Cmd) {
 // pas encore dans la liste chargée).
 func (m Model) startSyncNamed(id int64, name string) (Model, tea.Cmd) {
 	m, cmd := m.startSync(id, false)
-	if m.sync.running && m.sync.label == fmt.Sprintf("dépôt n° %d", id) {
+	if m.sync.running && m.sync.label == i18n.T("tui.sync.repo_number", id) {
 		m.sync.label = name
 	}
 	return m, cmd
@@ -232,15 +233,16 @@ func (m *Model) selectAfterLoad() {
 // renderAddFooter renvoie le bas de l'écran pendant la saisie d'un dépôt : la saisie, puis l'erreur
 // éventuelle ou le rappel des touches.
 func (m Model) renderAddFooter(w int) []string {
-	second := m.st.Muted.Render(truncate("entrée pour ajouter, échap pour annuler", w, m.ellipsis()))
+	second := m.st.Muted.Render(truncate(i18n.T("tui.add.footer"), w, m.ellipsis()))
 	if m.status != "" && m.statusErr {
 		second = m.st.Error.Render(truncate(m.status, w, m.ellipsis()))
 	}
-	input := addPrompt + m.add.input + m.sym("▏", "_")
+	prompt := addPrompt()
+	input := prompt + m.add.input + m.sym("▏", "_")
 	if over := width(input) - w; over > 0 {
 		// Saisie plus longue que l'écran : on montre sa fin, là où l'on tape.
 		r := []rune(m.add.input)
-		input = addPrompt + m.ellipsis() + string(r[min(over+1, len(r)):]) + m.sym("▏", "_")
+		input = prompt + m.ellipsis() + string(r[min(over+1, len(r)):]) + m.sym("▏", "_")
 	}
 	return []string{input, second}
 }

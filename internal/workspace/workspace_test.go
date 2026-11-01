@@ -7,29 +7,31 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/studoo-app/watchoo/internal/i18n"
 )
 
 func TestInitCreatesWorkspace(t *testing.T) {
 	isolateEnv(t)
 	root := newDir(t, t.TempDir(), "licence-projet")
-	requireNoWorkspaceAbove(t, root) // sinon ParentWorkspace serait renseigné
+	requireNoWorkspaceAbove(t, root) // otherwise ParentWorkspace would be set
 
 	res, err := Init(root)
 	if err != nil {
-		t.Fatalf("Init : %v", err)
+		t.Fatalf("Init: %v", err)
 	}
 	ws := res.Workspace
 	if ws.Root != root {
-		t.Errorf("Root = %q, attendu %q", ws.Root, root)
+		t.Errorf("Root = %q, want %q", ws.Root, root)
 	}
 	if want := filepath.Join(root, DirName); ws.Dir != want {
-		t.Errorf("Dir = %q, attendu %q", ws.Dir, want)
+		t.Errorf("Dir = %q, want %q", ws.Dir, want)
 	}
 	if !reflect.DeepEqual(ws.Config, DefaultConfig("licence-projet")) {
-		t.Errorf("Config = %+v, attendu DefaultConfig(\"licence-projet\")", ws.Config)
+		t.Errorf("Config = %+v, want DefaultConfig(\"licence-projet\")", ws.Config)
 	}
 	if res.ParentWorkspace != "" {
-		t.Errorf("ParentWorkspace = %q, attendu vide", res.ParentWorkspace)
+		t.Errorf("ParentWorkspace = %q, want empty", res.ParentWorkspace)
 	}
 
 	assertMode(t, ws.Dir, DirMode)
@@ -38,31 +40,31 @@ func TestInitCreatesWorkspace(t *testing.T) {
 	assertMode(t, gitignore, FileMode)
 
 	if got := readFile(t, gitignore); got != "*\n" {
-		t.Errorf(".gitignore = %q, attendu %q", got, "*\n")
+		t.Errorf(".gitignore = %q, want %q", got, "*\n")
 	}
-	if got := readFile(t, ws.ConfigPath()); got != ConfigTemplate("licence-projet") {
-		t.Errorf("config.yaml différent de ConfigTemplate(\"licence-projet\") :\n%s", got)
+	if got := readFile(t, ws.ConfigPath()); got != ConfigTemplate(i18n.English, "licence-projet") {
+		t.Errorf("config.yaml different from ConfigTemplate(i18n.English, \"licence-projet\"):\n%s", got)
 	}
 
-	// Init ne crée pas la base : c'est le rôle de store.
+	// Init does not create the database: that is the role of store.
 	if _, err := os.Stat(ws.DBPath()); !errors.Is(err, os.ErrNotExist) {
-		t.Errorf("la base ne doit pas être créée par Init (Stat : %v)", err)
+		t.Errorf("the database must not be created by Init (Stat: %v)", err)
 	}
 	entries, err := os.ReadDir(ws.Dir)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(entries) != 2 {
-		t.Errorf("contenu de .watchoo = %v, attendu config.yaml et .gitignore", entries)
+		t.Errorf("content of .watchoo = %v, want config.yaml and .gitignore", entries)
 	}
 
-	// L'espace créé se recharge et redonne les réglages par défaut.
+	// The created workspace loads again and gives back the default settings.
 	loaded := &Workspace{Root: ws.Root, Dir: ws.Dir}
 	if err := Load(loaded); err != nil {
-		t.Fatalf("Load après Init : %v", err)
+		t.Fatalf("Load after Init: %v", err)
 	}
 	if !reflect.DeepEqual(loaded.Config, ws.Config) {
-		t.Errorf("Load après Init = %+v, attendu %+v", loaded.Config, ws.Config)
+		t.Errorf("Load after Init = %+v, want %+v", loaded.Config, ws.Config)
 	}
 }
 
@@ -73,14 +75,14 @@ func TestInitRelativeRoot(t *testing.T) {
 
 	res, err := Init(".")
 	if err != nil {
-		t.Fatalf("Init(\".\") : %v", err)
+		t.Fatalf("Init(\".\"): %v", err)
 	}
 	if !filepath.IsAbs(res.Workspace.Root) {
-		t.Errorf("Root = %q, attendu un chemin absolu", res.Workspace.Root)
+		t.Errorf("Root = %q, want an absolute path", res.Workspace.Root)
 	}
 	assertSameDir(t, res.Workspace.Root, root)
 	if res.Workspace.Config.Name != "promo" {
-		t.Errorf("Name = %q, attendu %q", res.Workspace.Config.Name, "promo")
+		t.Errorf("Name = %q, want %q", res.Workspace.Config.Name, "promo")
 	}
 }
 
@@ -94,11 +96,11 @@ func TestInitRefusesExistingWorkspace(t *testing.T) {
 
 	_, err := Init(root)
 	if !errors.Is(err, ErrAlreadyInitialized) {
-		t.Fatalf("second Init : erreur %v, attendu ErrAlreadyInitialized", err)
+		t.Fatalf("second Init: error %v, want ErrAlreadyInitialized", err)
 	}
-	assertErrorContains(t, err, "déjà un espace Watchoo", root)
+	assertErrorContains(t, err, "already a Watchoo workspace", root)
 	if got := readFile(t, ws.ConfigPath()); got != custom {
-		t.Errorf("config.yaml modifié par le second Init : %q", got)
+		t.Errorf("config.yaml modified by the second Init: %q", got)
 	}
 }
 
@@ -110,11 +112,11 @@ func TestInitRefusesWatchooFile(t *testing.T) {
 
 	_, err := Init(root)
 	if err == nil || errors.Is(err, ErrAlreadyInitialized) {
-		t.Fatalf("Init avec un fichier .watchoo : erreur %v, attendu une erreur claire", err)
+		t.Fatalf("Init with a .watchoo file: error %v, want a clear error", err)
 	}
-	assertErrorContains(t, err, path, "n'est pas un répertoire")
+	assertErrorContains(t, err, path, "is not a directory")
 	if got := readFile(t, path); got != "pas un répertoire" {
-		t.Errorf("le fichier .watchoo a été modifié : %q", got)
+		t.Errorf("the .watchoo file was modified: %q", got)
 	}
 }
 
@@ -124,15 +126,15 @@ func TestInitRootMustBeADirectory(t *testing.T) {
 
 	missing := filepath.Join(base, "absent")
 	_, err := Init(missing)
-	assertErrorContains(t, err, missing, "n'existe pas")
+	assertErrorContains(t, err, missing, "does not exist")
 	if _, statErr := os.Stat(missing); !errors.Is(statErr, os.ErrNotExist) {
-		t.Errorf("Init ne doit pas créer le répertoire racine")
+		t.Errorf("Init must not create the root directory")
 	}
 
 	file := filepath.Join(base, "fichier")
 	writeFile(t, file, "x")
 	_, err = Init(file)
-	assertErrorContains(t, err, file, "n'est pas un répertoire")
+	assertErrorContains(t, err, file, "is not a directory")
 }
 
 func TestInitNestedWorkspace(t *testing.T) {
@@ -145,33 +147,33 @@ func TestInitNestedWorkspace(t *testing.T) {
 
 	res, err := Init(child)
 	if err != nil {
-		t.Fatalf("Init imbriqué : %v", err)
+		t.Fatalf("nested Init: %v", err)
 	}
 	if res.ParentWorkspace != parent {
-		t.Errorf("ParentWorkspace = %q, attendu %q", res.ParentWorkspace, parent)
+		t.Errorf("ParentWorkspace = %q, want %q", res.ParentWorkspace, parent)
 	}
 	if res.Workspace.Root != child || res.Workspace.Config.Name != "groupe-a" {
-		t.Errorf("espace imbriqué = %+v", res.Workspace)
+		t.Errorf("nested workspace = %+v", res.Workspace)
 	}
 
-	// Chaque espace est trouvé depuis ses propres sous-répertoires.
+	// Each workspace is found from its own subdirectories.
 	deep := newDir(t, child, "src", "x")
 	if ws, err := Find(deep); err != nil || ws.Root != child {
-		t.Errorf("Find(%s) = %v, %v ; attendu l'espace imbriqué %s", deep, ws, err, child)
+		t.Errorf("Find(%s) = %v, %v; want the nested workspace %s", deep, ws, err, child)
 	}
 	sibling := newDir(t, parent, "groupes", "groupe-b")
 	if ws, err := Find(sibling); err != nil || ws.Root != parent {
-		t.Errorf("Find(%s) = %v, %v ; attendu l'espace parent %s", sibling, ws, err, parent)
+		t.Errorf("Find(%s) = %v, %v; want the parent workspace %s", sibling, ws, err, parent)
 	}
 
-	// Un espace sans parent ne signale rien.
+	// A workspace without parent reports nothing.
 	other := newDir(t, base, "master-projet")
 	res, err = Init(other)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if res.ParentWorkspace != "" {
-		t.Errorf("ParentWorkspace = %q, attendu vide", res.ParentWorkspace)
+		t.Errorf("ParentWorkspace = %q, want empty", res.ParentWorkspace)
 	}
 }
 
@@ -179,7 +181,7 @@ func TestInitCleansUpOnFailure(t *testing.T) {
 	isolateEnv(t)
 	root := t.TempDir()
 
-	failure := errors.New("disque plein (simulé)")
+	failure := errors.New("disk full (simulated)")
 	original := createFile
 	t.Cleanup(func() { createFile = original })
 	createFile = func(path string, content []byte) error {
@@ -191,16 +193,16 @@ func TestInitCleansUpOnFailure(t *testing.T) {
 
 	_, err := Init(root)
 	if !errors.Is(err, failure) {
-		t.Fatalf("Init : erreur %v, attendu l'échec simulé", err)
+		t.Fatalf("Init: error %v, want the simulated failure", err)
 	}
 	if _, statErr := os.Lstat(filepath.Join(root, DirName)); !errors.Is(statErr, os.ErrNotExist) {
-		t.Errorf(".watchoo doit être supprimé après un échec (Lstat : %v)", statErr)
+		t.Errorf(".watchoo must be deleted after a failure (Lstat: %v)", statErr)
 	}
 
-	// Une fois la cause disparue, Init réussit.
+	// Once the cause is gone, Init succeeds.
 	createFile = original
 	if _, err := Init(root); err != nil {
-		t.Fatalf("Init après nettoyage : %v", err)
+		t.Fatalf("Init after cleanup: %v", err)
 	}
 }
 
@@ -215,13 +217,13 @@ func TestFind(t *testing.T) {
 	for _, start := range []string{root, deep, filepath.Join(root, DirName)} {
 		ws, err := Find(start)
 		if err != nil {
-			t.Fatalf("Find(%s) : %v", start, err)
+			t.Fatalf("Find(%s): %v", start, err)
 		}
 		if ws.Root != root || ws.Dir != filepath.Join(root, DirName) {
-			t.Errorf("Find(%s) = {Root: %s, Dir: %s}, attendu la racine %s", start, ws.Root, ws.Dir, root)
+			t.Errorf("Find(%s) = {Root: %s, Dir: %s}, want the root %s", start, ws.Root, ws.Dir, root)
 		}
 		if !reflect.DeepEqual(ws.Config, Config{}) {
-			t.Errorf("Find ne doit pas charger les réglages : %+v", ws.Config)
+			t.Errorf("Find must not load the settings: %+v", ws.Config)
 		}
 	}
 }
@@ -235,7 +237,7 @@ func TestFindRelativeStart(t *testing.T) {
 
 	ws, err := Find("sous")
 	if err != nil {
-		t.Fatalf("Find(\"sous\") : %v", err)
+		t.Fatalf("Find(\"sous\"): %v", err)
 	}
 	assertSameDir(t, ws.Root, root)
 }
@@ -248,9 +250,9 @@ func TestFindNotFound(t *testing.T) {
 
 	ws, err := Find(start)
 	if !errors.Is(err, ErrNotFound) {
-		t.Fatalf("Find : %v, %v ; attendu ErrNotFound", ws, err)
+		t.Fatalf("Find: %v, %v; want ErrNotFound", ws, err)
 	}
-	assertErrorContains(t, err, "aucun espace Watchoo ici, lancez « watchoo init »", start)
+	assertErrorContains(t, err, `no Watchoo workspace here, run "watchoo init"`, start)
 }
 
 func TestFindIgnoresWatchooFile(t *testing.T) {
@@ -263,16 +265,16 @@ func TestFindIgnoresWatchooFile(t *testing.T) {
 
 	ws, err := Find(child)
 	if err != nil {
-		t.Fatalf("Find : %v", err)
+		t.Fatalf("Find: %v", err)
 	}
 	if ws.Root != base {
-		t.Errorf("Find = %s, attendu l'espace au-dessus (%s) : un fichier .watchoo ne compte pas", ws.Root, base)
+		t.Errorf("Find = %s, want the workspace above (%s): a .watchoo file does not count", ws.Root, base)
 	}
 }
 
-// Un .watchoo/ commité dans le dépôt d'un étudiant, cloné par Watchoo dans repos/ (V2), n'est jamais
-// pris pour un espace, même à droits privés (umask 077) : la recherche reprend à l'espace qui contient
-// les clones. Init y est refusé.
+// A .watchoo/ committed in a student's repository, cloned by Watchoo into repos/ (V2), is never
+// taken for a workspace, even with private permissions (umask 077): the search resumes at the
+// workspace holding the clones. Init is refused there.
 func TestFindSkipsWorkspaceInClones(t *testing.T) {
 	isolateEnv(t)
 	base := t.TempDir()
@@ -292,25 +294,25 @@ func TestFindSkipsWorkspaceInClones(t *testing.T) {
 	for _, start := range []string{clone, deep, nested, filepath.Join(clone, DirName)} {
 		ws, err := Find(start)
 		if err != nil {
-			t.Fatalf("Find(%s) : %v", start, err)
+			t.Fatalf("Find(%s): %v", start, err)
 		}
 		if ws.Root != root {
-			t.Errorf("Find(%s) = %s, attendu l'espace qui contient les clones (%s)", start, ws.Root, root)
+			t.Errorf("Find(%s) = %s, want the workspace holding the clones (%s)", start, ws.Root, root)
 		}
 	}
-	// Ailleurs que sous repos/, un espace imbriqué reste trouvé.
+	// Elsewhere than under repos/, a nested workspace is still found.
 	other := newDir(t, root, "autre")
 	mustInit(t, other)
 	if ws, err := Find(other); err != nil || ws.Root != other {
-		t.Errorf("Find(%s) = %v, %v ; attendu l'espace imbriqué", other, ws, err)
+		t.Errorf("Find(%s) = %v, %v; want the nested workspace", other, ws, err)
 	}
-	// Init dans un clone : refusé, rien de créé.
+	// Init in a clone: refused, nothing created.
 	fresh := newDir(t, root, ReposDirName, "autre-projet")
-	if _, err := Init(fresh); err == nil || !strings.Contains(err.Error(), "répertoire des clones") {
-		t.Errorf("Init dans repos/ : %v, refus attendu", err)
+	if _, err := Init(fresh); err == nil || !strings.Contains(err.Error(), "clones directory") {
+		t.Errorf("Init in repos/: %v, want a refusal", err)
 	}
 	if _, err := os.Stat(filepath.Join(fresh, DirName)); !errors.Is(err, os.ErrNotExist) {
-		t.Errorf("Init dans repos/ a créé %s", DirName)
+		t.Errorf("Init in repos/ created %s", DirName)
 	}
 }
 
@@ -326,7 +328,7 @@ func TestFindNearestWins(t *testing.T) {
 		t.Fatal(err)
 	}
 	if ws.Root != inner {
-		t.Errorf("Find = %s, attendu l'espace le plus proche %s", ws.Root, inner)
+		t.Errorf("Find = %s, want the nearest workspace %s", ws.Root, inner)
 	}
 }
 
@@ -345,27 +347,27 @@ func TestResolveFromPriority(t *testing.T) {
 	t.Setenv(EnvDir, fromEnv)
 	ws, err := ResolveFrom(fromFlag, cwd)
 	if err != nil {
-		t.Fatalf("ResolveFrom avec -C : %v", err)
+		t.Fatalf("ResolveFrom with -C: %v", err)
 	}
 	if ws.Root != fromFlag || ws.Config.Name != "flag" {
-		t.Errorf("-C doit l'emporter sur WATCHOO_DIR et le répertoire courant : %s (%q)", ws.Root, ws.Config.Name)
+		t.Errorf("-C must take precedence over WATCHOO_DIR and the current directory: %s (%q)", ws.Root, ws.Config.Name)
 	}
 
 	ws, err = ResolveFrom("", cwd)
 	if err != nil {
-		t.Fatalf("ResolveFrom avec WATCHOO_DIR : %v", err)
+		t.Fatalf("ResolveFrom with WATCHOO_DIR: %v", err)
 	}
 	if ws.Root != fromEnv || ws.Config.Name != "env" {
-		t.Errorf("WATCHOO_DIR doit l'emporter sur le répertoire courant : %s", ws.Root)
+		t.Errorf("WATCHOO_DIR must take precedence over the current directory: %s", ws.Root)
 	}
 
 	t.Setenv(EnvDir, "")
 	ws, err = ResolveFrom("", cwd)
 	if err != nil {
-		t.Fatalf("ResolveFrom depuis le répertoire courant : %v", err)
+		t.Fatalf("ResolveFrom from the current directory: %v", err)
 	}
 	if ws.Root != fromCwd || ws.Config.Name != "cwd" {
-		t.Errorf("le répertoire courant (et ses parents) doit être utilisé : %s", ws.Root)
+		t.Errorf("the current directory (and its parents) must be used: %s", ws.Root)
 	}
 }
 
@@ -376,23 +378,23 @@ func TestResolveFromRelativePaths(t *testing.T) {
 	mustInit(t, root)
 	newDir(t, root, "groupe-a")
 
-	// -C relatif, interprété par rapport à cwd ; un sous-répertoire d'espace convient (comme git -C).
+	// Relative -C, interpreted against cwd; a subdirectory of a workspace is fine (like git -C).
 	ws, err := ResolveFrom(filepath.Join("licence-projet", "groupe-a"), base)
 	if err != nil {
-		t.Fatalf("ResolveFrom(-C relatif) : %v", err)
+		t.Fatalf("ResolveFrom(relative -C): %v", err)
 	}
 	if ws.Root != root {
-		t.Errorf("Root = %s, attendu %s", ws.Root, root)
+		t.Errorf("Root = %s, want %s", ws.Root, root)
 	}
 
-	// WATCHOO_DIR relatif.
+	// Relative WATCHOO_DIR.
 	t.Setenv(EnvDir, "licence-projet")
 	ws, err = ResolveFrom("", base)
 	if err != nil {
-		t.Fatalf("ResolveFrom(WATCHOO_DIR relatif) : %v", err)
+		t.Fatalf("ResolveFrom(relative WATCHOO_DIR): %v", err)
 	}
 	if ws.Root != root {
-		t.Errorf("Root = %s, attendu %s", ws.Root, root)
+		t.Errorf("Root = %s, want %s", ws.Root, root)
 	}
 }
 
@@ -405,44 +407,44 @@ func TestResolveFromErrors(t *testing.T) {
 	file := filepath.Join(base, "fichier")
 	writeFile(t, file, "x")
 
-	t.Run("-C sans espace", func(t *testing.T) {
+	t.Run("-C without workspace", func(t *testing.T) {
 		_, err := ResolveFrom(empty, base)
 		if !errors.Is(err, ErrNotFound) {
-			t.Fatalf("erreur %v, attendu ErrNotFound", err)
+			t.Fatalf("error %v, want ErrNotFound", err)
 		}
-		assertErrorContains(t, err, "option -C", "aucun espace Watchoo", empty)
+		assertErrorContains(t, err, "option -C", "no Watchoo workspace", empty)
 	})
-	t.Run("-C inexistant", func(t *testing.T) {
+	t.Run("nonexistent -C", func(t *testing.T) {
 		_, err := ResolveFrom(missing, base)
-		assertErrorContains(t, err, "option -C", missing, "n'existe pas")
+		assertErrorContains(t, err, "option -C", missing, "does not exist")
 	})
-	t.Run("-C fichier", func(t *testing.T) {
+	t.Run("-C file", func(t *testing.T) {
 		_, err := ResolveFrom(file, base)
-		assertErrorContains(t, err, "option -C", file, "n'est pas un répertoire")
+		assertErrorContains(t, err, "option -C", file, "is not a directory")
 	})
-	t.Run("WATCHOO_DIR inexistant", func(t *testing.T) {
+	t.Run("nonexistent WATCHOO_DIR", func(t *testing.T) {
 		t.Setenv(EnvDir, missing)
 		_, err := ResolveFrom("", base)
-		assertErrorContains(t, err, "variable WATCHOO_DIR", missing, "n'existe pas")
+		assertErrorContains(t, err, "variable WATCHOO_DIR", missing, "does not exist")
 	})
-	t.Run("WATCHOO_DIR sans espace", func(t *testing.T) {
+	t.Run("WATCHOO_DIR without workspace", func(t *testing.T) {
 		t.Setenv(EnvDir, empty)
 		_, err := ResolveFrom("", base)
 		if !errors.Is(err, ErrNotFound) {
-			t.Fatalf("erreur %v, attendu ErrNotFound", err)
+			t.Fatalf("error %v, want ErrNotFound", err)
 		}
 		assertErrorContains(t, err, "variable WATCHOO_DIR")
 	})
-	t.Run("répertoire courant sans espace", func(t *testing.T) {
+	t.Run("current directory without workspace", func(t *testing.T) {
 		_, err := ResolveFrom("", empty)
 		if !errors.Is(err, ErrNotFound) {
-			t.Fatalf("erreur %v, attendu ErrNotFound", err)
+			t.Fatalf("error %v, want ErrNotFound", err)
 		}
 		if strings.Contains(err.Error(), "option -C") || strings.Contains(err.Error(), EnvDir) {
-			t.Errorf("le message ne doit citer ni -C ni WATCHOO_DIR : %v", err)
+			t.Errorf("the message must quote neither -C nor WATCHOO_DIR: %v", err)
 		}
 	})
-	t.Run("réglages invalides", func(t *testing.T) {
+	t.Run("invalid settings", func(t *testing.T) {
 		root := newDir(t, base, "invalide")
 		ws := mustInit(t, root)
 		writeFile(t, ws.ConfigPath(), "sync:\n  parallelism: 9\n")
@@ -459,30 +461,30 @@ func TestResolveUsesWorkingDirectory(t *testing.T) {
 
 	ws, err := Resolve("")
 	if err != nil {
-		t.Fatalf("Resolve : %v", err)
+		t.Fatalf("Resolve: %v", err)
 	}
 	assertSameDir(t, ws.Root, root)
 	if ws.Config.Sync.Interval != DefaultSyncInterval {
-		t.Errorf("réglages non chargés : %+v", ws.Config)
+		t.Errorf("settings not loaded: %+v", ws.Config)
 	}
 }
 
 func TestWorkspacePaths(t *testing.T) {
 	ws := Workspace{Root: "/x", Dir: filepath.Join("/x", DirName)}
 	if got, want := ws.DBPath(), filepath.Join("/x", ".watchoo", "watchoo.db"); got != want {
-		t.Errorf("DBPath = %s, attendu %s", got, want)
+		t.Errorf("DBPath = %s, want %s", got, want)
 	}
 	if got, want := ws.ConfigPath(), filepath.Join("/x", ".watchoo", "config.yaml"); got != want {
-		t.Errorf("ConfigPath = %s, attendu %s", got, want)
+		t.Errorf("ConfigPath = %s, want %s", got, want)
 	}
-	// Clones avec copie de travail, à la racine de l'espace (à côté de .watchoo/).
+	// Clones with a working copy, at the root of the workspace (next to .watchoo/).
 	if got, want := ws.ReposDir(), filepath.Join("/x", "repos"); got != want {
-		t.Errorf("ReposDir = %s, attendu %s", got, want)
+		t.Errorf("ReposDir = %s, want %s", got, want)
 	}
 }
 
-// assertSameDir vérifie que got et want désignent le même répertoire (sous macOS, os.Getwd peut
-// renvoyer /private/var/… pour un répertoire temporaire /var/…).
+// assertSameDir checks that got and want designate the same directory (on macOS, os.Getwd may
+// return /private/var/… for a temporary directory /var/…).
 func assertSameDir(t *testing.T, got, want string) {
 	t.Helper()
 	gotInfo, err := os.Stat(got)
@@ -494,6 +496,6 @@ func assertSameDir(t *testing.T, got, want string) {
 		t.Fatal(err)
 	}
 	if !os.SameFile(gotInfo, wantInfo) {
-		t.Errorf("répertoire %s, attendu %s", got, want)
+		t.Errorf("directory %s, want %s", got, want)
 	}
 }

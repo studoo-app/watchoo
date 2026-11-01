@@ -21,6 +21,7 @@ import (
 
 	gogithub "github.com/google/go-github/v93/github"
 
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/provider"
 )
 
@@ -28,8 +29,12 @@ import (
 // de la casse) qui signale une limite secondaire.
 const secondaryRateLimitMessage = "secondary rate limit"
 
-// errUnreadable est la cause d'une réponse 200 dont le corps n'a pas pu être décodé.
-var errUnreadable = fmt.Errorf("réponse illisible (JSON invalide) : %w", provider.ErrUnexpected)
+// errUnreadable renvoie la cause d'une réponse 200 dont le corps n'a pas pu être décodé (fonction, et
+// non variable, pour traduire au moment de l'affichage).
+func errUnreadable() error {
+	return fmt.Errorf("%s%s%w", i18n.T("provider.github.err.unreadable"), i18n.T("provider.err.sep"),
+		provider.ErrUnexpected)
+}
 
 // convertError convertit l'erreur err renvoyée par go-github (avec la réponse resp, éventuellement nil)
 // pour l'opération op, lancée avec le contexte ctx de l'appelant, en erreur du package provider. op est
@@ -120,7 +125,7 @@ func (p *Provider) cause(ctx context.Context, hr *http.Response, err error, ue *
 		return unavailable(ue.Err)
 	}
 	if isJSONError(err) {
-		return errUnreadable
+		return errUnreadable()
 	}
 	if isNetworkError(err) {
 		return unavailable(err)
@@ -158,9 +163,9 @@ func contextCause(ctx context.Context, err error) error {
 		return nil
 	}
 	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-		return &ctxError{msg: "délai de l'appelant dépassé", err: context.DeadlineExceeded}
+		return &ctxError{msg: i18n.T("provider.github.err.caller_timeout"), err: context.DeadlineExceeded}
 	}
-	return &ctxError{msg: "requête annulée", err: context.Canceled}
+	return &ctxError{msg: i18n.T("provider.github.err.canceled"), err: context.Canceled}
 }
 
 // transportCause renvoie l'erreur du package provider produite par le transport ou par la politique
@@ -204,7 +209,7 @@ func (p *Provider) statusCause(hr *http.Response, err error) error {
 	case status == http.StatusConflict:
 		return provider.ErrEmptyRepository
 	case status >= http.StatusInternalServerError:
-		return fmt.Errorf("erreur du serveur : %w", provider.ErrUnavailable)
+		return errWrapped(i18n.T("provider.github.err.server"), provider.ErrUnavailable)
 	}
 	return provider.ErrUnexpected
 }
@@ -396,30 +401,30 @@ func isNetworkError(err error) bool {
 // unavailable renvoie la cause d'un échec de transport : sa nature, enveloppant
 // provider.ErrUnavailable (sans le message d'origine, qui peut citer l'URL ou l'adresse).
 func unavailable(err error) error {
-	return fmt.Errorf("%s : %w", failureNature(err), provider.ErrUnavailable)
+	return fmt.Errorf("%s%s%w", failureNature(err), i18n.T("provider.err.sep"), provider.ErrUnavailable)
 }
 
-// failureNature décrit en français la nature d'un échec de transport, sans URL, adresse ni détail
-// venu du serveur (utilisée dans les erreurs et les logs).
+// failureNature décrit dans la langue de l'interface la nature d'un échec de transport, sans URL,
+// adresse ni détail venu du serveur (utilisée dans les erreurs et les logs).
 func failureNature(err error) string {
 	netErr, isNet := errors.AsType[net.Error](err)
 	opErr, isOp := errors.AsType[*net.OpError](err)
 	switch {
 	case isDNSError(err):
-		return "nom d'hôte introuvable"
+		return i18n.T("provider.github.err.dns")
 	case (isNet && netErr.Timeout()) || errors.Is(err, context.DeadlineExceeded):
-		return "délai dépassé"
+		return i18n.T("provider.github.err.timeout")
 	case errors.Is(err, context.Canceled):
-		return "requête annulée"
+		return i18n.T("provider.github.err.canceled")
 	case isTLSError(err):
-		return "connexion sécurisée (TLS) impossible"
+		return i18n.T("provider.github.err.tls")
 	case isOp && opErr.Op == "dial":
-		return "connexion impossible"
+		return i18n.T("provider.github.err.dial")
 	case errors.Is(err, io.ErrUnexpectedEOF), errors.Is(err, io.EOF),
 		errors.Is(err, syscall.ECONNRESET), errors.Is(err, syscall.EPIPE):
-		return "connexion interrompue"
+		return i18n.T("provider.github.err.conn_reset")
 	}
-	return "erreur réseau"
+	return i18n.T("provider.github.err.network")
 }
 
 // isDNSError indique un échec de résolution de nom.

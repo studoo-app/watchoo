@@ -15,16 +15,16 @@ import (
 	"github.com/studoo-app/watchoo/internal/provider"
 )
 
-// SHA des commits factices de testdata/ (commits_page1.json puis commits_page2.json : c1 à c6, du plus
-// récent au plus ancien ; compare_page*.json : m1 à m5 depuis apiBaseSHA, du plus ancien au plus récent).
+// SHAs of the dummy commits of testdata/ (commits_page1.json then commits_page2.json: c1 to c6, from
+// newest to oldest; compare_page*.json: m1 to m5 since apiBaseSHA, from oldest to newest).
 const (
-	apiC1      = "0a934d3dea406ccab14c373d35d84c7b619d0e01" // merge de feature/login, committer web-flow
-	apiC2      = "eca00f571cb2fc3b2a03707ea2929210e78596ac" // auteur sans compte GitHub (author: null)
-	apiC3      = "aff84faa7810a6905be3df348543504a3a261e84" // auteur et committer avec compte
+	apiC1      = "0a934d3dea406ccab14c373d35d84c7b619d0e01" // merge of feature/login, committer web-flow
+	apiC2      = "eca00f571cb2fc3b2a03707ea2929210e78596ac" // author without a GitHub account (author: null)
+	apiC3      = "aff84faa7810a6905be3df348543504a3a261e84" // author and committer with an account
 	apiC4      = "6ea33ad4236584499f2ebc29eb5cc14053030a70"
 	apiC5      = "42747f4612f42fc6f3a3b6da1b21400f5fe7064a"
-	apiC6      = "5f5ed3e6686167f5006df913235f1dc5fb885118" // commit racine
-	apiFeatSHA = "e7de2cd0585ecc3729db8117ba1e93e306e4866b" // tête de feature/login
+	apiC6      = "5f5ed3e6686167f5006df913235f1dc5fb885118" // root commit
+	apiFeatSHA = "e7de2cd0585ecc3729db8117ba1e93e306e4866b" // head of feature/login
 	apiBaseSHA = "747ca7ddcfcb37cc02e8b111fca5d2a0e70a30b3"
 	apiM1      = "cbca9fded95d2f646db00358ef41ec585968d204"
 	apiM2      = "ca99255ce8a56c4da42e560682f23b5f8450d66d"
@@ -33,21 +33,21 @@ const (
 	apiM5      = "df4cb7bcb3854c12971d7f4aca5a65ed91ee971e" // merge (2 parents)
 )
 
-// apiCommitsPath et apiComparePath sont les chemins de l'API des commits et de la comparaison factice.
+// apiCommitsPath and apiComparePath are the API paths of the dummy commits and comparison.
 const (
 	apiCommitsPath = apiRepoPath + "/commits"
 	apiComparePath = apiRepoPath + "/compare/" + apiBaseSHA + "..." + apiM5
 )
 
-// apiPersonal liste les données personnelles factices de testdata/ : elles ne doivent apparaître ni
-// dans les logs ni dans les messages d'erreur.
+// apiPersonal lists the dummy personal data of testdata/: it must appear neither in the logs nor in
+// the error messages.
 var apiPersonal = []string{
 	"Alice Martin", "alice.martin@example.com", "alice-martin-dev", "Bob Durand", "bob.durand@example.org",
 	"Carla Petit", "carla-petit", "Corrige le calcul de la moyenne", "Ajoute la page de connexion",
 	"Merge pull request", "feature/login",
 }
 
-// apiCommitsServer sert les deux pages de commits de main.
+// apiCommitsServer serves the two pages of commits of main.
 func apiCommitsServer(t *testing.T) *apiServer {
 	t.Helper()
 	s := apiNewServer(t)
@@ -56,7 +56,7 @@ func apiCommitsServer(t *testing.T) *apiServer {
 	return s
 }
 
-// apiSHAs renvoie les SHA de commits.
+// apiSHAs returns the SHAs of commits.
 func apiSHAs(commits []provider.Commit) []string {
 	shas := make([]string, len(commits))
 	for i, c := range commits {
@@ -71,13 +71,13 @@ func TestListCommits(t *testing.T) {
 
 	commits, err := p.ListCommits(context.Background(), apiOwner, apiName, provider.ListCommitsOptions{})
 	if err != nil {
-		t.Fatalf("ListCommits : %v", err)
+		t.Fatalf("ListCommits: %v", err)
 	}
 	if got, want := apiSHAs(commits), []string{apiC1, apiC2, apiC3, apiC4, apiC5, apiC6}; !slices.Equal(got, want) {
-		t.Fatalf("SHA = %v, veut %v", got, want)
+		t.Fatalf("SHA = %v, want %v", got, want)
 	}
 
-	// Commit de merge fait sur GitHub : deux parents, committer « web-flow ».
+	// Merge commit made on GitHub: two parents, committer "web-flow".
 	merge := commits[0]
 	wantMerge := provider.Commit{
 		SHA:     apiC1,
@@ -98,19 +98,19 @@ func TestListCommits(t *testing.T) {
 		Parents:     []string{apiC2, apiFeatSHA},
 	}
 	if fmt.Sprintf("%#v", merge) != fmt.Sprintf("%#v", wantMerge) {
-		t.Errorf("commit de merge =\n%#v\nveut\n%#v", merge, wantMerge)
+		t.Errorf("merge commit =\n%#v\nwant\n%#v", merge, wantMerge)
 	}
 
-	// Auteur dont l'e-mail n'est lié à aucun compte GitHub : author et committer valent null.
+	// Author whose e-mail is linked to no GitHub account: author and committer are null.
 	noAccount := commits[1]
 	if noAccount.Author != (provider.Person{Name: "Bob Durand", Email: "bob.durand@example.org"}) {
-		t.Errorf("auteur sans compte = %+v", noAccount.Author)
+		t.Errorf("author without account = %+v", noAccount.Author)
 	}
 	if noAccount.Committer != (provider.Person{Name: "Bob Durand", Email: "bob.durand@example.org"}) {
-		t.Errorf("committer sans compte = %+v", noAccount.Committer)
+		t.Errorf("committer without account = %+v", noAccount.Committer)
 	}
 
-	// Dates d'écriture et de commit distinctes ; e-mail noreply de GitHub.
+	// Distinct authoring and commit dates; GitHub noreply e-mail.
 	c3 := commits[2]
 	if !c3.AuthoredAt.Equal(time.Date(2026, 10, 18, 10, 15, 0, 0, time.UTC)) ||
 		!c3.CommittedAt.Equal(time.Date(2026, 10, 18, 10, 20, 30, 0, time.UTC)) {
@@ -118,39 +118,39 @@ func TestListCommits(t *testing.T) {
 	}
 	if c3.Author.Login != "carla-petit" || c3.Author.ID != 51000003 ||
 		c3.Author.Email != "51000003+carla-petit@users.noreply.github.com" {
-		t.Errorf("auteur = %+v", c3.Author)
+		t.Errorf("author = %+v", c3.Author)
 	}
 	if !slices.Equal(c3.Parents, []string{apiC4}) {
 		t.Errorf("parents = %v", c3.Parents)
 	}
 
-	// Commit racine : Parents vide mais non nil.
+	// Root commit: Parents empty but not nil.
 	root := commits[5]
 	if root.Parents == nil || len(root.Parents) != 0 {
-		t.Errorf("commit racine : Parents = %#v, veut une slice vide non nil", root.Parents)
+		t.Errorf("root commit: Parents = %#v, want an empty non-nil slice", root.Parents)
 	}
 	for _, c := range commits {
 		if c.AuthoredAt.Location() != time.UTC || c.CommittedAt.Location() != time.UTC {
-			t.Errorf("commit %s : dates hors UTC", provider.ShortSHA(c.SHA))
+			t.Errorf("commit %s: dates not in UTC", provider.ShortSHA(c.SHA))
 		}
 	}
 
 	reqs := s.requests()
 	if len(reqs) != 2 {
-		t.Fatalf("%d requêtes, veut 2", len(reqs))
+		t.Fatalf("%d requests, want 2", len(reqs))
 	}
 	for i, r := range reqs {
 		if r.Query.Get("per_page") != "100" || r.Query.Get("page") != fmt.Sprint(i+1) {
-			t.Errorf("requête %d : paramètres %q", i+1, r.RawQuery)
+			t.Errorf("request %d: parameters %q", i+1, r.RawQuery)
 		}
 		if r.Query.Has("sha") || r.Query.Has("since") {
-			t.Errorf("requête %d : sha et since doivent être omis : %q", i+1, r.RawQuery)
+			t.Errorf("request %d: sha and since must be omitted: %q", i+1, r.RawQuery)
 		}
 	}
 }
 
-// TestListCommitsQuery vérifie les paramètres sha (branche avec « / », caractères spéciaux) et since
-// (converti en UTC).
+// TestListCommitsQuery checks the sha (branch with "/", special characters) and since (converted to
+// UTC) parameters.
 func TestListCommitsQuery(t *testing.T) {
 	s := apiNewServer(t)
 	s.handle(apiCommitsPath, apiStatic(http.StatusOK, []byte("[]")))
@@ -159,7 +159,7 @@ func TestListCommitsQuery(t *testing.T) {
 
 	tests := []struct {
 		opts      provider.ListCommitsOptions
-		wantRaw   string // fragment attendu dans la query brute
+		wantRaw   string // fragment expected in the raw query
 		wantSHA   string
 		wantSince string
 	}{
@@ -181,28 +181,28 @@ func TestListCommitsQuery(t *testing.T) {
 		reqs := s.requests()
 		r := reqs[len(reqs)-1]
 		if !strings.Contains(r.RawQuery, tt.wantRaw) {
-			t.Errorf("query %q : %q attendu", r.RawQuery, tt.wantRaw)
+			t.Errorf("query %q: want %q", r.RawQuery, tt.wantRaw)
 		}
 		if r.Query.Get("sha") != tt.wantSHA || r.Query.Get("since") != tt.wantSince {
-			t.Errorf("sha = %q, since = %q ; veut %q, %q", r.Query.Get("sha"), r.Query.Get("since"), tt.wantSHA, tt.wantSince)
+			t.Errorf("sha = %q, since = %q; want %q, %q", r.Query.Get("sha"), r.Query.Get("since"), tt.wantSHA, tt.wantSince)
 		}
 		if r.Query.Has("x") || r.Query.Get("per_page") != "100" || r.Query.Get("page") != "1" {
-			t.Errorf("paramètres inattendus : %q", r.RawQuery)
+			t.Errorf("unexpected parameters: %q", r.RawQuery)
 		}
 	}
 }
 
-// TestListCommitsStop vérifie l'arrêt au premier SHA connu : commit exclu, aucune page suivante.
+// TestListCommitsStop checks the stop at the first known SHA: commit excluded, no next page.
 func TestListCommitsStop(t *testing.T) {
 	tests := []struct {
 		known    string
 		want     []string
 		requests int
 	}{
-		{apiC5, []string{apiC1, apiC2, apiC3, apiC4}, 2}, // SHA connu en page 2
-		{apiC2, []string{apiC1}, 1},                      // SHA connu en page 1 : page 2 jamais demandée
-		{apiC1, []string{}, 1},                           // rien de nouveau
-		{apiC4, []string{apiC1, apiC2, apiC3}, 2},        // premier commit de la page 2
+		{apiC5, []string{apiC1, apiC2, apiC3, apiC4}, 2}, // known SHA on page 2
+		{apiC2, []string{apiC1}, 1},                      // known SHA on page 1: page 2 never requested
+		{apiC1, []string{}, 1},                           // nothing new
+		{apiC4, []string{apiC1, apiC2, apiC3}, 2},        // first commit of page 2
 	}
 	for _, tt := range tests {
 		t.Run(provider.ShortSHA(tt.known), func(t *testing.T) {
@@ -217,16 +217,16 @@ func TestListCommitsStop(t *testing.T) {
 				},
 			})
 			if err != nil {
-				t.Fatalf("ListCommits : %v", err)
+				t.Fatalf("ListCommits: %v", err)
 			}
 			if commits == nil || !slices.Equal(apiSHAs(commits), tt.want) {
-				t.Errorf("SHA = %v, veut %v", apiSHAs(commits), tt.want)
+				t.Errorf("SHA = %v, want %v", apiSHAs(commits), tt.want)
 			}
 			if wantSeen := append(slices.Clone(tt.want), tt.known); !slices.Equal(seen, wantSeen) {
-				t.Errorf("Stop appelée sur %v, veut %v (dans l'ordre, puis plus rien)", seen, wantSeen)
+				t.Errorf("Stop called on %v, want %v (in order, then nothing more)", seen, wantSeen)
 			}
 			if n := s.count(apiCommitsPath); n != tt.requests {
-				t.Errorf("%d requêtes, veut %d", n, tt.requests)
+				t.Errorf("%d requests, want %d", n, tt.requests)
 			}
 		})
 	}
@@ -246,24 +246,24 @@ func TestListCommitsLimit(t *testing.T) {
 			p := apiProvider(t, s, Options{})
 			commits, err := p.ListCommits(context.Background(), apiOwner, apiName, provider.ListCommitsOptions{Limit: tt.limit})
 			if err != nil {
-				t.Fatalf("ListCommits : %v", err)
+				t.Fatalf("ListCommits: %v", err)
 			}
 			if len(commits) != tt.want {
-				t.Errorf("%d commits, veut %d", len(commits), tt.want)
+				t.Errorf("%d commits, want %d", len(commits), tt.want)
 			}
 			if n := s.count(apiCommitsPath); n != tt.requests {
-				t.Errorf("%d requêtes, veut %d", n, tt.requests)
+				t.Errorf("%d requests, want %d", n, tt.requests)
 			}
 			for _, r := range s.requests() {
 				if r.Query.Get("per_page") != "100" {
-					t.Errorf("per_page doit toujours valoir 100 : %q", r.RawQuery)
+					t.Errorf("per_page must always be 100: %q", r.RawQuery)
 				}
 			}
 		})
 	}
 }
 
-// apiCommitPage renvoie une page de n commits minimaux, numérotés à partir de first.
+// apiCommitPage returns a page of n minimal commits, numbered from first.
 func apiCommitPage(first, n int) []byte {
 	var b bytes.Buffer
 	b.WriteByte('[')
@@ -280,8 +280,8 @@ func apiCommitPage(first, n int) []byte {
 	return b.Bytes()
 }
 
-// TestListCommitsCap : un serveur qui annonce toujours une page suivante pleine est lu jusqu'au plafond
-// provider.MaxCommits ; une Limit supérieure au plafond y est ramenée.
+// TestListCommitsCap: a server that always announces a full next page is read up to the cap
+// provider.MaxCommits; a Limit above the cap is brought back to it.
 func TestListCommitsCap(t *testing.T) {
 	for _, limit := range []int{0, provider.MaxCommits + 500} {
 		t.Run(fmt.Sprint(limit), func(t *testing.T) {
@@ -294,20 +294,20 @@ func TestListCommitsCap(t *testing.T) {
 			p := apiProvider(t, s, Options{})
 			commits, err := p.ListCommits(context.Background(), apiOwner, apiName, provider.ListCommitsOptions{Limit: limit})
 			if err != nil {
-				t.Fatalf("ListCommits : %v", err)
+				t.Fatalf("ListCommits: %v", err)
 			}
 			if len(commits) != provider.MaxCommits {
-				t.Errorf("%d commits, veut le plafond %d", len(commits), provider.MaxCommits)
+				t.Errorf("%d commits, want the cap %d", len(commits), provider.MaxCommits)
 			}
 			if n := s.count(apiCommitsPath); n != provider.MaxCommits/PerPage {
-				t.Errorf("%d requêtes, veut %d", n, provider.MaxCommits/PerPage)
+				t.Errorf("%d requests, want %d", n, provider.MaxCommits/PerPage)
 			}
 		})
 	}
 }
 
-// TestListCommitsEndlessPages : un serveur qui annonce sans fin des pages d'un seul commit est arrêté
-// après maxCommitPages pages.
+// TestListCommitsEndlessPages: a server that endlessly announces pages of a single commit is stopped
+// after maxCommitPages pages.
 func TestListCommitsEndlessPages(t *testing.T) {
 	s := apiNewServer(t)
 	s.handle(apiCommitsPath, func(w http.ResponseWriter, r *http.Request) {
@@ -318,23 +318,23 @@ func TestListCommitsEndlessPages(t *testing.T) {
 	p := apiProvider(t, s, Options{})
 	commits, err := p.ListCommits(context.Background(), apiOwner, apiName, provider.ListCommitsOptions{})
 	if err != nil {
-		t.Fatalf("ListCommits : %v", err)
+		t.Fatalf("ListCommits: %v", err)
 	}
 	if n := s.count(apiCommitsPath); n != maxCommitPages || len(commits) != maxCommitPages {
-		t.Errorf("%d requêtes, %d commits ; veut %d", n, len(commits), maxCommitPages)
+		t.Errorf("%d requests, %d commits; want %d", n, len(commits), maxCommitPages)
 	}
 }
 
-// TestListCommitsETag : une deuxième synchro reçoit des 304 (sans Link ni corps, comme GitHub) ; le
-// cache ETag partagé les sert comme les 200 d'origine, en-tête Link compris : la pagination et la
-// conversion donnent le même résultat, et l'état du quota suit les en-têtes des 304.
+// TestListCommitsETag: a second sync receives 304s (without Link or body, like GitHub); the shared
+// ETag cache serves them like the original 200s, Link header included: the pagination and the
+// conversion give the same result, and the quota state follows the headers of the 304s.
 func TestListCommitsETag(t *testing.T) {
 	s := apiNewServer(t)
 	bodies := [][]byte{apiFixture(t, "commits_page1.json"), apiFixture(t, "commits_page2.json")}
 	s.handle(apiCommitsPath, func(w http.ResponseWriter, r *http.Request) {
 		page := apiPage(r)
 		if page > len(bodies) {
-			t.Errorf("page %d demandée", page)
+			t.Errorf("page %d requested", page)
 			apiWrite(w, http.StatusOK, []byte("[]"), nil)
 			return
 		}
@@ -362,65 +362,65 @@ func TestListCommitsETag(t *testing.T) {
 	first := apiProvider(t, s, Options{Cache: cache, Quota: quota})
 	want, err := first.ListCommits(context.Background(), apiOwner, apiName, provider.ListCommitsOptions{Branch: "main"})
 	if err != nil || len(want) != 6 {
-		t.Fatalf("première synchro : %d commits, %v", len(want), err)
+		t.Fatalf("first sync: %d commits, %v", len(want), err)
 	}
 
-	// Synchro suivante : nouveau Provider (token redemandé à gh), même cache et même quota.
+	// Next sync: new Provider (token asked again from gh), same cache and same quota.
 	next := apiProvider(t, s, Options{Cache: cache, Quota: quota})
 	got, err := next.ListCommits(context.Background(), apiOwner, apiName, provider.ListCommitsOptions{Branch: "main"})
 	if err != nil {
-		t.Fatalf("synchro suivante : %v", err)
+		t.Fatalf("next sync: %v", err)
 	}
 	if fmt.Sprintf("%#v", got) != fmt.Sprintf("%#v", want) {
-		t.Errorf("les commits servis depuis le cache diffèrent :\n%v\nveut\n%v", apiSHAs(got), apiSHAs(want))
+		t.Errorf("the commits served from the cache differ:\n%v\nwant\n%v", apiSHAs(got), apiSHAs(want))
 	}
 	reqs := s.requests()
 	if len(reqs) != 4 {
-		t.Fatalf("%d requêtes, veut 4 (2 pages, 2 fois)", len(reqs))
+		t.Fatalf("%d requests, want 4 (2 pages, twice)", len(reqs))
 	}
 	for i, r := range reqs[2:] {
 		if wantTag := fmt.Sprintf(`W/"commits-page-%d"`, i+1); r.IfNone != wantTag {
-			t.Errorf("page %d : If-None-Match = %q, veut %q", i+1, r.IfNone, wantTag)
+			t.Errorf("page %d: If-None-Match = %q, want %q", i+1, r.IfNone, wantTag)
 		}
 	}
 	if rl, ok := next.LastRateLimit(); !ok || rl.Remaining != 4000 {
-		t.Errorf("LastRateLimit = %+v, %v ; veut l'état des 304 (4000 restantes)", rl, ok)
+		t.Errorf("LastRateLimit = %+v, %v; want the state of the 304s (4000 remaining)", rl, ok)
 	}
 }
 
-// TestListCommitsEmptyRepository : un dépôt d'étudiant tout juste créé répond 409 ; la liste est vide,
-// sans erreur.
+// TestListCommitsEmptyRepository: a student's freshly created repository answers 409; the list is
+// empty, without error.
 func TestListCommitsEmptyRepository(t *testing.T) {
 	s := apiNewServer(t)
 	s.handle(apiCommitsPath, apiStatic(http.StatusConflict, apiFixture(t, "empty_repository.json")))
 	p := apiProvider(t, s, Options{})
 	commits, err := p.ListCommits(context.Background(), apiOwner, apiName, provider.ListCommitsOptions{Branch: "main"})
 	if err != nil || commits == nil || len(commits) != 0 {
-		t.Errorf("ListCommits = %#v, %v ; veut une liste vide non nil, sans erreur", commits, err)
+		t.Errorf("ListCommits = %#v, %v; want an empty non-nil list, without error", commits, err)
 	}
 }
 
-// TestListCommitsUnknownBranch : une branche inconnue répond 404 → ErrNotFound.
+// TestListCommitsUnknownBranch: an unknown branch answers 404 → ErrNotFound.
 func TestListCommitsUnknownBranch(t *testing.T) {
 	s := apiNewServer(t)
 	s.handle(apiCommitsPath, apiStatic(http.StatusNotFound, apiFixture(t, "not_found.json")))
 	p := apiProvider(t, s, Options{})
 	_, err := p.ListCommits(context.Background(), apiOwner, apiName, provider.ListCommitsOptions{Branch: "supprimee"})
 	if !errors.Is(err, provider.ErrNotFound) {
-		t.Fatalf("ListCommits : %v, veut ErrNotFound", err)
+		t.Fatalf("ListCommits: %v, want ErrNotFound", err)
 	}
-	apiAPIError(t, err, "liste des commits de promo-2026/projet-alice", http.StatusNotFound)
+	apiAPIError(t, err, "listing commits of promo-2026/projet-alice", http.StatusNotFound)
 	apiNoLeak(t, err, "supprimee")
 }
 
 func TestListCommitsUnexpected(t *testing.T) {
 	for label, body := range map[string]string{
-		"sans SHA":            `[{"commit":{"message":"m"},"parents":[]}]`,
-		"SHA invalide":        `[{"sha":"XYZ","commit":{"message":"m"},"parents":[]}]`,
-		"parent sans SHA":     `[{"sha":"` + apiC1 + `","commit":{"message":"m"},"parents":[{"url":"x"}]}]`,
-		"élément nul":         `[null]`,
-		"parent nul":          `[{"sha":"` + apiC1 + `","commit":{"message":"m"},"parents":[null]}]`,
-		"objet au lieu liste": `{"message":"ok"}`,
+		"without SHA":            `[{"commit":{"message":"m"},"parents":[]}]`,
+		"invalid SHA":            `[{"sha":"XYZ","commit":{"message":"m"},"parents":[]}]`,
+		"parent without SHA":     `[{"sha":"` + apiC1 + `","commit":{"message":"m"},"parents":[{"url":"x"}]}]`,
+		"null element":           `[null]`,
+		"null parent":            `[{"sha":"` + apiC1 + `","commit":{"message":"m"},"parents":[null]}]`,
+		"object instead of list": `{"message":"ok"}`,
 	} {
 		t.Run(label, func(t *testing.T) {
 			s := apiNewServer(t)
@@ -428,14 +428,14 @@ func TestListCommitsUnexpected(t *testing.T) {
 			p := apiProvider(t, s, Options{})
 			_, err := p.ListCommits(context.Background(), apiOwner, apiName, provider.ListCommitsOptions{})
 			if !errors.Is(err, provider.ErrUnexpected) {
-				t.Errorf("ListCommits : %v, veut ErrUnexpected", err)
+				t.Errorf("ListCommits: %v, want ErrUnexpected", err)
 			}
 		})
 	}
 }
 
-// TestCommitConversionEdgeCases : dates avec décalage horaire converties en UTC, commit sans bloc
-// commit, comptes vides ({}), parents absents.
+// TestCommitConversionEdgeCases: dates with a time offset converted to UTC, commit without a commit
+// block, empty accounts ({}), missing parents.
 func TestCommitConversionEdgeCases(t *testing.T) {
 	body := `[
 	  {"sha":"` + apiC1 + `","commit":{"author":{"name":"A","email":"a@example.com","date":"2026-10-20T16:03:12+02:00"},
@@ -453,15 +453,15 @@ func TestCommitConversionEdgeCases(t *testing.T) {
 	c := commits[0]
 	if !c.AuthoredAt.Equal(time.Date(2026, 10, 20, 14, 3, 12, 0, time.UTC)) || c.AuthoredAt.Location() != time.UTC ||
 		!c.CommittedAt.Equal(time.Date(2026, 10, 20, 14, 0, 0, 0, time.UTC)) || c.CommittedAt.Location() != time.UTC {
-		t.Errorf("dates = %v / %v, veut UTC", c.AuthoredAt, c.CommittedAt)
+		t.Errorf("dates = %v / %v, want UTC", c.AuthoredAt, c.CommittedAt)
 	}
 	if c.Author != (provider.Person{Name: "A", Email: "a@example.com"}) || c.Committer.Login != "bot" || c.Committer.ID != 7 {
-		t.Errorf("personnes = %+v / %+v", c.Author, c.Committer)
+		t.Errorf("people = %+v / %+v", c.Author, c.Committer)
 	}
 	bare := commits[1]
 	if bare.Message != "" || !bare.AuthoredAt.IsZero() || !bare.CommittedAt.IsZero() || bare.Parents == nil ||
 		bare.Author != (provider.Person{}) {
-		t.Errorf("commit minimal = %#v", bare)
+		t.Errorf("minimal commit = %#v", bare)
 	}
 }
 
@@ -473,21 +473,21 @@ func TestCompareCommits(t *testing.T) {
 
 	commits, err := p.CompareCommits(context.Background(), apiOwner, apiName, apiBaseSHA, apiM5)
 	if err != nil {
-		t.Fatalf("CompareCommits : %v", err)
+		t.Fatalf("CompareCommits: %v", err)
 	}
-	// L'API les donne du plus ancien au plus récent ; le résultat est du plus récent au plus ancien.
+	// The API gives them from oldest to newest; the result is from newest to oldest.
 	if got, want := apiSHAs(commits), []string{apiM5, apiM4, apiM3, apiM2, apiM1}; !slices.Equal(got, want) {
-		t.Fatalf("SHA = %v, veut %v", got, want)
+		t.Fatalf("SHA = %v, want %v", got, want)
 	}
 	if !slices.Equal(commits[0].Parents, []string{apiM4, apiM2}) {
-		t.Errorf("merge : parents = %v", commits[0].Parents)
+		t.Errorf("merge: parents = %v", commits[0].Parents)
 	}
 	if !slices.Equal(commits[4].Parents, []string{apiBaseSHA}) {
-		t.Errorf("premier commit : parents = %v", commits[4].Parents)
+		t.Errorf("first commit: parents = %v", commits[4].Parents)
 	}
 	noAccount := commits[2]
 	if noAccount.Author.Login != "" || noAccount.Author.ID != 0 || noAccount.Author.Name != "Bob Durand" {
-		t.Errorf("auteur sans compte = %+v", noAccount.Author)
+		t.Errorf("author without account = %+v", noAccount.Author)
 	}
 	if !commits[0].CommittedAt.Equal(time.Date(2026, 10, 6, 13, 0, 0, 0, time.UTC)) {
 		t.Errorf("CommittedAt = %v", commits[0].CommittedAt)
@@ -495,11 +495,11 @@ func TestCompareCommits(t *testing.T) {
 
 	reqs := s.requests()
 	if len(reqs) != 2 {
-		t.Fatalf("%d requêtes, veut 2 : %+v", len(reqs), reqs)
+		t.Fatalf("%d requests, want 2: %+v", len(reqs), reqs)
 	}
 	for i, r := range reqs {
 		if r.Path != apiComparePath || r.Query.Get("per_page") != "100" || r.Query.Get("page") != fmt.Sprint(i+1) {
-			t.Errorf("requête %d : %s?%s", i+1, r.Path, r.RawQuery)
+			t.Errorf("request %d: %s?%s", i+1, r.Path, r.RawQuery)
 		}
 	}
 }
@@ -509,14 +509,14 @@ func TestCompareCommitsSameSHA(t *testing.T) {
 	p := apiProvider(t, s, Options{})
 	commits, err := p.CompareCommits(context.Background(), apiOwner, apiName, apiM5, apiM5)
 	if err != nil || commits == nil || len(commits) != 0 {
-		t.Errorf("CompareCommits(base == head) = %#v, %v ; veut une liste vide non nil", commits, err)
+		t.Errorf("CompareCommits(base == head) = %#v, %v; want an empty non-nil list", commits, err)
 	}
 	if n := len(s.requests()); n != 0 {
-		t.Errorf("%d requêtes, veut 0", n)
+		t.Errorf("%d requests, want 0", n)
 	}
 }
 
-// TestCompareCommitsNothingNew : head en retard sur base (ou identique) → liste vide non nil.
+// TestCompareCommitsNothingNew: head behind base (or identical) → empty non-nil list.
 func TestCompareCommitsNothingNew(t *testing.T) {
 	for label, body := range map[string][]byte{
 		"behind":    apiFixture(t, "compare_behind.json"),
@@ -528,25 +528,25 @@ func TestCompareCommitsNothingNew(t *testing.T) {
 			p := apiProvider(t, s, Options{})
 			commits, err := p.CompareCommits(context.Background(), apiOwner, apiName, apiBaseSHA, apiM5)
 			if err != nil || commits == nil || len(commits) != 0 {
-				t.Errorf("CompareCommits = %#v, %v ; veut une liste vide non nil", commits, err)
+				t.Errorf("CompareCommits = %#v, %v; want an empty non-nil list", commits, err)
 			}
 			if n := len(s.requests()); n != 1 {
-				t.Errorf("%d requêtes, veut 1", n)
+				t.Errorf("%d requests, want 1", n)
 			}
 		})
 	}
 }
 
-// apiComparePage renvoie une page de comparaison de n commits minimaux, numérotés à partir de first.
+// apiComparePage returns a comparison page of n minimal commits, numbered from first.
 func apiComparePage(total, first, n int) []byte {
 	return fmt.Appendf(nil, `{"status":"ahead","ahead_by":%d,"behind_by":0,"total_commits":%d,"commits":%s}`,
 		total, total, apiCommitPage(first, n))
 }
 
-// TestCompareCommitsPagination : arrêt à total_commits, page suivante demandée si l'en-tête Link
-// manque alors que total_commits n'est pas atteint, plafond provider.MaxCommits.
+// TestCompareCommitsPagination: stop at total_commits, next page requested if the Link header is
+// missing while total_commits is not reached, cap provider.MaxCommits.
 func TestCompareCommitsPagination(t *testing.T) {
-	t.Run("sans en-tête Link", func(t *testing.T) {
+	t.Run("without Link header", func(t *testing.T) {
 		s := apiNewServer(t)
 		s.handle(apiComparePath, func(w http.ResponseWriter, r *http.Request) {
 			switch apiPage(r) {
@@ -555,23 +555,23 @@ func TestCompareCommitsPagination(t *testing.T) {
 			case 2:
 				apiWrite(w, http.StatusOK, apiComparePage(150, 100, 50), nil)
 			default:
-				t.Errorf("page %d demandée", apiPage(r))
+				t.Errorf("page %d requested", apiPage(r))
 				apiWrite(w, http.StatusOK, apiComparePage(150, 0, 0), nil)
 			}
 		})
 		p := apiProvider(t, s, Options{})
 		commits, err := p.CompareCommits(context.Background(), apiOwner, apiName, apiBaseSHA, apiM5)
 		if err != nil {
-			t.Fatalf("CompareCommits : %v", err)
+			t.Fatalf("CompareCommits: %v", err)
 		}
 		if len(commits) != 150 || commits[0].SHA != fmt.Sprintf("%040x", 150) || commits[149].SHA != fmt.Sprintf("%040x", 1) {
-			t.Errorf("%d commits, du plus récent au plus ancien attendus", len(commits))
+			t.Errorf("%d commits, want them from newest to oldest", len(commits))
 		}
 		if n := len(s.requests()); n != 2 {
-			t.Errorf("%d requêtes, veut 2", n)
+			t.Errorf("%d requests, want 2", n)
 		}
 	})
-	t.Run("total atteint malgré un en-tête Link", func(t *testing.T) {
+	t.Run("total reached despite a Link header", func(t *testing.T) {
 		s := apiNewServer(t)
 		s.handle(apiComparePath, func(w http.ResponseWriter, r *http.Request) {
 			page := apiPage(r)
@@ -581,13 +581,13 @@ func TestCompareCommitsPagination(t *testing.T) {
 		p := apiProvider(t, s, Options{})
 		commits, err := p.CompareCommits(context.Background(), apiOwner, apiName, apiBaseSHA, apiM5)
 		if err != nil || len(commits) != 3 {
-			t.Fatalf("CompareCommits = %d commits, %v ; veut 3", len(commits), err)
+			t.Fatalf("CompareCommits = %d commits, %v; want 3", len(commits), err)
 		}
 		if n := len(s.requests()); n != 1 {
-			t.Errorf("%d requêtes, veut 1", n)
+			t.Errorf("%d requests, want 1", n)
 		}
 	})
-	t.Run("plafond", func(t *testing.T) {
+	t.Run("cap", func(t *testing.T) {
 		s := apiNewServer(t)
 		s.handle(apiComparePath, func(w http.ResponseWriter, r *http.Request) {
 			page := apiPage(r)
@@ -597,19 +597,19 @@ func TestCompareCommitsPagination(t *testing.T) {
 		p := apiProvider(t, s, Options{})
 		commits, err := p.CompareCommits(context.Background(), apiOwner, apiName, apiBaseSHA, apiM5)
 		if err != nil {
-			t.Fatalf("CompareCommits : %v", err)
+			t.Fatalf("CompareCommits: %v", err)
 		}
 		if len(commits) != provider.MaxCommits {
-			t.Errorf("%d commits, veut le plafond %d", len(commits), provider.MaxCommits)
+			t.Errorf("%d commits, want the cap %d", len(commits), provider.MaxCommits)
 		}
 		if n := len(s.requests()); n != provider.MaxCommits/PerPage {
-			t.Errorf("%d requêtes, veut %d", n, provider.MaxCommits/PerPage)
+			t.Errorf("%d requests, want %d", n, provider.MaxCommits/PerPage)
 		}
 	})
 }
 
-// TestCompareCommitsUnknownBase : le compare répond 404 alors que le dépôt est accessible : la base
-// n'existe plus (force-push) → ErrUnknownBase, et PAS ErrNotFound.
+// TestCompareCommitsUnknownBase: the compare answers 404 while the repository is accessible: the base
+// no longer exists (force-push) → ErrUnknownBase, and NOT ErrNotFound.
 func TestCompareCommitsUnknownBase(t *testing.T) {
 	s := apiNewServer(t)
 	s.handle(apiComparePath, apiStatic(http.StatusNotFound, apiFixture(t, "not_found.json")))
@@ -618,23 +618,23 @@ func TestCompareCommitsUnknownBase(t *testing.T) {
 
 	_, err := p.CompareCommits(context.Background(), apiOwner, apiName, apiBaseSHA, apiM5)
 	if !errors.Is(err, provider.ErrUnknownBase) {
-		t.Fatalf("CompareCommits : %v, veut ErrUnknownBase", err)
+		t.Fatalf("CompareCommits: %v, want ErrUnknownBase", err)
 	}
 	if errors.Is(err, provider.ErrNotFound) {
-		t.Errorf("l'erreur ne doit pas satisfaire ErrNotFound : %v", err)
+		t.Errorf("the error must not satisfy ErrNotFound: %v", err)
 	}
-	apiErr := apiAPIError(t, err, "comparaison 747ca7d...df4cb7b dans promo-2026/projet-alice", http.StatusNotFound)
+	apiErr := apiAPIError(t, err, "comparing 747ca7d...df4cb7b in promo-2026/projet-alice", http.StatusNotFound)
 	if apiErr.Path != apiComparePath || apiErr.Method != http.MethodGet {
 		t.Errorf("Method, Path = %q, %q", apiErr.Method, apiErr.Path)
 	}
 	apiNoLeak(t, err, "docs.github.com", "Not Found")
 	if s.count(apiRepoPath) != 1 {
-		t.Errorf("le dépôt doit être relu une fois pour départager le 404")
+		t.Errorf("the repository must be read again once to settle the 404")
 	}
 }
 
-// TestCompareCommitsRepoNotFound : le compare et le dépôt répondent 404 (dépôt privé sans accès) →
-// ErrNotFound, et pas ErrUnknownBase.
+// TestCompareCommitsRepoNotFound: the compare and the repository answer 404 (private repository
+// without access) → ErrNotFound, and not ErrUnknownBase.
 func TestCompareCommitsRepoNotFound(t *testing.T) {
 	s := apiNewServer(t)
 	notFound := apiFixture(t, "not_found.json")
@@ -644,7 +644,7 @@ func TestCompareCommitsRepoNotFound(t *testing.T) {
 
 	_, err := p.CompareCommits(context.Background(), apiOwner, apiName, apiBaseSHA, apiM5)
 	if !errors.Is(err, provider.ErrNotFound) || errors.Is(err, provider.ErrUnknownBase) {
-		t.Fatalf("CompareCommits : %v, veut ErrNotFound sans ErrUnknownBase", err)
+		t.Fatalf("CompareCommits: %v, want ErrNotFound without ErrUnknownBase", err)
 	}
 }
 
@@ -654,18 +654,18 @@ func TestCompareCommitsEmptyRepository(t *testing.T) {
 	p := apiProvider(t, s, Options{})
 	_, err := p.CompareCommits(context.Background(), apiOwner, apiName, apiBaseSHA, apiM5)
 	if !errors.Is(err, provider.ErrEmptyRepository) {
-		t.Fatalf("CompareCommits : %v, veut ErrEmptyRepository", err)
+		t.Fatalf("CompareCommits: %v, want ErrEmptyRepository", err)
 	}
-	apiAPIError(t, err, "comparaison 747ca7d...df4cb7b dans promo-2026/projet-alice", http.StatusConflict)
+	apiAPIError(t, err, "comparing 747ca7d...df4cb7b in promo-2026/projet-alice", http.StatusConflict)
 	if s.count(apiRepoPath) != 0 {
-		t.Error("un 409 ne doit pas entraîner de relecture du dépôt")
+		t.Error("a 409 must not cause the repository to be read again")
 	}
 }
 
 func TestCompareCommitsUnexpected(t *testing.T) {
 	for label, body := range map[string]string{
-		"null":         `null`,
-		"commit cassé": `{"status":"ahead","total_commits":1,"commits":[{"sha":"court"}]}`,
+		"null":          `null`,
+		"broken commit": `{"status":"ahead","total_commits":1,"commits":[{"sha":"court"}]}`,
 	} {
 		t.Run(label, func(t *testing.T) {
 			s := apiNewServer(t)
@@ -673,16 +673,16 @@ func TestCompareCommitsUnexpected(t *testing.T) {
 			p := apiProvider(t, s, Options{})
 			_, err := p.CompareCommits(context.Background(), apiOwner, apiName, apiBaseSHA, apiM5)
 			if !errors.Is(err, provider.ErrUnexpected) {
-				t.Errorf("CompareCommits : %v, veut ErrUnexpected", err)
+				t.Errorf("CompareCommits: %v, want ErrUnexpected", err)
 			}
 		})
 	}
 }
 
-// TestCommitStats vérifie la conversion et la requête : une seule page de fichiers (per_page=1, car
-// seuls les totaux servent : sans ce paramètre, GitHub renvoie jusqu'à 300 fichiers avec leur patch,
-// soit le code du dépôt privé), et une réponse jamais mise en cache, même avec un ETag (chaque commit
-// n'est demandé qu'une fois).
+// TestCommitStats checks the conversion and the request: a single page of files (per_page=1, since
+// only the totals are used: without this parameter, GitHub returns up to 300 files with their patch,
+// that is the code of the private repository), and a response never cached, even with an ETag
+// (every commit is requested only once).
 func TestCommitStats(t *testing.T) {
 	s := apiNewServer(t)
 	s.handle(apiCommitsPath+"/"+apiC3, func(w http.ResponseWriter, r *http.Request) {
@@ -694,35 +694,35 @@ func TestCommitStats(t *testing.T) {
 	for range 2 {
 		stats, err := p.CommitStats(context.Background(), apiOwner, apiName, apiC3)
 		if err != nil {
-			t.Fatalf("CommitStats : %v", err)
+			t.Fatalf("CommitStats: %v", err)
 		}
 		if stats != (provider.CommitStats{Additions: 30, Deletions: 12}) {
-			t.Errorf("CommitStats = %+v, veut 30 / 12", stats)
+			t.Errorf("CommitStats = %+v, want 30 / 12", stats)
 		}
 	}
 	reqs := s.requests()
 	if len(reqs) != 2 {
-		t.Fatalf("%d requêtes, veut 2", len(reqs))
+		t.Fatalf("%d requests, want 2", len(reqs))
 	}
 	for i, r := range reqs {
 		if r.RawQuery != "per_page=1" {
-			t.Errorf("requête %d : paramètres %q, veut « per_page=1 » (une seule page de fichiers)", i+1, r.RawQuery)
+			t.Errorf("request %d: parameters %q, want \"per_page=1\" (a single page of files)", i+1, r.RawQuery)
 		}
 		if r.IfNone != "" {
-			t.Errorf("requête %d : If-None-Match %q, veut aucun (réponse jamais mise en cache)", i+1, r.IfNone)
+			t.Errorf("request %d: If-None-Match %q, want none (response never cached)", i+1, r.IfNone)
 		}
 	}
 	if n := cache.Len(); n != 0 {
-		t.Errorf("cache : %d entrée(s), veut 0 (les statistiques d'un commit ne sont pas mises en cache)", n)
+		t.Errorf("cache: %d entry(ies), want 0 (a commit's statistics are not cached)", n)
 	}
 }
 
 func TestCommitStatsUnexpected(t *testing.T) {
 	for label, body := range map[string]string{
-		"null":           `null`,
-		"sans stats":     `{"sha":"` + apiC3 + `"}`,
-		"stats null":     `{"sha":"` + apiC3 + `","stats":null}`,
-		"stats partiels": `{"sha":"` + apiC3 + `","stats":{"total":3,"additions":3}}`,
+		"null":          `null`,
+		"without stats": `{"sha":"` + apiC3 + `"}`,
+		"stats null":    `{"sha":"` + apiC3 + `","stats":null}`,
+		"partial stats": `{"sha":"` + apiC3 + `","stats":{"total":3,"additions":3}}`,
 	} {
 		t.Run(label, func(t *testing.T) {
 			s := apiNewServer(t)
@@ -730,30 +730,30 @@ func TestCommitStatsUnexpected(t *testing.T) {
 			p := apiProvider(t, s, Options{})
 			_, err := p.CommitStats(context.Background(), apiOwner, apiName, apiC3)
 			if !errors.Is(err, provider.ErrUnexpected) {
-				t.Fatalf("CommitStats : %v, veut ErrUnexpected", err)
+				t.Fatalf("CommitStats: %v, want ErrUnexpected", err)
 			}
-			apiAPIError(t, err, "statistiques du commit aff84fa de promo-2026/projet-alice", http.StatusOK)
+			apiAPIError(t, err, "statistics of commit aff84fa in promo-2026/projet-alice", http.StatusOK)
 		})
 	}
-	// Des statistiques à zéro (commit vide) sont valides.
+	// Zero statistics (empty commit) are valid.
 	s := apiNewServer(t)
 	s.handle(apiCommitsPath+"/"+apiC3, apiStatic(http.StatusOK, []byte(`{"sha":"`+apiC3+`","stats":{"total":0,"additions":0,"deletions":0}}`)))
 	p := apiProvider(t, s, Options{})
 	if stats, err := p.CommitStats(context.Background(), apiOwner, apiName, apiC3); err != nil || stats != (provider.CommitStats{}) {
-		t.Errorf("commit vide : %+v, %v", stats, err)
+		t.Errorf("empty commit: %+v, %v", stats, err)
 	}
 }
 
-// TestCommitStatsErrors : 409 (dépôt vide) renvoyé tel quel ; 422 « No commit found for SHA » (commit
-// disparu) → ErrNotFound ; tout autre 422 (diff trop long à calculer, validation refusée) reste
-// ErrUnexpected : le commit existe bien.
+// TestCommitStatsErrors: 409 (empty repository) returned as is; 422 "No commit found for SHA"
+// (vanished commit) → ErrNotFound; any other 422 (diff too long to compute, validation refused)
+// stays ErrUnexpected: the commit does exist.
 func TestCommitStatsErrors(t *testing.T) {
 	const gone = "d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0"
 	s := apiNewServer(t)
 	s.handle(apiCommitsPath+"/"+apiC3, apiStatic(http.StatusConflict, apiFixture(t, "empty_repository.json")))
 	s.handle(apiCommitsPath+"/"+gone, apiStatic(http.StatusUnprocessableEntity, apiFixture(t, "commit_unknown.json")))
 	for sha, body := range map[string]string{
-		// Commit énorme (node_modules commité) : GitHub renonce à calculer le diff.
+		// Huge commit (committed node_modules): GitHub gives up computing the diff.
 		apiC4: `{"message":"Server Error: Sorry, this diff is taking too long to generate.",` +
 			`"errors":[{"resource":"Commit","field":"diff","code":"not_available"}],` +
 			`"documentation_url":"https://docs.github.com/rest/commits/commits#get-a-commit","status":"422"}`,
@@ -767,31 +767,31 @@ func TestCommitStatsErrors(t *testing.T) {
 	for _, sha := range []string{apiC4, apiC5, apiC6} {
 		_, err := p.CommitStats(context.Background(), apiOwner, apiName, sha)
 		if !errors.Is(err, provider.ErrUnexpected) || errors.Is(err, provider.ErrNotFound) {
-			t.Errorf("CommitStats (422 %s) : %v, veut ErrUnexpected sans ErrNotFound", provider.ShortSHA(sha), err)
+			t.Errorf("CommitStats (422 %s): %v, want ErrUnexpected without ErrNotFound", provider.ShortSHA(sha), err)
 			continue
 		}
-		apiAPIError(t, err, "statistiques du commit "+provider.ShortSHA(sha)+" de promo-2026/projet-alice", http.StatusUnprocessableEntity)
+		apiAPIError(t, err, "statistics of commit "+provider.ShortSHA(sha)+" in promo-2026/projet-alice", http.StatusUnprocessableEntity)
 		apiNoLeak(t, err, "taking too long", "Validation Failed", "docs.github.com")
 	}
 
 	_, err := p.CommitStats(context.Background(), apiOwner, apiName, apiC3)
 	if !errors.Is(err, provider.ErrEmptyRepository) {
-		t.Errorf("CommitStats (409) : %v, veut ErrEmptyRepository", err)
+		t.Errorf("CommitStats (409): %v, want ErrEmptyRepository", err)
 	}
 
 	_, err = p.CommitStats(context.Background(), apiOwner, apiName, gone)
 	if !errors.Is(err, provider.ErrNotFound) || errors.Is(err, provider.ErrUnexpected) {
-		t.Fatalf("CommitStats (422) : %v, veut ErrNotFound", err)
+		t.Fatalf("CommitStats (422): %v, want ErrNotFound", err)
 	}
-	apiErr := apiAPIError(t, err, "statistiques du commit d0d0d0d de promo-2026/projet-alice", http.StatusUnprocessableEntity)
+	apiErr := apiAPIError(t, err, "statistics of commit d0d0d0d in promo-2026/projet-alice", http.StatusUnprocessableEntity)
 	if apiErr.Path != apiCommitsPath+"/"+gone {
 		t.Errorf("Path = %q", apiErr.Path)
 	}
 	apiNoLeak(t, err, "No commit found", "docs.github.com")
 }
 
-// TestAPIConcurrent : un même Provider sert des appels concurrents (4 dépôts en parallèle) ; à lancer
-// avec -race.
+// TestAPIConcurrent: a single Provider serves concurrent calls (4 repositories in parallel); run
+// with -race.
 func TestAPIConcurrent(t *testing.T) {
 	s := apiCommitsServer(t)
 	s.handle(apiRepoPath, apiStatic(http.StatusOK, apiFixture(t, "repo.json")))
@@ -813,13 +813,13 @@ func TestAPIConcurrent(t *testing.T) {
 					errs <- err
 				}
 				if b, err := p.Branches(ctx, apiOwner, apiName); err != nil || len(b) != 4 {
-					errs <- fmt.Errorf("Branches : %d, %v", len(b), err)
+					errs <- fmt.Errorf("Branches: %d, %v", len(b), err)
 				}
 				if c, err := p.ListCommits(ctx, apiOwner, apiName, provider.ListCommitsOptions{}); err != nil || len(c) != 6 {
-					errs <- fmt.Errorf("ListCommits : %d, %v", len(c), err)
+					errs <- fmt.Errorf("ListCommits: %d, %v", len(c), err)
 				}
 				if c, err := p.CompareCommits(ctx, apiOwner, apiName, apiBaseSHA, apiM5); err != nil || len(c) != 5 {
-					errs <- fmt.Errorf("CompareCommits : %d, %v", len(c), err)
+					errs <- fmt.Errorf("CompareCommits: %d, %v", len(c), err)
 				}
 				if _, err := p.CommitStats(ctx, apiOwner, apiName, apiC3); err != nil {
 					errs <- err
@@ -838,8 +838,8 @@ func TestAPIConcurrent(t *testing.T) {
 	}
 }
 
-// TestAPILogsNoPersonalData : les logs (niveau Debug compris) ne contiennent ni le token, ni message
-// de commit, nom, e-mail, login ou nom de branche ; les erreurs non plus.
+// TestAPILogsNoPersonalData: the logs (Debug level included) contain neither the token, nor commit
+// message, name, e-mail, login or branch name; nor do the errors.
 func TestAPILogsNoPersonalData(t *testing.T) {
 	s := apiCommitsServer(t)
 	s.handle(apiRepoPath, apiStatic(http.StatusOK, apiFixture(t, "repo.json")))
@@ -871,21 +871,21 @@ func TestAPILogsNoPersonalData(t *testing.T) {
 	if _, err := p.RateLimit(ctx); err != nil {
 		t.Fatal(err)
 	}
-	// Erreurs : commit inexploitable (le corps porte un message et un e-mail).
+	// Errors: unusable commit (the body holds a message and an e-mail).
 	s.handle(apiCommitsPath, apiStatic(http.StatusOK, []byte(`[{"sha":"court","commit":{"message":"Corrige le calcul de la moyenne","author":{"email":"alice.martin@example.com"}}}]`)))
 	_, err := p.ListCommits(ctx, apiOwner, apiName, provider.ListCommitsOptions{Branch: "feature/login"})
 	if !errors.Is(err, provider.ErrUnexpected) {
-		t.Errorf("ListCommits : %v, veut ErrUnexpected", err)
+		t.Errorf("ListCommits: %v, want ErrUnexpected", err)
 	}
 	apiNoLeak(t, err, apiPersonal...)
 
 	out := logs.String()
 	if !strings.Contains(out, "commits listés") || !strings.Contains(out, "commits comparés") {
-		t.Errorf("logs Debug attendus, reçu :\n%s", out)
+		t.Errorf("want Debug logs, got:\n%s", out)
 	}
 	for _, s := range append([]string{testToken, "Bearer", "Authorization"}, apiPersonal...) {
 		if strings.Contains(out, s) {
-			t.Errorf("les logs citent %q :\n%s", s, out)
+			t.Errorf("the logs quote %q:\n%s", s, out)
 		}
 	}
 }

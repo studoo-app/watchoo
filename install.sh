@@ -10,6 +10,9 @@
 # Réglages, par variables d'environnement (à placer devant « sh ») :
 #   WATCHOO_VERSION      version à installer (ex. v0.1.0 ou 0.1.0) ; par défaut, la dernière
 #   WATCHOO_INSTALL_DIR  répertoire d'installation ; par défaut ~/.local/bin
+#   WATCHOO_LANG         langue des messages (en ou fr) ; par défaut, la locale du système
+#                        (LC_ALL, LC_MESSAGES, LANG : préfixe fr → français), sinon l'anglais,
+#                        comme Watchoo lui-même
 #
 # Exemple : curl -fsSL …/install.sh | WATCHOO_INSTALL_DIR=/usr/local/bin sudo -E sh
 #
@@ -27,9 +30,31 @@ http://127.0.0.1:*) PROTO='=http' ;;
 *) PROTO='=https' ;;
 esac
 
+# Langue des messages : WATCHOO_LANG (en ou fr), sinon la locale du système, sinon l'anglais.
+detect_lang() {
+	case "${WATCHOO_LANG:-}" in
+	[Ff][Rr]) echo fr; return ;;
+	[Ee][Nn]) echo en; return ;;
+	esac
+	for v in "${LC_ALL:-}" "${LC_MESSAGES:-}" "${LANG:-}"; do
+		case "$v" in
+		'' | C | C.* | POSIX) continue ;;
+		fr | fr_* | fr.* | fr@*) echo fr; return ;;
+		*) echo en; return ;;
+		esac
+	done
+	echo en
+}
+MSG_LANG=$(detect_lang)
+
+# msg ANGLAIS FRANÇAIS : le texte dans la langue des messages.
+msg() {
+	if [ "$MSG_LANG" = fr ]; then printf '%s' "$2"; else printf '%s' "$1"; fi
+}
+
 say() { printf '%s\n' "$*"; }
 fail() {
-	printf 'erreur : %s\n' "$*" >&2
+	printf '%s%s\n' "$(msg 'error: ' 'erreur : ')" "$*" >&2
 	exit 1
 }
 
@@ -40,7 +65,7 @@ fetch() {
 	elif command -v wget >/dev/null 2>&1; then
 		wget -q -O "$2" "$1"
 	else
-		fail "ni curl ni wget n'est installé"
+		fail "$(msg "neither curl nor wget is installed" "ni curl ni wget n'est installé")"
 	fi
 }
 
@@ -53,7 +78,7 @@ latest_tag() {
 		url=$(wget -q -O /dev/null --server-response "$RELEASES_URL/latest" 2>&1 |
 			sed -n 's/^ *[Ll]ocation: *//p' | tail -n 1 | tr -d '\r')
 	else
-		fail "ni curl ni wget n'est installé"
+		fail "$(msg "neither curl nor wget is installed" "ni curl ni wget n'est installé")"
 	fi
 	tag=${url##*/}
 	case "$tag" in
@@ -67,9 +92,9 @@ detect_os() {
 	Linux) echo linux ;;
 	Darwin) echo darwin ;;
 	MINGW* | MSYS* | CYGWIN*)
-		fail "sous Windows, téléchargez l'archive .zip depuis $REPO_URL/releases"
+		fail "$(msg "on Windows, download the .zip archive from $REPO_URL/releases" "sous Windows, téléchargez l'archive .zip depuis $REPO_URL/releases")"
 		;;
-	*) fail "système non pris en charge : $(uname -s)" ;;
+	*) fail "$(msg "unsupported system: " "système non pris en charge : ")$(uname -s)" ;;
 	esac
 }
 
@@ -77,7 +102,7 @@ detect_arch() {
 	case "$(uname -m)" in
 	x86_64 | amd64) echo amd64 ;;
 	arm64 | aarch64) echo arm64 ;;
-	*) fail "architecture non prise en charge : $(uname -m)" ;;
+	*) fail "$(msg "unsupported architecture: " "architecture non prise en charge : ")$(uname -m)" ;;
 	esac
 }
 
@@ -88,7 +113,7 @@ sha256() {
 	elif command -v shasum >/dev/null 2>&1; then
 		shasum -a 256 "$1" | cut -d ' ' -f 1
 	else
-		fail "ni sha256sum ni shasum n'est installé : impossible de vérifier l'archive"
+		fail "$(msg "neither sha256sum nor shasum is installed: cannot verify the archive" "ni sha256sum ni shasum n'est installé : impossible de vérifier l'archive")"
 	fi
 }
 
@@ -99,7 +124,7 @@ main() {
 	tag="${WATCHOO_VERSION:-}"
 	asked="$tag"
 	if [ -z "$tag" ]; then
-		tag=$(latest_tag) || fail "impossible de trouver la dernière version sur $RELEASES_URL"
+		tag=$(latest_tag) || fail "$(msg "cannot find the latest version on $RELEASES_URL" "impossible de trouver la dernière version sur $RELEASES_URL")"
 	fi
 	case "$tag" in
 	v*) ;;
@@ -107,12 +132,12 @@ main() {
 	esac
 	case "$tag" in
 	v[0-9]*.[0-9]*.[0-9]*) ;;
-	*) fail "version invalide : $asked (attendu : vX.Y.Z)" ;;
+	*) fail "$(msg "invalid version: $asked (expected: vX.Y.Z)" "version invalide : $asked (attendu : vX.Y.Z)")" ;;
 	esac
 	version=${tag#v}
 
 	if [ -z "${WATCHOO_INSTALL_DIR:-}" ] && [ -z "${HOME:-}" ]; then
-		fail "HOME n'est pas défini : indiquez WATCHOO_INSTALL_DIR"
+		fail "$(msg "HOME is not set: set WATCHOO_INSTALL_DIR" "HOME n'est pas défini : indiquez WATCHOO_INSTALL_DIR")"
 	fi
 	dir="${WATCHOO_INSTALL_DIR:-$HOME/.local/bin}"
 	archive="watchoo_${version}_${os}_${arch}.tar.gz"
@@ -121,36 +146,36 @@ main() {
 	tmp=$(mktemp -d 2>/dev/null || mktemp -d -t watchoo)
 	trap 'rm -rf "$tmp"' EXIT INT TERM
 
-	say "Téléchargement de Watchoo $tag ($os/$arch)…"
+	say "$(msg "Downloading Watchoo $tag ($os/$arch)…" "Téléchargement de Watchoo $tag ($os/$arch)…")"
 	fetch "$RELEASES_URL/download/$tag/$archive" "$tmp/$archive" ||
-		fail "téléchargement de $archive impossible (version $tag inexistante ?)"
+		fail "$(msg "cannot download $archive (does version $tag exist?)" "téléchargement de $archive impossible (version $tag inexistante ?)")"
 	fetch "$RELEASES_URL/download/$tag/$sums" "$tmp/$sums" ||
-		fail "téléchargement de $sums impossible"
+		fail "$(msg "cannot download $sums" "téléchargement de $sums impossible")"
 
 	want=$(awk -v f="$archive" '$2 == f { print $1 }' "$tmp/$sums")
-	[ -n "$want" ] || fail "$archive absent de $sums"
+	[ -n "$want" ] || fail "$(msg "$archive missing from $sums" "$archive absent de $sums")"
 	got=$(sha256 "$tmp/$archive")
-	[ "$got" = "$want" ] || fail "somme SHA-256 de $archive incorrecte : archive corrompue ou modifiée"
-	say "Somme SHA-256 vérifiée."
+	[ "$got" = "$want" ] || fail "$(msg "wrong SHA-256 checksum for $archive: corrupted or modified archive" "somme SHA-256 de $archive incorrecte : archive corrompue ou modifiée")"
+	say "$(msg "SHA-256 checksum verified." "Somme SHA-256 vérifiée.")"
 
-	tar -xzf "$tmp/$archive" -C "$tmp" watchoo || fail "extraction de $archive impossible"
+	tar -xzf "$tmp/$archive" -C "$tmp" watchoo || fail "$(msg "cannot extract $archive" "extraction de $archive impossible")"
 
-	mkdir -p "$dir" 2>/dev/null || fail "impossible de créer $dir (choisissez un autre WATCHOO_INSTALL_DIR)"
-	[ -w "$dir" ] || fail "$dir n'est pas accessible en écriture (choisissez un autre WATCHOO_INSTALL_DIR, ou utilisez sudo)"
+	mkdir -p "$dir" 2>/dev/null || fail "$(msg "cannot create $dir (choose another WATCHOO_INSTALL_DIR)" "impossible de créer $dir (choisissez un autre WATCHOO_INSTALL_DIR)")"
+	[ -w "$dir" ] || fail "$(msg "$dir is not writable (choose another WATCHOO_INSTALL_DIR, or use sudo)" "$dir n'est pas accessible en écriture (choisissez un autre WATCHOO_INSTALL_DIR, ou utilisez sudo)")"
 	# Copie puis renommage : un binaire en cours d'exécution n'est jamais écrasé à moitié.
 	cp "$tmp/watchoo" "$dir/.watchoo.tmp.$$"
 	chmod 0755 "$dir/.watchoo.tmp.$$"
 	mv -f "$dir/.watchoo.tmp.$$" "$dir/watchoo"
 
-	say "Watchoo $tag installé dans $dir/watchoo."
+	say "$(msg "Watchoo $tag installed in $dir/watchoo." "Watchoo $tag installé dans $dir/watchoo.")"
 	case ":${PATH:-}:" in
 	*":$dir:"*) ;;
-	*) say "Attention : $dir n'est pas dans votre PATH. Ajoutez-le, par ex. : export PATH=\"$dir:\$PATH\"" ;;
+	*) say "$(msg "Warning: $dir is not in your PATH. Add it, e.g.: " "Attention : $dir n'est pas dans votre PATH. Ajoutez-le, par ex. : ")export PATH=\"$dir:\$PATH\"" ;;
 	esac
 	if ! command -v gh >/dev/null 2>&1; then
-		say "Attention : Watchoo a besoin de la CLI GitHub « gh » (https://cli.github.com/), puis de « gh auth login »."
+		say "$(msg 'Warning: Watchoo needs the GitHub CLI "gh" (https://cli.github.com/), then "gh auth login".' "Attention : Watchoo a besoin de la CLI GitHub « gh » (https://cli.github.com/), puis de « gh auth login ».")"
 	fi
-	say "Pour commencer : mkdir mon-groupe && cd mon-groupe && watchoo init"
+	say "$(msg "To get started: mkdir my-group && cd my-group && watchoo init" "Pour commencer : mkdir mon-groupe && cd mon-groupe && watchoo init")"
 }
 
 main "$@"

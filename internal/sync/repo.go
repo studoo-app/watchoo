@@ -6,9 +6,9 @@ package sync
 import (
 	"context"
 	"errors"
-	"fmt"
 	"slices"
 
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/provider"
 	"github.com/studoo-app/watchoo/internal/store"
@@ -331,11 +331,11 @@ func (s *repoSync) fetchStats(ctx context.Context, h *halt, repoID int64) (int, 
 		st, err := s.prov.CommitStats(ctx, s.owner, s.name, c.SHA)
 		if err != nil {
 			if ctxErr := ctx.Err(); ctxErr != nil {
-				return calls, fmt.Errorf("statistiques des commits : %w", ctxErr)
+				return calls, errWrapped(i18n.T("sync.stats.error"), ctxErr)
 			}
 			var rle *provider.RateLimitError
 			if errors.As(err, &rle) {
-				h.set(rateLimitResume(rle, s.e.now()), reasonSpent)
+				h.set(rateLimitResume(rle, s.e.now()), DeferQuotaExhausted)
 				s.e.logger.Info("statistiques interrompues : quota épuisé", "repo", s.full)
 				break
 			}

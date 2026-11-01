@@ -5,11 +5,11 @@ package tui
 // activity.ContributorWeeks semaines (total et courbe d'une ligne, activity.Sparkline).
 
 import (
-	"fmt"
 	"strconv"
 	"strings"
 
 	"github.com/studoo-app/watchoo/internal/activity"
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/model"
 )
 
@@ -25,7 +25,7 @@ func (m Model) renderDetail() []string {
 func (m Model) detailLines() []string {
 	r, ok := m.repoByID(m.detail.repoID)
 	if !ok {
-		return []string{"Ce dépôt n'est plus suivi. échap pour revenir à la liste."}
+		return []string{i18n.T("tui.detail.gone")}
 	}
 	now, loc, uni := m.now(), m.deps.Location, m.deps.Unicode
 	res := m.evaluate(r)
@@ -37,9 +37,9 @@ func (m Model) detailLines() []string {
 	if r.Label != "" {
 		title += m.st.Muted.Render(" (" + clean(r.FullName()) + ")")
 	}
-	lines := []string{m.st.Title.Render(title) + m.st.Muted.Render("  échap pour revenir")}
+	lines := []string{m.st.Title.Render(title) + m.st.Muted.Render(i18n.T("tui.detail.back"))}
 	if r.URL != "" {
-		lines = append(lines, field("Adresse", clean(r.URL)))
+		lines = append(lines, field(i18n.T("tui.field.url"), clean(r.URL)))
 	}
 
 	state := m.st.state(res.State).Render(res.State.Label())
@@ -48,62 +48,62 @@ func (m Model) detailLines() []string {
 	}
 	own := ""
 	if r.FlemmeAfterDays != nil || r.DeadAfterDays != nil {
-		own = " (propres au dépôt)"
+		own = i18n.T("tui.detail.own_thresholds")
 	}
-	state += m.st.Muted.Render(fmt.Sprintf("  seuils : Flemme après %d j, Dead après %d j%s",
+	state += m.st.Muted.Render(i18n.T("tui.detail.thresholds",
 		res.Thresholds.FlemmeAfterDays, res.Thresholds.DeadAfterDays, own))
-	lines = append(lines, field("État", state))
+	lines = append(lines, field(i18n.T("tui.field.state"), state))
 
 	last := activity.Relative(r.LastCommitAt, now, loc, uni)
 	if r.LastCommit.SHA != "" {
-		last += " par " + clean(r.LastCommit.AuthorDisplayName()) + " (" + shortSHA(r.LastCommit.SHA) + ")"
+		last += i18n.T("tui.detail.last_commit_by", clean(r.LastCommit.AuthorDisplayName()), shortSHA(r.LastCommit.SHA))
 	}
-	lines = append(lines, field("Dernier commit", last))
+	lines = append(lines, field(i18n.T("tui.field.last_commit"), last))
 
-	branches := plural(r.TrackedBranches, "branche suivie", "branches suivies")
+	branches := plural(r.TrackedBranches, "tui.detail.branch_one", "tui.detail.branch_many")
 	if r.DefaultBranch != "" {
-		branches += ", par défaut : " + clean(r.DefaultBranch)
+		branches += i18n.T("tui.detail.default_branch", clean(r.DefaultBranch))
 	}
 	if len(r.BranchPatterns) > 0 {
-		branches += ", motifs : " + clean(strings.Join(r.BranchPatterns, ", "))
+		branches += i18n.T("tui.detail.patterns", clean(strings.Join(r.BranchPatterns, ", ")))
 	} else {
-		branches += ", toutes les branches"
+		branches += i18n.T("tui.detail.all_branches")
 	}
-	lines = append(lines, field("Branches", branches))
-	lines = append(lines, field("Commits en base", strconv.Itoa(r.Commits)+", lignes "+lineTotals(r.Lines)))
-	lines = append(lines, field("Dernière synchro", m.lastRunText(r.LastRun)))
+	lines = append(lines, field(i18n.T("tui.field.branches"), branches))
+	lines = append(lines, field(i18n.T("tui.field.commits_db"), i18n.T("tui.detail.commits_lines", r.Commits, lineTotals(r.Lines))))
+	lines = append(lines, field(i18n.T("tui.field.last_sync"), m.lastRunText(r.LastRun)))
 
 	// Dépôt jamais lu par l'API (suivi par clone Git local, sans gh, V2) : étoiles, issues, état
 	// archivé, pull requests et releases sont inconnus.
-	extra := "étoiles et issues non disponibles (clone Git local)"
+	extra := i18n.T("tui.detail.no_forge")
 	if r.ForgeDetails() {
-		extra = fmt.Sprintf("%s, %s", plural(r.Stars, "étoile", "étoiles"),
-			plural(r.OpenIssues, "issue ouverte", "issues ouvertes"))
+		extra = plural(r.Stars, "tui.detail.star_one", "tui.detail.star_many") + ", " +
+			plural(r.OpenIssues, "tui.detail.issue_one", "tui.detail.issue_many")
 	}
 	if r.Archived {
-		extra += ", archivé"
+		extra += i18n.T("tui.detail.archived")
 	}
 	if !r.Enabled {
-		extra += ", suivi arrêté"
+		extra += i18n.T("tui.detail.stopped")
 	}
-	lines = append(lines, field("Sur GitHub", extra))
-	pulls := "non disponibles (clone Git local, sans gh)"
+	lines = append(lines, field(i18n.T("tui.field.on_github"), extra))
+	pulls := i18n.T("tui.detail.pulls_no_forge")
 	if r.ForgeDetails() {
 		pulls = m.pullsText(r.OpenPullRequests, r.LatestRelease)
 	}
-	lines = append(lines, field("Pull requests", pulls))
+	lines = append(lines, field(i18n.T("tui.field.pulls"), pulls))
 
-	lines = append(lines, "", m.st.Header.Render("Derniers commits"))
+	lines = append(lines, "", m.st.Header.Render(i18n.T("tui.detail.recent_commits")))
 	switch {
 	case m.detail.err != nil:
-		lines = append(lines, "  "+m.st.Error.Render("lecture impossible : "+clean(m.detail.err.Error())))
+		lines = append(lines, "  "+m.st.Error.Render(i18n.T("tui.detail.read_error", clean(m.detail.err.Error()))))
 	case m.detail.loading:
-		lines = append(lines, "  Chargement"+m.ellipsis())
+		lines = append(lines, "  "+i18n.T("tui.loading")+m.ellipsis())
 	case len(m.detail.commits) == 0:
-		lines = append(lines, "  Aucun commit.")
+		lines = append(lines, "  "+i18n.T("tui.detail.no_commit"))
 	default:
-		cols := []column{{title: "QUAND"}, {title: "AUTEUR", max: 18}, {title: "SHA"}, {title: "+/-", right: true},
-			{title: "MESSAGE", flex: true}}
+		cols := []column{{title: i18n.T("tui.col.when")}, {title: i18n.T("tui.col.author"), max: 18}, {title: "SHA"},
+			{title: "+/-", right: true}, {title: i18n.T("tui.col.message"), flex: true}}
 		rows := make([]row, 0, len(m.detail.commits))
 		for _, c := range m.detail.commits {
 			rows = append(rows, row{cells: []string{activity.Relative(c.CommittedAt, now, loc, uni),
@@ -115,10 +115,11 @@ func (m Model) detailLines() []string {
 
 	if m.detail.err == nil && !m.detail.loading && len(m.detail.contribs) > 0 {
 		weeks := len(m.detail.weekly.Weeks)
-		lines = append(lines, "", m.st.Header.Render("Principaux contributeurs")+
-			m.st.Muted.Render(fmt.Sprintf("  activité sur %d semaines, la plus récente à droite", weeks)))
-		cols := []column{{title: "CONTRIBUTEUR", flex: true}, {title: "COMMITS", right: true},
-			{title: "+/-", right: true}, {title: fmt.Sprintf("%d SEM.", weeks), right: true}, {title: "PAR SEMAINE"}, {title: "DERNIER COMMIT"}}
+		lines = append(lines, "", m.st.Header.Render(i18n.T("tui.detail.top_contribs"))+
+			m.st.Muted.Render(i18n.T("tui.detail.activity", weeks)))
+		cols := []column{{title: i18n.T("tui.col.contributor"), flex: true}, {title: i18n.T("tui.col.commits"), right: true},
+			{title: "+/-", right: true}, {title: i18n.T("tui.col.weeks", weeks), right: true},
+			{title: i18n.T("tui.col.per_week")}, {title: i18n.T("tui.col.last_commit")}}
 		rows := make([]row, 0, len(m.detail.contribs))
 		for _, c := range m.detail.contribs {
 			rows = append(rows, row{cells: []string{clean(c.DisplayName()), strconv.Itoa(c.Commits),
@@ -133,33 +134,34 @@ func (m Model) detailLines() []string {
 // pullsText décrit les pull requests ouvertes et la dernière release publiée d'un dépôt (V2) :
 // « 2 ouvertes, dernière release v1.0 (il y a 3 j) ».
 func (m Model) pullsText(open int, latest model.Release) string {
-	text := plural(open, "ouverte", "ouvertes")
+	text := plural(open, "tui.detail.pulls_open_one", "tui.detail.pulls_open_many")
 	if open == 0 {
-		text = "aucune ouverte"
+		text = i18n.T("tui.detail.pulls_none")
 	}
 	if latest.ProviderID == 0 {
-		return text + ", aucune release"
+		return text + i18n.T("tui.detail.no_release")
 	}
-	return text + ", dernière release " + clean(latest.TagName) + " (" +
-		activity.Relative(latest.Date(), m.now(), m.deps.Location, m.deps.Unicode) + ")"
+	return text + i18n.T("tui.detail.latest_release", clean(latest.TagName),
+		activity.Relative(latest.Date(), m.now(), m.deps.Location, m.deps.Unicode))
 }
 
 // lastRunText décrit le dernier sync_run d'un dépôt.
 func (m Model) lastRunText(run model.SyncRun) string {
 	if run.ID == 0 {
-		return "jamais"
+		return i18n.T("activity.rel.never")
 	}
 	when := activity.Relative(run.StartedAt, m.now(), m.deps.Location, m.deps.Unicode)
 	switch run.Status {
 	case model.SyncRunning:
-		return when + ", en cours"
+		return when + i18n.T("tui.detail.run_running")
 	case model.SyncError:
-		msg := "erreur"
+		msg := i18n.T("activity.short.error")
 		if run.Error != "" {
-			msg += " : " + clean(run.Error)
+			msg += i18n.T("cli.core.err.sep") + clean(run.Error)
 		}
 		return when + ", " + m.st.Error.Render(msg)
 	default:
-		return when + ", réussie (" + plural(run.NewCommits, "nouveau commit", "nouveaux commits") + ")"
+		return when + i18n.T("tui.detail.run_success",
+			plural(run.NewCommits, "cli.sync.count_new_commit_one", "cli.sync.count_new_commit_many"))
 	}
 }

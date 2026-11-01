@@ -3,10 +3,11 @@ package cli
 // Logs du processus (log/slog, texte, sur la sortie d'erreur).
 
 import (
-	"fmt"
 	"io"
 	"log/slog"
 	"strings"
+
+	"github.com/studoo-app/watchoo/internal/i18n"
 )
 
 // EnvLogLevel est la variable qui règle le niveau des logs : debug, info, warn (défaut) ou error.
@@ -24,8 +25,7 @@ func newLogger(w io.Writer, level string, verbose bool) *slog.Logger {
 	default:
 		parsed, ok := parseLogLevel(level)
 		if !ok {
-			warn(w, fmt.Sprintf("%s=%q inconnu : niveau warn utilisé (valeurs : debug, info, warn, error)",
-				EnvLogLevel, level))
+			warn(w, i18n.T("cli.core.log.level_unknown", EnvLogLevel, level))
 		}
 		lvl = parsed
 	}

@@ -32,23 +32,23 @@ func TestStaticAssets(t *testing.T) {
 		w := e.get(target)
 		assertStatus(t, w, http.StatusOK)
 		if got := w.Header().Get("Content-Type"); got != want.ctype {
-			t.Errorf("%s : Content-Type %q, attendu %q", target, got, want.ctype)
+			t.Errorf("%s: Content-Type %q, want %q", target, got, want.ctype)
 		}
 		if got := w.Header().Get("Cache-Control"); got != want.cache {
-			t.Errorf("%s : Cache-Control %q, attendu %q", target, got, want.cache)
+			t.Errorf("%s: Cache-Control %q, want %q", target, got, want.cache)
 		}
 		if w.Body.Len() == 0 {
-			t.Errorf("%s : corps vide", target)
+			t.Errorf("%s: empty body", target)
 		}
 		etag := w.Header().Get("ETag")
 		if etag == "" {
-			t.Errorf("%s : pas d'ETag", target)
+			t.Errorf("%s: no ETag", target)
 			continue
 		}
 		r := e.request(http.MethodGet, target, nil)
 		r.Header.Set("If-None-Match", etag)
 		if w := e.do(r); w.Code != http.StatusNotModified || w.Body.Len() != 0 {
-			t.Errorf("%s : If-None-Match → %d (%d octets), attendu 304 vide", target, w.Code, w.Body.Len())
+			t.Errorf("%s: If-None-Match → %d (%d bytes), want an empty 304", target, w.Code, w.Body.Len())
 		}
 	}
 }
@@ -56,18 +56,18 @@ func TestStaticAssets(t *testing.T) {
 func TestAppCSSGenerated(t *testing.T) {
 	css, err := os.ReadFile("static/app.css")
 	if err != nil {
-		t.Fatalf("static/app.css absent (make css) : %v", err)
+		t.Fatalf("static/app.css missing (make css): %v", err)
 	}
 	if len(css) < 1000 {
-		t.Fatalf("static/app.css trop petit (%d octets) : make css", len(css))
+		t.Fatalf("static/app.css too small (%d bytes): make css", len(css))
 	}
 	for _, class := range []string{".badge-success", ".badge-warning", ".badge-error", ".badge-neutral", ".navbar", ".btn"} {
 		if !bytes.Contains(css, []byte(class)) {
-			t.Errorf("static/app.css sans %s : relancez make css", class)
+			t.Errorf("static/app.css without %s: run make css again", class)
 		}
 	}
 	if !bytes.Contains(css, []byte("prefers-color-scheme:dark")) {
-		t.Error("static/app.css sans thème sombre (prefersdark)")
+		t.Error("static/app.css without a dark theme (prefersdark)")
 	}
 }
 
@@ -83,19 +83,19 @@ func TestManifest(t *testing.T) {
 		} `json:"icons"`
 	}
 	if err := json.Unmarshal(data, &m); err != nil {
-		t.Fatalf("manifeste invalide : %v", err)
+		t.Fatalf("invalid manifest: %v", err)
 	}
 	if m.Name != "Watchoo" || len(m.Icons) == 0 {
-		t.Errorf("manifeste : %+v", m)
+		t.Errorf("manifest: %+v", m)
 	}
 	for _, icon := range m.Icons {
 		if _, err := os.Stat(filepath.Join("static", strings.TrimPrefix(icon.Src, "/static/"))); err != nil {
-			t.Errorf("icône %s absente : %v", icon.Src, err)
+			t.Errorf("icon %s missing: %v", icon.Src, err)
 		}
 	}
 }
 
-// TestLogoCopies vérifie que les logos embarqués sont identiques à assets/logo (sinon : make logo).
+// TestLogoCopies checks that the embedded logos are identical to assets/logo (otherwise: make logo).
 func TestLogoCopies(t *testing.T) {
 	for _, name := range []string{"watchoo-icone.svg", "watchoo-logo-final-nom.svg", "watchoo-logo-final-nom-dark.svg",
 		"favicon.ico", "apple-touch-icon.png", "icon-192.png", "icon-512.png"} {
@@ -105,15 +105,15 @@ func TestLogoCopies(t *testing.T) {
 		}
 		got, err := os.ReadFile(filepath.Join("static", name))
 		if err != nil {
-			t.Fatalf("static/%s absent (make logo) : %v", name, err)
+			t.Fatalf("static/%s missing (make logo): %v", name, err)
 		}
 		if !bytes.Equal(got, want) {
-			t.Errorf("static/%s diffère de assets/logo/%s : relancez make logo", name, name)
+			t.Errorf("static/%s differs from assets/logo/%s: run make logo again", name, name)
 		}
 	}
 }
 
-// TestVendoredChecksums vérifie les empreintes consignées dans tailwind/VERSIONS.
+// TestVendoredChecksums checks the checksums recorded in tailwind/VERSIONS.
 func TestVendoredChecksums(t *testing.T) {
 	f, err := os.Open("tailwind/VERSIONS")
 	if err != nil {
@@ -129,30 +129,30 @@ func TestVendoredChecksums(t *testing.T) {
 		}
 		fields := strings.Fields(line)
 		if len(fields) < 3 {
-			t.Errorf("ligne mal formée : %q", line)
+			t.Errorf("malformed line: %q", line)
 			continue
 		}
 		path, sum := fields[0], fields[2]
 		if path == "tailwindcss" {
-			continue // CLI de la CI, non vendored
+			continue // CLI of the CI, not vendored
 		}
 		data, err := os.ReadFile(path)
 		if err != nil {
-			t.Errorf("%s : %v", path, err)
+			t.Errorf("%s: %v", path, err)
 			continue
 		}
 		got := sha256.Sum256(data)
 		if hex.EncodeToString(got[:]) != sum {
-			t.Errorf("%s : empreinte %x, VERSIONS indique %s", path, got, sum)
+			t.Errorf("%s: checksum %x, VERSIONS says %s", path, got, sum)
 		}
 		checked++
 	}
 	if checked < 6 {
-		t.Errorf("%d fichiers vérifiés seulement", checked)
+		t.Errorf("only %d files checked", checked)
 	}
 	for _, file := range []string{htmxFile, chartFile} {
 		if !strings.Contains(readString(t, "tailwind/VERSIONS"), "static/"+file) {
-			t.Errorf("%s absent de VERSIONS", file)
+			t.Errorf("%s missing from VERSIONS", file)
 		}
 	}
 }

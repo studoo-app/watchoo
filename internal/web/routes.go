@@ -4,7 +4,10 @@ package web
 //
 // Ordre des middlewares (du premier au dernier appelé) :
 //
-//	recoverer → accessLog → securityHeaders → hostCheck → basicAuth → limitBody → csrf → timeout
+//	withLang → recoverer → accessLog → securityHeaders → hostCheck → basicAuth → limitBody → csrf → timeout
+//
+// withLang lit d'abord la langue de l'espace (lang.go) : toutes les réponses, pages d'erreur
+// comprises, sont dans cette langue.
 //
 // Le contrôle Host et l'authentification passent avant tout le reste (fichiers statiques compris) ;
 // le CSRF ne laisse passer un POST qu'avec la bonne origine et le bon jeton. Aucune route ne modifie
@@ -62,7 +65,7 @@ const idPattern = "{id:[0-9]{1,18}}"
 // routes construit le routeur.
 func (s *server) routes() http.Handler {
 	r := chi.NewRouter()
-	r.Use(s.recoverer, s.accessLog, securityHeaders, s.hostCheck, s.basicAuth, limitBody,
+	r.Use(s.withLang, s.recoverer, s.accessLog, securityHeaders, s.hostCheck, s.basicAuth, limitBody,
 		s.csrf.middleware(s), middleware.Timeout(requestTimeout))
 	r.NotFound(s.notFound)
 	r.MethodNotAllowed(s.methodNotAllowed)

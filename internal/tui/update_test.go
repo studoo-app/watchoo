@@ -1,6 +1,6 @@
 package tui
 
-// Tests de l'avis de nouvelle version dans le TUI (Deps.UpdateCheck) : ligne sous l'en-tête.
+// Tests of the new-version notice in the TUI (Deps.UpdateCheck): line under the header.
 
 import (
 	"context"
@@ -12,23 +12,23 @@ import (
 	tea "charm.land/bubbletea/v2"
 )
 
-const tuiNotice = "Nouvelle version de Watchoo disponible : v0.6.1 → v0.6.2. Quittez puis lancez « watchoo update »."
+const tuiNotice = `A new version of Watchoo is available: v0.6.1 → v0.6.2. Quit, then run "watchoo update".`
 
 var newVersion = UpdateInfo{Current: "v0.6.1", Latest: "v0.6.2"}
 
-// countingCheck renvoie une vérification qui répond info, err, et le nombre de ses appels.
+// countingCheck returns a check that answers info, err, and the number of its calls.
 func countingCheck(info UpdateInfo, err error) (func(context.Context) (UpdateInfo, error), *int) {
 	n := new(int)
 	return func(ctx context.Context) (UpdateInfo, error) {
 		*n++
 		if _, ok := ctx.Deadline(); !ok {
-			return UpdateInfo{}, errors.New("vérification sans délai")
+			return UpdateInfo{}, errors.New("check without deadline")
 		}
 		return info, err
 	}, n
 }
 
-// noticeLine renvoie la ligne de l'écran sous l'en-tête.
+// noticeLine returns the screen line under the header.
 func noticeLine(screen string) string {
 	return strings.Split(screen, "\n")[headerHeight]
 }
@@ -41,18 +41,18 @@ func TestUpdateNoticeShownUnderHeader(t *testing.T) {
 	l.send(tea.WindowSizeMsg{Width: 120, Height: 24})
 	l.until(func(m Model) bool { return m.update.Latest != "" })
 	if got := noticeLine(l.screen()); got != tuiNotice {
-		t.Errorf("ligne sous l'en-tête = %q ; attendu l'avis", got)
+		t.Errorf("line under the header = %q; want the notice", got)
 	}
-	// La mise en page ne bouge pas : l'avis prend la ligne vide sous l'en-tête.
+	// The layout does not move: the notice takes the empty line under the header.
 	if n := len(strings.Split(l.screen(), "\n")); n != 24 {
-		t.Errorf("%d lignes ; attendu 24", n)
+		t.Errorf("%d lines; want 24", n)
 	}
-	// L'avis reste affiché après un changement de vue et un message de bas d'écran.
+	// The notice stays shown after a view change and a footer message.
 	l.press("2", "S")
 	l.settle()
 	mustContain(t, l.screen(), tuiNotice)
 	if *calls != 1 {
-		t.Errorf("%d vérifications ; attendu 1 (à l'ouverture)", *calls)
+		t.Errorf("%d checks; want 1 (at startup)", *calls)
 	}
 }
 
@@ -66,15 +66,15 @@ func TestUpdateNoticeVariants(t *testing.T) {
 		want    string
 	}{
 		{name: "docker", info: docker, width: 120, unicode: true,
-			want: "Nouvelle version de Watchoo disponible : v0.6.1 → v0.6.2. Changez le tag de l'image Docker pour la mettre à jour."},
+			want: "A new version of Watchoo is available: v0.6.1 → v0.6.2. Change the tag of the Docker image to update it."},
 		{name: "ascii", info: newVersion, width: 120,
-			want: "Nouvelle version de Watchoo disponible : v0.6.1 -> v0.6.2. Quittez puis lancez « watchoo update »."},
-		{name: "80 colonnes", info: newVersion, width: 80, unicode: true,
-			want: "Watchoo v0.6.2 disponible : quittez puis lancez « watchoo update »."},
-		{name: "80 colonnes docker", info: docker, width: 80, unicode: true,
-			want: "Watchoo v0.6.2 disponible : changez le tag de l'image Docker."},
-		{name: "très étroit", info: newVersion, width: 30, unicode: true, want: "Watchoo v0.6.2 disponible : q…"},
-		{name: "séquence nettoyée", info: UpdateInfo{Current: "v0.6.1", Latest: "v0.6.2\x1b[31m"}, width: 120, unicode: true,
+			want: `A new version of Watchoo is available: v0.6.1 -> v0.6.2. Quit, then run "watchoo update".`},
+		{name: "80 columns", info: newVersion, width: 80, unicode: true,
+			want: `Watchoo v0.6.2 available: quit, then run "watchoo update".`},
+		{name: "80 columns docker", info: docker, width: 80, unicode: true,
+			want: "Watchoo v0.6.2 available: change the tag of the Docker image."},
+		{name: "very narrow", info: newVersion, width: 30, unicode: true, want: "Watchoo v0.6.2 available: qui…"},
+		{name: "sequence cleaned", info: UpdateInfo{Current: "v0.6.1", Latest: "v0.6.2\x1b[31m"}, width: 120, unicode: true,
 			want: tuiNotice},
 	}
 	for _, tt := range tests {
@@ -85,11 +85,11 @@ func TestUpdateNoticeVariants(t *testing.T) {
 			next, _ := m.Update(tea.WindowSizeMsg{Width: tt.width, Height: 24})
 			next, _ = next.(Model).Update(updateMsg{info: tt.info})
 			if got := noticeLine(next.(Model).View().Content); got != tt.want {
-				t.Errorf("avis = %q ; attendu %q", got, tt.want)
+				t.Errorf("notice = %q; want %q", got, tt.want)
 			}
 		})
 	}
-	// En couleur : l'avis est stylé, sans dépasser la largeur.
+	// In color: the notice is styled, without exceeding the width.
 	deps := testDeps(newFakeData(), &fakeSyncer{})
 	deps.Color = true
 	m := NewModel(t.Context(), deps)
@@ -97,7 +97,7 @@ func TestUpdateNoticeVariants(t *testing.T) {
 	next, _ = next.(Model).Update(updateMsg{info: newVersion})
 	line := noticeLine(next.(Model).View().Content)
 	if !strings.Contains(line, "\x1b[") || width(line) > 80 {
-		t.Errorf("avis coloré = %q (largeur %d)", line, width(line))
+		t.Errorf("colored notice = %q (width %d)", line, width(line))
 	}
 }
 
@@ -107,12 +107,12 @@ func TestUpdateNoticeAbsent(t *testing.T) {
 		check  func(context.Context) (UpdateInfo, error)
 		cancel bool
 	}{
-		{name: "sans vérification"},
-		{name: "à jour", check: func(context.Context) (UpdateInfo, error) { return UpdateInfo{}, nil }},
-		{name: "erreur", check: func(context.Context) (UpdateInfo, error) {
-			return newVersion, errors.New("hors ligne")
+		{name: "without check"},
+		{name: "up to date", check: func(context.Context) (UpdateInfo, error) { return UpdateInfo{}, nil }},
+		{name: "error", check: func(context.Context) (UpdateInfo, error) {
+			return newVersion, errors.New("offline")
 		}},
-		{name: "annulée", cancel: true, check: func(ctx context.Context) (UpdateInfo, error) {
+		{name: "cancelled", cancel: true, check: func(ctx context.Context) (UpdateInfo, error) {
 			select {
 			case <-ctx.Done():
 				return UpdateInfo{}, ctx.Err()
@@ -129,17 +129,17 @@ func TestUpdateNoticeAbsent(t *testing.T) {
 			defer cancel()
 			m := NewModel(ctx, deps)
 			if tt.cancel {
-				cancel() // on quitte avant la réponse
+				cancel() // quitting before the answer
 			}
 			if tt.check != nil {
 				next, _ := m.Update(m.updateCmd()())
 				m = next.(Model)
 			}
 			if m.update.Latest != "" {
-				t.Errorf("nouvelle version = %+v ; attendu aucune", m.update)
+				t.Errorf("new version = %+v; want none", m.update)
 			}
 			if got := noticeLine(m.View().Content); got != "" {
-				t.Errorf("ligne sous l'en-tête = %q ; attendu vide", got)
+				t.Errorf("line under the header = %q; want empty", got)
 			}
 		})
 	}

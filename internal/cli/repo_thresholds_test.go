@@ -8,8 +8,8 @@ import (
 	"github.com/studoo-app/watchoo/internal/provider/providertest"
 )
 
-// thresholdPair décrit les seuils propres d'un dépôt enregistré (« 3/10 », « -/- » = seuils de
-// l'espace).
+// thresholdPair describes the own thresholds of a saved repository ("3/10", "-/-" = workspace
+// thresholds).
 func thresholdPair(t *testing.T, h *harness, owner, name string) string {
 	t.Helper()
 	repo := storedRepo(t, h, owner, name)
@@ -22,21 +22,21 @@ func thresholdPair(t *testing.T, h *harness, owner, name string) string {
 	return s(repo.FlemmeAfterDays) + "/" + s(repo.DeadAfterDays)
 }
 
-// « repo add --flemme / --dead » : seuils enregistrés, affichés, exposés en JSON et appliqués par
-// « repo list ».
+// "repo add --flemme / --dead": thresholds saved, displayed, exposed in JSON and applied by
+// "repo list".
 func TestRepoAddThresholds(t *testing.T) {
-	h := newSyncedWorkspace(t) // bob/projet : dernier commit il y a 9 jours (Flemme avec 5 / 15)
+	h := newSyncedWorkspace(t) // bob/projet: last commit 9 days ago (Flemme with 5 / 15)
 
 	r := h.run("repo", "add", "bob/projet", "--flemme", "10", "--dead", "20").mustSucceed(t)
 	assertContains(t, "repo add --flemme", r.stdout,
-		"Dépôt bob/projet déjà suivi, mis à jour (toutes les branches, seuils : flemme 10 j, dead 20 j).")
+		"Repository bob/projet already tracked, updated (all branches, thresholds: flemme 10 d, dead 20 d).")
 	if got := thresholdPair(t, h, "bob", "projet"); got != "10/20" {
-		t.Errorf("seuils enregistrés = %s", got)
+		t.Errorf("saved thresholds = %s", got)
 	}
 	r = h.run("repo", "add", "bob/projet", "--flemme", "10").mustSucceed(t)
-	assertContains(t, "mêmes seuils", r.stdout, "rien à changer")
+	assertContains(t, "same thresholds", r.stdout, "nothing to change")
 
-	// repo list : bob est Actif avec un seuil Flemme de 10 jours.
+	// repo list: bob is Actif with a Flemme threshold of 10 days.
 	r = h.run("repo", "list", "--json").mustSucceed(t)
 	assertContains(t, "repo list --json", r.stdout, `"flemme_after_days": 10`, `"dead_after_days": 20`)
 	var list repoListReport
@@ -44,16 +44,16 @@ func TestRepoAddThresholds(t *testing.T) {
 	for _, item := range list.Repositories {
 		if item.FullName != "bob/projet" {
 			if item.FlemmeAfterDays != nil || item.DeadAfterDays != nil {
-				t.Errorf("%s : seuils propres %v/%v, attendu null", item.FullName, item.FlemmeAfterDays, item.DeadAfterDays)
+				t.Errorf("%s: own thresholds %v/%v, want null", item.FullName, item.FlemmeAfterDays, item.DeadAfterDays)
 			}
 			continue
 		}
 		if item.Activity.State != "active" || item.Activity.FlemmeAfterDays != 10 || item.Activity.DeadAfterDays != 20 {
-			t.Errorf("activité de bob = %+v", item.Activity)
+			t.Errorf("bob activity = %+v", item.Activity)
 		}
 	}
 
-	// --dead seul, plus petit que le seuil Flemme de l'espace : Dead reste au-dessus de Flemme (5).
+	// --dead alone, smaller than the workspace Flemme threshold: Dead stays above Flemme (5).
 	r = h.run("repo", "add", "bob/projet", "--flemme", "0", "--dead", "8", "--json").mustSucceed(t)
 	var rep repoAddReport
 	decodeStrict(t, r.stdout, &rep)
@@ -62,12 +62,13 @@ func TestRepoAddThresholds(t *testing.T) {
 		t.Errorf("repo add --flemme 0 --dead 8 --json = %+v", rep)
 	}
 	r = h.run("repo", "list").mustSucceed(t)
-	assertContains(t, "repo list Dead", r.stdout, "bob/projet    il y a 9 j      Bob Durand  ⚠ 9 j")
+	// (The short date and state come from internal/activity: outside the scope of this group.)
+	assertContains(t, "repo list Dead", r.stdout, "bob/projet    9 d ago      Bob Durand  ⚠ 9 d")
 
-	// 0 et 0 : retour aux seuils de l'espace.
+	// 0 and 0: back to the workspace thresholds.
 	h.run("repo", "add", "bob/projet", "--flemme", "0", "--dead", "0").mustSucceed(t)
 	if got := thresholdPair(t, h, "bob", "projet"); got != "-/-" {
-		t.Errorf("seuils après 0 / 0 = %s", got)
+		t.Errorf("thresholds after 0 / 0 = %s", got)
 	}
 }
 
@@ -75,42 +76,42 @@ func TestRepoAddThresholdsErrors(t *testing.T) {
 	h := newWorkspace(t)
 	seedProvider(h.Provider)
 	h.run("repo", "add", "alice/projet", "--flemme", "10", "--dead", "5").mustFail(t,
-		"--seuil dead (5 j) : doit être strictement supérieur au seuil flemme (10 j)")
-	h.run("repo", "add", "alice/projet", "--flemme", "-1").mustFail(t, "--seuil flemme : -1 jours invalide")
+		"--dead threshold (5 d): must be strictly greater than the flemme threshold (10 d)")
+	h.run("repo", "add", "alice/projet", "--flemme", "-1").mustFail(t, "--flemme threshold: -1 days is invalid")
 	h.run("repo", "add", "alice/projet", "--dead", "abc").mustFail(t, "--dead")
 	if n := h.Provider.Calls(providertest.MethodRepository); n != 0 {
-		t.Errorf("Repository appelé %d fois malgré des seuils invalides", n)
+		t.Errorf("Repository called %d times despite invalid thresholds", n)
 	}
 }
 
-// Colonnes flemme et dead du fichier d'import : cellule vide = non fourni.
+// flemme and dead columns of the import file: empty cell = not provided.
 func TestRepoImportThresholds(t *testing.T) {
 	h := newWorkspace(t)
 	seedProvider(h.Provider)
 	writeFile(t, filepath.Join(h.cwd, "promo.csv"), "repo,label,flemme,dead\nalice/projet,Alice,3,10\nbob/projet,,,7\n")
 	h.run("repo", "import", "promo.csv").mustSucceed(t)
 	if got := thresholdPair(t, h, "alice", "projet"); got != "3/10" {
-		t.Errorf("alice : %s", got)
+		t.Errorf("alice: %s", got)
 	}
 	if got := thresholdPair(t, h, "bob", "projet"); got != "-/7" {
-		t.Errorf("bob : %s", got)
+		t.Errorf("bob: %s", got)
 	}
 
-	// Réimport : cellule vide = seuil gardé, 0 = seuil de l'espace.
+	// Reimport: empty cell = threshold kept, 0 = workspace threshold.
 	writeFile(t, filepath.Join(h.cwd, "promo.csv"), "repo,flemme,dead\nalice/projet,,0\nbob/projet,,\n")
 	r := h.run("repo", "import", "promo.csv", "--json").mustSucceed(t)
-	assertContains(t, "réimport", r.stdout, `"updated": 1`, `"already_tracked": 1`)
+	assertContains(t, "reimport", r.stdout, `"updated": 1`, `"already_tracked": 1`)
 	if got := thresholdPair(t, h, "alice", "projet"); got != "3/-" {
-		t.Errorf("alice après réimport : %s", got)
+		t.Errorf("alice after reimport: %s", got)
 	}
 
-	// Seuils incohérents : ligne en erreur, rien d'importé.
+	// Inconsistent thresholds: line in error, nothing imported.
 	writeFile(t, filepath.Join(h.cwd, "faux.csv"), "repo,flemme,dead\ndave/projet,9,4\n")
-	h.run("repo", "import", "faux.csv").mustFail(t, "ligne 2", "strictement supérieur")
+	h.run("repo", "import", "faux.csv").mustFail(t, "line 2", "strictly greater")
 }
 
-// « config import » : seuils propres dans l'aperçu (texte et JSON), puis appliqués ; « config export »
-// les écrit.
+// "config import": own thresholds in the preview (text and JSON), then applied; "config export" writes
+// them.
 func TestConfigImportThresholds(t *testing.T) {
 	h := newWorkspace(t)
 	seedProvider(h.Provider)
@@ -119,7 +120,7 @@ func TestConfigImportThresholds(t *testing.T) {
 "repositories":[{"repo":"alice/projet","flemme_after_days":3,"dead_after_days":0}]}`)
 
 	r := h.run("config", "import", "partage.json", "--dry-run").mustSucceed(t)
-	assertContains(t, "aperçu", r.stdout, "alice/projet (flemme : espace → 3 j ; dead : 20 j → espace)")
+	assertContains(t, "preview", r.stdout, "alice/projet (flemme: workspace → 3 d; dead: 20 d → workspace)")
 	r = h.run("config", "import", "partage.json", "--dry-run", "--json").mustSucceed(t)
 	var rep configImportReport
 	decodeStrict(t, r.stdout, &rep)
@@ -127,15 +128,15 @@ func TestConfigImportThresholds(t *testing.T) {
 	if c.Action != "update" || c.Before == nil || c.Before.FlemmeAfterDays != nil || c.Before.DeadAfterDays == nil ||
 		*c.Before.DeadAfterDays != 20 || c.After.FlemmeAfterDays == nil || *c.After.FlemmeAfterDays != 3 ||
 		c.After.DeadAfterDays != nil {
-		t.Errorf("aperçu --json = %+v (avant %+v, après %+v)", c, c.Before, c.After)
+		t.Errorf("preview --json = %+v (before %+v, after %+v)", c, c.Before, c.After)
 	}
 	if got := thresholdPair(t, h, "alice", "projet"); got != "-/20" {
-		t.Errorf("--dry-run a écrit : %s", got)
+		t.Errorf("--dry-run wrote: %s", got)
 	}
 
 	h.run("config", "import", "partage.json", "--yes").mustSucceed(t)
 	if got := thresholdPair(t, h, "alice", "projet"); got != "3/-" {
-		t.Errorf("après import : %s", got)
+		t.Errorf("after import: %s", got)
 	}
 	r = h.run("config", "export").mustSucceed(t)
 	assertContains(t, "export", r.stdout, `"flemme_after_days": 3`)

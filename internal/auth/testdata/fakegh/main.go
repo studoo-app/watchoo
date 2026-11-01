@@ -109,7 +109,7 @@ func main() {
 // run exécute le faux gh et renvoie son code de retour.
 func run(args []string, stdout, stderr io.Writer) int {
 	if err := record(args); err != nil {
-		fmt.Fprintf(stderr, "fakegh : enregistrement de l'appel : %v\n", err)
+		fmt.Fprintf(stderr, "fakegh: recording the call: %v\n", err)
 		return exitBadSetup
 	}
 	inv, err := parseArgs(args)
@@ -157,7 +157,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 		}
 		n, err := nextCount()
 		if err != nil {
-			fmt.Fprintf(stderr, "fakegh : %v\n", err)
+			fmt.Fprintf(stderr, "fakegh: %v\n", err)
 			return exitBadSetup
 		}
 		fmt.Fprintf(stdout, "%s_%d\n", fakeToken, n)
@@ -190,20 +190,20 @@ func run(args []string, stdout, stderr io.Writer) int {
 	case "hang":
 		if path := os.Getenv("FAKEGH_PID_FILE"); path != "" {
 			if err := os.WriteFile(path, []byte(strconv.Itoa(os.Getpid())), 0o600); err != nil {
-				fmt.Fprintf(stderr, "fakegh : %v\n", err)
+				fmt.Fprintf(stderr, "fakegh: %v\n", err)
 				return exitBadSetup
 			}
 		}
 		time.Sleep(time.Hour)
 		return exitOK
 	case "error":
-		fmt.Fprintf(stderr, "erreur simulée de gh : HTTP 401 Bad credentials (token %s refusé)\nsecond line\n", fakeToken)
+		fmt.Fprintf(stderr, "simulated gh error: HTTP 401 Bad credentials (token %s refused)\nsecond line\n", fakeToken)
 		return exitError
 	case "":
-		fmt.Fprintln(stderr, "fakegh : FAKEGH_SCENARIO n'est pas défini")
+		fmt.Fprintln(stderr, "fakegh: FAKEGH_SCENARIO is not set")
 		return exitBadSetup
 	default:
-		fmt.Fprintf(stderr, "fakegh : scénario inconnu %q\n", scenario)
+		fmt.Fprintf(stderr, "fakegh: unknown scenario %q\n", scenario)
 		return exitBadSetup
 	}
 }
@@ -227,7 +227,7 @@ func answer(inv invocation, stdout, stderr io.Writer, accounts []account, tokens
 	if inv.command == "status" {
 		out := map[string]map[string][]account{"hosts": {inv.host: accounts}}
 		if err := json.NewEncoder(stdout).Encode(out); err != nil {
-			fmt.Fprintf(stderr, "fakegh : %v\n", err)
+			fmt.Fprintf(stderr, "fakegh: %v\n", err)
 			return exitBadSetup
 		}
 		return exitOK
@@ -285,7 +285,7 @@ func parseArgs(args []string) (invocation, error) {
 	}
 
 	if inv.command == "status" && inv.json != "hosts" {
-		return invocation{}, errors.New("fakegh : « auth status » attend --json hosts")
+		return invocation{}, errors.New(`fakegh: "auth status" expects --json hosts`)
 	}
 	return inv, nil
 }
@@ -322,14 +322,14 @@ func record(args []string) error {
 func nextCount() (int, error) {
 	path := os.Getenv("FAKEGH_STATE_FILE")
 	if path == "" {
-		return 0, errors.New("FAKEGH_STATE_FILE n'est pas défini")
+		return 0, errors.New("FAKEGH_STATE_FILE is not set")
 	}
 	n := 0
 	data, err := os.ReadFile(path)
 	switch {
 	case err == nil:
 		if n, err = strconv.Atoi(strings.TrimSpace(string(data))); err != nil {
-			return 0, fmt.Errorf("compteur illisible : %w", err)
+			return 0, fmt.Errorf("unreadable counter: %w", err)
 		}
 	case !errors.Is(err, os.ErrNotExist):
 		return 0, err

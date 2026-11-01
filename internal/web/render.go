@@ -12,14 +12,24 @@ package web
 //
 // Chaque page est analysée dans son propre ensemble (layout + partials + la page) : deux pages
 // peuvent définir des blocs de même nom sans conflit.
+//
+// Langues : les templates sont analysés une fois par langue (anglais, français), chaque jeu avec ses
+// fonctions liées au traducteur de sa langue (t, tn, relTime… : funcs.go). Une requête est rendue
+// avec le jeu de PageData.Lang, la langue de l'espace lue au début de la requête (lang.go).
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"html/template"
 	"io/fs"
 	"net/http"
+
+	"github.com/studoo-app/watchoo/internal/i18n"
 )
+
+// langs sont les langues des jeux de templates ; la première sert de repli.
+var langs = []i18n.Lang{i18n.English, i18n.French}
 
 // Pages connues : nom du fichier templates/<nom>.html.
 const (
@@ -42,7 +52,8 @@ const (
 
 // PageData est la donnée de TOUS les templates (pages complètes et fragments). Construire avec s.page.
 type PageData struct {
-	Title     string   // titre propre à la page ; le layout ajoute le nom de l'espace et « Watchoo »
+	Title     string   // titre propre à la page (traduit) ; le layout ajoute le nom de l'espace et « Watchoo »
+	Lang      string   // langue de la page (« en », « fr ») : jeu de templates et attribut <html lang>
 	Nav       string   // entrée active de la navigation (navDashboard…) ; vide = aucune
 	Content   any      // données propres à la page (type défini par le fichier Go de la page)
 	Workspace string   // nom de l'espace (Config.Name)
@@ -60,7 +71,7 @@ type PageData struct {
 type UpdateView struct {
 	Current    string // version installée
 	Latest     string // dernière version publiée
-	ReleaseURL string // page de la release (lien « Notes de version »)
+	ReleaseURL string // page de la release (lien « Release notes »)
 	Docker     bool   // image Docker : changer le tag au lieu de « watchoo update »
 }
 
@@ -79,49 +90,64 @@ func (s *server) updateView() *UpdateView {
 // ErrorView est le contenu de la page d'erreur (templates/errors.html).
 type ErrorView struct {
 	Status  int    // code HTTP
-	Heading string // titre court (« Page introuvable »)
-	Message string // explication, sans détail interne
+	Heading string // titre court, traduit (« Page not found »)
+	Message string // explication traduite, sans détail interne
 }
 
-// page construit la PageData d'une requête.
+// page construit la PageData d'une requête, dans la langue de la requête (title est déjà traduit).
 func (s *server) page(r *http.Request, title, nav string, content any) PageData {
 	return PageData{
 		Title:     title,
+		Lang:      string(s.tr(r).Lang()),
 		Nav:       nav,
 		Content:   content,
 		Workspace: s.cfg.Name,
 		Version:   s.version,
 		CSRFToken: csrfToken(r),
-		Sync:      s.syncView(""),
+		Sync:      s.syncView(s.tr(r), ""),
 		Update:    s.updateView(),
 	}
 }
 
-// parseTemplates analyse layout.html et partials.html, puis chaque page dans un clone. Une erreur
-// cite le fichier fautif ; chaque page doit définir « content ».
-func (s *server) parseTemplates() (map[string]*template.Template, error) {
-	base, err := template.New("").Funcs(s.funcs()).ParseFS(templateFS, "templates/layout.html", "templates/partials.html")
+// parseTemplates analyse les templates pour chaque langue de langs.
+func (s *server) parseTemplates() (map[i18n.Lang]map[string]*template.Template, error) {
+	out := make(map[i18n.Lang]map[string]*template.Template, len(langs))
+	for _, l := range langs {
+		pages, err := s.parsePages(i18n.For(l))
+		if err != nil {
+			return nil, err
+		}
+		out[l] = pages
+	}
+	return out, nil
+}
+
+// parsePages analyse layout.html et partials.html, puis chaque page dans un clone, avec les
+// fonctions liées au traducteur tr. Une erreur cite le fichier fautif ; chaque page doit définir
+// « content ».
+func (s *server) parsePages(tr *i18n.Translator) (map[string]*template.Template, error) {
+	base, err := template.New("").Funcs(s.funcs(tr)).ParseFS(templateFS, "templates/layout.html", "templates/partials.html")
 	if err != nil {
-		return nil, fmt.Errorf("interface web : templates communs invalides : %w", err)
+		return nil, fmt.Errorf("%s%s%w", i18n.T("web.start.templates_invalid"), i18n.T("web.colon"), err)
 	}
 	if base.Lookup("layout") == nil {
-		return nil, fmt.Errorf("interface web : templates/layout.html ne définit pas « layout »")
+		return nil, errors.New(i18n.T("web.start.no_block", "templates/layout.html", "layout"))
 	}
 	pages := make(map[string]*template.Template, len(pageNames))
 	for _, name := range pageNames {
 		file := "templates/" + name + ".html"
 		if _, err := fs.Stat(templateFS, file); err != nil {
-			return nil, fmt.Errorf("interface web : template %s absent : %w", file, err)
+			return nil, fmt.Errorf("%s%s%w", i18n.T("web.start.template_missing", file), i18n.T("web.colon"), err)
 		}
 		t, err := base.Clone()
 		if err != nil {
-			return nil, fmt.Errorf("interface web : template %s : %w", file, err)
+			return nil, fmt.Errorf("%s%s%w", i18n.T("web.start.template_invalid", file), i18n.T("web.colon"), err)
 		}
 		if t, err = t.ParseFS(templateFS, file); err != nil {
-			return nil, fmt.Errorf("interface web : template %s invalide : %w", file, err)
+			return nil, fmt.Errorf("%s%s%w", i18n.T("web.start.template_invalid", file), i18n.T("web.colon"), err)
 		}
 		if t.Lookup("content") == nil {
-			return nil, fmt.Errorf("interface web : template %s ne définit pas « content »", file)
+			return nil, errors.New(i18n.T("web.start.no_block", file, "content"))
 		}
 		pages[name] = t
 	}
@@ -140,9 +166,15 @@ func (s *server) renderFragment(w http.ResponseWriter, r *http.Request, status i
 	s.execute(w, r, status, page, fragment, data)
 }
 
-// execute rend le bloc name de l'ensemble page dans un tampon, puis l'écrit.
+// execute rend le bloc name de l'ensemble page, dans la langue data.Lang (repli : anglais), dans un
+// tampon, puis l'écrit.
 func (s *server) execute(w http.ResponseWriter, r *http.Request, status int, page, name string, data PageData) {
-	t, ok := s.pages[page]
+	set, ok := s.pages[i18n.Lang(data.Lang)]
+	if !ok {
+		set = s.pages[langs[0]]
+		data.Lang = string(langs[0])
+	}
+	t, ok := set[page]
 	if !ok || t.Lookup(name) == nil {
 		s.logger.Error("template inconnu", "page", page, "bloc", name)
 		s.writeFallbackError(w)
@@ -155,8 +187,8 @@ func (s *server) execute(w http.ResponseWriter, r *http.Request, status int, pag
 			s.writeFallbackError(w)
 			return
 		}
-		s.renderError(w, r, http.StatusInternalServerError, "Erreur interne",
-			"La page n'a pas pu être affichée. Le détail est dans le journal de « watchoo serve ».")
+		s.renderError(w, r, http.StatusInternalServerError, s.t(r, "web.error.internal"),
+			s.t(r, "web.error.render"))
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -165,12 +197,13 @@ func (s *server) execute(w http.ResponseWriter, r *http.Request, status int, pag
 	_, _ = w.Write(buf.Bytes()) // client parti : rien à faire
 }
 
-// renderError écrit la page d'erreur (complète, ou fragment « error-alert » pour une requête HTMX).
-// Pour 401 et 421, la page est publique : rien de l'espace n'y figure.
+// renderError écrit la page d'erreur (complète, ou fragment « error-alert » pour une requête HTMX),
+// heading et message étant déjà traduits. Pour 401 et 421, la page est publique : rien de l'espace
+// n'y figure.
 func (s *server) renderError(w http.ResponseWriter, r *http.Request, status int, heading, message string) {
 	data := s.page(r, heading, "", ErrorView{Status: status, Heading: heading, Message: message})
 	if status == http.StatusUnauthorized || status == http.StatusMisdirectedRequest {
-		data = PageData{Title: heading, Public: true, Version: s.version,
+		data = PageData{Title: heading, Lang: data.Lang, Public: true, Version: s.version,
 			Content: ErrorView{Status: status, Heading: heading, Message: message}}
 	}
 	if isHTMX(r) && !data.Public {
@@ -182,34 +215,31 @@ func (s *server) renderError(w http.ResponseWriter, r *http.Request, status int,
 
 // notFound écrit la page 404.
 func (s *server) notFound(w http.ResponseWriter, r *http.Request) {
-	s.renderError(w, r, http.StatusNotFound, "Page introuvable",
-		"Cette page n'existe pas, ou le dépôt demandé n'est plus suivi dans cet espace.")
+	s.renderError(w, r, http.StatusNotFound, s.t(r, "web.error.not_found"), s.t(r, "web.error.not_found_text"))
 }
 
 // methodNotAllowed écrit la page 405.
 func (s *server) methodNotAllowed(w http.ResponseWriter, r *http.Request) {
-	s.renderError(w, r, http.StatusMethodNotAllowed, "Action impossible",
-		"Cette adresse n'accepte pas ce type de requête.")
+	s.renderError(w, r, http.StatusMethodNotAllowed, s.t(r, "web.error.method"), s.t(r, "web.error.method_text"))
 }
 
-// badRequest écrit une page 400 avec message (en français, sans détail interne ; il peut citer la
-// saisie de l'utilisateur, échappée par le template).
+// badRequest écrit une page 400 avec message (traduit, sans détail interne ; il peut citer la saisie
+// de l'utilisateur, échappée par le template).
 func (s *server) badRequest(w http.ResponseWriter, r *http.Request, message string) {
-	s.renderError(w, r, http.StatusBadRequest, "Requête invalide", message)
+	s.renderError(w, r, http.StatusBadRequest, s.t(r, "web.error.bad_request"), message)
 }
 
 // serverError journalise err (message sans donnée personnelle : erreurs du store et du moteur) et
 // écrit la page 500, sans détail interne.
 func (s *server) serverError(w http.ResponseWriter, r *http.Request, err error) {
 	s.logger.Error("erreur interne", "methode", r.Method, "erreur", err)
-	s.renderError(w, r, http.StatusInternalServerError, "Erreur interne",
-		"Une erreur est survenue. Le détail est dans le journal de « watchoo serve ».")
+	s.renderError(w, r, http.StatusInternalServerError, s.t(r, "web.error.internal"), s.t(r, "web.error.internal_text"))
 }
 
 // writeFallbackError écrit une erreur 500 en texte brut (quand même la page d'erreur ne peut pas
-// être rendue).
+// être rendue), en anglais et en français : la langue de la requête peut être inconnue ici.
 func (s *server) writeFallbackError(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusInternalServerError)
-	_, _ = w.Write([]byte("erreur interne de Watchoo\n"))
+	_, _ = w.Write([]byte("Watchoo internal error / erreur interne de Watchoo\n"))
 }

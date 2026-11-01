@@ -60,8 +60,7 @@ func (s *server) hostCheck(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !s.hosts.allows(r.Host) {
 			s.logger.Warn("requête refusée : en-tête Host inattendu")
-			s.renderError(w, r, http.StatusMisdirectedRequest, "Adresse inattendue",
-				"Ouvrez l'interface par http://localhost ou http://127.0.0.1, avec le port de « watchoo serve ».")
+			s.renderError(w, r, http.StatusMisdirectedRequest, s.t(r, "web.error.host"), s.t(r, "web.error.host_text"))
 			return
 		}
 		next.ServeHTTP(w, r)
@@ -85,8 +84,7 @@ func (s *server) basicAuth(next http.Handler) http.Handler {
 		passOK := subtle.ConstantTimeCompare(gotPass[:], wantPass[:])
 		if !ok || userOK&passOK != 1 {
 			w.Header().Set("WWW-Authenticate", `Basic realm="Watchoo", charset="UTF-8"`)
-			s.renderError(w, r, http.StatusUnauthorized, "Authentification requise",
-				"Identifiez-vous pour accéder à l'interface de Watchoo.")
+			s.renderError(w, r, http.StatusUnauthorized, s.t(r, "web.error.auth"), s.t(r, "web.error.auth_text"))
 			return
 		}
 		next.ServeHTTP(w, r)
@@ -164,8 +162,7 @@ func (s *server) recoverer(next http.Handler) http.Handler {
 			}
 			route := routePattern(r)
 			s.logger.Error("panique dans un gestionnaire http", "route", route)
-			s.renderError(w, r, http.StatusInternalServerError, "Erreur interne",
-				"Une erreur inattendue est survenue. Le détail est dans le journal de « watchoo serve ».")
+			s.renderError(w, r, http.StatusInternalServerError, s.t(r, "web.error.internal"), s.t(r, "web.error.panic"))
 		}()
 		next.ServeHTTP(w, r)
 	})

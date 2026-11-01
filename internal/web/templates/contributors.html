@@ -10,11 +10,11 @@
 {{define "content"}}
 <div class="flex flex-wrap items-end justify-between gap-2 mb-4">
   <div>
-    <h1 class="text-2xl font-bold">Contributeurs</h1>
-    <p class="text-sm text-base-content/70">Auteurs des commits de tous les dépôts suivis, du plus actif au moins actif.</p>
+    <h1 class="text-2xl font-bold">{{t "web.nav.contributors"}}</h1>
+    <p class="text-sm text-base-content/70">{{t "web.contributors.intro"}}</p>
   </div>
 </div>
-{{if .Content.Rows}}<div class="mb-4">{{template "contributors-chart" (dict "Chart" .Content.Chart "ID" "contributors-chart" "RefreshURL" "/contributors" "Scope" "" "Title" (print "Activité sur " .Content.Chart.Weeks " semaines"))}}</div>{{end}}
+{{if .Content.Rows}}<div class="mb-4">{{template "contributors-chart" (dict "Chart" .Content.Chart "ID" "contributors-chart" "RefreshURL" "/contributors" "Scope" "" "Title" (t "web.contributors.chart_title" .Content.Chart.Weeks))}}</div>{{end}}
 {{template "contributors-table" .}}
 {{end}}
 
@@ -25,37 +25,37 @@
   {{- if not $c.Rows}}
   <div class="card bg-base-100 shadow-sm">
     <div class="card-body items-center text-center">
-      <h2 class="card-title">Aucun contributeur pour l'instant</h2>
-      <p class="text-base-content/70">Les auteurs apparaissent après la première synchro des dépôts.</p>
-      <a href="/settings" class="btn btn-primary btn-sm mt-2">Gérer les dépôts</a>
+      <h2 class="card-title">{{t "web.contributors.empty_title"}}</h2>
+      <p class="text-base-content/70">{{t "web.contributors.empty_text"}}</p>
+      <a href="/settings" class="btn btn-primary btn-sm mt-2">{{t "web.contributors.manage"}}</a>
     </div>
   </div>
   {{- else}}
   <div class="stats stats-vertical sm:stats-horizontal shadow-sm bg-base-100 w-full mb-4">
     <div class="stat">
-      <div class="stat-title">Contributeurs</div>
+      <div class="stat-title">{{t "web.nav.contributors"}}</div>
       <div class="stat-value">{{len $c.Rows}}</div>
     </div>
     <div class="stat">
-      <div class="stat-title">Commits</div>
+      <div class="stat-title">{{t "web.col.commits"}}</div>
       <div class="stat-value">{{$c.TotalCommits}}</div>
     </div>
     <div class="stat">
-      <div class="stat-title">Dépôts</div>
+      <div class="stat-title">{{t "web.col.repos"}}</div>
       <div class="stat-value">{{$c.Repos}}</div>
     </div>
   </div>
   <div class="overflow-x-auto rounded-box bg-base-100 shadow-sm">
     <table class="table">
-      <caption class="sr-only">Classement des contributeurs</caption>
+      <caption class="sr-only">{{t "web.contributors.caption"}}</caption>
       <thead>
         <tr>
           <th scope="col" class="w-10">#</th>
-          <th scope="col">Contributeur</th>
-          <th scope="col" class="text-right">Commits</th>
-          <th scope="col" class="hidden md:table-cell text-right">Lignes</th>
-          <th scope="col">Commits par dépôt</th>
-          <th scope="col">Dernière activité</th>
+          <th scope="col">{{t "web.col.contributor"}}</th>
+          <th scope="col" class="text-right">{{t "web.col.commits"}}</th>
+          <th scope="col" class="hidden md:table-cell text-right">{{t "web.col.lines"}}</th>
+          <th scope="col">{{t "web.contributors.per_repo"}}</th>
+          <th scope="col">{{t "web.contributors.last_activity"}}</th>
         </tr>
       </thead>
       <tbody>
@@ -76,15 +76,15 @@
           </td>
           <td class="text-right">
             <div class="font-semibold tabular-nums">{{.Commits}}</div>
-            <div class="text-xs text-base-content/60 tabular-nums" title="Part de tous les commits">{{percent .Commits $c.TotalCommits}} %</div>
+            <div class="text-xs text-base-content/60 tabular-nums" title="{{t "web.contributors.share"}}">{{t "web.percent" (percent .Commits $c.TotalCommits)}}</div>
           </td>
           <td class="hidden md:table-cell text-right tabular-nums whitespace-nowrap">
             {{- template "line-totals" .Lines}}
           </td>
           <td>
-            <ul class="flex flex-wrap gap-1" aria-label="Commits par dépôt">
+            <ul class="flex flex-wrap gap-1" aria-label="{{t "web.contributors.per_repo"}}">
               {{- range .Repos}}
-              <li><a href="{{repoPath .RepoID}}" class="badge badge-outline gap-1 hover:badge-primary" title="Dernier commit dans ce dépôt : {{localTime .LastCommitAt}}"><span class="max-w-48 truncate">{{truncate 40 .RepoDisplayName}}</span><span class="font-semibold tabular-nums">{{.Commits}}</span></a></li>
+              <li><a href="{{repoPath .RepoID}}" class="badge badge-outline gap-1 hover:badge-primary" title="{{t "web.contributors.last_in_repo" (localTime .LastCommitAt)}}"><span class="max-w-48 truncate">{{truncate 40 .RepoDisplayName}}</span><span class="font-semibold tabular-nums">{{.Commits}}</span></a></li>
               {{- end}}
             </ul>
           </td>

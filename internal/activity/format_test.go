@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/model"
 )
 
@@ -15,20 +16,20 @@ func TestShort(t *testing.T) {
 		asciiOut string
 	}{
 		{Result{State: StateActive, Days: 2}, "-", "-"},
-		{Result{State: StateFlemme, Days: 9}, "~ 9 j", "~ 9 j"},
-		{Result{State: StateDead, Days: 42}, "⚠ 42 j", "! 42 j"},
-		{Result{State: StateStopped, Days: 3}, "arrêté", "arrete"},
-		{Result{State: StateError, Days: -1}, "erreur", "erreur"},
-		{Result{State: StateNeverSynced, Days: -1}, "jamais", "jamais"},
-		{Result{State: StateArchived, Days: 80}, "archivé", "archive"},
-		{Result{State: StateEmpty, Days: -1}, "vide", "vide"},
+		{Result{State: StateFlemme, Days: 9}, "~ 9 d", "~ 9 d"},
+		{Result{State: StateDead, Days: 42}, "⚠ 42 d", "! 42 d"},
+		{Result{State: StateStopped, Days: 3}, "stopped", "stopped"},
+		{Result{State: StateError, Days: -1}, "error", "error"},
+		{Result{State: StateNeverSynced, Days: -1}, "never", "never"},
+		{Result{State: StateArchived, Days: 80}, "archived", "archived"},
+		{Result{State: StateEmpty, Days: -1}, "empty", "empty"},
 	}
 	for _, tt := range tests {
 		if got := tt.res.Short(true); got != tt.unicode {
-			t.Errorf("%s Short(true) = %q, attendu %q", tt.res.State, got, tt.unicode)
+			t.Errorf("%s Short(true) = %q, want %q", tt.res.State, got, tt.unicode)
 		}
 		if got := tt.res.Short(false); got != tt.asciiOut {
-			t.Errorf("%s Short(false) = %q, attendu %q", tt.res.State, got, tt.asciiOut)
+			t.Errorf("%s Short(false) = %q, want %q", tt.res.State, got, tt.asciiOut)
 		}
 	}
 }
@@ -41,22 +42,22 @@ func TestRelative(t *testing.T) {
 		unicode bool
 		want    string
 	}{
-		{"zéro", time.Time{}, true, "jamais"},
-		{"à l'instant", now.Add(-30 * time.Second), true, "à l'instant"},
-		{"à l'instant ascii", now.Add(-30 * time.Second), false, "a l'instant"},
-		{"futur", now.Add(time.Hour), true, "à l'instant"},
-		{"minutes", now.Add(-5 * time.Minute), true, "il y a 5 min"},
-		{"59 min", now.Add(-59*time.Minute - 59*time.Second), true, "il y a 59 min"},
-		{"heures", now.Add(-2*time.Hour - 10*time.Minute), true, "il y a 2 h"},
-		{"23 h, la veille", now.Add(-23 * time.Hour), true, "il y a 23 h"},
-		{"jours", now.AddDate(0, 0, -9), true, "il y a 9 j"},
-		{"24 h juste", now.Add(-24 * time.Hour), true, "il y a 1 j"},
-		{"34 h sur deux minuits", time.Date(2026, 3, 18, 23, 30, 0, 0, time.UTC), true, "il y a 2 j"},
+		{"zero", time.Time{}, true, "never"},
+		{"just now", now.Add(-30 * time.Second), true, "just now"},
+		{"just now ascii", now.Add(-30 * time.Second), false, "just now"},
+		{"future", now.Add(time.Hour), true, "just now"},
+		{"minutes", now.Add(-5 * time.Minute), true, "5 min ago"},
+		{"59 min", now.Add(-59*time.Minute - 59*time.Second), true, "59 min ago"},
+		{"hours", now.Add(-2*time.Hour - 10*time.Minute), true, "2 h ago"},
+		{"23 h, the day before", now.Add(-23 * time.Hour), true, "23 h ago"},
+		{"days", now.AddDate(0, 0, -9), true, "9 d ago"},
+		{"exactly 24 h", now.Add(-24 * time.Hour), true, "1 d ago"},
+		{"34 h over two midnights", time.Date(2026, 3, 18, 23, 30, 0, 0, time.UTC), true, "2 d ago"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := Relative(tt.t, now, time.UTC, tt.unicode); got != tt.want {
-				t.Errorf("Relative = %q, attendu %q", got, tt.want)
+				t.Errorf("Relative = %q, want %q", got, tt.want)
 			}
 		})
 	}
@@ -67,11 +68,73 @@ func TestRelativeConcordsWithShort(t *testing.T) {
 	commit := time.Date(2026, 3, 10, 23, 50, 0, 0, paris)
 	now := time.Date(2026, 3, 19, 0, 5, 0, 0, paris)
 	res := Evaluate(syncedRepo(commit), syncedRunOK(), defaultCfg, now, paris)
-	if res.Short(true) != "~ 9 j" {
-		t.Fatalf("Short = %q, attendu « ~ 9 j »", res.Short(true))
+	if res.Short(true) != "~ 9 d" {
+		t.Fatalf("Short = %q, want \"~ 9 d\"", res.Short(true))
+	}
+	if got := Relative(commit, now, paris, true); got != "9 d ago" {
+		t.Errorf("Relative = %q, want \"9 d ago\"", got)
+	}
+}
+
+// TestFrench checks the French texts of the states and relative dates: the unicode trick of Short
+// (variant without accent when the terminal does not display Unicode) and the "il y a" formats.
+func TestFrench(t *testing.T) {
+	defer i18n.SetProcessForTest(i18n.French)()
+	paris := mustLoc(t, "Europe/Paris")
+	commit := time.Date(2026, 3, 10, 23, 50, 0, 0, paris)
+	now := time.Date(2026, 3, 19, 0, 5, 0, 0, paris)
+	res := Evaluate(syncedRepo(commit), syncedRunOK(), defaultCfg, now, paris)
+	if got := res.Short(true); got != "~ 9 j" {
+		t.Errorf("Short(true) = %q, want \"~ 9 j\"", got)
+	}
+	if got := res.Short(false); got != "~ 9 j" {
+		t.Errorf("Short(false) = %q, want \"~ 9 j\"", got)
+	}
+	stopped := syncedRepo(commit)
+	stopped.Enabled = false
+	stoppedRes := Evaluate(stopped, syncedRunOK(), defaultCfg, now, paris)
+	if got := stoppedRes.Short(true); got != "arrêté" {
+		t.Errorf("Short(true) = %q, want \"arrêté\"", got)
+	}
+	if got := stoppedRes.Short(false); got != "arrete" {
+		t.Errorf("Short(false) = %q, want \"arrete\"", got)
+	}
+	if got := StateNeverSynced.Label(); got != "Jamais synchronisé" {
+		t.Errorf("Label = %q, want \"Jamais synchronisé\"", got)
 	}
 	if got := Relative(commit, now, paris, true); got != "il y a 9 j" {
-		t.Errorf("Relative = %q, attendu « il y a 9 j »", got)
+		t.Errorf("Relative = %q, want \"il y a 9 j\"", got)
+	}
+	if got := Relative(time.Time{}, now, paris, true); got != "jamais" {
+		t.Errorf("Relative(zero) = %q, want \"jamais\"", got)
+	}
+}
+
+// TestTranslatorVariants checks that LabelIn, ShortIn and RelativeIn follow the given translator,
+// not the process language (the web renders in the workspace language).
+func TestTranslatorVariants(t *testing.T) {
+	defer i18n.SetProcessForTest(i18n.English)()
+	paris := mustLoc(t, "Europe/Paris")
+	commit := time.Date(2026, 3, 10, 23, 50, 0, 0, paris)
+	now := time.Date(2026, 3, 19, 0, 5, 0, 0, paris)
+	res := Evaluate(syncedRepo(commit), syncedRunOK(), defaultCfg, now, paris)
+	fr, en := i18n.For(i18n.French), i18n.For(i18n.English)
+	checks := []struct{ name, got, want string }{
+		{"LabelIn fr", StateFlemme.LabelIn(fr), "Flemme"},
+		{"LabelIn en", StateFlemme.LabelIn(en), "Slacking"},
+		{"LabelIn fr gray", StateNeverSynced.LabelIn(fr), "Jamais synchronisé"},
+		{"ShortIn fr", res.ShortIn(fr, true), "~ 9 j"},
+		{"ShortIn en", res.ShortIn(en, true), "~ 9 d"},
+		{"RelativeIn fr", RelativeIn(fr, commit, now, paris, true), "il y a 9 j"},
+		{"RelativeIn en", RelativeIn(en, commit, now, paris, true), "9 d ago"},
+		{"RelativeIn fr zero", RelativeIn(fr, time.Time{}, now, paris, true), "jamais"},
+		{"Label process", StateFlemme.Label(), "Slacking"},
+		{"Relative process", Relative(commit, now, paris, true), "9 d ago"},
+	}
+	for _, c := range checks {
+		if c.got != c.want {
+			t.Errorf("%s = %q, want %q", c.name, c.got, c.want)
+		}
 	}
 }
 
@@ -86,23 +149,23 @@ func TestParseSince(t *testing.T) {
 	for in, want := range ok {
 		got, err := ParseSince(in)
 		if err != nil || got != want {
-			t.Errorf("ParseSince(%q) = %v, %v ; attendu %v", in, got, err, want)
+			t.Errorf("ParseSince(%q) = %v, %v; want %v", in, got, err, want)
 		}
 	}
 	for _, in := range []string{"", "d", "7", "0d", "-3d", "+3d", "7 d", " 7d", "1.5h", "7w", "7D", "3s", "abc",
 		"99999999999999999999d", "200000000d"} {
 		_, err := ParseSince(in)
 		if err == nil {
-			t.Errorf("ParseSince(%q) : erreur attendue", in)
+			t.Errorf("ParseSince(%q): error expected", in)
 			continue
 		}
 		if !strings.Contains(err.Error(), "7d") || !strings.Contains(err.Error(), "--since") {
-			t.Errorf("ParseSince(%q) : message peu clair : %v", in, err)
+			t.Errorf("ParseSince(%q): unclear message: %v", in, err)
 		}
 	}
 }
 
-// syncedRunOK renvoie un sync_run réussi.
+// syncedRunOK returns a successful sync_run.
 func syncedRunOK() model.SyncRun { return model.SyncRun{ID: 1, Status: model.SyncSuccess} }
 
 func TestSparkline(t *testing.T) {
@@ -121,7 +184,7 @@ func TestSparkline(t *testing.T) {
 	}
 	for _, tt := range tests {
 		if got := Sparkline(tt.counts, tt.unicode); got != tt.want {
-			t.Errorf("Sparkline(%v, %v) = %q, attendu %q", tt.counts, tt.unicode, got, tt.want)
+			t.Errorf("Sparkline(%v, %v) = %q, want %q", tt.counts, tt.unicode, got, tt.want)
 		}
 	}
 }

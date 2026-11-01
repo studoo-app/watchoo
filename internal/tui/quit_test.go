@@ -18,9 +18,9 @@ import (
 	"github.com/studoo-app/watchoo/internal/workspace"
 )
 
-// blockingProvider bloque RepositoryByID jusqu'à l'annulation du contexte, puis laisse encore passer
-// un peu de temps avant de rendre la main (le moteur doit ensuite clore son sync_run) : sans attente
-// de la synchro par Run, le sync_run serait encore « running » au retour de Run.
+// blockingProvider blocks RepositoryByID until the context is cancelled, then lets some more time
+// pass before returning (the engine must then close its sync_run): if Run did not wait for the sync,
+// the sync_run would still be "running" when Run returns.
 type blockingProvider struct {
 	provider.Provider
 	entered chan struct{}
@@ -34,7 +34,7 @@ func (b *blockingProvider) RepositoryByID(ctx context.Context, id int64) (provid
 	return provider.Repository{}, ctx.Err()
 }
 
-// safeWriter est une sortie protégée par un verrou (écrite par Bubble Tea).
+// safeWriter is an output protected by a lock (written by Bubble Tea).
 type safeWriter struct {
 	mu  gosync.Mutex
 	buf bytes.Buffer
@@ -46,8 +46,8 @@ func (w *safeWriter) Write(p []byte) (int, error) {
 	return w.buf.Write(p)
 }
 
-// Quitter pendant une synchro : Run annule la synchro et l'attend ; le sync_run est clos (pas
-// « running ») et le dépôt n'est pas verrouillé pour la synchro suivante.
+// Quitting during a sync: Run cancels the sync and waits for it; the sync_run is closed (not
+// "running") and the repository is not locked for the next sync.
 func TestRunWaitsForSyncOnQuit(t *testing.T) {
 	ctx := t.Context()
 	st, err := store.Open(ctx, filepath.Join(t.TempDir(), "watchoo.db"))
@@ -89,7 +89,7 @@ func TestRunWaitsForSyncOnQuit(t *testing.T) {
 	select {
 	case <-blocking.entered:
 	case <-time.After(5 * time.Second):
-		t.Fatal("la synchro n'a pas démarré")
+		t.Fatal("the sync did not start")
 	}
 	if _, err := keys.Write([]byte("q")); err != nil {
 		t.Fatal(err)
@@ -97,10 +97,10 @@ func TestRunWaitsForSyncOnQuit(t *testing.T) {
 	select {
 	case err := <-returned:
 		if err != nil {
-			t.Fatalf("Run : %v", err)
+			t.Fatalf("Run: %v", err)
 		}
 	case <-time.After(15 * time.Second):
-		t.Fatal("Run n'a pas rendu la main")
+		t.Fatal("Run did not return")
 	}
 
 	run, err := st.LastSyncRun(ctx, repo.ID)
@@ -108,13 +108,13 @@ func TestRunWaitsForSyncOnQuit(t *testing.T) {
 		t.Fatal(err)
 	}
 	if run.Status == model.SyncRunning {
-		t.Fatalf("sync_run encore « running » au retour de Run : %+v", run)
+		t.Fatalf("sync_run still \"running\" when Run returned: %+v", run)
 	}
 	next, err := st.BeginSyncRun(ctx, repo.ID, time.Now(), wsync.LockStaleAfter)
 	if err != nil {
-		t.Fatalf("BeginSyncRun après avoir quitté : %v", err)
+		t.Fatalf("BeginSyncRun after quitting: %v", err)
 	}
 	if next.ID == run.ID {
-		t.Errorf("nouveau sync_run attendu, reçu %+v", next)
+		t.Errorf("new sync_run expected, got %+v", next)
 	}
 }

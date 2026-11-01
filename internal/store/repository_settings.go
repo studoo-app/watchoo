@@ -7,8 +7,8 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/store/db"
 )
@@ -24,9 +24,9 @@ func (s *Store) UpdateRepositorySettings(ctx context.Context, id int64, label st
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return model.Repository{}, fmt.Errorf("dépôt %d : %w", id, ErrNotFound)
+			return model.Repository{}, wrapErr(i18n.T("store.repo.id", id), ErrNotFound)
 		}
-		return model.Repository{}, fmt.Errorf("mise à jour du dépôt %d : %w", id, err)
+		return model.Repository{}, wrapErr(i18n.T("store.repo.update", id), err)
 	}
 	return repositoryFromDB(row)
 }
@@ -43,9 +43,9 @@ func (s *Store) SetRepositoryThresholds(ctx context.Context, id int64, flemme, d
 	})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return model.Repository{}, fmt.Errorf("dépôt %d : %w", id, ErrNotFound)
+			return model.Repository{}, wrapErr(i18n.T("store.repo.id", id), ErrNotFound)
 		}
-		return model.Repository{}, fmt.Errorf("seuils du dépôt %d : %w", id, err)
+		return model.Repository{}, wrapErr(i18n.T("store.repo.thresholds", id), err)
 	}
 	return repositoryFromDB(row)
 }
@@ -55,10 +55,10 @@ func (s *Store) SetRepositoryThresholds(ctx context.Context, id int64, flemme, d
 func (s *Store) SetRepositoryEnabled(ctx context.Context, id int64, enabled bool) error {
 	n, err := s.queries.SetRepositoryEnabled(ctx, db.SetRepositoryEnabledParams{Enabled: enabled, ID: id})
 	if err != nil {
-		return fmt.Errorf("suivi du dépôt %d : %w", id, err)
+		return wrapErr(i18n.T("store.repo.enabled", id), err)
 	}
 	if n == 0 {
-		return fmt.Errorf("dépôt %d : %w", id, ErrNotFound)
+		return wrapErr(i18n.T("store.repo.id", id), ErrNotFound)
 	}
 	return nil
 }

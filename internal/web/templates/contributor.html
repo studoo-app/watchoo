@@ -13,7 +13,7 @@
 {{define "content"}}{{$p := .Content.Profile}}
 <div class="breadcrumbs text-sm mb-2">
   <ul>
-    <li><a href="/contributors">Contributeurs</a></li>
+    <li><a href="/contributors">{{t "web.nav.contributors"}}</a></li>
     <li><span class="truncate max-w-64" aria-current="page">{{clean $p.DisplayName}}</span></li>
   </ul>
 </div>
@@ -24,21 +24,21 @@
       <div class="card-body p-4 md:p-6">
         {{- $d := .Content.Daily}}
         <div class="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 id="contributor-activity-title" class="card-title text-lg">Activité sur {{$d.Days}} jours</h2>
+          <h2 id="contributor-activity-title" class="card-title text-lg">{{t "web.repo.activity_title" $d.Days}}</h2>
           <p class="text-sm text-base-content/70" id="contributor-activity-summary">
-            {{plural $d.Total "commit" "commits"}}{{if $d.Peak.Count}}, au plus {{$d.Peak.Count}} le {{$d.PeakDate}}{{end}}
+            {{tn "web.n.commit" $d.Total}}{{if $d.Peak.Count}}{{t "web.chart.peak" $d.Peak.Count $d.PeakDate}}{{end}}
           </p>
         </div>
         <div class="relative h-56 md:h-64 w-full">
           <canvas id="contributor-activity-chart" role="img" data-chart="daily" data-source="contributor-activity-data"
                   data-summary="contributor-activity-summary" data-refresh-url="{{contribPath $p.ID}}"
-                  aria-label="Commits par jour sur les {{$d.Days}} derniers jours, tous ses dépôts : {{plural $d.Total "commit" "commits"}} au total"></canvas>
+                  aria-label="{{t "web.contributor.activity_aria" $d.Days (tn "web.n.commit" $d.Total)}}"></canvas>
         </div>
-        <p class="text-xs text-base-content/60">Commits par jour (date de commit) dont il ou elle est l'auteur, tous dépôts confondus, dans le fuseau d'affichage de l'espace.</p>
+        <p class="text-xs text-base-content/60">{{t "web.contributor.activity_legend"}}</p>
       </div>
       <script type="application/json" id="contributor-activity-data">{{$d.Series}}</script>
     </section>
-    {{template "contributors-chart" (dict "Chart" .Content.Weekly "ID" "contributor-repos-chart" "RefreshURL" (contribPath $p.ID) "Title" (print "Activité par dépôt sur " .Content.Weekly.Weeks " semaines") "Scope" "" "ByRepo" true "Note" "Un commit n'est compté qu'une fois, quelle que soit sa branche.")}}
+    {{template "contributors-chart" (dict "Chart" .Content.Weekly "ID" "contributor-repos-chart" "RefreshURL" (contribPath $p.ID) "Title" (t "web.contributor.chart_title" .Content.Weekly.Weeks) "Scope" "" "ByRepo" true "Note" (t "web.contributor.chart_note"))}}
   </div>
   {{template "contributor-repos" .}}
   {{template "contributor-pulls" .}}
@@ -60,33 +60,33 @@
         <p class="text-sm text-base-content/70 mt-1 flex flex-wrap items-center gap-2">
           {{- if $v.ShowLogin}}<span class="break-all">@{{clean $p.ProviderLogin}}</span>{{end}}
           {{- template "profile-link" (dict "URL" $p.ProfileURL "Login" $p.ProviderLogin)}}
-          <span>{{plural $p.Identities "identité Git connue" "identités Git connues"}}</span>
+          <span>{{tn "web.n.identity" $p.Identities}}</span>
         </p>
       </div>
     </div>
     <div class="stats stats-vertical sm:stats-horizontal bg-base-200/40 w-full">
       <div class="stat">
-        <div class="stat-title">Commits</div>
+        <div class="stat-title">{{t "web.col.commits"}}</div>
         <div class="stat-value">{{$p.Commits}}</div>
-        <div class="stat-desc">dans {{plural $p.Repos "dépôt" "dépôts"}}</div>
+        <div class="stat-desc">{{t "web.contributor.in_repos" (tn "web.n.repo" $p.Repos)}}</div>
       </div>
       <div class="stat">
-        <div class="stat-title">Lignes</div>
+        <div class="stat-title">{{t "web.col.lines"}}</div>
         <div class="stat-value text-2xl tabular-nums">
           {{- template "line-totals" $p.Lines}}
         </div>
-        <div class="stat-desc">ajoutées / supprimées</div>
+        <div class="stat-desc">{{t "web.contributor.added_deleted"}}</div>
       </div>
       <div class="stat">
-        <div class="stat-title">Premier commit</div>
+        <div class="stat-title">{{t "web.contributor.first_commit"}}</div>
         <div class="stat-value text-lg">{{template "rel-time" $p.FirstCommitAt}}</div>
       </div>
       <div class="stat">
-        <div class="stat-title">Dernier commit</div>
+        <div class="stat-title">{{t "web.repo.last_commit"}}</div>
         <div class="stat-value text-lg">{{template "rel-time" $p.LastCommitAt}}</div>
       </div>
     </div>
-    <p class="text-xs text-base-content/60">Commits dont il ou elle est l'auteur. Les lignes ajoutées et supprimées sont comptées dans le clone Git local de chaque dépôt, pour tous ses commits ; « — » signale des lignes pas encore comptées (clone indisponible). Les états Actif, Flemme et Dead sont ceux des dépôts (liste ci-dessous) ; les adresses e-mail ne sont jamais affichées.</p>
+    <p class="text-xs text-base-content/60">{{t "web.contributor.overview_note"}}</p>
   </div>
 </section>
 {{end}}
@@ -96,18 +96,18 @@
 <section id="contributor-repos" class="card bg-base-100 shadow-sm min-w-0" aria-labelledby="contributor-repos-title"
          hx-get="{{contribPath $v.Profile.ID}}" hx-trigger="sync-finished from:body" hx-swap="outerHTML">
   <div class="card-body p-4 md:p-6">
-    <h2 id="contributor-repos-title" class="card-title text-lg">Dépôts</h2>
+    <h2 id="contributor-repos-title" class="card-title text-lg">{{t "web.col.repos"}}</h2>
     {{if $v.Repos}}
     <div class="overflow-x-auto">
       <table class="table">
-        <caption class="sr-only">Ses commits par dépôt</caption>
+        <caption class="sr-only">{{t "web.contributor.repos_caption"}}</caption>
         <thead>
           <tr>
-            <th scope="col">Dépôt</th>
-            <th scope="col">État du dépôt</th>
-            <th scope="col" class="text-right">Commits</th>
-            <th scope="col" class="text-right">Lignes</th>
-            <th scope="col">Son dernier commit</th>
+            <th scope="col">{{t "web.col.repo"}}</th>
+            <th scope="col">{{t "web.contributor.repo_state"}}</th>
+            <th scope="col" class="text-right">{{t "web.col.commits"}}</th>
+            <th scope="col" class="text-right">{{t "web.col.lines"}}</th>
+            <th scope="col">{{t "web.contributor.their_last_commit"}}</th>
           </tr>
         </thead>
         <tbody>
@@ -126,7 +126,7 @@
       </table>
     </div>
     {{else}}
-    <p class="text-sm text-base-content/70">Aucun commit dont il ou elle est l'auteur en base.</p>
+    <p class="text-sm text-base-content/70">{{t "web.contributor.no_commit"}}</p>
     {{end}}
   </div>
 </section>
@@ -138,11 +138,11 @@
 <section id="contributor-pulls" class="card bg-base-100 shadow-sm min-w-0" aria-labelledby="contributor-pulls-title"
          hx-get="{{contribPath $v.Profile.ID}}" hx-trigger="sync-finished from:body" hx-swap="outerHTML">
   <div class="card-body p-4 md:p-6">
-    <h2 id="contributor-pulls-title" class="card-title text-lg">Pull requests</h2>
+    <h2 id="contributor-pulls-title" class="card-title text-lg">{{t "web.pr.title"}}</h2>
     {{if not $v.HasAccount}}
-    <p class="text-sm text-base-content/70">Non rapprochées : aucun compte GitHub n'est connu pour ce contributeur (identité Git seule).</p>
+    <p class="text-sm text-base-content/70">{{t "web.contributor.pulls_no_account"}}</p>
     {{else if $v.Pulls}}
-    <p class="text-xs text-base-content/60">Les {{len $v.Pulls}} plus récemment modifiées, tous dépôts confondus.</p>
+    <p class="text-xs text-base-content/60">{{t "web.contributor.pulls_recent" (len $v.Pulls)}}</p>
     <ul class="divide-y divide-base-200" role="list">
       {{range $v.Pulls}}
       <li class="py-2 flex items-start justify-between gap-3 min-w-0">
@@ -153,18 +153,18 @@
           </p>
           <p class="text-xs text-base-content/60 break-all">
             <a href="{{repoPath .RepoID}}" class="link link-hover">{{clean .RepoDisplayName}}</a> ·
-            {{if not .MergedAt.IsZero}}mergée {{template "rel-time" .MergedAt}}{{else if not .ClosedAt.IsZero}}fermée {{template "rel-time" .ClosedAt}}{{else}}ouverte {{template "rel-time" .CreatedAt}}{{end}}
+            {{if not .MergedAt.IsZero}}{{t "web.pr.merged_at"}} {{template "rel-time" .MergedAt}}{{else if not .ClosedAt.IsZero}}{{t "web.pr.closed_at"}} {{template "rel-time" .ClosedAt}}{{else}}{{t "web.pr.opened_at"}} {{template "rel-time" .CreatedAt}}{{end}}
           </p>
         </div>
         {{- $st := print .Status}}
         <span class="badge badge-sm whitespace-nowrap {{if eq $st "merged"}}badge-success{{else if eq $st "closed"}}badge-ghost{{else if .Draft}}badge-ghost{{else}}badge-info{{end}}">
-          {{- if eq $st "merged"}}mergée{{else if eq $st "closed"}}fermée{{else if .Draft}}brouillon{{else}}ouverte{{end -}}
+          {{- if eq $st "merged"}}{{t "web.pr.badge_merged"}}{{else if eq $st "closed"}}{{t "web.pr.badge_closed"}}{{else if .Draft}}{{t "web.pr.badge_draft"}}{{else}}{{t "web.pr.badge_open"}}{{end -}}
         </span>
       </li>
       {{end}}
     </ul>
     {{else}}
-    <p class="text-sm text-base-content/70">Aucune pull request de ce compte en base.</p>
+    <p class="text-sm text-base-content/70">{{t "web.contributor.pulls_none"}}</p>
     {{end}}
   </div>
 </section>
@@ -177,9 +177,9 @@
          hx-get="{{withQuery $frag "page" $p.Page}}" hx-trigger="sync-finished from:body" hx-swap="outerHTML">
   <div class="card-body p-4 md:p-6 gap-4">
     <div>
-      <h2 id="contributor-commits-title" class="card-title text-lg">Commits</h2>
+      <h2 id="contributor-commits-title" class="card-title text-lg">{{t "web.col.commits"}}</h2>
       <p class="text-sm text-base-content/70">
-        {{plural $p.Total "commit" "commits"}}{{if gt $p.Pages 1}} · page {{$p.Page}} sur {{$p.Pages}}{{end}}
+        {{tn "web.n.commit" $p.Total}}{{if gt $p.Pages 1}} · {{t "web.page_of" $p.Page $p.Pages}}{{end}}
       </p>
     </div>
     {{if $p.Commits}}
@@ -187,22 +187,22 @@
       {{range $p.Commits}}{{template "commit-item" (dict "Commit" . "ShowRepo" true)}}{{end}}
     </ul>
     {{else}}
-    <p class="text-sm text-base-content/70 py-4">Aucun commit dont il ou elle est l'auteur en base.</p>
+    <p class="text-sm text-base-content/70 py-4">{{t "web.contributor.no_commit"}}</p>
     {{end}}
     {{if gt $p.Pages 1}}
-    <nav class="flex justify-center" aria-label="Pages des commits">
+    <nav class="flex justify-center" aria-label="{{t "web.contributor.commit_pages"}}">
       <div class="join">
         {{if $p.HasPrev}}{{$prev := sub $p.Page 1}}
         <a class="join-item btn btn-sm" rel="prev" href="{{withQuery $base "page" $prev}}"
            hx-get="{{withQuery $frag "page" $prev}}" hx-push-url="{{withQuery $base "page" $prev}}"
-           hx-target="#contributor-commits" hx-swap="outerHTML show:#contributor-commits:top">« Précédent</a>
-        {{else}}<span class="join-item btn btn-sm btn-disabled" aria-disabled="true">« Précédent</span>{{end}}
+           hx-target="#contributor-commits" hx-swap="outerHTML show:#contributor-commits:top">{{t "web.prev"}}</a>
+        {{else}}<span class="join-item btn btn-sm btn-disabled" aria-disabled="true">{{t "web.prev"}}</span>{{end}}
         <span class="join-item btn btn-sm btn-active pointer-events-none" aria-current="page">{{$p.Page}} / {{$p.Pages}}</span>
         {{if $p.HasNext}}{{$next := add $p.Page 1}}
         <a class="join-item btn btn-sm" rel="next" href="{{withQuery $base "page" $next}}"
            hx-get="{{withQuery $frag "page" $next}}" hx-push-url="{{withQuery $base "page" $next}}"
-           hx-target="#contributor-commits" hx-swap="outerHTML show:#contributor-commits:top">Suivant »</a>
-        {{else}}<span class="join-item btn btn-sm btn-disabled" aria-disabled="true">Suivant »</span>{{end}}
+           hx-target="#contributor-commits" hx-swap="outerHTML show:#contributor-commits:top">{{t "web.next"}}</a>
+        {{else}}<span class="join-item btn btn-sm btn-disabled" aria-disabled="true">{{t "web.next"}}</span>{{end}}
       </div>
     </nav>
     {{end}}

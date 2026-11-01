@@ -6,10 +6,10 @@ package git
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"slices"
 	"strings"
 
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/provider"
 )
 
@@ -79,7 +79,7 @@ func (p *Provider) CommitStatsBatch(ctx context.Context, owner, name string, sha
 // statsBatch calcule les statistiques d'un paquet de SHA (validés) et les ajoute à out.
 func (p *Provider) statsBatch(ctx context.Context, owner, name, path string, shas []string,
 	out map[string]provider.CommitStats) error {
-	op := fmt.Sprintf("statistiques des commits de %s/%s", owner, name)
+	op := i18n.T("provider.git.op.commits_stats", owner, name)
 	input := []byte(strings.Join(shas, "\n") + "\n")
 	res, err := p.runInput(ctx, p.localTimeout, gitDir(path), "rev-list", input,
 		"rev-list", "--no-walk=unsorted", "--parents", "--ignore-missing", "--stdin")

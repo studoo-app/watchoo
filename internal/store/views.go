@@ -6,10 +6,10 @@ package store
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"strings"
 	"time"
 
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/store/db"
 )
@@ -35,7 +35,7 @@ func (s *Store) ListRecentCommits(ctx context.Context, f CommitFilter) ([]Commit
 	}
 	rows, err := s.queries.ListRecentCommits(ctx, params)
 	if err != nil {
-		return nil, fmt.Errorf("liste des commits : %w", err)
+		return nil, wrapErr(i18n.T("store.views.commits"), err)
 	}
 	views, err := commitViewsFromRows(rows)
 	if err != nil {
@@ -54,13 +54,13 @@ func (s *Store) ContributorRanking(ctx context.Context, f ContributorFilter) ([]
 		RowLimit: rowLimit(f.Limit),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("classement des contributeurs : %w", err)
+		return nil, wrapErr(i18n.T("store.views.ranking"), err)
 	}
 	stats := make([]ContributorStats, 0, len(rows))
 	for _, row := range rows {
 		last, err := ParseTime(row.LastCommitAt)
 		if err != nil {
-			return nil, fmt.Errorf("contributeur %d, dernier commit : %w", row.ID, err)
+			return nil, wrapErr(i18n.T("store.views.contrib_last", row.ID), err)
 		}
 		stats = append(stats, ContributorStats{
 			Contributor: contributorFromDB(db.Contributor{
@@ -84,7 +84,7 @@ func (s *Store) ContributorRanking(ctx context.Context, f ContributorFilter) ([]
 func (s *Store) RepositorySummaries(ctx context.Context) ([]RepositorySummary, error) {
 	summaries, err := s.repositorySummaries(ctx, 0)
 	if err != nil {
-		return nil, fmt.Errorf("résumé des dépôts : %w", err)
+		return nil, wrapErr(i18n.T("store.views.summaries"), err)
 	}
 	return summaries, nil
 }
@@ -93,10 +93,10 @@ func (s *Store) RepositorySummaries(ctx context.Context) ([]RepositorySummary, e
 func (s *Store) RepositorySummary(ctx context.Context, id int64) (RepositorySummary, error) {
 	summaries, err := s.repositorySummaries(ctx, id)
 	if err != nil {
-		return RepositorySummary{}, fmt.Errorf("résumé du dépôt %d : %w", id, err)
+		return RepositorySummary{}, wrapErr(i18n.T("store.views.summary", id), err)
 	}
 	if len(summaries) == 0 {
-		return RepositorySummary{}, fmt.Errorf("dépôt %d : %w", id, ErrNotFound)
+		return RepositorySummary{}, wrapErr(i18n.T("store.repo.id", id), ErrNotFound)
 	}
 	return summaries[0], nil
 }
@@ -110,13 +110,13 @@ func (s *Store) repositorySummaries(ctx context.Context, id int64) ([]Repository
 		if id == 0 {
 			rows, err := q.ListRepositories(ctx)
 			if err != nil {
-				return fmt.Errorf("liste des dépôts : %w", err)
+				return wrapErr(i18n.T("store.repo.list"), err)
 			}
 			repos = rows
 		} else {
 			row, err := q.GetRepository(ctx, id)
 			if err != nil {
-				return repositoryLookupError(fmt.Sprintf("dépôt %d", id), err)
+				return repositoryLookupError(i18n.T("store.repo.id", id), err)
 			}
 			repos = []db.Repository{row}
 		}
@@ -124,7 +124,7 @@ func (s *Store) repositorySummaries(ctx context.Context, id int64) ([]Repository
 
 		commitCounts, err := q.CountCommitsByRepo(ctx, filter)
 		if err != nil {
-			return fmt.Errorf("nombre de commits : %w", err)
+			return wrapErr(i18n.T("store.views.commit_count"), err)
 		}
 		lines := make(map[int64]model.LineTotals, len(commitCounts))
 		for _, c := range commitCounts {
@@ -134,7 +134,7 @@ func (s *Store) repositorySummaries(ctx context.Context, id int64) ([]Repository
 
 		branchCounts, err := q.CountTrackedBranchesByRepo(ctx, filter)
 		if err != nil {
-			return fmt.Errorf("nombre de branches suivies : %w", err)
+			return wrapErr(i18n.T("store.tracked_branches"), err)
 		}
 		branches := make(map[int64]int, len(branchCounts))
 		for _, b := range branchCounts {
@@ -143,7 +143,7 @@ func (s *Store) repositorySummaries(ctx context.Context, id int64) ([]Repository
 
 		lastCommitRows, err := q.LastCommitByRepo(ctx, filter)
 		if err != nil {
-			return fmt.Errorf("dernier commit : %w", err)
+			return wrapErr(i18n.T("store.last_commit"), err)
 		}
 		lastCommits := make(map[int64]db.LastCommitByRepoRow, len(lastCommitRows))
 		for _, c := range lastCommitRows {
@@ -152,7 +152,7 @@ func (s *Store) repositorySummaries(ctx context.Context, id int64) ([]Repository
 
 		runRows, err := q.LastSyncRunByRepo(ctx, filter)
 		if err != nil {
-			return fmt.Errorf("dernière synchro : %w", err)
+			return wrapErr(i18n.T("store.views.last_sync"), err)
 		}
 		runs := make(map[int64]db.SyncRun, len(runRows))
 		for _, r := range runRows {
@@ -161,7 +161,7 @@ func (s *Store) repositorySummaries(ctx context.Context, id int64) ([]Repository
 
 		openRows, err := q.CountOpenPullRequestsByRepo(ctx, filter)
 		if err != nil {
-			return fmt.Errorf("pull requests ouvertes : %w", err)
+			return wrapErr(i18n.T("store.views.open_pulls"), err)
 		}
 		openPulls := make(map[int64]int, len(openRows))
 		for _, o := range openRows {
@@ -170,7 +170,7 @@ func (s *Store) repositorySummaries(ctx context.Context, id int64) ([]Repository
 
 		releaseRows, err := q.LatestReleaseByRepo(ctx, filter)
 		if err != nil {
-			return fmt.Errorf("dernière release : %w", err)
+			return wrapErr(i18n.T("store.views.last_release"), err)
 		}
 		latest := make(map[int64]model.Release, len(releaseRows))
 		for _, row := range releaseRows {
@@ -233,11 +233,11 @@ func (s *Store) repositorySummaries(ctx context.Context, id int64) ([]Repository
 func commitFromDB(row db.Commit) (model.Commit, error) {
 	authoredAt, err := ParseTime(row.AuthoredAt)
 	if err != nil {
-		return model.Commit{}, fmt.Errorf("commit %s, authored_at : %w", shortSHA(row.SHA), err)
+		return model.Commit{}, wrapErr(i18n.T("store.views.authored_at", shortSHA(row.SHA)), err)
 	}
 	committedAt, err := ParseTime(row.CommittedAt)
 	if err != nil {
-		return model.Commit{}, fmt.Errorf("commit %s, committed_at : %w", shortSHA(row.SHA), err)
+		return model.Commit{}, wrapErr(i18n.T("store.views.committed_at", shortSHA(row.SHA)), err)
 	}
 	return model.Commit{
 		RepoID:      row.RepoID,

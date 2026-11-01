@@ -8,23 +8,30 @@ package sync
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"slices"
 	gosync "sync"
 	"time"
 
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/workspace"
 )
+
+// i18nError est une erreur sentinelle dont le message vient du catalogue i18n : le texte est traduit
+// au moment de l'affichage (Error), dans la langue du processus. La valeur reste comparable avec ==
+// (une structure d'un champ) : errors.Is retrouve l'erreur sentinelle à travers les emballages.
+type i18nError struct{ key string }
+
+func (e i18nError) Error() string { return i18n.T(e.key) }
 
 // Erreurs de Coordinator.SyncAll et Coordinator.SyncRepo, à tester avec errors.Is.
 var (
 	// ErrSyncRunning : une synchro (manuelle ou automatique) est déjà en cours dans ce processus.
-	ErrSyncRunning = errors.New("synchro déjà en cours")
+	ErrSyncRunning error = i18nError{"sync.coord.running"}
 	// ErrCoordinatorClosed : le processus s'arrête (Close), aucune nouvelle synchro ne démarre.
-	ErrCoordinatorClosed = errors.New("arrêt en cours : aucune nouvelle synchro")
+	ErrCoordinatorClosed error = i18nError{"sync.coord.closed"}
 	// ErrCoordinatorNotStarted : Start n'a pas encore été appelé.
-	ErrCoordinatorNotStarted = errors.New("coordinateur de synchro non démarré")
+	ErrCoordinatorNotStarted error = i18nError{"sync.coord.not_started"}
 )
 
 // Syncer lance une synchro ; *Engine le satisfait.
@@ -101,7 +108,7 @@ type Coordinator struct {
 // NewCoordinator vérifie les options et construit un Coordinator (rien ne démarre avant Start).
 func NewCoordinator(opts CoordinatorOptions) (*Coordinator, error) {
 	if opts.Syncer == nil {
-		return nil, errors.New("coordinateur de synchro : moteur non renseigné")
+		return nil, errors.New(i18n.T("sync.coord.no_syncer"))
 	}
 	if err := checkInterval(opts.Interval); err != nil {
 		return nil, err
@@ -132,9 +139,9 @@ func checkInterval(d time.Duration) error {
 	minutes := int(workspace.MinSyncInterval / time.Minute)
 	switch {
 	case d < 0:
-		return fmt.Errorf("intervalle %s négatif (0 pour la synchro manuelle seule, sinon au moins %d min)", d, minutes)
+		return errors.New(i18n.T("sync.coord.interval_negative", d, minutes))
 	case d > 0 && d < workspace.MinSyncInterval:
-		return fmt.Errorf("intervalle %s inférieur au minimum de %d min (0 pour la synchro manuelle seule)", d, minutes)
+		return errors.New(i18n.T("sync.coord.interval_too_short", d, minutes))
 	}
 	return nil
 }
@@ -229,7 +236,7 @@ func (c *Coordinator) SyncAll() error {
 // SyncState.LastError.
 func (c *Coordinator) SyncRepo(repoID int64) error {
 	if repoID <= 0 {
-		return fmt.Errorf("synchro du dépôt %d : identifiant invalide", repoID)
+		return errors.New(i18n.T("sync.coord.bad_repo_id", repoID))
 	}
 	return c.start(repoID, false)
 }
@@ -371,6 +378,6 @@ func (c *Coordinator) Close(timeout time.Duration) error {
 	case <-finished:
 		return nil
 	case <-time.After(timeout):
-		return errors.New("la synchro en cours ne s'est pas arrêtée à temps")
+		return errors.New(i18n.T("sync.coord.close_timeout"))
 	}
 }

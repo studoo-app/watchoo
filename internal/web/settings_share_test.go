@@ -17,8 +17,8 @@ import (
 	"github.com/studoo-app/watchoo/internal/workspace"
 )
 
-// isolateShare isole le test de l'environnement du développeur (HOME, XDG_CONFIG_HOME, WATCHOO_*) :
-// les réglages de l'espace sont relus sur le disque à chaque requête de partage.
+// isolateShare isolates the test from the developer's environment (HOME, XDG_CONFIG_HOME,
+// WATCHOO_*): the settings of the workspace are read again from the disk at each sharing request.
 func isolateShare(t *testing.T) {
 	t.Helper()
 	base := t.TempDir()
@@ -35,8 +35,9 @@ func isolateShare(t *testing.T) {
 	}
 }
 
-// withShareWorkspace crée un espace « licence-projet » (workspace.Init) et le donne au serveur de e
-// (Options.Workspace). La base reste celle de l'environnement de test.
+// withShareWorkspace creates a "licence-projet" workspace (workspace.Init) and gives it to the server
+// of e (Options.Workspace), language source included. The database remains the one of the test
+// environment.
 func (e *testEnv) withShareWorkspace() *workspace.Workspace {
 	e.t.Helper()
 	root := filepath.Join(e.t.TempDir(), testWorkspace)
@@ -51,10 +52,11 @@ func (e *testEnv) withShareWorkspace() *workspace.Workspace {
 		e.t.Fatal(err)
 	}
 	e.server.ws = res.Workspace
+	e.server.lang = newLangSource(res.Workspace, res.Workspace.Config.Lang)
 	return res.Workspace
 }
 
-// readFile lit path (échec du test sinon).
+// readFile reads path (test failure otherwise).
 func readFile(t *testing.T, path string) []byte {
 	t.Helper()
 	b, err := os.ReadFile(path)
@@ -64,8 +66,8 @@ func readFile(t *testing.T, path string) []byte {
 	return b
 }
 
-// postMultipart envoie un formulaire multipart valide (même origine, cookie et jeton CSRF si csrf) :
-// fields en champs simples, file (s'il n'est pas nil) dans le champ « file ».
+// postMultipart sends a valid multipart form (same origin, cookie and CSRF token if csrf): fields as
+// simple fields, file (if not nil) in the "file" field.
 func (e *testEnv) postMultipart(target string, fields map[string]string, file []byte, csrf bool) *httptest.ResponseRecorder {
 	e.t.Helper()
 	ck := e.csrfCookie()
@@ -95,8 +97,8 @@ func (e *testEnv) postMultipart(target string, fields map[string]string, file []
 	return e.do(r)
 }
 
-// shareDoc est un document de partage valide : ajoute promo/eve, renomme Alice, change les branches de
-// Bob, reprend Dave (arrêté par le test), garde Carol ; change sync.interval.
+// shareDoc is a valid sharing document: adds promo/eve, renames Alice, changes the branches of Bob,
+// resumes Dave (stopped by the test), keeps Carol; changes sync.interval.
 const shareDoc = `{
   "format": "watchoo-config",
   "version": 1,
@@ -113,7 +115,7 @@ const shareDoc = `{
   ]
 }`
 
-// snapshot est l'état observable de l'espace : config.yaml et dépôts en base.
+// snapshot is the observable state of the workspace: config.yaml and repositories in the database.
 type snapshot struct {
 	config string
 	repos  string
@@ -138,9 +140,9 @@ func TestSettingsPageShareSection(t *testing.T) {
 	e.withShareWorkspace()
 	w := e.get("/settings")
 	assertStatus(t, w, http.StatusOK)
-	assertContains(t, w, "Partager la configuration", `href="/settings/export"`,
+	assertContains(t, w, "Share the configuration", `href="/settings/export"`,
 		`action="/settings/import" enctype="multipart/form-data"`, `name="file"`)
-	assertNotContains(t, w, "config.yaml a changé depuis le lancement")
+	assertNotContains(t, w, "config.yaml changed since")
 }
 
 func TestSettingsExport(t *testing.T) {
@@ -171,44 +173,45 @@ func TestSettingsExport(t *testing.T) {
 	body := w.Body.String()
 	for _, bad := range []string{"gh_path", `"github": `, `"web": `, ws.Root, "@example"} {
 		if strings.Contains(body, bad) {
-			t.Errorf("export avec %q :\n%s", bad, body)
+			t.Errorf("export with %q:\n%s", bad, body)
 		}
 	}
 	var doc configshare.Document
 	if err := json.Unmarshal(w.Body.Bytes(), &doc); err != nil {
-		t.Fatalf("export illisible : %v", err)
+		t.Fatalf("unreadable export: %v", err)
 	}
 	if doc.Format != configshare.Format || doc.Version != configshare.Version || doc.WatchooVersion != "v0.0.0-test" ||
 		!doc.ExportedAt.Equal(testNow) || doc.Workspace.Name != testWorkspace {
-		t.Errorf("en-tête du document : %+v", doc)
+		t.Errorf("document header: %+v", doc)
 	}
 	var names []string
 	for _, r := range doc.Repositories {
 		names = append(names, r.Repo)
 	}
 	if got := strings.Join(names, ","); got != "promo/alice,promo/bob,promo/carol" {
-		t.Errorf("dépôts exportés = %s (Dave est arrêté)", got)
+		t.Errorf("exported repositories = %s (Dave is stopped)", got)
 	}
 	if doc.Repositories[0].Label != "Alice Martin" || strings.Join(doc.Repositories[1].Branches, ",") != "main,release/*" {
-		t.Errorf("dépôts : %+v", doc.Repositories)
+		t.Errorf("repositories: %+v", doc.Repositories)
 	}
-	if doc.Settings == nil || doc.Settings.Sync == nil || *doc.Settings.Sync.Interval != "30m" {
-		t.Errorf("réglages : %+v", doc.Settings)
+	if doc.Settings == nil || doc.Settings.Sync == nil || *doc.Settings.Sync.Interval != "30m" ||
+		doc.Settings.Lang == nil || *doc.Settings.Lang != "en" {
+		t.Errorf("settings: %+v", doc.Settings)
 	}
-	// Le document exporté se relit sans erreur.
+	// The exported document is read back without error.
 	if _, err := configshare.ParseBytes(w.Body.Bytes()); err != nil {
-		t.Errorf("ParseBytes(export) : %v", err)
+		t.Errorf("ParseBytes(export): %v", err)
 	}
-	// GET et HEAD sans effet de bord.
+	// GET and HEAD without side effect.
 	head := e.do(e.request(http.MethodHead, "/settings/export", nil))
 	assertStatus(t, head, http.StatusOK)
 	if after := e.snapshot(ws); after != before {
-		t.Error("l'export a modifié l'espace")
+		t.Error("the export changed the workspace")
 	}
 }
 
 func TestSettingsShareUnavailable(t *testing.T) {
-	e := newTestEnv(t) // sans Options.Workspace
+	e := newTestEnv(t) // without Options.Workspace
 	assertStatus(t, e.get("/settings/export"), http.StatusServiceUnavailable)
 	assertStatus(t, e.postMultipart("/settings/import", nil, []byte(shareDoc), true), http.StatusServiceUnavailable)
 	assertStatus(t, e.postMultipart("/settings/import/apply", map[string]string{fieldImportDocument: shareDoc}, nil, true),
@@ -228,25 +231,25 @@ func TestSettingsImportPreview(t *testing.T) {
 	w := e.postMultipart("/settings/import", nil, []byte(shareDoc), true)
 	assertStatus(t, w, http.StatusOK)
 	assertContains(t, w,
-		"rien n'est encore appliqué",
-		"Fichier : licence.json",        // nom sans chemin
-		"promo &lt;b&gt;2026&lt;/b&gt;", // textes du document échappés
+		"nothing is applied yet",
+		"File: licence.json",            // name without path
+		"promo &lt;b&gt;2026&lt;/b&gt;", // texts of the document escaped
 		"Ève &lt;i&gt;Leroy&lt;/i&gt;",  //
-		"1 à ajouter", "3 à mettre à jour", "dont 1 à reprendre", "1 inchangés",
-		"promo/eve", "à ajouter", "à reprendre", "à mettre à jour",
-		"Alice Martin</span> → Alice M.",         // label avant → après
-		"toutes les branches</span> → main, dev", // branches de Bob
-		"sync.interval", "30m</span> → <strong>1h", // réglage modifié
-		"commentaires personnels", // avertissement comments_lost
+		"1 to add", "3 to update", "including 1 to resume", "1 unchanged",
+		"promo/eve", "to add", "to resume", "to update",
+		"Alice Martin</span> → Alice M.",           // label before → after
+		"all branches</span> → main, dev",          // branches of Bob
+		"sync.interval", "30m</span> → <strong>1h", // changed setting
+		"personal comments", // comments_lost warning
 		`action="/settings/import/apply" enctype="multipart/form-data"`,
 		`name="document" value="{`)
 	assertNotContains(t, w, "<b>2026</b>", "<i>Leroy</i>", "../")
-	// Aperçu sans écriture : base et config.yaml identiques, pas de .bak.
+	// Preview without writing: database and config.yaml identical, no .bak.
 	if after := e.snapshot(ws); after != before {
-		t.Error("l'aperçu a modifié l'espace")
+		t.Error("the preview changed the workspace")
 	}
 	if _, err := os.Stat(filepath.Join(ws.Dir, workspace.BackupFileName)); !os.IsNotExist(err) {
-		t.Errorf("config.yaml.bak créé par l'aperçu : %v", err)
+		t.Errorf("config.yaml.bak created by the preview: %v", err)
 	}
 }
 
@@ -259,7 +262,7 @@ func TestSettingsImportPreviewNothingToDo(t *testing.T) {
 	  "repositories":[{"repo":"promo/carol"}]}`
 	w := e.postMultipart("/settings/import", nil, []byte(doc), true)
 	assertStatus(t, w, http.StatusOK)
-	assertContains(t, w, "Rien à appliquer", "identiques à ceux de cet espace", "Dépôts inchangés (1)")
+	assertContains(t, w, "Nothing to apply", "identical to those of this workspace", "Unchanged repositories (1)")
 	assertNotContains(t, w, "/settings/import/apply")
 }
 
@@ -271,7 +274,8 @@ func TestSettingsImportEnvOverride(t *testing.T) {
 	doc := `{"format":"watchoo-config","version":1,"settings":{"sync":{"interval":"1h"}}}`
 	w := e.postMultipart("/settings/import", nil, []byte(doc), true)
 	assertStatus(t, w, http.StatusOK)
-	assertContains(t, w, "masqué par la variable "+workspace.EnvVarName(workspace.KeySyncInterval), "30m</span> → <strong>1h") // valeur du fichier, pas celle de la variable
+	assertContains(t, w, "overridden by the "+workspace.EnvVarName(workspace.KeySyncInterval)+" variable", "30m</span> → <strong>1h",
+		"the WATCHOO_SYNC_INTERVAL variable is set") // file value, not the variable's
 }
 
 func TestSettingsImportRefused(t *testing.T) {
@@ -284,39 +288,41 @@ func TestSettingsImportRefused(t *testing.T) {
 		name, doc, want string
 		status          int
 	}{
-		{"json", `{"format":`, "invalide", http.StatusBadRequest},
-		{"format", `{"version":1}`, "pas une configuration Watchoo", http.StatusBadRequest},
-		{"version", `{"format":"watchoo-config","version":2}`, "version plus récente", http.StatusBadRequest},
-		{"clé inconnue", `{"format":"watchoo-config","version":1,"settings":{"github":{"gh_path":"/tmp/x"}}}`, "github",
+		{"json", `{"format":`, "Invalid configuration file", http.StatusBadRequest},
+		{"format", `{"version":1}`, "not a shared Watchoo configuration", http.StatusBadRequest},
+		{"version", `{"format":"watchoo-config","version":2}`, "newer version", http.StatusBadRequest},
+		{"unknown key", `{"format":"watchoo-config","version":1,"settings":{"github":{"gh_path":"/tmp/x"}}}`, "github",
 			http.StatusBadRequest},
-		{"label", `{"format":"watchoo-config","version":1,"repositories":[{"repo":"promo/x","label":"a\u0007b"}]}`, "invalide",
+		{"label", `{"format":"watchoo-config","version":1,"repositories":[{"repo":"promo/x","label":"a\u0007b"}]}`, "Invalid configuration file",
 			http.StatusBadRequest},
-		{"doublon", `{"format":"watchoo-config","version":1,"repositories":[{"repo":"promo/X"},{"repo":"PROMO/x"}]}`, "invalide",
+		{"duplicate", `{"format":"watchoo-config","version":1,"repositories":[{"repo":"promo/X"},{"repo":"PROMO/x"}]}`, "Invalid configuration file",
 			http.StatusBadRequest},
-		{"réglages", `{"format":"watchoo-config","version":1,"settings":{"activity":{"dead_after_days":1}}}`, "réglages refusés",
+		{"settings", `{"format":"watchoo-config","version":1,"settings":{"activity":{"dead_after_days":1}}}`, "settings refused",
 			http.StatusBadRequest},
-		{"provider", `{"format":"watchoo-config","version":1,"repositories":[{"provider":"gitlab","repo":"promo/x"}]}`, "invalide",
+		{"language", `{"format":"watchoo-config","version":1,"settings":{"lang":"de"}}`, "settings.lang",
 			http.StatusBadRequest},
-		{"trop gros", `{"format":"watchoo-config","version":1,"workspace":{"name":"` + strings.Repeat("a", configshare.MaxFileSize) + `"}}`,
-			"trop gros", http.StatusRequestEntityTooLarge},
+		{"provider", `{"format":"watchoo-config","version":1,"repositories":[{"provider":"gitlab","repo":"promo/x"}]}`, "Invalid configuration file",
+			http.StatusBadRequest},
+		{"too large", `{"format":"watchoo-config","version":1,"workspace":{"name":"` + strings.Repeat("a", configshare.MaxFileSize) + `"}}`,
+			"too large", http.StatusRequestEntityTooLarge},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			w := e.postMultipart("/settings/import", nil, []byte(c.doc), true)
 			assertStatus(t, w, c.status)
-			assertContains(t, w, "Fichier refusé", c.want, "n&#39;a été importé", `name="file"`)
+			assertContains(t, w, "File refused", c.want, "othing was imported", `name="file"`)
 			assertNotContains(t, w, `name="document"`, "/settings/import/apply")
 		})
 	}
-	// Aucun fichier.
+	// No file.
 	w := e.postMultipart("/settings/import", nil, nil, true)
 	assertStatus(t, w, http.StatusBadRequest)
-	assertContains(t, w, "Aucun fichier reçu")
-	// Formulaire classique (sans multipart) : aucun fichier non plus.
+	assertContains(t, w, "No file received")
+	// Classic form (without multipart): no file either.
 	w = e.post("/settings/import", url.Values{}, false)
 	assertStatus(t, w, http.StatusBadRequest)
 	if after := e.snapshot(ws); after != before {
-		t.Error("un fichier refusé a modifié l'espace")
+		t.Error("a refused file changed the workspace")
 	}
 }
 
@@ -335,59 +341,59 @@ func TestSettingsImportApply(t *testing.T) {
 	w := e.postMultipart("/settings/import/apply", map[string]string{fieldImportDocument: shareDoc}, nil, true)
 	assertRedirect(t, w, w.Code, "/settings?added=1&already=1&msg=imported&reenabled=1&updated=3&written=1")
 
-	// Réglages : config.yaml réécrit (0600), ancien fichier en .bak (0600), valeurs relues.
+	// Settings: config.yaml rewritten (0600), old file in .bak (0600), values read back.
 	info, err := os.Stat(ws.ConfigPath())
 	if err != nil || info.Mode().Perm() != 0o600 {
-		t.Fatalf("config.yaml : %v, droits %v", err, info.Mode().Perm())
+		t.Fatalf("config.yaml: %v, permissions %v", err, info.Mode().Perm())
 	}
 	bak := filepath.Join(ws.Dir, workspace.BackupFileName)
 	if info, err := os.Stat(bak); err != nil || info.Mode().Perm() != 0o600 {
-		t.Fatalf("config.yaml.bak : %v", err)
+		t.Fatalf("config.yaml.bak: %v", err)
 	}
 	if !bytes.Equal(readFile(t, bak), oldConfig) {
-		t.Error("config.yaml.bak différent de l'ancien config.yaml")
+		t.Error("config.yaml.bak different from the old config.yaml")
 	}
 	reloaded := &workspace.Workspace{Root: ws.Root, Dir: ws.Dir}
 	if err := workspace.Load(reloaded); err != nil {
 		t.Fatal(err)
 	}
 	if reloaded.Config.Sync.Interval.String() != "1h0m0s" {
-		t.Errorf("sync.interval relu = %v", reloaded.Config.Sync.Interval)
+		t.Errorf("sync.interval read back = %v", reloaded.Config.Sync.Interval)
 	}
-	// La configuration du processus ne change pas à chaud.
+	// The configuration of the process does not change on the fly.
 	if e.server.cfg.Sync.Interval.String() != "30m0s" || e.server.ws.Config.Sync.Interval.String() != "30m0s" {
-		t.Error("la configuration du processus a changé")
+		t.Error("the configuration of the process changed")
 	}
 
-	// Dépôts : ajout, mises à jour, reprise ; rien n'est retiré.
+	// Repositories: addition, updates, resumption; nothing is removed.
 	if n := e.repoCount(); n != 5 {
-		t.Errorf("%d dépôts, attendu 5", n)
+		t.Errorf("%d repositories, want 5", n)
 	}
 	if r := e.mustRepo(ids.Alice); r.Label != "Alice M." {
-		t.Errorf("label d'Alice = %q", r.Label)
+		t.Errorf("label of Alice = %q", r.Label)
 	}
 	if r := e.mustRepo(ids.Bob); strings.Join(r.BranchPatterns, ",") != "main,dev" {
-		t.Errorf("branches de Bob = %v", r.BranchPatterns)
+		t.Errorf("branches of Bob = %v", r.BranchPatterns)
 	}
 	if r := e.mustRepo(ids.Dave); !r.Enabled {
-		t.Error("le suivi de Dave n'a pas repris")
+		t.Error("the tracking of Dave did not resume")
 	}
 
-	// Bilan affiché sur /settings.
+	// Result shown on /settings.
 	page := e.get(w.Header().Get("Location"))
 	assertStatus(t, page, http.StatusOK)
-	assertContains(t, page, "Configuration importée : 1 dépôt ajouté, 3 dépôts mis à jour (dont 1 repris), 1 dépôt déjà suivi.",
-		"config.yaml est réécrit", "prochain lancement")
+	assertContains(t, page, "Configuration imported: 1 repository added, 3 repositories updated (including 1 resumed), 1 repository already tracked.",
+		"config.yaml is rewritten", "next start")
 	assertNotContains(t, page, "alert-error")
-	// La ligne « Fichier config.yaml » montre la valeur relue sur le disque (1h), pas celle du
-	// lancement (30m), et signale qu'elle ne vaut qu'au prochain lancement.
-	assertContains(t, page, "Fichier config.yaml : 1 h.",
-		"config.yaml a changé depuis le lancement de « watchoo serve » : cette valeur vaudra au prochain lancement.")
+	// The "config.yaml file" line shows the value read back from the disk (1h), not the one of the
+	// start (30m), and reports that it only applies at the next start.
+	assertContains(t, page, "config.yaml file: 1 h.",
+		"config.yaml changed since &#34;watchoo serve&#34; started: this value will apply at the next start.")
 
-	// Un second import du même fichier ne change plus rien (réglages relus sur le disque).
+	// A second import of the same file changes nothing any more (settings read back from the disk).
 	w = e.postMultipart("/settings/import", nil, []byte(shareDoc), true)
 	assertStatus(t, w, http.StatusOK)
-	assertContains(t, w, "Rien à appliquer")
+	assertContains(t, w, "Nothing to apply")
 }
 
 func TestSettingsImportApplyInaccessible(t *testing.T) {
@@ -397,19 +403,19 @@ func TestSettingsImportApplyInaccessible(t *testing.T) {
 	ws := e.withShareWorkspace()
 	oldConfig := readFile(t, ws.ConfigPath())
 	doc := `{"format":"watchoo-config","version":1,"repositories":[
-	  {"repo":"promo/inconnu","label":"Zoé"},{"repo":"promo/alice","label":"Alice B."}]}`
+	  {"repo":"promo/unknown","label":"Zoé"},{"repo":"promo/alice","label":"Alice B."}]}`
 	w := e.postMultipart("/settings/import/apply", map[string]string{fieldImportDocument: doc}, nil, true)
 	assertRedirect(t, w, w.Code, "/settings?inaccessible=1&msg=imported&updated=1")
 	if r := e.mustRepo(ids.Alice); r.Label != "Alice B." {
-		t.Errorf("label d'Alice = %q (un dépôt inaccessible ne bloque pas les autres)", r.Label)
+		t.Errorf("label of Alice = %q (an inaccessible repository does not block the others)", r.Label)
 	}
 	if !bytes.Equal(readFile(t, ws.ConfigPath()), oldConfig) {
-		t.Error("config.yaml réécrit sans réglage dans le document")
+		t.Error("config.yaml rewritten without a setting in the document")
 	}
 	page := e.get(w.Header().Get("Location"))
-	assertContains(t, page, "alert-error", "1 dépôt inaccessible", "importez de nouveau le fichier")
-	if !strings.Contains(e.logs.String(), "promo/inconnu") {
-		t.Error("dépôt inaccessible absent du journal")
+	assertContains(t, page, "alert-error", "1 repository inaccessible", "import the file again")
+	if !strings.Contains(e.logs.String(), "promo/unknown") {
+		t.Error("inaccessible repository missing from the log")
 	}
 }
 
@@ -420,33 +426,33 @@ func TestSettingsImportApplyRevalidates(t *testing.T) {
 	ws := e.withShareWorkspace()
 	before := e.snapshot(ws)
 
-	// Document modifié après l'aperçu, devenu invalide : refusé, rien n'est modifié.
+	// Document changed after the preview, now invalid: refused, nothing is changed.
 	tampered := strings.Replace(shareDoc, `"interval": "1h"`, `"interval": "1h", "gh_path": "/tmp/evil"`, 1)
 	w := e.postMultipart("/settings/import/apply", map[string]string{fieldImportDocument: tampered}, nil, true)
 	assertStatus(t, w, http.StatusBadRequest)
-	assertContains(t, w, "Fichier refusé", "gh_path")
+	assertContains(t, w, "File refused", "gh_path")
 	tampered = strings.Replace(shareDoc, `"interval": "1h"`, `"interval": "1m"`, 1)
 	w = e.postMultipart("/settings/import/apply", map[string]string{fieldImportDocument: tampered}, nil, true)
 	assertStatus(t, w, http.StatusBadRequest)
-	assertContains(t, w, "réglages refusés")
+	assertContains(t, w, "settings refused")
 	w = e.postMultipart("/settings/import/apply", map[string]string{fieldImportDocument: "  "}, nil, true)
 	assertStatus(t, w, http.StatusBadRequest)
-	assertContains(t, w, "Aucun document à appliquer")
+	assertContains(t, w, "No document to apply")
 	if after := e.snapshot(ws); after != before {
-		t.Error("un document refusé a modifié l'espace")
+		t.Error("a refused document changed the workspace")
 	}
 
-	// Document modifié mais valide : traité comme un nouveau (ce qu'il contient, pas l'aperçu).
+	// Document changed but valid: processed as a new one (what it contains, not the preview).
 	e.fake.AddRepository(provider.Repository{ID: 6, Owner: "promo", Name: "frank", DefaultBranch: "main",
 		URL: "https://github.com/promo/frank", Private: true})
 	other := `{"format":"watchoo-config","version":1,"repositories":[{"repo":"promo/frank","label":"Frank"}]}`
 	w = e.postMultipart("/settings/import/apply", map[string]string{fieldImportDocument: other}, nil, true)
 	assertRedirect(t, w, w.Code, "/settings?added=1&msg=imported")
 	if n := e.repoCount(); n != 5 {
-		t.Errorf("%d dépôts, attendu 5", n)
+		t.Errorf("%d repositories, want 5", n)
 	}
 	if after := readFile(t, ws.ConfigPath()); string(after) != before.config {
-		t.Error("config.yaml réécrit sans réglage dans le document")
+		t.Error("config.yaml rewritten without a setting in the document")
 	}
 }
 
@@ -461,9 +467,9 @@ func TestSettingsImportRequiresCSRF(t *testing.T) {
 		assertStatus(t, w, http.StatusForbidden)
 	}
 	if after := e.snapshot(ws); after != before {
-		t.Error("une requête sans jeton CSRF a modifié l'espace")
+		t.Error("a request without CSRF token changed the workspace")
 	}
-	// GET sur les routes d'import : refusé (aucune action en GET).
+	// GET on the import routes: refused (no action in GET).
 	assertStatus(t, e.get("/settings/import/apply"), http.StatusMethodNotAllowed)
 }
 
@@ -478,18 +484,18 @@ func TestSettingsImportBusy(t *testing.T) {
 	importMu.Unlock()
 	assertStatus(t, w, http.StatusConflict)
 	if after := e.snapshot(ws); after != before {
-		t.Error("un import refusé (déjà en cours) a modifié l'espace")
+		t.Error("a refused import (already running) changed the workspace")
 	}
 }
 
 func TestSettingsImportFlash(t *testing.T) {
 	e := newTestEnv(t)
 	cases := []struct{ query, want, absent string }{
-		{"msg=imported", "Configuration importée : rien n&#39;a changé.", "alert-error"},
-		{"msg=imported&written=1", "Configuration importée. config.yaml est réécrit", "alert-error"},
-		{"msg=imported&added=2&errors=1", "2 dépôts ajoutés.", ""},
-		// Valeurs forgées : bornées, jamais recopiées.
-		{"msg=imported&added=99999999&updated=%3Cscript%3E&reenabled=-3", "1000 dépôts ajoutés.", "&lt;script"},
+		{"msg=imported", "Configuration imported: nothing changed.", "alert-error"},
+		{"msg=imported&written=1", "Configuration imported. config.yaml is rewritten", "alert-error"},
+		{"msg=imported&added=2&errors=1", "2 repositories added.", ""},
+		// Forged values: bounded, never copied.
+		{"msg=imported&added=99999999&updated=%3Cscript%3E&reenabled=-3", "1000 repositories added.", "&lt;script"},
 	}
 	for _, c := range cases {
 		w := e.get("/settings?" + c.query)
@@ -499,5 +505,5 @@ func TestSettingsImportFlash(t *testing.T) {
 			assertNotContains(t, w, c.absent)
 		}
 	}
-	assertContains(t, e.get("/settings?msg=imported&errors=1"), "alert-error", "1 dépôt en erreur")
+	assertContains(t, e.get("/settings?msg=imported&errors=1"), "alert-error", "1 repository in error")
 }

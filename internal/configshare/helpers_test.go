@@ -1,7 +1,7 @@
 package configshare_test
 
-// Outils communs aux tests : espace temporaire (workspace.Init), base migrée, faux Provider, faux gh.
-// Aucun réseau.
+// Helpers shared by the tests: temporary workspace (workspace.Init), migrated database, fake Provider,
+// fake gh. No network.
 
 import (
 	"context"
@@ -21,10 +21,10 @@ import (
 	"github.com/studoo-app/watchoo/internal/workspace"
 )
 
-// testNow est la date des exports.
+// testNow is the date of the exports.
 var testNow = time.Date(2026, 10, 27, 10, 0, 0, 0, time.UTC)
 
-// env est un espace de test complet.
+// env is a complete test workspace.
 type env struct {
 	t    *testing.T
 	ws   *workspace.Workspace
@@ -34,7 +34,7 @@ type env struct {
 	eng  *wsync.Engine
 }
 
-// isolate isole le test de l'environnement du développeur (HOME, XDG_CONFIG_HOME, WATCHOO_*).
+// isolate isolates the test from the developer's environment (HOME, XDG_CONFIG_HOME, WATCHOO_*).
 func isolate(t *testing.T) {
 	t.Helper()
 	base := t.TempDir()
@@ -51,8 +51,8 @@ func isolate(t *testing.T) {
 	}
 }
 
-// newEnv crée un espace nommé name (répertoire temporaire), sa base migrée et un moteur branché sur un
-// faux Provider (vide) et un faux gh connecté. L'appelant doit avoir appelé isolate.
+// newEnv creates a workspace named name (temporary directory), its migrated database and an engine
+// plugged into a fake (empty) Provider and a signed-in fake gh. The caller must have called isolate.
 func newEnv(t *testing.T, name string) *env {
 	t.Helper()
 	root := filepath.Join(t.TempDir(), name)
@@ -92,13 +92,13 @@ func newEnv(t *testing.T, name string) *env {
 	return e
 }
 
-// forge ajoute owner/name au faux Provider (identifiant id).
+// forge adds owner/name to the fake Provider (identifier id).
 func (e *env) forge(id int64, owner, name string) {
 	e.fake.AddRepository(provider.Repository{ID: id, Owner: owner, Name: name, DefaultBranch: "main",
 		URL: "https://github.com/" + owner + "/" + name, Private: true})
 }
 
-// track ajoute owner/name à la forge et à l'espace (suivi actif), avec label et motifs.
+// track adds owner/name to the forge and to the workspace (active tracking), with label and patterns.
 func (e *env) track(id int64, owner, name, label string, patterns ...string) model.Repository {
 	e.t.Helper()
 	e.forge(id, owner, name)
@@ -112,7 +112,7 @@ func (e *env) track(id int64, owner, name, label string, patterns ...string) mod
 	return r
 }
 
-// stop arrête le suivi du dépôt id.
+// stop stops the tracking of the repository id.
 func (e *env) stop(id int64) {
 	e.t.Helper()
 	if err := e.st.SetRepositoryEnabled(context.Background(), id, false); err != nil {
@@ -120,7 +120,7 @@ func (e *env) stop(id int64) {
 	}
 }
 
-// repos renvoie les dépôts de l'espace, indexés par owner/name.
+// repos returns the repositories of the workspace, indexed by owner/name.
 func (e *env) repos() map[string]model.Repository {
 	e.t.Helper()
 	list, err := e.st.ListRepositories(context.Background())
@@ -134,7 +134,7 @@ func (e *env) repos() map[string]model.Repository {
 	return out
 }
 
-// reload relit les réglages de l'espace depuis le disque.
+// reload reads the workspace's settings again from the disk.
 func (e *env) reload() workspace.Config {
 	e.t.Helper()
 	ws := &workspace.Workspace{Root: e.ws.Root, Dir: e.ws.Dir}
@@ -144,7 +144,7 @@ func (e *env) reload() workspace.Config {
 	return ws.Config
 }
 
-// readFile renvoie le contenu de path.
+// readFile returns the content of path.
 func readFile(t *testing.T, path string) string {
 	t.Helper()
 	data, err := os.ReadFile(path)

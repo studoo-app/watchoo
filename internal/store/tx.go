@@ -7,8 +7,8 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"errors"
-	"fmt"
 
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/store/db"
 )
 
@@ -24,12 +24,12 @@ import (
 func (s *Store) writeTx(ctx context.Context, fn func(q *db.Queries) error) error {
 	conn, err := s.db.Conn(ctx)
 	if err != nil {
-		return fmt.Errorf("connexion à la base : %w", err)
+		return wrapErr(i18n.T("store.tx.conn"), err)
 	}
 	defer conn.Close()
 
 	if _, err := conn.ExecContext(ctx, "BEGIN IMMEDIATE"); err != nil {
-		return fmt.Errorf("début de transaction : %w", err)
+		return wrapErr(i18n.T("store.tx.begin"), err)
 	}
 	// ROLLBACK et COMMIT ne doivent pas être empêchés par l'annulation du contexte de l'appelant.
 	finishCtx := context.WithoutCancel(ctx)
@@ -48,7 +48,7 @@ func (s *Store) writeTx(ctx context.Context, fn func(q *db.Queries) error) error
 		return err
 	}
 	if _, err := conn.ExecContext(finishCtx, "COMMIT"); err != nil {
-		return fmt.Errorf("validation de la transaction : %w", err)
+		return wrapErr(i18n.T("store.tx.commit"), err)
 	}
 	committed = true
 	return nil
@@ -64,14 +64,14 @@ func discardConn(conn *sql.Conn) {
 func (s *Store) readTx(ctx context.Context, fn func(q *db.Queries) error) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return fmt.Errorf("début de transaction : %w", err)
+		return wrapErr(i18n.T("store.tx.begin"), err)
 	}
 	defer func() { _ = tx.Rollback() }()
 	if err := fn(s.queries.WithTx(tx)); err != nil {
 		return err
 	}
 	if err := tx.Commit(); err != nil && !errors.Is(err, sql.ErrTxDone) {
-		return fmt.Errorf("fin de transaction : %w", err)
+		return wrapErr(i18n.T("store.tx.end"), err)
 	}
 	return nil
 }

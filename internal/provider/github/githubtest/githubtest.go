@@ -1,77 +1,77 @@
-// Package githubtest fournit un faux serveur de l'API REST de GitHub, programmable, basé sur
-// net/http/httptest. Il sert aux tests de internal/provider/github (phase 2) et du moteur de synchro
-// de bout en bout (phase 3). Aucun appel réseau réel : le serveur écoute sur 127.0.0.1.
+// Package githubtest provides a fake, programmable server of GitHub's REST API, based on
+// net/http/httptest. It serves the tests of internal/provider/github (phase 2) and the end-to-end
+// tests of the sync engine (phase 3). No real network call: the server listens on 127.0.0.1.
 //
-// Bibliothèque standard seulement : ce package n'importe ni go-github ni internal/provider/github
-// (les tests du package github l'importent : pas de cycle). Données factices uniquement.
+// Standard library only: this package imports neither go-github nor internal/provider/github
+// (the tests of the github package import it: no cycle). Dummy data only.
 //
-// # Comportement simulé (fidèle à l'API réelle, vérifiée avec gh 2.103 en octobre 2026)
+// # Simulated behavior (faithful to the real API, checked with gh 2.103 in October 2026)
 //
-// Routes servies (GET et HEAD ; owner et nom comparés sans tenir compte de la casse) :
-//   - GET /repos/{owner}/{name} et GET /repositories/{id} : métadonnées du dépôt ;
-//   - GET …/branches?per_page&page : branches triées par nom, {"name","commit":{"sha","url"},"protected":false} ;
-//   - GET …/commits?sha&since&until&per_page&page : commits atteignables depuis sha (branche ou SHA
-//     complet ; vide = branche par défaut), triés par date de commit décroissante (à date égale, le
-//     dernier ajouté d'abord), filtrés par since/until (date de commit, bornes incluses, RFC 3339 ;
-//     une date illisible → 422) ; sha inconnu → 404 « Not Found » ;
-//   - GET …/commits/{ref} (SHA complet ou nom de branche) : un commit avec
-//     "stats":{"additions","deletions","total"} et "files":[] ; ref inconnue → 422 « No commit found
-//     for SHA: … », comme GitHub ;
-//   - GET …/compare/{base}...{head}?per_page&page (SHA complets ou noms de branche) : {"status",
-//     "ahead_by","behind_by","total_commits","base_commit","merge_base_commit","commits","files":[]} ;
-//     commits = atteignables depuis head mais pas depuis base, du plus ANCIEN au plus récent (date de
-//     commit croissante, puis ordre d'ajout), paginés ; base ou head inconnu, ou aucun ancêtre commun
-//     → 404 « Not Found » (comme GitHub) ;
-//   - GET …/pulls, …/releases, …/tags (V2) : voir pulls.go ;
-//   - GET /rate_limit : {"resources":{"core":{…},…},"rate":{…}}, gratuit, toujours servi (même quota
-//     épuisé, même pendant une limite secondaire).
+// Served routes (GET and HEAD; owner and name compared case-insensitively):
+//   - GET /repos/{owner}/{name} and GET /repositories/{id}: repository metadata;
+//   - GET …/branches?per_page&page: branches sorted by name, {"name","commit":{"sha","url"},"protected":false};
+//   - GET …/commits?sha&since&until&per_page&page: commits reachable from sha (branch or full
+//     SHA; empty = default branch), sorted by descending commit date (at equal dates, the last
+//     added first), filtered by since/until (commit date, bounds included, RFC 3339; an unreadable
+//     date → 422); unknown sha → 404 "Not Found";
+//   - GET …/commits/{ref} (full SHA or branch name): one commit with
+//     "stats":{"additions","deletions","total"} and "files":[]; unknown ref → 422 "No commit found
+//     for SHA: …", like GitHub;
+//   - GET …/compare/{base}...{head}?per_page&page (full SHAs or branch names): {"status",
+//     "ahead_by","behind_by","total_commits","base_commit","merge_base_commit","commits","files":[]};
+//     commits = reachable from head but not from base, from OLDEST to newest (ascending commit
+//     date, then order of addition), paginated; unknown base or head, or no common ancestor
+//     → 404 "Not Found" (like GitHub);
+//   - GET …/pulls, …/releases, …/tags (V2): see pulls.go;
+//   - GET /rate_limit: {"resources":{"core":{…},…},"rate":{…}}, free, always served (even with an
+//     exhausted quota, even during a secondary limit).
 //
-// Toute autre route répond 404 « Not Found ».
+// Any other route answers 404 "Not Found".
 //
-// Pour chaque requête, dans l'ordre :
-//  1. méthode autre que GET ou HEAD : t.Errorf (le test échoue) et réponse 405, sans autre effet (pas
-//     d'entrée dans le journal) ;
-//  2. enregistrement dans le journal (Requests) ;
-//  3. en-tête Authorization absent, répété ou différent de « Bearer <token> » / « token <token> »
-//     (schéma sans tenir compte de la casse) : 401 {"message":"Bad credentials",…}, sans en-têtes de
-//     quota, sans consommer de quota ;
-//  4. réponse injectée (Inject) pour ce chemin : servie telle quelle (avec les en-têtes de quota) ;
-//  5. limite secondaire en cours (TriggerSecondaryLimit) : 403 ou 429 avec Retry-After, hors
-//     /rate_limit ;
-//  6. quota épuisé (Remaining == 0 et maintenant < Reset) : Quota.Status (403 par défaut) avec
-//     X-RateLimit-Remaining: 0 et {"message":"API rate limit exceeded for user ID 1.", …}, hors
-//     /rate_limit. Quand maintenant >= Reset, une nouvelle fenêtre commence (Remaining = Limit,
-//     Reset = maintenant + 1 h) : ce contrôle a lieu à chaque requête autorisée, avant l'étape 4 ;
-//  7. routage : dépôt inconnu ou AccessHidden → 404 {"message":"Not Found","documentation_url":…,
-//     "status":"404"} ; AccessSSO → 403 avec « X-GitHub-SSO: required; url=https://github.com/orgs/
-//     {owner}/sso?authorization_request=fake » et {"message":"Resource protected by organization SAML
-//     enforcement. …"} ; ancien nom d'un dépôt renommé (accessible) → 301, Location =
-//     URL()+"repositories/{id}" + reste du chemin + paramètres d'origine, corps {"message":"Moved
-//     Permanently","url":…} (AccessHidden et AccessSSO s'appliquent aussi aux anciens noms, sans
-//     redirection : rien n'est révélé d'un dépôt inaccessible) ; dépôt sans aucune branche (vide) :
-//     …/commits, …/commits/{ref} et …/compare → 409 {"message":"Git Repository is empty."},
-//     …/branches → 200 [] ;
-//  8. réponse 200 : corps JSON, Content-Type « application/json; charset=utf-8 », ETag
-//     W/"<sha256 hex du corps>", Link au format GitHub (rel="prev", "next", "last", "first" ; URL
-//     absolues sous URL()+"repositories/{id}/…", comme GitHub) pour les listes paginées. Si
-//     If-None-Match correspond à l'ETag (avec ou sans W/, liste séparée par des virgules, ou « * ») :
-//     304 sans corps, SANS Link ni Content-Type (comme GitHub), avec un ETag fort "<sha256 hex>", et
-//     sans consommer de quota.
+// For every request, in order:
+//  1. method other than GET or HEAD: t.Errorf (the test fails) and a 405 response, with no other
+//     effect (no entry in the log);
+//  2. recording in the log (Requests);
+//  3. Authorization header missing, repeated or different from "Bearer <token>" / "token <token>"
+//     (case-insensitive scheme): 401 {"message":"Bad credentials",…}, without quota headers,
+//     without consuming quota;
+//  4. injected response (Inject) for this path: served as is (with the quota headers);
+//  5. secondary limit in progress (TriggerSecondaryLimit): 403 or 429 with Retry-After, except
+//     /rate_limit;
+//  6. exhausted quota (Remaining == 0 and now < Reset): Quota.Status (403 by default) with
+//     X-RateLimit-Remaining: 0 and {"message":"API rate limit exceeded for user ID 1.", …}, except
+//     /rate_limit. When now >= Reset, a new window starts (Remaining = Limit,
+//     Reset = now + 1 h): this check happens on every authorized request, before step 4;
+//  7. routing: unknown repository or AccessHidden → 404 {"message":"Not Found","documentation_url":…,
+//     "status":"404"}; AccessSSO → 403 with "X-GitHub-SSO: required; url=https://github.com/orgs/
+//     {owner}/sso?authorization_request=fake" and {"message":"Resource protected by organization SAML
+//     enforcement. …"}; old name of a renamed (accessible) repository → 301, Location =
+//     URL()+"repositories/{id}" + rest of the path + original parameters, body {"message":"Moved
+//     Permanently","url":…} (AccessHidden and AccessSSO also apply to old names, without
+//     redirection: nothing is revealed about an inaccessible repository); repository without any
+//     branch (empty): …/commits, …/commits/{ref} and …/compare → 409 {"message":"Git Repository is empty."},
+//     …/branches → 200 [];
+//  8. 200 response: JSON body, Content-Type "application/json; charset=utf-8", ETag
+//     W/"<sha256 hex of the body>", Link in GitHub's format (rel="prev", "next", "last", "first"; absolute
+//     URLs under URL()+"repositories/{id}/…", like GitHub) for paginated lists. If
+//     If-None-Match matches the ETag (with or without W/, comma-separated list, or "*"):
+//     304 without body, WITHOUT Link or Content-Type (like GitHub), with a strong ETag "<sha256 hex>", and
+//     without consuming quota.
 //
-// Quota : toute réponse aux étapes 4 à 8 (304 comprises) porte X-RateLimit-Limit, -Remaining, -Used,
-// -Reset (secondes Unix) et -Resource: core ; toute réponse autorisée, hors 304, hors /rate_limit et
-// hors refus de quota ou de limite secondaire, consomme une unité (Remaining--, Used++) avant le
-// calcul des en-têtes. L'en-tête Date suit l'horloge du serveur (Options.Now).
+// Quota: every response at steps 4 to 8 (304s included) carries X-RateLimit-Limit, -Remaining, -Used,
+// -Reset (Unix seconds) and -Resource: core; every authorized response, except 304s, /rate_limit and
+// quota or secondary limit refusals, consumes one unit (Remaining--, Used++) before the headers are
+// computed. The Date header follows the server's clock (Options.Now).
 //
-// Pagination : per_page par défaut 30, au plus 100 (une valeur plus grande est ramenée à 100) ; page
-// par défaut 1 ; une page au-delà de la dernière renvoie [] (ou "commits": [] pour compare).
+// Pagination: per_page 30 by default, at most 100 (a larger value is brought back to 100); page 1
+// by default; a page past the last one returns [] (or "commits": [] for compare).
 //
-// Dates : comme sur GitHub, elles sont à la seconde ; les dates reçues par AddRepo, AddCommit et
-// AppendCommits sont converties en UTC et tronquées à la seconde.
+// Dates: as on GitHub, they are to the second; the dates received by AddRepo, AddCommit and
+// AppendCommits are converted to UTC and truncated to the second.
 //
-// Le serveur est sûr pour un usage concurrent. Les méthodes de préparation (AddRepo, AddCommit…) sont
-// appelées depuis la goroutine du test et y signalent une erreur de préparation par t.Fatalf ; les
-// gestionnaires HTTP n'utilisent que t.Errorf.
+// The server is safe for concurrent use. The setup methods (AddRepo, AddCommit…) are called from
+// the test's goroutine and report a setup error there with t.Fatalf; the HTTP handlers only use
+// t.Errorf.
 package githubtest
 
 import (
@@ -88,90 +88,90 @@ import (
 	"time"
 )
 
-// Token est le faux token attendu par défaut. Les tests vérifient qu'il n'apparaît jamais dans les
-// logs ni dans les erreurs.
+// Token is the fake token expected by default. The tests check that it never appears in the logs
+// or in the errors.
 const Token = "gho_fake_for_tests"
 
-// DefaultRateLimit est la limite par défaut du quota simulé (5 000 requêtes par heure, comme GitHub).
+// DefaultRateLimit is the default limit of the simulated quota (5,000 requests per hour, like GitHub).
 const DefaultRateLimit = 5000
 
-// quotaWindow est la durée d'une fenêtre de quota (une heure, comme GitHub).
+// quotaWindow is the duration of a quota window (one hour, like GitHub).
 const quotaWindow = time.Hour
 
-// shaPattern : SHA complet en minuscules, SHA-1 (40) ou SHA-256 (64).
+// shaPattern: full lowercase SHA, SHA-1 (40) or SHA-256 (64).
 var shaPattern = regexp.MustCompile(`^(?:[0-9a-f]{40}|[0-9a-f]{64})$`)
 
-// Options règle NewServer. Sa valeur zéro convient à la plupart des tests.
+// Options configures NewServer. Its zero value suits most tests.
 type Options struct {
-	// Token est le token attendu dans l'en-tête Authorization ; vide = Token.
+	// Token is the token expected in the Authorization header; empty = Token.
 	Token string
-	// Now est l'horloge du serveur (quota, remise à zéro, Reset par défaut, en-tête Date) ; nil =
-	// time.Now. Elle est appelée sous le verrou du serveur.
+	// Now is the server's clock (quota, reset, default Reset, Date header); nil = time.Now. It is
+	// called under the server's lock.
 	Now func() time.Time
 }
 
-// Server est un faux serveur de l'API GitHub. Il est arrêté automatiquement à la fin du test
+// Server is a fake GitHub API server. It is stopped automatically at the end of the test
 // (t.Cleanup).
 type Server struct {
 	tb        testing.TB
 	srv       *httptest.Server
 	token     string
 	now       func() time.Time
-	done      chan struct{} // fermé par Close : interrompt les attentes (Response.Delay)
+	done      chan struct{} // closed by Close: interrupts the waits (Response.Delay)
 	closeOnce sync.Once
 
 	mu         sync.Mutex
 	repos      map[int64]*repoState
-	names      map[string]int64 // nom actuel (nameKey) → identifiant du dépôt
-	redirects  map[string]int64 // ancien nom (nameKey) → identifiant du dépôt
+	names      map[string]int64 // current name (nameKey) → repository identifier
+	redirects  map[string]int64 // old name (nameKey) → repository identifier
 	quota      quotaState
-	secondary  *secondaryState // limite secondaire en cours ; nil = aucune
+	secondary  *secondaryState // secondary limit in progress; nil = none
 	injections map[string]*injection
 	requests   []*Request
 }
 
-// repoState est l'état d'un dépôt simulé.
+// repoState is the state of a simulated repository.
 type repoState struct {
 	Repo
 	access   Access
 	commits  map[string]*commitState
-	seq      int               // nombre de commits ajoutés depuis la création (ordre d'ajout)
-	branches map[string]string // nom → SHA de tête
+	seq      int               // number of commits added since creation (order of addition)
+	branches map[string]string // name → head SHA
 	pulls    map[int]PullRequest
 	releases []Release
 	tags     []Tag
 }
 
-// commitState est un commit simulé et son rang d'ajout dans le dépôt. Il n'est plus modifié après
-// AddCommit.
+// commitState is a simulated commit and its rank of addition in the repository. It is no longer
+// modified after AddCommit.
 type commitState struct {
 	Commit
 	seq int
 }
 
-// quotaState est l'état interne du quota simulé.
+// quotaState is the internal state of the simulated quota.
 type quotaState struct {
 	limit, remaining, used int
 	reset                  time.Time
 	status                 int
 }
 
-// secondaryState est une limite secondaire en cours.
+// secondaryState is a secondary limit in progress.
 type secondaryState struct {
 	retryAfter time.Duration
 	status     int
-	left       int // requêtes encore refusées
+	left       int // requests still refused
 }
 
-// injection est une réponse imposée par Inject.
+// injection is a response imposed by Inject.
 type injection struct {
 	resp Response
-	left int // requêtes restantes ; 0 = sans limite
+	left int // remaining requests; 0 = unlimited
 }
 
-// NewServer démarre un faux serveur (httptest.NewServer) et programme son arrêt par t.Cleanup. Le
-// quota initial est {Limit: DefaultRateLimit, Remaining: DefaultRateLimit, Reset: maintenant + 1 h,
-// tronqué à la seconde, Status: 403}.
+// NewServer starts a fake server (httptest.NewServer) and schedules its stop with t.Cleanup. The
+// initial quota is {Limit: DefaultRateLimit, Remaining: DefaultRateLimit, Reset: now + 1 h,
+// truncated to the second, Status: 403}.
 func NewServer(t testing.TB, opts Options) *Server {
 	t.Helper()
 	s := &Server{
@@ -201,35 +201,35 @@ func NewServer(t testing.TB, opts Options) *Server {
 	return s
 }
 
-// URL renvoie la racine de l'API simulée, avec « / » final (ex. « http://127.0.0.1:54321/ »), à passer
-// à github.Options.BaseURL.
+// URL returns the root of the simulated API, with a trailing "/" (e.g. "http://127.0.0.1:54321/"), to
+// pass to github.Options.BaseURL.
 func (s *Server) URL() string { return s.srv.URL + "/" }
 
-// Token renvoie le token attendu par le serveur.
+// Token returns the token expected by the server.
 func (s *Server) Token() string { return s.token }
 
-// Close arrête le serveur ; sans effet s'il est déjà arrêté (il l'est aussi par t.Cleanup). Les
-// réponses retardées (Response.Delay) sont abandonnées.
+// Close stops the server; no effect if it is already stopped (it also is by t.Cleanup). The
+// delayed responses (Response.Delay) are abandoned.
 func (s *Server) Close() {
 	s.closeOnce.Do(func() { close(s.done) })
 	s.srv.Close()
 }
 
-// clock renvoie l'heure du serveur, en UTC.
+// clock returns the server's time, in UTC.
 func (s *Server) clock() time.Time { return s.now().UTC() }
 
-// fatalf signale une erreur de préparation (goroutine du test seulement).
+// fatalf reports a setup error (test goroutine only).
 func (s *Server) fatalf(format string, args ...any) {
 	s.tb.Helper()
-	s.tb.Fatalf("githubtest : "+format, args...)
+	s.tb.Fatalf("githubtest: "+format, args...)
 }
 
-// nameKey renvoie la clé d'un dépôt : « owner/name » en minuscules (GitHub ignore la casse).
+// nameKey returns the key of a repository: "owner/name" in lowercase (GitHub ignores case).
 func nameKey(owner, name string) string {
 	return strings.ToLower(owner + "/" + name)
 }
 
-// utcSecond convertit t en UTC à la seconde ; la valeur zéro reste zéro.
+// utcSecond converts t to UTC to the second; the zero value stays zero.
 func utcSecond(t time.Time) time.Time {
 	if t.IsZero() {
 		return time.Time{}
@@ -237,80 +237,80 @@ func utcSecond(t time.Time) time.Time {
 	return t.UTC().Truncate(time.Second)
 }
 
-// ----- Données -----
+// ----- Data -----
 
-// Repo décrit un dépôt simulé.
+// Repo describes a simulated repository.
 type Repo struct {
-	ID            int64     // identifiant numérique, > 0 et unique ; il ne change jamais
-	Owner         string    // propriétaire (login), unique avec Name sans tenir compte de la casse
-	Name          string    // nom
-	Private       bool      // dépôt privé ("private": true, "visibility": "private")
-	Archived      bool      // dépôt archivé
-	DefaultBranch string    // branche par défaut ; vide = « main »
+	ID            int64     // numeric identifier, > 0 and unique; it never changes
+	Owner         string    // owner (login), unique with Name, case-insensitively
+	Name          string    // name
+	Private       bool      // private repository ("private": true, "visibility": "private")
+	Archived      bool      // archived repository
+	DefaultBranch string    // default branch; empty = "main"
 	Stars         int       // "stargazers_count"
 	OpenIssues    int       // "open_issues_count"
-	PushedAt      time.Time // "pushed_at" ; zéro = null
+	PushedAt      time.Time // "pushed_at"; zero = null
 }
 
-// Access règle la réponse du serveur pour un dépôt.
+// Access configures the server's response for a repository.
 type Access int
 
-// Valeurs de Access.
+// Values of Access.
 const (
-	// AccessGranted : accès normal.
+	// AccessGranted: normal access.
 	AccessGranted Access = iota
-	// AccessHidden : 404 « Not Found » sur toutes les routes du dépôt, exactement comme un dépôt privé
-	// sans accès (ou supprimé).
+	// AccessHidden: 404 "Not Found" on all the routes of the repository, exactly like a private
+	// repository without access (or deleted).
 	AccessHidden
-	// AccessSSO : 403 avec l'en-tête X-GitHub-SSO sur toutes les routes du dépôt (l'organisation
-	// impose le SSO et le token n'y est pas autorisé).
+	// AccessSSO: 403 with the X-GitHub-SSO header on all the routes of the repository (the
+	// organization enforces SSO and the token is not authorized there).
 	AccessSSO
 )
 
-// Person est l'auteur ou le committer d'un commit simulé.
+// Person is the author or the committer of a simulated commit.
 type Person struct {
-	Name  string // nom Git ("commit.author.name")
-	Email string // e-mail Git ("commit.author.email")
-	// Login est le compte GitHub lié ; vide = aucun compte lié : le champ "author" (ou "committer") du
-	// JSON vaut null.
+	Name  string // Git name ("commit.author.name")
+	Email string // Git e-mail ("commit.author.email")
+	// Login is the linked GitHub account; empty = no linked account: the "author" (or "committer")
+	// field of the JSON is null.
 	Login     string
-	ID        int64  // identifiant du compte lié ; 0 = dérivé de Login (stable)
-	AvatarURL string // vide = « https://avatars.example.test/u/{ID} »
+	ID        int64  // identifier of the linked account; 0 = derived from Login (stable)
+	AvatarURL string // empty = "https://avatars.example.test/u/{ID}"
 }
 
-// Commit est un commit simulé.
+// Commit is a simulated commit.
 type Commit struct {
-	SHA         string    // SHA complet (40 ou 64 hex minuscules) ; vide = SHA déterministe dérivé du contenu et de l'ordre d'ajout
+	SHA         string    // full SHA (40 or 64 lowercase hex); empty = deterministic SHA derived from the content and the order of addition
 	Message     string    // message
-	Author      Person    // auteur
-	Committer   Person    // committer ; zéro = Author
-	AuthoredAt  time.Time // date d'écriture ; zéro = CommittedAt
-	CommittedAt time.Time // date de commit ; zéro = AuthoredAt (les deux zéro : erreur de préparation)
-	Parents     []string  // SHA des parents, déjà ajoutés au même dépôt ; vide = commit racine
+	Author      Person    // author
+	Committer   Person    // committer; zero = Author
+	AuthoredAt  time.Time // authoring date; zero = CommittedAt
+	CommittedAt time.Time // commit date; zero = AuthoredAt (both zero: setup error)
+	Parents     []string  // SHAs of the parents, already added to the same repository; empty = root commit
 	Additions   int       // "stats.additions"
 	Deletions   int       // "stats.deletions"
 }
 
-// AddRepo ajoute un dépôt (sans branche : il est vide tant qu'aucune branche n'est posée). ID ou
-// owner/nom déjà pris, ID <= 0, owner ou nom vide ou contenant un caractère réservé des URL (« / »,
-// « ? », « # », « % », « \ ») ou de contrôle : t.Fatalf. Un ancien nom d'un dépôt renommé peut être
-// repris : sa redirection disparaît, comme sur GitHub.
+// AddRepo adds a repository (without branch: it is empty as long as no branch is set). ID or
+// owner/name already taken, ID <= 0, owner or name empty or containing a reserved URL character ("/",
+// "?", "#", "%", "\") or a control character: t.Fatalf. An old name of a renamed repository can be
+// taken again: its redirection disappears, like on GitHub.
 func (s *Server) AddRepo(r Repo) {
 	s.tb.Helper()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	switch {
 	case r.ID <= 0:
-		s.fatalf("AddRepo : identifiant %d invalide (> 0 attendu)", r.ID)
+		s.fatalf("AddRepo: invalid identifier %d (want > 0)", r.ID)
 	case !validRepoName(r.Owner) || !validRepoName(r.Name):
-		s.fatalf("AddRepo : owner %q ou nom %q invalide", r.Owner, r.Name)
+		s.fatalf("AddRepo: invalid owner %q or name %q", r.Owner, r.Name)
 	}
 	if _, ok := s.repos[r.ID]; ok {
-		s.fatalf("AddRepo : identifiant %d déjà pris", r.ID)
+		s.fatalf("AddRepo: identifier %d already taken", r.ID)
 	}
 	key := nameKey(r.Owner, r.Name)
 	if _, ok := s.names[key]; ok {
-		s.fatalf("AddRepo : dépôt %s/%s déjà présent", r.Owner, r.Name)
+		s.fatalf("AddRepo: repository %s/%s already present", r.Owner, r.Name)
 	}
 	if r.DefaultBranch == "" {
 		r.DefaultBranch = "main"
@@ -325,26 +325,26 @@ func (s *Server) AddRepo(r Repo) {
 	}
 }
 
-// validRepoName indique si s peut servir d'owner ou de nom de dépôt dans un chemin : non vide, sans
-// caractère réservé des URL ni caractère de contrôle.
+// validRepoName reports whether s can be used as an owner or repository name in a path: not empty,
+// without reserved URL character or control character.
 func validRepoName(s string) bool {
 	return s != "" && !strings.ContainsAny(s, "/\\?#%") && strings.IndexFunc(s, func(r rune) bool { return r < 0x20 || r == 0x7f }) < 0
 }
 
-// RenameRepo renomme ou transfère le dépôt id vers newOwner/newName. Toutes les routes de l'ancien
-// nom répondent ensuite 301 vers /repositories/{id}/… ; les anciens noms successifs restent redirigés.
-// Nom déjà pris par un autre dépôt : t.Fatalf.
+// RenameRepo renames or transfers the repository id to newOwner/newName. All the routes of the old
+// name then answer 301 to /repositories/{id}/…; the successive old names stay redirected.
+// Name already taken by another repository: t.Fatalf.
 func (s *Server) RenameRepo(id int64, newOwner, newName string) {
 	s.tb.Helper()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	repo := s.repoLocked("RenameRepo", id)
 	if !validRepoName(newOwner) || !validRepoName(newName) {
-		s.fatalf("RenameRepo : owner %q ou nom %q invalide", newOwner, newName)
+		s.fatalf("RenameRepo: invalid owner %q or name %q", newOwner, newName)
 	}
 	newKey := nameKey(newOwner, newName)
 	if other, ok := s.names[newKey]; ok && other != id {
-		s.fatalf("RenameRepo : dépôt %s/%s déjà présent", newOwner, newName)
+		s.fatalf("RenameRepo: repository %s/%s already present", newOwner, newName)
 	}
 	oldKey := nameKey(repo.Owner, repo.Name)
 	delete(s.names, oldKey)
@@ -356,31 +356,31 @@ func (s *Server) RenameRepo(id int64, newOwner, newName string) {
 	repo.Owner, repo.Name = newOwner, newName
 }
 
-// SetRepoAccess règle l'accès au dépôt id (AccessGranted par défaut).
+// SetRepoAccess configures the access to the repository id (AccessGranted by default).
 func (s *Server) SetRepoAccess(id int64, a Access) {
 	s.tb.Helper()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	repo := s.repoLocked("SetRepoAccess", id)
 	if a < AccessGranted || a > AccessSSO {
-		s.fatalf("SetRepoAccess : accès %d inconnu", a)
+		s.fatalf("SetRepoAccess: unknown access %d", a)
 	}
 	repo.access = a
 }
 
-// repoLocked renvoie le dépôt id (t.Fatalf s'il est inconnu). Appelée avec s.mu verrouillé.
+// repoLocked returns the repository id (t.Fatalf if it is unknown). Called with s.mu locked.
 func (s *Server) repoLocked(op string, id int64) *repoState {
 	s.tb.Helper()
 	repo, ok := s.repos[id]
 	if !ok {
-		s.fatalf("%s : dépôt %d inconnu", op, id)
+		s.fatalf("%s: unknown repository %d", op, id)
 	}
 	return repo
 }
 
-// AddCommit ajoute un commit au dépôt repoID et renvoie son SHA. SHA mal formé ou déjà présent, parent
-// inconnu, dates toutes deux nulles ou dépôt inconnu : t.Fatalf. Ajouter un commit ne déplace aucune
-// branche (voir SetBranch).
+// AddCommit adds a commit to the repository repoID and returns its SHA. Malformed or already present
+// SHA, unknown parent, both dates zero or unknown repository: t.Fatalf. Adding a commit moves no
+// branch (see SetBranch).
 func (s *Server) AddCommit(repoID int64, c Commit) string {
 	s.tb.Helper()
 	s.mu.Lock()
@@ -388,11 +388,11 @@ func (s *Server) AddCommit(repoID int64, c Commit) string {
 	return s.addCommitLocked(s.repoLocked("AddCommit", repoID), c)
 }
 
-// addCommitLocked ajoute c à repo. Appelée avec s.mu verrouillé.
+// addCommitLocked adds c to repo. Called with s.mu locked.
 func (s *Server) addCommitLocked(repo *repoState, c Commit) string {
 	s.tb.Helper()
 	if c.CommittedAt.IsZero() && c.AuthoredAt.IsZero() {
-		s.fatalf("AddCommit : commit sans date (AuthoredAt et CommittedAt nuls)")
+		s.fatalf("AddCommit: commit without date (AuthoredAt and CommittedAt zero)")
 	}
 	if c.CommittedAt.IsZero() {
 		c.CommittedAt = c.AuthoredAt
@@ -406,7 +406,7 @@ func (s *Server) addCommitLocked(repo *repoState, c Commit) string {
 	}
 	for _, p := range c.Parents {
 		if _, ok := repo.commits[p]; !ok {
-			s.fatalf("AddCommit : parent %s inconnu dans le dépôt %d", p, repo.ID)
+			s.fatalf("AddCommit: unknown parent %s in repository %d", p, repo.ID)
 		}
 	}
 	c.Parents = append([]string{}, c.Parents...)
@@ -415,32 +415,32 @@ func (s *Server) addCommitLocked(repo *repoState, c Commit) string {
 		c.SHA = FakeSHA(fmt.Sprintf("githubtest/%d/%d/%s/%s/%s", repo.ID, repo.seq, c.Message,
 			c.CommittedAt.Format(time.RFC3339), strings.Join(c.Parents, ",")))
 	} else if !shaPattern.MatchString(c.SHA) {
-		s.fatalf("AddCommit : SHA %q mal formé (40 ou 64 hex minuscules attendus)", c.SHA)
+		s.fatalf("AddCommit: malformed SHA %q (want 40 or 64 lowercase hex)", c.SHA)
 	}
 	if _, ok := repo.commits[c.SHA]; ok {
-		s.fatalf("AddCommit : commit %s déjà présent dans le dépôt %d", c.SHA, repo.ID)
+		s.fatalf("AddCommit: commit %s already present in repository %d", c.SHA, repo.ID)
 	}
 	repo.commits[c.SHA] = &commitState{Commit: c, seq: repo.seq}
 	return c.SHA
 }
 
-// SetBranch crée la branche name du dépôt repoID, ou la déplace (y compris en arrière : force-push),
-// vers le commit headSHA, qui doit exister (sinon t.Fatalf). Nom vide : t.Fatalf.
+// SetBranch creates the branch name of the repository repoID, or moves it (including backwards:
+// force-push), to the commit headSHA, which must exist (otherwise t.Fatalf). Empty name: t.Fatalf.
 func (s *Server) SetBranch(repoID int64, name, headSHA string) {
 	s.tb.Helper()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	repo := s.repoLocked("SetBranch", repoID)
 	if name == "" {
-		s.fatalf("SetBranch : nom de branche vide")
+		s.fatalf("SetBranch: empty branch name")
 	}
 	if _, ok := repo.commits[headSHA]; !ok {
-		s.fatalf("SetBranch : commit %s inconnu dans le dépôt %d", headSHA, repoID)
+		s.fatalf("SetBranch: unknown commit %s in repository %d", headSHA, repoID)
 	}
 	repo.branches[name] = headSHA
 }
 
-// DeleteBranch supprime la branche name du dépôt repoID (les commits restent). Branche inconnue :
+// DeleteBranch deletes the branch name of the repository repoID (the commits stay). Unknown branch:
 // t.Fatalf.
 func (s *Server) DeleteBranch(repoID int64, name string) {
 	s.tb.Helper()
@@ -448,37 +448,37 @@ func (s *Server) DeleteBranch(repoID int64, name string) {
 	defer s.mu.Unlock()
 	repo := s.repoLocked("DeleteBranch", repoID)
 	if _, ok := repo.branches[name]; !ok {
-		s.fatalf("DeleteBranch : branche %q inconnue dans le dépôt %d", name, repoID)
+		s.fatalf("DeleteBranch: unknown branch %q in repository %d", name, repoID)
 	}
 	delete(repo.branches, name)
 }
 
-// RemoveCommit retire le commit sha du dépôt repoID, comme le nettoyage de GitHub après un force-push :
-// un compare dont c'est la base répond ensuite 404. Le commit ne doit plus être la tête d'une branche
-// (sinon t.Fatalf) ; les commits qui le référencent comme parent le gardent dans "parents" (le
-// parcours de l'historique s'y arrête).
+// RemoveCommit removes the commit sha from the repository repoID, like GitHub's cleanup after a
+// force-push: a compare whose base it is then answers 404. The commit must no longer be the head of
+// a branch (otherwise t.Fatalf); the commits referencing it as a parent keep it in "parents" (the
+// history walk stops there).
 func (s *Server) RemoveCommit(repoID int64, sha string) {
 	s.tb.Helper()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	repo := s.repoLocked("RemoveCommit", repoID)
 	if _, ok := repo.commits[sha]; !ok {
-		s.fatalf("RemoveCommit : commit %s inconnu dans le dépôt %d", sha, repoID)
+		s.fatalf("RemoveCommit: unknown commit %s in repository %d", sha, repoID)
 	}
 	for name, head := range repo.branches {
 		if head == sha {
-			s.fatalf("RemoveCommit : le commit %s est la tête de la branche %q", sha, name)
+			s.fatalf("RemoveCommit: commit %s is the head of branch %q", sha, name)
 		}
 	}
 	delete(repo.commits, sha)
 }
 
-// AppendCommits ajoute n commits linéaires au-dessus de la tête de branch (ou un historique neuf si la
-// branche n'existe pas), datés start, start+step, start+2*step… (date d'écriture = date de commit),
-// de messages « commit 1 » … « commit n », par l'auteur factice {Name: « Étudiant Test », Email:
-// « etudiant@example.test », Login: « etudiant-test »} (committer identique), puis place branch sur
-// le dernier. Renvoie les SHA dans l'ordre de création (du plus ancien au plus récent ; slice vide
-// non nil si n vaut 0, sans toucher à la branche). n négatif, branche vide ou start nul : t.Fatalf.
+// AppendCommits adds n linear commits on top of the head of branch (or a new history if the branch
+// does not exist), dated start, start+step, start+2*step… (authoring date = commit date), with
+// messages "commit 1" … "commit n", by the dummy author {Name: "Étudiant Test", Email:
+// "etudiant@example.test", Login: "etudiant-test"} (same committer), then puts branch on the last
+// one. Returns the SHAs in creation order (from oldest to newest; empty non-nil slice if n is 0,
+// without touching the branch). Negative n, empty branch or zero start: t.Fatalf.
 func (s *Server) AppendCommits(repoID int64, branch string, n int, start time.Time, step time.Duration) []string {
 	s.tb.Helper()
 	s.mu.Lock()
@@ -486,11 +486,11 @@ func (s *Server) AppendCommits(repoID int64, branch string, n int, start time.Ti
 	repo := s.repoLocked("AppendCommits", repoID)
 	switch {
 	case branch == "":
-		s.fatalf("AppendCommits : nom de branche vide")
+		s.fatalf("AppendCommits: empty branch name")
 	case n < 0:
-		s.fatalf("AppendCommits : nombre de commits %d négatif", n)
+		s.fatalf("AppendCommits: negative number of commits %d", n)
 	case n > 0 && start.IsZero():
-		s.fatalf("AppendCommits : date de départ nulle")
+		s.fatalf("AppendCommits: zero start date")
 	}
 	author := Person{Name: "Étudiant Test", Email: "etudiant@example.test", Login: "etudiant-test"}
 	parent := repo.branches[branch]
@@ -510,7 +510,7 @@ func (s *Server) AppendCommits(repoID int64, branch string, n int, start time.Ti
 	return shas
 }
 
-// FakeSHA renvoie un SHA-1 factice et déterministe (40 hex minuscules) dérivé de seed.
+// FakeSHA returns a dummy, deterministic SHA-1 (40 lowercase hex) derived from seed.
 func FakeSHA(seed string) string {
 	sum := sha1.Sum([]byte(seed))
 	return hex.EncodeToString(sum[:])
@@ -518,26 +518,26 @@ func FakeSHA(seed string) string {
 
 // ----- Quota -----
 
-// Quota est l'état du quota simulé (ressource core).
+// Quota is the state of the simulated quota (core resource).
 type Quota struct {
-	Limit     int       // requêtes par fenêtre ; 0 = DefaultRateLimit
-	Remaining int       // requêtes restantes
-	Reset     time.Time // fin de la fenêtre (tronquée à la seconde) ; zéro = maintenant + 1 h
-	Status    int       // code renvoyé quand le quota est épuisé : 403 (par défaut, 0) ou 429
+	Limit     int       // requests per window; 0 = DefaultRateLimit
+	Remaining int       // remaining requests
+	Reset     time.Time // end of the window (truncated to the second); zero = now + 1 h
+	Status    int       // code returned when the quota is exhausted: 403 (default, 0) or 429
 }
 
-// SetQuota remplace l'état du quota (Used = Limit - Remaining). Remaining à 0 avec Reset futur : les
-// requêtes suivantes (hors /rate_limit) reçoivent le refus de quota. Limit ou Remaining négatif,
-// Status autre que 0, 403 ou 429 : t.Fatalf.
+// SetQuota replaces the quota state (Used = Limit - Remaining). Remaining at 0 with a future Reset:
+// the following requests (except /rate_limit) get the quota refusal. Negative Limit or Remaining,
+// Status other than 0, 403 or 429: t.Fatalf.
 func (s *Server) SetQuota(q Quota) {
 	s.tb.Helper()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	switch {
 	case q.Limit < 0 || q.Remaining < 0:
-		s.fatalf("SetQuota : Limit (%d) et Remaining (%d) doivent être positifs", q.Limit, q.Remaining)
+		s.fatalf("SetQuota: Limit (%d) and Remaining (%d) must be positive", q.Limit, q.Remaining)
 	case q.Status != 0 && q.Status != http.StatusForbidden && q.Status != http.StatusTooManyRequests:
-		s.fatalf("SetQuota : code %d invalide (403 ou 429 attendu)", q.Status)
+		s.fatalf("SetQuota: invalid code %d (want 403 or 429)", q.Status)
 	}
 	if q.Limit == 0 {
 		q.Limit = DefaultRateLimit
@@ -557,40 +557,40 @@ func (s *Server) SetQuota(q Quota) {
 	}
 }
 
-// Quota renvoie l'état courant du quota (après les consommations ; une fenêtre échue n'est
-// renouvelée qu'à la requête suivante).
+// Quota returns the current quota state (after the consumptions; an expired window is only
+// renewed at the next request).
 func (s *Server) Quota() Quota {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return Quota{Limit: s.quota.limit, Remaining: s.quota.remaining, Reset: s.quota.reset, Status: s.quota.status}
 }
 
-// SecondaryLimit décrit une limite secondaire (anti-abus) à simuler.
+// SecondaryLimit describes a secondary (anti-abuse) limit to simulate.
 type SecondaryLimit struct {
-	// RetryAfter est la valeur de l'en-tête Retry-After, arrondie à la seconde (1 s au moins) ; 0 =
-	// pas d'en-tête Retry-After (le message « secondary rate limit » reste présent).
+	// RetryAfter is the value of the Retry-After header, rounded to the second (1 s at least); 0 =
+	// no Retry-After header (the "secondary rate limit" message stays present).
 	RetryAfter time.Duration
-	// Status est le code renvoyé : 403 (par défaut, 0) ou 429.
+	// Status is the returned code: 403 (default, 0) or 429.
 	Status int
-	// Requests est le nombre de requêtes refusées avant le retour à la normale ; 0 = 1.
+	// Requests is the number of refused requests before going back to normal; 0 = 1.
 	Requests int
 }
 
-// TriggerSecondaryLimit fait refuser les prochaines requêtes (hors /rate_limit) par une limite
-// secondaire : code l.Status, Retry-After si l.RetryAfter > 0, en-têtes de quota normaux
-// (X-RateLimit-Remaining non nul), corps {"message":"You have exceeded a secondary rate limit. Please
+// TriggerSecondaryLimit makes the next requests (except /rate_limit) refused by a secondary
+// limit: code l.Status, Retry-After if l.RetryAfter > 0, normal quota headers
+// (X-RateLimit-Remaining not zero), body {"message":"You have exceeded a secondary rate limit. Please
 // wait a few minutes before you try again.","documentation_url":"https://docs.github.com/rest/overview/
-// rate-limits-for-the-rest-api#about-secondary-rate-limits"}. Ces refus ne consomment pas de quota. Un
-// nouvel appel remplace la limite en cours.
+// rate-limits-for-the-rest-api#about-secondary-rate-limits"}. These refusals consume no quota. A
+// new call replaces the limit in progress.
 func (s *Server) TriggerSecondaryLimit(l SecondaryLimit) {
 	s.tb.Helper()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	switch {
 	case l.RetryAfter < 0 || l.Requests < 0:
-		s.fatalf("TriggerSecondaryLimit : RetryAfter (%s) et Requests (%d) doivent être positifs", l.RetryAfter, l.Requests)
+		s.fatalf("TriggerSecondaryLimit: RetryAfter (%s) and Requests (%d) must be positive", l.RetryAfter, l.Requests)
 	case l.Status != 0 && l.Status != http.StatusForbidden && l.Status != http.StatusTooManyRequests:
-		s.fatalf("TriggerSecondaryLimit : code %d invalide (403 ou 429 attendu)", l.Status)
+		s.fatalf("TriggerSecondaryLimit: invalid code %d (want 403 or 429)", l.Status)
 	}
 	if l.Status == 0 {
 		l.Status = http.StatusForbidden
@@ -601,32 +601,32 @@ func (s *Server) TriggerSecondaryLimit(l SecondaryLimit) {
 	s.secondary = &secondaryState{retryAfter: l.RetryAfter, status: l.Status, left: l.Requests}
 }
 
-// ----- Réponses injectées -----
+// ----- Injected responses -----
 
-// Response est une réponse imposée par Inject.
+// Response is a response imposed by Inject.
 type Response struct {
-	Status int         // code HTTP ; 0 = 200
-	Header http.Header // en-têtes ajoutés (ils l'emportent sur les en-têtes du serveur : quota, Content-Type)
-	Body   string      // corps, servi tel quel (Content-Type « application/json; charset=utf-8 » sauf en-tête contraire)
-	Times  int         // nombre de requêtes concernées ; 0 = toutes, jusqu'à ClearInjections
-	// Delay est attendu avant de répondre (pour tester Options.Timeout) ; l'attente s'interrompt si
-	// le client abandonne la requête (aucune réponse n'est alors écrite) ou si le serveur s'arrête.
+	Status int         // HTTP code; 0 = 200
+	Header http.Header // added headers (they take precedence over the server's headers: quota, Content-Type)
+	Body   string      // body, served as is (Content-Type "application/json; charset=utf-8" unless a header says otherwise)
+	Times  int         // number of requests concerned; 0 = all, until ClearInjections
+	// Delay is waited before answering (to test Options.Timeout); the wait is interrupted if the
+	// client abandons the request (no response is then written) or if the server stops.
 	Delay time.Duration
 }
 
-// Inject impose la réponse r aux requêtes autorisées dont le chemin (r.URL.Path) vaut exactement
-// path, par exemple « /repos/alice/projet » ; une nouvelle injection pour le même chemin remplace la
-// précédente. Ces réponses consomment du quota comme les autres (sauf code 304 et /rate_limit).
-// Chemin sans « / » initial, Times ou Delay négatif : t.Fatalf.
+// Inject imposes the response r on the authorized requests whose path (r.URL.Path) is exactly
+// path, for example "/repos/alice/projet"; a new injection for the same path replaces the
+// previous one. These responses consume quota like the others (except code 304 and /rate_limit).
+// Path without a leading "/", negative Times or Delay: t.Fatalf.
 func (s *Server) Inject(path string, r Response) {
 	s.tb.Helper()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	switch {
 	case !strings.HasPrefix(path, "/"):
-		s.fatalf("Inject : chemin %q sans « / » initial", path)
+		s.fatalf("Inject: path %q without a leading \"/\"", path)
 	case r.Times < 0 || r.Delay < 0:
-		s.fatalf("Inject : Times (%d) et Delay (%s) doivent être positifs", r.Times, r.Delay)
+		s.fatalf("Inject: Times (%d) and Delay (%s) must be positive", r.Times, r.Delay)
 	}
 	if r.Status == 0 {
 		r.Status = http.StatusOK
@@ -635,30 +635,30 @@ func (s *Server) Inject(path string, r Response) {
 	s.injections[path] = &injection{resp: r, left: r.Times}
 }
 
-// ClearInjections retire toutes les réponses injectées.
+// ClearInjections removes all the injected responses.
 func (s *Server) ClearInjections() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	clear(s.injections)
 }
 
-// ----- Journal -----
+// ----- Log -----
 
-// Request est une requête reçue par le serveur. Elle ne garde jamais la valeur de l'en-tête
-// Authorization.
+// Request is a request received by the server. It never keeps the value of the Authorization
+// header.
 type Request struct {
-	Method           string     // méthode HTTP
-	Path             string     // chemin (r.URL.Path), ex. « /repos/alice/projet/commits »
-	RawQuery         string     // paramètres bruts, ex. « per_page=100&sha=main »
-	Query            url.Values // paramètres décodés
-	IfNoneMatch      string     // en-tête If-None-Match reçu ; vide si absent
-	UserAgent        string     // en-tête User-Agent reçu
-	HasAuthorization bool       // l'en-tête Authorization était présent
-	ValidToken       bool       // il portait le token attendu
-	Status           int        // code HTTP renvoyé (ou prévu, si le client a abandonné pendant Response.Delay)
+	Method           string     // HTTP method
+	Path             string     // path (r.URL.Path), e.g. "/repos/alice/projet/commits"
+	RawQuery         string     // raw parameters, e.g. "per_page=100&sha=main"
+	Query            url.Values // decoded parameters
+	IfNoneMatch      string     // If-None-Match header received; empty if missing
+	UserAgent        string     // User-Agent header received
+	HasAuthorization bool       // the Authorization header was present
+	ValidToken       bool       // it carried the expected token
+	Status           int        // HTTP code returned (or planned, if the client gave up during Response.Delay)
 }
 
-// Requests renvoie une copie du journal des requêtes reçues, dans l'ordre d'arrivée.
+// Requests returns a copy of the log of received requests, in order of arrival.
 func (s *Server) Requests() []Request {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -670,14 +670,14 @@ func (s *Server) Requests() []Request {
 	return out
 }
 
-// ResetRequests vide le journal.
+// ResetRequests empties the log.
 func (s *Server) ResetRequests() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.requests = nil
 }
 
-// Count renvoie le nombre de requêtes reçues dont le chemin vaut exactement path.
+// Count returns the number of received requests whose path is exactly path.
 func (s *Server) Count(path string) int {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -690,7 +690,7 @@ func (s *Server) Count(path string) int {
 	return n
 }
 
-// cloneValues copie v (nil reste nil).
+// cloneValues copies v (nil stays nil).
 func cloneValues(v url.Values) url.Values {
 	if v == nil {
 		return nil

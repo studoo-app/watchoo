@@ -15,28 +15,28 @@ import (
 	"github.com/studoo-app/watchoo/internal/provider"
 )
 
-// t0 est l'origine des dates factices des tests.
+// t0 is the origin of the tests' dummy dates.
 var t0 = time.Date(2026, 10, 1, 8, 0, 0, 0, time.UTC)
 
 var ctx = context.Background()
 
-// graph est un historique avec une branche fusionnée, dans le dépôt 101 alice/projet :
+// graph is a history with a merged branch, in the repository 101 alice/projet:
 //
 //	r1 ── m1 ── m2 ─────── M   (main)
-//	  └── f1 ── f2 ──────┘     (feature : f2)
+//	  └── f1 ── f2 ──────┘     (feature: f2)
 //
-// dates de commit : r1 t0, m1 t0+1h, f1 t0+2h, m2 t0+3h, f2 t0+4h, M t0+5h.
+// commit dates: r1 t0, m1 t0+1h, f1 t0+2h, m2 t0+3h, f2 t0+4h, M t0+5h.
 type graph struct {
 	r1, m1, f1, m2, f2, merge string
 }
 
-// alice et bob sont des personnes factices.
+// alice and bob are dummy people.
 var (
 	alice = provider.Person{Name: "Alice Test", Email: "alice@example.test", Login: "alice", ID: 1, AvatarURL: "https://avatars.example.test/u/1"}
 	bob   = provider.Person{Name: "Bob Test", Email: "bob@example.test"}
 )
 
-// newGraph renvoie un Fake avec le dépôt 101 alice/projet et l'historique graph.
+// newGraph returns a Fake with the repository 101 alice/projet and the graph history.
 func newGraph(t *testing.T) (*Fake, graph) {
 	t.Helper()
 	f := New()
@@ -60,7 +60,7 @@ func newGraph(t *testing.T) (*Fake, graph) {
 	return f, g
 }
 
-// shas renvoie les SHA d'une liste de commits.
+// shas returns the SHAs of a list of commits.
 func shas(cs []provider.Commit) []string {
 	out := make([]string, len(cs))
 	for i, c := range cs {
@@ -69,38 +69,38 @@ func shas(cs []provider.Commit) []string {
 	return out
 }
 
-// expectPanic vérifie que fn panique.
+// expectPanic checks that fn panics.
 func expectPanic(t *testing.T, what string, fn func()) {
 	t.Helper()
 	defer func() {
 		if recover() == nil {
-			t.Errorf("%s : pas de panique", what)
+			t.Errorf("%s: no panic", what)
 		}
 	}()
 	fn()
 }
 
-// wantAPIError vérifie que err est un *provider.APIError de code status qui enveloppe target.
+// wantAPIError checks that err is a *provider.APIError with code status wrapping target.
 func wantAPIError(t *testing.T, what string, err error, status int, target error) {
 	t.Helper()
 	var apiErr *provider.APIError
 	if !errors.As(err, &apiErr) || !errors.Is(err, target) || apiErr.Status != status || apiErr.Method != "GET" ||
 		apiErr.Op == "" || !strings.HasPrefix(apiErr.Path, "/") {
-		t.Errorf("%s : erreur %#v (%v), veut *APIError HTTP %d enveloppant %v", what, err, err, status, target)
+		t.Errorf("%s: error %#v (%v), want *APIError HTTP %d wrapping %v", what, err, err, status, target)
 	}
 }
 
-// asAPI renvoie le *provider.APIError contenu dans err (le test s'arrête s'il n'y en a pas).
+// asAPI returns the *provider.APIError held in err (the test stops if there is none).
 func asAPI(t *testing.T, err error) *provider.APIError {
 	t.Helper()
 	var apiErr *provider.APIError
 	if !errors.As(err, &apiErr) {
-		t.Fatalf("erreur %v : *provider.APIError attendu", err)
+		t.Fatalf("error %v: want *provider.APIError", err)
 	}
 	return apiErr
 }
 
-// clock est une horloge réglable.
+// clock is an adjustable clock.
 type clock struct {
 	mu  sync.Mutex
 	now time.Time
@@ -120,14 +120,14 @@ func (c *clock) Advance(d time.Duration) {
 
 func TestNameAndSHA(t *testing.T) {
 	if n := New().Name(); n != model.ProviderGitHub {
-		t.Errorf("Name() = %q, veut %q", n, model.ProviderGitHub)
+		t.Errorf("Name() = %q, want %q", n, model.ProviderGitHub)
 	}
 	a := SHA("a")
 	if !regexp.MustCompile(`^[0-9a-f]{40}$`).MatchString(a) || a != SHA("a") || a == SHA("b") {
-		t.Errorf("SHA(\"a\") = %q : veut 40 hex minuscules, déterministe et propre à la graine", a)
+		t.Errorf("SHA(\"a\") = %q: want 40 lowercase hex, deterministic and specific to the seed", a)
 	}
 	if err := provider.ValidateSHA(a); err != nil {
-		t.Errorf("SHA invalide pour provider : %v", err)
+		t.Errorf("SHA invalid for provider: %v", err)
 	}
 }
 
@@ -143,7 +143,7 @@ func TestRepository(t *testing.T) {
 	for _, args := range [][2]string{{"Ecole-Promo", "projet.final"}, {"ecole-promo", "PROJET.FINAL"}} {
 		got, err := f.Repository(ctx, args[0], args[1])
 		if err != nil || !reflect.DeepEqual(got, want) {
-			t.Errorf("Repository(%q, %q) = %+v, %v\nveut %+v", args[0], args[1], got, err, want)
+			t.Errorf("Repository(%q, %q) = %+v, %v\nwant %+v", args[0], args[1], got, err, want)
 		}
 	}
 	if got, err := f.RepositoryByID(ctx, 7); err != nil || !reflect.DeepEqual(got, want) {
@@ -151,13 +151,13 @@ func TestRepository(t *testing.T) {
 	}
 
 	_, err := f.Repository(ctx, "alice", "inconnu")
-	wantAPIError(t, "dépôt inconnu", err, 404, provider.ErrNotFound)
-	if apiErr := asAPI(t, err); apiErr.Op != "lecture du dépôt alice/inconnu" || apiErr.Path != "/repos/alice/inconnu" {
+	wantAPIError(t, "unknown repository", err, 404, provider.ErrNotFound)
+	if apiErr := asAPI(t, err); apiErr.Op != "reading repository alice/inconnu" || apiErr.Path != "/repos/alice/inconnu" {
 		t.Errorf("APIError = %+v", apiErr)
 	}
 	_, err = f.RepositoryByID(ctx, 99)
-	wantAPIError(t, "identifiant inconnu", err, 404, provider.ErrNotFound)
-	if apiErr := asAPI(t, err); apiErr.Op != "lecture du dépôt n° 99" || apiErr.Path != "/repositories/99" {
+	wantAPIError(t, "unknown identifier", err, 404, provider.ErrNotFound)
+	if apiErr := asAPI(t, err); apiErr.Op != "reading repository #99" || apiErr.Path != "/repositories/99" {
 		t.Errorf("APIError = %+v", apiErr)
 	}
 
@@ -165,11 +165,11 @@ func TestRepository(t *testing.T) {
 	for _, args := range [][2]string{{"", "x"}, {"alice", ".."}, {"-alice", "x"}, {"alice", "a/b"}, {"a_b", "x"}} {
 		_, err := f.Repository(ctx, args[0], args[1])
 		if !errors.Is(err, provider.ErrInvalidRef) || errors.As(err, &apiErr) {
-			t.Errorf("Repository(%q, %q) : erreur %v, veut ErrInvalidRef sans APIError", args[0], args[1], err)
+			t.Errorf("Repository(%q, %q): error %v, want ErrInvalidRef without APIError", args[0], args[1], err)
 		}
 	}
 	if _, err := f.RepositoryByID(ctx, 0); !errors.Is(err, provider.ErrInvalidRef) {
-		t.Errorf("RepositoryByID(0) : %v, veut ErrInvalidRef", err)
+		t.Errorf("RepositoryByID(0): %v, want ErrInvalidRef", err)
 	}
 }
 
@@ -180,21 +180,21 @@ func TestUpdateRepository(t *testing.T) {
 	for _, args := range [][2]string{{"alice", "projet"}, {"ECOLE", "Projet-Alice"}} {
 		got, err := f.Repository(ctx, args[0], args[1])
 		if err != nil || got.Owner != "ecole" || got.Name != "projet-alice" || got.Stars != 5 || got.ID != 101 {
-			t.Errorf("Repository(%q, %q) après renommage = %+v, %v", args[0], args[1], got, err)
+			t.Errorf("Repository(%q, %q) after renaming = %+v, %v", args[0], args[1], got, err)
 		}
 	}
-	// Les autres méthodes suivent aussi l'ancien nom.
+	// The other methods follow the old name too.
 	if cs, err := f.ListCommits(ctx, "alice", "projet", provider.ListCommitsOptions{}); err != nil || len(cs) != 6 {
-		t.Errorf("ListCommits par l'ancien nom : %d commits, %v", len(cs), err)
+		t.Errorf("ListCommits by the old name: %d commits, %v", len(cs), err)
 	}
 	if bs, err := f.Branches(ctx, "alice", "projet"); err != nil || len(bs) != 2 {
-		t.Errorf("Branches par l'ancien nom : %v, %v", bs, err)
+		t.Errorf("Branches by the old name: %v, %v", bs, err)
 	}
 	if cs, err := f.CompareCommits(ctx, "alice", "projet", g.m2, g.merge); err != nil || len(cs) != 3 {
-		t.Errorf("CompareCommits par l'ancien nom : %v, %v", shas(cs), err)
+		t.Errorf("CompareCommits by the old name: %v, %v", shas(cs), err)
 	}
 
-	// Deuxième renommage : les deux anciens noms restent valides.
+	// Second renaming: both old names stay valid.
 	f.UpdateRepository(provider.Repository{ID: 101, Owner: "ecole", Name: "projet-final"})
 	for _, args := range [][2]string{{"alice", "projet"}, {"ecole", "projet-alice"}, {"ecole", "projet-final"}} {
 		if got, err := f.Repository(ctx, args[0], args[1]); err != nil || got.Name != "projet-final" || got.DefaultBranch != "main" {
@@ -202,19 +202,19 @@ func TestUpdateRepository(t *testing.T) {
 		}
 	}
 
-	// Un nouveau dépôt reprend un ancien nom.
+	// A new repository takes an old name again.
 	f.AddRepository(provider.Repository{ID: 202, Owner: "alice", Name: "projet"})
 	if got, err := f.Repository(ctx, "alice", "projet"); err != nil || got.ID != 202 {
-		t.Errorf("ancien nom repris : %+v, %v, veut le dépôt 202", got, err)
+		t.Errorf("old name taken again: %+v, %v, want repository 202", got, err)
 	}
 	if got, err := f.Repository(ctx, "ecole", "projet-alice"); err != nil || got.ID != 101 {
-		t.Errorf("autre ancien nom : %+v, %v, veut le dépôt 101", got, err)
+		t.Errorf("other old name: %+v, %v, want repository 101", got, err)
 	}
 
-	expectPanic(t, "renommage vers un nom actuel pris", func() {
+	expectPanic(t, "renaming to a taken current name", func() {
 		f.UpdateRepository(provider.Repository{ID: 101, Owner: "alice", Name: "projet"})
 	})
-	expectPanic(t, "dépôt inconnu", func() { f.UpdateRepository(provider.Repository{ID: 9, Owner: "a", Name: "b"}) })
+	expectPanic(t, "unknown repository", func() { f.UpdateRepository(provider.Repository{ID: 9, Owner: "a", Name: "b"}) })
 }
 
 func TestRemoveRepository(t *testing.T) {
@@ -222,8 +222,8 @@ func TestRemoveRepository(t *testing.T) {
 	f.UpdateRepository(provider.Repository{ID: 101, Owner: "ecole", Name: "projet"})
 	f.RemoveRepository(101)
 	checks := map[string]error{}
-	_, checks["Repository (nom actuel)"] = f.Repository(ctx, "ecole", "projet")
-	_, checks["Repository (ancien nom)"] = f.Repository(ctx, "alice", "projet")
+	_, checks["Repository (current name)"] = f.Repository(ctx, "ecole", "projet")
+	_, checks["Repository (old name)"] = f.Repository(ctx, "alice", "projet")
 	_, checks["RepositoryByID"] = f.RepositoryByID(ctx, 101)
 	_, checks["Branches"] = f.Branches(ctx, "ecole", "projet")
 	_, checks["ListCommits"] = f.ListCommits(ctx, "ecole", "projet", provider.ListCommitsOptions{})
@@ -232,9 +232,9 @@ func TestRemoveRepository(t *testing.T) {
 	for what, err := range checks {
 		wantAPIError(t, what, err, 404, provider.ErrNotFound)
 	}
-	// Les noms sont libérés.
+	// The names are released.
 	f.AddRepository(provider.Repository{ID: 303, Owner: "alice", Name: "projet"})
-	expectPanic(t, "RemoveRepository inconnu", func() { f.RemoveRepository(101) })
+	expectPanic(t, "unknown RemoveRepository", func() { f.RemoveRepository(101) })
 }
 
 func TestBranches(t *testing.T) {
@@ -246,19 +246,19 @@ func TestBranches(t *testing.T) {
 		{Name: "dev", HeadSHA: g.m1}, {Name: "feature", HeadSHA: g.f2}, {Name: "main", HeadSHA: g.merge}, {Name: "release/1.0", HeadSHA: g.r1},
 	}
 	if err != nil || !reflect.DeepEqual(got, want) {
-		t.Errorf("Branches = %v, %v\nveut %v", got, err, want)
+		t.Errorf("Branches = %v, %v\nwant %v", got, err, want)
 	}
 	f.DeleteBranch(101, "dev")
 	if got, _ := f.Branches(ctx, "alice", "projet"); len(got) != 3 {
-		t.Errorf("après DeleteBranch : %v", got)
+		t.Errorf("after DeleteBranch: %v", got)
 	}
 
 	f.AddRepository(provider.Repository{ID: 2, Owner: "alice", Name: "vide"})
 	if got, err := f.Branches(ctx, "alice", "vide"); err != nil || got == nil || len(got) != 0 {
-		t.Errorf("dépôt vide : %#v, %v, veut une liste vide non nil", got, err)
+		t.Errorf("empty repository: %#v, %v, want an empty non-nil list", got, err)
 	}
 
-	// Plafond provider.MaxBranches.
+	// Cap provider.MaxBranches.
 	f.AddRepository(provider.Repository{ID: 3, Owner: "alice", Name: "branches"})
 	f.AppendCommits(3, "main", 1, t0, 0)
 	head, _ := f.Branches(ctx, "alice", "branches")
@@ -267,7 +267,7 @@ func TestBranches(t *testing.T) {
 	}
 	got, err = f.Branches(ctx, "alice", "branches")
 	if err != nil || len(got) != provider.MaxBranches || got[0].Name != "b00000" {
-		t.Errorf("plafond : %d branches (première %v), %v ; veut %d", len(got), got[0], err, provider.MaxBranches)
+		t.Errorf("cap: %d branches (first %v), %v; want %d", len(got), got[0], err, provider.MaxBranches)
 	}
 }
 
@@ -278,21 +278,21 @@ func TestListCommits(t *testing.T) {
 		opts provider.ListCommitsOptions
 		want []string
 	}{
-		{"branche par défaut", provider.ListCommitsOptions{}, []string{g.merge, g.f2, g.m2, g.f1, g.m1, g.r1}},
+		{"default branch", provider.ListCommitsOptions{}, []string{g.merge, g.f2, g.m2, g.f1, g.m1, g.r1}},
 		{"main", provider.ListCommitsOptions{Branch: "main"}, []string{g.merge, g.f2, g.m2, g.f1, g.m1, g.r1}},
 		{"feature", provider.ListCommitsOptions{Branch: "feature"}, []string{g.f2, g.f1, g.r1}},
 		{"SHA", provider.ListCommitsOptions{Branch: g.m2}, []string{g.m2, g.m1, g.r1}},
 		{"Since", provider.ListCommitsOptions{Since: t0.Add(2 * time.Hour)}, []string{g.merge, g.f2, g.m2, g.f1}},
-		{"Since autre fuseau", provider.ListCommitsOptions{Since: t0.Add(2 * time.Hour).In(time.FixedZone("X", -5*3600))}, []string{g.merge, g.f2, g.m2, g.f1}},
-		// Since tronqué à la seconde, comme le since envoyé à GitHub : f1 (t0 + 2 h pile) reste.
-		{"Since à fraction de seconde", provider.ListCommitsOptions{Since: t0.Add(2*time.Hour + 500*time.Millisecond)}, []string{g.merge, g.f2, g.m2, g.f1}},
-		{"Since juste après la seconde", provider.ListCommitsOptions{Since: t0.Add(2*time.Hour + time.Second)}, []string{g.merge, g.f2, g.m2}},
-		{"Since futur", provider.ListCommitsOptions{Since: t0.Add(24 * time.Hour)}, []string{}},
+		{"Since other time zone", provider.ListCommitsOptions{Since: t0.Add(2 * time.Hour).In(time.FixedZone("X", -5*3600))}, []string{g.merge, g.f2, g.m2, g.f1}},
+		// Since truncated to the second, like the since sent to GitHub: f1 (exactly t0 + 2 h) stays.
+		{"Since with a fraction of a second", provider.ListCommitsOptions{Since: t0.Add(2*time.Hour + 500*time.Millisecond)}, []string{g.merge, g.f2, g.m2, g.f1}},
+		{"Since right after the second", provider.ListCommitsOptions{Since: t0.Add(2*time.Hour + time.Second)}, []string{g.merge, g.f2, g.m2}},
+		{"future Since", provider.ListCommitsOptions{Since: t0.Add(24 * time.Hour)}, []string{}},
 	}
 	for _, c := range cases {
 		got, err := f.ListCommits(ctx, "alice", "projet", c.opts)
 		if err != nil || got == nil || !reflect.DeepEqual(shas(got), c.want) {
-			t.Errorf("%s : %v, %v\nveut %v", c.name, shas(got), err, c.want)
+			t.Errorf("%s: %v, %v\nwant %v", c.name, shas(got), err, c.want)
 		}
 	}
 
@@ -300,36 +300,36 @@ func TestListCommits(t *testing.T) {
 	m := got[0]
 	if m.Message != "fusion" || m.Author != alice || m.URL != "https://github.com/alice/projet/commit/"+g.merge ||
 		!m.CommittedAt.Equal(t0.Add(5*time.Hour)) || !reflect.DeepEqual(m.Parents, []string{g.m2, g.f2}) {
-		t.Errorf("commit de fusion : %+v", m)
+		t.Errorf("merge commit: %+v", m)
 	}
 	if root := got[5]; root.Parents == nil || len(root.Parents) != 0 {
-		t.Errorf("commit racine : Parents %#v, veut une slice vide non nil", root.Parents)
+		t.Errorf("root commit: Parents %#v, want an empty non-nil slice", root.Parents)
 	}
-	// Copies indépendantes.
+	// Independent copies.
 	got[0].Parents[0] = "modifié"
 	got[0].Message = "modifié"
 	again, _ := f.ListCommits(ctx, "alice", "projet", provider.ListCommitsOptions{})
 	if again[0].Parents[0] != g.m2 || again[0].Message != "fusion" {
-		t.Error("modifier un résultat a modifié le Fake")
+		t.Error("modifying a result modified the Fake")
 	}
 
 	for _, branch := range []string{"inconnue", SHA("absent")} {
 		_, err := f.ListCommits(ctx, "alice", "projet", provider.ListCommitsOptions{Branch: branch})
-		wantAPIError(t, "branche "+branch, err, 404, provider.ErrNotFound)
+		wantAPIError(t, "branch "+branch, err, 404, provider.ErrNotFound)
 	}
 	if _, err := f.ListCommits(ctx, "alice", "projet", provider.ListCommitsOptions{Branch: "a\nb"}); !errors.Is(err, provider.ErrInvalidRef) {
-		t.Errorf("branche invalide : %v, veut ErrInvalidRef", err)
+		t.Errorf("invalid branch: %v, want ErrInvalidRef", err)
 	}
 
 	f.AddRepository(provider.Repository{ID: 2, Owner: "alice", Name: "vide"})
 	for _, branch := range []string{"", "main", "inconnue"} {
 		got, err := f.ListCommits(ctx, "alice", "vide", provider.ListCommitsOptions{Branch: branch})
 		if err != nil || got == nil || len(got) != 0 {
-			t.Errorf("dépôt vide, branche %q : %#v, %v ; veut une liste vide non nil sans erreur", branch, got, err)
+			t.Errorf("empty repository, branch %q: %#v, %v; want an empty non-nil list without error", branch, got, err)
 		}
 	}
 
-	// À date égale, le dernier ajouté d'abord.
+	// At equal dates, the last added first.
 	a, b, ab := SHA("a"), SHA("b"), SHA("ab")
 	at := t0.Add(6 * time.Hour)
 	f.AddCommits(101,
@@ -340,7 +340,7 @@ func TestListCommits(t *testing.T) {
 	f.SetBranch(101, "main", ab)
 	got, _ = f.ListCommits(ctx, "alice", "projet", provider.ListCommitsOptions{Limit: 3})
 	if want := []string{ab, b, a}; !reflect.DeepEqual(shas(got), want) {
-		t.Errorf("dates égales : %v, veut %v", shas(got), want)
+		t.Errorf("equal dates: %v, want %v", shas(got), want)
 	}
 }
 
@@ -349,43 +349,43 @@ func TestListCommitsStopAndLimit(t *testing.T) {
 	var seen []string
 	stop := func(sha string) bool {
 		seen = append(seen, sha)
-		_ = f.Calls(MethodListCommits) // Stop est appelé hors du verrou : pas d'interblocage
+		_ = f.Calls(MethodListCommits) // Stop is called outside the lock: no deadlock
 		return sha == g.m2
 	}
 	got, err := f.ListCommits(ctx, "alice", "projet", provider.ListCommitsOptions{Stop: stop})
 	if err != nil || !reflect.DeepEqual(shas(got), []string{g.merge, g.f2}) {
-		t.Errorf("Stop : %v, %v ; veut [merge f2]", shas(got), err)
+		t.Errorf("Stop: %v, %v; want [merge f2]", shas(got), err)
 	}
 	if !reflect.DeepEqual(seen, []string{g.merge, g.f2, g.m2}) {
-		t.Errorf("Stop appelé sur %v, veut [merge f2 m2]", seen)
+		t.Errorf("Stop called on %v, want [merge f2 m2]", seen)
 	}
 
 	seen = nil
 	got, _ = f.ListCommits(ctx, "alice", "projet", provider.ListCommitsOptions{Stop: stop, Limit: 1})
 	if !reflect.DeepEqual(shas(got), []string{g.merge}) || len(seen) != 1 {
-		t.Errorf("Limit 1 : %v, Stop appelé %d fois ; veut [merge] et 1 appel", shas(got), len(seen))
+		t.Errorf("Limit 1: %v, Stop called %d times; want [merge] and 1 call", shas(got), len(seen))
 	}
 
 	got, _ = f.ListCommits(ctx, "alice", "projet", provider.ListCommitsOptions{Stop: func(sha string) bool { return sha == g.merge }})
 	if got == nil || len(got) != 0 {
-		t.Errorf("Stop sur le premier commit : %#v, veut une liste vide non nil", got)
+		t.Errorf("Stop on the first commit: %#v, want an empty non-nil list", got)
 	}
 	got, _ = f.ListCommits(ctx, "alice", "projet", provider.ListCommitsOptions{Since: t0.Add(4 * time.Hour), Stop: func(string) bool { return false }})
 	if !reflect.DeepEqual(shas(got), []string{g.merge, g.f2}) {
-		t.Errorf("Since + Stop : %v", shas(got))
+		t.Errorf("Since + Stop: %v", shas(got))
 	}
 	for _, limit := range []int{-1, 0, provider.MaxCommits + 1} {
 		if got, _ := f.ListCommits(ctx, "alice", "projet", provider.ListCommitsOptions{Limit: limit}); len(got) != 6 {
-			t.Errorf("Limit %d : %d commits, veut 6", limit, len(got))
+			t.Errorf("Limit %d: %d commits, want 6", limit, len(got))
 		}
 	}
 
-	// Plafond provider.MaxCommits.
+	// Cap provider.MaxCommits.
 	f.AddRepository(provider.Repository{ID: 9, Owner: "alice", Name: "gros"})
 	created := f.AppendCommits(9, "main", provider.MaxCommits+2, t0, time.Second)
 	got, err = f.ListCommits(ctx, "alice", "gros", provider.ListCommitsOptions{Limit: provider.MaxCommits + 50})
 	if err != nil || len(got) != provider.MaxCommits || got[0].SHA != created[len(created)-1].SHA {
-		t.Errorf("plafond : %d commits, %v ; veut %d en commençant par le plus récent", len(got), err, provider.MaxCommits)
+		t.Errorf("cap: %d commits, %v; want %d starting with the most recent", len(got), err, provider.MaxCommits)
 	}
 }
 
@@ -399,66 +399,66 @@ func TestCompareCommits(t *testing.T) {
 		{g.m1, g.merge, []string{g.merge, g.f2, g.m2, g.f1}},
 		{g.r1, g.f2, []string{g.f2, g.f1}},
 		{g.f2, g.m2, []string{g.m2, g.m1}},
-		{g.merge, g.m2, []string{}}, // head contenu dans base
+		{g.merge, g.m2, []string{}}, // head contained in base
 		{g.merge, g.merge, []string{}},
 	}
 	for _, c := range cases {
 		got, err := f.CompareCommits(ctx, "alice", "projet", c.base, c.head)
 		if err != nil || got == nil || !reflect.DeepEqual(shas(got), c.want) {
-			t.Errorf("%s...%s : %v, %v\nveut %v", provider.ShortSHA(c.base), provider.ShortSHA(c.head), shas(got), err, c.want)
+			t.Errorf("%s...%s: %v, %v\nwant %v", provider.ShortSHA(c.base), provider.ShortSHA(c.head), shas(got), err, c.want)
 		}
 	}
 
-	// base inconnue : ErrUnknownBase et surtout pas ErrNotFound.
+	// unknown base: ErrUnknownBase and above all not ErrNotFound.
 	_, err := f.CompareCommits(ctx, "alice", "projet", SHA("absent"), g.merge)
-	wantAPIError(t, "base inconnue", err, 404, provider.ErrUnknownBase)
+	wantAPIError(t, "unknown base", err, 404, provider.ErrUnknownBase)
 	if errors.Is(err, provider.ErrNotFound) {
-		t.Error("base inconnue : l'erreur ne doit pas envelopper ErrNotFound")
+		t.Error("unknown base: the error must not wrap ErrNotFound")
 	}
-	if op := asAPI(t, err).Op; op != fmt.Sprintf("comparaison %s...%s dans alice/projet", provider.ShortSHA(SHA("absent")), provider.ShortSHA(g.merge)) {
+	if op := asAPI(t, err).Op; op != fmt.Sprintf("comparing %s...%s in alice/projet", provider.ShortSHA(SHA("absent")), provider.ShortSHA(g.merge)) {
 		t.Errorf("Op = %q", op)
 	}
 
-	// head inconnu : comme le Provider GitHub, qui ne peut pas distinguer ce cas d'une base inconnue
-	// (GitHub répond 404 dans les deux cas, sur un dépôt accessible), ErrUnknownBase.
+	// unknown head: like the GitHub Provider, which cannot tell this case apart from an unknown base
+	// (GitHub answers 404 in both cases, on an accessible repository), ErrUnknownBase.
 	_, err = f.CompareCommits(ctx, "alice", "projet", g.merge, SHA("absent"))
-	wantAPIError(t, "head inconnu", err, 404, provider.ErrUnknownBase)
+	wantAPIError(t, "unknown head", err, 404, provider.ErrUnknownBase)
 	if errors.Is(err, provider.ErrNotFound) {
-		t.Error("head inconnu : l'erreur ne doit pas envelopper ErrNotFound")
+		t.Error("unknown head: the error must not wrap ErrNotFound")
 	}
 
-	// Force-push puis nettoyage : l'ancienne tête disparaît.
+	// Force-push then cleanup: the old head disappears.
 	f.SetBranch(101, "feature", g.f1)
 	if got, err := f.CompareCommits(ctx, "alice", "projet", g.f2, g.merge); err != nil || len(got) != 3 {
-		t.Errorf("avant nettoyage : %v, %v", shas(got), err)
+		t.Errorf("before cleanup: %v, %v", shas(got), err)
 	}
 	f.RemoveCommit(101, g.f2)
 	_, err = f.CompareCommits(ctx, "alice", "projet", g.f2, g.merge)
-	wantAPIError(t, "base retirée", err, 404, provider.ErrUnknownBase)
+	wantAPIError(t, "removed base", err, 404, provider.ErrUnknownBase)
 
-	// Historiques sans ancêtre commun.
+	// Histories without common ancestor.
 	orphan := SHA("orphelin")
 	f.AddCommits(101, provider.Commit{SHA: orphan, CommittedAt: t0.Add(9 * time.Hour)})
 	f.SetBranch(101, "orpheline", orphan)
 	_, err = f.CompareCommits(ctx, "alice", "projet", g.m1, orphan)
-	wantAPIError(t, "sans ancêtre commun", err, 404, provider.ErrUnknownBase)
+	wantAPIError(t, "without common ancestor", err, 404, provider.ErrUnknownBase)
 
 	f.AddRepository(provider.Repository{ID: 2, Owner: "alice", Name: "vide"})
 	_, err = f.CompareCommits(ctx, "alice", "vide", g.m1, g.merge)
-	wantAPIError(t, "dépôt vide", err, 409, provider.ErrEmptyRepository)
+	wantAPIError(t, "empty repository", err, 409, provider.ErrEmptyRepository)
 
 	for _, args := range [][2]string{{"abc", g.merge}, {g.merge, strings.ToUpper(g.m1)}} {
 		if _, err := f.CompareCommits(ctx, "alice", "projet", args[0], args[1]); !errors.Is(err, provider.ErrInvalidRef) {
-			t.Errorf("SHA invalide %v : %v, veut ErrInvalidRef", args, err)
+			t.Errorf("invalid SHA %v: %v, want ErrInvalidRef", args, err)
 		}
 	}
 
-	// base == head : aucun contrôle après la validation (le Provider GitHub n'envoie rien).
+	// base == head: no check after the validation (the GitHub Provider sends nothing).
 	f.SetRateLimit(provider.RateLimit{Limit: 10, Remaining: 0, Reset: time.Now().Add(time.Hour)})
-	f.SetError(MethodCompareCommits, errors.New("injectée"))
-	f.SetRepoError("alice", "projet", errors.New("dépôt"))
+	f.SetError(MethodCompareCommits, errors.New("injected"))
+	f.SetRepoError("alice", "projet", errors.New("repository"))
 	if got, err := f.CompareCommits(ctx, "alice", "projet", g.merge, g.merge); err != nil || got == nil || len(got) != 0 {
-		t.Errorf("base == head : %#v, %v ; veut une liste vide non nil sans erreur", got, err)
+		t.Errorf("base == head: %#v, %v; want an empty non-nil list without error", got, err)
 	}
 }
 
@@ -467,11 +467,11 @@ func TestCompareCommitsMaxCommits(t *testing.T) {
 	f.AddRepository(provider.Repository{ID: 1, Owner: "alice", Name: "gros"})
 	created := f.AppendCommits(1, "main", provider.MaxCommits+2, t0, time.Second)
 	got, err := f.CompareCommits(ctx, "alice", "gros", created[0].SHA, created[len(created)-1].SHA)
-	// MaxCommits+1 commits en avance : les MaxCommits plus anciens sont gardés (comme le Provider
-	// GitHub, qui lit les pages du plus ancien au plus récent), du plus récent au plus ancien.
+	// MaxCommits+1 commits ahead: the MaxCommits oldest are kept (like the GitHub Provider, which reads
+	// the pages from oldest to newest), from newest to oldest.
 	if err != nil || len(got) != provider.MaxCommits || got[0].SHA != created[provider.MaxCommits].SHA ||
 		got[len(got)-1].SHA != created[1].SHA {
-		t.Errorf("plafond : %d commits, %v", len(got), err)
+		t.Errorf("cap: %d commits, %v", len(got), err)
 	}
 }
 
@@ -482,26 +482,26 @@ func TestCommitStats(t *testing.T) {
 		t.Errorf("CommitStats(merge) = %+v, %v", s, err)
 	}
 	if s, err := f.CommitStats(ctx, "alice", "projet", g.r1); err != nil || s != (provider.CommitStats{}) {
-		t.Errorf("CommitStats(r1) = %+v, %v ; veut zéro", s, err)
+		t.Errorf("CommitStats(r1) = %+v, %v; want zero", s, err)
 	}
 	_, err := f.CommitStats(ctx, "alice", "projet", SHA("absent"))
-	wantAPIError(t, "commit inconnu", err, 404, provider.ErrNotFound)
-	if op := asAPI(t, err).Op; op != "statistiques du commit "+provider.ShortSHA(SHA("absent"))+" de alice/projet" {
+	wantAPIError(t, "unknown commit", err, 404, provider.ErrNotFound)
+	if op := asAPI(t, err).Op; op != "statistics of commit "+provider.ShortSHA(SHA("absent"))+" in alice/projet" {
 		t.Errorf("Op = %q", op)
 	}
 	if _, err := f.CommitStats(ctx, "alice", "projet", "main"); !errors.Is(err, provider.ErrInvalidRef) {
-		t.Errorf("SHA invalide : %v", err)
+		t.Errorf("invalid SHA: %v", err)
 	}
 	f.AddRepository(provider.Repository{ID: 2, Owner: "alice", Name: "vide"})
 	_, err = f.CommitStats(ctx, "alice", "vide", g.r1)
-	wantAPIError(t, "dépôt vide", err, 409, provider.ErrEmptyRepository)
+	wantAPIError(t, "empty repository", err, 409, provider.ErrEmptyRepository)
 
-	// Un commit retiré perd ses statistiques.
+	// A removed commit loses its statistics.
 	f.SetBranch(101, "feature", g.f1)
 	f.SetStats(101, g.f2, provider.CommitStats{Additions: 1})
 	f.RemoveCommit(101, g.f2)
 	_, err = f.CommitStats(ctx, "alice", "projet", g.f2)
-	wantAPIError(t, "commit retiré", err, 404, provider.ErrNotFound)
+	wantAPIError(t, "removed commit", err, 404, provider.ErrNotFound)
 }
 
 func TestInjectedErrors(t *testing.T) {
@@ -512,41 +512,41 @@ func TestInjectedErrors(t *testing.T) {
 	f.FailNext(MethodRepository, errB)
 	for i, want := range []error{errA, errB, errC, errC} {
 		if _, err := f.Repository(ctx, "alice", "projet"); err != want {
-			t.Errorf("appel %d : %v, veut %v", i+1, err, want)
+			t.Errorf("call %d: %v, want %v", i+1, err, want)
 		}
 	}
 	f.SetError(MethodRepository, nil)
 	if _, err := f.Repository(ctx, "alice", "projet"); err != nil {
-		t.Errorf("après SetError(nil) : %v", err)
+		t.Errorf("after SetError(nil): %v", err)
 	}
 	if n := f.Calls(MethodRepository); n != 5 {
-		t.Errorf("Calls = %d, veut 5 (échecs compris)", n)
+		t.Errorf("Calls = %d, want 5 (failures included)", n)
 	}
 
-	// Les autres méthodes ne sont pas touchées.
+	// The other methods are not touched.
 	f.SetError(MethodBranches, errA)
 	if _, err := f.ListCommits(ctx, "alice", "projet", provider.ListCommitsOptions{}); err != nil {
-		t.Errorf("ListCommits touché par SetError(Branches) : %v", err)
+		t.Errorf("ListCommits touched by SetError(Branches): %v", err)
 	}
 
-	// Ordre : contexte, puis validation, puis injection.
+	// Order: context, then validation, then injection.
 	f.FailNext(MethodCommitStats, errA)
 	canceled, cancel := context.WithCancel(ctx)
 	cancel()
 	if _, err := f.CommitStats(canceled, "alice", "projet", "invalide"); !errors.Is(err, context.Canceled) {
-		t.Errorf("contexte annulé : %v, veut context.Canceled", err)
+		t.Errorf("canceled context: %v, want context.Canceled", err)
 	}
 	if _, err := f.CommitStats(ctx, "alice", "projet", "invalide"); !errors.Is(err, provider.ErrInvalidRef) {
-		t.Errorf("validation avant injection : %v", err)
+		t.Errorf("validation before injection: %v", err)
 	}
 	if _, err := f.CommitStats(ctx, "alice", "projet", g.merge); err != errA {
-		t.Errorf("injection après validation : %v, veut A", err)
+		t.Errorf("injection after validation: %v, want A", err)
 	}
 	if _, err := f.CommitStats(ctx, "alice", "projet", g.merge); err != nil {
-		t.Errorf("file vidée : %v", err)
+		t.Errorf("emptied queue: %v", err)
 	}
 	if n := f.Calls(MethodCommitStats); n != 4 {
-		t.Errorf("Calls(CommitStats) = %d, veut 4", n)
+		t.Errorf("Calls(CommitStats) = %d, want 4", n)
 	}
 
 	for _, m := range []Method{MethodRepositoryByID, MethodListCommits, MethodCompareCommits, MethodRateLimit} {
@@ -558,12 +558,12 @@ func TestInjectedErrors(t *testing.T) {
 	_, e4 := f.RateLimit(ctx)
 	for i, err := range []error{e1, e2, e3, e4} {
 		if err != errB {
-			t.Errorf("FailNext méthode %d : %v", i, err)
+			t.Errorf("FailNext method %d: %v", i, err)
 		}
 	}
 
-	expectPanic(t, "SetError méthode inconnue", func() { f.SetError("Inconnue", errA) })
-	expectPanic(t, "FailNext méthode inconnue", func() { f.FailNext("Name", errA) })
+	expectPanic(t, "SetError unknown method", func() { f.SetError("Inconnue", errA) })
+	expectPanic(t, "FailNext unknown method", func() { f.FailNext("Name", errA) })
 	expectPanic(t, "FailNext nil", func() { f.FailNext(MethodRepository, nil) })
 }
 
@@ -582,37 +582,37 @@ func TestRepoErrors(t *testing.T) {
 	_, errs["CommitStats"] = f.CommitStats(ctx, "alice", "projet", g.merge)
 	for m, err := range errs {
 		if !errors.Is(err, provider.ErrForbidden) || err != error(sso) {
-			t.Errorf("%s : %v, veut l'erreur SSO posée", m, err)
+			t.Errorf("%s: %v, want the SSO error set", m, err)
 		}
 	}
 	if _, err := f.Repository(ctx, "ecole", "autre"); err != nil {
-		t.Errorf("autre dépôt touché : %v", err)
+		t.Errorf("other repository touched: %v", err)
 	}
 
-	// Après renommage, l'erreur suit le dépôt (posée sur l'ancien nom).
+	// After renaming, the error follows the repository (set on the old name).
 	f.UpdateRepository(provider.Repository{ID: 101, Owner: "ecole", Name: "projet"})
 	if _, err := f.Repository(ctx, "ecole", "projet"); err != error(sso) {
-		t.Errorf("nom actuel après renommage : %v", err)
+		t.Errorf("current name after renaming: %v", err)
 	}
-	// Rétablir par le nom actuel lève aussi l'erreur posée sur l'ancien.
+	// Restoring through the current name also lifts the error set on the old one.
 	f.SetRepoError("ecole", "projet", nil)
 	if _, err := f.Repository(ctx, "alice", "projet"); err != nil {
-		t.Errorf("après SetRepoError(nil) : %v", err)
+		t.Errorf("after SetRepoError(nil): %v", err)
 	}
 
-	// Posée avant l'ajout du dépôt.
+	// Set before the repository is added.
 	f.SetRepoError("bob", "futur", provider.ErrForbidden)
 	if _, err := f.Repository(ctx, "bob", "futur"); err != provider.ErrForbidden {
-		t.Errorf("dépôt encore inconnu : %v, veut l'erreur posée", err)
+		t.Errorf("repository still unknown: %v, want the error set", err)
 	}
 	f.AddRepository(provider.Repository{ID: 303, Owner: "bob", Name: "futur"})
 	if _, err := f.RepositoryByID(ctx, 303); err != provider.ErrForbidden {
-		t.Errorf("RepositoryByID d'un dépôt ajouté après SetRepoError : %v", err)
+		t.Errorf("RepositoryByID of a repository added after SetRepoError: %v", err)
 	}
-	// L'erreur injectée par méthode passe avant celle du dépôt.
+	// The error injected by method comes before the repository's.
 	f.FailNext(MethodRepositoryByID, context.DeadlineExceeded)
 	if _, err := f.RepositoryByID(ctx, 303); err != context.DeadlineExceeded {
-		t.Errorf("FailNext avant SetRepoError : %v", err)
+		t.Errorf("FailNext before SetRepoError: %v", err)
 	}
 }
 
@@ -627,7 +627,7 @@ func TestCallLog(t *testing.T) {
 	_, _ = f.CompareCommits(ctx, "alice", "projet", g.m1, g.merge)
 	_, _ = f.CommitStats(ctx, "alice", "projet", g.r1)
 	_, _ = f.RateLimit(ctx)
-	_, _ = f.Repository(ctx, "", "") // invalide : compté quand même
+	_, _ = f.Repository(ctx, "", "") // invalid: counted anyway
 	f.LastRateLimit()
 	_ = f.Name()
 
@@ -644,27 +644,27 @@ func TestCallLog(t *testing.T) {
 	}
 	log := f.CallLog()
 	if len(log) != len(want) {
-		t.Fatalf("CallLog : %d appels, veut %d", len(log), len(want))
+		t.Fatalf("CallLog: %d calls, want %d", len(log), len(want))
 	}
 	for i := range want {
 		if log[i].Opts.Stop != nil {
-			t.Errorf("appel %d : Opts.Stop non nil", i)
+			t.Errorf("call %d: Opts.Stop not nil", i)
 		}
 		log[i].Opts.Stop = nil
 		if !reflect.DeepEqual(log[i], want[i]) {
-			t.Errorf("appel %d : %+v\nveut %+v", i, log[i], want[i])
+			t.Errorf("call %d: %+v\nwant %+v", i, log[i], want[i])
 		}
 	}
 	if f.Calls(MethodListCommits) != 2 || f.Calls(MethodRepository) != 2 {
-		t.Errorf("Calls : ListCommits %d, Repository %d", f.Calls(MethodListCommits), f.Calls(MethodRepository))
+		t.Errorf("Calls: ListCommits %d, Repository %d", f.Calls(MethodListCommits), f.Calls(MethodRepository))
 	}
 	log[0].Owner = "modifié"
 	if f.CallLog()[0].Owner != "Alice" {
-		t.Error("CallLog ne renvoie pas une copie")
+		t.Error("CallLog does not return a copy")
 	}
 	f.ResetCalls()
 	if len(f.CallLog()) != 0 || f.Calls(MethodRepository) != 0 {
-		t.Error("ResetCalls n'a pas tout vidé")
+		t.Error("ResetCalls did not empty everything")
 	}
 }
 
@@ -674,14 +674,14 @@ func TestRateLimit(t *testing.T) {
 	f.SetClock(c.Now)
 
 	if _, ok := f.LastRateLimit(); ok {
-		t.Error("LastRateLimit sans SetRateLimit : true, veut false")
+		t.Error("LastRateLimit without SetRateLimit: true, want false")
 	}
 	rl, err := f.RateLimit(ctx)
 	if err != nil || rl.Limit != 5000 || rl.Remaining != 5000 || rl.Used != 0 || !rl.Reset.Equal(t0.Add(time.Hour)) || !rl.ObservedAt.Equal(c.Now()) {
-		t.Errorf("RateLimit sans quota simulé = %+v, %v", rl, err)
+		t.Errorf("RateLimit without simulated quota = %+v, %v", rl, err)
 	}
 	if _, ok := f.LastRateLimit(); ok {
-		t.Error("LastRateLimit après RateLimit sans SetRateLimit : true, veut false")
+		t.Error("LastRateLimit after RateLimit without SetRateLimit: true, want false")
 	}
 
 	reset := t0.Add(30 * time.Minute)
@@ -694,46 +694,46 @@ func TestRateLimit(t *testing.T) {
 	if _, err := f.Repository(ctx, "alice", "projet"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := f.Branches(ctx, "alice", "inconnu"); !errors.Is(err, provider.ErrNotFound) { // une 404 consomme aussi
+	if _, err := f.Branches(ctx, "alice", "inconnu"); !errors.Is(err, provider.ErrNotFound) { // a 404 consumes too
 		t.Fatal(err)
 	}
 	if rl, _ := f.RateLimit(ctx); rl.Remaining != 0 || rl.Used != 10 {
-		t.Errorf("après 2 appels : %+v", rl)
+		t.Errorf("after 2 calls: %+v", rl)
 	}
 	_, err = f.ListCommits(ctx, "alice", "projet", provider.ListCommitsOptions{})
-	wantAPIError(t, "quota épuisé", err, 403, provider.ErrRateLimited)
+	wantAPIError(t, "exhausted quota", err, 403, provider.ErrRateLimited)
 	var rle *provider.RateLimitError
 	if !errors.As(err, &rle) || !rle.Reset.Equal(reset) || rle.Secondary {
 		t.Errorf("RateLimitError = %+v", rle)
 	}
-	// RateLimit reste permis et gratuit ; la validation passe avant le quota.
+	// RateLimit stays allowed and free; the validation comes before the quota.
 	if _, err := f.RateLimit(ctx); err != nil {
-		t.Errorf("RateLimit quota épuisé : %v", err)
+		t.Errorf("RateLimit with exhausted quota: %v", err)
 	}
 	if _, err := f.Repository(ctx, "alice", "a/b"); !errors.Is(err, provider.ErrInvalidRef) {
-		t.Errorf("validation avant le quota : %v", err)
+		t.Errorf("validation before the quota: %v", err)
 	}
 
-	// Remise à zéro : Reset avancé d'heure en heure jusqu'à dépasser maintenant.
-	c.Advance(2*time.Hour + 10*time.Minute) // maintenant = t0 + 2 h 10 min 0,5 s
+	// Reset: Reset moved forward hour by hour until it passes now.
+	c.Advance(2*time.Hour + 10*time.Minute) // now = t0 + 2 h 10 min 0.5 s
 	if _, err := f.Repository(ctx, "alice", "projet"); err != nil {
-		t.Fatalf("après la remise à zéro : %v", err)
+		t.Fatalf("after the reset: %v", err)
 	}
 	rl, _ = f.LastRateLimit()
 	if rl.Remaining != 9 || rl.Used != 1 || !rl.Reset.Equal(t0.Add(150*time.Minute)) {
-		t.Errorf("nouvelle fenêtre : %+v, veut Remaining 9, Used 1, Reset %s", rl, t0.Add(150*time.Minute))
+		t.Errorf("new window: %+v, want Remaining 9, Used 1, Reset %s", rl, t0.Add(150*time.Minute))
 	}
 
-	// Valeurs par défaut de SetRateLimit.
+	// Default values of SetRateLimit.
 	f.SetRateLimit(provider.RateLimit{Remaining: 4000})
 	rl, _ = f.LastRateLimit()
 	if rl.Limit != 5000 || rl.Used != 1000 || !rl.Reset.Equal(c.Now().Add(time.Hour).Truncate(time.Second)) {
-		t.Errorf("SetRateLimit par défaut : %+v", rl)
+		t.Errorf("default SetRateLimit: %+v", rl)
 	}
-	expectPanic(t, "Remaining négatif", func() { f.SetRateLimit(provider.RateLimit{Remaining: -1}) })
+	expectPanic(t, "negative Remaining", func() { f.SetRateLimit(provider.RateLimit{Remaining: -1}) })
 	f.SetClock(nil)
 	if rl, _ := f.LastRateLimit(); time.Since(rl.ObservedAt) > time.Minute {
-		t.Errorf("SetClock(nil) : ObservedAt %s, veut l'heure réelle", rl.ObservedAt)
+		t.Errorf("SetClock(nil): ObservedAt %s, want the real time", rl.ObservedAt)
 	}
 }
 
@@ -741,10 +741,10 @@ func TestAppendCommits(t *testing.T) {
 	f := New()
 	f.AddRepository(provider.Repository{ID: 5, Owner: "alice", Name: "projet"})
 	if got := f.AppendCommits(5, "main", 0, t0, time.Hour); got == nil || len(got) != 0 {
-		t.Errorf("n = 0 : %#v", got)
+		t.Errorf("n = 0: %#v", got)
 	}
 	if bs, _ := f.Branches(ctx, "alice", "projet"); len(bs) != 0 {
-		t.Errorf("n = 0 a créé une branche : %v", bs)
+		t.Errorf("n = 0 created a branch: %v", bs)
 	}
 
 	start := time.Date(2026, 10, 1, 10, 0, 0, 700, time.FixedZone("CEST", 2*3600))
@@ -754,67 +754,67 @@ func TestAppendCommits(t *testing.T) {
 	want0 := provider.Commit{SHA: SHA("5/main/1"), Message: "commit 1", URL: "https://github.com/alice/projet/commit/" + SHA("5/main/1"),
 		Author: student, Committer: student, AuthoredAt: t0, CommittedAt: t0, Parents: []string{}}
 	if !reflect.DeepEqual(first[0], want0) {
-		t.Errorf("premier commit : %+v\nveut %+v", first[0], want0)
+		t.Errorf("first commit: %+v\nwant %+v", first[0], want0)
 	}
 	if first[1].SHA != SHA("5/main/2") || first[1].Message != "commit 2" || !reflect.DeepEqual(first[1].Parents, []string{first[0].SHA}) ||
 		!first[1].CommittedAt.Equal(t0.Add(time.Hour)) {
-		t.Errorf("deuxième commit : %+v", first[1])
+		t.Errorf("second commit: %+v", first[1])
 	}
 
-	// Suite de la même branche, en évitant un SHA déjà présent : le commit ajouté à la main porte le
-	// SHA que le prochain AppendCommits aurait choisi (rang 4).
+	// Continuation of the same branch, avoiding an already present SHA: the commit added by hand carries
+	// the SHA the next AppendCommits would have chosen (rank 4).
 	f.AddCommits(5, provider.Commit{SHA: SHA("5/main/4"), CommittedAt: t0, Parents: []string{first[1].SHA}})
 	more := f.AppendCommits(5, "main", 1, t0.Add(5*time.Hour), 0)
 	if more[0].SHA != SHA("5/main/5") || more[0].Message != "commit 5" || more[0].Parents[0] != first[1].SHA {
-		t.Errorf("suite : %+v, veut le SHA de « 5/main/5 »", more[0])
+		t.Errorf("continuation: %+v, want the SHA of \"5/main/5\"", more[0])
 	}
 	got, _ := f.ListCommits(ctx, "alice", "projet", provider.ListCommitsOptions{})
 	if want := []string{more[0].SHA, first[1].SHA, first[0].SHA}; !reflect.DeepEqual(shas(got), want) {
-		t.Errorf("historique : %v, veut %v", shas(got), want)
+		t.Errorf("history: %v, want %v", shas(got), want)
 	}
 
-	// Modifier le résultat ne modifie pas le Fake.
+	// Modifying the result does not modify the Fake.
 	more[0].Parents[0] = "modifié"
 	got, _ = f.ListCommits(ctx, "alice", "projet", provider.ListCommitsOptions{Limit: 1})
 	if got[0].Parents[0] != first[1].SHA {
-		t.Error("le résultat de AppendCommits partage sa mémoire avec le Fake")
+		t.Error("the result of AppendCommits shares its memory with the Fake")
 	}
 }
 
 func TestPreparationPanics(t *testing.T) {
 	f, g := newGraph(t)
 	cases := map[string]func(){
-		"AddRepository ID nul":          func() { f.AddRepository(provider.Repository{Owner: "a", Name: "b"}) },
-		"AddRepository ID pris":         func() { f.AddRepository(provider.Repository{ID: 101, Owner: "a", Name: "b"}) },
-		"AddRepository nom pris":        func() { f.AddRepository(provider.Repository{ID: 2, Owner: "ALICE", Name: "Projet"}) },
-		"AddRepository nom invalide":    func() { f.AddRepository(provider.Repository{ID: 2, Owner: "alice", Name: "a/b"}) },
-		"AddCommits dépôt inconnu":      func() { f.AddCommits(9, provider.Commit{SHA: SHA("x")}) },
-		"AddCommits SHA invalide":       func() { f.AddCommits(101, provider.Commit{SHA: "abc"}) },
-		"AddCommits SHA présent":        func() { f.AddCommits(101, provider.Commit{SHA: g.r1}) },
-		"AddCommits parent inconnu":     func() { f.AddCommits(101, provider.Commit{SHA: SHA("x"), Parents: []string{SHA("y")}}) },
-		"AppendCommits n négatif":       func() { f.AppendCommits(101, "main", -1, t0, 0) },
-		"AppendCommits branche vide":    func() { f.AppendCommits(101, "", 1, t0, 0) },
-		"AppendCommits dépôt inconnu":   func() { f.AppendCommits(9, "main", 1, t0, 0) },
-		"SetBranch commit inconnu":      func() { f.SetBranch(101, "dev", SHA("inconnu")) },
-		"SetBranch nom invalide":        func() { f.SetBranch(101, "a\x00b", g.r1) },
-		"DeleteBranch inconnue":         func() { f.DeleteBranch(101, "inconnue") },
-		"RemoveCommit tête":             func() { f.RemoveCommit(101, g.merge) },
-		"RemoveCommit inconnu":          func() { f.RemoveCommit(101, SHA("inconnu")) },
-		"SetStats commit inconnu":       func() { f.SetStats(101, SHA("inconnu"), provider.CommitStats{}) },
-		"SetStats dépôt inconnu":        func() { f.SetStats(9, g.r1, provider.CommitStats{}) },
-		"UpdateRepository nom invalide": func() { f.UpdateRepository(provider.Repository{ID: 101, Owner: "", Name: "x"}) },
+		"AddRepository zero ID":            func() { f.AddRepository(provider.Repository{Owner: "a", Name: "b"}) },
+		"AddRepository taken ID":           func() { f.AddRepository(provider.Repository{ID: 101, Owner: "a", Name: "b"}) },
+		"AddRepository taken name":         func() { f.AddRepository(provider.Repository{ID: 2, Owner: "ALICE", Name: "Projet"}) },
+		"AddRepository invalid name":       func() { f.AddRepository(provider.Repository{ID: 2, Owner: "alice", Name: "a/b"}) },
+		"AddCommits unknown repository":    func() { f.AddCommits(9, provider.Commit{SHA: SHA("x")}) },
+		"AddCommits invalid SHA":           func() { f.AddCommits(101, provider.Commit{SHA: "abc"}) },
+		"AddCommits present SHA":           func() { f.AddCommits(101, provider.Commit{SHA: g.r1}) },
+		"AddCommits unknown parent":        func() { f.AddCommits(101, provider.Commit{SHA: SHA("x"), Parents: []string{SHA("y")}}) },
+		"AppendCommits negative n":         func() { f.AppendCommits(101, "main", -1, t0, 0) },
+		"AppendCommits empty branch":       func() { f.AppendCommits(101, "", 1, t0, 0) },
+		"AppendCommits unknown repository": func() { f.AppendCommits(9, "main", 1, t0, 0) },
+		"SetBranch unknown commit":         func() { f.SetBranch(101, "dev", SHA("inconnu")) },
+		"SetBranch invalid name":           func() { f.SetBranch(101, "a\x00b", g.r1) },
+		"DeleteBranch unknown":             func() { f.DeleteBranch(101, "inconnue") },
+		"RemoveCommit head":                func() { f.RemoveCommit(101, g.merge) },
+		"RemoveCommit unknown":             func() { f.RemoveCommit(101, SHA("inconnu")) },
+		"SetStats unknown commit":          func() { f.SetStats(101, SHA("inconnu"), provider.CommitStats{}) },
+		"SetStats unknown repository":      func() { f.SetStats(9, g.r1, provider.CommitStats{}) },
+		"UpdateRepository invalid name":    func() { f.UpdateRepository(provider.Repository{ID: 101, Owner: "", Name: "x"}) },
 	}
 	for what, fn := range cases {
 		expectPanic(t, what, fn)
 	}
-	// Un parent ajouté plus tôt dans le même appel est accepté.
+	// A parent added earlier in the same call is accepted.
 	f.AddCommits(101,
 		provider.Commit{SHA: SHA("p"), CommittedAt: t0, Parents: []string{g.r1}},
 		provider.Commit{SHA: SHA("c"), CommittedAt: t0, Parents: []string{SHA("p")}},
 	)
-	// Le verrou a été rendu malgré les paniques.
+	// The lock was released despite the panics.
 	if _, err := f.Repository(ctx, "alice", "projet"); err != nil {
-		t.Errorf("après les paniques : %v", err)
+		t.Errorf("after the panics: %v", err)
 	}
 }
 
@@ -858,10 +858,10 @@ func TestConcurrentUse(t *testing.T) {
 		total += f.Calls(m)
 	}
 	if total != 400 {
-		t.Errorf("appels comptés : %d, veut 400", total)
+		t.Errorf("counted calls: %d, want 400", total)
 	}
 	if rl, _ := f.LastRateLimit(); rl.Used != 400-f.Calls(MethodRateLimit) {
-		t.Errorf("quota consommé : %d, veut %d", rl.Used, 400-f.Calls(MethodRateLimit))
+		t.Errorf("consumed quota: %d, want %d", rl.Used, 400-f.Calls(MethodRateLimit))
 	}
 }
 
@@ -874,10 +874,10 @@ func TestProfileURL(t *testing.T) {
 		"a/b":             "",
 	} {
 		if got := f.ProfileURL(login); got != want {
-			t.Errorf("ProfileURL(%q) = %q, veut %q", login, got, want)
+			t.Errorf("ProfileURL(%q) = %q, want %q", login, got, want)
 		}
 	}
 	if len(f.CallLog()) != 0 {
-		t.Errorf("appels comptés : %v", f.CallLog())
+		t.Errorf("counted calls: %v", f.CallLog())
 	}
 }

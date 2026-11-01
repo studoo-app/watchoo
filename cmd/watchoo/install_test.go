@@ -17,12 +17,12 @@ import (
 	"testing"
 )
 
-// Tests du script d'installation install.sh, lancé avec sh contre un faux serveur de releases
-// (WATCHOO_RELEASES_URL) : aucun accès au réseau.
+// Tests of the install.sh installation script, run with sh against a fake releases server
+// (WATCHOO_RELEASES_URL): no network access.
 
 const fakeBinary = "#!/bin/sh\necho faux-watchoo\n"
 
-// fakeArchive construit une archive de release qui contient un faux binaire watchoo.
+// fakeArchive builds a release archive holding a fake watchoo binary.
 func fakeArchive(t *testing.T) []byte {
 	t.Helper()
 	var buf bytes.Buffer
@@ -45,8 +45,8 @@ func fakeArchive(t *testing.T) []byte {
 	return buf.Bytes()
 }
 
-// releaseServer simule les releases GitHub de la version version ; sums remplace le fichier de
-// sommes s'il n'est pas vide.
+// releaseServer simulates the GitHub releases of the version version; sums replaces the checksum
+// file if it is not empty.
 func releaseServer(t *testing.T, version, sums string) *httptest.Server {
 	t.Helper()
 	archive := fmt.Sprintf("watchoo_%s_%s_%s.tar.gz", version, runtime.GOOS, runtime.GOARCH)
@@ -71,18 +71,18 @@ func releaseServer(t *testing.T, version, sums string) *httptest.Server {
 	return srv
 }
 
-// runInstall lance install.sh avec les variables env et renvoie sa sortie et son erreur.
+// runInstall runs install.sh with the variables env and returns its output and its error.
 func runInstall(t *testing.T, env ...string) (string, error) {
 	t.Helper()
 	if runtime.GOOS != "linux" && runtime.GOOS != "darwin" {
-		t.Skip("install.sh ne vise que Linux et macOS")
+		t.Skip("install.sh only targets Linux and macOS")
 	}
 	if runtime.GOARCH != "amd64" && runtime.GOARCH != "arm64" {
-		t.Skip("architecture sans archive de release")
+		t.Skip("architecture without release archive")
 	}
 	for _, tool := range []string{"sh", "curl", "tar"} {
 		if _, err := exec.LookPath(tool); err != nil {
-			t.Skipf("%s absent", tool)
+			t.Skipf("%s missing", tool)
 		}
 	}
 	cmd := exec.Command("sh", filepath.Join("..", "..", "install.sh"))
@@ -96,57 +96,86 @@ func TestInstallLatest(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "bin")
 	out, err := runInstall(t, "WATCHOO_RELEASES_URL="+srv.URL, "WATCHOO_INSTALL_DIR="+dir)
 	if err != nil {
-		t.Fatalf("install.sh : %v\n%s", err, out)
+		t.Fatalf("install.sh: %v\n%s", err, out)
 	}
 	got, err := os.ReadFile(filepath.Join(dir, "watchoo"))
 	if err != nil || string(got) != fakeBinary {
-		t.Fatalf("binaire installé = %q, %v", got, err)
+		t.Fatalf("installed binary = %q, %v", got, err)
 	}
 	info, _ := os.Stat(filepath.Join(dir, "watchoo"))
 	if info.Mode().Perm() != 0o755 {
-		t.Errorf("droits = %v", info.Mode().Perm())
+		t.Errorf("permissions = %v", info.Mode().Perm())
 	}
-	for _, want := range []string{"Watchoo v1.2.3 installé", "Somme SHA-256 vérifiée", "n'est pas dans votre PATH"} {
+	for _, want := range []string{"Watchoo v1.2.3 installed", "SHA-256 checksum verified", "is not in your PATH"} {
 		if !strings.Contains(out, want) {
-			t.Errorf("sortie sans %q :\n%s", want, out)
+			t.Errorf("output without %q:\n%s", want, out)
 		}
 	}
 	entries, _ := os.ReadDir(dir)
 	if len(entries) != 1 {
-		t.Errorf("fichiers dans %s : %v (fichier temporaire oublié ?)", dir, entries)
+		t.Errorf("files in %s: %v (temporary file left behind?)", dir, entries)
 	}
 }
 
 func TestInstallDefaultDirAndPinnedVersion(t *testing.T) {
 	srv := releaseServer(t, "0.4.0", "")
 	home := t.TempDir()
-	// Version sans « v » : le script l'ajoute.
+	// Version without "v": the script adds it.
 	cmdOut, err := runInstall(t, "WATCHOO_RELEASES_URL="+srv.URL, "WATCHOO_VERSION=0.4.0", "HOME="+home)
 	if err != nil {
-		t.Fatalf("install.sh : %v\n%s", err, cmdOut)
+		t.Fatalf("install.sh: %v\n%s", err, cmdOut)
 	}
 	if _, err := os.Stat(filepath.Join(home, ".local", "bin", "watchoo")); err != nil {
-		t.Errorf("binaire absent de ~/.local/bin : %v\n%s", err, cmdOut)
+		t.Errorf("binary missing from ~/.local/bin: %v\n%s", err, cmdOut)
 	}
 }
 
 func TestInstallRefusesBadChecksum(t *testing.T) {
 	archive := fmt.Sprintf("watchoo_1.2.3_%s_%s.tar.gz", runtime.GOOS, runtime.GOARCH)
 	for name, sums := range map[string]string{
-		"somme fausse":    strings.Repeat("a", 64) + "  " + archive + "\n",
-		"archive absente": strings.Repeat("a", 64) + "  autre.tar.gz\n",
+		"wrong checksum":  strings.Repeat("a", 64) + "  " + archive + "\n",
+		"missing archive": strings.Repeat("a", 64) + "  autre.tar.gz\n",
 	} {
 		t.Run(name, func(t *testing.T) {
 			srv := releaseServer(t, "1.2.3", sums)
 			dir := filepath.Join(t.TempDir(), "bin")
 			out, err := runInstall(t, "WATCHOO_RELEASES_URL="+srv.URL, "WATCHOO_INSTALL_DIR="+dir)
 			if err == nil {
-				t.Fatalf("install.sh a réussi malgré %s :\n%s", name, out)
+				t.Fatalf("install.sh succeeded despite %s:\n%s", name, out)
 			}
 			if _, err := os.Stat(filepath.Join(dir, "watchoo")); err == nil {
-				t.Error("binaire installé malgré une somme invalide")
+				t.Error("binary installed despite an invalid checksum")
 			}
 		})
+	}
+}
+
+// TestInstallFrench checks the French messages, selected by WATCHOO_LANG or a French locale.
+func TestInstallFrench(t *testing.T) {
+	srv := releaseServer(t, "1.2.3", "")
+	for name, langEnv := range map[string]string{"WATCHOO_LANG": "WATCHOO_LANG=fr", "locale": "LANG=fr_FR.UTF-8"} {
+		t.Run(name, func(t *testing.T) {
+			dir := filepath.Join(t.TempDir(), "bin")
+			out, err := runInstall(t, "WATCHOO_RELEASES_URL="+srv.URL, "WATCHOO_INSTALL_DIR="+dir, langEnv)
+			if err != nil {
+				t.Fatalf("install.sh: %v\n%s", err, out)
+			}
+			for _, want := range []string{"Watchoo v1.2.3 installé", "Somme SHA-256 vérifiée", "n'est pas dans votre PATH"} {
+				if !strings.Contains(out, want) {
+					t.Errorf("output without %q:\n%s", want, out)
+				}
+			}
+			out, err = runInstall(t, "WATCHOO_RELEASES_URL="+srv.URL, "WATCHOO_VERSION=abc", langEnv)
+			if err == nil || !strings.Contains(out, "erreur : version invalide : abc") {
+				t.Errorf("err = %v, output without the French error:\n%s", err, out)
+			}
+		})
+	}
+	// WATCHOO_LANG takes precedence over the locale.
+	dir := filepath.Join(t.TempDir(), "bin")
+	out, err := runInstall(t, "WATCHOO_RELEASES_URL="+srv.URL, "WATCHOO_INSTALL_DIR="+dir, "LANG=fr_FR.UTF-8", "WATCHOO_LANG=en")
+	if err != nil || !strings.Contains(out, "SHA-256 checksum verified") {
+		t.Errorf("WATCHOO_LANG=en with a French locale: err = %v, output:\n%s", err, out)
 	}
 }
 
@@ -156,15 +185,15 @@ func TestInstallErrors(t *testing.T) {
 		env  []string
 		want string
 	}{
-		"version inexistante": {[]string{"WATCHOO_VERSION=v9.9.9"}, "version v9.9.9 inexistante"},
-		"version invalide":    {[]string{"WATCHOO_VERSION=abc"}, "version invalide : abc"},
-		"sans HOME":           {[]string{"HOME="}, "WATCHOO_INSTALL_DIR"},
+		"nonexistent version": {[]string{"WATCHOO_VERSION=v9.9.9"}, "does version v9.9.9 exist?"},
+		"invalid version":     {[]string{"WATCHOO_VERSION=abc"}, "invalid version: abc"},
+		"without HOME":        {[]string{"HOME="}, "WATCHOO_INSTALL_DIR"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			env := append([]string{"WATCHOO_RELEASES_URL=" + srv.URL}, tc.env...)
 			out, err := runInstall(t, env...)
 			if err == nil || !strings.Contains(out, tc.want) {
-				t.Errorf("err = %v, sortie sans %q :\n%s", err, tc.want, out)
+				t.Errorf("err = %v, output without %q:\n%s", err, tc.want, out)
 			}
 		})
 	}

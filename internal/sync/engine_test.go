@@ -22,19 +22,19 @@ import (
 
 func TestNewOptionsObligatoires(t *testing.T) {
 	if _, err := wsync.New(wsync.Options{Auth: authtest.NewLoggedIn("")}); err == nil {
-		t.Error("New sans base : erreur attendue")
+		t.Error("New without database: error expected")
 	}
 	st := openStore(t, t.TempDir()+"/w.db", true)
 	if _, err := wsync.New(wsync.Options{Store: st}); err == nil {
-		t.Error("New sans accès à gh : erreur attendue")
+		t.Error("New without gh access: error expected")
 	}
 	if _, err := wsync.New(wsync.Options{Store: st, Auth: authtest.NewLoggedIn("")}); err != nil {
-		t.Errorf("New avec le provider GitHub par défaut : %v", err)
+		t.Errorf("New with the default GitHub provider: %v", err)
 	}
 }
 
-// Premier import : liste complète de la branche de référence, comparaison pour les autres branches,
-// aucune statistique, commit_branches et last_commit_at renseignés.
+// First import: complete list of the reference branch, comparison for the other branches, no
+// statistics, commit_branches and last_commit_at filled.
 func TestPremierImport(t *testing.T) {
 	e := newEnv(t)
 	repo := e.addRepo(1, "projet")
@@ -50,34 +50,34 @@ func TestPremierImport(t *testing.T) {
 		t.Errorf("rapport = %+v", r)
 	}
 	if n := e.fake.Calls(providertest.MethodListCommits); n != 1 {
-		t.Errorf("ListCommits appelé %d fois, 1 attendu", n)
+		t.Errorf("ListCommits called %d times, want 1", n)
 	}
 	if n := e.fake.Calls(providertest.MethodCompareCommits); n != 1 {
-		t.Errorf("CompareCommits appelé %d fois, 1 attendu", n)
+		t.Errorf("CompareCommits called %d times, want 1", n)
 	}
 	if n := e.fake.Calls(providertest.MethodCommitStats); n != 0 {
-		t.Errorf("CommitStats appelé %d fois au premier import", n)
+		t.Errorf("CommitStats called %d times on the first import", n)
 	}
 	for _, c := range e.fake.CallLog() {
 		if c.Method == providertest.MethodListCommits && c.StopSet {
-			t.Error("ListCommits appelé avec Stop au premier import")
+			t.Error("ListCommits called with Stop on the first import")
 		}
 	}
 	if got, want := e.commitSHAs(repo.ID, "feature"), sorted(feat[0].SHA, feat[1].SHA); !slices.Equal(got, want) {
-		t.Errorf("commits de feature = %v, %v attendus (commits propres à la branche)", got, want)
+		t.Errorf("commits of feature = %v, want %v (commits specific to the branch)", got, want)
 	}
 	if got := e.commitSHAs(repo.ID, "main"); len(got) != 5 {
-		t.Errorf("%d commits sur main, 5 attendus", len(got))
+		t.Errorf("%d commits on main, want 5", len(got))
 	}
 	stored, err := e.st.GetRepository(t.Context(), repo.ID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !stored.LastCommitAt.Equal(feat[1].CommittedAt) {
-		t.Errorf("last_commit_at = %v, %v attendu", stored.LastCommitAt, feat[1].CommittedAt)
+		t.Errorf("last_commit_at = %v, want %v", stored.LastCommitAt, feat[1].CommittedAt)
 	}
 	if stored.DefaultBranch != "main" || stored.LastSyncedAt.IsZero() {
-		t.Errorf("métadonnées = %+v", stored)
+		t.Errorf("metadata = %+v", stored)
 	}
 	run := e.lastRun(repo.ID)
 	if run.Status != model.SyncSuccess || run.NewCommits != 7 {
@@ -87,7 +87,7 @@ func TestPremierImport(t *testing.T) {
 	if b["main"].HeadSHA != mainC[4].SHA || b["feature"].HeadSHA != feat[1].SHA || !b["main"].Tracked {
 		t.Errorf("branches = %+v", b)
 	}
-	// Contributeur : compte GitHub de l'auteur factice.
+	// Contributor: GitHub account of the dummy author.
 	ranking, err := e.st.ContributorRanking(t.Context(), store.ContributorFilter{})
 	if err != nil {
 		t.Fatal(err)
@@ -97,8 +97,8 @@ func TestPremierImport(t *testing.T) {
 	}
 }
 
-// Synchro incrémentale : comparaison ancienne tête → nouvelle, statistiques des nouveaux commits,
-// aucune requête de commits quand rien n'a bougé.
+// Incremental sync: comparison old head → new one, statistics of the new commits, no commit
+// request when nothing moved.
 func TestIncremental(t *testing.T) {
 	e := newEnv(t)
 	repo := e.addRepo(1, "projet")
@@ -115,7 +115,7 @@ func TestIncremental(t *testing.T) {
 		t.Errorf("rapport = %+v", r)
 	}
 	if n := e.fake.Calls(providertest.MethodListCommits); n != 0 {
-		t.Errorf("ListCommits appelé %d fois sur un dépôt déjà importé", n)
+		t.Errorf("ListCommits called %d times on an already imported repository", n)
 	}
 	var compares []providertest.Call
 	for _, c := range e.fake.CallLog() {
@@ -124,30 +124,30 @@ func TestIncremental(t *testing.T) {
 		}
 	}
 	if len(compares) != 1 || compares[0].Base != first[2].SHA || compares[0].Head != next[1].SHA {
-		t.Errorf("comparaisons = %+v, une seule (ancienne tête de main → nouvelle) attendue", compares)
+		t.Errorf("comparisons = %+v, want a single one (old head of main → new one)", compares)
 	}
 	if v := e.commitView(repo.ID, next[0].SHA); v.Additions != 10 || v.Deletions != 2 {
 		t.Errorf("statistiques = +%d -%d, +10 -2 attendues", v.Additions, v.Deletions)
 	}
 
-	// Rien n'a bougé : branches relues, aucune requête de commits.
+	// Nothing moved: branches read again, no commit request.
 	e.fake.ResetCalls()
 	r = e.syncOK(repo.ID)
 	if r.NewCommits != 0 {
-		t.Errorf("%d nouveaux commits sans changement", r.NewCommits)
+		t.Errorf("%d new commits without change", r.NewCommits)
 	}
 	for _, m := range []providertest.Method{providertest.MethodListCommits, providertest.MethodCompareCommits,
 		providertest.MethodCommitStats} {
 		if n := e.fake.Calls(m); n != 0 {
-			t.Errorf("%s appelé %d fois alors qu'aucune tête n'a changé", m, n)
+			t.Errorf("%s called %d times although no head changed", m, n)
 		}
 	}
 	if n := e.fake.Calls(providertest.MethodBranches); n != 1 {
-		t.Errorf("Branches appelé %d fois, 1 attendu", n)
+		t.Errorf("Branches called %d times, want 1", n)
 	}
 }
 
-// Nouvelle branche d'un dépôt déjà synchronisé : comparaison depuis la tête de la branche de référence.
+// New branch of an already synced repository: comparison from the head of the reference branch.
 func TestNouvelleBranche(t *testing.T) {
 	e := newEnv(t)
 	repo := e.addRepo(1, "projet")
@@ -164,15 +164,15 @@ func TestNouvelleBranche(t *testing.T) {
 	log := e.fake.CallLog()
 	idx := slices.IndexFunc(log, func(c providertest.Call) bool { return c.Method == providertest.MethodCompareCommits })
 	if idx < 0 || log[idx].Base != mainC[2].SHA || log[idx].Head != tp2[1].SHA {
-		t.Errorf("comparaison attendue tête de main → tête de tp2, journal %+v", log)
+		t.Errorf("comparison expected head of main → head of tp2, log %+v", log)
 	}
 	if got := e.commitSHAs(repo.ID, "tp2"); !slices.Equal(got, sorted(tp2[0].SHA, tp2[1].SHA)) {
-		t.Errorf("commits de tp2 = %v", got)
+		t.Errorf("commits of tp2 = %v", got)
 	}
 }
 
-// Merge qui apporte un commit plus ancien que l'ancienne tête : la comparaison le trouve (un arrêt au
-// premier SHA connu l'aurait perdu).
+// Merge that brings a commit older than the old head: the comparison finds it (a stop at the first
+// known SHA would have lost it).
 func TestMergeCommitsPlusAnciens(t *testing.T) {
 	e := newEnv(t)
 	repo := e.addRepo(1, "projet")
@@ -181,20 +181,20 @@ func TestMergeCommitsPlusAnciens(t *testing.T) {
 	e.fake.SetBranch(1, "main", m1)
 	e.syncOK(repo.ID)
 
-	f1 := e.commit(1, "f1", epoch.Add(24*time.Hour), m0) // plus ancien que M1
+	f1 := e.commit(1, "f1", epoch.Add(24*time.Hour), m0) // older than M1
 	x := e.commit(1, "x", epoch.Add(72*time.Hour), m1, f1)
 	e.fake.SetBranch(1, "main", x)
 	r := e.syncOK(repo.ID)
 	if r.NewCommits != 2 {
-		t.Errorf("%d nouveaux commits, 2 attendus (merge et commit fusionné plus ancien)", r.NewCommits)
+		t.Errorf("%d new commits, want 2 (merge and older merged commit)", r.NewCommits)
 	}
 	if got := e.commitSHAs(repo.ID, ""); !slices.Equal(got, sorted(m0, m1, f1, x)) {
 		t.Errorf("commits = %v", got)
 	}
 }
 
-// Force-push sur une branche secondaire : base inconnue, repli depuis la tête de la branche de
-// référence.
+// Force-push on a secondary branch: unknown base, fallback from the head of the reference
+// branch.
 func TestForcePushBranche(t *testing.T) {
 	e := newEnv(t)
 	repo := e.addRepo(1, "projet")
@@ -210,7 +210,7 @@ func TestForcePushBranche(t *testing.T) {
 	e.fake.ResetCalls()
 	r := e.syncOK(repo.ID)
 	if r.NewCommits != 1 {
-		t.Errorf("%d nouveaux commits, 1 attendu", r.NewCommits)
+		t.Errorf("%d new commits, want 1", r.NewCommits)
 	}
 	var compares []providertest.Call
 	for _, c := range e.fake.CallLog() {
@@ -219,18 +219,18 @@ func TestForcePushBranche(t *testing.T) {
 		}
 	}
 	if len(compares) != 2 || compares[0].Base != feat[1].SHA || compares[1].Base != mainC[2].SHA {
-		t.Errorf("comparaisons = %+v : ancienne tête puis tête de main attendues", compares)
+		t.Errorf("comparisons = %+v: old head then head of main expected", compares)
 	}
 	if n := e.fake.Calls(providertest.MethodListCommits); n != 0 {
-		t.Errorf("ListCommits appelé %d fois", n)
+		t.Errorf("ListCommits called %d times", n)
 	}
 	if b := e.branches(repo.ID); b["feature"].HeadSHA != rewritten {
-		t.Errorf("tête de feature = %s", b["feature"].HeadSHA)
+		t.Errorf("head of feature = %s", b["feature"].HeadSHA)
 	}
 }
 
-// Force-push sur la branche de référence : relecture de la liste sans Stop, SHA connus ignorés (ni
-// réenregistrés, ni statistiques).
+// Force-push on the reference branch: list read again without Stop, known SHAs ignored (neither
+// recorded again, nor statistics).
 func TestForcePushReference(t *testing.T) {
 	e := newEnv(t)
 	repo := e.addRepo(1, "projet")
@@ -243,26 +243,26 @@ func TestForcePushReference(t *testing.T) {
 	e.fake.ResetCalls()
 	r := e.syncOK(repo.ID)
 	if r.NewCommits != 1 || r.StatsFetched != 1 {
-		t.Errorf("rapport = %+v : 1 nouveau commit, 1 statistique attendus", r)
+		t.Errorf("report = %+v: 1 new commit, 1 statistic expected", r)
 	}
 	if n := e.fake.Calls(providertest.MethodListCommits); n != 1 {
-		t.Errorf("ListCommits appelé %d fois, 1 attendu (repli)", n)
+		t.Errorf("ListCommits called %d times, want 1 (fallback)", n)
 	}
 	for _, c := range e.fake.CallLog() {
 		if c.Method == providertest.MethodListCommits && c.StopSet {
-			t.Error("repli avec Stop")
+			t.Error("fallback with Stop")
 		}
 		if c.Method == providertest.MethodCommitStats && c.SHA != b3 {
-			t.Errorf("statistiques demandées pour un commit déjà en base %s", provider.ShortSHA(c.SHA))
+			t.Errorf("statistics requested for a commit already in the database %s", provider.ShortSHA(c.SHA))
 		}
 	}
-	// L'ancien commit réécrit reste en base (historique gardé), hors branche suivie pour last_commit_at.
+	// The old rewritten commit stays in the database (history kept), outside a tracked branch for last_commit_at.
 	if got := e.commitSHAs(repo.ID, ""); len(got) != 4 {
-		t.Errorf("%d commits en base, 4 attendus", len(got))
+		t.Errorf("%d commits in the database, want 4", len(got))
 	}
 }
 
-// Branche supprimée sur la forge : tracked = false, historique gardé.
+// Branch deleted on the forge: tracked = false, history kept.
 func TestBrancheSupprimee(t *testing.T) {
 	e := newEnv(t)
 	repo := e.addRepo(1, "projet")
@@ -281,17 +281,17 @@ func TestBrancheSupprimee(t *testing.T) {
 		t.Errorf("branches = %+v", b)
 	}
 	if got := e.commitSHAs(repo.ID, "old"); !slices.Equal(got, []string{old[0].SHA}) {
-		t.Errorf("historique de old = %v", got)
+		t.Errorf("history of old = %v", got)
 	}
 	stored, _ := e.st.GetRepository(t.Context(), repo.ID)
 	if !stored.LastCommitAt.Equal(mainC[1].CommittedAt) {
-		t.Errorf("last_commit_at = %v, dernier commit de main %v attendu (branches suivies)", stored.LastCommitAt,
+		t.Errorf("last_commit_at = %v, want the last commit of main %v (tracked branches)", stored.LastCommitAt,
 			mainC[1].CommittedAt)
 	}
 }
 
-// branch_patterns et branches.exclude ; branche de référence = première branche suivie si la branche
-// par défaut ne l'est pas.
+// branch_patterns and branches.exclude; reference branch = first tracked branch if the default
+// branch is not tracked.
 func TestMotifsEtExclusions(t *testing.T) {
 	e := newEnv(t, withExclude("dependabot/*"))
 	repo := e.addRepo(1, "projet", "release/*", "dependabot/*", "dev")
@@ -307,25 +307,25 @@ func TestMotifsEtExclusions(t *testing.T) {
 	}
 	b := e.branches(repo.ID)
 	if _, ok := b["main"]; ok {
-		t.Error("main suivie malgré les motifs")
+		t.Error("main tracked despite the patterns")
 	}
 	if _, ok := b["dependabot/npm"]; ok {
-		t.Error("branche exclue suivie")
+		t.Error("excluded branch tracked")
 	}
-	// dev est la référence (première branche suivie, ordre de la forge) : liste complète ; release/1
-	// est comparée depuis dev.
+	// dev is the reference (first tracked branch, order of the forge): complete list; release/1
+	// is compared from dev.
 	if n := e.fake.Calls(providertest.MethodListCommits); n != 1 {
-		t.Errorf("ListCommits appelé %d fois", n)
+		t.Errorf("ListCommits called %d times", n)
 	}
 	if got := e.commitSHAs(repo.ID, "release/1"); !slices.Equal(got, []string{rel[0].SHA}) {
-		t.Errorf("commits de release/1 = %v", got)
+		t.Errorf("commits of release/1 = %v", got)
 	}
 	if got := e.commitSHAs(repo.ID, ""); len(got) != 3 {
 		t.Errorf("%d commits, 3 attendus", len(got))
 	}
 }
 
-// Dépôt renommé puis transféré : suivi par identifiant, owner/name mis à jour.
+// Repository renamed then transferred: tracked by identifier, owner/name updated.
 func TestDepotRenomme(t *testing.T) {
 	e := newEnv(t)
 	repo := e.addRepo(1, "projet")
@@ -341,14 +341,14 @@ func TestDepotRenomme(t *testing.T) {
 	stored, _ := e.st.GetRepository(t.Context(), repo.ID)
 	if stored.Owner != "autre-orga" || stored.Name != "projet-final" || stored.Stars != 3 ||
 		stored.OpenIssues != 2 || !stored.Archived {
-		t.Errorf("dépôt en base = %+v", stored)
+		t.Errorf("repository in the database = %+v", stored)
 	}
 	if n := e.fake.Calls(providertest.MethodRepository); n != 0 {
-		t.Errorf("Repository (par nom) appelé %d fois : RepositoryByID attendu", n)
+		t.Errorf("Repository (by name) called %d times: RepositoryByID expected", n)
 	}
 }
 
-// Dépôt vide : succès sans commit.
+// Empty repository: success without commit.
 func TestDepotVide(t *testing.T) {
 	e := newEnv(t)
 	repo := e.addRepo(1, "vide")
@@ -358,17 +358,17 @@ func TestDepotVide(t *testing.T) {
 	}
 	stored, _ := e.st.GetRepository(t.Context(), repo.ID)
 	if stored.LastSyncedAt.IsZero() || !stored.LastCommitAt.IsZero() {
-		t.Errorf("dépôt = %+v", stored)
+		t.Errorf("repository = %+v", stored)
 	}
-	// Premier commit poussé ensuite : premier import.
+	// First commit pushed afterwards: first import.
 	e.fake.AppendCommits(1, "main", 2, epoch, time.Hour)
 	if r := e.syncOK(repo.ID); r.NewCommits != 2 || r.StatsFetched != 0 {
 		t.Errorf("rapport = %+v", r)
 	}
 }
 
-// Dépôt privé devenu inaccessible (404) et dépôt sous SSO : erreur enregistrée, les autres dépôts
-// continuent.
+// Private repository that became inaccessible (404) and repository under SSO: error recorded, the
+// others go on.
 func TestDepotInaccessibleEtSSO(t *testing.T) {
 	e := newEnv(t, withParallelism(1))
 	a := e.addRepo(1, "a-perdu")
@@ -383,15 +383,15 @@ func TestDepotInaccessibleEtSSO(t *testing.T) {
 	if len(rep.Repos) != 3 {
 		t.Fatalf("%d rapports", len(rep.Repos))
 	}
-	if r := rep.Repos[0]; r.Status != wsync.StatusError || !strings.Contains(r.Error, "introuvable ou compte sans accès") {
-		t.Errorf("dépôt inaccessible : %+v", r)
+	if r := rep.Repos[0]; r.Status != wsync.StatusError || !strings.Contains(r.Error, "not found or account without access") {
+		t.Errorf("inaccessible repository: %+v", r)
 	}
 	if r := rep.Repos[1]; r.Status != wsync.StatusError || !strings.Contains(r.Error, "SSO") ||
 		strings.Contains(r.Error, "authorization_request") {
-		t.Errorf("dépôt SSO : %+v", r)
+		t.Errorf("SSO repository: %+v", r)
 	}
 	if r := rep.Repos[2]; r.Status != wsync.StatusSuccess || r.NewCommits != 1 {
-		t.Errorf("dépôt accessible : %+v", r)
+		t.Errorf("accessible repository: %+v", r)
 	}
 	if rep.Count(wsync.StatusError) != 2 || rep.NewCommits() != 1 {
 		t.Errorf("Count/NewCommits = %d/%d", rep.Count(wsync.StatusError), rep.NewCommits())
@@ -399,19 +399,19 @@ func TestDepotInaccessibleEtSSO(t *testing.T) {
 	for _, id := range []int64{a.ID, b.ID} {
 		run := e.lastRun(id)
 		if run.Status != model.SyncError || run.Error == "" || run.FinishedAt.IsZero() {
-			t.Errorf("sync_run du dépôt %d = %+v", id, run)
+			t.Errorf("sync_run of repository %d = %+v", id, run)
 		}
 	}
 	if run := e.lastRun(c.ID); run.Status != model.SyncSuccess {
-		t.Errorf("sync_run du dépôt accessible = %+v", run)
+		t.Errorf("sync_run of the accessible repository = %+v", run)
 	}
 	stored, _ := e.st.GetRepository(t.Context(), a.ID)
 	if !stored.LastSyncedAt.IsZero() {
-		t.Error("last_synced_at écrit malgré l'échec")
+		t.Error("last_synced_at written despite the failure")
 	}
 }
 
-// Quota bas avant la synchro : tous les dépôts sont reportés, sans sync_run.
+// Low quota before the sync: all repositories are deferred, without sync_run.
 func TestQuotaBasReporte(t *testing.T) {
 	e := newEnv(t)
 	repo := e.addRepo(1, "projet")
@@ -424,29 +424,29 @@ func TestQuotaBasReporte(t *testing.T) {
 	if r.Status != wsync.StatusDeferred || !r.ResumeAt.Equal(reset) || r.Duration != 0 {
 		t.Errorf("rapport = %+v", r)
 	}
-	if r.Error != "reporté : quota bas jusqu'à 10:40 UTC" {
+	if r.Error != "deferred: low quota until 10:40 UTC" || r.DeferReason != wsync.DeferLowQuota {
 		t.Errorf("message = %q", r.Error)
 	}
 	if _, err := e.st.LastSyncRun(t.Context(), repo.ID); !errors.Is(err, store.ErrNotFound) {
-		t.Errorf("sync_run créé pour un dépôt reporté : %v", err)
+		t.Errorf("sync_run created for a deferred repository: %v", err)
 	}
 	if !rep.RateLimitKnown || rep.RateLimit.Remaining != 499 {
-		t.Errorf("quota du rapport = %+v (%v)", rep.RateLimit, rep.RateLimitKnown)
+		t.Errorf("quota of the report = %+v (%v)", rep.RateLimit, rep.RateLimitKnown)
 	}
-	// Juste au-dessus du seuil (10 % pile) : synchronisé.
+	// Just above the threshold (exactly 10 %): synced.
 	e.fake.SetRateLimit(provider.RateLimit{Limit: 5000, Remaining: 500, Reset: reset})
 	if r := e.syncAll().Repos[0]; r.Status != wsync.StatusSuccess {
-		t.Errorf("à 10 %% : %+v", r)
+		t.Errorf("at 10 %%: %+v", r)
 	}
-	// Fenêtre échue : l'état observé est renouvelé, rien n'est reporté.
+	// Window over: the observed state is renewed, nothing is deferred.
 	e.fake.SetRateLimit(provider.RateLimit{Limit: 5000, Remaining: 10, Reset: reset})
 	e.clock.Set(reset.Add(time.Minute))
 	if r := e.syncAll().Repos[0]; r.Status != wsync.StatusSuccess {
-		t.Errorf("après la remise à zéro : %+v", r)
+		t.Errorf("after the reset: %+v", r)
 	}
 }
 
-// Le quota passe sous 10 % pendant la synchro : les dépôts suivants sont reportés.
+// The quota goes below 10 % during the sync: the following repositories are deferred.
 func TestQuotaBasEnCours(t *testing.T) {
 	e := newEnv(t, withParallelism(1))
 	e.addRepo(1, "a")
@@ -460,12 +460,12 @@ func TestQuotaBasEnCours(t *testing.T) {
 		t.Errorf("rapport = %+v", rep.Repos)
 	}
 	if rep.RateLimit.Remaining != 9 {
-		t.Errorf("quota restant = %d, 9 attendu (3 requêtes pour le premier dépôt)", rep.RateLimit.Remaining)
+		t.Errorf("remaining quota = %d, want 9 (3 requests for the first repository)", rep.RateLimit.Remaining)
 	}
 }
 
-// Quota épuisé (RateLimitError) : le dépôt en cours échoue, les suivants sont reportés jusqu'à la
-// reprise.
+// Exhausted quota (RateLimitError): the current repository fails, the following ones are deferred until the
+// resume.
 func TestRateLimitErrorArrete(t *testing.T) {
 	e := newEnv(t, withParallelism(1))
 	for i, name := range []string{"a", "b", "c"} {
@@ -473,28 +473,28 @@ func TestRateLimitErrorArrete(t *testing.T) {
 		e.fake.AppendCommits(int64(i+1), "main", 1, epoch, time.Hour)
 	}
 	reset := time.Date(2026, 10, 20, 11, 5, 0, 0, time.UTC)
-	e.fake.FailNext(providertest.MethodBranches, &provider.APIError{Op: "liste des branches", Status: 403,
+	e.fake.FailNext(providertest.MethodBranches, &provider.APIError{Op: "list of branches", Status: 403,
 		Err: &provider.RateLimitError{Reset: reset}})
 
 	rep := e.syncAll()
-	if r := rep.Repos[0]; r.Status != wsync.StatusError || !strings.Contains(r.Error, "quota") {
-		t.Errorf("premier dépôt : %+v", r)
+	if r := rep.Repos[0]; r.Status != wsync.StatusError || !strings.Contains(r.Error, "rate limit") {
+		t.Errorf("first repository: %+v", r)
 	}
 	for _, r := range rep.Repos[1:] {
 		if r.Status != wsync.StatusDeferred || !r.ResumeAt.Equal(reset) ||
-			r.Error != "reporté : quota épuisé jusqu'à 11:05 UTC" {
-			t.Errorf("dépôt suivant : %+v", r)
+			r.Error != "deferred: quota exhausted until 11:05 UTC" || r.DeferReason != wsync.DeferQuotaExhausted {
+			t.Errorf("next repository: %+v", r)
 		}
 	}
 	if n := e.fake.Calls(providertest.MethodRepositoryByID); n != 1 {
-		t.Errorf("RepositoryByID appelé %d fois après le quota épuisé", n)
+		t.Errorf("RepositoryByID called %d times after the exhausted quota", n)
 	}
 	if run := e.lastRun(1); run.Status != model.SyncError {
 		t.Errorf("sync_run = %+v", run)
 	}
 }
 
-// Limite secondaire sans Reset : reprise = maintenant + Retry-After.
+// Secondary limit without Reset: resume = now + Retry-After.
 func TestRateLimitSecondaire(t *testing.T) {
 	e := newEnv(t, withParallelism(1))
 	e.addRepo(1, "a")
@@ -506,7 +506,7 @@ func TestRateLimitSecondaire(t *testing.T) {
 	}
 }
 
-// Verrou : un sync_run récent bloque le dépôt ; un sync_run périmé est clos et la synchro passe.
+// Lock: a recent sync_run blocks the repository; a stale sync_run is closed and the sync goes through.
 func TestVerrou(t *testing.T) {
 	e := newEnv(t)
 	repo := e.addRepo(1, "projet")
@@ -516,21 +516,21 @@ func TestVerrou(t *testing.T) {
 		t.Fatal(err)
 	}
 	rep := e.syncAll()
-	if r := rep.Repos[0]; r.Status != wsync.StatusLocked || r.Error != "déjà en cours de synchronisation" {
+	if r := rep.Repos[0]; r.Status != wsync.StatusLocked || r.Error != "already being synced" {
 		t.Errorf("rapport = %+v", r)
 	}
 	if n := e.fake.Calls(providertest.MethodRepositoryByID); n != 0 {
-		t.Errorf("dépôt verrouillé interrogé %d fois", n)
+		t.Errorf("locked repository queried %d times", n)
 	}
 
-	e.clock.Set(now.Add(25 * time.Minute)) // le running a 35 min : périmé
+	e.clock.Set(now.Add(25 * time.Minute)) // the running one is 35 min old: stale
 	if r := e.syncAll().Repos[0]; r.Status != wsync.StatusSuccess {
-		t.Errorf("après péremption : %+v", r)
+		t.Errorf("after expiry: %+v", r)
 	}
 }
 
-// Deux moteurs sur la même base (deux processus) : le second voit le dépôt verrouillé pendant que le
-// premier le synchronise.
+// Two engines on the same database (two processes): the second one sees the repository locked while
+// the first one syncs it.
 func TestVerrouDeuxMoteurs(t *testing.T) {
 	entered := make(chan struct{})
 	release := make(chan struct{})
@@ -554,7 +554,7 @@ func TestVerrouDeuxMoteurs(t *testing.T) {
 	go func() {
 		rep, err := e.eng.SyncRepo(context.Background(), repo.ID, wsync.SyncOptions{})
 		if err != nil {
-			t.Errorf("SyncRepo : %v", err)
+			t.Errorf("SyncRepo: %v", err)
 		}
 		done <- rep
 	}()
@@ -564,15 +564,15 @@ func TestVerrouDeuxMoteurs(t *testing.T) {
 		t.Fatal(err)
 	}
 	if r := rep.Repos[0]; r.Status != wsync.StatusLocked {
-		t.Errorf("second moteur : %+v", r)
+		t.Errorf("second engine: %+v", r)
 	}
 	close(release)
 	if r := (<-done).Repos[0]; r.Status != wsync.StatusSuccess || r.NewCommits != 2 {
-		t.Errorf("premier moteur : %+v", r)
+		t.Errorf("first engine: %+v", r)
 	}
 }
 
-// Parallélisme borné par sync.parallelism (et par 4 au plus).
+// Parallelism bounded by sync.parallelism (and by 4 at most).
 func TestParallelismeBorne(t *testing.T) {
 	for _, tc := range []struct{ setting, want int }{{2, 2}, {9, 4}, {0, 1}} {
 		var cur, peak atomic.Int32
@@ -586,8 +586,8 @@ func TestParallelismeBorne(t *testing.T) {
 							break
 						}
 					}
-					// Attend que tc.want dépôts soient là en même temps (ou 5 s au plus) : sur
-					// une machine lente, une simple pause ne suffit pas à les faire se chevaucher.
+					// Waits until tc.want repositories are there at the same time (or 5 s at most): on
+					// a slow machine, a simple pause is not enough to make them overlap.
 					for deadline := time.Now().Add(5 * time.Second); cur.Load() < int32(tc.want) && time.Now().Before(deadline); {
 						time.Sleep(time.Millisecond)
 					}
@@ -602,12 +602,12 @@ func TestParallelismeBorne(t *testing.T) {
 		}
 		rep := e.syncAll()
 		if rep.Count(wsync.StatusSuccess) != 8 {
-			t.Errorf("parallélisme %d : %d succès", tc.setting, rep.Count(wsync.StatusSuccess))
+			t.Errorf("parallelism %d: %d successes", tc.setting, rep.Count(wsync.StatusSuccess))
 		}
 		if got := int(peak.Load()); got != tc.want {
-			t.Errorf("parallélisme %d : au plus %d dépôts en même temps, %d attendus", tc.setting, got, tc.want)
+			t.Errorf("parallelism %d: at most %d repositories at the same time, want %d", tc.setting, got, tc.want)
 		}
-		// Ordre du rapport : celui de ListRepositories.
+		// Order of the report: the one of ListRepositories.
 		for i, r := range rep.Repos {
 			if r.FullName != testOwner+"/depot-"+string(rune('a'+i)) {
 				t.Errorf("rapport %d = %s", i, r.FullName)
@@ -616,7 +616,7 @@ func TestParallelismeBorne(t *testing.T) {
 	}
 }
 
-// Statistiques : au plus 100 par dépôt et par synchro.
+// Statistics: at most 100 per repository and per sync.
 func TestStatistiquesPlafond(t *testing.T) {
 	e := newEnv(t)
 	repo := e.addRepo(1, "projet")
@@ -628,37 +628,37 @@ func TestStatistiquesPlafond(t *testing.T) {
 		t.Errorf("rapport = %+v", r)
 	}
 	if n := e.fake.Calls(providertest.MethodCommitStats); n != 100 {
-		t.Errorf("CommitStats appelé %d fois", n)
+		t.Errorf("CommitStats called %d times", n)
 	}
-	// Les commits les plus récents sont servis d'abord.
+	// The most recent commits are served first.
 	for _, c := range e.fake.CallLog() {
 		if c.Method == providertest.MethodCommitStats {
 			v := e.commitView(repo.ID, c.SHA)
 			if v.CommittedAt.Before(epoch.Add(time.Hour + 50*time.Minute)) {
-				t.Errorf("statistiques d'un commit ancien %v", v.CommittedAt)
+				t.Errorf("statistics of an old commit %v", v.CommittedAt)
 			}
 		}
 	}
 }
 
-// Statistiques : jamais quand le quota restant passe sous 10 %.
+// Statistics: never when the remaining quota goes below 10 %.
 func TestStatistiquesQuota(t *testing.T) {
 	e := newEnv(t)
 	repo := e.addRepo(1, "projet")
 	e.fake.AppendCommits(1, "main", 1, epoch, time.Hour)
 	e.syncOK(repo.ID)
 	e.fake.AppendCommits(1, "main", 10, epoch.Add(time.Hour), time.Minute)
-	// 105 restants : RepositoryByID, Branches, CompareCommits (102), puis statistiques à 102, 101 et
-	// 100 (10 % pile) ; à 99, plus rien.
+	// 105 left: RepositoryByID, Branches, CompareCommits (102), then statistics at 102, 101 and
+	// 100 (exactly 10 %); at 99, nothing more.
 	e.fake.SetRateLimit(provider.RateLimit{Limit: 1000, Remaining: 105})
 	r := e.syncOK(repo.ID)
 	if r.NewCommits != 10 || r.StatsFetched != 3 {
-		t.Errorf("rapport = %+v : 3 statistiques attendues", r)
+		t.Errorf("report = %+v: 3 statistics expected", r)
 	}
 }
 
-// Statistiques : un quota épuisé pendant les statistiques garde le dépôt en succès et reporte les
-// suivants ; une autre erreur arrête seulement les statistiques.
+// Statistics: a quota exhausted during the statistics keeps the repository successful and defers the
+// following ones; another error stops only the statistics.
 func TestStatistiquesErreurs(t *testing.T) {
 	e := newEnv(t, withParallelism(1))
 	a := e.addRepo(1, "a")
@@ -671,21 +671,21 @@ func TestStatistiquesErreurs(t *testing.T) {
 	e.fake.FailNext(providertest.MethodCommitStats, &provider.RateLimitError{Reset: e.clock.Now().Add(time.Hour)})
 	rep := e.syncAll()
 	if r := rep.Repos[0]; r.Status != wsync.StatusSuccess || r.NewCommits != 3 || r.StatsFetched != 1 {
-		t.Errorf("dépôt a : %+v", r)
+		t.Errorf("repository a: %+v", r)
 	}
 	if r := rep.Repos[1]; r.Status != wsync.StatusDeferred {
-		t.Errorf("dépôt b : %+v", r)
+		t.Errorf("repository b: %+v", r)
 	}
 
 	e.fake.AppendCommits(1, "main", 3, epoch.Add(2*time.Hour), time.Minute)
 	e.fake.FailNext(providertest.MethodCommitStats, &provider.APIError{Op: "statistiques", Err: provider.ErrUnavailable})
 	if r := e.syncOK(a.ID); r.NewCommits != 3 || r.StatsFetched != 1 {
-		t.Errorf("erreur passagère : %+v", r)
+		t.Errorf("transient error: %+v", r)
 	}
 }
 
-// Fusion d'identités : un auteur d'abord connu par son seul e-mail, puis par son compte GitHub, ne
-// fait plus qu'un contributeur ; un commit sans compte ni e-mail reste sans auteur.
+// Identity merge: an author first known by their e-mail only, then by their GitHub account, becomes
+// a single contributor; a commit without account nor e-mail stays without author.
 func TestFusionIdentites(t *testing.T) {
 	e := newEnv(t)
 	repo := e.addRepo(1, "projet")
@@ -700,7 +700,7 @@ func TestFusionIdentites(t *testing.T) {
 	e.fake.SetBranch(1, "main", c2)
 	e.syncOK(repo.ID)
 
-	c3 := e.commit(1, "c3", epoch.Add(2*time.Hour), c2) // compte 4242, même e-mail
+	c3 := e.commit(1, "c3", epoch.Add(2*time.Hour), c2) // account 4242, same e-mail
 	e.fake.SetBranch(1, "main", c3)
 	e.syncOK(repo.ID)
 
@@ -710,15 +710,15 @@ func TestFusionIdentites(t *testing.T) {
 	}
 	if len(ranking) != 1 || ranking[0].Commits != 2 || ranking[0].ProviderUserID != 4242 ||
 		ranking[0].ProviderLogin != secretLogin {
-		t.Errorf("classement = %+v : un seul contributeur (compte 4242, 2 commits) attendu", ranking)
+		t.Errorf("ranking = %+v: a single contributor (account 4242, 2 commits) expected", ranking)
 	}
 	if v := e.commitView(repo.ID, c2); v.AuthorID != 0 {
-		t.Errorf("commit sans compte ni e-mail : auteur %d, aucun attendu", v.AuthorID)
+		t.Errorf("commit without account nor e-mail: author %d, none expected", v.AuthorID)
 	}
 }
 
-// Le token est redemandé à gh à chaque synchro et transmis à la fabrique ; un échec de gh est une
-// erreur globale (rapport vide, événement de fin envoyé).
+// The token is asked again to gh at every sync and passed to the factory; a failure of gh is a
+// global error (empty report, end event sent).
 func TestTokenRedemande(t *testing.T) {
 	e := newEnv(t)
 	e.addRepo(1, "projet")
@@ -729,48 +729,48 @@ func TestTokenRedemande(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got := e.receivedTokens(); !slices.Equal(got, []string{"gho_fake_premier", "gho_fake_second", "gho_fake_second"}) {
-		t.Errorf("tokens reçus = %v", got)
+		t.Errorf("received tokens = %v", got)
 	}
 	if n := e.auth.TokenCalls(); n != 3 {
-		t.Errorf("Token appelé %d fois, 3 attendus", n)
+		t.Errorf("Token called %d times, want 3", n)
 	}
 
-	// gh installé mais en panne (délai) : erreur, sans basculer vers les clones Git.
+	// gh installed but broken (timeout): error, without switching to the Git clones.
 	e.auth.SetTokenErr(auth.ErrTimeout)
 	var kinds []wsync.EventKind
 	rep, err := e.eng.SyncAll(t.Context(), wsync.SyncOptions{Progress: func(ev wsync.Event) { kinds = append(kinds, ev.Kind) }})
 	if !errors.Is(err, auth.ErrTimeout) {
-		t.Errorf("erreur = %v, ErrTimeout attendue", err)
+		t.Errorf("error = %v, want ErrTimeout", err)
 	}
 	if rep.Repos == nil || len(rep.Repos) != 0 {
-		t.Errorf("rapport = %+v, vide attendu", rep.Repos)
+		t.Errorf("report = %+v, want empty", rep.Repos)
 	}
 	if !slices.Equal(kinds, []wsync.EventKind{wsync.EventStarted, wsync.EventFinished}) {
-		t.Errorf("événements = %v", kinds)
+		t.Errorf("events = %v", kinds)
 	}
 	if _, err := e.eng.RateLimit(t.Context()); !errors.Is(err, auth.ErrTimeout) {
-		t.Errorf("RateLimit : %v", err)
+		t.Errorf("RateLimit: %v", err)
 	}
 	if _, err := e.eng.AddRepositories(t.Context(), nil, wsync.AddOptions{}); !errors.Is(err, auth.ErrTimeout) {
-		t.Errorf("AddRepositories : %v", err)
+		t.Errorf("AddRepositories: %v", err)
 	}
 }
 
-// Une erreur qui citerait le token est masquée dans le rapport et dans sync_runs.
+// An error that would quote the token is masked in the report and in sync_runs.
 func TestTokenMasque(t *testing.T) {
 	e := newEnv(t)
 	repo := e.addRepo(1, "projet")
-	e.fake.FailNext(providertest.MethodRepositoryByID, errors.New("panne inattendue "+authtest.FakeToken))
+	e.fake.FailNext(providertest.MethodRepositoryByID, errors.New("unexpected outage "+authtest.FakeToken))
 	rep := e.syncAll()
-	if r := rep.Repos[0]; r.Status != wsync.StatusError || !strings.Contains(r.Error, "[token masqué]") {
+	if r := rep.Repos[0]; r.Status != wsync.StatusError || !strings.Contains(r.Error, "[token redacted]") {
 		t.Errorf("rapport = %+v", r)
 	}
 	if run := e.lastRun(repo.ID); strings.Contains(run.Error, authtest.FakeToken) {
-		t.Errorf("token enregistré dans sync_runs : %q", run.Error)
+		t.Errorf("token recorded in sync_runs: %q", run.Error)
 	}
 }
 
-// Progression : début, début et fin de chaque dépôt, fin ; Done croissant, Total connu.
+// Progress: start, start and end of every repository, end; increasing Done, known Total.
 func TestProgression(t *testing.T) {
 	e := newEnv(t, withParallelism(4))
 	for i := range 3 {
@@ -783,7 +783,7 @@ func TestProgression(t *testing.T) {
 	)
 	rep, err := e.eng.SyncAll(t.Context(), wsync.SyncOptions{Progress: func(ev wsync.Event) {
 		if !busy.CompareAndSwap(false, true) {
-			t.Error("appels de Progress simultanés")
+			t.Error("simultaneous Progress calls")
 		}
 		time.Sleep(time.Millisecond)
 		mu.Lock()
@@ -795,7 +795,7 @@ func TestProgression(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(events) != 8 || events[0].Kind != wsync.EventStarted || events[7].Kind != wsync.EventFinished {
-		t.Fatalf("événements = %+v", events)
+		t.Fatalf("events = %+v", events)
 	}
 	finished := 0
 	for _, ev := range events {
@@ -805,7 +805,7 @@ func TestProgression(t *testing.T) {
 		if ev.Kind == wsync.EventRepoFinished {
 			finished++
 			if ev.Done != finished || ev.Repo.Status != wsync.StatusSuccess {
-				t.Errorf("événement = %+v", ev)
+				t.Errorf("event = %+v", ev)
 			}
 		}
 	}
@@ -814,7 +814,7 @@ func TestProgression(t *testing.T) {
 	}
 }
 
-// SyncAll ignore les dépôts arrêtés ; SyncRepo les synchronise (demande explicite) ; dépôt inconnu.
+// SyncAll ignores the stopped repositories; SyncRepo syncs them (explicit request); unknown repository.
 func TestSuiviArreteEtDepotInconnu(t *testing.T) {
 	e := newEnv(t)
 	repo := e.addRepo(1, "projet")
@@ -823,17 +823,17 @@ func TestSuiviArreteEtDepotInconnu(t *testing.T) {
 		t.Fatal(err)
 	}
 	if rep := e.syncAll(); len(rep.Repos) != 0 {
-		t.Errorf("dépôt arrêté synchronisé par SyncAll : %+v", rep.Repos)
+		t.Errorf("stopped repository synced by SyncAll: %+v", rep.Repos)
 	}
 	if r := e.syncOK(repo.ID); r.NewCommits != 1 {
-		t.Errorf("SyncRepo : %+v", r)
+		t.Errorf("SyncRepo: %+v", r)
 	}
 	if _, err := e.eng.SyncRepo(t.Context(), 999, wsync.SyncOptions{}); !errors.Is(err, store.ErrNotFound) {
-		t.Errorf("dépôt inconnu : %v", err)
+		t.Errorf("unknown repository: %v", err)
 	}
 }
 
-// Contexte annulé pendant la synchro : erreur globale, le dépôt en cours est clos en erreur.
+// Context canceled during the sync: global error, the current repository is closed in error.
 func TestAnnulation(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	e := newEnv(t, withParallelism(1), withWrap(func(p provider.Provider) provider.Provider {
@@ -849,32 +849,32 @@ func TestAnnulation(t *testing.T) {
 	e.addRepo(2, "b")
 	rep, err := e.eng.SyncAll(ctx, wsync.SyncOptions{})
 	if !errors.Is(err, context.Canceled) {
-		t.Errorf("erreur = %v", err)
+		t.Errorf("error = %v", err)
 	}
-	if len(rep.Repos) != 2 || rep.Repos[0].Status != wsync.StatusError || rep.Repos[0].Error != "synchro annulée" {
+	if len(rep.Repos) != 2 || rep.Repos[0].Status != wsync.StatusError || rep.Repos[0].Error != "sync canceled" {
 		t.Errorf("rapport = %+v", rep.Repos)
 	}
-	if run := e.lastRun(a.ID); run.Status != model.SyncError || run.Error != "synchro annulée" {
+	if run := e.lastRun(a.ID); run.Status != model.SyncError || run.Error != "sync canceled" {
 		t.Errorf("sync_run = %+v", run)
 	}
 	if _, err := e.st.LastSyncRun(t.Context(), 2); !errors.Is(err, store.ErrNotFound) {
-		t.Errorf("dépôt suivant commencé malgré l'annulation : %v", err)
+		t.Errorf("next repository started despite the cancellation: %v", err)
 	}
 }
 
-// Quota inconnu au départ : un appel RateLimit (gratuit) ; connu : aucun.
+// Unknown quota at the start: one RateLimit call (free); known: none.
 func TestLectureInitialeDuQuota(t *testing.T) {
 	e := newEnv(t)
 	e.addRepo(1, "projet")
 	e.syncAll()
 	if n := e.fake.Calls(providertest.MethodRateLimit); n != 1 {
-		t.Errorf("RateLimit appelé %d fois, 1 attendu", n)
+		t.Errorf("RateLimit called %d times, want 1", n)
 	}
 	e.fake.SetRateLimit(provider.RateLimit{Remaining: 4000})
 	e.fake.ResetCalls()
 	e.syncAll()
 	if n := e.fake.Calls(providertest.MethodRateLimit); n != 0 {
-		t.Errorf("RateLimit appelé %d fois avec un quota connu", n)
+		t.Errorf("RateLimit called %d times with a known quota", n)
 	}
 	rl, err := e.eng.RateLimit(t.Context())
 	if err != nil || rl.Limit != 5000 {
@@ -882,9 +882,9 @@ func TestLectureInitialeDuQuota(t *testing.T) {
 	}
 }
 
-// Branche par défaut changée : la nouvelle branche de référence est relue en entier (rattachée à tout
-// son historique, commits déjà en base compris) ; un commit vu sur deux nouvelles branches est
-// rattaché aux deux.
+// Default branch changed: the new reference branch is read again in full (linked to its whole
+// history, commits already in the database included); a commit seen on two new branches is
+// linked to both.
 func TestNouvelleReferenceEtCommitsPartages(t *testing.T) {
 	e := newEnv(t)
 	repo := e.addRepo(1, "projet")
@@ -908,27 +908,27 @@ func TestNouvelleReferenceEtCommitsPartages(t *testing.T) {
 	if slices.ContainsFunc(log, func(c providertest.Call) bool {
 		return c.Method == providertest.MethodCompareCommits && c.Head == dev[0].SHA
 	}) {
-		t.Errorf("dev comparée au lieu d'être relue : %+v", log)
+		t.Errorf("dev compared instead of being read again: %+v", log)
 	}
 	if n := e.fake.Calls(providertest.MethodListCommits); n != 1 {
-		t.Errorf("ListCommits appelé %d fois, 1 attendu (nouvelle référence)", n)
+		t.Errorf("ListCommits called %d times, want 1 (new reference)", n)
 	}
 	want := sorted(mainC[0].SHA, mainC[1].SHA, mainC[2].SHA, dev[0].SHA)
 	if got := e.commitSHAs(repo.ID, "dev"); !slices.Equal(got, want) {
-		t.Errorf("commits de dev = %v, %v attendus", got, want)
+		t.Errorf("commits of dev = %v, want %v", got, want)
 	}
 	for _, b := range []string{"tp-a", "tp-b"} {
 		if got := e.commitSHAs(repo.ID, b); !slices.Equal(got, []string{shared[0].SHA}) {
-			t.Errorf("commits de %s = %v", b, got)
+			t.Errorf("commits of %s = %v", b, got)
 		}
 	}
 	if stored, _ := e.st.GetRepository(t.Context(), repo.ID); stored.DefaultBranch != "dev" {
-		t.Errorf("branche par défaut = %q", stored.DefaultBranch)
+		t.Errorf("default branch = %q", stored.DefaultBranch)
 	}
 }
 
-// Dates absentes : une seule date manquante est remplacée par l'autre ; sans aucune date, le commit
-// est ignoré (et signalé dans les logs, par un compteur).
+// Missing dates: a single missing date is replaced by the other one; without any date, the commit
+// is ignored (and reported in the logs, by a counter).
 func TestCommitSansDate(t *testing.T) {
 	e := newEnv(t)
 	repo := e.addRepo(1, "projet")
@@ -941,20 +941,20 @@ func TestCommitSansDate(t *testing.T) {
 	)
 	e.fake.SetBranch(1, "main", c)
 	if r := e.syncOK(repo.ID); r.NewCommits != 2 {
-		t.Errorf("%d nouveaux commits, 2 attendus", r.NewCommits)
+		t.Errorf("%d new commits, want 2", r.NewCommits)
 	}
 	if v := e.commitView(repo.ID, a); !v.AuthoredAt.Equal(epoch) {
-		t.Errorf("date d'écriture = %v", v.AuthoredAt)
+		t.Errorf("authored date = %v", v.AuthoredAt)
 	}
 	if v := e.commitView(repo.ID, b); !v.CommittedAt.Equal(epoch.Add(time.Hour)) {
-		t.Errorf("date de commit = %v", v.CommittedAt)
+		t.Errorf("commit date = %v", v.CommittedAt)
 	}
-	if !strings.Contains(e.logs.String(), "commits ignorés") {
-		t.Error("commit ignoré non signalé")
+	if !strings.Contains(e.logs.String(), "commits ignorés") { // message of the Warn log
+		t.Error("ignored commit not reported")
 	}
 }
 
-// Dépôt sans identifiant de forge connu : lu par owner/name.
+// Repository without a known forge identifier: read by owner/name.
 func TestDepotSansIdentifiant(t *testing.T) {
 	e := newEnv(t)
 	e.fake.AddRepository(provider.Repository{ID: 5, Owner: testOwner, Name: "ancien"})
@@ -968,32 +968,32 @@ func TestDepotSansIdentifiant(t *testing.T) {
 		t.Errorf("rapport = %+v", r)
 	}
 	if n := e.fake.Calls(providertest.MethodRepository); n != 1 {
-		t.Errorf("Repository appelé %d fois", n)
+		t.Errorf("Repository called %d times", n)
 	}
 }
 
-// assertReference vérifie que la branche ref du dépôt repoID porte exactement want (SHA), que
-// last_commit_at vaut last et que le dépôt n'est pas « vide » pour l'activité.
+// assertReference checks that the branch ref of the repository repoID carries exactly want (SHAs),
+// that last_commit_at is last and that the repository is not "empty" for the activity.
 func (e *env) assertReference(repoID int64, ref string, want []string, last time.Time) {
 	e.t.Helper()
 	if got := e.commitSHAs(repoID, ref); !slices.Equal(got, sorted(want...)) {
-		e.t.Errorf("commits de %s = %v, %v attendus", ref, got, sorted(want...))
+		e.t.Errorf("commits of %s = %v, want %v", ref, got, sorted(want...))
 	}
 	stored, err := e.st.GetRepository(e.t.Context(), repoID)
 	if err != nil {
-		e.t.Fatalf("GetRepository : %v", err)
+		e.t.Fatalf("GetRepository: %v", err)
 	}
 	if !stored.LastCommitAt.Equal(last) {
-		e.t.Errorf("last_commit_at = %v, %v attendu", stored.LastCommitAt, last)
+		e.t.Errorf("last_commit_at = %v, want %v", stored.LastCommitAt, last)
 	}
 	res := activity.Evaluate(stored, e.lastRun(repoID), e.cfg.Activity, e.clock.Now(), time.UTC)
 	if res.State == activity.StateEmpty || res.State == activity.StateError {
-		e.t.Errorf("état d'activité = %q après le changement de référence", res.State)
+		e.t.Errorf("activity state = %q after the change of reference", res.State)
 	}
 }
 
-// Branche par défaut renommée sur la forge (main → trunk, même tête, main supprimée) : trunk est
-// rattachée à tout l'historique, le dépôt garde son dernier commit et n'est pas « vide ».
+// Default branch renamed on the forge (main → trunk, same head, main deleted): trunk is linked to
+// the whole history, the repository keeps its last commit and is not "empty".
 func TestReferenceRenommee(t *testing.T) {
 	e := newEnv(t)
 	repo := e.addRepo(1, "projet")
@@ -1009,23 +1009,23 @@ func TestReferenceRenommee(t *testing.T) {
 		t.Errorf("rapport = %+v", r)
 	}
 	if n := e.fake.Calls(providertest.MethodCommitStats); n != 0 {
-		t.Errorf("CommitStats appelé %d fois pour des commits déjà en base", n)
+		t.Errorf("CommitStats called %d times for commits already in the database", n)
 	}
 	if b := e.branches(repo.ID); b["main"].Tracked || !b["trunk"].Tracked {
 		t.Errorf("branches = %+v", b)
 	}
 	e.assertReference(repo.ID, "trunk", []string{mainC[0].SHA, mainC[1].SHA, mainC[2].SHA}, mainC[2].CommittedAt)
 
-	// Synchro suivante, rien n'a bougé : aucune nouvelle relecture.
+	// Next sync, nothing moved: no new read.
 	e.fake.ResetCalls()
 	e.syncOK(repo.ID)
 	if n := e.fake.Calls(providertest.MethodListCommits); n != 0 {
-		t.Errorf("ListCommits appelé %d fois après le changement", n)
+		t.Errorf("ListCommits called %d times after the change", n)
 	}
 }
 
-// Motifs --branch qui excluent après coup la branche par défaut : la nouvelle référence (dev, déjà
-// connue, tête inchangée) est rattachée à tout son historique.
+// --branch patterns that afterwards exclude the default branch: the new reference (dev, already
+// known, unchanged head) is linked to its whole history.
 func TestMotifsExcluantLaReference(t *testing.T) {
 	e := newEnv(t)
 	repo := e.addRepo(1, "projet")
@@ -1033,7 +1033,7 @@ func TestMotifsExcluantLaReference(t *testing.T) {
 	e.fake.SetBranch(1, "dev", mainC[1].SHA)
 	e.syncOK(repo.ID)
 	if got := e.commitSHAs(repo.ID, "dev"); len(got) != 0 {
-		t.Fatalf("dev, partie de main, a déjà des commits propres : %v", got)
+		t.Fatalf("dev, branched off main, already has its own commits: %v", got)
 	}
 
 	if _, err := e.st.UpdateRepositorySettings(t.Context(), repo.ID, "", []string{"dev"}); err != nil {
@@ -1044,7 +1044,7 @@ func TestMotifsExcluantLaReference(t *testing.T) {
 		t.Errorf("rapport = %+v", r)
 	}
 	if n := e.fake.Calls(providertest.MethodListCommits); n != 1 {
-		t.Errorf("ListCommits appelé %d fois, 1 attendu", n)
+		t.Errorf("ListCommits called %d times, want 1", n)
 	}
 	e.assertReference(repo.ID, "dev", []string{mainC[0].SHA, mainC[1].SHA}, mainC[1].CommittedAt)
 }

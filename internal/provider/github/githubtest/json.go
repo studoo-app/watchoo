@@ -9,18 +9,18 @@ import (
 	"time"
 )
 
-// Corps JSON au format de l'API REST de GitHub (champs utiles à Watchoo et principaux champs
-// voisins, pour que les réponses ressemblent à celles de l'API réelle).
+// JSON bodies in the format of GitHub's REST API (fields useful to Watchoo and the main neighboring
+// fields, so that the responses look like those of the real API).
 
-// githubWeb est la racine des pages web (html_url), comme sur GitHub.
+// githubWeb is the root of the web pages (html_url), as on GitHub.
 const githubWeb = "https://github.com/"
 
-// timeJSON formate une date comme GitHub (ISO 8601, UTC, à la seconde).
+// timeJSON formats a date like GitHub (ISO 8601, UTC, to the second).
 func timeJSON(t time.Time) string {
 	return t.UTC().Format("2006-01-02T15:04:05Z")
 }
 
-// nullableTime renvoie timeJSON(t), ou nil (null) si t est zéro.
+// nullableTime returns timeJSON(t), or nil (null) if t is zero.
 func nullableTime(t time.Time) *string {
 	if t.IsZero() {
 		return nil
@@ -29,45 +29,44 @@ func nullableTime(t time.Time) *string {
 	return &s
 }
 
-// marshal encode v en JSON sans échapper < > & (comme GitHub). Une erreur d'encodage est un défaut
-// du faux serveur : elle fait échouer le test.
+// marshal encodes v as JSON without escaping < > & (like GitHub). An encoding error is a defect of
+// the fake server: it fails the test.
 func (s *Server) marshal(v any) []byte {
 	var buf bytes.Buffer
 	enc := json.NewEncoder(&buf)
 	enc.SetEscapeHTML(false)
 	if err := enc.Encode(v); err != nil {
-		s.tb.Errorf("githubtest : encodage JSON : %v", err)
+		s.tb.Errorf("githubtest: JSON encoding: %v", err)
 		return []byte("{}")
 	}
 	return bytes.TrimSuffix(buf.Bytes(), []byte("\n"))
 }
 
-// errorBody est le corps d'une réponse d'erreur de GitHub.
+// errorBody is the body of a GitHub error response.
 type errorBody struct {
 	Message          string `json:"message"`
 	DocumentationURL string `json:"documentation_url"`
 	Status           string `json:"status"`
 }
 
-// errorJSON renvoie le corps d'erreur {"message","documentation_url","status"}.
+// errorJSON returns the error body {"message","documentation_url","status"}.
 func errorJSON(message, docs string, status int) errorBody {
 	return errorBody{Message: message, DocumentationURL: docs, Status: strconv.Itoa(status)}
 }
 
-// accountID dérive un identifiant de compte stable (et non nul) d'un login, sans tenir compte de la
-// casse.
+// accountID derives a stable (and non-zero) account identifier from a login, case-insensitively.
 func accountID(login string) int64 {
 	h := fnv.New32a()
 	_, _ = h.Write([]byte(strings.ToLower(login)))
 	return int64(h.Sum32()) + 1
 }
 
-// avatarURL renvoie l'avatar factice du compte id.
+// avatarURL returns the dummy avatar of the account id.
 func avatarURL(id int64) string {
 	return "https://avatars.example.test/u/" + strconv.FormatInt(id, 10)
 }
 
-// userJSON est un compte GitHub (« simple user »).
+// userJSON is a GitHub account ("simple user").
 type userJSON struct {
 	Login      string `json:"login"`
 	ID         int64  `json:"id"`
@@ -80,7 +79,7 @@ type userJSON struct {
 	SiteAdmin  bool   `json:"site_admin"`
 }
 
-// user renvoie le compte login (id 0 = dérivé du login ; avatar vide = avatar factice).
+// user returns the account login (id 0 = derived from the login; empty avatar = dummy avatar).
 func (s *Server) user(login string, id int64, avatar string) userJSON {
 	if id == 0 {
 		id = accountID(login)
@@ -101,7 +100,7 @@ func (s *Server) user(login string, id int64, avatar string) userJSON {
 	}
 }
 
-// personUser renvoie le compte lié à p, ou nil (null) si aucun compte n'est lié.
+// personUser returns the account linked to p, or nil (null) if no account is linked.
 func (s *Server) personUser(p Person) *userJSON {
 	if p.Login == "" {
 		return nil
@@ -110,7 +109,7 @@ func (s *Server) personUser(p Person) *userJSON {
 	return &u
 }
 
-// permissionsJSON donne les droits du compte sur le dépôt (lecture seule).
+// permissionsJSON gives the account's rights on the repository (read-only).
 type permissionsJSON struct {
 	Admin    bool `json:"admin"`
 	Maintain bool `json:"maintain"`
@@ -119,7 +118,7 @@ type permissionsJSON struct {
 	Pull     bool `json:"pull"`
 }
 
-// repoJSON est un dépôt (« full repository »).
+// repoJSON is a repository ("full repository").
 type repoJSON struct {
 	ID              int64           `json:"id"`
 	NodeID          string          `json:"node_id"`
@@ -153,7 +152,7 @@ type repoJSON struct {
 	Permissions     permissionsJSON `json:"permissions"`
 }
 
-// repoJSON renvoie les métadonnées de repo, avec ses owner/nom actuels.
+// repoJSON returns the metadata of repo, with its current owner/name.
 func (s *Server) repoJSON(repo *repoState) repoJSON {
 	full := repo.Owner + "/" + repo.Name
 	visibility := "public"
@@ -189,20 +188,20 @@ func (s *Server) repoJSON(repo *repoState) repoJSON {
 	}
 }
 
-// branchJSON est une branche (« short branch »).
+// branchJSON is a branch ("short branch").
 type branchJSON struct {
 	Name      string           `json:"name"`
 	Commit    branchCommitJSON `json:"commit"`
 	Protected bool             `json:"protected"`
 }
 
-// branchCommitJSON est le commit de tête d'une branche.
+// branchCommitJSON is the head commit of a branch.
 type branchCommitJSON struct {
 	SHA string `json:"sha"`
 	URL string `json:"url"`
 }
 
-// branchJSON renvoie la branche name de repo.
+// branchJSON returns the branch name of repo.
 func (s *Server) branchJSON(repo *repoState, name string) branchJSON {
 	sha := repo.branches[name]
 	return branchJSON{
@@ -211,20 +210,20 @@ func (s *Server) branchJSON(repo *repoState, name string) branchJSON {
 	}
 }
 
-// gitPersonJSON est l'identité Git d'un auteur ou d'un committer.
+// gitPersonJSON is the Git identity of an author or a committer.
 type gitPersonJSON struct {
 	Name  string `json:"name"`
 	Email string `json:"email"`
 	Date  string `json:"date"`
 }
 
-// treeJSON désigne l'arbre d'un commit.
+// treeJSON designates the tree of a commit.
 type treeJSON struct {
 	SHA string `json:"sha"`
 	URL string `json:"url"`
 }
 
-// verificationJSON est l'état de signature d'un commit (jamais signé ici).
+// verificationJSON is the signature state of a commit (never signed here).
 type verificationJSON struct {
 	Verified   bool    `json:"verified"`
 	Reason     string  `json:"reason"`
@@ -233,7 +232,7 @@ type verificationJSON struct {
 	VerifiedAt *string `json:"verified_at"`
 }
 
-// gitCommitJSON est la partie Git d'un commit.
+// gitCommitJSON is the Git part of a commit.
 type gitCommitJSON struct {
 	Author       gitPersonJSON    `json:"author"`
 	Committer    gitPersonJSON    `json:"committer"`
@@ -244,21 +243,21 @@ type gitCommitJSON struct {
 	Verification verificationJSON `json:"verification"`
 }
 
-// parentJSON désigne un parent d'un commit.
+// parentJSON designates a parent of a commit.
 type parentJSON struct {
 	SHA     string `json:"sha"`
 	URL     string `json:"url"`
 	HTMLURL string `json:"html_url"`
 }
 
-// statsJSON est la taille d'un commit (GET …/commits/{sha} seulement).
+// statsJSON is the size of a commit (GET …/commits/{sha} only).
 type statsJSON struct {
 	Total     int `json:"total"`
 	Additions int `json:"additions"`
 	Deletions int `json:"deletions"`
 }
 
-// commitJSON est un commit (« commit » de l'API REST).
+// commitJSON is a commit ("commit" of the REST API).
 type commitJSON struct {
 	SHA         string          `json:"sha"`
 	NodeID      string          `json:"node_id"`
@@ -273,7 +272,7 @@ type commitJSON struct {
 	Files       json.RawMessage `json:"files,omitempty"`
 }
 
-// commitJSON renvoie le commit c de repo ; withStats ajoute "stats" et "files":[] (GET d'un commit).
+// commitJSON returns the commit c of repo; withStats adds "stats" and "files":[] (GET of a commit).
 func (s *Server) commitJSON(repo *repoState, c *commitState, withStats bool) commitJSON {
 	api := s.URL() + "repos/" + repo.Owner + "/" + repo.Name
 	web := githubWeb + repo.Owner + "/" + repo.Name
@@ -307,7 +306,7 @@ func (s *Server) commitJSON(repo *repoState, c *commitState, withStats bool) com
 	return out
 }
 
-// compareJSON est le résultat d'une comparaison (« commit comparison »).
+// compareJSON is the result of a comparison ("commit comparison").
 type compareJSON struct {
 	URL             string       `json:"url"`
 	HTMLURL         string       `json:"html_url"`
@@ -324,7 +323,7 @@ type compareJSON struct {
 	Files           []struct{}   `json:"files"`
 }
 
-// compareJSON renvoie la comparaison spec (« base...head ») de repo.
+// compareJSON returns the comparison spec ("base...head") of repo.
 func (s *Server) compareJSON(repo *repoState, spec string, base, head, mergeBase *commitState, status string,
 	ahead, behind int, commits []commitJSON) compareJSON {
 	full := repo.Owner + "/" + repo.Name
@@ -346,7 +345,7 @@ func (s *Server) compareJSON(repo *repoState, spec string, base, head, mergeBase
 	}
 }
 
-// rateJSON est l'état d'une ressource de quota.
+// rateJSON is the state of a quota resource.
 type rateJSON struct {
 	Limit     int   `json:"limit"`
 	Used      int   `json:"used"`
@@ -354,15 +353,15 @@ type rateJSON struct {
 	Reset     int64 `json:"reset"`
 }
 
-// rateLimitBody est le corps de GET /rate_limit.
+// rateLimitBody is the body of GET /rate_limit.
 type rateLimitBody struct {
 	Resources map[string]rateJSON `json:"resources"`
 	Rate      rateJSON            `json:"rate"`
 }
 
-// rateLimitJSON renvoie le corps de GET /rate_limit : quota core simulé, autres ressources pleines
-// (remises à zéro avec core, pour que le corps et son ETag ne changent qu'avec le quota). Appelée
-// avec s.mu verrouillé.
+// rateLimitJSON returns the body of GET /rate_limit: simulated core quota, other resources full
+// (reset with core, so that the body and its ETag only change with the quota). Called with s.mu
+// locked.
 func (s *Server) rateLimitJSON() rateLimitBody {
 	reset := s.quota.reset.Unix()
 	core := rateJSON{Limit: s.quota.limit, Used: s.quota.used, Remaining: s.quota.remaining, Reset: reset}

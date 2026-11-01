@@ -14,6 +14,15 @@ Toutes les commandes sauf `init`, `version` et `update` travaillent sur un **esp
 `.watchoo/` trouvé dans le répertoire courant ou ses parents (voir
 [Espaces de supervision](10-espaces-de-supervision.md)).
 
+**Langue des messages** : la CLI et le TUI parlent **anglais par défaut**. La variable `WATCHOO_LANG`
+(`en` ou `fr`) choisit la langue ; sans elle, la locale du système décide (`LC_ALL`, `LC_MESSAGES`, puis
+`LANG` : préfixe `fr` → français) ; à défaut, l'anglais. La langue de l'interface web se règle
+séparément, par le réglage `lang` de l'espace ; `WATCHOO_LANG` étant aussi la variable de ce réglage,
+la définir impose la langue partout (voir
+[Interface web](06-interface-web.md#langue-de-linterface)). Les mêmes textes existent dans les deux
+langues, servis par le paquet `internal/i18n` sans dépendance (voir
+[Architecture](03-architecture.md#langues-et-traductions)).
+
 **Accès aux dépôts** : avec la CLI GitHub `gh` installée et connectée (`gh auth login`), Watchoo passe
 par l'API GitHub ; il obtient le token uniquement avec `gh auth token` et ne le stocke jamais. Sans `gh`
 (absent ou non connecté), il suit les dépôts par **clones Git locaux** (`git` doit être installé), avec
@@ -153,8 +162,9 @@ refait à chaque synchro (voir [Architecture](03-architecture.md#authentificatio
   une synchro n'est lancée que si la dernière date de plus d'un intervalle. `--json` est refusé. Ctrl+C
   (ou SIGTERM) arrête proprement : plus de nouvelle requête, synchro en cours annulée et attendue, base
   fermée ensuite. Voir [Interface web](06-interface-web.md).
-- `watchoo help [commande]` et l'option `-h` / `--help` affichent l'aide en français. Il n'y a pas de
-  commande `completion` (celle que `cobra` ajoute d'office est désactivée : son aide est en anglais).
+- `watchoo help [commande]` et l'option `-h` / `--help` affichent l'aide dans la langue des messages
+  (anglais par défaut, français). Il n'y a pas de
+  commande `completion` (celle que `cobra` ajoute d'office est désactivée : son aide n'existe qu'en anglais).
 - **`--version`**, option de `watchoo` seul (`watchoo init --version` est refusée), a le même effet que
   `watchoo version`, `--json` compris.
 
@@ -492,7 +502,8 @@ partager de données d'étudiants ni de réglage propre à une machine.
     "branches": {
       "exclude": []
     },
-    "timezone": ""
+    "timezone": "",
+    "lang": "en"
   },
   "repositories": [
     {
@@ -511,7 +522,7 @@ partager de données d'étudiants ni de réglage propre à une machine.
 | `version` | Version du format, `1` (obligatoire). Une version plus grande est refusée : « fichier créé par une version plus récente de Watchoo » |
 | `exported_at`, `watchoo_version` | Date d'export (UTC, RFC 3339) et version de Watchoo qui l'a fait ; informatifs, facultatifs |
 | `workspace.name` | Nom de l'espace exporté ; informatif : l'import ne renomme jamais l'espace |
-| `settings` | Réglages communs, valeurs **en vigueur** dans l'espace exporté (fichiers et variables `WATCHOO_*` compris) : `sync.auto`, `sync.interval` (durée Go entre guillemets : `"30m"`, `"1h30m"`, `"0"`), `sync.parallelism`, `activity.flemme_after_days`, `activity.dead_after_days`, `branches.exclude`, `timezone` |
+| `settings` | Réglages communs, valeurs **en vigueur** dans l'espace exporté (fichiers et variables `WATCHOO_*` compris) : `sync.auto`, `sync.interval` (durée Go entre guillemets : `"30m"`, `"1h30m"`, `"0"`), `sync.parallelism`, `activity.flemme_after_days`, `activity.dead_after_days`, `branches.exclude`, `timezone`, `lang` (`"en"` ou `"fr"` ; clé facultative de la version 1 : un fichier sans elle reste valide) |
 | `repositories` | Dépôts dont le suivi est actif (les dépôts arrêtés ne sont pas exportés), triés par `owner/repo` : `provider` (`github`), `repo` (`owner/repo`), `label` (nom affiché, `""` sans nom), `branches` (motifs suivis, `[]` = toutes les branches), et, **seulement pour un dépôt qui en a**, `flemme_after_days` et `dead_after_days` (seuils propres, en jours). Ces deux clés sont facultatives dans la version 1 du format : un fichier sans seuil propre reste lisible par les versions de Watchoo qui ne les connaissent pas |
 
 **Jamais exportés** : les réglages propres à la machine ou à la personne (`name` du fichier, `github.*` :

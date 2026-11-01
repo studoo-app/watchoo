@@ -2,7 +2,8 @@ package web
 
 // Fonctions de template partagées par toutes les pages. Elles ne renvoient que des chaînes, des
 // nombres ou des booléens : html/template échappe toujours leur résultat (aucune ne renvoie de
-// template.HTML).
+// template.HTML). Les textes viennent du catalogue i18n (clés « web. »), dans la langue du jeu de
+// templates (render.go).
 //
 // Les classes DaisyUI écrites ici en toutes lettres (badgeClass) sont vues par Tailwind, qui lit
 // aussi les fichiers Go de ce répertoire (@source de tailwind/input.css).
@@ -19,6 +20,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/studoo-app/watchoo/internal/activity"
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/textclean"
 )
 
@@ -28,59 +30,76 @@ const avatarPrefix = "https://avatars.githubusercontent.com/"
 // maxFirstLine borne la première ligne d'un message de commit affichée dans une liste.
 const maxFirstLine = 120
 
-// funcs renvoie les fonctions de template. Elles lisent l'horloge (s.now) et le fuseau (s.loc) au
-// moment du rendu.
+// funcs renvoie les fonctions de template, liées au traducteur tr (langue du jeu de templates). Elles
+// lisent l'horloge (s.now) et le fuseau (s.loc) au moment du rendu. Exemples en anglais / français :
 //
-//	relTime t        « il y a 2 h », « à l'instant », « jamais » (activity.Relative, fuseau d'affichage)
-//	localTime t      « 27/10/2026 à 14:05 » en heure locale (pour un attribut title) ; « » si zéro
-//	localDate t      « 27/10/2026 » ; localClock t : « 14:05 » ; « » si zéro
+//	t key args…      texte de la clé key formaté avec args (i18n.Translator.T)
+//	tn key n         texte de key.one ou key.other selon n (« 1 commit », « 3 commits ») ; voir pluralText
+//	relTime t        "2 h ago" / « il y a 2 h », "just now", "never" (activity.RelativeIn, fuseau d'affichage)
+//	localTime t      "Oct 27, 2026 14:05" / « 27/10/2026 à 14:05 » en heure locale ; « » si zéro
+//	localDate t      "Oct 27, 2026" / « 27/10/2026 » ; localClock t : « 14:05 » ; « » si zéro
 //	isoTime t        « 2026-10-27T13:05:00Z » (attribut datetime de <time>) ; « » si zéro
 //	badgeClass st    classe DaisyUI de l'état : badge-success (Actif), badge-warning (Flemme),
 //	                 badge-error (Dead), badge-neutral (états gris)
-//	stateText res    libellé de l'état : « Actif », « Flemme · 9 j », « Dead · 42 j », « Jamais synchronisé »…
+//	stateText res    libellé de l'état : "Active", "Slacking · 9 d" / « Flemme · 9 j », « Dead · 42 j »…
+//	stateLabel st    libellé seul de l'état (activity.State.LabelIn)
+//	branchesText p   motifs de branches suivis, ou "all branches" / « toutes les branches »
+//	thresholdOrigin own  origine d'un seuil : "this repository's" / « propre à ce dépôt », sinon celui de l'espace
+//	importAction r   action d'un dépôt dans l'aperçu d'un import ("to add" / « à ajouter »…)
+//	jsTexts          textes de static/app.js (JSON du layout)
 //	clean s          textclean.Clean (caractères de contrôle et séquences d'échappement retirés)
 //	firstLine s      première ligne nettoyée, coupée à 120 caractères (« … »)
 //	truncate n s     s nettoyé, coupé à n caractères (« … »)
 //	shortSHA s       7 premiers caractères
 //	initial s        première lettre en majuscule (avatar de repli) ; « ? » si aucune
 //	avatarURL s      s s'il commence par https://avatars.githubusercontent.com/, sinon « »
-//	plural n un plusieurs   « 1 commit », « 3 commits », « 0 commit »
 //	add a b, sub a b        entiers
 //	repoPath id      « /repos/12 »
 //	contribPath id   « /contributors/12 » (page d'un contributeur, 0.5.0)
 //	profileURL s     s si c'est une adresse https:// (page de profil donnée par le provider), sinon « »
-//	interval d       « 30 min », « 1 h », « 1 h 30 », « manuelle seule » (0)
+//	interval d       « 30 min », « 1 h », "1 h 30 min" / « 1 h 30 », "manual only" / « manuelle seule » (0)
 //	percent a b      a*100/b arrondi, entre 0 et 100 (0 si b <= 0)
 //	dict k1 v1 k2 v2…       map[string]any, pour passer plusieurs valeurs à un template
 //	withQuery path k1 v1…   path suivi de la query string encodée (url.Values) ; paires de valeur vide
 //	                 ou 0 omises : « /repos/3?author=a%26b&page=2 ». À utiliser pour TOUTE URL avec des
 //	                 données, y compris dans hx-get / hx-push-url, que html/template n'encode pas (ce
 //	                 sont pour lui des attributs de texte)
-func (s *server) funcs() template.FuncMap {
+func (s *server) funcs(tr *i18n.Translator) template.FuncMap {
 	return template.FuncMap{
-		"relTime":     func(t time.Time) string { return activity.Relative(t, s.now(), s.loc, true) },
-		"localTime":   func(t time.Time) string { return s.formatLocal(t, "02/01/2006 à 15:04") },
-		"localDate":   func(t time.Time) string { return s.formatLocal(t, "02/01/2006") },
-		"localClock":  func(t time.Time) string { return s.formatLocal(t, "15:04") },
-		"isoTime":     isoTime,
-		"badgeClass":  badgeClass,
-		"stateText":   stateText,
-		"clean":       textclean.Clean,
-		"firstLine":   firstLine,
-		"truncate":    truncate,
-		"shortSHA":    shortSHA,
-		"initial":     initial,
-		"avatarURL":   avatarURL,
-		"plural":      pluralize,
-		"add":         func(a, b int) int { return a + b },
-		"sub":         func(a, b int) int { return a - b },
-		"repoPath":    repoPath,
-		"contribPath": contributorPath,
-		"profileURL":  profileURL,
-		"interval":    formatInterval,
-		"percent":     percent,
-		"dict":        dict,
-		"withQuery":   withQuery,
+		"t":            tr.T,
+		"tn":           func(key string, n int) string { return pluralText(tr, key, n) },
+		"relTime":      func(t time.Time) string { return activity.RelativeIn(tr, t, s.now(), s.loc, true) },
+		"localTime":    func(t time.Time) string { return s.formatLocal(t, tr.T("web.fmt.datetime")) },
+		"localDate":    func(t time.Time) string { return s.formatLocal(t, tr.T("web.fmt.date")) },
+		"localClock":   func(t time.Time) string { return s.formatLocal(t, "15:04") },
+		"isoTime":      isoTime,
+		"badgeClass":   badgeClass,
+		"stateText":    func(res activity.Result) string { return stateText(tr, res) },
+		"stateLabel":   func(st activity.State) string { return st.LabelIn(tr) },
+		"branchesText": func(patterns []string) string { return branchesText(tr, patterns) },
+		"thresholdOrigin": func(own bool) string {
+			if own {
+				return tr.T("web.repo.threshold_own")
+			}
+			return tr.T("web.repo.threshold_workspace")
+		},
+		"importAction": func(r importRepo) string { return r.actionText(tr) },
+		"jsTexts":      func() jsTexts { return newJSTexts(tr) },
+		"clean":        textclean.Clean,
+		"firstLine":    firstLine,
+		"truncate":     truncate,
+		"shortSHA":     shortSHA,
+		"initial":      initial,
+		"avatarURL":    avatarURL,
+		"add":          func(a, b int) int { return a + b },
+		"sub":          func(a, b int) int { return a - b },
+		"repoPath":     repoPath,
+		"contribPath":  contributorPath,
+		"profileURL":   profileURL,
+		"interval":     func(d time.Duration) string { return formatInterval(tr, d) },
+		"percent":      percent,
+		"dict":         dict,
+		"withQuery":    withQuery,
 	}
 }
 
@@ -113,13 +132,14 @@ func badgeClass(st activity.State) string {
 	}
 }
 
-// stateText renvoie le libellé d'un état, avec l'âge du dernier commit pour Flemme et Dead.
-func stateText(res activity.Result) string {
+// stateText renvoie le libellé d'un état dans la langue de tr, avec l'âge du dernier commit pour
+// Flemme et Dead (« Flemme · 9 j », "Slacking · 9 d").
+func stateText(tr *i18n.Translator, res activity.Result) string {
 	switch res.State {
 	case activity.StateFlemme, activity.StateDead:
-		return fmt.Sprintf("%s · %d j", res.State.Label(), res.Days)
+		return tr.T("web.state.with_days", res.State.LabelIn(tr), res.Days)
 	default:
-		return res.State.Label()
+		return res.State.LabelIn(tr)
 	}
 }
 
@@ -160,13 +180,6 @@ func avatarURL(s string) string {
 	return ""
 }
 
-func pluralize(n int, one, many string) string {
-	if n <= 1 && n >= -1 {
-		return fmt.Sprintf("%d %s", n, one)
-	}
-	return fmt.Sprintf("%d %s", n, many)
-}
-
 func repoPath(id int64) string {
 	return "/repos/" + strconv.FormatInt(id, 10)
 }
@@ -187,19 +200,19 @@ func profileURL(s string) string {
 	return s
 }
 
-// formatInterval écrit un intervalle de synchro en français.
-func formatInterval(d time.Duration) string {
+// formatInterval écrit un intervalle de synchro dans la langue de tr.
+func formatInterval(tr *i18n.Translator, d time.Duration) string {
 	if d <= 0 {
-		return "manuelle seule"
+		return tr.T("web.interval.manual")
 	}
 	h, m := int(d/time.Hour), int((d%time.Hour)/time.Minute)
 	switch {
 	case h == 0:
-		return fmt.Sprintf("%d min", m)
+		return tr.T("web.interval.minutes", m)
 	case m == 0:
-		return fmt.Sprintf("%d h", h)
+		return tr.T("web.interval.hours", h)
 	default:
-		return fmt.Sprintf("%d h %02d", h, m)
+		return tr.T("web.interval.hours_minutes", h, m)
 	}
 }
 

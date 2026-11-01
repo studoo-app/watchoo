@@ -11,13 +11,14 @@ import (
 	"time"
 
 	"github.com/studoo-app/watchoo/internal/auth"
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/provider"
 	"github.com/studoo-app/watchoo/internal/provider/providertest"
 	"github.com/studoo-app/watchoo/internal/store"
 )
 
-// repoCount renvoie le nombre de dépôts en base.
+// repoCount returns the number of repositories in the database.
 func (e *testEnv) repoCount() int {
 	e.t.Helper()
 	repos, err := e.store.ListRepositories(e.t.Context())
@@ -27,26 +28,26 @@ func (e *testEnv) repoCount() int {
 	return len(repos)
 }
 
-// mustRepo lit le dépôt id.
+// mustRepo reads repository id.
 func (e *testEnv) mustRepo(id int64) model.Repository {
 	e.t.Helper()
 	r, err := e.store.GetRepository(e.t.Context(), id)
 	if err != nil {
-		e.t.Fatalf("GetRepository(%d) : %v", id, err)
+		e.t.Fatalf("GetRepository(%d): %v", id, err)
 	}
 	return r
 }
 
-// assertRedirect vérifie une redirection 303 vers want.
+// assertRedirect checks a 303 redirection to want.
 func assertRedirect(t *testing.T, w interface {
 	Header() http.Header
 }, code int, want string) {
 	t.Helper()
 	if code != http.StatusSeeOther {
-		t.Fatalf("code %d, attendu 303", code)
+		t.Fatalf("code %d, want 303", code)
 	}
 	if got := w.Header().Get("Location"); got != want {
-		t.Fatalf("Location = %q, attendu %q", got, want)
+		t.Fatalf("Location = %q, want %q", got, want)
 	}
 }
 
@@ -60,35 +61,35 @@ func TestSettingsPage(t *testing.T) {
 	w := e.get("/settings")
 	assertStatus(t, w, http.StatusOK)
 	assertContains(t, w,
-		"<title>Réglages · "+testWorkspace+" · Watchoo</title>",
-		`aria-current="page">Réglages`,
-		"Alice Martin", "promo/alice", "promo/dave", "toutes les branches", "main, release/*",
-		"Actif", "Dead · 40 j", "Jamais synchronisé",
+		"<title>Settings · "+testWorkspace+" · Watchoo</title>",
+		`aria-current="page">Settings`,
+		"Alice Martin", "promo/alice", "promo/dave", "all branches", "main, release/*",
+		"Active", "Dead · 40 d", "Never synced",
 		`action="/settings/repos/`+strconv.FormatInt(ids.Alice, 10)+`"`,
 		`href="/settings/repos/`+strconv.FormatInt(ids.Carol, 10)+`/remove"`,
 		`action="/settings/repos"`, `action="/settings/interval"`, `action="/sync"`,
-		`name="csrf_token"`, "Synchroniser maintenant",
-		// Quota chargé après la page.
+		`name="csrf_token"`, "Sync now",
+		// Quota loaded after the page.
 		`hx-get="/fragments/quota" hx-trigger="load"`,
-		// Intervalle : manuelle seule dans l'environnement de test, fichier à 30 min.
-		"Intervalle en vigueur : <strong>manuelle seule</strong>", "ce formulaire ne réécrit jamais config.yaml",
+		// Interval: manual only in the test environment, file at 30 min.
+		"Current interval: <strong>manual only</strong>", "this form never rewrites config.yaml",
 		"&lt;script&gt;bob&lt;/script&gt;",
 	)
-	assertNotContains(t, w, "<script>bob", "Reprendre le suivi")
+	assertNotContains(t, w, "<script>bob", "Resume tracking")
 }
 
 func TestSettingsFlashMessages(t *testing.T) {
 	e := newTestEnv(t)
 	ids := e.seed()
 	w := e.get("/settings?msg=saved&repo=" + strconv.FormatInt(ids.Alice, 10))
-	assertContains(t, w, "Le dépôt « Alice Martin » est modifié")
-	// Code inconnu : aucun message, rien de la requête n'est recopié.
+	assertContains(t, w, "The repository &#34;Alice Martin&#34; is changed")
+	// Unknown code: no message, nothing from the request is copied.
 	w = e.get("/settings?msg=%3Cscript%3E&repo=abc")
 	assertStatus(t, w, http.StatusOK)
 	assertNotContains(t, w, "alert-info", "&lt;script&gt;")
-	// Dépôt inconnu : message sans nom.
+	// Unknown repository: message without a name.
 	w = e.get("/settings?msg=added&repo=999")
-	assertContains(t, w, "Le dépôt est suivi")
+	assertContains(t, w, "The repository is tracked")
 }
 
 func TestSettingsAddRepository(t *testing.T) {
@@ -102,20 +103,20 @@ func TestSettingsAddRepository(t *testing.T) {
 		"branches": {"main, dev,main"}}, false)
 	repo, err := e.store.GetRepositoryByName(t.Context(), model.ProviderGitHub, "promo", "eve")
 	if err != nil {
-		t.Fatalf("dépôt non créé : %v", err)
+		t.Fatalf("repository not created: %v", err)
 	}
 	assertRedirect(t, w, w.Code, "/settings?msg=added&repo="+strconv.FormatInt(repo.ID, 10))
 	if repo.Label != "Ève" || strings.Join(repo.BranchPatterns, ",") != "main,dev" || !repo.Enabled {
-		t.Errorf("dépôt enregistré : %+v", repo)
+		t.Errorf("saved repository: %+v", repo)
 	}
-	// Aucune synchro lancée.
+	// No sync started.
 	if e.fake.Calls(providertest.MethodListCommits) != before || e.coord.State().Generation != 0 {
-		t.Error("l'ajout a lancé une synchro")
+		t.Error("the addition started a sync")
 	}
 	w = e.get(w.Header().Get("Location"))
-	assertContains(t, w, "Le dépôt « Ève » est suivi")
+	assertContains(t, w, "The repository &#34;Ève&#34; is tracked")
 
-	// Déjà suivi, sans changement ; puis avec un nouveau label (HTMX : HX-Redirect).
+	// Already tracked, without change; then with a new label (HTMX: HX-Redirect).
 	w = e.post("/settings/repos", url.Values{"repo": {"promo/eve"}}, false)
 	assertRedirect(t, w, w.Code, "/settings?msg=already&repo="+strconv.FormatInt(repo.ID, 10))
 	w = e.post("/settings/repos", url.Values{"repo": {"promo/eve"}, "label": {"Eve B."}}, true)
@@ -124,7 +125,7 @@ func TestSettingsAddRepository(t *testing.T) {
 		t.Errorf("HX-Redirect = %q", got)
 	}
 	if got := e.mustRepo(repo.ID); got.Label != "Eve B." || strings.Join(got.BranchPatterns, ",") != "main,dev" {
-		t.Errorf("mise à jour : %+v (les branches ne doivent pas changer sans saisie)", got)
+		t.Errorf("update: %+v (the branches must not change without input)", got)
 	}
 }
 
@@ -138,35 +139,35 @@ func TestSettingsAddRepositoryErrors(t *testing.T) {
 		status int
 		want   []string
 	}{
-		{"référence invalide", url.Values{"repo": {"<b>pas un dépôt</b>"}}, http.StatusBadRequest,
-			[]string{"invalide", `value="&lt;b&gt;pas un dépôt&lt;/b&gt;"`}},
-		{"URL avec identifiants", url.Values{"repo": {"https://user:secret@github.com/promo/x"}}, http.StatusBadRequest,
-			[]string{"identifiants interdits"}},
-		{"label avec caractère de contrôle", url.Values{"repo": {"promo/eve"}, "label": {"a\x1b[31mb"}}, http.StatusBadRequest,
-			[]string{"caractère de contrôle"}},
-		{"motif de branche invalide", url.Values{"repo": {"promo/eve"}, "branches": {"main,[x"}}, http.StatusBadRequest,
-			[]string{"motif de branche"}},
-		{"dépôt inaccessible", url.Values{"repo": {"promo/inconnu"}, "label": {"Inconnu"}}, http.StatusUnprocessableEntity,
-			[]string{"Dépôt promo/inconnu inaccessible", `value="Inconnu"`}},
+		{"invalid reference", url.Values{"repo": {"<b>not a repository</b>"}}, http.StatusBadRequest,
+			[]string{"is invalid", `value="&lt;b&gt;not a repository&lt;/b&gt;"`}},
+		{"URL with credentials", url.Values{"repo": {"https://user:secret@github.com/promo/x"}}, http.StatusBadRequest,
+			[]string{"credentials not allowed"}},
+		{"label with a control character", url.Values{"repo": {"promo/eve"}, "label": {"a\x1b[31mb"}}, http.StatusBadRequest,
+			[]string{"control character"}},
+		{"invalid branch pattern", url.Values{"repo": {"promo/eve"}, "branches": {"main,[x"}}, http.StatusBadRequest,
+			[]string{"branches: invalid branch pattern"}},
+		{"inaccessible repository", url.Values{"repo": {"promo/unknown"}, "label": {"Unknown"}}, http.StatusUnprocessableEntity,
+			[]string{"Repository promo/unknown inaccessible", `value="Unknown"`}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			w := e.post("/settings/repos", tc.form, false)
 			assertStatus(t, w, tc.status)
-			assertContains(t, w, append(tc.want, "Ajouter un dépôt", "alert-error")...)
-			assertNotContains(t, w, "secret", "<b>pas")
+			assertContains(t, w, append(tc.want, "Add a repository", "alert-error")...)
+			assertNotContains(t, w, "secret", "<b>not")
 			if got := e.repoCount(); got != count {
-				t.Errorf("%d dépôts après l'échec, attendu %d", got, count)
+				t.Errorf("%d repositories after the failure, want %d", got, count)
 			}
 		})
 	}
 
-	// Erreur de GitHub (réseau…) : message générique, détail dans le journal seulement.
-	e.fake.SetError(providertest.MethodRepository, errors.New("connexion refusée"))
+	// GitHub error (network…): generic message, details in the log only.
+	e.fake.SetError(providertest.MethodRepository, errors.New("connection refused"))
 	w := e.post("/settings/repos", url.Values{"repo": {"promo/eve"}}, false)
 	assertStatus(t, w, http.StatusBadGateway)
-	assertContains(t, w, "Ajout du dépôt promo/eve impossible pour le moment")
-	assertNotContains(t, w, "connexion refusée")
+	assertContains(t, w, "Adding the repository promo/eve is not possible for now")
+	assertNotContains(t, w, "connection refused")
 }
 
 func TestSettingsUpdateRepository(t *testing.T) {
@@ -177,25 +178,25 @@ func TestSettingsUpdateRepository(t *testing.T) {
 	w := e.post(target, url.Values{"label": {"Bob D."}, "branches": {"main, feature/*"}}, false)
 	assertRedirect(t, w, w.Code, "/settings?msg=saved&repo="+strconv.FormatInt(ids.Bob, 10))
 	if got := e.mustRepo(ids.Bob); got.Label != "Bob D." || strings.Join(got.BranchPatterns, ",") != "main,feature/*" {
-		t.Errorf("dépôt après modification : %+v", got)
+		t.Errorf("repository after the change: %+v", got)
 	}
 
-	// Saisie invalide : rien ne change, le formulaire de ce dépôt est rouvert avec l'erreur.
+	// Invalid input: nothing changes, the form of this repository is opened again with the error.
 	w = e.post(target, url.Values{"label": {"ok"}, "branches": {"[x"}}, false)
 	assertStatus(t, w, http.StatusBadRequest)
-	assertContains(t, w, "Modification refusée", `open>`, `value="[x"`)
+	assertContains(t, w, "Change refused", `open>`, `value="[x"`)
 	if got := e.mustRepo(ids.Bob); got.Label != "Bob D." {
-		t.Errorf("dépôt modifié malgré l'erreur : %+v", got)
+		t.Errorf("repository changed despite the error: %+v", got)
 	}
 
-	// Vide : plus de label, toutes les branches.
+	// Empty: no label any more, all branches.
 	w = e.post(target, url.Values{"label": {""}, "branches": {" "}}, false)
 	assertRedirect(t, w, w.Code, "/settings?msg=saved&repo="+strconv.FormatInt(ids.Bob, 10))
 	if got := e.mustRepo(ids.Bob); got.Label != "" || len(got.BranchPatterns) != 0 {
-		t.Errorf("dépôt après remise à zéro : %+v", got)
+		t.Errorf("repository after the reset: %+v", got)
 	}
 
-	// Dépôt inconnu : 404, saisie valide ou non.
+	// Unknown repository: 404, valid input or not.
 	assertStatus(t, e.post("/settings/repos/999", url.Values{"label": {"x"}}, false), http.StatusNotFound)
 	assertStatus(t, e.post("/settings/repos/999", url.Values{"branches": {"[x"}}, false), http.StatusNotFound)
 }
@@ -205,50 +206,49 @@ func TestSettingsRemoveRepository(t *testing.T) {
 	ids := e.seed()
 	confirm := "/settings/repos/" + strconv.FormatInt(ids.Alice, 10) + "/remove"
 
-	// La confirmation ne modifie rien.
+	// The confirmation changes nothing.
 	w := e.get(confirm)
 	assertStatus(t, w, http.StatusOK)
-	assertContains(t, w, "Retirer « Alice Martin » ?", "3 commits en base", `name="keep_history" value="1"`,
-		`action="`+confirm+`"`, "Supprimer le dépôt et son historique", "Arrêter le suivi, garder l'historique")
+	assertContains(t, w, "Remove &#34;Alice Martin&#34;?", "3 commits in the database", `name="keep_history" value="1"`,
+		`action="`+confirm+`"`, "Delete the repository and its history", "Stop tracking, keep the history")
 	if !e.mustRepo(ids.Alice).Enabled {
-		t.Fatal("GET de confirmation : suivi arrêté")
+		t.Fatal("confirmation GET: tracking stopped")
 	}
-	assertContains(t, w, "les commits en base (3 commits)")
+	assertContains(t, w, "the commits in the database (3 commits)")
 	assertStatus(t, e.get("/settings/repos/999/remove"), http.StatusNotFound)
 
-	// Non-régression : accord avec 0 commit (pas de « ses 0 commit »).
-	empty := e.addRepo(99, "vide", "Dépôt vide")
+	// Non-regression: agreement with 0 commits.
+	empty := e.addRepo(99, "empty", "Empty repository")
 	w = e.get("/settings/repos/" + strconv.FormatInt(empty, 10) + "/remove")
-	assertContains(t, w, "les commits en base (0 commit)")
-	assertNotContains(t, w, "ses 0", "ses 1")
+	assertContains(t, w, "the commits in the database (0 commits)")
 
-	// Garder l'historique : suivi arrêté.
+	// Keep the history: tracking stopped.
 	w = e.post(confirm, url.Values{"keep_history": {"1"}}, false)
 	assertRedirect(t, w, w.Code, "/settings?msg=stopped&repo="+strconv.FormatInt(ids.Alice, 10))
 	if e.mustRepo(ids.Alice).Enabled {
-		t.Error("suivi non arrêté")
+		t.Error("tracking not stopped")
 	}
 	w = e.post(confirm, url.Values{"keep_history": {"1"}}, false)
 	assertRedirect(t, w, w.Code, "/settings?msg=already_stopped&repo="+strconv.FormatInt(ids.Alice, 10))
 	w = e.get("/settings")
-	assertContains(t, w, "Suivi arrêté", "Reprendre le suivi", `name="repo" value="promo/alice"`)
-	assertContains(t, e.get(confirm), "suivi déjà arrêté")
+	assertContains(t, w, "Tracking stopped", "Resume tracking", `name="repo" value="promo/alice"`)
+	assertContains(t, e.get(confirm), "tracking already stopped")
 
-	// Reprendre le suivi : comme « repo add ».
+	// Resume tracking: like "repo add".
 	w = e.post("/settings/repos", url.Values{"repo": {"promo/alice"}}, false)
 	assertRedirect(t, w, w.Code, "/settings?msg=updated&repo="+strconv.FormatInt(ids.Alice, 10))
 	if !e.mustRepo(ids.Alice).Enabled {
-		t.Error("suivi non repris")
+		t.Error("tracking not resumed")
 	}
 
-	// Supprimer avec l'historique.
+	// Delete with the history.
 	w = e.post(confirm, nil, false)
 	assertRedirect(t, w, w.Code, "/settings?msg=deleted")
 	if _, err := e.store.GetRepository(t.Context(), ids.Alice); !errors.Is(err, store.ErrNotFound) {
-		t.Errorf("dépôt toujours en base : %v", err)
+		t.Errorf("repository still in the database: %v", err)
 	}
 	assertStatus(t, e.post(confirm, nil, false), http.StatusNotFound)
-	assertContains(t, e.get("/settings?msg=deleted"), "Le dépôt et son historique sont supprimés")
+	assertContains(t, e.get("/settings?msg=deleted"), "The repository and its history are deleted")
 }
 
 func TestSettingsRemoveRefusedDuringSync(t *testing.T) {
@@ -259,15 +259,15 @@ func TestSettingsRemoveRefusedDuringSync(t *testing.T) {
 	<-gate.started
 
 	confirm := "/settings/repos/" + strconv.FormatInt(ids.Bob, 10) + "/remove"
-	// Le bouton n'est pas désactivé au rendu (il le resterait après la synchro) : le POST refuse.
+	// The button is not disabled at rendering (it would stay so after the sync): the POST refuses.
 	page := e.get(confirm)
-	assertContains(t, page, "Une synchro était en cours", "Supprimer le dépôt et son historique")
+	assertContains(t, page, "A sync was running", "Delete the repository and its history")
 	assertNotContains(t, page, " disabled")
 	w := e.post(confirm, nil, false)
 	assertStatus(t, w, http.StatusConflict)
-	assertContains(t, w, "Suppression impossible")
+	assertContains(t, w, "Deletion not possible")
 	e.mustRepo(ids.Bob)
-	// Arrêter le suivi reste possible.
+	// Stopping the tracking remains possible.
 	w = e.post(confirm, url.Values{"keep_history": {"1"}}, false)
 	assertRedirect(t, w, w.Code, "/settings?msg=stopped&repo="+strconv.FormatInt(ids.Bob, 10))
 
@@ -292,42 +292,48 @@ func TestSettingsInterval(t *testing.T) {
 		w := e.post("/settings/interval", url.Values{"interval": {tc.input}}, false)
 		assertRedirect(t, w, w.Code, "/settings?msg=interval")
 		if got := e.coord.Interval(); got != tc.want {
-			t.Errorf("%q : intervalle %s, attendu %s", tc.input, got, tc.want)
+			t.Errorf("%q: interval %s, want %s", tc.input, got, tc.want)
 		}
 	}
 
 	assertStatus(t, e.post("/settings/interval", url.Values{"interval": {"2h"}}, false), http.StatusSeeOther)
 	w := e.get("/settings?msg=interval")
-	assertContains(t, w, "Intervalle en vigueur : <strong>2 h</strong>", "Prochaine synchro",
-		"changé pour ce processus", "config.yaml n&#39;est pas modifié")
+	assertContains(t, w, "Current interval: <strong>2 h</strong>", "Next sync",
+		"changed for this process", "config.yaml is not changed")
 
 	for _, input := range []string{"5m", "-1h", "abc", ""} {
 		w := e.post("/settings/interval", url.Values{"interval": {input}}, false)
 		assertStatus(t, w, http.StatusBadRequest)
 		assertContains(t, w, "alert-error")
 		if got := e.coord.Interval(); got != 2*time.Hour {
-			t.Errorf("%q : intervalle changé en %s", input, got)
+			t.Errorf("%q: interval changed to %s", input, got)
 		}
 	}
-	assertContains(t, e.post("/settings/interval", url.Values{"interval": {"5m"}}, false), "minimum de 15 min")
-	// GET sur l'action : 405, rien ne change.
+	assertContains(t, e.post("/settings/interval", url.Values{"interval": {"5m"}}, false), "minimum of 15 min")
+	// GET on the action: 405, nothing changes.
 	assertStatus(t, e.get("/settings/interval?interval=0"), http.StatusMethodNotAllowed)
 	if e.coord.Interval() != 2*time.Hour {
-		t.Error("GET a modifié l'intervalle")
+		t.Error("GET changed the interval")
 	}
 }
 
 func TestParseIntervalInput(t *testing.T) {
 	ok := map[string]time.Duration{"0": 0, "15": 15 * time.Minute, " 1h ": time.Hour, "90m": 90 * time.Minute}
 	for in, want := range ok {
-		if got, err := parseIntervalInput(in); err != nil || got != want {
-			t.Errorf("parseIntervalInput(%q) = %s, %v ; attendu %s", in, got, err, want)
+		if got, err := parseIntervalInput(en, in); err != nil || got != want {
+			t.Errorf("parseIntervalInput(%q) = %s, %v; want %s", in, got, err, want)
 		}
 	}
 	for _, in := range []string{"", "  ", "abc", "-5", "1j", "99999999"} {
-		if _, err := parseIntervalInput(in); err == nil {
-			t.Errorf("parseIntervalInput(%q) sans erreur", in)
+		if _, err := parseIntervalInput(en, in); err == nil {
+			t.Errorf("parseIntervalInput(%q) without error", in)
 		}
+	}
+	if _, err := parseIntervalInput(en, "abc"); err == nil || !strings.Contains(err.Error(), `unreadable interval "abc"`) {
+		t.Errorf("English error = %v", err)
+	}
+	if _, err := parseIntervalInput(i18n.For(i18n.French), "abc"); err == nil || !strings.Contains(err.Error(), `intervalle "abc" illisible`) {
+		t.Errorf("French error = %v", err)
 	}
 }
 
@@ -337,27 +343,27 @@ func TestSettingsQuota(t *testing.T) {
 	w := e.htmx("/fragments/quota")
 	assertStatus(t, w, http.StatusOK)
 	if !strings.HasPrefix(strings.TrimSpace(w.Body.String()), `<div id="settings-quota"`) {
-		t.Errorf("fragment inattendu :\n%s", w.Body.String())
+		t.Errorf("unexpected fragment:\n%s", w.Body.String())
 	}
-	assertContains(t, w, ">4000</span>", "/ 5000 requêtes restantes", "80 %", ">10:30</time>",
+	assertContains(t, w, ">4000</span>", "/ 5000 requests left", "80%", ">10:30</time>",
 		`hx-trigger="sync-finished from:body"`)
-	assertNotContains(t, w, "quota bas", "<html")
+	assertNotContains(t, w, "quota low", "<html")
 
 	e.fake.SetRateLimit(provider.RateLimit{Limit: 5000, Remaining: 100, Reset: testNow.Add(30 * time.Minute)})
-	assertContains(t, e.htmx("/fragments/quota"), "quota bas", "synchros reportées jusque-là")
+	assertContains(t, e.htmx("/fragments/quota"), "quota low", "syncs deferred until then")
 
-	// Token illisible : quota inconnu, avec le message, sans token.
-	e.auth.SetTokenErr(errors.New("gh n'est pas connecté"))
+	// Unreadable token: quota unknown, with the message, without token.
+	e.auth.SetTokenErr(errors.New("gh is not signed in"))
 	w = e.htmx("/fragments/quota")
 	assertStatus(t, w, http.StatusOK)
-	assertContains(t, w, "quota inconnu", "lecture du quota")
+	assertContains(t, w, "quota unknown", "gh is not signed in")
 
-	// gh non connecté : clones Git locaux, sans quota (V2).
+	// gh not signed in: local Git clones, without quota (V2).
 	e.auth.SetTokenErr(auth.ErrNotLoggedIn)
 	w = e.htmx("/fragments/quota")
 	assertStatus(t, w, http.StatusOK)
-	assertContains(t, w, "sans objet", "clones Git locaux", "gh auth login")
-	assertNotContains(t, w, "quota inconnu")
+	assertContains(t, w, "not applicable", "local Git clones", "gh auth login")
+	assertNotContains(t, w, "quota unknown")
 }
 
 func TestSettingsActionsRequireCSRF(t *testing.T) {
@@ -373,13 +379,13 @@ func TestSettingsActionsRequireCSRF(t *testing.T) {
 		"/settings/interval":                {"interval": {"0"}},
 	}
 	for target, form := range targets {
-		// Sans jeton ni cookie.
+		// Without token or cookie.
 		r := e.request(http.MethodPost, target, strings.NewReader(form.Encode()))
 		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		r.Header.Set("Origin", testOrigin)
 		assertStatus(t, e.do(r), http.StatusForbidden)
 
-		// Jeton valide, mais origine étrangère.
+		// Valid token, but foreign origin.
 		ck := e.csrfCookie()
 		f := url.Values{CSRFField: {ck.Value}}
 		for k, v := range form {
@@ -393,18 +399,18 @@ func TestSettingsActionsRequireCSRF(t *testing.T) {
 		assertStatus(t, e.do(r), http.StatusForbidden)
 	}
 	if got := e.repoCount(); got != count {
-		t.Errorf("%d dépôts, attendu %d", got, count)
+		t.Errorf("%d repositories, want %d", got, count)
 	}
 	if got := e.mustRepo(ids.Bob); got.Label != "" || !got.Enabled {
-		t.Errorf("dépôt modifié sans CSRF : %+v", got)
+		t.Errorf("repository changed without CSRF: %+v", got)
 	}
 	if e.coord.Interval() != 0 {
-		t.Error("intervalle modifié sans CSRF")
+		t.Error("interval changed without CSRF")
 	}
 }
 
-// TestSettingsQuotaCanceled vérifie qu'une lecture du quota interrompue (requête abandonnée, arrêt
-// de serve : contexte annulé) n'est journalisée qu'en debug.
+// TestSettingsQuotaCanceled checks that an interrupted quota read (abandoned request, serve
+// shutdown: canceled context) is only logged at debug level.
 func TestSettingsQuotaCanceled(t *testing.T) {
 	e := newTestEnv(t)
 	ctx, cancel := context.WithCancel(t.Context())
@@ -415,13 +421,13 @@ func TestSettingsQuotaCanceled(t *testing.T) {
 	logs := e.logs.String()
 	if !strings.Contains(logs, `level=DEBUG msg="lecture du quota GitHub interrompue"`) ||
 		strings.Contains(logs, "quota GitHub illisible") {
-		t.Errorf("journal inattendu :\n%s", logs)
+		t.Errorf("unexpected log:\n%s", logs)
 	}
 
-	// Une vraie erreur reste un avertissement.
-	e.auth.SetTokenErr(errors.New("gh n'est pas connecté"))
+	// A real error remains a warning.
+	e.auth.SetTokenErr(errors.New("gh is not signed in"))
 	e.htmx("/fragments/quota")
 	if !strings.Contains(e.logs.String(), `level=WARN msg="quota GitHub illisible"`) {
-		t.Errorf("avertissement absent :\n%s", e.logs.String())
+		t.Errorf("warning missing:\n%s", e.logs.String())
 	}
 }

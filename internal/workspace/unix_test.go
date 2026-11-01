@@ -10,9 +10,9 @@ import (
 	"testing"
 )
 
-// TestInitForcesModesWhateverTheUmask vérifie que les droits 0700 / 0600 sont imposés par chmod et ne
-// dépendent pas du umask : avec un umask très restrictif (0777) comme très permissif (0), le résultat
-// est le même. Le umask étant propre au processus, ce test ne doit pas être parallèle.
+// TestInitForcesModesWhateverTheUmask checks that the 0700 / 0600 permissions are imposed by chmod and
+// do not depend on the umask: with a very restrictive umask (0777) as with a very permissive one (0),
+// the result is the same. The umask being specific to the process, this test must not be parallel.
 func TestInitForcesModesWhateverTheUmask(t *testing.T) {
 	isolateEnv(t)
 	for _, mask := range []int{0o777, 0o000} {
@@ -21,7 +21,7 @@ func TestInitForcesModesWhateverTheUmask(t *testing.T) {
 		res, err := Init(root)
 		syscall.Umask(old)
 		if err != nil {
-			t.Fatalf("Init avec umask %#o : %v", mask, err)
+			t.Fatalf("Init with umask %#o: %v", mask, err)
 		}
 		ws := res.Workspace
 		assertMode(t, ws.Dir, DirMode)
@@ -30,12 +30,12 @@ func TestInitForcesModesWhateverTheUmask(t *testing.T) {
 	}
 }
 
-// TestFindStopsOnAccessError vérifie qu'une erreur d'accès arrête la recherche au lieu de remonter
-// vers un espace parent, qui ne serait peut-être pas celui voulu par l'utilisateur. Init, lui, ne
-// perd que l'avertissement d'espace parent.
+// TestFindStopsOnAccessError checks that an access error stops the search instead of going up to a
+// parent workspace, which might not be the one the user wanted. Init, for its part, only loses the
+// parent workspace warning.
 func TestFindStopsOnAccessError(t *testing.T) {
 	if os.Geteuid() == 0 {
-		t.Skip("root ignore les droits des répertoires")
+		t.Skip("root ignores the permissions of directories")
 	}
 	isolateEnv(t)
 	base := t.TempDir()
@@ -49,17 +49,17 @@ func TestFindStopsOnAccessError(t *testing.T) {
 
 	ws, err := Find(start)
 	if err == nil || errors.Is(err, ErrNotFound) {
-		t.Fatalf("Find = %v, %v ; attendu une erreur d'accès", ws, err)
+		t.Fatalf("Find = %v, %v; want an access error", ws, err)
 	}
-	assertErrorContains(t, err, "recherche de l'espace")
+	assertErrorContains(t, err, "looking for the workspace")
 	if !errors.Is(err, os.ErrPermission) {
-		t.Errorf("l'erreur d'origine doit être conservée : %v", err)
+		t.Errorf("the original error must be kept: %v", err)
 	}
 }
 
-// TestLoadRefusesUntrustedWorkspace vérifie qu'un espace accessible à d'autres que l'utilisateur, ou
-// qui appartient à un autre utilisateur, est refusé avant toute lecture de ses réglages : c'est le cas
-// d'un .watchoo/ commité dans un dépôt d'étudiant cloné (Git crée 0755 et 0644).
+// TestLoadRefusesUntrustedWorkspace checks that a workspace accessible to others than the user, or
+// owned by another user, is refused before any read of its settings: this is the case of a .watchoo/
+// committed in a cloned student repository (Git creates 0755 and 0644).
 func TestLoadRefusesUntrustedWorkspace(t *testing.T) {
 	cases := []struct {
 		name   string
@@ -67,43 +67,43 @@ func TestLoadRefusesUntrustedWorkspace(t *testing.T) {
 		target func(ws *Workspace) string
 		want   []string
 	}{
-		{"répertoire en 0755", func(t *testing.T, ws *Workspace) { chmod(t, ws.Dir, 0o755) },
+		{"directory in 0755", func(t *testing.T, ws *Workspace) { chmod(t, ws.Dir, 0o755) },
 			func(ws *Workspace) string { return ws.Dir }, []string{"0755", "chmod 700", "-C"}},
-		{"répertoire en 0770", func(t *testing.T, ws *Workspace) { chmod(t, ws.Dir, 0o770) },
+		{"directory in 0770", func(t *testing.T, ws *Workspace) { chmod(t, ws.Dir, 0o770) },
 			func(ws *Workspace) string { return ws.Dir }, []string{"0770", "chmod 700"}},
-		{"config.yaml en 0644", func(t *testing.T, ws *Workspace) { chmod(t, ws.ConfigPath(), 0o644) },
+		{"config.yaml in 0644", func(t *testing.T, ws *Workspace) { chmod(t, ws.ConfigPath(), 0o644) },
 			func(ws *Workspace) string { return ws.ConfigPath() }, []string{"0644", "chmod 600", "-C"}},
-		{"autre propriétaire", func(t *testing.T, ws *Workspace) {
+		{"other owner", func(t *testing.T, ws *Workspace) {
 			uid := os.Getuid() + 1
 			old := currentUID
 			currentUID = func() int { return uid }
 			t.Cleanup(func() { currentUID = old })
-		}, func(ws *Workspace) string { return ws.Dir }, []string{"autre utilisateur", "-C", EnvDir}},
+		}, func(ws *Workspace) string { return ws.Dir }, []string{"another user", "-C", EnvDir}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			isolateEnv(t)
 			ws := mustInit(t, t.TempDir())
-			// Réglage qui ferait échouer Validate s'il était lu : le refus doit venir avant.
+			// Setting that would make Validate fail if it were read: the refusal must come before.
 			writeFile(t, ws.ConfigPath(), "github:\n  gh_path: .watchoo/gh\n")
 			tc.setup(t, ws)
 			ws.Config = Config{}
 			err := Load(ws)
 			if !errors.Is(err, ErrUntrusted) {
-				t.Fatalf("Load = %v, attendu ErrUntrusted", err)
+				t.Fatalf("Load = %v, want ErrUntrusted", err)
 			}
 			assertErrorContains(t, err, append([]string{tc.target(ws)}, tc.want...)...)
 			if ws.Config.GitHub.GHPath != "" {
-				t.Errorf("réglages chargés malgré le refus : %+v", ws.Config.GitHub)
+				t.Errorf("settings loaded despite the refusal: %+v", ws.Config.GitHub)
 			}
 		})
 	}
 }
 
-// TestResolveRefusesCommittedWorkspaceInClone reproduit le scénario d'attaque : un enseignant lance
-// une commande depuis le clone d'un dépôt d'étudiant rangé dans son espace, et ce clone contient un
-// .watchoo/ commité (droits posés par Git). Resolve doit refuser ce faux espace au lieu de l'utiliser,
-// et -C vers le vrai espace doit fonctionner.
+// TestResolveRefusesCommittedWorkspaceInClone reproduces the attack scenario: a teacher runs a
+// command from the clone of a student repository stored in their workspace, and this clone holds a
+// committed .watchoo/ (permissions set by Git). Resolve must refuse this fake workspace instead of
+// using it, and -C to the real workspace must work.
 func TestResolveRefusesCommittedWorkspaceInClone(t *testing.T) {
 	isolateEnv(t)
 	base := t.TempDir()
@@ -121,16 +121,16 @@ func TestResolveRefusesCommittedWorkspaceInClone(t *testing.T) {
 
 	ws, err := ResolveFrom("", clone)
 	if !errors.Is(err, ErrUntrusted) {
-		t.Fatalf("ResolveFrom depuis le clone = %+v, %v ; attendu ErrUntrusted", ws, err)
+		t.Fatalf("ResolveFrom from the clone = %+v, %v; want ErrUntrusted", ws, err)
 	}
 	assertErrorContains(t, err, fake, "chmod 700", "-C")
 
 	ws, err = ResolveFrom(teacher.Root, clone)
 	if err != nil {
-		t.Fatalf("ResolveFrom avec -C : %v", err)
+		t.Fatalf("ResolveFrom with -C: %v", err)
 	}
 	if ws.Root != teacher.Root || ws.Config.GitHub.GHPath != DefaultGHPath {
-		t.Errorf("espace = %s (gh_path %q), attendu %s et le gh par défaut", ws.Root, ws.Config.GitHub.GHPath, teacher.Root)
+		t.Errorf("workspace = %s (gh_path %q), want %s and the default gh", ws.Root, ws.Config.GitHub.GHPath, teacher.Root)
 	}
 }
 

@@ -1,17 +1,17 @@
 package githubtest
 
-// Pull requests, releases et tags simulés (V2) :
-//   - GET …/pulls?state&sort&direction&per_page&page : state open (par défaut), closed ou all ;
-//     sort created (par défaut) ou updated ; direction desc par défaut avec sort=created, asc sinon
-//     (comme GitHub) ; à date égale, numéro croissant dans le sens de direction ; valeur inconnue →
-//     422 « Validation Failed ». Corps : objets « pull request simple » (number, state, title, user,
-//     draft, html_url, base.ref, head.ref, created_at, updated_at, closed_at, merged_at ; la liste de
-//     GitHub n'a pas de champ merged) ;
-//   - GET …/releases?per_page&page : releases triées par created_at décroissant (à date égale,
-//     identifiant décroissant), brouillons compris (le faux compte a toujours le droit d'écriture) ;
-//   - GET …/tags?per_page&page : tags dans l'ordre de SetTags.
+// Simulated pull requests, releases and tags (V2):
+//   - GET …/pulls?state&sort&direction&per_page&page: state open (default), closed or all;
+//     sort created (default) or updated; direction desc by default with sort=created, asc otherwise
+//     (like GitHub); at equal dates, ascending number in the direction's sense; unknown value →
+//     422 "Validation Failed". Body: "pull request simple" objects (number, state, title, user,
+//     draft, html_url, base.ref, head.ref, created_at, updated_at, closed_at, merged_at; GitHub's
+//     list has no merged field);
+//   - GET …/releases?per_page&page: releases sorted by descending created_at (at equal dates,
+//     descending identifier), drafts included (the fake account always has write access);
+//   - GET …/tags?per_page&page: tags in the order of SetTags.
 //
-// Un dépôt vide (sans branche) répond 200 avec ses éléments, comme GitHub (aucun 409 sur ces routes).
+// An empty repository (without branch) answers 200 with its items, like GitHub (no 409 on these routes).
 
 import (
 	"cmp"
@@ -23,44 +23,44 @@ import (
 	"time"
 )
 
-// docsPulls est le lien de documentation des erreurs de la liste des pull requests.
+// docsPulls is the documentation link of the errors of the pull request list.
 const docsPulls = "https://docs.github.com/rest/pulls/pulls#list-pull-requests"
 
-// PullRequest est une pull request simulée.
+// PullRequest is a simulated pull request.
 type PullRequest struct {
-	Number    int       // numéro (> 0, unique dans le dépôt)
-	Title     string    // titre
-	Closed    bool      // fermée ("state": "closed") ; faux = ouverte
-	Draft     bool      // brouillon
-	Author    string    // login de l'auteur ; vide = "user": null (compte supprimé)
-	Base      string    // branche visée ; vide = branche par défaut
-	Head      string    // branche proposée ; vide = « feature-<numéro> »
-	CreatedAt time.Time // ouverture (non nulle)
-	UpdatedAt time.Time // dernière modification ; zéro = CreatedAt
-	ClosedAt  time.Time // fermeture ; zéro = null (Closed exige une date : zéro = UpdatedAt)
-	MergedAt  time.Time // merge ; zéro = null
+	Number    int       // number (> 0, unique in the repository)
+	Title     string    // title
+	Closed    bool      // closed ("state": "closed"); false = open
+	Draft     bool      // draft
+	Author    string    // author's login; empty = "user": null (deleted account)
+	Base      string    // target branch; empty = default branch
+	Head      string    // proposed branch; empty = "feature-<number>"
+	CreatedAt time.Time // opening (not zero)
+	UpdatedAt time.Time // last update; zero = CreatedAt
+	ClosedAt  time.Time // closing; zero = null (Closed requires a date: zero = UpdatedAt)
+	MergedAt  time.Time // merge; zero = null
 }
 
-// Release est une release simulée.
+// Release is a simulated release.
 type Release struct {
-	ID          int64     // identifiant (> 0, unique dans le dépôt)
-	TagName     string    // tag (non vide)
-	Name        string    // titre ; vide = null
-	Draft       bool      // brouillon
-	Prerelease  bool      // pré-release
-	Author      string    // login de l'auteur ; vide = "author": null
-	CreatedAt   time.Time // création (non nulle)
-	PublishedAt time.Time // publication ; zéro = null
+	ID          int64     // identifier (> 0, unique in the repository)
+	TagName     string    // tag (not empty)
+	Name        string    // title; empty = null
+	Draft       bool      // draft
+	Prerelease  bool      // pre-release
+	Author      string    // author's login; empty = "author": null
+	CreatedAt   time.Time // creation (not zero)
+	PublishedAt time.Time // publication; zero = null
 }
 
-// Tag est un tag simulé.
+// Tag is a simulated tag.
 type Tag struct {
-	Name string // nom (non vide)
-	SHA  string // SHA complet du commit visé (pas forcément ajouté au dépôt)
+	Name string // name (not empty)
+	SHA  string // full SHA of the target commit (not necessarily added to the repository)
 }
 
-// SetPullRequests ajoute ou remplace (par numéro) des pull requests du dépôt repoID. Dates converties
-// en UTC et tronquées à la seconde. Numéro <= 0, CreatedAt nul ou dépôt inconnu : t.Fatalf.
+// SetPullRequests adds or replaces (by number) pull requests of the repository repoID. Dates converted
+// to UTC and truncated to the second. Number <= 0, zero CreatedAt or unknown repository: t.Fatalf.
 func (s *Server) SetPullRequests(repoID int64, pulls ...PullRequest) {
 	s.tb.Helper()
 	s.mu.Lock()
@@ -71,7 +71,7 @@ func (s *Server) SetPullRequests(repoID int64, pulls ...PullRequest) {
 	}
 	for _, pr := range pulls {
 		if pr.Number <= 0 || pr.CreatedAt.IsZero() {
-			s.fatalf("SetPullRequests : PR n° %d invalide (numéro > 0 et CreatedAt attendus)", pr.Number)
+			s.fatalf("SetPullRequests: invalid PR #%d (want number > 0 and CreatedAt)", pr.Number)
 		}
 		pr.CreatedAt, pr.UpdatedAt = utcSecond(pr.CreatedAt), utcSecond(pr.UpdatedAt)
 		pr.ClosedAt, pr.MergedAt = utcSecond(pr.ClosedAt), utcSecond(pr.MergedAt)
@@ -85,8 +85,8 @@ func (s *Server) SetPullRequests(repoID int64, pulls ...PullRequest) {
 	}
 }
 
-// SetReleases remplace les releases du dépôt repoID. Identifiant <= 0 ou en double, tag vide,
-// CreatedAt nul ou dépôt inconnu : t.Fatalf.
+// SetReleases replaces the releases of the repository repoID. Identifier <= 0 or duplicated, empty
+// tag, zero CreatedAt or unknown repository: t.Fatalf.
 func (s *Server) SetReleases(repoID int64, releases ...Release) {
 	s.tb.Helper()
 	s.mu.Lock()
@@ -96,7 +96,7 @@ func (s *Server) SetReleases(repoID int64, releases ...Release) {
 	out := make([]Release, 0, len(releases))
 	for _, r := range releases {
 		if r.ID <= 0 || seen[r.ID] || r.TagName == "" || r.CreatedAt.IsZero() {
-			s.fatalf("SetReleases : release %d (tag %q) invalide", r.ID, r.TagName)
+			s.fatalf("SetReleases: invalid release %d (tag %q)", r.ID, r.TagName)
 		}
 		seen[r.ID] = true
 		r.CreatedAt, r.PublishedAt = utcSecond(r.CreatedAt), utcSecond(r.PublishedAt)
@@ -105,8 +105,8 @@ func (s *Server) SetReleases(repoID int64, releases ...Release) {
 	repo.releases = out
 }
 
-// SetTags remplace les tags du dépôt repoID, servis dans cet ordre. Nom vide, SHA mal formé ou dépôt
-// inconnu : t.Fatalf.
+// SetTags replaces the tags of the repository repoID, served in that order. Empty name, malformed SHA
+// or unknown repository: t.Fatalf.
 func (s *Server) SetTags(repoID int64, tags ...Tag) {
 	s.tb.Helper()
 	s.mu.Lock()
@@ -114,15 +114,15 @@ func (s *Server) SetTags(repoID int64, tags ...Tag) {
 	repo := s.repoLocked("SetTags", repoID)
 	for _, t := range tags {
 		if t.Name == "" || !shaPattern.MatchString(t.SHA) {
-			s.fatalf("SetTags : tag %q (SHA %q) invalide", t.Name, t.SHA)
+			s.fatalf("SetTags: invalid tag %q (SHA %q)", t.Name, t.SHA)
 		}
 	}
 	repo.tags = slices.Clone(tags)
 }
 
-// ----- Réponses -----
+// ----- Responses -----
 
-// pullsReply sert GET …/pulls.
+// pullsReply serves GET …/pulls.
 func (s *Server) pullsReply(repo *repoState, q url.Values, linkBase string, now time.Time) reply {
 	state := q.Get("state")
 	if state == "" {
@@ -170,7 +170,7 @@ func (s *Server) pullsReply(repo *repoState, q url.Values, linkBase string, now 
 	return rep
 }
 
-// releasesReply sert GET …/releases.
+// releasesReply serves GET …/releases.
 func (s *Server) releasesReply(repo *repoState, q url.Values, linkBase string, now time.Time) reply {
 	list := slices.Clone(repo.releases)
 	slices.SortStableFunc(list, func(a, b Release) int {
@@ -186,7 +186,7 @@ func (s *Server) releasesReply(repo *repoState, q url.Values, linkBase string, n
 	return rep
 }
 
-// tagsReply sert GET …/tags.
+// tagsReply serves GET …/tags.
 func (s *Server) tagsReply(repo *repoState, q url.Values, linkBase string, now time.Time) reply {
 	p := paginate(len(repo.tags), q)
 	items := make([]tagJSON, 0, p.end-p.start)
@@ -208,14 +208,14 @@ func (s *Server) tagsReply(repo *repoState, q url.Values, linkBase string, now t
 
 // ----- JSON -----
 
-// pullRefJSON est la base ou la tête d'une pull request.
+// pullRefJSON is the base or the head of a pull request.
 type pullRefJSON struct {
 	Label string `json:"label"`
 	Ref   string `json:"ref"`
 	SHA   string `json:"sha"`
 }
 
-// pullJSON est une pull request (« pull request simple »).
+// pullJSON is a pull request ("pull request simple").
 type pullJSON struct {
 	URL       string      `json:"url"`
 	ID        int64       `json:"id"`
@@ -236,7 +236,7 @@ type pullJSON struct {
 	Base      pullRefJSON `json:"base"`
 }
 
-// pullJSON renvoie la pull request pr de repo.
+// pullJSON returns the pull request pr of repo.
 func (s *Server) pullJSON(repo *repoState, pr PullRequest) pullJSON {
 	full := repo.Owner + "/" + repo.Name
 	state := "open"
@@ -275,7 +275,7 @@ func (s *Server) pullJSON(repo *repoState, pr PullRequest) pullJSON {
 	}
 }
 
-// releaseJSON est une release.
+// releaseJSON is a release.
 type releaseJSON struct {
 	URL         string     `json:"url"`
 	HTMLURL     string     `json:"html_url"`
@@ -292,7 +292,7 @@ type releaseJSON struct {
 	Body        *string    `json:"body"`
 }
 
-// releaseJSON renvoie la release r de repo.
+// releaseJSON returns the release r of repo.
 func (s *Server) releaseJSON(repo *repoState, r Release) releaseJSON {
 	full := repo.Owner + "/" + repo.Name
 	var name *string
@@ -321,7 +321,7 @@ func (s *Server) releaseJSON(repo *repoState, r Release) releaseJSON {
 	}
 }
 
-// tagJSON est un tag.
+// tagJSON is a tag.
 type tagJSON struct {
 	Name       string           `json:"name"`
 	Commit     branchCommitJSON `json:"commit"`

@@ -2,8 +2,9 @@ package auth
 
 import (
 	"encoding/json"
-	"fmt"
 	"strings"
+
+	"github.com/studoo-app/watchoo/internal/i18n"
 )
 
 // ghStatusOutput est la réponse de « gh auth status --json hosts ».
@@ -41,12 +42,12 @@ func parseStatus(stdout []byte, host, user string) (Status, error) {
 	var out ghStatusOutput
 	if err := json.Unmarshal(stdout, &out); err != nil || out.Hosts == nil {
 		// L'erreur JSON n'est pas enveloppée : elle cite des morceaux de la sortie de gh.
-		return Status{}, fmt.Errorf("lecture de la réponse de « gh auth status » : %w", ErrUnexpectedOutput)
+		return Status{}, wrapErr(i18n.T("auth.parse.read"), ErrUnexpectedOutput)
 	}
 
 	accounts := accountsFor(out.Hosts, host)
 	if len(accounts) == 0 {
-		return Status{}, fmt.Errorf("aucun compte gh connecté pour %s : %w", host, ErrNotLoggedIn)
+		return Status{}, wrapErr(i18n.T("auth.parse.no_account", host), ErrNotLoggedIn)
 	}
 
 	acc, err := selectAccount(accounts, host, user)
@@ -79,13 +80,11 @@ func stateError(st Status, ghErr, host string) error {
 	if st.State == "timeout" || (st.State == "error" && ghErr != "" && !looksUnauthorized(ghErr)) {
 		detail := ""
 		if summary := summarize(ghErr); summary != "" {
-			detail = fmt.Sprintf(", gh a répondu « %s »", summary)
+			detail = i18n.T("auth.status.gh_said", summary)
 		}
-		return fmt.Errorf("le token gh du compte %q sur %s n'a pas pu être vérifié (état « %s »%s) : %w",
-			st.Login, host, st.State, detail, ErrCheckFailed)
+		return wrapErr(i18n.T("auth.parse.not_checked", st.Login, host, st.State, detail), ErrCheckFailed)
 	}
-	return fmt.Errorf("le token gh du compte %q sur %s n'est pas utilisable (état « %s ») : %w",
-		st.Login, host, st.State, ErrNotLoggedIn)
+	return wrapErr(i18n.T("auth.parse.unusable", st.Login, host, st.State), ErrNotLoggedIn)
 }
 
 // looksUnauthorized indique si le champ error de gh signale un token refusé par GitHub, par exemple
@@ -131,7 +130,7 @@ func selectAccount(accounts []ghAccount, host, user string) (ghAccount, error) {
 				return a, nil
 			}
 		}
-		return ghAccount{}, fmt.Errorf("aucun compte gh actif pour %s : %w", host, ErrNotLoggedIn)
+		return ghAccount{}, wrapErr(i18n.T("auth.parse.no_active", host), ErrNotLoggedIn)
 	}
 
 	// Entrées qui correspondent à user sans être lisibles par « gh auth token --user » : compte
@@ -153,14 +152,11 @@ func selectAccount(accounts []ghAccount, host, user string) (ghAccount, error) {
 	}
 	switch {
 	case otherCase != nil:
-		return ghAccount{}, fmt.Errorf("github.user vaut %q, mais gh connaît ce compte sur %s sous le nom %q "+
-			"et distingue les majuscules : %w", user, host, otherCase.Login, ErrUnusableUser)
+		return ghAccount{}, wrapErr(i18n.T("auth.parse.user_case", user, host, otherCase.Login), ErrUnusableUser)
 	case envOnly != nil:
-		return ghAccount{}, fmt.Errorf("github.user vaut %q, mais gh ne connaît ce compte sur %s que par la "+
-			"variable %s, que « gh auth token --user » ignore : %w", user, host, envOnly.TokenSource, ErrUnusableUser)
+		return ghAccount{}, wrapErr(i18n.T("auth.parse.user_env", user, host, envOnly.TokenSource), ErrUnusableUser)
 	}
-	return ghAccount{}, fmt.Errorf("le compte %q (réglage github.user) n'est pas connecté dans gh pour %s : %w",
-		user, host, ErrNotLoggedIn)
+	return ghAccount{}, wrapErr(i18n.T("auth.parse.user_missing", user, host), ErrNotLoggedIn)
 }
 
 // parseScopes lit le champ scopes : une chaîne séparée par des virgules (« gist, read:org, repo »)

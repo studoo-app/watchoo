@@ -18,6 +18,7 @@ import (
 
 	"github.com/studoo-app/watchoo/internal/auth"
 	"github.com/studoo-app/watchoo/internal/auth/authtest"
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/provider"
 	gitprov "github.com/studoo-app/watchoo/internal/provider/git"
 	"github.com/studoo-app/watchoo/internal/provider/providertest"
@@ -26,11 +27,10 @@ import (
 	"github.com/studoo-app/watchoo/internal/workspace"
 )
 
-// isolateEnv isole un test de l'environnement du développeur : HOME (et USERPROFILE sous Windows) et
-// XDG_CONFIG_HOME pointent vers des répertoires temporaires vides, et les variables WATCHOO_*
-// (WATCHOO_DIR compris), GH_TOKEN et GITHUB_TOKEN sont retirées. Elle renvoie le chemin du fichier de
-// réglages utilisateur, qui n'existe pas encore. Les tests qui l'appellent ne peuvent pas être parallèles
-// (t.Setenv).
+// isolateEnv isolates a test from the developer's environment: HOME (and USERPROFILE on Windows) and
+// XDG_CONFIG_HOME point to empty temporary directories, and the WATCHOO_* variables (WATCHOO_DIR
+// included), GH_TOKEN and GITHUB_TOKEN are removed. It returns the path of the user settings file, which
+// does not exist yet. The tests that call it cannot be parallel (t.Setenv).
 func isolateEnv(t *testing.T) string {
 	t.Helper()
 	base := t.TempDir()
@@ -43,13 +43,13 @@ func isolateEnv(t *testing.T) string {
 	}
 	t.Setenv("HOME", home)
 	if runtime.GOOS == "windows" {
-		t.Setenv("USERPROFILE", home) // répertoire personnel selon os.UserHomeDir (« ~ » des chemins affichés)
+		t.Setenv("USERPROFILE", home) // home directory per os.UserHomeDir ("~" in displayed paths)
 	}
 	t.Setenv("XDG_CONFIG_HOME", xdg)
 	for _, kv := range os.Environ() {
 		name, _, _ := strings.Cut(kv, "=")
 		if strings.HasPrefix(name, workspace.EnvPrefix+"_") || name == "GH_TOKEN" || name == "GITHUB_TOKEN" {
-			t.Setenv(name, "") // restaurée à la fin du test
+			t.Setenv(name, "") // restored at the end of the test
 			if err := os.Unsetenv(name); err != nil {
 				t.Fatal(err)
 			}
@@ -58,73 +58,72 @@ func isolateEnv(t *testing.T) string {
 	return filepath.Join(xdg, workspace.UserConfigDirName, workspace.ConfigFileName)
 }
 
-// harness exécute la CLI avec des dépendances de test : sorties capturées, répertoire courant
-// simulé, accès à gh fourni par Client (un authtest.Fake par défaut), sortie standard décrite par
-// Terminal.
+// harness runs the CLI with test dependencies: captured outputs, simulated current directory, gh
+// access provided by Client (an authtest.Fake by default), standard output described by Terminal.
 type harness struct {
 	t      *testing.T
-	cwd    string      // répertoire courant renvoyé par Getwd
-	root   string      // racine de l'espace des tests (cwd de départ) : clones Git dans root/repos
-	Client auth.Client // accès à gh renvoyé par NewAuthClient ; nil = auth.GH réel (DefaultDeps)
-	// Terminal décrit la sortie standard ; nil = valeur par défaut (DetectTerminal du tampon qui
-	// capture la sortie : jamais un terminal).
+	cwd    string      // current directory returned by Getwd
+	root   string      // root of the test workspace (initial cwd): Git clones in root/repos
+	Client auth.Client // gh access returned by NewAuthClient; nil = real auth.GH (DefaultDeps)
+	// Terminal describes the standard output; nil = default value (DetectTerminal of the buffer that
+	// captures the output: never a terminal).
 	Terminal func() TermInfo
-	// configs reçoit la Config passée à chaque appel de NewAuthClient.
+	// configs receives the Config passed to each call of NewAuthClient.
 	configs []workspace.Config
 
-	// Dépendances de la phase 3.
+	// Phase 3 dependencies.
 
-	// Provider est le faux provider renvoyé par NewProvider ; nil = NewProvider renvoie une erreur
-	// (aucun test ne joint GitHub).
+	// Provider is the fake provider returned by NewProvider; nil = NewProvider returns an error
+	// (no test reaches GitHub).
 	Provider *providertest.Fake
-	// NewProvider, s'il est renseigné, remplace Provider : il construit le provider à partir du token
-	// (le vrai provider GitHub branché sur githubtest, pour le test de bout en bout).
+	// NewProvider, if set, replaces Provider: it builds the provider from the token (the real GitHub
+	// provider wired to githubtest, for the end-to-end test).
 	NewProvider func(token string) (provider.Provider, error)
-	// tokens reçoit le token passé à chaque appel de NewProvider.
+	// tokens receives the token passed to each call of NewProvider.
 	tokens []string
-	// Now est l'horloge ; nil = time.Now.
+	// Now is the clock; nil = time.Now.
 	Now func() time.Time
-	// Stdin est le contenu de l'entrée standard ; StdinTerminal dit s'il s'agit d'un terminal.
+	// Stdin is the content of the standard input; StdinTerminal tells whether it is a terminal.
 	Stdin         string
 	StdinTerminal bool
-	// RunTUI remplace tui.Run ; nil = un faux qui échoue (le TUI réel n'est jamais lancé).
+	// RunTUI replaces tui.Run; nil = a fake that fails (the real TUI is never started).
 	RunTUI func(ctx context.Context, deps tui.Deps, term tui.IO) error
-	// Listen remplace net.Listen pour « watchoo serve » ; nil = un faux qui échoue (aucun test
-	// n'écoute sans le demander).
+	// Listen replaces net.Listen for "watchoo serve"; nil = a fake that fails (no test listens
+	// without asking for it).
 	Listen func(network, address string) (net.Listener, error)
-	// GitURL est la racine du faux serveur Git (gittest) des clones locaux, utilisés sans gh ; vide =
-	// NewGitProvider renvoie une erreur (aucun test ne joint GitHub par git).
+	// GitURL is the root of the fake Git server (gittest) of the local clones, used without gh; empty =
+	// NewGitProvider returns an error (no test reaches GitHub through git).
 	GitURL string
-	// GitMissing simule un git absent pour « watchoo init » sans gh.
+	// GitMissing simulates a missing git for "watchoo init" without gh.
 	GitMissing bool
 
-	// Mise à jour (0.6.0).
+	// Update (0.6.0).
 
-	// Updater remplace le client des releases ; nil = un faux qui échoue (aucun test ne joint le
-	// réseau). Les tests de la mise à jour y branchent un selfupdate.Client sur selfupdatetest.
+	// Updater replaces the releases client; nil = a fake that fails (no test reaches the network).
+	// The update tests plug a selfupdate.Client wired to selfupdatetest into it.
 	Updater Updater
-	// StderrTerminal dit si la sortie d'erreur est un terminal (avis de nouvelle version).
+	// StderrTerminal tells whether the error output is a terminal (new-version notice).
 	StderrTerminal bool
-	// Executable est le chemin du binaire renvoyé à « watchoo update » ; vide = erreur.
+	// Executable is the binary path returned to "watchoo update"; empty = error.
 	Executable string
-	// InDocker simule l'image Docker.
+	// InDocker simulates the Docker image.
 	InDocker bool
 }
 
-// offlineUpdater est l'Updater par défaut des tests : toute requête échoue.
+// offlineUpdater is the tests' default Updater: every request fails.
 type offlineUpdater struct{}
 
 func (offlineUpdater) Check(context.Context, string) (selfupdate.Status, error) {
-	return selfupdate.Status{}, errors.New("aucun accès réseau dans ce test")
+	return selfupdate.Status{}, errors.New("no network access in this test")
 }
 
 func (offlineUpdater) Install(context.Context, string, string) error {
-	return errors.New("aucun accès réseau dans ce test")
+	return errors.New("no network access in this test")
 }
 
-// newHarness isole l'environnement et renvoie un harness dont le répertoire courant est un
-// répertoire temporaire nommé « licence-projet », avec un faux gh connecté. Le test est sauté si un
-// espace Watchoo existe au-dessus du répertoire temporaire (voir requireNoWorkspaceAbove).
+// newHarness isolates the environment and returns a harness whose current directory is a temporary
+// directory named "licence-projet", with a fake gh signed in. The test is skipped if a Watchoo
+// workspace exists above the temporary directory (see requireNoWorkspaceAbove).
 func newHarness(t *testing.T) *harness {
 	t.Helper()
 	isolateEnv(t)
@@ -139,30 +138,30 @@ func newHarness(t *testing.T) *harness {
 	}
 }
 
-// requireNoWorkspaceAbove saute le test si un espace Watchoo existe dans dir ou au-dessus (TMPDIR
-// placé sous un répertoire qui contient un .watchoo/, par exemple) : init y verrait un espace parent
-// et afficherait un avertissement que les tests n'attendent pas.
+// requireNoWorkspaceAbove skips the test if a Watchoo workspace exists in dir or above (TMPDIR placed
+// under a directory that contains a .watchoo/, for example): init would see a parent workspace there
+// and print a warning that the tests do not expect.
 func requireNoWorkspaceAbove(t *testing.T, dir string) {
 	t.Helper()
 	if ws, err := workspace.Find(dir); err == nil {
-		t.Skipf("un espace Watchoo existe au-dessus du répertoire temporaire %s : %s", dir, ws.Root)
+		t.Skipf("a Watchoo workspace exists above the temporary directory %s: %s", dir, ws.Root)
 	}
 }
 
-// result est le résultat d'une exécution de la CLI.
+// result is the result of a CLI run.
 type result struct {
 	code   int
 	stdout string
 	stderr string
 }
 
-// run exécute « watchoo args… » avec un contexte de fond.
+// run runs "watchoo args…" with a background context.
 func (h *harness) run(args ...string) result {
 	h.t.Helper()
 	return h.runContext(context.Background(), args...)
 }
 
-// runContext exécute « watchoo args… » avec ctx.
+// runContext runs "watchoo args…" with ctx.
 func (h *harness) runContext(ctx context.Context, args ...string) result {
 	h.t.Helper()
 	var stdout, stderr bytes.Buffer
@@ -184,13 +183,13 @@ func (h *harness) runContext(ctx context.Context, args ...string) result {
 				return h.NewProvider(token)
 			}
 			if h.Provider == nil {
-				return nil, errors.New("aucun provider dans ce test")
+				return nil, errors.New("no provider in this test")
 			}
 			return h.Provider, nil
 		},
 		NewGitProvider: func(repos []gitprov.Ref) (provider.Provider, error) {
 			if h.GitURL == "" {
-				return nil, nil // clones désactivés : sans gh, « répertoire des clones non renseigné »
+				return nil, nil // clones disabled: without gh, "clones directory not set"
 			}
 			return gitprov.New(gitprov.Options{Dir: filepath.Join(h.root, workspace.ReposDirName), Repos: repos,
 				BaseURL: h.GitURL, Logger: slog.Default()})
@@ -213,7 +212,7 @@ func (h *harness) runContext(ctx context.Context, args ...string) result {
 		},
 		Executable: func() (string, error) {
 			if h.Executable == "" {
-				return "", errors.New("aucun binaire dans ce test")
+				return "", errors.New("no binary in this test")
 			}
 			return h.Executable, nil
 		},
@@ -224,66 +223,69 @@ func (h *harness) runContext(ctx context.Context, args ...string) result {
 	}
 	if deps.Listen == nil {
 		deps.Listen = func(string, string) (net.Listener, error) {
-			return nil, errors.New("aucune écoute réseau dans ce test")
+			return nil, errors.New("no network listening in this test")
 		}
 	}
 	if deps.RunTUI == nil {
 		deps.RunTUI = func(context.Context, tui.Deps, tui.IO) error {
-			return errors.New("le vrai TUI ne doit pas être lancé dans les tests")
+			return errors.New("the real TUI must not be started in the tests")
 		}
 	}
 	code := Run(ctx, deps, args)
 	r := result{code: code, stdout: stdout.String(), stderr: stderr.String()}
-	// Le token n'apparaît jamais : ni dans les sorties, ni dans les logs.
+	// The token never appears: neither in the outputs nor in the logs.
 	for name, out := range map[string]string{"stdout": r.stdout, "stderr": r.stderr, "logs": testLogs.String()} {
 		if strings.Contains(out, authtest.FakeToken) {
-			h.t.Errorf("watchoo %q : token dans %s :\n%s", args, name, out)
+			h.t.Errorf("watchoo %q: token in %s:\n%s", args, name, out)
 		}
 	}
 	return r
 }
 
-// fake renvoie le authtest.Fake du harness.
+// fake returns the harness's authtest.Fake.
 func (h *harness) fake() *authtest.Fake {
 	h.t.Helper()
 	f, ok := h.Client.(*authtest.Fake)
 	if !ok {
-		h.t.Fatalf("Client n'est pas un *authtest.Fake : %T", h.Client)
+		h.t.Fatalf("Client is not an *authtest.Fake: %T", h.Client)
 	}
 	return f
 }
 
-// mustSucceed vérifie que l'exécution a réussi.
+// mustSucceed checks that the run succeeded.
 func (r result) mustSucceed(t *testing.T) result {
 	t.Helper()
 	if r.code != 0 {
-		t.Fatalf("code de retour %d, attendu 0\nstdout :\n%s\nstderr :\n%s", r.code, r.stdout, r.stderr)
+		t.Fatalf("exit code %d, want 0\nstdout:\n%s\nstderr:\n%s", r.code, r.stdout, r.stderr)
 	}
 	return r
 }
 
-// mustFail vérifie que l'exécution a échoué (code 1), sans rien sur la sortie standard, avec un
-// message « erreur : … » qui contient chacun des extraits.
+// mustFail checks that the run failed (code 1), with nothing on the standard output, with a prefixed
+// error message ("error: …" or "erreur : …", in the test's language) that contains each of the
+// excerpts.
 func (r result) mustFail(t *testing.T, parts ...string) result {
 	t.Helper()
 	if r.code != 1 {
-		t.Fatalf("code de retour %d, attendu 1\nstdout :\n%s\nstderr :\n%s", r.code, r.stdout, r.stderr)
+		t.Fatalf("exit code %d, want 1\nstdout:\n%s\nstderr:\n%s", r.code, r.stdout, r.stderr)
 	}
 	if r.stdout != "" {
-		t.Errorf("sortie standard non vide après une erreur :\n%s", r.stdout)
+		t.Errorf("non-empty stdout after an error:\n%s", r.stdout)
 	}
-	if !strings.HasPrefix(r.stderr, "erreur : ") {
-		t.Errorf("sortie d'erreur sans « erreur : » au début :\n%s", r.stderr)
+	// The prefix comes from the cli.core.err.line key: "error: " (English) or "erreur : " (French),
+	// the empty value leaving the prefix alone.
+	if prefix := i18n.T("cli.core.err.line", ""); !strings.HasPrefix(r.stderr, prefix) {
+		t.Errorf("stderr without %q at the start:\n%s", prefix, r.stderr)
 	}
 	for _, part := range parts {
 		if !strings.Contains(r.stderr, part) {
-			t.Errorf("sortie d'erreur sans %q :\n%s", part, r.stderr)
+			t.Errorf("stderr without %q:\n%s", part, r.stderr)
 		}
 	}
 	return r
 }
 
-// newDir crée le répertoire parent/elems… (avec ses parents) et renvoie son chemin.
+// newDir creates the directory parent/elems… (with its parents) and returns its path.
 func newDir(t *testing.T, parent string, elems ...string) string {
 	t.Helper()
 	dir := filepath.Join(append([]string{parent}, elems...)...)
@@ -293,7 +295,7 @@ func newDir(t *testing.T, parent string, elems ...string) string {
 	return dir
 }
 
-// writeFile écrit content dans path, en créant les répertoires parents.
+// writeFile writes content to path, creating the parent directories.
 func writeFile(t *testing.T, path, content string) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -304,7 +306,7 @@ func writeFile(t *testing.T, path, content string) {
 	}
 }
 
-// readFile renvoie le contenu de path.
+// readFile returns the content of path.
 func readFile(t *testing.T, path string) string {
 	t.Helper()
 	data, err := os.ReadFile(path)
@@ -314,15 +316,15 @@ func readFile(t *testing.T, path string) string {
 	return string(data)
 }
 
-// assertNoWorkspace vérifie que root ne contient pas de .watchoo/.
+// assertNoWorkspace checks that root contains no .watchoo/.
 func assertNoWorkspace(t *testing.T, root string) {
 	t.Helper()
 	if _, err := os.Lstat(filepath.Join(root, workspace.DirName)); !errors.Is(err, fs.ErrNotExist) {
-		t.Errorf("%s/%s ne devrait pas exister (Lstat : %v)", root, workspace.DirName, err)
+		t.Errorf("%s/%s should not exist (Lstat: %v)", root, workspace.DirName, err)
 	}
 }
 
-// assertMode vérifie les droits de path (ignoré sous Windows, qui n'a pas de droits Unix).
+// assertMode checks the permissions of path (ignored on Windows, which has no Unix permissions).
 func assertMode(t *testing.T, path string, want fs.FileMode) {
 	t.Helper()
 	if runtime.GOOS == "windows" {
@@ -333,20 +335,19 @@ func assertMode(t *testing.T, path string, want fs.FileMode) {
 		t.Fatal(err)
 	}
 	if got := info.Mode().Perm(); got != want {
-		t.Errorf("droits de %s = %#o, attendu %#o", path, got, want)
+		t.Errorf("permissions of %s = %#o, want %#o", path, got, want)
 	}
 }
 
-// migratedTables est la liste des tables créées par les migrations (hors table de goose).
+// migratedTables is the list of the tables created by the migrations (goose's table excluded).
 var migratedTables = []string{
 	"branches", "commit_branches", "commits", "contributor_emails", "contributors", "pull_requests", "releases",
 	"repositories", "sync_runs", "tags",
 }
 
-// tables renvoie les tables de la base path, triées, hors tables internes de SQLite. La base est
-// ouverte directement, sans passer par store (ni pragmas ni migrations), pour vérifier le fichier tel
-// qu'init l'a laissé. Pas de mode=ro : une base WAL sans fichier -shm ne s'ouvre pas toujours en
-// lecture seule.
+// tables returns the tables of the database path, sorted, SQLite's internal tables excluded. The
+// database is opened directly, without going through store (no pragmas, no migrations), to check the
+// file as init left it. No mode=ro: a WAL database without a -shm file does not always open read-only.
 func tables(t *testing.T, path string) []string {
 	t.Helper()
 	sqlDB, err := sql.Open("sqlite", "file:"+filepath.ToSlash(path))
@@ -356,7 +357,7 @@ func tables(t *testing.T, path string) []string {
 	defer sqlDB.Close()
 	rows, err := sqlDB.Query(`SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name`)
 	if err != nil {
-		t.Fatalf("lecture des tables de %s : %v", path, err)
+		t.Fatalf("reading the tables of %s: %v", path, err)
 	}
 	defer rows.Close()
 	var names []string

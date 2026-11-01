@@ -98,7 +98,7 @@ func (s *server) contributorsData(r *http.Request, withChart bool) (contributors
 		if err != nil {
 			return contributorsView{}, err
 		}
-		v.Chart = buildContributorChart(ranking, times, now, activity.ContributorWeeks, contributorChartTop, s.loc)
+		v.Chart = buildContributorChart(s.tr(r), ranking, times, now, activity.ContributorWeeks, contributorChartTop, s.loc)
 	}
 	return v, nil
 }
@@ -111,7 +111,7 @@ func (s *server) handleContributors(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, err)
 		return
 	}
-	s.render(w, r, http.StatusOK, pageContributors, s.page(r, "Contributeurs", navContributors, v))
+	s.render(w, r, http.StatusOK, pageContributors, s.page(r, s.t(r, "web.nav.contributors"), navContributors, v))
 }
 
 // handleContributorsTable sert GET /fragments/contributors (fragment « contributors-table »,
@@ -123,5 +123,5 @@ func (s *server) handleContributorsTable(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	s.renderFragment(w, r, http.StatusOK, pageContributors, "contributors-table",
-		s.page(r, "Contributeurs", navContributors, v))
+		s.page(r, s.t(r, "web.nav.contributors"), navContributors, v))
 }

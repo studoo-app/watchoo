@@ -8,10 +8,10 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"slices"
 	"strings"
 
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/store/db"
 )
@@ -25,7 +25,7 @@ const shaBatchSize = 500
 func (s *Store) ListBranches(ctx context.Context, repoID int64) ([]model.Branch, error) {
 	rows, err := s.queries.ListBranches(ctx, repoID)
 	if err != nil {
-		return nil, fmt.Errorf("branches du dépôt %d : %w", repoID, err)
+		return nil, wrapErr(i18n.T("store.sync.branches", repoID), err)
 	}
 	branches := make([]model.Branch, 0, len(rows))
 	for _, row := range rows {
@@ -44,7 +44,7 @@ func (s *Store) ListBranches(ctx context.Context, repoID int64) ([]model.Branch,
 func (s *Store) CountCommits(ctx context.Context, repoID int64) (int, error) {
 	n, err := s.queries.CountCommits(ctx, repoID)
 	if err != nil {
-		return 0, fmt.Errorf("nombre de commits du dépôt %d : %w", repoID, err)
+		return 0, wrapErr(i18n.T("store.sync.commit_count", repoID), err)
 	}
 	return int(n), nil
 }
@@ -55,7 +55,7 @@ func (s *Store) CountCommits(ctx context.Context, repoID int64) (int, error) {
 func (s *Store) ExistingCommitSHAs(ctx context.Context, repoID int64, shas []string) (map[string]bool, error) {
 	known, err := existingCommitSHAs(ctx, s.queries, repoID, shas)
 	if err != nil {
-		return nil, fmt.Errorf("commits connus du dépôt %d : %w", repoID, err)
+		return nil, wrapErr(i18n.T("store.sync.known_commits", repoID), err)
 	}
 	return known, nil
 }
@@ -81,13 +81,13 @@ func existingCommitSHAs(ctx context.Context, q *db.Queries, repoID int64, shas [
 // le début) : pagination des commits à calculer par le clone Git local.
 func (s *Store) UnknownStatsSHAs(ctx context.Context, repoID int64, after string, limit int) ([]string, error) {
 	if limit <= 0 {
-		return nil, fmt.Errorf("commits sans statistiques du dépôt %d : limite %d invalide", repoID, limit)
+		return nil, errors.New(i18n.T("store.sync.no_stats_limit", repoID, limit))
 	}
 	shas, err := s.queries.ListUnknownStatsSHAs(ctx, db.ListUnknownStatsSHAsParams{
 		RepoID: repoID, AfterSha: after, RowLimit: int64(limit),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("commits sans statistiques du dépôt %d : %w", repoID, err)
+		return nil, wrapErr(i18n.T("store.sync.no_stats", repoID), err)
 	}
 	return shas, nil
 }
@@ -130,14 +130,14 @@ func (s *Store) UnknownStatsSHAs(ctx context.Context, repoID int64, after string
 func (s *Store) ApplyRepoSync(ctx context.Context, w RepoSyncWrite) (RepoSyncResult, error) {
 	commits, err := prepareRepoSync(w)
 	if err != nil {
-		return RepoSyncResult{}, fmt.Errorf("enregistrement de la synchro du dépôt %d : %w", w.RepoID, err)
+		return RepoSyncResult{}, wrapErr(i18n.T("store.sync.record", w.RepoID), err)
 	}
 
 	var result RepoSyncResult
 	err = s.writeTx(ctx, func(q *db.Queries) error {
 		repo, err := q.GetRepository(ctx, w.RepoID)
 		if err != nil {
-			return repositoryLookupError(fmt.Sprintf("dépôt %d", w.RepoID), err)
+			return repositoryLookupError(i18n.T("store.repo.id", w.RepoID), err)
 		}
 		if err := writeRepoMetadata(ctx, q, w); err != nil {
 			return err
@@ -153,7 +153,7 @@ func (s *Store) ApplyRepoSync(ctx context.Context, w RepoSyncWrite) (RepoSyncRes
 		}
 		known, err := existingCommitSHAs(ctx, q, w.RepoID, shas)
 		if err != nil {
-			return fmt.Errorf("lecture des commits connus : %w", err)
+			return wrapErr(i18n.T("store.sync.read_known"), err)
 		}
 
 		ids := newIdentityResolver(q, repo.Provider)
@@ -169,7 +169,7 @@ func (s *Store) ApplyRepoSync(ctx context.Context, w RepoSyncWrite) (RepoSyncRes
 				if err := q.InsertCommitBranch(ctx, db.InsertCommitBranchParams{
 					RepoID: w.RepoID, SHA: c.SHA, BranchID: branchIDs[name],
 				}); err != nil {
-					return fmt.Errorf("rattachement du commit %s à une branche : %w", shortSHA(c.SHA), err)
+					return wrapErr(i18n.T("store.sync.link_branch", shortSHA(c.SHA)), err)
 				}
 			}
 		}
@@ -178,7 +178,7 @@ func (s *Store) ApplyRepoSync(ctx context.Context, w RepoSyncWrite) (RepoSyncRes
 			if _, err := q.SetCommitStats(ctx, db.SetCommitStatsParams{
 				Additions: int64(st.Additions), Deletions: int64(st.Deletions), RepoID: w.RepoID, SHA: st.SHA,
 			}); err != nil {
-				return fmt.Errorf("statistiques du commit %s : %w", shortSHA(st.SHA), err)
+				return wrapErr(i18n.T("store.sync.commit_stats", shortSHA(st.SHA)), err)
 			}
 		}
 
@@ -188,21 +188,21 @@ func (s *Store) ApplyRepoSync(ctx context.Context, w RepoSyncWrite) (RepoSyncRes
 
 		last, err := q.MaxTrackedCommittedAt(ctx, w.RepoID)
 		if err != nil {
-			return fmt.Errorf("calcul du dernier commit : %w", err)
+			return wrapErr(i18n.T("store.sync.compute_last"), err)
 		}
 		lastAt := sql.NullString{String: last, Valid: last != ""}
 		if err := q.SetRepositoryLastCommitAt(ctx, db.SetRepositoryLastCommitAtParams{
 			LastCommitAt: lastAt, ID: w.RepoID,
 		}); err != nil {
-			return fmt.Errorf("écriture du dernier commit : %w", err)
+			return wrapErr(i18n.T("store.sync.write_last"), err)
 		}
 		if result.LastCommitAt, err = parseNullTime(lastAt); err != nil {
-			return fmt.Errorf("dernier commit : %w", err)
+			return wrapErr(i18n.T("store.last_commit"), err)
 		}
 
 		tracked, err := q.CountTrackedBranches(ctx, w.RepoID)
 		if err != nil {
-			return fmt.Errorf("nombre de branches suivies : %w", err)
+			return wrapErr(i18n.T("store.tracked_branches"), err)
 		}
 		result.TrackedBranches = int(tracked)
 
@@ -213,15 +213,15 @@ func (s *Store) ApplyRepoSync(ctx context.Context, w RepoSyncWrite) (RepoSyncRes
 			ID:         w.RunID,
 		})
 		if err != nil {
-			return fmt.Errorf("fin de synchro %d : %w", w.RunID, err)
+			return wrapErr(i18n.T("store.runs.finish", w.RunID), err)
 		}
 		if n == 0 {
-			return fmt.Errorf("synchro en cours %d : %w", w.RunID, ErrNotFound)
+			return wrapErr(i18n.T("store.runs.running", w.RunID), ErrNotFound)
 		}
 		return nil
 	})
 	if err != nil {
-		return RepoSyncResult{}, fmt.Errorf("enregistrement de la synchro du dépôt %d : %w", w.RepoID, err)
+		return RepoSyncResult{}, wrapErr(i18n.T("store.sync.record", w.RepoID), err)
 	}
 	return result, nil
 }
@@ -232,22 +232,22 @@ func (s *Store) ApplyRepoSync(ctx context.Context, w RepoSyncWrite) (RepoSyncRes
 func prepareRepoSync(w RepoSyncWrite) ([]CommitWrite, error) {
 	switch {
 	case w.RepoID == 0:
-		return nil, errors.New("dépôt non précisé")
+		return nil, errors.New(i18n.T("store.sync.no_repo"))
 	case w.RunID == 0:
-		return nil, errors.New("synchro non précisée")
+		return nil, errors.New(i18n.T("store.sync.no_run"))
 	case w.SyncedAt.IsZero():
-		return nil, errors.New("date de fin de synchro absente")
+		return nil, errors.New(i18n.T("store.sync.no_finished_at"))
 	case !w.Metadata.Partial && (w.Metadata.Owner == "" || w.Metadata.Name == ""):
-		return nil, errors.New("propriétaire ou nom du dépôt absent")
+		return nil, errors.New(i18n.T("store.sync.no_owner_name"))
 	}
 
 	branches := make(map[string]bool, len(w.Branches))
 	for _, b := range w.Branches {
 		if b.Name == "" {
-			return nil, errors.New("branche sans nom")
+			return nil, errors.New(i18n.T("store.sync.branch_no_name"))
 		}
 		if branches[b.Name] {
-			return nil, fmt.Errorf("branche %q en double", b.Name)
+			return nil, errors.New(i18n.T("store.sync.branch_duplicate", b.Name))
 		}
 		branches[b.Name] = true
 	}
@@ -256,14 +256,14 @@ func prepareRepoSync(w RepoSyncWrite) ([]CommitWrite, error) {
 	merged := make([]CommitWrite, 0, len(w.Commits))
 	for _, c := range w.Commits {
 		if c.SHA == "" {
-			return nil, errors.New("commit sans SHA")
+			return nil, errors.New(i18n.T("store.sync.commit_no_sha"))
 		}
 		if c.AuthoredAt.IsZero() || c.CommittedAt.IsZero() {
-			return nil, fmt.Errorf("commit %s sans date", shortSHA(c.SHA))
+			return nil, errors.New(i18n.T("store.sync.commit_no_date", shortSHA(c.SHA)))
 		}
 		for _, name := range c.Branches {
 			if !branches[name] {
-				return nil, fmt.Errorf("commit %s : branche %q absente des branches suivies", shortSHA(c.SHA), name)
+				return nil, errors.New(i18n.T("store.sync.commit_branch", shortSHA(c.SHA), name))
 			}
 		}
 		if i, ok := index[c.SHA]; ok {
@@ -277,9 +277,9 @@ func prepareRepoSync(w RepoSyncWrite) ([]CommitWrite, error) {
 	for _, st := range w.Stats {
 		switch {
 		case st.SHA == "":
-			return nil, errors.New("statistiques d'un commit sans SHA")
+			return nil, errors.New(i18n.T("store.sync.stats_no_sha"))
 		case st.Additions < 0 || st.Deletions < 0:
-			return nil, fmt.Errorf("statistiques négatives pour le commit %s", shortSHA(st.SHA))
+			return nil, errors.New(i18n.T("store.sync.stats_negative", shortSHA(st.SHA)))
 		}
 	}
 	if err := checkExtras(w); err != nil {
@@ -301,21 +301,21 @@ func checkExtras(w RepoSyncWrite) error {
 	for _, pr := range w.PullRequests {
 		switch {
 		case pr.Number <= 0:
-			return fmt.Errorf("pull request de numéro %d invalide", pr.Number)
+			return errors.New(i18n.T("store.sync.pr_number", pr.Number))
 		case pr.State != model.PullRequestOpen && pr.State != model.PullRequestClosed:
-			return fmt.Errorf("pull request n° %d : état %q invalide", pr.Number, pr.State)
+			return errors.New(i18n.T("store.sync.pr_state", pr.Number, pr.State))
 		case pr.CreatedAt.IsZero() || pr.UpdatedAt.IsZero():
-			return fmt.Errorf("pull request n° %d sans date", pr.Number)
+			return errors.New(i18n.T("store.sync.pr_no_date", pr.Number))
 		}
 	}
 	for _, r := range w.Releases {
 		if r.ProviderID <= 0 || r.TagName == "" || r.CreatedAt.IsZero() {
-			return fmt.Errorf("release %d invalide (identifiant, tag ou date absent)", r.ProviderID)
+			return errors.New(i18n.T("store.sync.release_invalid", r.ProviderID))
 		}
 	}
 	for _, t := range w.Tags {
 		if t.Name == "" || t.SHA == "" {
-			return fmt.Errorf("tag sans nom ou sans SHA (%s)", shortSHA(t.SHA))
+			return errors.New(i18n.T("store.sync.tag_invalid", shortSHA(t.SHA)))
 		}
 	}
 	return nil
@@ -342,12 +342,12 @@ func writeExtras(ctx context.Context, q *db.Queries, w RepoSyncWrite) error {
 			ClosedAt:         nullTime(pr.ClosedAt),
 			MergedAt:         nullTime(pr.MergedAt),
 		}); err != nil {
-			return fmt.Errorf("enregistrement de la pull request n° %d : %w", pr.Number, err)
+			return wrapErr(i18n.T("store.sync.pr_record", pr.Number), err)
 		}
 	}
 	if w.ReplaceReleases {
 		if err := q.DeleteReleases(ctx, w.RepoID); err != nil {
-			return fmt.Errorf("remplacement des releases : %w", err)
+			return wrapErr(i18n.T("store.sync.releases_replace"), err)
 		}
 		for _, r := range w.Releases {
 			if err := q.InsertRelease(ctx, db.InsertReleaseParams{
@@ -362,17 +362,17 @@ func writeExtras(ctx context.Context, q *db.Queries, w RepoSyncWrite) error {
 				CreatedAt:   FormatTime(r.CreatedAt),
 				PublishedAt: nullTime(r.PublishedAt),
 			}); err != nil {
-				return fmt.Errorf("enregistrement de la release %d : %w", r.ProviderID, err)
+				return wrapErr(i18n.T("store.sync.release_record", r.ProviderID), err)
 			}
 		}
 	}
 	if w.ReplaceTags {
 		if err := q.DeleteTags(ctx, w.RepoID); err != nil {
-			return fmt.Errorf("remplacement des tags : %w", err)
+			return wrapErr(i18n.T("store.sync.tags_replace"), err)
 		}
 		for _, t := range w.Tags {
 			if err := q.InsertTag(ctx, db.InsertTagParams{RepoID: w.RepoID, Name: t.Name, SHA: t.SHA}); err != nil {
-				return fmt.Errorf("enregistrement d'un tag (%s) : %w", shortSHA(t.SHA), err)
+				return wrapErr(i18n.T("store.sync.tag_record", shortSHA(t.SHA)), err)
 			}
 		}
 	}
@@ -389,10 +389,10 @@ func writeRepoMetadata(ctx context.Context, q *db.Queries, w RepoSyncWrite) erro
 			ID:            w.RepoID,
 		})
 		if err != nil {
-			return fmt.Errorf("métadonnées du dépôt : %w", err)
+			return wrapErr(i18n.T("store.sync.metadata"), err)
 		}
 		if n == 0 {
-			return fmt.Errorf("dépôt %d : %w", w.RepoID, ErrNotFound)
+			return wrapErr(i18n.T("store.repo.id", w.RepoID), ErrNotFound)
 		}
 		return nil
 	}
@@ -410,12 +410,12 @@ func writeRepoMetadata(ctx context.Context, q *db.Queries, w RepoSyncWrite) erro
 	})
 	if err != nil {
 		if isUniqueViolation(err) {
-			return fmt.Errorf("dépôt %s/%s : %w", m.Owner, m.Name, ErrAlreadyExists)
+			return wrapErr(i18n.T("store.repo.full_name", m.Owner, m.Name), ErrAlreadyExists)
 		}
-		return fmt.Errorf("métadonnées du dépôt : %w", err)
+		return wrapErr(i18n.T("store.sync.metadata"), err)
 	}
 	if n == 0 {
-		return fmt.Errorf("dépôt %d : %w", w.RepoID, ErrNotFound)
+		return wrapErr(i18n.T("store.repo.id", w.RepoID), ErrNotFound)
 	}
 	return nil
 }
@@ -424,7 +424,7 @@ func writeRepoMetadata(ctx context.Context, q *db.Queries, w RepoSyncWrite) erro
 // suivies (tracked = 1), et renvoie leurs identifiants par nom.
 func writeBranches(ctx context.Context, q *db.Queries, repoID int64, branches []BranchState) (map[string]int64, error) {
 	if err := q.UntrackBranches(ctx, repoID); err != nil {
-		return nil, fmt.Errorf("branches du dépôt : %w", err)
+		return nil, wrapErr(i18n.T("store.sync.repo_branches"), err)
 	}
 	ids := make(map[string]int64, len(branches))
 	for _, b := range branches {
@@ -432,7 +432,7 @@ func writeBranches(ctx context.Context, q *db.Queries, repoID int64, branches []
 			RepoID: repoID, Name: b.Name, HeadSHA: b.HeadSHA,
 		})
 		if err != nil {
-			return nil, fmt.Errorf("branche %q : %w", b.Name, err)
+			return nil, wrapErr(i18n.T("store.sync.branch", b.Name), err)
 		}
 		ids[b.Name] = id
 	}
@@ -444,11 +444,11 @@ func writeBranches(ctx context.Context, q *db.Queries, repoID int64, branches []
 func insertCommit(ctx context.Context, q *db.Queries, ids *identityResolver, repoID int64, c CommitWrite) (int, error) {
 	authorID, err := ids.resolve(ctx, c.Author)
 	if err != nil {
-		return 0, fmt.Errorf("auteur du commit %s : %w", shortSHA(c.SHA), err)
+		return 0, wrapErr(i18n.T("store.sync.author", shortSHA(c.SHA)), err)
 	}
 	committerID, err := ids.resolve(ctx, c.Committer)
 	if err != nil {
-		return 0, fmt.Errorf("committer du commit %s : %w", shortSHA(c.SHA), err)
+		return 0, wrapErr(i18n.T("store.sync.committer", shortSHA(c.SHA)), err)
 	}
 	n, err := q.InsertCommit(ctx, db.InsertCommitParams{
 		RepoID:      repoID,
@@ -464,7 +464,7 @@ func insertCommit(ctx context.Context, q *db.Queries, ids *identityResolver, rep
 		URL:         c.URL,
 	})
 	if err != nil {
-		return 0, fmt.Errorf("enregistrement du commit %s : %w", shortSHA(c.SHA), err)
+		return 0, wrapErr(i18n.T("store.sync.commit_record", shortSHA(c.SHA)), err)
 	}
 	return int(n), nil
 }
@@ -524,11 +524,11 @@ func (r *identityResolver) resolveAccount(ctx context.Context, id Identity) (int
 			ProfileURL:     id.ProfileURL,
 		})
 		if err != nil {
-			return 0, fmt.Errorf("création d'un contributeur : %w", err)
+			return 0, wrapErr(i18n.T("store.contrib.create"), err)
 		}
 		row.ProviderLogin, row.Name, row.AvatarURL, row.ProfileURL = id.Login, id.Name, id.AvatarURL, id.ProfileURL
 	case err != nil:
-		return 0, fmt.Errorf("lecture d'un contributeur : %w", err)
+		return 0, wrapErr(i18n.T("store.contrib.read"), err)
 	default:
 		next := profile{login: cmp.Or(id.Login, row.ProviderLogin), name: cmp.Or(id.Name, row.Name),
 			avatar: cmp.Or(id.AvatarURL, row.AvatarURL), url: cmp.Or(id.ProfileURL, row.ProfileURL)}
@@ -546,7 +546,7 @@ func (r *identityResolver) resolveAccount(ctx context.Context, id Identity) (int
 	case errors.Is(err, sql.ErrNoRows):
 		// Adresse inconnue : rattachée au compte.
 	case err != nil:
-		return 0, fmt.Errorf("lecture d'une adresse : %w", err)
+		return 0, wrapErr(i18n.T("store.contrib.read_email"), err)
 	case holder.ID == row.ID:
 		return row.ID, nil
 	case !holder.ProviderUserID.Valid:
@@ -563,7 +563,7 @@ func (r *identityResolver) resolveAccount(ctx context.Context, id Identity) (int
 	if err := r.q.AttachContributorEmail(ctx, db.AttachContributorEmailParams{
 		Email: id.Email, ContributorID: row.ID,
 	}); err != nil {
-		return 0, fmt.Errorf("rattachement d'une adresse : %w", err)
+		return 0, wrapErr(i18n.T("store.contrib.link_email"), err)
 	}
 	return row.ID, nil
 }
@@ -575,16 +575,16 @@ func (r *identityResolver) resolveEmail(ctx context.Context, id Identity) (int64
 	case errors.Is(err, sql.ErrNoRows):
 		cid, err := r.q.CreateContributor(ctx, db.CreateContributorParams{Name: id.Name})
 		if err != nil {
-			return 0, fmt.Errorf("création d'un contributeur : %w", err)
+			return 0, wrapErr(i18n.T("store.contrib.create"), err)
 		}
 		if err := r.q.AttachContributorEmail(ctx, db.AttachContributorEmailParams{
 			Email: id.Email, ContributorID: cid,
 		}); err != nil {
-			return 0, fmt.Errorf("rattachement d'une adresse : %w", err)
+			return 0, wrapErr(i18n.T("store.contrib.link_email"), err)
 		}
 		return cid, nil
 	case err != nil:
-		return 0, fmt.Errorf("lecture d'une adresse : %w", err)
+		return 0, wrapErr(i18n.T("store.contrib.read_email"), err)
 	}
 	// Le nom Git le plus récent l'emporte, mais seulement pour un contributeur sans compte : le nom d'un
 	// compte vient des commits liés à ce compte.
@@ -616,7 +616,7 @@ func (r *identityResolver) updateProfile(ctx context.Context, row db.Contributor
 	if err := r.q.UpdateContributorProfile(ctx, db.UpdateContributorProfileParams{
 		ProviderLogin: p.login, Name: p.name, AvatarURL: p.avatar, ProfileURL: p.url, ID: row.ID,
 	}); err != nil {
-		return fmt.Errorf("mise à jour d'un contributeur : %w", err)
+		return wrapErr(i18n.T("store.contrib.update"), err)
 	}
 	// Les identités retenues ne reflètent plus le dernier nom, login ou avatar écrit : sans cela, une
 	// identité déjà vue après une autre qui l'a modifiée ne serait pas réappliquée.
@@ -631,13 +631,13 @@ func (r *identityResolver) merge(ctx context.Context, from, into db.Contributor)
 	toID := sql.NullInt64{Int64: into.ID, Valid: true}
 	fromID := sql.NullInt64{Int64: from.ID, Valid: true}
 	if err := r.q.ReassignCommitAuthors(ctx, db.ReassignCommitAuthorsParams{ToID: toID, FromID: fromID}); err != nil {
-		return fmt.Errorf("fusion de contributeurs (auteurs) : %w", err)
+		return wrapErr(i18n.T("store.contrib.merge_authors"), err)
 	}
 	if err := r.q.ReassignCommitCommitters(ctx, db.ReassignCommitCommittersParams{ToID: toID, FromID: fromID}); err != nil {
-		return fmt.Errorf("fusion de contributeurs (committers) : %w", err)
+		return wrapErr(i18n.T("store.contrib.merge_committers"), err)
 	}
 	if err := r.q.MoveContributorEmails(ctx, db.MoveContributorEmailsParams{ToID: into.ID, FromID: from.ID}); err != nil {
-		return fmt.Errorf("fusion de contributeurs (adresses) : %w", err)
+		return wrapErr(i18n.T("store.contrib.merge_emails"), err)
 	}
 	if into.Name == "" && from.Name != "" {
 		next := profileOf(into)
@@ -647,7 +647,7 @@ func (r *identityResolver) merge(ctx context.Context, from, into db.Contributor)
 		}
 	}
 	if err := r.q.DeleteContributor(ctx, from.ID); err != nil {
-		return fmt.Errorf("fusion de contributeurs (suppression) : %w", err)
+		return wrapErr(i18n.T("store.contrib.merge_delete"), err)
 	}
 	// Des identités retenues peuvent désigner le contributeur supprimé.
 	clear(r.seen)
@@ -681,7 +681,7 @@ func (s *Store) BackfillProfileURLs(ctx context.Context, provider string, build 
 	err := s.writeTx(ctx, func(q *db.Queries) error {
 		rows, err := q.ListContributorsWithoutProfileURL(ctx, sql.NullString{String: provider, Valid: true})
 		if err != nil {
-			return fmt.Errorf("lecture des contributeurs sans page de profil : %w", err)
+			return wrapErr(i18n.T("store.contrib.no_profile"), err)
 		}
 		for _, row := range rows {
 			url := build(row.ProviderLogin)
@@ -690,7 +690,7 @@ func (s *Store) BackfillProfileURLs(ctx context.Context, provider string, build 
 			}
 			n, err := q.SetContributorProfileURL(ctx, db.SetContributorProfileURLParams{ProfileURL: url, ID: row.ID})
 			if err != nil {
-				return fmt.Errorf("page de profil du contributeur %d : %w", row.ID, err)
+				return wrapErr(i18n.T("store.contrib.profile", row.ID), err)
 			}
 			filled += int(n)
 		}

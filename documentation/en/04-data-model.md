@@ -51,7 +51,7 @@ unique.
 | last_synced_at | Date of the last sync |
 | last_commit_at | Date of the last known commit, all tracked branches combined |
 | archived | Repository archived on GitHub |
-| flemme_after_days | Own "Flemme" (Slacking) threshold of the repository, at least 1 (empty = global value, 5 days by default); set by `repo add --flemme`, the `flemme` column of the import, the configuration sharing or the repository page in the web |
+| flemme_after_days | Own Slacking threshold of the repository, at least 1 (empty = global value, 5 days by default); set by `repo add --flemme`, the `flemme` column of the import, the configuration sharing or the repository page in the web |
 | dead_after_days | Own "Dead" threshold of the repository, at least 1 (empty = global value, 15 days by default); set the same way (`--dead`, `dead` column) |
 | enabled | Actively tracked, or stopped (`repo remove --keep-history`: history kept, no more sync; `repo add` reactivates it) |
 | branch_patterns | Branches to track (`--branch`, `branches` column of the import): names and `path.Match` patterns separated by commas (`main,dev,release/*`); empty = all the branches. Added by the migration `00002` |
@@ -170,7 +170,7 @@ Primary key: **`(repo_id, sha, branch_id)`**. Foreign key `(repo_id, sha)` to `c
 | finished_at | End |
 | new_commits | Number of new commits fetched |
 | status | `running`, `success` or `error` |
-| error | Optional error message, in French, with no personal data |
+| error | Optional error message, in the language active at sync time (English or French), with no personal data |
 
 The last `sync_run` of a repository gives the Error state. A `running` `sync_run` also serves as a
 **lock**: see [Architecture](03-architecture.md#sync-frequency).
@@ -204,8 +204,8 @@ removed, except with its repository.
   contributor is the author of at least one commit, and an author of PRs without a commit must not
   appear in the ranking. The matching stays possible through `author_provider_id` =
   `contributors.provider_user_id`.
-- **Displayed state**: "ouverte" ("open") (or "brouillon" ("draft")), "mergée" ("merged") (`merged`) or
-  "fermée" ("closed") (closed without merge).
+- **Displayed state**: "open" (or "draft"), "merged" (`merged`) or "closed" (closed
+  without merge).
 
 ### `releases` — releases (V2)
 
@@ -318,7 +318,7 @@ a renaming is only followed at the next sync through the API.
   generates `string` or `sql.NullString`): the `string` ↔ `time.Time` conversion is done explicitly in
   `internal/store` (`FormatTime` / `ParseTime`), because the `modernc` driver does not write this format
   by itself. The format is also checked in the database by a `CHECK` constraint.
-- **Conversion to local time at display only** (CLI, TUI, web): relative dates ("il y a 2 h" ("2 h ago"))
+- **Conversion to local time at display only** (CLI, TUI, web): relative dates ("2 h ago")
   or local date and time.
 - **"Per day / week" groupings** (charts, stats): according to the **user's time zone**, the system's by
   default or the one set in the config. Otherwise, a commit made at 11 p.m. in Paris would fall on the

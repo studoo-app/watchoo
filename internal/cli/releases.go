@@ -5,13 +5,14 @@ package cli
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/studoo-app/watchoo/internal/activity"
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/provider"
 	"github.com/studoo-app/watchoo/internal/store"
@@ -53,17 +54,8 @@ func newReleasesCmd(deps Deps, opts *options) *cobra.Command {
 	var limit int
 	cmd := &cobra.Command{
 		Use:   "releases",
-		Short: "Affiche les releases et les tags des dépôts suivis",
-		Long: `Affiche les releases enregistrées par les synchros, de la plus récente à la plus
-ancienne (date de publication, ou de création pour un brouillon), puis les tags, du
-commit le plus récent au plus ancien (date du commit visé s'il est en base, sinon -).
-
-Les brouillons de release ne sont visibles que si le compte gh a le droit d'écriture
-sur le dépôt (règle de GitHub).
-
-Options :
-  --repo     un dépôt suivi (owner/repo ou URL)
-  -n         nombre maximum de releases, et de tags (20 par défaut, 0 = tout)`,
+		Short: i18n.T("cli.sync.releases_short"),
+		Long:  i18n.T("cli.sync.releases_long"),
 		Example: `  watchoo releases
   watchoo releases --repo alice/projet-licence --json`,
 		Args: noArgs,
@@ -71,15 +63,15 @@ Options :
 			return runReleases(cmd.Context(), deps, opts, repo, limit)
 		},
 	}
-	cmd.Flags().StringVar(&repo, "repo", "", "limite au `dépôt` owner/repo")
-	cmd.Flags().IntVarP(&limit, "limit", "n", defaultPRLimit, "`nombre` maximum de releases et de tags, 0 = tout")
+	cmd.Flags().StringVar(&repo, "repo", "", i18n.T("cli.sync.flag_repo"))
+	cmd.Flags().IntVarP(&limit, "limit", "n", defaultPRLimit, i18n.T("cli.sync.flag_releases_limit"))
 	return cmd
 }
 
 // runReleases affiche les releases puis les tags.
 func runReleases(ctx context.Context, deps Deps, opts *options, repoRef string, limit int) (err error) {
 	if limit < 0 {
-		return fmt.Errorf("-n %d invalide : attendu un nombre positif (0 = tout)", limit)
+		return errors.New(i18n.T("cli.sync.releases_bad_limit", limit))
 	}
 	s, err := openSession(ctx, deps, opts)
 	if err != nil {
@@ -131,16 +123,16 @@ func runReleases(ctx context.Context, deps Deps, opts *options, repoRef string, 
 		return writeJSON(deps.Stdout, report)
 	}
 
-	where := " en base (lancez « watchoo sync »)"
+	where := i18n.T("cli.sync.filter_in_db")
 	if repoRef != "" {
-		where = " pour le dépôt " + repoRef
+		where = i18n.T("cli.sync.releases_filter_repo", repoRef)
 	}
 	st := outputStyle(deps, opts)
 	now := s.now()
 	var b strings.Builder
 	b.WriteString(st.bold("Releases") + "\n")
 	if len(releases) == 0 {
-		b.WriteString("Aucune release" + where + ".\n")
+		b.WriteString(i18n.T("cli.sync.releases_none", where))
 	} else {
 		rows := make([][]string, len(releases))
 		for i, r := range releases {
@@ -153,12 +145,15 @@ func runReleases(ctx context.Context, deps Deps, opts *options, repoRef string, 
 				cmpOr(r.AuthorLogin, "-"),
 			}
 		}
-		headers := []string{"Date", st.pick("Dépôt", "Depot"), "Tag", "Titre", st.pick("État", "Etat"), "Auteur"}
+		headers := []string{"Date", st.pick(i18n.T("cli.sync.header_repo"), i18n.T("cli.sync.header_repo_ascii")),
+			"Tag", i18n.T("cli.sync.header_title"),
+			st.pick(i18n.T("cli.sync.header_state"), i18n.T("cli.sync.header_state_ascii")),
+			i18n.T("cli.sync.header_author")}
 		b.WriteString(renderTable(st, headers, rows, func(row int) bool { return releases[row].Draft }))
 	}
 	b.WriteString("\n" + st.bold("Tags") + "\n")
 	if len(tags) == 0 {
-		b.WriteString("Aucun tag" + where + ".\n")
+		b.WriteString(i18n.T("cli.sync.tags_none", where))
 	} else {
 		rows := make([][]string, len(tags))
 		for i, t := range tags {
@@ -168,20 +163,22 @@ func runReleases(ctx context.Context, deps Deps, opts *options, repoRef string, 
 			}
 			rows[i] = []string{t.RepoDisplayName(), t.Name, provider.ShortSHA(t.SHA), date}
 		}
-		headers := []string{st.pick("Dépôt", "Depot"), "Tag", "Commit", "Date du commit"}
+		headers := []string{st.pick(i18n.T("cli.sync.header_repo"), i18n.T("cli.sync.header_repo_ascii")),
+			"Tag", "Commit", i18n.T("cli.sync.header_commit_date")}
 		b.WriteString(renderTable(st, headers, rows, nil))
 	}
 	return writeText(deps.Stdout, b.String())
 }
 
-// releaseStatusText renvoie l'état affiché d'une release : brouillon, pré-release ou publiée.
+// releaseStatusText renvoie l'état affiché d'une release : brouillon, pré-release ou publiée ; la
+// variante ASCII (st.pick) ne sert qu'aux accents du texte français.
 func releaseStatusText(st textStyle, r model.Release) string {
 	switch {
 	case r.Draft:
-		return "brouillon"
+		return i18n.T("cli.sync.prs_status_draft")
 	case r.Prerelease:
-		return st.pick("pré-release", "pre-release")
+		return st.pick(i18n.T("cli.sync.release_status_prerelease"), i18n.T("cli.sync.release_status_prerelease_ascii"))
 	default:
-		return st.pick("publiée", "publiee")
+		return st.pick(i18n.T("cli.sync.release_status_published"), i18n.T("cli.sync.release_status_published_ascii"))
 	}
 }

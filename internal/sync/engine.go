@@ -25,7 +25,6 @@ package sync
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"strings"
 	"time"
@@ -33,6 +32,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/studoo-app/watchoo/internal/auth"
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/provider"
 	gitprov "github.com/studoo-app/watchoo/internal/provider/git"
@@ -78,17 +78,18 @@ const (
 // Source décrit la source choisie pour la prochaine synchro.
 type Source struct {
 	Kind SourceKind
-	// Reason explique le choix de SourceGit (message de gh : introuvable, non connecté), en français,
-	// sans token ; vide pour SourceAPI.
+	// Reason explique le choix de SourceGit (message de gh : introuvable, non connecté), dans la
+	// langue du processus, sans token ; vide pour SourceAPI.
 	Reason string
 }
 
-// Label renvoie le nom de la source à afficher : « API GitHub » ou « clones Git locaux ».
+// Label renvoie le nom de la source à afficher, dans la langue du processus : « GitHub API » ou
+// « local Git clones » (« API GitHub » ou « clones Git locaux » en français).
 func (s Source) Label() string {
 	if s.Kind == SourceGit {
-		return "clones Git locaux"
+		return i18n.T("sync.source.git")
 	}
-	return "API GitHub"
+	return i18n.T("sync.source.api")
 }
 
 // Options règle New.
@@ -136,10 +137,10 @@ type Engine struct {
 // New vérifie les options et construit un Engine (aucun appel à gh ni à la forge).
 func New(opts Options) (*Engine, error) {
 	if opts.Store == nil {
-		return nil, errors.New("moteur de synchro : base non renseignée")
+		return nil, errors.New(i18n.T("sync.engine.no_store"))
 	}
 	if opts.Auth == nil {
-		return nil, errors.New("moteur de synchro : accès à gh non renseigné")
+		return nil, errors.New(i18n.T("sync.engine.no_auth"))
 	}
 	logger := opts.Logger
 	if logger == nil {
@@ -199,7 +200,7 @@ type SyncOptions struct {
 //     QuotaReservePercent, ce dépôt et les suivants sont reportés (StatusDeferred, ResumeAt = Reset) ;
 //  4. verrou store.BeginSyncRun(LockStaleAfter) : store.ErrLocked → StatusLocked, rien d'autre ;
 //  5. synchro du dépôt (voir SyncRepo) ; une erreur est enregistrée avec store.FinishSyncRun
-//     (message en français, sans donnée personnelle) et n'arrête pas les autres dépôts ;
+//     (message dans la langue du processus, sans donnée personnelle) et n'arrête pas les autres dépôts ;
 //  6. une *provider.RateLimitError arrête la synchro des dépôts pas encore commencés : ils sont
 //     reportés (StatusDeferred, ResumeAt = RateLimitError.Reset) ; celui qui l'a reçue est en
 //     StatusError.
@@ -209,7 +210,7 @@ type SyncOptions struct {
 func (e *Engine) SyncAll(ctx context.Context, opts SyncOptions) (Report, error) {
 	all, err := e.store.ListRepositories(ctx)
 	if err != nil {
-		return e.emptyReport(opts), fmt.Errorf("synchronisation : %w", err)
+		return e.emptyReport(opts), errWrapped(i18n.T("sync.engine.sync"), err)
 	}
 	repos := make([]model.Repository, 0, len(all))
 	for _, r := range all {
@@ -219,7 +220,7 @@ func (e *Engine) SyncAll(ctx context.Context, opts SyncOptions) (Report, error) 
 	}
 	report, err := e.run(ctx, repos, opts)
 	if err != nil {
-		return report, fmt.Errorf("synchronisation : %w", err)
+		return report, errWrapped(i18n.T("sync.engine.sync"), err)
 	}
 	return report, nil
 }
@@ -255,11 +256,11 @@ func (e *Engine) SyncAll(ctx context.Context, opts SyncOptions) (Report, error) 
 func (e *Engine) SyncRepo(ctx context.Context, repoID int64, opts SyncOptions) (Report, error) {
 	repo, err := e.store.GetRepository(ctx, repoID)
 	if err != nil {
-		return e.emptyReport(opts), fmt.Errorf("synchronisation du dépôt %d : %w", repoID, err)
+		return e.emptyReport(opts), errWrapped(i18n.T("sync.engine.sync_id", repoID), err)
 	}
 	report, err := e.run(ctx, []model.Repository{repo}, opts)
 	if err != nil {
-		return report, fmt.Errorf("synchronisation du dépôt %s : %w", repo.FullName(), err)
+		return report, errWrapped(i18n.T("sync.engine.sync_repo", repo.FullName()), err)
 	}
 	return report, nil
 }
@@ -270,11 +271,11 @@ func (e *Engine) SyncRepo(ctx context.Context, repoID int64, opts SyncOptions) (
 func (e *Engine) RateLimit(ctx context.Context) (provider.RateLimit, error) {
 	prov, _, _, err := e.openProvider(ctx)
 	if err != nil {
-		return provider.RateLimit{}, fmt.Errorf("lecture du quota : %w", err)
+		return provider.RateLimit{}, errWrapped(i18n.T("sync.engine.rate_limit"), err)
 	}
 	rl, err := prov.RateLimit(ctx)
 	if err != nil {
-		return provider.RateLimit{}, fmt.Errorf("lecture du quota : %w", err)
+		return provider.RateLimit{}, errWrapped(i18n.T("sync.engine.rate_limit"), err)
 	}
 	return rl, nil
 }
@@ -299,7 +300,7 @@ func (e *Engine) chooseSource(ctx context.Context) (string, Source, error) {
 	case auth.Absent(err):
 		return "", Source{Kind: SourceGit, Reason: err.Error()}, nil
 	default:
-		return "", Source{}, fmt.Errorf("lecture du token GitHub : %w", err)
+		return "", Source{}, errWrapped(i18n.T("sync.engine.token"), err)
 	}
 }
 
@@ -320,23 +321,23 @@ func (e *Engine) openProvider(ctx context.Context) (provider.Provider, func(stri
 		}
 		prov, err := e.newGit(CloneRefs(all))
 		if err == nil && prov == nil {
-			err = errors.New("répertoire des clones Git locaux non renseigné")
+			err = errors.New(i18n.T("sync.engine.no_repos_dir"))
 		}
 		if err != nil {
-			return nil, nil, Source{}, fmt.Errorf("dépôts Git locaux (gh absent ou non connecté) : %w", err)
+			return nil, nil, Source{}, errWrapped(i18n.T("sync.engine.git_source"), err)
 		}
 		e.logger.Debug("synchro par clones Git locaux : gh absent ou non connecté")
 		return prov, func(msg string) string { return msg }, src, nil
 	}
 	prov, err := e.newProvider(token)
 	if err != nil {
-		return nil, nil, Source{}, fmt.Errorf("connexion à GitHub : %w", err)
+		return nil, nil, Source{}, errWrapped(i18n.T("sync.engine.connect"), err)
 	}
 	redact := func(msg string) string {
 		if token == "" {
 			return msg
 		}
-		return strings.ReplaceAll(msg, token, "[token masqué]")
+		return strings.ReplaceAll(msg, token, i18n.T("sync.token_redacted"))
 	}
 	return prov, redact, src, nil
 }

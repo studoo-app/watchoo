@@ -7,19 +7,20 @@ package store
 // Les méthodes correspondantes sont dans repositories.go, syncruns.go, syncwrite.go et views.go.
 
 import (
-	"errors"
 	"time"
 
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/model"
 )
 
 // ErrLocked : une synchro du dépôt est déjà en cours (sync_run « running » commencé il y a moins de
 // staleAfter, voir BeginSyncRun). À tester avec errors.Is.
-var ErrLocked = errors.New("déjà en cours de synchronisation")
+var ErrLocked error = i18nError{"store.err.locked"}
 
-// InterruptedMessage est le message enregistré dans sync_runs.error quand BeginSyncRun clôt un
-// sync_run « running » trop ancien (processus arrêté en pleine synchro).
-const InterruptedMessage = "synchro interrompue"
+// InterruptedMessage renvoie le message enregistré dans sync_runs.error quand BeginSyncRun clôt un
+// sync_run « running » trop ancien (processus arrêté en pleine synchro), dans la langue du processus
+// au moment de la synchro.
+func InterruptedMessage() string { return i18n.T("store.runs.interrupted") }
 
 // Identity est l'auteur ou le committer d'un commit à enregistrer (voir ApplyRepoSync). Name et Email
 // sont des données personnelles : jamais dans les logs ni dans les erreurs.

@@ -18,6 +18,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/provider"
 )
 
@@ -256,7 +257,8 @@ func (t *transport) RoundTrip(req *http.Request) (*http.Response, error) {
 	if req.Method != http.MethodGet && req.Method != http.MethodHead {
 		closeRequestBody(req)
 		t.debug(ctx, "requête en écriture bloquée", req.Method, path)
-		return nil, fmt.Errorf("requête %s %s bloquée : %w", req.Method, path, provider.ErrWriteForbidden)
+		return nil, fmt.Errorf("%s%s%w", i18n.T("provider.github.transport.write_blocked", req.Method, path),
+			i18n.T("provider.err.sep"), provider.ErrWriteForbidden)
 	}
 
 	// 2. Refus préventif : quota épuisé ou limite secondaire en cours.

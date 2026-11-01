@@ -7,12 +7,23 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+
+	"github.com/studoo-app/watchoo/internal/i18n"
 )
 
-// isolateEnv isole un test de l'environnement du développeur : HOME et XDG_CONFIG_HOME pointent vers
-// des répertoires temporaires vides, et toutes les variables WATCHOO_* (WATCHOO_DIR compris) sont
-// retirées. Elle renvoie le chemin du fichier de réglages utilisateur (sous XDG_CONFIG_HOME), qui
-// n'existe pas encore. Les tests qui l'appellent ne peuvent pas être parallèles (t.Setenv).
+// TestMain forces the process language for the whole package: the tests' expected texts are
+// written in English, regardless of WATCHOO_LANG and the machine's locale (see
+// documentation/en/09-testing.md, "Languages in tests"). No restoring: English stays the
+// language of the tests; the test dedicated to French forces its own language and restores it.
+func TestMain(m *testing.M) {
+	i18n.SetProcessForTest(i18n.English)
+	os.Exit(m.Run())
+}
+
+// isolateEnv isolates a test from the developer's environment: HOME and XDG_CONFIG_HOME point to
+// empty temporary directories, and all the WATCHOO_* variables (WATCHOO_DIR included) are removed.
+// It returns the path of the user settings file (under XDG_CONFIG_HOME), which does not exist yet.
+// The tests that call it cannot be parallel (t.Setenv).
 func isolateEnv(t *testing.T) string {
 	t.Helper()
 	base := t.TempDir()
@@ -28,7 +39,7 @@ func isolateEnv(t *testing.T) string {
 	for _, kv := range os.Environ() {
 		name, _, _ := strings.Cut(kv, "=")
 		if strings.HasPrefix(name, EnvPrefix+"_") {
-			t.Setenv(name, "") // restaurée à la fin du test
+			t.Setenv(name, "") // restored at the end of the test
 			if err := os.Unsetenv(name); err != nil {
 				t.Fatal(err)
 			}
@@ -37,7 +48,7 @@ func isolateEnv(t *testing.T) string {
 	return filepath.Join(xdg, UserConfigDirName, ConfigFileName)
 }
 
-// newDir crée le répertoire parent/elems… (avec ses parents) et renvoie son chemin.
+// newDir creates the directory parent/elems… (with its parents) and returns its path.
 func newDir(t *testing.T, parent string, elems ...string) string {
 	t.Helper()
 	dir := filepath.Join(append([]string{parent}, elems...)...)
@@ -47,7 +58,7 @@ func newDir(t *testing.T, parent string, elems ...string) string {
 	return dir
 }
 
-// writeFile écrit content dans path, en créant les répertoires parents.
+// writeFile writes content to path, creating the parent directories.
 func writeFile(t *testing.T, path, content string) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -58,7 +69,7 @@ func writeFile(t *testing.T, path, content string) {
 	}
 }
 
-// readFile renvoie le contenu de path.
+// readFile returns the content of path.
 func readFile(t *testing.T, path string) string {
 	t.Helper()
 	data, err := os.ReadFile(path)
@@ -68,23 +79,23 @@ func readFile(t *testing.T, path string) string {
 	return string(data)
 }
 
-// mustInit crée un espace dans root et échoue le test en cas d'erreur.
+// mustInit creates a workspace in root and fails the test on error.
 func mustInit(t *testing.T, root string) *Workspace {
 	t.Helper()
 	res, err := Init(root)
 	if err != nil {
-		t.Fatalf("Init(%s) : %v", root, err)
+		t.Fatalf("Init(%s): %v", root, err)
 	}
 	return res.Workspace
 }
 
-// requireNoWorkspaceAbove saute le test si un espace Watchoo existe déjà au-dessus de dir (répertoire
-// temporaire du système) : la recherche dans les parents le trouverait.
+// requireNoWorkspaceAbove skips the test if a Watchoo workspace already exists above dir (system
+// temporary directory): the search in the parents would find it.
 func requireNoWorkspaceAbove(t *testing.T, dir string) {
 	t.Helper()
 	for d := filepath.Dir(dir); ; d = filepath.Dir(d) {
 		if info, err := os.Stat(filepath.Join(d, DirName)); err == nil && info.IsDir() {
-			t.Skipf("un espace Watchoo existe au-dessus du répertoire temporaire : %s", d)
+			t.Skipf("a Watchoo workspace exists above the temporary directory: %s", d)
 		}
 		if filepath.Dir(d) == d {
 			return
@@ -92,7 +103,7 @@ func requireNoWorkspaceAbove(t *testing.T, dir string) {
 	}
 }
 
-// assertMode vérifie les droits de path (ignoré sous Windows, qui n'a pas de droits Unix).
+// assertMode checks the permissions of path (ignored on Windows, which has no Unix permissions).
 func assertMode(t *testing.T, path string, want fs.FileMode) {
 	t.Helper()
 	if runtime.GOOS == "windows" {
@@ -103,19 +114,19 @@ func assertMode(t *testing.T, path string, want fs.FileMode) {
 		t.Fatal(err)
 	}
 	if got := info.Mode().Perm(); got != want {
-		t.Errorf("droits de %s = %#o, attendu %#o", path, got, want)
+		t.Errorf("permissions of %s = %#o, want %#o", path, got, want)
 	}
 }
 
-// assertErrorContains vérifie que err n'est pas nil et que son message contient chacun des extraits.
+// assertErrorContains checks that err is not nil and that its message contains each of the parts.
 func assertErrorContains(t *testing.T, err error, parts ...string) {
 	t.Helper()
 	if err == nil {
-		t.Fatalf("erreur attendue contenant %q, reçu nil", parts)
+		t.Fatalf("want an error containing %q, got nil", parts)
 	}
 	for _, part := range parts {
 		if !strings.Contains(err.Error(), part) {
-			t.Errorf("message d'erreur sans %q :\n%v", part, err)
+			t.Errorf("error message without %q:\n%v", part, err)
 		}
 	}
 }

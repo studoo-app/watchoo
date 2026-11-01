@@ -16,13 +16,13 @@ import (
 	"time"
 )
 
-// Pagination de l'API GitHub.
+// Pagination of the GitHub API.
 const (
 	defaultPerPage = 30
 	maxPerPage     = 100
 )
 
-// Liens de documentation repris dans les corps d'erreur, comme le fait GitHub.
+// Documentation links quoted in the error bodies, as GitHub does.
 const (
 	docsREST          = "https://docs.github.com/rest"
 	docsRedirects     = "https://docs.github.com/v3/#http-redirects"
@@ -43,7 +43,7 @@ const (
 	messageValidation = "Validation Failed"
 )
 
-// reply est une réponse calculée sous le verrou du serveur, écrite ensuite.
+// reply is a response computed under the server's lock, written afterwards.
 type reply struct {
 	status int
 	header http.Header
@@ -51,11 +51,11 @@ type reply struct {
 	delay  time.Duration
 }
 
-// serveHTTP est le gestionnaire du faux serveur (voir la documentation du package pour l'ordre des
-// étapes).
+// serveHTTP is the handler of the fake server (see the package documentation for the order of the
+// steps).
 func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {
-		s.tb.Errorf("githubtest : requête %s %s reçue : Watchoo ne doit envoyer que des GET et des HEAD", r.Method, r.URL.Path)
+		s.tb.Errorf("githubtest: request %s %s received: Watchoo must only send GET and HEAD", r.Method, r.URL.Path)
 		w.Header().Set("Allow", "GET, HEAD")
 		w.Header().Set("Content-Type", contentTypeJSON)
 		w.WriteHeader(http.StatusMethodNotAllowed)
@@ -68,7 +68,7 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	s.mu.Unlock()
 
 	if rep.delay > 0 && !s.wait(r.Context(), rep.delay) {
-		// Client parti ou serveur arrêté : la connexion est coupée sans réponse (et sans log).
+		// Client gone or server stopped: the connection is cut without response (and without log).
 		panic(http.ErrAbortHandler)
 	}
 	h := w.Header()
@@ -81,8 +81,8 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// wait attend d pendant le traitement d'une requête ; false si le client a abandonné la requête ou si
-// le serveur s'arrête entre-temps.
+// wait waits d while handling a request; false if the client abandoned the request or if the
+// server stops in the meantime.
 func (s *Server) wait(ctx context.Context, d time.Duration) bool {
 	timer := time.NewTimer(d)
 	defer timer.Stop()
@@ -96,7 +96,7 @@ func (s *Server) wait(ctx context.Context, d time.Duration) bool {
 	}
 }
 
-// respond journalise r et calcule sa réponse. Appelée avec s.mu verrouillé.
+// respond logs r and computes its response. Called with s.mu locked.
 func (s *Server) respond(r *http.Request) reply {
 	auth := r.Header.Values("Authorization")
 	entry := &Request{
@@ -115,8 +115,8 @@ func (s *Server) respond(r *http.Request) reply {
 	return rep
 }
 
-// validAuthorization indique si v vaut « Bearer <token> » ou « token <token> » (schéma sans tenir
-// compte de la casse).
+// validAuthorization reports whether v is "Bearer <token>" or "token <token>" (case-insensitive
+// scheme).
 func (s *Server) validAuthorization(v string) bool {
 	scheme, cred, ok := strings.Cut(v, " ")
 	if !ok || !(strings.EqualFold(scheme, "Bearer") || strings.EqualFold(scheme, "token")) {
@@ -125,7 +125,7 @@ func (s *Server) validAuthorization(v string) bool {
 	return subtle.ConstantTimeCompare([]byte(cred), []byte(s.token)) == 1
 }
 
-// reply calcule la réponse à une requête GET ou HEAD (étapes 3 à 8). Appelée avec s.mu verrouillé.
+// reply computes the response to a GET or HEAD request (steps 3 to 8). Called with s.mu locked.
 func (s *Server) reply(r *http.Request, validToken bool) reply {
 	now := s.clock()
 	if !validToken {
@@ -135,7 +135,7 @@ func (s *Server) reply(r *http.Request, validToken bool) reply {
 	path := r.URL.Path
 	free := path == "/rate_limit"
 
-	// 4. Réponse injectée.
+	// 4. Injected response.
 	if inj, ok := s.injections[path]; ok {
 		if inj.left > 0 {
 			inj.left--
@@ -155,7 +155,7 @@ func (s *Server) reply(r *http.Request, validToken bool) reply {
 		return rep
 	}
 
-	// 5. Limite secondaire.
+	// 5. Secondary limit.
 	if sec := s.secondary; sec != nil && !free {
 		sec.left--
 		if sec.left <= 0 {
@@ -173,14 +173,14 @@ func (s *Server) reply(r *http.Request, validToken bool) reply {
 		return rep
 	}
 
-	// 6. Quota épuisé.
+	// 6. Exhausted quota.
 	if s.quota.remaining <= 0 && now.Before(s.quota.reset) && !free {
 		rep := s.jsonReply(now, s.quota.status, errorJSON(messagePrimary, docsPrimaryLimit, s.quota.status))
 		s.setQuotaHeaders(rep.header)
 		return rep
 	}
 
-	// 7. Routage, puis 8. ETag.
+	// 7. Routing, then 8. ETag.
 	rep := s.route(r, now)
 	if rep.status == http.StatusOK {
 		applyETag(&rep, r.Header.Values("If-None-Match"))
@@ -192,8 +192,8 @@ func (s *Server) reply(r *http.Request, validToken bool) reply {
 	return rep
 }
 
-// renewQuota ouvre une nouvelle fenêtre de quota si la précédente est échue. Appelée avec s.mu
-// verrouillé.
+// renewQuota opens a new quota window if the previous one has expired. Called with s.mu
+// locked.
 func (s *Server) renewQuota(now time.Time) {
 	if now.Before(s.quota.reset) {
 		return
@@ -202,7 +202,7 @@ func (s *Server) renewQuota(now time.Time) {
 	s.quota.reset = now.Add(quotaWindow).Truncate(time.Second)
 }
 
-// consumeQuota décompte une requête. Appelée avec s.mu verrouillé.
+// consumeQuota counts one request. Called with s.mu locked.
 func (s *Server) consumeQuota() {
 	if s.quota.remaining > 0 {
 		s.quota.remaining--
@@ -210,7 +210,7 @@ func (s *Server) consumeQuota() {
 	}
 }
 
-// setQuotaHeaders pose les en-têtes de quota de la ressource core. Appelée avec s.mu verrouillé.
+// setQuotaHeaders sets the quota headers of the core resource. Called with s.mu locked.
 func (s *Server) setQuotaHeaders(h http.Header) {
 	h.Set("X-RateLimit-Limit", strconv.Itoa(s.quota.limit))
 	h.Set("X-RateLimit-Remaining", strconv.Itoa(s.quota.remaining))
@@ -219,7 +219,7 @@ func (s *Server) setQuotaHeaders(h http.Header) {
 	h.Set("X-RateLimit-Resource", "core")
 }
 
-// newReply prépare une réponse avec les en-têtes communs à toutes les réponses de GitHub.
+// newReply prepares a response with the headers common to all GitHub responses.
 func (s *Server) newReply(now time.Time, status int, body []byte) reply {
 	h := make(http.Header)
 	h.Set("Date", now.Format(http.TimeFormat))
@@ -232,13 +232,13 @@ func (s *Server) newReply(now time.Time, status int, body []byte) reply {
 	return reply{status: status, header: h, body: body}
 }
 
-// jsonReply prépare une réponse dont le corps est v encodé en JSON.
+// jsonReply prepares a response whose body is v encoded as JSON.
 func (s *Server) jsonReply(now time.Time, status int, v any) reply {
 	return s.newReply(now, status, s.marshal(v))
 }
 
-// applyETag pose l'ETag faible d'une réponse 200, ou la transforme en 304 si l'un des If-None-Match
-// reçus correspond.
+// applyETag sets the weak ETag of a 200 response, or turns it into a 304 if one of the received
+// If-None-Match matches.
 func applyETag(rep *reply, ifNoneMatch []string) {
 	sum := sha256.Sum256(rep.body)
 	tag := `"` + hex.EncodeToString(sum[:]) + `"`
@@ -253,8 +253,8 @@ func applyETag(rep *reply, ifNoneMatch []string) {
 	rep.header.Set("ETag", "W/"+tag)
 }
 
-// etagMatches indique si l'un des en-têtes If-None-Match (listes séparées par des virgules, ETag
-// faibles ou forts, ou « * ») désigne tag (ETag fort, entre guillemets).
+// etagMatches reports whether one of the If-None-Match headers (comma-separated lists, weak or
+// strong ETags, or "*") designates tag (strong ETag, in quotes).
 func etagMatches(headers []string, tag string) bool {
 	for _, h := range headers {
 		for part := range strings.SplitSeq(h, ",") {
@@ -267,9 +267,9 @@ func etagMatches(headers []string, tag string) bool {
 	return false
 }
 
-// ----- Routage -----
+// ----- Routing -----
 
-// route sert les routes de l'API simulée. Appelée avec s.mu verrouillé.
+// route serves the routes of the simulated API. Called with s.mu locked.
 func (s *Server) route(r *http.Request, now time.Time) reply {
 	esc := strings.Split(strings.TrimPrefix(r.URL.EscapedPath(), "/"), "/")
 	segs := make([]string, len(esc))
@@ -304,13 +304,13 @@ func (s *Server) route(r *http.Request, now time.Time) reply {
 	return s.notFound(now)
 }
 
-// notFound renvoie la réponse 404 de GitHub.
+// notFound returns GitHub's 404 response.
 func (s *Server) notFound(now time.Time) reply {
 	return s.jsonReply(now, http.StatusNotFound, errorJSON(messageNotFound, docsREST, http.StatusNotFound))
 }
 
-// denied renvoie la réponse d'un dépôt inaccessible (404 ou 403 SSO) et true, ou false si l'accès est
-// accordé.
+// denied returns the response of an inaccessible repository (404 or 403 SSO) and true, or false if
+// access is granted.
 func (s *Server) denied(repo *repoState, now time.Time) (reply, bool) {
 	switch repo.access {
 	case AccessHidden:
@@ -323,7 +323,7 @@ func (s *Server) denied(repo *repoState, now time.Time) (reply, bool) {
 	return reply{}, false
 }
 
-// redirect renvoie la redirection 301 d'un ancien nom vers /repositories/{id}/…, paramètres compris.
+// redirect returns the 301 redirection of an old name to /repositories/{id}/…, parameters included.
 func (s *Server) redirect(repo *repoState, escRest []string, r *http.Request, now time.Time) reply {
 	loc := s.repositoriesURL(repo, escRest)
 	if r.URL.RawQuery != "" {
@@ -338,8 +338,8 @@ func (s *Server) redirect(repo *repoState, escRest []string, r *http.Request, no
 	return rep
 }
 
-// repositoriesURL renvoie l'URL absolue URL()+"repositories/{id}" suivie du reste du chemin (segments
-// déjà échappés).
+// repositoriesURL returns the absolute URL URL()+"repositories/{id}" followed by the rest of the path
+// (segments already escaped).
 func (s *Server) repositoriesURL(repo *repoState, escRest []string) string {
 	u := s.URL() + "repositories/" + strconv.FormatInt(repo.ID, 10)
 	if len(escRest) > 0 {
@@ -348,7 +348,7 @@ func (s *Server) repositoriesURL(repo *repoState, escRest []string) string {
 	return u
 }
 
-// repoRoute sert les routes d'un dépôt trouvé par son nom actuel ou son identifiant.
+// repoRoute serves the routes of a repository found by its current name or its identifier.
 func (s *Server) repoRoute(repo *repoState, rest, escRest []string, r *http.Request, now time.Time) reply {
 	if rep, denied := s.denied(repo, now); denied {
 		return rep
@@ -386,12 +386,12 @@ func (s *Server) repoRoute(repo *repoState, rest, escRest []string, r *http.Requ
 	return s.notFound(now)
 }
 
-// emptyRepo renvoie la réponse 409 d'un dépôt sans commit.
+// emptyRepo returns the 409 response of a repository without commit.
 func (s *Server) emptyRepo(now time.Time) reply {
 	return s.jsonReply(now, http.StatusConflict, errorJSON(messageEmptyRepo, docsListCommits, http.StatusConflict))
 }
 
-// branchesReply sert GET …/branches.
+// branchesReply serves GET …/branches.
 func (s *Server) branchesReply(repo *repoState, q url.Values, linkBase string, now time.Time) reply {
 	names := make([]string, 0, len(repo.branches))
 	for name := range repo.branches {
@@ -408,7 +408,7 @@ func (s *Server) branchesReply(repo *repoState, q url.Values, linkBase string, n
 	return rep
 }
 
-// commitsReply sert GET …/commits.
+// commitsReply serves GET …/commits.
 func (s *Server) commitsReply(repo *repoState, q url.Values, linkBase string, now time.Time) reply {
 	ref := q.Get("sha")
 	if ref == "" {
@@ -441,7 +441,7 @@ func (s *Server) commitsReply(repo *repoState, q url.Values, linkBase string, no
 	return rep
 }
 
-// commitReply sert GET …/commits/{ref}.
+// commitReply serves GET …/commits/{ref}.
 func (s *Server) commitReply(repo *repoState, ref string, now time.Time) reply {
 	sha, ok := resolveRef(repo, ref)
 	if !ok {
@@ -450,7 +450,7 @@ func (s *Server) commitReply(repo *repoState, ref string, now time.Time) reply {
 	return s.jsonReply(now, http.StatusOK, s.commitJSON(repo, repo.commits[sha], true))
 }
 
-// compareReply sert GET …/compare/{base}...{head}.
+// compareReply serves GET …/compare/{base}...{head}.
 func (s *Server) compareReply(repo *repoState, spec string, q url.Values, linkBase string, now time.Time) reply {
 	baseRef, headRef, ok := strings.Cut(spec, "...")
 	if !ok {
@@ -480,7 +480,7 @@ func (s *Server) compareReply(repo *repoState, spec string, q url.Values, linkBa
 		return s.notFound(now)
 	}
 	slices.SortFunc(common, compareCommits)
-	mergeBase := common[len(common)-1] // le plus récent des ancêtres communs
+	mergeBase := common[len(common)-1] // the most recent of the common ancestors
 	slices.SortFunc(ahead, compareCommits)
 
 	status := "identical"
@@ -503,8 +503,8 @@ func (s *Server) compareReply(repo *repoState, spec string, q url.Values, linkBa
 	return rep
 }
 
-// parseQueryTime lit le paramètre de date name (RFC 3339) ; zéro s'il est absent, false s'il est
-// illisible.
+// parseQueryTime reads the date parameter name (RFC 3339); zero if it is missing, false if it is
+// unreadable.
 func parseQueryTime(q url.Values, name string) (time.Time, bool) {
 	v := q.Get(name)
 	if v == "" {
@@ -517,9 +517,9 @@ func parseQueryTime(q url.Values, name string) (time.Time, bool) {
 	return t.UTC(), true
 }
 
-// ----- Graphe des commits -----
+// ----- Commit graph -----
 
-// resolveRef résout ref en SHA : nom de branche d'abord, puis SHA complet d'un commit présent.
+// resolveRef resolves ref to a SHA: branch name first, then full SHA of a present commit.
 func resolveRef(repo *repoState, ref string) (string, bool) {
 	if sha, ok := repo.branches[ref]; ok {
 		return sha, true
@@ -530,8 +530,8 @@ func resolveRef(repo *repoState, ref string) (string, bool) {
 	return "", false
 }
 
-// reachable renvoie l'ensemble des SHA atteignables depuis head par les parents (head compris), en
-// ignorant les parents retirés (RemoveCommit).
+// reachable returns the set of SHAs reachable from head through the parents (head included),
+// ignoring the removed parents (RemoveCommit).
 func reachable(repo *repoState, head string) map[string]bool {
 	seen := make(map[string]bool)
 	stack := []string{head}
@@ -548,8 +548,8 @@ func reachable(repo *repoState, head string) map[string]bool {
 	return seen
 }
 
-// compareCommits ordonne deux commits du plus ancien au plus récent : date de commit, puis ordre
-// d'ajout.
+// compareCommits orders two commits from oldest to newest: commit date, then order of
+// addition.
 func compareCommits(a, b *commitState) int {
 	if c := a.CommittedAt.Compare(b.CommittedAt); c != 0 {
 		return c
@@ -557,7 +557,7 @@ func compareCommits(a, b *commitState) int {
 	return cmp.Compare(a.seq, b.seq)
 }
 
-// sortedCommits renvoie les commits de set triés du plus ancien au plus récent, ou l'inverse si
+// sortedCommits returns the commits of set sorted from oldest to newest, or the reverse if
 // newestFirst.
 func sortedCommits(repo *repoState, set map[string]bool, newestFirst bool) []*commitState {
 	out := make([]*commitState, 0, len(set))
@@ -573,14 +573,14 @@ func sortedCommits(repo *repoState, set map[string]bool, newestFirst bool) []*co
 
 // ----- Pagination -----
 
-// page est une page d'une liste : éléments [start, end), numéro et dernière page.
+// page is a page of a list: elements [start, end), number and last page.
 type page struct {
 	start, end int
 	number     int
 	last       int
 }
 
-// paginate découpe une liste de total éléments selon les paramètres per_page et page.
+// paginate cuts a list of total elements according to the per_page and page parameters.
 func paginate(total int, q url.Values) page {
 	perPage := defaultPerPage
 	if v, err := strconv.Atoi(q.Get("per_page")); err == nil && v > 0 {
@@ -599,8 +599,8 @@ func paginate(total int, q url.Values) page {
 	return p
 }
 
-// setLink pose l'en-tête Link de la page p (format GitHub : prev, next, last, first), sauf pour une
-// liste tenant sur la première page.
+// setLink sets the Link header of the page p (GitHub format: prev, next, last, first), except for a
+// list fitting on the first page.
 func setLink(h http.Header, base string, q url.Values, p page) {
 	if p.last <= 1 && p.number <= 1 {
 		return

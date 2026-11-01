@@ -21,7 +21,7 @@ func TestStatusLoggedIn(t *testing.T) {
 
 	st, err := fakeGH().Status(context.Background())
 	if err != nil {
-		t.Fatalf("Status : %v", err)
+		t.Fatalf("Status: %v", err)
 	}
 	want := Status{
 		Host:        "github.com",
@@ -32,16 +32,16 @@ func TestStatusLoggedIn(t *testing.T) {
 		Scopes:      []string{"gist", "read:org", "repo"},
 	}
 	if !reflect.DeepEqual(st, want) {
-		t.Errorf("Status = %+v, veut %+v", st, want)
+		t.Errorf("Status = %+v, want %+v", st, want)
 	}
 
 	calls := readCalls(t, env)
 	if len(calls) != 1 {
-		t.Fatalf("%d appels à gh, veut 1", len(calls))
+		t.Fatalf("%d calls to gh, want 1", len(calls))
 	}
 	wantArgs := []string{"auth", "status", "--json", "hosts", "--hostname", "github.com"}
 	if !reflect.DeepEqual(calls[0].Args, wantArgs) {
-		t.Errorf("arguments = %q, veut %q", calls[0].Args, wantArgs)
+		t.Errorf("arguments = %q, want %q", calls[0].Args, wantArgs)
 	}
 }
 
@@ -50,43 +50,43 @@ func TestTokenLoggedIn(t *testing.T) {
 
 	token, err := fakeGH().Token(context.Background())
 	if err != nil {
-		t.Fatalf("Token : %v", err)
+		t.Fatalf("Token: %v", err)
 	}
 	if token != fakeToken {
-		t.Errorf("Token a renvoyé une valeur inattendue (longueur %d)", len(token))
+		t.Errorf("Token returned an unexpected value (length %d)", len(token))
 	}
 
 	calls := readCalls(t, env)
 	if len(calls) != 1 {
-		t.Fatalf("%d appels à gh, veut 1", len(calls))
+		t.Fatalf("%d calls to gh, want 1", len(calls))
 	}
 	wantArgs := []string{"auth", "token", "--hostname", "github.com"}
 	if !reflect.DeepEqual(calls[0].Args, wantArgs) {
-		t.Errorf("arguments = %q, veut %q", calls[0].Args, wantArgs)
+		t.Errorf("arguments = %q, want %q", calls[0].Args, wantArgs)
 	}
 }
 
 func TestEnvironmentPassedToGH(t *testing.T) {
 	env := useScenario(t, "logged-in")
-	// Des valeurs contraires dans l'environnement hérité doivent être remplacées.
+	// Opposite values in the inherited environment must be replaced.
 	t.Setenv("GH_PROMPT_DISABLED", "0")
 	t.Setenv("GH_NO_UPDATE_NOTIFIER", "")
 
 	g := fakeGH()
 	if _, err := g.Status(context.Background()); err != nil {
-		t.Fatalf("Status : %v", err)
+		t.Fatalf("Status: %v", err)
 	}
 	if _, err := g.Token(context.Background()); err != nil {
-		t.Fatalf("Token : %v", err)
+		t.Fatalf("Token: %v", err)
 	}
 	calls := readCalls(t, env)
 	if len(calls) != 2 {
-		t.Fatalf("%d appels à gh, veut 2", len(calls))
+		t.Fatalf("%d calls to gh, want 2", len(calls))
 	}
 	for _, c := range calls {
 		for _, key := range []string{"GH_PROMPT_DISABLED", "GH_NO_UPDATE_NOTIFIER"} {
 			if got := c.Env[key]; got != "1" {
-				t.Errorf("appel %q : %s = %q, veut \"1\"", c.Args, key, got)
+				t.Errorf("call %q: %s = %q, want \"1\"", c.Args, key, got)
 			}
 		}
 	}
@@ -99,17 +99,17 @@ func TestCustomHost(t *testing.T) {
 
 	st, err := g.Status(context.Background())
 	if err != nil {
-		t.Fatalf("Status : %v", err)
+		t.Fatalf("Status: %v", err)
 	}
 	if st.Host != "ghe.example.test" {
-		t.Errorf("Host = %q, veut ghe.example.test", st.Host)
+		t.Errorf("Host = %q, want ghe.example.test", st.Host)
 	}
 	if _, err := g.Token(context.Background()); err != nil {
-		t.Fatalf("Token : %v", err)
+		t.Fatalf("Token: %v", err)
 	}
 	for _, c := range readCalls(t, env) {
 		if !containsSeq(c.Args, "--hostname", "ghe.example.test") {
-			t.Errorf("arguments = %q, veut --hostname ghe.example.test", c.Args)
+			t.Errorf("arguments = %q, want --hostname ghe.example.test", c.Args)
 		}
 	}
 }
@@ -121,10 +121,10 @@ func TestNotLoggedIn(t *testing.T) {
 	st, err := g.Status(context.Background())
 	wantErrIs(t, err, ErrNotLoggedIn)
 	if st.Login != "" {
-		t.Errorf("Status.Login = %q, veut vide", st.Login)
+		t.Errorf("Status.Login = %q, want empty", st.Login)
 	}
 	if !strings.Contains(err.Error(), "gh auth login") {
-		t.Errorf("le message %q devrait indiquer « gh auth login »", err)
+		t.Errorf("the message %q should mention \"gh auth login\"", err)
 	}
 
 	_, err = g.Token(context.Background())
@@ -137,10 +137,10 @@ func TestExitNotLoggedIn(t *testing.T) {
 	_, err := fakeGH().Status(context.Background())
 	wantErrIs(t, err, ErrNotLoggedIn)
 	if errors.Is(err, ErrUnexpectedOutput) {
-		t.Errorf("l'erreur %q ne devrait pas être une réponse inattendue", err)
+		t.Errorf("the error %q should not be an unexpected answer", err)
 	}
 	if !strings.Contains(err.Error(), "You are not logged into any GitHub hosts") {
-		t.Errorf("le message %q devrait reprendre la sortie d'erreur de gh", err)
+		t.Errorf("the message %q should quote the error output of gh", err)
 	}
 }
 
@@ -164,37 +164,37 @@ func TestMultiAccount(t *testing.T) {
 
 			st, err := g.Status(context.Background())
 			if err != nil {
-				t.Fatalf("Status : %v", err)
+				t.Fatalf("Status: %v", err)
 			}
 			if st.Login != tt.wantLogin || st.Active != tt.wantActive || !reflect.DeepEqual(st.Scopes, tt.wantScopes) {
-				t.Errorf("Status = %+v, veut login %q, active %v, scopes %q", st, tt.wantLogin, tt.wantActive, tt.wantScopes)
+				t.Errorf("Status = %+v, want login %q, active %v, scopes %q", st, tt.wantLogin, tt.wantActive, tt.wantScopes)
 			}
 
 			token, err := g.Token(context.Background())
 			if err != nil {
-				t.Fatalf("Token : %v", err)
+				t.Fatalf("Token: %v", err)
 			}
 			if token != tt.wantToken {
-				t.Errorf("Token n'a pas renvoyé le token du compte %q", tt.wantLogin)
+				t.Errorf("Token did not return the token of account %q", tt.wantLogin)
 			}
 
 			calls := readCalls(t, env)
 			if len(calls) != 2 {
-				t.Fatalf("%d appels à gh, veut 2", len(calls))
+				t.Fatalf("%d calls to gh, want 2", len(calls))
 			}
 			hasUser := containsSeq(calls[1].Args, "--user", tt.user)
 			if tt.user != "" && !hasUser {
-				t.Errorf("arguments de auth token = %q, veut --user %s", calls[1].Args, tt.user)
+				t.Errorf("arguments of auth token = %q, want --user %s", calls[1].Args, tt.user)
 			}
 			if tt.user == "" && slices.Contains(calls[1].Args, "--user") {
-				t.Errorf("arguments de auth token = %q, sans --user attendu", calls[1].Args)
+				t.Errorf("arguments of auth token = %q, no --user expected", calls[1].Args)
 			}
 		})
 	}
 }
 
-// gh distingue les majuscules dans « gh auth token --user » : un github.user écrit avec une autre
-// casse doit être refusé dès Status, sinon init réussirait et chaque Token échouerait ensuite.
+// gh is case-sensitive in "gh auth token --user": a github.user written with another case must be
+// refused by Status already, otherwise init would succeed and every Token would fail afterwards.
 func TestMultiAccountUserWrongCase(t *testing.T) {
 	useScenario(t, "multi-account")
 	g := fakeGH()
@@ -203,8 +203,8 @@ func TestMultiAccountUserWrongCase(t *testing.T) {
 	_, err := g.Status(context.Background())
 	wantErrIs(t, err, ErrUnusableUser)
 	wantErrIs(t, err, ErrNotLoggedIn)
-	if !strings.Contains(err.Error(), `"`+otherLogin+`"`) || !strings.Contains(err.Error(), "majuscules") {
-		t.Errorf("le message %q devrait donner le login exact connu de gh", err)
+	if !strings.Contains(err.Error(), `"`+otherLogin+`"`) || !strings.Contains(err.Error(), "case-sensitive") {
+		t.Errorf("the message %q should give the exact login known to gh", err)
 	}
 
 	_, err = g.Token(context.Background())
@@ -219,70 +219,70 @@ func TestMultiAccountUnknownUser(t *testing.T) {
 	_, err := g.Status(context.Background())
 	wantErrIs(t, err, ErrNotLoggedIn)
 	if !strings.Contains(err.Error(), `"inconnu"`) || !strings.Contains(err.Error(), "github.user") {
-		t.Errorf("le message %q devrait citer le compte et le réglage github.user", err)
+		t.Errorf("the message %q should quote the account and the github.user setting", err)
 	}
 
 	_, err = g.Token(context.Background())
 	wantErrIs(t, err, ErrNotLoggedIn)
 	if !strings.Contains(err.Error(), `"inconnu"`) {
-		t.Errorf("le message %q devrait citer le compte", err)
+		t.Errorf("the message %q should quote the account", err)
 	}
 }
 
 func TestEnvToken(t *testing.T) {
 	useScenario(t, "env-token")
 
-	// Sans github.user : compte actif, c'est-à-dire le token de GH_TOKEN.
+	// Without github.user: the active account, that is the token of GH_TOKEN.
 	g := fakeGH()
 	st, err := g.Status(context.Background())
 	if err != nil {
-		t.Fatalf("Status : %v", err)
+		t.Fatalf("Status: %v", err)
 	}
 	if st.TokenSource != "GH_TOKEN" || !st.Active {
-		t.Errorf("Status = %+v, veut le compte actif issu de GH_TOKEN", st)
+		t.Errorf("Status = %+v, want the active account from GH_TOKEN", st)
 	}
 	if token, err := g.Token(context.Background()); err != nil || token != envToken {
-		t.Errorf("Token sans --user : erreur %v ou token inattendu", err)
+		t.Errorf("Token without --user: error %v or unexpected token", err)
 	}
 
-	// Avec github.user : gh auth token --user lit le compte enregistré, Status doit le décrire.
+	// With github.user: gh auth token --user reads the stored account, Status must describe it.
 	g.User = fakeLogin
 	st, err = g.Status(context.Background())
 	if err != nil {
-		t.Fatalf("Status : %v", err)
+		t.Fatalf("Status: %v", err)
 	}
 	if st.TokenSource != "keyring" {
-		t.Errorf("Status = %+v, veut le compte enregistré (keyring)", st)
+		t.Errorf("Status = %+v, want the stored account (keyring)", st)
 	}
 	if token, err := g.Token(context.Background()); err != nil || token != fakeToken {
-		t.Errorf("Token avec --user : erreur %v ou token inattendu", err)
+		t.Errorf("Token with --user: error %v or unexpected token", err)
 	}
 }
 
-// Docker ou CI : GH_TOKEN défini, aucun compte enregistré. Sans github.user, Status et Token
-// utilisent le token de GH_TOKEN ; avec github.user, « gh auth token --user » ignore GH_TOKEN et
-// échoue, donc Status doit déjà refuser (avec un message qui dit de vider github.user).
+// Docker or CI: GH_TOKEN set, no stored account. Without github.user, Status and Token use the token
+// of GH_TOKEN; with github.user, "gh auth token --user" ignores GH_TOKEN and fails, so Status must
+// refuse already (with a message that says to empty github.user).
 func TestEnvTokenOnly(t *testing.T) {
 	env := useScenario(t, "env-token-only")
 
 	g := fakeGH()
 	st, err := g.Status(context.Background())
 	if err != nil {
-		t.Fatalf("Status : %v", err)
+		t.Fatalf("Status: %v", err)
 	}
 	if st.Login != fakeLogin || st.TokenSource != "GH_TOKEN" || !st.Active {
-		t.Errorf("Status = %+v, veut le compte actif issu de GH_TOKEN", st)
+		t.Errorf("Status = %+v, want the active account from GH_TOKEN", st)
 	}
 	if token, err := g.Token(context.Background()); err != nil || token != envToken {
-		t.Errorf("Token sans --user : erreur %v ou token inattendu", err)
+		t.Errorf("Token without --user: error %v or unexpected token", err)
 	}
 
 	g.User = fakeLogin
 	_, err = g.Status(context.Background())
 	wantErrIs(t, err, ErrUnusableUser)
-	for _, part := range []string{"github.user", "GH_TOKEN", "videz-le"} {
+	for _, part := range []string{"github.user", "GH_TOKEN", "empty it"} {
 		if !strings.Contains(err.Error(), part) {
-			t.Errorf("le message %q devrait contenir %q", err, part)
+			t.Errorf("the message %q should contain %q", err, part)
 		}
 	}
 	_, err = g.Token(context.Background())
@@ -290,13 +290,13 @@ func TestEnvTokenOnly(t *testing.T) {
 
 	calls := readCalls(t, env)
 	if len(calls) != 4 || !containsSeq(calls[3].Args, "--user", fakeLogin) {
-		t.Errorf("appels = %q, veut un dernier « auth token --user %s »", calls, fakeLogin)
+		t.Errorf("calls = %q, want a last \"auth token --user %s\"", calls, fakeLogin)
 	}
 }
 
-// TestStatusAndTokenAgree vérifie le contrat de Client sur le choix du compte : quand Status réussit,
-// Token renvoie le token de ce compte ; quand Status ne trouve pas de compte utilisable, Token échoue
-// aussi. Sinon « watchoo init » validerait un compte dont la synchro ne pourrait jamais lire le token.
+// TestStatusAndTokenAgree checks the Client contract on the choice of the account: when Status
+// succeeds, Token returns the token of this account; when Status finds no usable account, Token
+// fails too. Otherwise "watchoo init" would accept an account whose token the sync could never read.
 func TestStatusAndTokenAgree(t *testing.T) {
 	tokens := map[string]string{fakeLogin: fakeToken, otherLogin: otherToken}
 	scenarios := []string{"logged-in", "multi-account", "env-token", "env-token-only", "not-logged-in"}
@@ -312,23 +312,23 @@ func TestStatusAndTokenAgree(t *testing.T) {
 				token, tokenErr := g.Token(context.Background())
 				switch {
 				case statusErr == nil && tokenErr != nil:
-					t.Fatalf("Status a réussi (compte %q) mais Token échoue : %v", st.Login, tokenErr)
+					t.Fatalf("Status succeeded (account %q) but Token fails: %v", st.Login, tokenErr)
 				case statusErr == nil && st.TokenSource != "GH_TOKEN" && token != tokens[st.Login]:
-					t.Errorf("Token n'a pas renvoyé le token du compte %q décrit par Status", st.Login)
+					t.Errorf("Token did not return the token of account %q described by Status", st.Login)
 				case statusErr == nil && st.TokenSource == "GH_TOKEN" && token != envToken:
-					t.Errorf("Token n'a pas renvoyé le token de GH_TOKEN décrit par Status")
+					t.Errorf("Token did not return the GH_TOKEN token described by Status")
 				case statusErr != nil && !errors.Is(statusErr, ErrNotLoggedIn):
-					t.Fatalf("Status : erreur inattendue %v", statusErr)
+					t.Fatalf("Status: unexpected error %v", statusErr)
 				case statusErr != nil && tokenErr == nil:
-					t.Errorf("Status échoue (%v) mais Token réussit", statusErr)
+					t.Errorf("Status fails (%v) but Token succeeds", statusErr)
 				}
 			})
 		}
 	}
 }
 
-// GitHub injoignable (réseau, proxy, panne) : gh répond « error » avec une erreur réseau, même avec un
-// token valide. Ce n'est pas un problème de connexion à gh : pas de conseil « gh auth login ».
+// GitHub unreachable (network, proxy, outage): gh answers "error" with a network error, even with a
+// valid token. It is not a gh sign-in problem: no "gh auth login" advice.
 func TestOffline(t *testing.T) {
 	useScenario(t, "offline")
 	g := fakeGH()
@@ -336,25 +336,25 @@ func TestOffline(t *testing.T) {
 	st, err := g.Status(context.Background())
 	wantErrIs(t, err, ErrCheckFailed)
 	if errors.Is(err, ErrNotLoggedIn) {
-		t.Errorf("l'erreur %q ne devrait pas dire que gh n'est pas connecté", err)
+		t.Errorf("the error %q should not say that gh is not signed in", err)
 	}
 	msg := err.Error()
 	if strings.Contains(msg, "gh auth login") {
-		t.Errorf("le message %q ne devrait pas conseiller « gh auth login »", msg)
+		t.Errorf("the message %q should not advise \"gh auth login\"", msg)
 	}
 	if !strings.Contains(msg, "proxyconnect tcp") || !strings.Contains(msg, fakeLogin) {
-		t.Errorf("le message %q devrait citer le compte et l'erreur de gh", msg)
+		t.Errorf("the message %q should quote the account and the error of gh", msg)
 	}
-	if strings.Contains(msg, fakeToken) || !strings.Contains(msg, redacted) {
-		t.Errorf("le message %q devrait masquer le token présent dans l'erreur de gh", msg)
+	if strings.Contains(msg, fakeToken) || !strings.Contains(msg, redacted()) {
+		t.Errorf("the message %q should mask the token found in the error of gh", msg)
 	}
 	if st.Login != fakeLogin || st.State != "error" {
-		t.Errorf("Status partiel = %+v, veut login %q et état error", st, fakeLogin)
+		t.Errorf("partial Status = %+v, want login %q and state error", st, fakeLogin)
 	}
 
-	// gh auth token ne contacte pas GitHub : il fonctionne hors ligne.
+	// gh auth token does not contact GitHub: it works offline.
 	if token, err := g.Token(context.Background()); err != nil || token != fakeToken {
-		t.Errorf("Token hors ligne : erreur %v ou token inattendu", err)
+		t.Errorf("offline Token: error %v or unexpected token", err)
 	}
 }
 
@@ -364,14 +364,14 @@ func TestInvalidToken(t *testing.T) {
 	st, err := fakeGH().Status(context.Background())
 	wantErrIs(t, err, ErrNotLoggedIn)
 	if errors.Is(err, ErrCheckFailed) {
-		t.Errorf("un token refusé (HTTP 401) n'est pas une vérification impossible : %v", err)
+		t.Errorf("a refused token (HTTP 401) is not an impossible check: %v", err)
 	}
-	// Le Status partiel est renvoyé pour afficher le compte concerné.
+	// The partial Status is returned to display the account concerned.
 	if st.Login != fakeLogin || st.State != "error" {
-		t.Errorf("Status partiel = %+v, veut login %q et état error", st, fakeLogin)
+		t.Errorf("partial Status = %+v, want login %q and state error", st, fakeLogin)
 	}
 	if !strings.Contains(err.Error(), fakeLogin) || !strings.Contains(err.Error(), "error") {
-		t.Errorf("le message %q devrait citer le compte et son état", err)
+		t.Errorf("the message %q should quote the account and its state", err)
 	}
 }
 
@@ -381,17 +381,17 @@ func TestTokenRotation(t *testing.T) {
 
 	first, err := g.Token(context.Background())
 	if err != nil {
-		t.Fatalf("premier Token : %v", err)
+		t.Fatalf("first Token: %v", err)
 	}
 	second, err := g.Token(context.Background())
 	if err != nil {
-		t.Fatalf("second Token : %v", err)
+		t.Fatalf("second Token: %v", err)
 	}
 	if first == second {
-		t.Error("le token a changé dans gh, mais Token a renvoyé deux fois le même")
+		t.Error("the token changed in gh, but Token returned the same one twice")
 	}
 	if first != fakeToken+"_1" || second != fakeToken+"_2" {
-		t.Error("tokens inattendus : chaque appel doit redemander le token à gh")
+		t.Error("unexpected tokens: every call must ask gh for the token again")
 	}
 }
 
@@ -413,13 +413,13 @@ func TestGarbageOutput(t *testing.T) {
 	_, err := g.Status(context.Background())
 	wantErrIs(t, err, ErrUnexpectedOutput)
 	if strings.Contains(err.Error(), "Logged in") {
-		t.Errorf("le message %q ne doit pas reprendre la sortie standard de gh", err)
+		t.Errorf("the message %q must not quote the standard output of gh", err)
 	}
 
 	_, err = g.Token(context.Background())
 	wantErrIs(t, err, ErrUnexpectedOutput)
 	if strings.Contains(err.Error(), fakeToken) || strings.Contains(err.Error(), "warning") {
-		t.Errorf("le message %q ne doit pas reprendre la sortie standard de gh", err)
+		t.Errorf("the message %q must not quote the standard output of gh", err)
 	}
 }
 
@@ -430,20 +430,20 @@ func TestGHError(t *testing.T) {
 	_, err := g.Status(context.Background())
 	wantErrIs(t, err, ErrUnexpectedOutput)
 	msg := err.Error()
-	if !strings.Contains(msg, "code 2") || !strings.Contains(msg, "erreur simulée de gh") {
-		t.Errorf("le message %q devrait donner le code de retour et la première ligne de stderr", msg)
+	if !strings.Contains(msg, "code 2") || !strings.Contains(msg, "simulated gh error") {
+		t.Errorf("the message %q should give the exit code and the first line of stderr", msg)
 	}
 	if strings.Contains(msg, "second line") {
-		t.Errorf("le message %q ne devrait reprendre que la première ligne de stderr", msg)
+		t.Errorf("the message %q should quote only the first line of stderr", msg)
 	}
-	if strings.Contains(msg, fakeToken) || !strings.Contains(msg, redacted) {
-		t.Errorf("le message %q devrait masquer le token présent dans stderr", msg)
+	if strings.Contains(msg, fakeToken) || !strings.Contains(msg, redacted()) {
+		t.Errorf("the message %q should mask the token found in stderr", msg)
 	}
 
 	_, err = g.Token(context.Background())
 	wantErrIs(t, err, ErrNotLoggedIn)
-	if strings.Contains(err.Error(), "erreur simulée") {
-		t.Errorf("le message %q ne doit pas reprendre la sortie d'erreur de « gh auth token »", err)
+	if strings.Contains(err.Error(), "simulated") {
+		t.Errorf("the message %q must not quote the error output of \"gh auth token\"", err)
 	}
 }
 
@@ -460,13 +460,13 @@ func TestTimeoutKillsGH(t *testing.T) {
 
 			wantErrIs(t, err, ErrTimeout)
 			if errors.Is(err, context.DeadlineExceeded) {
-				t.Errorf("l'erreur %q ne devrait pas être celle du contexte de l'appelant", err)
+				t.Errorf("the error %q should not be the one of the caller's context", err)
 			}
 			if !strings.Contains(err.Error(), "500ms") {
-				t.Errorf("le message %q devrait donner le délai", err)
+				t.Errorf("the message %q should give the timeout", err)
 			}
 			if elapsed > g.Timeout+waitDelay+3*time.Second {
-				t.Errorf("%s a duré %s, le délai de %s n'a pas été appliqué", method, elapsed, g.Timeout)
+				t.Errorf("%s took %s, the timeout of %s was not applied", method, elapsed, g.Timeout)
 			}
 			assertProcessGone(t, env)
 		})
@@ -483,35 +483,35 @@ func TestCallerCancel(t *testing.T) {
 	_, err := g.Status(ctx)
 	wantErrIs(t, err, context.Canceled)
 	if errors.Is(err, ErrTimeout) {
-		t.Errorf("une annulation par l'appelant n'est pas un dépassement du délai : %v", err)
+		t.Errorf("a cancellation by the caller is not a timeout: %v", err)
 	}
 	if elapsed := time.Since(start); elapsed > 5*time.Second {
-		t.Errorf("Status a duré %s après l'annulation", elapsed)
+		t.Errorf("Status took %s after the cancellation", elapsed)
 	}
 
-	// Contexte déjà annulé : gh n'est même pas lancé utilement.
+	// Context already canceled: gh is not even usefully launched.
 	_, err = g.Token(ctx)
 	wantErrIs(t, err, context.Canceled)
 }
 
 func TestCallerDeadline(t *testing.T) {
 	useScenario(t, "hang")
-	g := fakeGH() // délai de GH : 10 s
+	g := fakeGH() // GH timeout: 10 s
 
 	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
 	defer cancel()
 	_, err := g.Token(ctx)
 	wantErrIs(t, err, context.DeadlineExceeded)
 	if errors.Is(err, ErrTimeout) {
-		t.Errorf("le délai venait de l'appelant, pas de GH.Timeout : %v", err)
+		t.Errorf("the deadline came from the caller, not from GH.Timeout: %v", err)
 	}
 }
 
 func TestGHNotFound(t *testing.T) {
 	useScenario(t, "logged-in")
 	paths := map[string]string{
-		"chemin absent":  filepath.Join(t.TempDir(), "absent", "gh"),
-		"absent du PATH": "watchoo-gh-introuvable",
+		"missing path":    filepath.Join(t.TempDir(), "absent", "gh"),
+		"missing in PATH": "watchoo-gh-introuvable",
 	}
 	for name, path := range paths {
 		t.Run(name, func(t *testing.T) {
@@ -526,52 +526,52 @@ func TestGHNotFound(t *testing.T) {
 
 func TestGHNotExecutable(t *testing.T) {
 	if runtime.GOOS == "windows" {
-		t.Skip("droits d'exécution Unix")
+		t.Skip("Unix execute permissions")
 	}
 	useScenario(t, "logged-in")
 	path := filepath.Join(t.TempDir(), "gh")
-	if err := os.WriteFile(path, []byte("pas un exécutable"), 0o600); err != nil {
+	if err := os.WriteFile(path, []byte("not an executable"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	_, err := GH{Path: path}.Status(context.Background())
 	if err == nil {
-		t.Fatal("Status a réussi avec un gh non exécutable")
+		t.Fatal("Status succeeded with a non-executable gh")
 	}
-	if !strings.Contains(err.Error(), "lancement de") {
-		t.Errorf("le message %q devrait indiquer que gh n'a pas pu être lancé", err)
+	if !strings.Contains(err.Error(), "cannot launch") {
+		t.Errorf("the message %q should say that gh could not be launched", err)
 	}
 }
 
 func TestDefaults(t *testing.T) {
 	var g GH
 	if g.path() != DefaultPath || g.host() != DefaultHost || g.timeout() != DefaultTimeout {
-		t.Errorf("valeurs par défaut = %q, %q, %s", g.path(), g.host(), g.timeout())
+		t.Errorf("default values = %q, %q, %s", g.path(), g.host(), g.timeout())
 	}
 	g.Timeout = -time.Second
 	if g.timeout() != DefaultTimeout {
-		t.Errorf("délai négatif : %s, veut %s", g.timeout(), DefaultTimeout)
+		t.Errorf("negative timeout: %s, want %s", g.timeout(), DefaultTimeout)
 	}
 	g = GH{Path: "/opt/gh", Host: "ghe.example.test", Timeout: time.Second}
 	if g.path() != "/opt/gh" || g.host() != "ghe.example.test" || g.timeout() != time.Second {
-		t.Errorf("valeurs réglées ignorées : %q, %q, %s", g.path(), g.host(), g.timeout())
+		t.Errorf("set values ignored: %q, %q, %s", g.path(), g.host(), g.timeout())
 	}
 }
 
 func TestDefaultPathUsesPATH(t *testing.T) {
 	env := useScenario(t, "logged-in")
-	// Seul le répertoire du faux gh est dans le PATH : GH{} doit le trouver sous le nom « gh ».
+	// Only the directory of the fake gh is in the PATH: GH{} must find it under the name "gh".
 	t.Setenv("PATH", filepath.Dir(fakeGHPath))
 
 	var c Client = &GH{}
 	st, err := c.Status(context.Background())
 	if err != nil {
-		t.Fatalf("Status : %v", err)
+		t.Fatalf("Status: %v", err)
 	}
 	if st.Login != fakeLogin {
-		t.Errorf("Login = %q, veut %q", st.Login, fakeLogin)
+		t.Errorf("Login = %q, want %q", st.Login, fakeLogin)
 	}
 	if len(readCalls(t, env)) != 1 {
-		t.Error("le faux gh du PATH n'a pas été appelé")
+		t.Error("the fake gh of the PATH was not called")
 	}
 }
 
@@ -590,7 +590,7 @@ func TestConcurrentCalls(t *testing.T) {
 			}
 			token, err := g.Token(context.Background())
 			if err == nil && token != fakeToken {
-				err = errors.New("token inattendu")
+				err = errors.New("unexpected token")
 			}
 			errs <- err
 		})
@@ -604,7 +604,7 @@ func TestConcurrentCalls(t *testing.T) {
 	}
 }
 
-// callMethod appelle g.Status ou g.Token et renvoie seulement l'erreur.
+// callMethod calls g.Status or g.Token and returns only the error.
 func callMethod(ctx context.Context, g GH, method string) error {
 	if method == "Status" {
 		_, err := g.Status(ctx)
@@ -614,20 +614,20 @@ func callMethod(ctx context.Context, g GH, method string) error {
 	return err
 }
 
-// assertProcessGone vérifie que le faux gh bloqué (scénario hang) a bien été tué.
+// assertProcessGone checks that the blocked fake gh (hang scenario) was killed.
 func assertProcessGone(t *testing.T, env fakeEnv) {
 	t.Helper()
 	if runtime.GOOS == "windows" {
-		return // os.Process.Signal(0) n'existe pas sous Windows
+		return // os.Process.Signal(0) does not exist on Windows
 	}
 	data, err := os.ReadFile(env.pid)
 	if err != nil {
-		t.Logf("PID du faux gh indisponible (démarrage plus lent que le délai ?) : %v", err)
+		t.Logf("PID of the fake gh unavailable (start slower than the timeout?): %v", err)
 		return
 	}
 	pid, err := strconv.Atoi(string(data))
 	if err != nil {
-		t.Fatalf("PID illisible %q : %v", data, err)
+		t.Fatalf("unreadable PID %q: %v", data, err)
 	}
 	p, err := os.FindProcess(pid)
 	if err != nil {
@@ -635,11 +635,11 @@ func assertProcessGone(t *testing.T, env fakeEnv) {
 	}
 	if err := p.Signal(syscall.Signal(0)); err == nil {
 		_ = p.Kill()
-		t.Errorf("le faux gh (PID %d) tourne encore après le délai", pid)
+		t.Errorf("the fake gh (PID %d) is still running after the timeout", pid)
 	}
 }
 
-// containsSeq indique si args contient a immédiatement suivi de b.
+// containsSeq reports whether args contains a immediately followed by b.
 func containsSeq(args []string, a, b string) bool {
 	for i := 0; i+1 < len(args); i++ {
 		if args[i] == a && args[i+1] == b {

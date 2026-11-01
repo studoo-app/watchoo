@@ -17,29 +17,29 @@ func TestContributorsPage(t *testing.T) {
 	w := e.get("/contributors")
 	assertStatus(t, w, http.StatusOK)
 	assertContains(t, w,
-		"<title>Contributeurs · "+testWorkspace+" · Watchoo</title>",
-		`aria-current="page">Contributeurs`,
+		"<title>Contributors · "+testWorkspace+" · Watchoo</title>",
+		`aria-current="page">Contributors`,
 		"Alice Martin", "@alice-gh", "Bob Durand", "Carol",
-		// Avatar GitHub : seulement depuis avatars.githubusercontent.com, sans Referer, en différé.
+		// GitHub avatar: only from avatars.githubusercontent.com, without Referer, deferred.
 		`<img src="https://avatars.githubusercontent.com/u/10?v=4" alt="" loading="lazy" referrerpolicy="no-referrer"`,
-		// Commits par dépôt : liens vers le détail.
+		// Commits per repository: links to the detail.
 		`href="`+repoPath(ids.Alice)+`"`, `href="`+repoPath(ids.Bob)+`"`, `href="`+repoPath(ids.Carol)+`"`,
-		// Rafraîchi après une synchro.
+		// Refreshed after a sync.
 		`hx-get="/fragments/contributors" hx-trigger="sync-finished from:body"`,
-		// Dernière activité : date relative, heure locale dans title.
-		`title="26/10/2026 à 10:00">il y a 1 j</time>`,
-		// Compteurs : 3 contributeurs, 5 commits, 3 dépôts.
+		// Last activity: relative date, local time in title.
+		`title="Oct 26, 2026 10:00">1 d ago</time>`,
+		// Counters: 3 contributors, 5 commits, 3 repositories.
 		`<div class="stat-value">3</div>`, `<div class="stat-value">5</div>`,
 	)
-	// L'avatar de Carol est sur un autre hôte : jamais affiché, l'initiale le remplace.
+	// Carol's avatar is on another host: never shown, the initial replaces it.
 	assertNotContains(t, w, "evil.example.test", "@Bob")
 	assertContains(t, w, "<span>C</span>")
 
-	// Classement : Alice (2 commits, le plus récent), Bob (2 commits), Carol (1).
+	// Ranking: Alice (2 commits, the most recent), Bob (2 commits), Carol (1).
 	body := w.Body.String()
 	a, b, c := strings.Index(body, "Alice Martin</a></div>"), strings.Index(body, "Bob Durand</a></div>"), strings.Index(body, "Carol</a></div>")
 	if a < 0 || b < 0 || c < 0 || a >= b || b >= c {
-		t.Errorf("ordre du classement inattendu : Alice %d, Bob %d, Carol %d", a, b, c)
+		t.Errorf("unexpected ranking order: Alice %d, Bob %d, Carol %d", a, b, c)
 	}
 }
 
@@ -49,7 +49,7 @@ func TestContributorsFragment(t *testing.T) {
 	w := e.htmx("/fragments/contributors")
 	assertStatus(t, w, http.StatusOK)
 	if !strings.HasPrefix(strings.TrimSpace(w.Body.String()), `<section id="contributors-table"`) {
-		t.Errorf("fragment inattendu :\n%s", w.Body.String())
+		t.Errorf("unexpected fragment:\n%s", w.Body.String())
 	}
 	assertNotContains(t, w, "<html", "<nav")
 	assertContains(t, w, "Alice Martin")
@@ -59,7 +59,7 @@ func TestContributorsEmpty(t *testing.T) {
 	e := newTestEnv(t)
 	w := e.get("/contributors")
 	assertStatus(t, w, http.StatusOK)
-	assertContains(t, w, "Aucun contributeur pour l'instant", `href="/settings"`)
+	assertContains(t, w, "No contributor yet", `href="/settings"`)
 }
 
 func TestContributorsEscaping(t *testing.T) {
@@ -90,30 +90,30 @@ func TestBuildContributorRows(t *testing.T) {
 		{ContributorID: 3, RepoID: 2, RepoOwner: "o", RepoName: "a", Commits: 1, LastCommitAt: day},
 		{ContributorID: 7, RepoID: 1, RepoOwner: "o", RepoName: "b", Commits: 1, LastCommitAt: day.Add(time.Hour)},
 		{ContributorID: 7, RepoID: 2, RepoOwner: "o", RepoName: "a", Commits: 4, LastCommitAt: day},
-		{ContributorID: 99, RepoID: 2, RepoOwner: "o", RepoName: "a", Commits: 9}, // absent du classement
+		{ContributorID: 99, RepoID: 2, RepoOwner: "o", RepoName: "a", Commits: 9}, // absent from the ranking
 	}
 	rows := buildContributorRows(ranking, breakdown)
 	if len(rows) != 3 {
-		t.Fatalf("%d lignes, attendu 3", len(rows))
+		t.Fatalf("%d rows, want 3", len(rows))
 	}
 	for i, want := range []int64{7, 3, 4} {
 		if rows[i].ID != want || rows[i].Rank != i+1 {
-			t.Errorf("ligne %d : contributeur %d rang %d, attendu %d rang %d", i, rows[i].ID, rows[i].Rank, want, i+1)
+			t.Errorf("row %d: contributor %d rank %d, want %d rank %d", i, rows[i].ID, rows[i].Rank, want, i+1)
 		}
 	}
-	// Zoé : o/a (4 commits) avant o/b (1).
+	// Zoé: o/a (4 commits) before o/b (1).
 	if got := rows[0].Repos; len(got) != 2 || got[0].RepoID != 2 || got[1].RepoID != 1 {
-		t.Errorf("dépôts de Zoé : %+v", got)
+		t.Errorf("repositories of Zoé: %+v", got)
 	}
-	// Yann : égalité de commits et de date, départagée par le nom affiché (o/a avant o/b).
+	// Yann: tie of commits and date, broken by the display name (o/a before o/b).
 	if got := rows[1].Repos; len(got) != 2 || got[0].RepoDisplayName() != "o/a" {
-		t.Errorf("dépôts de Yann : %+v", got)
+		t.Errorf("repositories of Yann: %+v", got)
 	}
 	if len(rows[2].Repos) != 0 {
-		t.Errorf("Xavier sans détail : %+v", rows[2].Repos)
+		t.Errorf("Xavier without detail: %+v", rows[2].Repos)
 	}
 	if rows := buildContributorRows(nil, breakdown); len(rows) != 0 {
-		t.Errorf("classement vide : %+v", rows)
+		t.Errorf("empty ranking: %+v", rows)
 	}
 }
 
@@ -123,13 +123,13 @@ func TestContributorRowShowLogin(t *testing.T) {
 		want bool
 	}{
 		{model.Contributor{Name: "Alice", ProviderLogin: "alice-gh"}, true},
-		{model.Contributor{ProviderLogin: "alice-gh"}, false}, // le login est déjà le nom affiché
+		{model.Contributor{ProviderLogin: "alice-gh"}, false}, // the login is already the display name
 		{model.Contributor{Name: "Bob"}, false},
 	}
 	for _, tc := range cases {
 		row := contributorRow{ContributorStats: store.ContributorStats{Contributor: tc.c}}
 		if got := row.ShowLogin(); got != tc.want {
-			t.Errorf("ShowLogin(%+v) = %v, attendu %v", tc.c, got, tc.want)
+			t.Errorf("ShowLogin(%+v) = %v, want %v", tc.c, got, tc.want)
 		}
 	}
 }

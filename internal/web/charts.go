@@ -8,12 +8,14 @@ package web
 //     (dailyChart) ;
 //   - contributeurs (tous les dépôts) et détail d'un dépôt (ses seuls commits) : commits par semaine
 //     sur activity.ContributorWeeks semaines, une série par contributeur parmi les
-//     contributorChartTop plus actifs de la période, les autres regroupés dans « Autres
-//     contributeurs » (contributorChart, template partagé « contributors-chart » de partials.html) ;
+//     contributorChartTop plus actifs de la période, les autres regroupés dans « Other contributors » /
+//     « Autres contributeurs » (contributorChart, template partagé « contributors-chart » de
+//     partials.html) ;
 //   - page d'un contributeur (0.5.0) : ses commits par jour (dailyChart) et par semaine, une série
 //     par dépôt (buildRepoChart, même template).
 //
-// Les jours et les semaines (du lundi au dimanche) suivent le fuseau d'affichage de l'espace.
+// Les jours et les semaines (du lundi au dimanche) suivent le fuseau d'affichage de l'espace ; les
+// dates et les noms des séries regroupées sont dans la langue du traducteur passé (langue de l'espace).
 
 import (
 	"cmp"
@@ -21,25 +23,26 @@ import (
 	"time"
 
 	"github.com/studoo-app/watchoo/internal/activity"
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/store"
 )
 
 // contributorChartTop est le nombre de contributeurs qui ont leur propre série dans le graphique des
 // contributeurs : 8, le nombre de couleurs de la palette catégorielle de static/app.js (au-delà, les
-// couleurs ne se distinguent plus) ; les suivants sont regroupés dans « Autres contributeurs ».
+// couleurs ne se distinguent plus) ; les suivants sont regroupés dans une dernière série.
 const contributorChartTop = 8
 
 // contributorNameMax borne la longueur (en caractères) d'un nom dans la légende du graphique.
 const contributorNameMax = 40
 
-// otherContributorsLabel est le nom de la série qui regroupe les contributeurs hors du classement du
-// graphique.
-const otherContributorsLabel = "Autres contributeurs"
+// otherContributorsKey est la clé du nom de la série qui regroupe les contributeurs hors du
+// classement du graphique.
+const otherContributorsKey = "web.chart.other_contributors"
 
-// otherReposLabel est le nom de la série qui regroupe les dépôts hors du classement du graphique d'un
-// contributeur.
-const otherReposLabel = "Autres dépôts"
+// otherReposKey est la clé du nom de la série qui regroupe les dépôts hors du classement du graphique
+// d'un contributeur.
+const otherReposKey = "web.chart.other_repos"
 
 // dailyChart est un graphique des commits par jour et son résumé textuel (accessibilité, absence de
 // JavaScript).
@@ -48,17 +51,17 @@ type dailyChart struct {
 	Days     int                 // durée, en jours
 	Total    int                 // commits de la période
 	Peak     activity.DayCount   // jour le plus chargé (Count 0 si aucun commit)
-	PeakDate string              // jour de Peak au format « 26/10/2026 » ; vide si aucun commit
+	PeakDate string              // jour de Peak au format de date de la langue (web.fmt.date) ; vide si aucun commit
 }
 
-// newDailyChart compte times par jour sur days jours qui se terminent par le jour de now, dans loc.
-// Fonction pure.
-func newDailyChart(times []time.Time, now time.Time, days int, loc *time.Location) dailyChart {
+// newDailyChart compte times par jour sur days jours qui se terminent par le jour de now, dans loc ;
+// les dates sont écrites dans la langue de tr. Fonction pure.
+func newDailyChart(tr *i18n.Translator, times []time.Time, now time.Time, days int, loc *time.Location) dailyChart {
 	c := dailyChart{Series: activity.DailyCounts(times, now, days, loc), Days: max(days, 1)}
 	c.Total, c.Peak = activity.Summarize(c.Series)
 	if c.Peak.Count > 0 {
 		if t, err := time.Parse(time.DateOnly, c.Peak.Date); err == nil {
-			c.PeakDate = t.Format("02/01/2006")
+			c.PeakDate = t.Format(tr.T("web.fmt.date"))
 		}
 	}
 	return c
@@ -92,9 +95,9 @@ type contributorChart struct {
 	Total  int    // commits d'auteur connu de la période
 	Active int    // contributeurs avec au moins un commit sur la période
 	Top    int    // nombre maximal de contributeurs qui ont leur propre série
-	Start  string // premier jour de la période, au format « 03/08/2026 »
-	// WeekLabels : lundis des semaines au format « 26/10 », pour la table des données (vue sans
-	// graphique : couleurs, lecteurs d'écran).
+	Start  string // premier jour de la période, au format de date de la langue (« 03/08/2026 »)
+	// WeekLabels : lundis des semaines au format court de la langue (« 26/10 », "Oct 26"), pour la
+	// table des données (vue sans graphique : couleurs, lecteurs d'écran).
 	WeekLabels []string
 }
 
@@ -114,35 +117,39 @@ type chartEntity struct {
 // (au moins un commit ; égalités départagées par l'ordre de ranking, le classement de la page) ont
 // chacun leur série, de la plus fournie à la moins fournie ; les autres, et les auteurs absents de
 // ranking, sont regroupés dans une dernière série « Autres contributeurs » (si elle n'est pas vide).
-// Sert à la page des contributeurs (tous les dépôts) et à celle d'un dépôt. Fonction pure.
-func buildContributorChart(ranking []store.ContributorStats, times []model.AuthorCommitTime, now time.Time,
-	weeks, top int, loc *time.Location) contributorChart {
+// Sert à la page des contributeurs (tous les dépôts) et à celle d'un dépôt. Textes dans la langue de
+// tr. Fonction pure.
+func buildContributorChart(tr *i18n.Translator, ranking []store.ContributorStats, times []model.AuthorCommitTime,
+	now time.Time, weeks, top int, loc *time.Location) contributorChart {
 	order := make([]chartEntity, 0, len(ranking))
 	for _, row := range ranking {
 		order = append(order, chartEntity{ID: row.ID, Name: row.DisplayName(), Path: contributorPath(row.ID),
 			Login: row.ProviderLogin, ProfileURL: row.ProfileURL})
 	}
-	return buildStackedChart(order, activity.CountContributorWeeks(times, now, weeks, loc), top,
-		otherContributorsLabel)
+	return buildStackedChart(tr, order, activity.CountContributorWeeks(times, now, weeks, loc), top,
+		tr.T(otherContributorsKey))
 }
 
 // buildRepoChart compte les commits d'un contributeur (times : dépôt et date) par dépôt et par semaine
 // (activity.CountRepoWeeks), comme buildContributorChart : les top dépôts où il a le plus de commits
 // sur la période ont leur série (égalités départagées par l'ordre de repos), les autres sont regroupés
-// dans « Autres dépôts ». Page d'un contributeur (0.5.0). Fonction pure.
-func buildRepoChart(repos []store.ContributorRepoStats, times []model.RepoCommitTime, now time.Time,
-	weeks, top int, loc *time.Location) contributorChart {
+// dans « Autres dépôts ». Page d'un contributeur (0.5.0). Textes dans la langue de tr. Fonction pure.
+func buildRepoChart(tr *i18n.Translator, repos []store.ContributorRepoStats, times []model.RepoCommitTime,
+	now time.Time, weeks, top int, loc *time.Location) contributorChart {
 	order := make([]chartEntity, 0, len(repos))
 	for _, r := range repos {
 		order = append(order, chartEntity{ID: r.RepoID, Name: r.RepoDisplayName(), Path: repoPath(r.RepoID)})
 	}
-	return buildStackedChart(order, activity.CountRepoWeeks(times, now, weeks, loc), top, otherReposLabel)
+	return buildStackedChart(tr, order, activity.CountRepoWeeks(times, now, weeks, loc), top, tr.T(otherReposKey))
 }
 
 // buildStackedChart construit le graphique empilé à partir des comptages wc : une série par entité
 // d'order qui a au moins un commit, les top plus fournies d'abord (égalités : ordre d'order), les
-// autres (et les clés absentes d'order) regroupées dans otherLabel. Fonction pure.
-func buildStackedChart(order []chartEntity, wc activity.ContributorWeekCounts, top int, otherLabel string) contributorChart {
+// autres (et les clés absentes d'order) regroupées dans otherLabel ; dates dans la langue de tr.
+// Fonction pure.
+func buildStackedChart(tr *i18n.Translator, order []chartEntity, wc activity.ContributorWeekCounts, top int,
+	otherLabel string) contributorChart {
+	dateLayout, dayMonthLayout := tr.T("web.fmt.date"), tr.T("web.fmt.daymonth")
 	keys := wc.Weeks
 	top = max(top, 0)
 	c := contributorChart{Weeks: len(keys), Top: top, Total: wc.Total, Active: len(wc.Counts),
@@ -153,9 +160,9 @@ func buildStackedChart(order []chartEntity, wc activity.ContributorWeekCounts, t
 			continue
 		}
 		if i == 0 {
-			c.Start = t.Format("02/01/2006")
+			c.Start = t.Format(dateLayout)
 		}
-		c.WeekLabels = append(c.WeekLabels, t.Format("02/01"))
+		c.WeekLabels = append(c.WeekLabels, t.Format(dayMonthLayout))
 	}
 	counts := make(map[int64][]int, len(wc.Counts))
 	for id, per := range wc.Counts {

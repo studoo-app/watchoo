@@ -10,12 +10,14 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/studoo-app/watchoo/internal/i18n"
 )
 
 func ptr[T any](v T) *T { return &v }
 
-// customConfig est un config.yaml d'espace avec des clés machine, un réglage commun et un commentaire
-// personnel.
+// customConfig is a workspace config.yaml with machine keys, a common setting and a personal
+// comment.
 const customConfig = `# Mon commentaire personnel
 name: "Licence : projet # 2026"
 sync:
@@ -32,7 +34,7 @@ git:
   protocol: "https"
 `
 
-// newCustomWorkspace crée un espace dont config.yaml vaut customConfig.
+// newCustomWorkspace creates a workspace whose config.yaml is customConfig.
 func newCustomWorkspace(t *testing.T) *Workspace {
 	t.Helper()
 	isolateEnv(t)
@@ -53,39 +55,39 @@ func TestSharedSettingsFromAndValues(t *testing.T) {
 	}
 	v := s.Values()
 	if got := v[KeyBranchesExclude]; !reflect.DeepEqual(got, []string{}) {
-		t.Errorf("branches.exclude = %#v, liste vide attendue", got)
+		t.Errorf("branches.exclude = %#v, empty list expected", got)
 	}
-	if v[KeySyncInterval] != DefaultSyncInterval || v[KeySyncAuto] != true || v[KeyTimezone] != "" {
-		t.Errorf("valeurs = %v", v)
+	if v[KeySyncInterval] != DefaultSyncInterval || v[KeySyncAuto] != true || v[KeyTimezone] != "" || v[KeyLang] != "en" {
+		t.Errorf("values = %v", v)
 	}
 	if !(SharedSettings{}).IsZero() || s.IsZero() {
 		t.Error("IsZero incorrect")
 	}
-	// Les listes sont copiées : modifier la source ne change pas les réglages.
+	// The lists are copied: changing the source does not change the settings.
 	cfg.Branches.Exclude = []string{"a"}
 	s = SharedSettingsFrom(cfg)
 	cfg.Branches.Exclude[0] = "b"
 	if (*s.BranchesExclude)[0] != "a" {
-		t.Error("branches.exclude non copiée")
+		t.Error("branches.exclude not copied")
 	}
 }
 
 func TestSharedSettingsApplyTo(t *testing.T) {
 	cfg := DefaultConfig("x")
 	cfg.GitHub.GHPath = "/usr/bin/gh"
-	s := SharedSettings{SyncInterval: ptr(time.Hour), Timezone: ptr("Europe/Paris"), BranchesExclude: &[]string{}}
+	s := SharedSettings{SyncInterval: ptr(time.Hour), Timezone: ptr("Europe/Paris"), BranchesExclude: &[]string{}, Lang: ptr("fr")}
 	got := s.ApplyTo(cfg)
-	if got.Sync.Interval != time.Hour || got.Timezone != "Europe/Paris" || got.Branches.Exclude == nil ||
+	if got.Sync.Interval != time.Hour || got.Timezone != "Europe/Paris" || got.Lang != "fr" || got.Branches.Exclude == nil ||
 		len(got.Branches.Exclude) != 0 {
 		t.Errorf("ApplyTo = %+v", got)
 	}
 	if got.Sync.Parallelism != cfg.Sync.Parallelism || got.GitHub.GHPath != "/usr/bin/gh" || got.Name != "x" {
-		t.Errorf("valeurs non fournies modifiées : %+v", got)
+		t.Errorf("values not provided changed: %+v", got)
 	}
 	if cfg.Sync.Interval != DefaultSyncInterval {
-		t.Error("ApplyTo a modifié la configuration d'origine")
+		t.Error("ApplyTo changed the original configuration")
 	}
-	if !slices.Equal(s.Keys(), []string{KeySyncInterval, KeyBranchesExclude, KeyTimezone}) {
+	if !slices.Equal(s.Keys(), []string{KeySyncInterval, KeyBranchesExclude, KeyTimezone, KeyLang}) {
 		t.Errorf("Keys = %v", s.Keys())
 	}
 }
@@ -97,14 +99,14 @@ func TestEnvOverrides(t *testing.T) {
 	got := EnvOverrides([]string{KeySyncInterval, KeyTimezone, KeySyncAuto})
 	want := []EnvOverride{{Key: KeySyncInterval, Var: "WATCHOO_SYNC_INTERVAL"}}
 	if !reflect.DeepEqual(got, want) {
-		t.Errorf("EnvOverrides = %v, attendu %v", got, want)
+		t.Errorf("EnvOverrides = %v, want %v", got, want)
 	}
 	if EnvVarName(KeyFlemmeAfterDays) != "WATCHOO_ACTIVITY_FLEMME_AFTER_DAYS" {
 		t.Error(EnvVarName(KeyFlemmeAfterDays))
 	}
 }
 
-// FileConfig ignore les variables WATCHOO_* ; WithEnv les réapplique comme Load.
+// FileConfig ignores the WATCHOO_* variables; WithEnv applies them again like Load.
 func TestFileConfigAndWithEnv(t *testing.T) {
 	ws := newCustomWorkspace(t)
 	t.Setenv("WATCHOO_SYNC_PARALLELISM", "3")
@@ -127,14 +129,14 @@ func TestFileConfigAndWithEnv(t *testing.T) {
 		t.Errorf("WithEnv(FileConfig) = %+v\nLoad = %+v", withEnv, ws.Config)
 	}
 	if fileCfg.Sync.Parallelism != 2 {
-		t.Error("WithEnv a modifié son argument")
+		t.Error("WithEnv changed its argument")
 	}
 	t.Setenv("WATCHOO_SYNC_PARALLELISM", "beaucoup")
 	if _, err := WithEnv(fileCfg); err == nil || !strings.Contains(err.Error(), "WATCHOO_SYNC_PARALLELISM") {
-		t.Errorf("WithEnv avec une variable illisible = %v", err)
+		t.Errorf("WithEnv with an unreadable variable = %v", err)
 	}
 	if _, err := FileConfig(nil); err == nil {
-		t.Error("FileConfig(nil) accepté")
+		t.Error("FileConfig(nil) accepted")
 	}
 }
 
@@ -153,13 +155,14 @@ func TestFormatSettingValue(t *testing.T) {
 		{[]string{"dependabot/*", `x"y`}, `["dependabot/*", "x\"y"]`},
 	} {
 		if got := FormatSettingValue(tt.v); got != tt.want {
-			t.Errorf("FormatSettingValue(%#v) = %s, attendu %s", tt.v, got, tt.want)
+			t.Errorf("FormatSettingValue(%#v) = %s, want %s", tt.v, got, tt.want)
 		}
 	}
 }
 
-// Les clés machine (name, web.*, github.*, git.*) et les réglages communs non importés sont gardés, l'ancien
-// fichier est copié dans .bak, les droits sont 0600, et le fichier relu donne les valeurs attendues.
+// The machine keys (name, web.*, github.*, git.*) and the common settings not imported are kept, the
+// old file is copied to .bak, the permissions are 0600, and the file read back gives the expected
+// values.
 func TestWriteSharedSettingsKeepsMachineKeys(t *testing.T) {
 	ws := newCustomWorkspace(t)
 	before := readFile(t, ws.ConfigPath())
@@ -168,26 +171,27 @@ func TestWriteSharedSettingsKeepsMachineKeys(t *testing.T) {
 		DeadAfterDays:   ptr(21),
 		BranchesExclude: &[]string{"dependabot/*", "renovate/*"},
 		Timezone:        ptr("Europe/Paris"),
+		Lang:            ptr("fr"),
 	}
 	res, err := WriteSharedSettings(ws, s)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if res.Path != ws.ConfigPath() || res.BackupPath != filepath.Join(ws.Dir, BackupFileName) {
-		t.Errorf("résultat = %+v", res)
+		t.Errorf("result = %+v", res)
 	}
 	if got := readFile(t, res.BackupPath); got != before {
-		t.Errorf("copie .bak différente de l'ancien fichier :\n%s", got)
+		t.Errorf(".bak copy different from the old file:\n%s", got)
 	}
 	assertMode(t, ws.ConfigPath(), FileMode)
 	assertMode(t, res.BackupPath, FileMode)
 
 	content := readFile(t, ws.ConfigPath())
 	if strings.Contains(content, "Mon commentaire personnel") {
-		t.Error("le commentaire personnel devait disparaître (il reste dans .bak)")
+		t.Error("the personal comment should disappear (it stays in .bak)")
 	}
-	if !strings.HasPrefix(content, configHeader()) {
-		t.Error("le fichier réécrit ne commence pas par la carte du modèle")
+	if !strings.HasPrefix(content, configHeader(i18n.For(i18n.English))) {
+		t.Error("the rewritten file does not start with the card of the template")
 	}
 
 	reloaded := &Workspace{Root: ws.Root, Dir: ws.Dir}
@@ -198,38 +202,38 @@ func TestWriteSharedSettingsKeepsMachineKeys(t *testing.T) {
 	if c.Name != "Licence : projet # 2026" || c.Web.Addr != "127.0.0.1:9090" ||
 		!slices.Equal(c.Web.AllowedHosts, []string{"watchoo.example.org"}) || c.Web.Auth.Username != "prof" ||
 		c.GitHub.User != "prof-gh" || c.GitHub.GHPath != "/opt/gh/bin/gh" || c.Git.Protocol != "https" {
-		t.Errorf("clés machine perdues : %+v", c)
+		t.Errorf("machine keys lost: %+v", c)
 	}
 	if c.Sync.Parallelism != 2 {
-		t.Errorf("sync.parallelism non importé perdu : %d", c.Sync.Parallelism)
+		t.Errorf("sync.parallelism not imported lost: %d", c.Sync.Parallelism)
 	}
-	if c.Sync.Interval != time.Hour || c.Activity.DeadAfterDays != 21 || c.Timezone != "Europe/Paris" ||
+	if c.Sync.Interval != time.Hour || c.Activity.DeadAfterDays != 21 || c.Timezone != "Europe/Paris" || c.Lang != "fr" ||
 		!slices.Equal(c.Branches.Exclude, []string{"dependabot/*", "renovate/*"}) {
-		t.Errorf("réglages importés absents : %+v", c)
+		t.Errorf("imported settings missing: %+v", c)
 	}
 	if !reflect.DeepEqual(res.Config, c) {
-		t.Errorf("WriteResult.Config = %+v, relu %+v", res.Config, c)
+		t.Errorf("WriteResult.Config = %+v, read back %+v", res.Config, c)
 	}
-	// Les réglages non fournis et absents du fichier restent en commentaire.
+	// The settings not provided and absent from the file stay in comments.
 	for _, line := range []string{"#   auto: true", "#   flemme_after_days: 5"} {
 		if !strings.Contains(content, line) {
-			t.Errorf("ligne commentée %q absente :\n%s", line, content)
+			t.Errorf("commented line %q missing:\n%s", line, content)
 		}
 	}
 	for _, line := range []string{"sync:\n", "  interval: 1h ", "  parallelism: 2 ", "  dead_after_days: 21 ",
-		`  exclude: ["dependabot/*", "renovate/*"]`, `timezone: "Europe/Paris"`, "  auth:\n", `    username: "prof"`,
+		`  exclude: ["dependabot/*", "renovate/*"]`, `timezone: "Europe/Paris"`, `lang: "fr"`, "  auth:\n", `    username: "prof"`,
 		`  gh_path: "/opt/gh/bin/gh"`, "git:\n", `  protocol: "https"`} {
 		if !strings.Contains(content, line) {
-			t.Errorf("ligne active %q absente :\n%s", line, content)
+			t.Errorf("active line %q missing:\n%s", line, content)
 		}
 	}
-	// ws.Config n'est pas modifié (un serve en cours garde sa configuration).
+	// ws.Config is not changed (a running serve keeps its configuration).
 	if ws.Config.Sync.Interval != DefaultSyncInterval {
-		t.Error("ws.Config modifié")
+		t.Error("ws.Config changed")
 	}
 }
 
-// Deux écritures des mêmes réglages donnent le même fichier.
+// Two writes of the same settings give the same file.
 func TestWriteSharedSettingsIdempotent(t *testing.T) {
 	ws := newCustomWorkspace(t)
 	s := SharedSettings{SyncAuto: ptr(false), Timezone: ptr("UTC")}
@@ -241,15 +245,15 @@ func TestWriteSharedSettingsIdempotent(t *testing.T) {
 		t.Fatal(err)
 	}
 	if second := readFile(t, ws.ConfigPath()); second != first {
-		t.Errorf("deuxième écriture différente :\n%s\n---\n%s", first, second)
+		t.Errorf("different second write:\n%s\n---\n%s", first, second)
 	}
 	if bak := readFile(t, filepath.Join(ws.Dir, BackupFileName)); bak != first {
-		t.Error("la copie .bak doit être le fichier précédent")
+		t.Error("the .bak copy must be the previous file")
 	}
 }
 
-// Un motif contenant guillemets, sauts de ligne, « # » et « : » reste une valeur : il ne crée jamais
-// d'autre clé (github.gh_path en particulier).
+// A pattern containing quotes, line breaks, "#" and ":" remains a value: it never creates another
+// key (github.gh_path in particular).
 func TestWriteSharedSettingsNoYAMLInjection(t *testing.T) {
 	ws := newCustomWorkspace(t)
 	evil := []string{
@@ -267,7 +271,7 @@ func TestWriteSharedSettingsNoYAMLInjection(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !slices.Equal(reloaded.Config.Branches.Exclude, evil) {
-		t.Errorf("branches.exclude = %q, attendu %q", reloaded.Config.Branches.Exclude, evil)
+		t.Errorf("branches.exclude = %q, want %q", reloaded.Config.Branches.Exclude, evil)
 	}
 	if reloaded.Config.GitHub.GHPath != "/opt/gh/bin/gh" {
 		t.Errorf("github.gh_path = %q", reloaded.Config.GitHub.GHPath)
@@ -279,36 +283,38 @@ func TestWriteSharedSettingsNoYAMLInjection(t *testing.T) {
 	for key := range values {
 		if !slices.Contains([]string{"name", "sync.parallelism", "branches.exclude", "web.addr", "web.allowed_hosts",
 			"web.auth.username", "github.user", "github.gh_path", "git.protocol"}, key) {
-			t.Errorf("clé inattendue %s dans le fichier réécrit", key)
+			t.Errorf("unexpected key %s in the rewritten file", key)
 		}
 	}
 }
 
-// Une valeur refusée (fuseau inconnu, injection comprise, ou réglage incohérent) n'écrit rien : ni
-// config.yaml, ni .bak, ni fichier temporaire.
+// A refused value (unknown time zone, injection included, or inconsistent setting) writes nothing:
+// neither config.yaml, nor .bak, nor temporary file.
 func TestWriteSharedSettingsInvalidChangesNothing(t *testing.T) {
 	for name, s := range map[string]SharedSettings{
-		"fuseau":       {Timezone: ptr("Europe/Paris\"\ngithub:\n  gh_path: /tmp/evil")},
-		"parallélisme": {SyncParallelism: ptr(9)},
-		"seuils":       {FlemmeAfterDays: ptr(20)},
-		"utf8":         {Timezone: ptr("\xff")},
-		"motif":        {BranchesExclude: &[]string{"[a"}},
+		"time zone":   {Timezone: ptr("Europe/Paris\"\ngithub:\n  gh_path: /tmp/evil")},
+		"parallelism": {SyncParallelism: ptr(9)},
+		"thresholds":  {FlemmeAfterDays: ptr(20)},
+		"utf8":        {Timezone: ptr("\xff")},
+		"lang":        {Lang: ptr("de")},
+		"pattern":     {BranchesExclude: &[]string{"[a"}},
 	} {
 		t.Run(name, func(t *testing.T) {
 			ws := newCustomWorkspace(t)
 			before := readFile(t, ws.ConfigPath())
 			if _, err := WriteSharedSettings(ws, s); err == nil {
-				t.Fatal("erreur attendue")
+				t.Fatal("error expected")
 			}
 			if got := readFile(t, ws.ConfigPath()); got != before {
-				t.Errorf("config.yaml modifié :\n%s", got)
+				t.Errorf("config.yaml changed:\n%s", got)
 			}
 			assertOnlyFiles(t, ws.Dir, ConfigFileName, GitignoreFileName)
 		})
 	}
 }
 
-// Sans config.yaml, le fichier est créé (sans .bak) depuis le modèle, sans ligne name active.
+// Without config.yaml, the file is created (without .bak) from the template, without an active name
+// line.
 func TestWriteSharedSettingsWithoutFile(t *testing.T) {
 	isolateEnv(t)
 	ws := mustInit(t, newDir(t, t.TempDir(), "master"))
@@ -320,11 +326,11 @@ func TestWriteSharedSettingsWithoutFile(t *testing.T) {
 		t.Fatal(err)
 	}
 	if res.BackupPath != "" {
-		t.Errorf("BackupPath = %q, vide attendu", res.BackupPath)
+		t.Errorf("BackupPath = %q, empty expected", res.BackupPath)
 	}
 	content := readFile(t, ws.ConfigPath())
 	if !strings.Contains(content, `# name: "master"`) || !strings.Contains(content, "  flemme_after_days: 3 ") {
-		t.Errorf("contenu :\n%s", content)
+		t.Errorf("content:\n%s", content)
 	}
 	assertMode(t, ws.ConfigPath(), FileMode)
 	if res.Config.Name != "master" || res.Config.Activity.FlemmeAfterDays != 3 {
@@ -332,51 +338,51 @@ func TestWriteSharedSettingsWithoutFile(t *testing.T) {
 	}
 }
 
-// Un échec d'écriture du fichier temporaire ne change rien.
+// A failure to write the temporary file changes nothing.
 func TestWriteSharedSettingsWriteFailure(t *testing.T) {
 	ws := newCustomWorkspace(t)
 	before := readFile(t, ws.ConfigPath())
-	boom := errors.New("disque plein")
+	boom := errors.New("disk full")
 	orig := writeTemp
 	writeTemp = func(string, string, []byte) (string, error) { return "", boom }
 	t.Cleanup(func() { writeTemp = orig })
 	if _, err := WriteSharedSettings(ws, SharedSettings{SyncAuto: ptr(false)}); !errors.Is(err, boom) {
-		t.Fatalf("erreur = %v", err)
+		t.Fatalf("error = %v", err)
 	}
 	if got := readFile(t, ws.ConfigPath()); got != before {
-		t.Error("config.yaml modifié")
+		t.Error("config.yaml changed")
 	}
 }
 
-// L'espace doit appartenir à l'utilisateur, comme pour Load.
+// The workspace must belong to the user, as for Load.
 func TestWriteSharedSettingsUntrusted(t *testing.T) {
 	if runtime.GOOS == "windows" {
-		t.Skip("droits Unix")
+		t.Skip("Unix permissions")
 	}
 	ws := newCustomWorkspace(t)
 	if err := os.Chmod(ws.ConfigPath(), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := WriteSharedSettings(ws, SharedSettings{SyncAuto: ptr(false)}); !errors.Is(err, ErrUntrusted) {
-		t.Fatalf("erreur = %v, ErrUntrusted attendue", err)
+		t.Fatalf("error = %v, want ErrUntrusted", err)
 	}
 }
 
 func TestWriteSharedSettingsRequiresWorkspace(t *testing.T) {
 	if _, err := WriteSharedSettings(nil, SharedSettings{}); err == nil {
-		t.Error("erreur attendue")
+		t.Error("error expected")
 	}
 }
 
-// Les réglages importés et les clés machine relus valent ceux attendus, y compris pour le modèle de Init
-// réécrit sans aucun réglage commun : seul name est actif.
+// The imported settings and the machine keys read back are the expected ones, including for the Init
+// template rewritten without any common setting: only name is active.
 func TestRenderConfigOnlyName(t *testing.T) {
-	if got := renderConfig("x", map[string]any{"name": "x"}); got != ConfigTemplate("x") {
-		t.Error("renderConfig avec name seul doit donner ConfigTemplate")
+	if got := renderConfig(i18n.For(i18n.English), "x", map[string]any{"name": "x"}); got != ConfigTemplate(i18n.English, "x") {
+		t.Error("renderConfig with name alone must give ConfigTemplate")
 	}
 }
 
-// assertOnlyFiles vérifie que dir ne contient que les fichiers names.
+// assertOnlyFiles checks that dir only contains the files names.
 func assertOnlyFiles(t *testing.T, dir string, names ...string) {
 	t.Helper()
 	entries, err := os.ReadDir(dir)
@@ -390,6 +396,6 @@ func assertOnlyFiles(t *testing.T, dir string, names ...string) {
 	slices.Sort(got)
 	slices.Sort(names)
 	if !slices.Equal(got, names) {
-		t.Errorf("fichiers de %s = %v, attendu %v", dir, got, names)
+		t.Errorf("files of %s = %v, want %v", dir, got, names)
 	}
 }

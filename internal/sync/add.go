@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/provider"
 	"github.com/studoo-app/watchoo/internal/repoimport"
@@ -80,15 +81,15 @@ type AddOptions struct {
 func (e *Engine) AddRepositories(ctx context.Context, reqs []AddRequest, opts AddOptions) ([]AddResult, error) {
 	for _, req := range reqs {
 		if err := repoimport.ValidateLabel(req.Label); err != nil {
-			return nil, fmt.Errorf("ajout du dépôt %s : %w", req.Ref, err)
+			return nil, errWrapped(i18n.T("sync.add.repo", req.Ref), err)
 		}
 		if err := repoimport.ValidateThresholds(req.FlemmeAfterDays, req.DeadAfterDays); err != nil {
-			return nil, fmt.Errorf("ajout du dépôt %s : %w", req.Ref, err)
+			return nil, errWrapped(i18n.T("sync.add.repo", req.Ref), err)
 		}
 	}
 	prov, redact, _, err := e.openProvider(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("ajout de dépôts : %w", err)
+		return nil, errWrapped(i18n.T("sync.add.repos"), err)
 	}
 	results := make([]AddResult, 0, len(reqs))
 	// planned retient, en DryRun, les dépôts qu'un ajout précédent du même lot aurait créés ou
@@ -97,7 +98,7 @@ func (e *Engine) AddRepositories(ctx context.Context, reqs []AddRequest, opts Ad
 	var quotaErr string // message du quota épuisé : ce dépôt et les suivants échouent
 	for i, req := range reqs {
 		if err := ctx.Err(); err != nil {
-			return results, fmt.Errorf("ajout de dépôts : %w", err)
+			return results, errWrapped(i18n.T("sync.add.repos"), err)
 		}
 		var res AddResult
 		if quotaErr != "" {
@@ -106,7 +107,7 @@ func (e *Engine) AddRepositories(ctx context.Context, reqs []AddRequest, opts Ad
 			res, err = e.addOne(ctx, prov, req, opts.DryRun, planned)
 			if err != nil {
 				if ctxErr := ctx.Err(); ctxErr != nil {
-					return results, fmt.Errorf("ajout de dépôts : %w", ctxErr)
+					return results, errWrapped(i18n.T("sync.add.repos"), ctxErr)
 				}
 				var rle *provider.RateLimitError
 				if errors.As(err, &rle) {

@@ -27,8 +27,8 @@ var (
 	t0    = time.Date(2026, 9, 1, 10, 0, 0, 0, time.UTC)
 )
 
-// newProvider renvoie un provider branché sur srv, ses clones dans un répertoire temporaire, et le
-// tampon de ses logs.
+// newProvider returns a provider plugged into srv, its clones in a temporary directory, and the
+// buffer of its logs.
 func newProvider(t *testing.T, srv *gittest.Server) (*git.Provider, string, *bytes.Buffer) {
 	t.Helper()
 	dir := filepath.Join(t.TempDir(), "repos")
@@ -41,7 +41,7 @@ func newProvider(t *testing.T, srv *gittest.Server) (*git.Provider, string, *byt
 	return p, dir, &logs
 }
 
-// fresh renvoie un nouveau provider sur les mêmes clones (synchro suivante : nouveau fetch).
+// fresh returns a new provider on the same clones (next sync: new fetch).
 func fresh(t *testing.T, srv *gittest.Server, dir string) *git.Provider {
 	t.Helper()
 	p, err := git.New(git.Options{Dir: dir, BaseURL: srv.URL, Logger: slog.New(slog.DiscardHandler)})
@@ -61,17 +61,17 @@ func shas(commits []provider.Commit) []string {
 
 func TestNewOptions(t *testing.T) {
 	if _, err := git.New(git.Options{}); err == nil {
-		t.Error("répertoire des clones vide accepté")
+		t.Error("empty clone directory accepted")
 	}
 	if _, err := git.New(git.Options{Dir: t.TempDir(), Protocol: "ftp"}); err == nil {
-		t.Error("protocole inconnu accepté")
+		t.Error("unknown protocol accepted")
 	}
 	p, err := git.New(git.Options{Dir: t.TempDir()})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if p.Name() != model.ProviderGitHub {
-		t.Errorf("Name = %q, la forge des dépôts (github) attendue", p.Name())
+		t.Errorf("Name = %q, want the repositories' forge (github)", p.Name())
 	}
 }
 
@@ -96,11 +96,11 @@ func TestRepositoryAndHistory(t *testing.T) {
 	want := provider.Repository{Owner: "alice", Name: "projet", DefaultBranch: "main",
 		URL: "https://github.com/alice/projet", Partial: true}
 	if meta != want {
-		t.Errorf("Repository = %+v, attendu %+v", meta, want)
+		t.Errorf("Repository = %+v, want %+v", meta, want)
 	}
-	// Repository ne clone rien (vérification d'accès d'un ajout, --dry-run compris).
+	// Repository clones nothing (access check of an addition, --dry-run included).
 	if _, err := os.Stat(dir); !errors.Is(err, os.ErrNotExist) {
-		t.Errorf("Repository a créé %s (err %v)", dir, err)
+		t.Errorf("Repository created %s (err %v)", dir, err)
 	}
 
 	branches, err := p.Branches(ctx, "alice", "projet")
@@ -109,11 +109,11 @@ func TestRepositoryAndHistory(t *testing.T) {
 	}
 	wantBranches := []provider.Branch{{Name: "dev", HeadSHA: x}, {Name: "main", HeadSHA: m1}}
 	if !slices.Equal(branches, wantBranches) {
-		t.Errorf("Branches = %v, attendu %v", branches, wantBranches)
+		t.Errorf("Branches = %v, want %v", branches, wantBranches)
 	}
 	clone := filepath.Join(dir, "projet")
 	if _, err := os.Stat(filepath.Join(clone, "README.md")); err != nil {
-		t.Errorf("copie de travail absente : %v", err)
+		t.Errorf("working copy missing: %v", err)
 	}
 	if runtime.GOOS != "windows" {
 		for _, d := range []string{dir, clone} {
@@ -122,7 +122,7 @@ func TestRepositoryAndHistory(t *testing.T) {
 				t.Fatal(err)
 			}
 			if info.Mode().Perm() != 0o700 {
-				t.Errorf("%s en %o, 0700 attendu", d, info.Mode().Perm())
+				t.Errorf("%s in %o, want 0700", d, info.Mode().Perm())
 			}
 		}
 	}
@@ -132,19 +132,19 @@ func TestRepositoryAndHistory(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got := shas(all); !slices.Equal(got, []string{m1, m0}) {
-		t.Errorf("ListCommits(main) = %v, attendu [m1 m0]", got)
+		t.Errorf("ListCommits(main) = %v, want [m1 m0]", got)
 	}
 	c := all[0]
 	if c.Message != "ajout c\n\ncorps du message" || c.Author != (provider.Person{Name: bob.Name, Email: bob.Email}) ||
 		!c.AuthoredAt.Equal(t0.Add(time.Hour)) || c.AuthoredAt.Location() != time.UTC ||
 		!slices.Equal(c.Parents, []string{m0}) || c.URL != "https://github.com/alice/projet/commit/"+m1 {
-		t.Errorf("commit mal lu : %+v", c)
+		t.Errorf("commit misread: %+v", c)
 	}
 	if len(all[1].Parents) != 0 || all[1].Parents == nil {
-		t.Errorf("commit racine : parents %v, liste vide non nil attendue", all[1].Parents)
+		t.Errorf("root commit: parents %v, want an empty non-nil list", all[1].Parents)
 	}
 
-	// HEAD du clone, SHA, Limit, Since, Stop.
+	// Clone HEAD, SHA, Limit, Since, Stop.
 	head, err := p.ListCommits(ctx, "alice", "projet", provider.ListCommitsOptions{})
 	if err != nil || !slices.Equal(shas(head), []string{m1, m0}) {
 		t.Errorf("ListCommits(HEAD) = %v, %v", shas(head), err)
@@ -154,7 +154,7 @@ func TestRepositoryAndHistory(t *testing.T) {
 		t.Errorf("ListCommits(SHA, Limit 2) = %v, %v", shas(bySHA), err)
 	}
 	if got := bySHA[0].Parents; len(got) != 2 {
-		t.Errorf("merge : %d parents, 2 attendus", len(got))
+		t.Errorf("merge: %d parents, want 2", len(got))
 	}
 	since, err := p.ListCommits(ctx, "alice", "projet", provider.ListCommitsOptions{Branch: "dev", Since: t0.Add(90 * time.Minute)})
 	if err != nil || !slices.Equal(shas(since), []string{x, f1}) {
@@ -166,26 +166,26 @@ func TestRepositoryAndHistory(t *testing.T) {
 		t.Errorf("ListCommits(Stop) = %v, %v", shas(stopped), err)
 	}
 	if _, err := p.ListCommits(ctx, "alice", "projet", provider.ListCommitsOptions{Branch: "inconnue"}); !errors.Is(err, provider.ErrNotFound) {
-		t.Errorf("branche inconnue : %v, ErrNotFound attendue", err)
+		t.Errorf("unknown branch: %v, want ErrNotFound", err)
 	}
 
-	// Comparaison : commits propres à dev depuis main (merge compris).
+	// Comparison: commits specific to dev since main (merge included).
 	cmp, err := p.CompareCommits(ctx, "alice", "projet", m1, x)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got := shas(cmp); !slices.Equal(got, []string{x, f1}) {
-		t.Errorf("CompareCommits(m1, x) = %v, attendu [x f1]", got)
+		t.Errorf("CompareCommits(m1, x) = %v, want [x f1]", got)
 	}
 	if same, err := p.CompareCommits(ctx, "alice", "projet", x, x); err != nil || len(same) != 0 || same == nil {
-		t.Errorf("CompareCommits(x, x) = %v, %v ; liste vide non nil attendue", same, err)
+		t.Errorf("CompareCommits(x, x) = %v, %v; want an empty non-nil list", same, err)
 	}
 	unknown := strings.Repeat("ab", 20)
 	if _, err := p.CompareCommits(ctx, "alice", "projet", unknown, x); !errors.Is(err, provider.ErrUnknownBase) {
-		t.Errorf("base inconnue : %v, ErrUnknownBase attendue", err)
+		t.Errorf("unknown base: %v, want ErrUnknownBase", err)
 	}
 
-	// Statistiques (numstat) : commit simple, commit racine, merge (par rapport au premier parent).
+	// Statistics (numstat): simple commit, root commit, merge (against the first parent).
 	for _, tc := range []struct {
 		sha  string
 		want provider.CommitStats
@@ -193,15 +193,15 @@ func TestRepositoryAndHistory(t *testing.T) {
 		{m1, provider.CommitStats{Additions: 1}},
 		{m0, provider.CommitStats{Additions: 2}},
 		{f1, provider.CommitStats{Additions: 1}},
-		{x, provider.CommitStats{Additions: 1}}, // le merge apporte « c » à dev
+		{x, provider.CommitStats{Additions: 1}}, // the merge brings "c" to dev
 	} {
 		st, err := p.CommitStats(ctx, "alice", "projet", tc.sha)
 		if err != nil || st != tc.want {
-			t.Errorf("CommitStats(%s) = %+v, %v ; attendu %+v", provider.ShortSHA(tc.sha), st, err, tc.want)
+			t.Errorf("CommitStats(%s) = %+v, %v; want %+v", provider.ShortSHA(tc.sha), st, err, tc.want)
 		}
 	}
 	if _, err := p.CommitStats(ctx, "alice", "projet", unknown); !errors.Is(err, provider.ErrNotFound) {
-		t.Errorf("statistiques d'un commit inconnu : %v, ErrNotFound attendue", err)
+		t.Errorf("statistics of an unknown commit: %v, want ErrNotFound", err)
 	}
 
 	tags, err := p.Tags(ctx, "alice", "projet")
@@ -209,30 +209,30 @@ func TestRepositoryAndHistory(t *testing.T) {
 		t.Fatal(err)
 	}
 	if want := []provider.Tag{{Name: "v1.0", SHA: m1}, {Name: "v1.1", SHA: m1}}; !slices.Equal(tags, want) {
-		t.Errorf("Tags = %v, attendu %v", tags, want)
+		t.Errorf("Tags = %v, want %v", tags, want)
 	}
 
-	// Ce que la source ne fournit pas.
+	// What the source does not provide.
 	if _, err := p.PullRequests(ctx, "alice", "projet", provider.PullRequestsOptions{}); !errors.Is(err, provider.ErrUnsupported) {
-		t.Errorf("PullRequests : %v, ErrUnsupported attendue", err)
+		t.Errorf("PullRequests: %v, want ErrUnsupported", err)
 	}
 	if _, err := p.Releases(ctx, "alice", "projet"); !errors.Is(err, provider.ErrUnsupported) {
-		t.Errorf("Releases : %v, ErrUnsupported attendue", err)
+		t.Errorf("Releases: %v, want ErrUnsupported", err)
 	}
 	if _, err := p.RepositoryByID(ctx, 42); !errors.Is(err, provider.ErrUnsupported) {
-		t.Errorf("RepositoryByID : %v, ErrUnsupported attendue", err)
+		t.Errorf("RepositoryByID: %v, want ErrUnsupported", err)
 	}
 	if _, err := p.RateLimit(ctx); !errors.Is(err, provider.ErrUnsupported) {
-		t.Errorf("RateLimit : %v, ErrUnsupported attendue", err)
+		t.Errorf("RateLimit: %v, want ErrUnsupported", err)
 	}
 	if _, ok := p.LastRateLimit(); ok {
-		t.Error("LastRateLimit : aucun quota attendu")
+		t.Error("LastRateLimit: want no quota")
 	}
 
-	// Aucune donnée personnelle dans les logs.
+	// No personal data in the logs.
 	for _, secret := range []string{alice.Name, alice.Email, bob.Email, "corps du message", srv.URL} {
 		if strings.Contains(logs.String(), secret) {
-			t.Errorf("les logs contiennent %q :\n%s", secret, logs.String())
+			t.Errorf("the logs contain %q:\n%s", secret, logs.String())
 		}
 	}
 }
@@ -251,22 +251,22 @@ func TestFetchFollowsRemote(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Côté distant : branche supprimée, tag supprimé, historique réécrit, nouvelle branche par défaut.
+	// Remote side: branch deleted, tag deleted, history rewritten, new default branch.
 	r.DeleteBranch("old")
 	r.Reset("main", m0)
 	m2 := r.Commit("main", "a.txt", "3\n", "m2", bob, t0.Add(2*time.Hour))
 	r.Commit("trunk", "b.txt", "x\n", "t", bob, t0.Add(3*time.Hour))
 	r.SetDefaultBranch("trunk")
 
-	// Le même Provider ne refait pas de fetch (une mise à jour par synchro).
+	// The same Provider does not fetch again (one update per sync).
 	if b, _ := p.Branches(ctx, "alice", "projet"); len(b) != 2 {
-		t.Errorf("même Provider : %v, branches inchangées attendues", b)
+		t.Errorf("same Provider: %v, want unchanged branches", b)
 	}
 
 	p2 := fresh(t, srv, dir)
 	meta, err := p2.Repository(ctx, "alice", "projet")
 	if err != nil || meta.DefaultBranch != "trunk" {
-		t.Errorf("Repository après changement : %+v, %v", meta, err)
+		t.Errorf("Repository after change: %+v, %v", meta, err)
 	}
 	branches, err := p2.Branches(ctx, "alice", "projet")
 	if err != nil {
@@ -277,15 +277,15 @@ func TestFetchFollowsRemote(t *testing.T) {
 		names[i] = b.Name
 	}
 	if !slices.Equal(names, []string{"main", "trunk"}) || branches[0].HeadSHA != m2 {
-		t.Errorf("branches après fetch = %v", branches)
+		t.Errorf("branches after fetch = %v", branches)
 	}
-	// m1 a disparu de main mais reste dans le clone : la comparaison réussit (commits de m2 absents de m1).
+	// m1 is gone from main but stays in the clone: the comparison succeeds (commits of m2 missing from m1).
 	if cmp, err := p2.CompareCommits(ctx, "alice", "projet", m1, m2); err != nil || !slices.Equal(shas(cmp), []string{m2}) {
-		t.Errorf("CompareCommits après force-push = %v, %v", shas(cmp), err)
+		t.Errorf("CompareCommits after force-push = %v, %v", shas(cmp), err)
 	}
 	r.Tag("v1", m2, "")
 	if tags, err := fresh(t, srv, dir).Tags(ctx, "alice", "projet"); err != nil || len(tags) != 2 {
-		t.Errorf("tags après fetch = %v, %v", tags, err)
+		t.Errorf("tags after fetch = %v, %v", tags, err)
 	}
 }
 
@@ -302,11 +302,11 @@ func TestEmptyRepository(t *testing.T) {
 		t.Errorf("Repository(vide) = %+v", meta)
 	}
 	if b, err := p.Branches(ctx, "alice", "vide"); err != nil || len(b) != 0 || b == nil {
-		t.Errorf("Branches(vide) = %v, %v ; liste vide non nil attendue", b, err)
+		t.Errorf("Branches(vide) = %v, %v; want an empty non-nil list", b, err)
 	}
 	for _, branch := range []string{"", "main"} {
 		if c, err := p.ListCommits(ctx, "alice", "vide", provider.ListCommitsOptions{Branch: branch}); err != nil || len(c) != 0 || c == nil {
-			t.Errorf("ListCommits(vide, %q) = %v, %v ; liste vide attendue", branch, c, err)
+			t.Errorf("ListCommits(vide, %q) = %v, %v; want an empty list", branch, c, err)
 		}
 	}
 	if tags, err := p.Tags(ctx, "alice", "vide"); err != nil || len(tags) != 0 || tags == nil {
@@ -315,7 +315,7 @@ func TestEmptyRepository(t *testing.T) {
 }
 
 func TestInvalidRefsRunNothing(t *testing.T) {
-	// Un git introuvable prouve qu'aucune commande n'est lancée : seule la validation répond.
+	// A git that cannot be found proves that no command is run: only the validation answers.
 	p, err := git.New(git.Options{Dir: t.TempDir(), GitPath: filepath.Join(t.TempDir(), "absent")})
 	if err != nil {
 		t.Fatal(err)
@@ -325,7 +325,7 @@ func TestInvalidRefsRunNothing(t *testing.T) {
 	calls := map[string]func() error{
 		"owner": func() error { _, err := p.Repository(ctx, "-x", "projet"); return err },
 		"name":  func() error { _, err := p.Branches(ctx, "alice", ".."); return err },
-		"branche": func() error {
+		"branch": func() error {
 			_, err := p.ListCommits(ctx, "alice", "p", provider.ListCommitsOptions{Branch: "a\nb"})
 			return err
 		},
@@ -341,7 +341,7 @@ func TestInvalidRefsRunNothing(t *testing.T) {
 	}
 	for name, call := range calls {
 		if err := call(); !errors.Is(err, provider.ErrInvalidRef) {
-			t.Errorf("%s : %v, ErrInvalidRef attendue", name, err)
+			t.Errorf("%s: %v, want ErrInvalidRef", name, err)
 		}
 	}
 }
@@ -351,35 +351,35 @@ func TestAccessDeniedWithoutPrompt(t *testing.T) {
 	p, dir, _ := newProvider(t, srv)
 	ctx, cancel := context.WithTimeout(t.Context(), time.Minute)
 	defer cancel()
-	// Dépôt absent du « serveur » : git échoue sans rien demander (aucune entrée standard).
+	// Repository missing from the "server": git fails without asking anything (no standard input).
 	if _, err := p.Repository(ctx, "alice", "absent"); !errors.Is(err, provider.ErrAccessDenied) {
-		t.Errorf("Repository(absent) : %v, ErrAccessDenied attendue", err)
-	} else if !strings.Contains(err.Error(), "accès refusé") || strings.Contains(err.Error(), srv.URL) {
-		t.Errorf("message : %q", err)
+		t.Errorf("Repository(absent): %v, want ErrAccessDenied", err)
+	} else if !strings.Contains(err.Error(), "access denied") || strings.Contains(err.Error(), srv.URL) {
+		t.Errorf("message: %q", err)
 	}
 	if _, err := p.Branches(ctx, "alice", "absent"); !errors.Is(err, provider.ErrAccessDenied) {
-		t.Errorf("Branches(absent) : %v, ErrAccessDenied attendue", err)
+		t.Errorf("Branches(absent): %v, want ErrAccessDenied", err)
 	}
 	clone := filepath.Join(dir, "absent")
 	if _, err := os.Stat(clone); !errors.Is(err, os.ErrNotExist) {
-		t.Errorf("un clone raté a laissé %s", clone)
+		t.Errorf("a failed clone left %s", clone)
 	}
 	entries, _ := os.ReadDir(dir)
 	if len(entries) != 0 {
-		t.Errorf("restes de clone : %v", entries)
+		t.Errorf("clone leftovers: %v", entries)
 	}
 }
 
 func TestHTTPSWithoutCredentialsFailsFast(t *testing.T) {
 	gittest.Skip(t)
-	// Port fermé de la boucle locale : erreur réseau, sans invite ni service extérieur.
+	// Closed port on the loopback: network error, without prompt or external service.
 	p, err := git.New(git.Options{Dir: t.TempDir(), BaseURL: "https://127.0.0.1:1",
 		NetworkTimeout: 30 * time.Second})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err := p.Repository(t.Context(), "alice", "projet"); !errors.Is(err, provider.ErrUnavailable) {
-		t.Errorf("hôte injoignable : %v, ErrUnavailable attendue", err)
+		t.Errorf("unreachable host: %v, want ErrUnavailable", err)
 	}
 }
 
@@ -424,21 +424,21 @@ func TestRemoveClone(t *testing.T) {
 	repos := []git.Ref{{Owner: "Alice", Name: "Projet"}, {Owner: "Alice", Name: "autre"}}
 	clone := filepath.Join(dir, "projet")
 	if _, err := os.Stat(filepath.Join(clone, "f")); err != nil {
-		t.Fatalf("clone attendu à %s : %v", clone, err)
+		t.Fatalf("want a clone at %s: %v", clone, err)
 	}
 	if err := git.RemoveClone(dir, repos, "ALICE", "projet"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(clone); !errors.Is(err, os.ErrNotExist) {
-		t.Errorf("clone toujours là : %v", err)
+		t.Errorf("clone still there: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(dir, "autre", "f")); err != nil {
-		t.Errorf("clone d'un autre dépôt touché : %v", err)
+		t.Errorf("clone of another repository touched: %v", err)
 	}
 	if err := git.RemoveClone(dir, repos[1:], "alice", "absent"); err != nil {
-		t.Errorf("clone absent : %v", err)
+		t.Errorf("missing clone: %v", err)
 	}
-	// Un répertoire que Watchoo n'a pas créé pour ce dépôt n'est jamais supprimé.
+	// A directory that Watchoo did not create for this repository is never deleted.
 	mine := filepath.Join(dir, "perso")
 	if err := os.MkdirAll(mine, 0o700); err != nil {
 		t.Fatal(err)
@@ -450,27 +450,27 @@ func TestRemoveClone(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(filepath.Join(mine, "notes.txt")); err != nil {
-		t.Errorf("répertoire de l'utilisateur supprimé : %v", err)
+		t.Errorf("user's directory deleted: %v", err)
 	}
 	if err := git.RemoveClone(dir, repos[1:], "alice", "autre"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(filepath.Join(dir, "autre")); !errors.Is(err, os.ErrNotExist) {
-		t.Errorf("clone toujours là : %v", err)
+		t.Errorf("clone still there: %v", err)
 	}
 }
 
 func TestCheck(t *testing.T) {
 	gittest.Skip(t)
 	if err := git.Check(t.Context(), ""); err != nil {
-		t.Errorf("Check(git) : %v", err)
+		t.Errorf("Check(git): %v", err)
 	}
 	if err := git.Check(t.Context(), filepath.Join(t.TempDir(), "absent")); !errors.Is(err, git.ErrGitNotFound) {
-		t.Errorf("Check(absent) : %v, ErrGitNotFound attendue", err)
+		t.Errorf("Check(absent): %v, want ErrGitNotFound", err)
 	}
 }
 
-// readFile renvoie le contenu de path ("" s'il n'existe pas).
+// readFile returns the content of path ("" if it does not exist).
 func readFile(t *testing.T, path string) string {
 	t.Helper()
 	b, err := os.ReadFile(path)
@@ -483,7 +483,7 @@ func readFile(t *testing.T, path string) string {
 	return string(b)
 }
 
-// writeFile écrit content dans path.
+// writeFile writes content to path.
 func writeFile(t *testing.T, path, content string) {
 	t.Helper()
 	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
@@ -491,10 +491,9 @@ func writeFile(t *testing.T, path, content string) {
 	}
 }
 
-// La copie de travail suit la branche par défaut du distant : fichiers suivis remis à jour (une
-// modification locale est écrasée), fichiers non suivis gardés, changement de branche par défaut
-// suivi ; lectures faites depuis les branches du distant (refs/remotes/origin/), pas les branches
-// locales.
+// The working copy follows the remote's default branch: tracked files updated (a local change is
+// overwritten), untracked files kept, change of default branch followed; reads are made from the
+// remote's branches (refs/remotes/origin/), not the local branches.
 func TestWorkingTreeFollowsRemote(t *testing.T) {
 	srv := gittest.NewServer(t)
 	r := srv.Create("alice", "projet", "main")
@@ -506,9 +505,9 @@ func TestWorkingTreeFollowsRemote(t *testing.T) {
 	}
 	clone := filepath.Join(dir, "projet")
 	if got := readFile(t, filepath.Join(clone, "a.txt")); got != "1\n" {
-		t.Fatalf("a.txt = %q après le clone", got)
+		t.Fatalf("a.txt = %q after the clone", got)
 	}
-	// L'enseignant modifie un fichier suivi et en ajoute un non suivi ; l'étudiant pousse.
+	// The teacher changes a tracked file and adds an untracked one; the student pushes.
 	writeFile(t, filepath.Join(clone, "a.txt"), "modifié localement\n")
 	writeFile(t, filepath.Join(clone, "notes.txt"), "notes de l'enseignant\n")
 	m1 := r.Commit("main", "a.txt", "2\n", "m1", bob, t0.Add(time.Hour))
@@ -521,36 +520,36 @@ func TestWorkingTreeFollowsRemote(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(branches) != 2 || branches[0] != (provider.Branch{Name: "main", HeadSHA: m1}) || branches[1].Name != "trunk" {
-		t.Errorf("branches = %v, [main trunk] lues du distant attendues", branches)
+		t.Errorf("branches = %v, want [main trunk] read from the remote", branches)
 	}
 	if got := readFile(t, filepath.Join(clone, "b.txt")); got != "t\n" {
-		t.Errorf("b.txt = %q : la copie de travail doit être sur trunk (nouvelle branche par défaut)", got)
+		t.Errorf("b.txt = %q: the working copy must be on trunk (new default branch)", got)
 	}
 	if got := readFile(t, filepath.Join(clone, "a.txt")); got != "2\n" {
-		t.Errorf("a.txt = %q : la modification locale d'un fichier suivi doit être écrasée", got)
+		t.Errorf("a.txt = %q: the local change to a tracked file must be overwritten", got)
 	}
 	if got := readFile(t, filepath.Join(clone, "notes.txt")); got != "notes de l'enseignant\n" {
-		t.Errorf("notes.txt = %q : un fichier non suivi doit être gardé", got)
+		t.Errorf("notes.txt = %q: an untracked file must be kept", got)
 	}
 	head, err := p2.ListCommits(ctx, "alice", "projet", provider.ListCommitsOptions{})
 	if err != nil || len(head) == 0 || head[0].Message != "t" {
-		t.Errorf("ListCommits(branche par défaut) = %v, %v ; tête de trunk attendue", shas(head), err)
+		t.Errorf("ListCommits(default branch) = %v, %v; want the head of trunk", shas(head), err)
 	}
-	// Une branche locale créée dans le clone n'est pas une branche du dépôt.
+	// A local branch created in the clone is not a branch of the repository.
 	cmd := exec.Command("git", "-C", clone, "branch", "locale")
 	cmd.Env = append(os.Environ(), "GIT_CONFIG_GLOBAL="+os.DevNull, "GIT_CONFIG_NOSYSTEM=1")
 	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("git branch : %v\n%s", err, out)
+		t.Fatalf("git branch: %v\n%s", err, out)
 	}
 	if b, err := fresh(t, srv, dir).Branches(ctx, "alice", "projet"); err != nil || len(b) != 2 {
-		t.Errorf("branches = %v, %v ; la branche locale ne doit pas compter", b, err)
+		t.Errorf("branches = %v, %v; the local branch must not count", b, err)
 	}
 	if _, err := fresh(t, srv, dir).ListCommits(ctx, "alice", "projet", provider.ListCommitsOptions{Branch: "locale"}); !errors.Is(err, provider.ErrNotFound) {
-		t.Errorf("ListCommits(branche locale) : %v, ErrNotFound attendue", err)
+		t.Errorf("ListCommits(local branch): %v, want ErrNotFound", err)
 	}
 }
 
-// Dépôt vide : le clone existe, sans fichier extrait ; il se remplit au premier commit poussé.
+// Empty repository: the clone exists, without checked-out files; it fills up at the first pushed commit.
 func TestEmptyRepositoryWorkingTree(t *testing.T) {
 	srv := gittest.NewServer(t)
 	r := srv.Create("alice", "vide", "main")
@@ -565,19 +564,19 @@ func TestEmptyRepositoryWorkingTree(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(entries) != 1 || entries[0].Name() != ".git" {
-		t.Errorf("clone d'un dépôt vide : %v, seul .git attendu", entries)
+		t.Errorf("clone of an empty repository: %v, want only .git", entries)
 	}
 	r.Commit("main", "a.txt", "1\n", "m0", alice, t0)
 	if _, err := fresh(t, srv, dir).Branches(ctx, "alice", "vide"); err != nil {
 		t.Fatal(err)
 	}
 	if got := readFile(t, filepath.Join(clone, "a.txt")); got != "1\n" {
-		t.Errorf("a.txt = %q après le premier commit", got)
+		t.Errorf("a.txt = %q after the first commit", got)
 	}
 }
 
-// Aucun hook : un hook post-checkout configuré globalement (core.hooksPath) ne s'exécute pas, même
-// avec submodule.recurse et un .gitmodules dans le dépôt.
+// No hook: a post-checkout hook configured globally (core.hooksPath) does not run, even with
+// submodule.recurse and a .gitmodules in the repository.
 func TestNoHookRuns(t *testing.T) {
 	srv := gittest.NewServer(t)
 	r := srv.Create("alice", "projet", "main")
@@ -596,23 +595,23 @@ func TestNoHookRuns(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(filepath.Join(dir, "projet", ".gitmodules")); err != nil {
-		t.Fatalf("copie de travail absente : %v", err)
+		t.Fatalf("working copy missing: %v", err)
 	}
 	if runtime.GOOS != "windows" {
 		if _, err := os.Stat(witness); !errors.Is(err, os.ErrNotExist) {
-			t.Errorf("un hook s'est exécuté (%v)", err)
+			t.Errorf("a hook ran (%v)", err)
 		}
 	}
 }
 
-// Règle des homonymes : premier ajouté = repos/<name>, suivants = repos/<owner>-<name>, sans tenir
-// compte de la casse ; ajouter un dépôt ne déplace aucun clone.
+// Namesakes rule: first added = repos/<name>, next ones = repos/<owner>-<name>, case-insensitive;
+// adding a repository moves no clone.
 func TestLayout(t *testing.T) {
 	root := filepath.Join("r")
 	repos := []git.Ref{
 		{Owner: "alice", Name: "Projet"},
 		{Owner: "Bob", Name: "projet"},
-		{Owner: "carol", Name: "bob-projet"}, // le nom de l'homonyme de bob est déjà pris
+		{Owner: "carol", Name: "bob-projet"}, // the name of bob's namesake is already taken
 		{Owner: "dave", Name: "autre"},
 		{Owner: "bob", Name: "bob-projet"},
 		{Owner: "x", Name: ".git"},
@@ -625,29 +624,29 @@ func TestLayout(t *testing.T) {
 		repos[3]:                             "autre",
 		repos[4]:                             "bob-bob-projet",
 		repos[5]:                             "x-.git",
-		{Owner: "eve", Name: "PROJET"}:       "eve-projet", // absent de la liste : à la suite
+		{Owner: "eve", Name: "PROJET"}:       "eve-projet", // not in the list: next in line
 		{Owner: "ALICE", Name: "projet"}:     "projet",
 		{Owner: "frank", Name: "bob-projet"}: "frank-bob-projet",
 	}
 	for ref, dir := range want {
 		got, err := l.Path(ref.Owner, ref.Name)
 		if err != nil || got != filepath.Join(root, dir) {
-			t.Errorf("Path(%s/%s) = %s, %v ; attendu %s", ref.Owner, ref.Name, got, err, dir)
+			t.Errorf("Path(%s/%s) = %s, %v; want %s", ref.Owner, ref.Name, got, err, dir)
 		}
 	}
-	// Un ajout ne change pas les emplacements existants.
+	// An addition does not change the existing locations.
 	more := git.NewLayout(root, append(slices.Clone(repos), git.Ref{Owner: "zed", Name: "autre"}))
 	for _, ref := range repos {
 		a, _ := l.Path(ref.Owner, ref.Name)
 		b, _ := more.Path(ref.Owner, ref.Name)
 		if a != b {
-			t.Errorf("%s/%s déplacé par un ajout : %s → %s", ref.Owner, ref.Name, a, b)
+			t.Errorf("%s/%s moved by an addition: %s → %s", ref.Owner, ref.Name, a, b)
 		}
 	}
 }
 
-// Retrait du premier homonyme : le clone du suivant prend repos/<name> (déplacé, pas recloné), et
-// la synchro suivante le retrouve.
+// Removing the first namesake: the next one's clone takes repos/<name> (moved, not re-cloned), and
+// the next sync finds it again.
 func TestRemoveCloneRelocatesHomonym(t *testing.T) {
 	srv := gittest.NewServer(t)
 	for _, owner := range []string{"alice", "bob"} {
@@ -667,17 +666,17 @@ func TestRemoveCloneRelocatesHomonym(t *testing.T) {
 	}
 	if readFile(t, filepath.Join(dir, "projet", "qui.txt")) != "alice\n" ||
 		readFile(t, filepath.Join(dir, "bob-projet", "qui.txt")) != "bob\n" {
-		t.Fatal("homonymes mal rangés")
+		t.Fatal("namesakes misplaced")
 	}
 	writeFile(t, filepath.Join(dir, "bob-projet", "notes.txt"), "gardé\n")
 	if err := git.RemoveClone(dir, repos, "alice", "projet"); err != nil {
 		t.Fatal(err)
 	}
 	if got := readFile(t, filepath.Join(dir, "projet", "notes.txt")); got != "gardé\n" {
-		t.Errorf("clone de bob non déplacé vers repos/projet (notes.txt = %q)", got)
+		t.Errorf("bob's clone not moved to repos/projet (notes.txt = %q)", got)
 	}
 	if _, err := os.Stat(filepath.Join(dir, "bob-projet")); !errors.Is(err, os.ErrNotExist) {
-		t.Errorf("ancien emplacement gardé : %v", err)
+		t.Errorf("old location kept: %v", err)
 	}
 	p2, err := git.New(git.Options{Dir: dir, Repos: repos[1:], BaseURL: srv.URL, Logger: slog.New(slog.DiscardHandler)})
 	if err != nil {
@@ -687,11 +686,11 @@ func TestRemoveCloneRelocatesHomonym(t *testing.T) {
 		t.Fatal(err)
 	}
 	if readFile(t, filepath.Join(dir, "projet", "qui.txt")) != "bob\n" {
-		t.Error("clone déplacé non retrouvé")
+		t.Error("moved clone not found again")
 	}
 }
 
-// Un emplacement occupé par autre chose qu'un clone de Watchoo pour ce dépôt n'est jamais touché.
+// A location taken by something other than a Watchoo clone of this repository is never touched.
 func TestOccupiedCloneDir(t *testing.T) {
 	srv := gittest.NewServer(t)
 	srv.Create("alice", "projet", "main").Commit("main", "a.txt", "1\n", "m0", alice, t0)
@@ -703,12 +702,12 @@ func TestOccupiedCloneDir(t *testing.T) {
 	}
 	writeFile(t, filepath.Join(mine, "perso.txt"), "x")
 	if _, err := p.Branches(t.Context(), "alice", "projet"); !errors.Is(err, git.ErrCloneDirOccupied) {
-		t.Errorf("répertoire de l'utilisateur : %v, ErrCloneDirOccupied attendue", err)
+		t.Errorf("user's directory: %v, want ErrCloneDirOccupied", err)
 	}
 	if readFile(t, filepath.Join(mine, "perso.txt")) != "x" {
-		t.Error("répertoire de l'utilisateur modifié")
+		t.Error("user's directory modified")
 	}
-	// Clone d'un autre dépôt à cet emplacement (signature différente) : refusé aussi.
+	// Clone of another repository at this location (different signature): refused too.
 	if _, err := p.Branches(t.Context(), "bob", "autre"); err != nil {
 		t.Fatal(err)
 	}
@@ -716,14 +715,14 @@ func TestOccupiedCloneDir(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := fresh(t, srv, dir).Branches(t.Context(), "alice", "x"); !errors.Is(err, git.ErrCloneDirOccupied) {
-		t.Errorf("clone d'un autre dépôt : %v, ErrCloneDirOccupied attendue", err)
+		t.Errorf("clone of another repository: %v, want ErrCloneDirOccupied", err)
 	}
-	// Un répertoire vide est remplacé.
+	// An empty directory is replaced.
 	if err := os.Mkdir(filepath.Join(dir, "autre"), 0o700); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := fresh(t, srv, dir).Branches(t.Context(), "bob", "autre"); err != nil {
-		t.Errorf("répertoire vide : %v", err)
+		t.Errorf("empty directory: %v", err)
 	}
 }
 
@@ -740,7 +739,7 @@ func TestProfileURL(t *testing.T) {
 		"a b":             "",
 	} {
 		if got := p.ProfileURL(login); got != want {
-			t.Errorf("ProfileURL(%q) = %q, veut %q", login, got, want)
+			t.Errorf("ProfileURL(%q) = %q, want %q", login, got, want)
 		}
 	}
 }

@@ -11,11 +11,13 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/provider"
 )
 
-// Noms des listes dans les avertissements (« <liste> non synchronisées : … »).
+// Noms des listes dans les avertissements (« <liste> not synced: … »), identiques dans les deux
+// langues.
 const (
 	listPulls    = "pull requests"
 	listReleases = "releases"
@@ -45,7 +47,7 @@ type extras struct {
 func (s *repoSync) fetchExtras(ctx context.Context, h *halt, repoID int64) (extras, error) {
 	var x extras
 	if rl, ok := s.prov.LastRateLimit(); ok && QuotaLow(rl, s.e.now()) {
-		x.warn(reasonLow, listPulls, listReleases, listTags)
+		x.warn(DeferLowQuota.Text(), listPulls, listReleases, listTags)
 		s.e.logger.Info("pull requests, releases et tags non demandés : quota bas", "repo", s.full)
 		return x, nil
 	}
@@ -126,7 +128,7 @@ func (s *repoSync) extraFailed(ctx context.Context, h *halt, x *extras, err erro
 		return false, nil
 	}
 	if rle, ok := errors.AsType[*provider.RateLimitError](err); ok {
-		h.set(rateLimitResume(rle, s.e.now()), reasonSpent)
+		h.set(rateLimitResume(rle, s.e.now()), DeferQuotaExhausted)
 		x.warn(errorMessage(err), lists...)
 		s.e.logger.Info("pull requests, releases ou tags interrompus : quota épuisé", "repo", s.full,
 			"liste", lists[0])
@@ -137,17 +139,17 @@ func (s *repoSync) extraFailed(ctx context.Context, h *halt, x *extras, err erro
 	return false, nil
 }
 
-// warn ajoute l'avertissement « <listes> non synchronisées : <raison> » (« synchronisés » dès que
-// les tags en sont).
+// warn ajoute l'avertissement « <listes> not synced: <raison> », dans la langue du processus (en
+// français « <listes> non synchronisées : <raison> », « synchronisés » dès que les tags en sont).
 func (x *extras) warn(reason string, lists ...string) {
-	agreed := " non synchronisées : "
+	key := "sync.extras.not_synced"
 	if slices.Contains(lists, listTags) {
-		agreed = " non synchronisés : "
+		key = "sync.extras.not_synced_masc"
 	}
-	x.warnings = append(x.warnings, joinLists(lists)+agreed+reason)
+	x.warnings = append(x.warnings, i18n.T(key, joinLists(lists), reason))
 }
 
-// joinLists écrit « a », « a et b », « a, b et c ».
+// joinLists écrit « a », « a and b », « a, b and c » (« et » en français).
 func joinLists(lists []string) string {
 	switch len(lists) {
 	case 0:
@@ -155,7 +157,7 @@ func joinLists(lists []string) string {
 	case 1:
 		return lists[0]
 	}
-	return strings.Join(lists[:len(lists)-1], ", ") + " et " + lists[len(lists)-1]
+	return strings.Join(lists[:len(lists)-1], ", ") + i18n.T("sync.extras.and") + lists[len(lists)-1]
 }
 
 // pullRequestModel convertit une pull request de la forge ; false si elle est inexploitable (numéro,

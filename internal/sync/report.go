@@ -6,6 +6,7 @@ package sync
 import (
 	"time"
 
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/provider"
 )
 
@@ -20,6 +21,25 @@ const (
 	StatusDeferred RepoStatus = "deferred" // reporté : quota bas ou épuisé, jusqu'à ResumeAt
 )
 
+// DeferReason est la raison du report d'un dépôt (StatusDeferred). Valeurs stables : les couches
+// d'affichage les traduisent (Text) au lieu d'analyser le message RepoReport.Error.
+type DeferReason string
+
+// Valeurs de DeferReason.
+const (
+	DeferLowQuota       DeferReason = "low_quota"       // quota restant sous QuotaReservePercent
+	DeferQuotaExhausted DeferReason = "quota_exhausted" // quota épuisé (RateLimitError)
+)
+
+// Text renvoie la raison dans la langue du processus : « low quota » / « quota bas », « quota
+// exhausted » / « quota épuisé » ; une raison vide ou inconnue donne celle du quota bas.
+func (r DeferReason) Text() string {
+	if r == DeferQuotaExhausted {
+		return i18n.T("sync.reason.quota_exhausted")
+	}
+	return i18n.T("sync.reason.low_quota")
+}
+
 // RepoReport est le résultat de la synchro d'un dépôt.
 type RepoReport struct {
 	RepoID          int64         // identifiant interne
@@ -31,15 +51,18 @@ type RepoReport struct {
 	StatsFetched    int           // statistiques calculées par le clone, ou appels CommitStats (repli sur l'API)
 	PullRequests    int           // pull requests lues (nouvelles ou modifiées depuis la synchro précédente)
 	Duration        time.Duration // durée de la synchro du dépôt (0 si ignoré ou reporté)
-	// Error est le message d'échec en français (StatusError), « déjà en cours de synchronisation »
-	// (StatusLocked) ou « reporté : quota bas jusqu'à HH:MM » (StatusDeferred, heure non convertie :
-	// voir ResumeAt) ; vide pour un succès.
+	// Error est le message d'échec (StatusError), « already being synced » (StatusLocked) ou
+	// « deferred: low quota until HH:MM UTC » (StatusDeferred, heure non convertie : voir ResumeAt et
+	// DeferReason), dans la langue du processus lors de la synchro ; vide pour un succès.
 	Error    string
 	ResumeAt time.Time // StatusDeferred : moment où réessayer (UTC) ; zéro sinon
+	// DeferReason est la raison du report (StatusDeferred) ; vide sinon. Les couches d'affichage s'en
+	// servent plutôt que d'analyser Error.
+	DeferReason DeferReason
 	// Warnings sont les avertissements d'un dépôt réussi (StatusSuccess) : pull requests, releases ou
-	// tags non synchronisés (« releases non synchronisées : … »), clone Git local indisponible
-	// (« clone Git local indisponible, statistiques de lignes lues par l'API (limitées) : … »), en
-	// français, sans donnée personnelle ;
+	// tags non synchronisés (« releases not synced: … »), clone Git local indisponible
+	// (« local Git clone unavailable, line statistics read through the API (limited): … »), dans la
+	// langue du processus, sans donnée personnelle ;
 	// nil sinon. Ils ne changent pas le statut du dépôt.
 	Warnings []string
 }

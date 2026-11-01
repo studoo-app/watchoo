@@ -12,6 +12,19 @@ one given by `-C`). The workspace name (e.g. "licence-projet") is displayed in t
 To run several workspaces at the same time, launch one `serve` per workspace, each on its own port
 (`web.addr`).
 
+## Interface language
+
+The pages' language comes from the **workspace's `lang` setting** (`config.yaml`): `en` by
+default, `fr` for French. Everything displayed — titles, tables, labels, buttons,
+error messages, relative dates ("2 h ago", in French « il y a 2 h ») — exists in both languages, served
+by the `internal/i18n` package, with no dependency (see
+[Architecture](03-architecture.md#languages-and-translations)). `lang` is a shared setting: it is
+shared with the other supervisors like `timezone`. Entered data (display labels, commit
+messages, logins) is not translated. The setting is changed in `config.yaml` (or by importing a
+shared configuration); it is read again at each request, so a change applies without restarting
+`watchoo serve`. Its environment variable is `WATCHOO_LANG`, the same one as the CLI's: setting it
+forces the language everywhere.
+
 ## Pages
 
 | Page | Address | HTMX fragments |
@@ -25,8 +38,8 @@ To run several workspaces at the same time, launch one `serve` per workspace, ea
 All pages share the same navigation bar (DaisyUI `navbar`): logo, workspace name, links, sync status
 and the light/dark theme selector (the choice is kept in `localStorage`, key `watchoo-theme`; by
 default, the system's, `prefers-color-scheme`). Below 1024 px wide, the links then the sync status each
-move to their own line. Dates are relative ("il y a 2 h" ("2 h ago")), with the local time (display
-timezone) as tooltip. Page not found (404) and errors (500…): pages in French, with no internal detail
+move to their own line. Dates are relative ("2 h ago"), with the local time (display
+timezone) as tooltip. Page not found (404) and errors (500…): pages in the workspace's language, with no internal detail
 (the detail is in the `serve` log).
 
 ### Lines added and removed (0.5.0)
@@ -38,9 +51,8 @@ Shared `commit-lines` template.
 
 The **totals** are given per contributor (ranking, contributor page, their repositories), per
 repository (dashboard card, header and contributors of the repository page) and for the workspace (the
-"Lignes" ("Lines") counter of the dashboard), computed by the store (`model.LineTotals`, aggregated
-queries): they sum the known commits and add "(dont N commits non comptés)" ("including N uncounted
-commits") when part of the commits does not have them yet; "—" if none has them. Shared `line-totals`
+"Lines" counter of the dashboard), computed by the store (`model.LineTotals`, aggregated
+queries): they sum the known commits and add "(including N commits not counted)" when part of the commits does not have them yet; "—" if none has them. Shared `line-totals`
 template.
 
 ### 1. Dashboard
@@ -48,36 +60,36 @@ template.
   under the label), first line of the last commit, author, age, number of commits and their lines
   added / removed (0.5.0, see [Lines added and removed](#lines-added-and-removed-050)), number of
   tracked branches, and the number of open pull requests if there are any (V2).
-- **Status badge** (see [rules](02-features.md#functional-rules)): Actif (Active) in green
-  (`badge-success`), Flemme (Slacking) in orange (`badge-warning`), Dead in red (`badge-error`); Never
-  synced, Error, Archived, Stopped or Empty in gray (`badge-neutral`). Labels identical to the CLI
-  ("Flemme · 9 j" ("Slacking · 9 d"), "Dead · 40 j" ("Dead · 40 d")). The left border of the card takes
+- **Status badge** (see [rules](02-features.md#functional-rules)): Active in green
+  (`badge-success`), Slacking in orange (`badge-warning`), Dead in red (`badge-error`); Never
+  synced, Error, Archived, Tracking stopped or Empty in gray (`badge-neutral`). Labels identical to the
+  CLI ("Slacking · 9 d", "Dead · 40 d"). The left border of the card takes
   the color.
-- **Sorting**: Dead first, then Flemme, then Actif, the oldest last commit first within each group;
+- **Sorting**: Dead first, then Slacking, then Active, the oldest last commit first within each group;
   then the repositories in error (so that they get seen), then the other gray states; ties broken by
   display label.
-- **Counters** per state (DaisyUI `stat`), with the workspace thresholds repeated under Flemme and
-  Dead, and a **"Lignes"** ("Lines") counter (0.5.0): lines added / removed of all the commits of the
+- **Counters** per state (DaisyUI `stat`), with the workspace thresholds repeated under Slacking and
+  Dead, and a **"Lines"** counter (0.5.0): lines added / removed of all the commits of the
   workspace.
 - **Feed of the 20 latest commits**, across all repositories (author initial, message, repository,
   date, `+/-` lines of the commit; short SHA linked to the commit on GitHub).
 - **Workspace activity chart over 90 days**: commits per day, across all repositories (see
   [Activity charts](#activity-charts)), with its summary (total, busiest day). Absent as long as no
   repository is tracked.
-- Button **"Synchroniser maintenant"** ("Sync now"). With no repository: an empty state points to the
+- Button **"Sync now"**. With no repository: an empty state points to the
   settings.
 
 ### 2. Repository detail
-- Header: state, applied thresholds (each marked "propre à ce dépôt" ("specific to this repository")
-  or "de l'espace" ("from the workspace"), a "Modifier" ("Edit") link to the thresholds form), last
+- Header: state, applied thresholds (each marked "this repository's" or "the
+  workspace's", an "Edit" link to the thresholds form), last
   commit, last sync and its result, number of commits and their lines added / removed (0.5.0),
   default branch, tracked branches and patterns, stars and issues.
 - **Activity thresholds of this repository** (collapsible block under the header, outside the HTMX
-  fragments: an input in progress is not cleared by the post-sync refresh): two fields, "Flemme
-  après" ("Slacking after") and "Dead après" ("Dead after"), in days without a commit, pre-filled with
+  fragments: an input in progress is not cleared by the post-sync refresh): two fields, "Slacking
+  after (days)" and "Dead after (days)", in days without a commit, pre-filled with
   the repository's own thresholds; empty (or `0`) = workspace threshold, recalled in the text and in
   the placeholders of the fields. `POST /repos/{id}/thresholds` (CSRF): same rules as
-  `repo add --flemme / --dead` (1 to 3,650 days, Dead strictly greater than Flemme when both are
+  `repo add --flemme / --dead` (1 to 3,650 days, Dead strictly greater than Slacking when both are
   given), saved by the engine (`Engine.SetThresholds`), then a `303` redirect to
   `/repos/{id}?msg=thresholds#repo-thresholds` (block open, confirmation message, state recomputed).
   Rejected input: `400`, page displayed again with the message and the input; unknown repository:
@@ -101,33 +113,31 @@ template.
   repository).
 - **Per-contributor activity over 12 weeks** (V2): the chart of the contributors page (stacked bars of
   commits per week, the 8 most active contributors of the period, the others grouped, collapsible
-  "Données du graphique" ("Chart data") table), restricted to the commits of the repository: all the
+  "Chart data" table), restricted to the commits of the repository: all the
   tracked branches, a commit present on several branches counted once (`store.AuthorCommitTimes` with
   the repository). Always displayed: without a commit from a known author over the period, the summary
-  says so ("Aucun commit d'auteur connu depuis le …" ("No commit from a known author since …")) and so
+  says so ("No commit by a known author since …") and so
   does the table; the chart fills in at the end of a sync, without reloading the page. See
   [Activity charts](#activity-charts).
 - **Pull requests, releases and tags** (V2, `repo-pulls` fragment): two cards side by side (one below
   the other on a narrow screen).
   - **Pull requests**: all the open PRs (drafts marked), then the 10 last merged; for each, number and
-    title (first line, linked to the PR on GitHub), author (login), branches (`tête → base`
-    ("head → base")) and relative date (opening for an open PR, merge otherwise). Counters at the top
+    title (first line, linked to the PR on GitHub), author (login), branches (`head → base`) and relative date (opening for an open PR, merge otherwise). Counters at the top
     (open, merged, closed without merge).
-  - **Releases and tags**: the 10 latest releases (tag, title, `pré-release` ("pre-release") or
-    `brouillon` ("draft") badge, publication date, linked to the release on GitHub), then the 15
+  - **Releases and tags**: the 10 latest releases (tag, title, `pre-release` or `draft`
+    badge, publication date, linked to the release on GitHub), then the 15
     latest tags (name, short SHA linked to the commit on GitHub if it is in the database, date of that
     commit).
-  - Without data: "Aucune pull request en base" ("No pull request in the database") / "Aucune release
-    ni aucun tag en base" ("No release and no tag in the database") (a repository that has none, or
-    not yet synced).
+  - Without data: "No pull request in the database for this repository." / "No release and no tag
+    in the database for this repository." (a repository that has none, or not yet synced).
   - **Repository never read by the API** (V2: tracked by [local Git
     clones](03-architecture.md#local-git-repositories-v2), without `gh`, unknown `provider_id`): the
     "Pull requests" card says that they are not available and reminds `gh auth login`, without
-    counters; the "Releases et tags" ("Releases and tags") card shows the tags (read by `git`) and
-    specifies that the releases are not; in the header, "Sur GitHub" ("On GitHub") replaces the stars
-    and the issues with "non disponibles" ("not available"). A repository already read by the API
+    counters; the "Releases and tags" card shows the tags (read by `git`) and
+    specifies that the releases are not; in the header, "On GitHub" replaces the stars
+    and the issues with "not available". A repository already read by the API
     keeps its latest values.
-- Button **"Synchroniser ce dépôt"** ("Sync this repository") (absent if tracking is stopped).
+- Button **"Sync this repository"** (absent if tracking is stopped).
 - Fragments: `/repos/{id}/commits` (history); `/repos/{id}` with the `HX-Target` header
   `repo-overview`, `repo-contributors` or `repo-pulls` returns the header, the contributors or the
   pull requests and releases alone. All of them reload at the end of a sync.
@@ -140,8 +150,8 @@ template.
 - Last activity.
 - **Per-contributor activity chart over 12 weeks**: stacked bars of commits per week (Monday to
   Sunday), one series per contributor among the **8 most active of the period** (ties broken by the
-  global ranking), the others grouped under "Autres contributeurs" ("Other contributors") (gray);
-  legend, per-week tooltip (detail and total) and a collapsible "Données du graphique" ("Chart data")
+  global ranking), the others grouped under "Other contributors" (gray);
+  legend, per-week tooltip (detail and total) and a collapsible "Chart data"
   table (view without chart). Absent as long as no author is known. See
   [Activity charts](#activity-charts).
 - GitHub avatar. **Choice**: the image is loaded from `avatars.githubusercontent.com`, the only allowed
@@ -153,25 +163,25 @@ template.
 ### 4. Contributor page (0.5.0)
 
 `GET /contributors/{id}` (internal identifier of the contributor, 1 to 18 digits; unknown: `404`).
-Breadcrumb "Contributeurs › nom" ("Contributors › name"). Nothing is GitHub-specific in the handler
+Breadcrumb "Contributors › name". Nothing is GitHub-specific in the handler
 nor the templates: the profile link is the address stored in the database (see
 [Links to profiles](#links-to-profiles-050)).
 
 - **Header** (`contributor-overview` fragment): avatar (same rule as the contributors page), display
   label, login with the "GitHub" link to their profile if known, number of attached Git identities
-  ("2 identités Git connues" ("2 known Git identities"): the **number** of email addresses, **never
+  ("2 known Git identities": the **number** of email addresses, **never
   the addresses**). Totals: commits, lines added / removed ("—" if unknown, like the ranking; the
   lines are read from the local Git clone of each repository, for all the commits, which a note
   recalls: "—" remains only if the clone is unavailable), repositories, first and last commit
-  (relative dates). **Choice**: no Actif / Flemme / Dead state for a person: these states are
+  (relative dates). **Choice**: no Active / Slacking / Dead state for a person: these states are
   repository rules (per-repository thresholds); the page gives the age of the last commit, and the
   state of each of their repositories in the list below.
 - **Activity over 90 days**: commits per day of the contributor, across all repositories (`daily`
   chart, like the dashboard and the repository page).
 - **Per-repository activity over 12 weeks**: the stacked `contributors-chart` chart (same template,
   same palette), one series per repository among the 8 where they have the most commits over the
-  period, the others grouped under "Autres dépôts" ("Other repositories"), with the collapsible
-  "Données du graphique" ("Chart data") table (repository name linked to its page).
+  period, the others grouped under "Other repositories", with the collapsible
+  "Chart data" table (repository name linked to its page).
 - **Their repositories** (`contributor-repos` fragment): for each repository where they are the author
   of at least one commit, name linked to the repository page, status badge of the repository (rules
   and thresholds of the repository), their commits, their `+/-` lines ("—" if unknown), their last
@@ -189,7 +199,7 @@ nor the templates: the profile link is the address stored in the database (see
   the page says so in one line. The **releases** are not matched: only the login of their author is
   kept, and a login can change owner.
 - Contributor without any author commit (they are only a committer): the page displays, totals at
-  zero, empty charts and "Aucun commit…" ("No commit…") messages.
+  zero, empty charts and "No commit…" messages.
 - Fragments reloaded at the end of a sync (`sync-finished`): `contributor-overview`,
   `contributor-repos` and `contributor-pulls` (`GET /contributors/{id}` with the `HX-Target` header),
   `contributor-commits` (`GET /contributors/{id}/commits`, which serves the full page outside HTMX);
@@ -224,20 +234,20 @@ nor the templates: the profile link is the address stored in the database (see
   can be changed **for the lifetime of the process only** (a Go duration like `45m` or `1h30m`, a whole
   number of minutes, or 0; 0 or at least 15 min): this setting never rewrites `config.yaml`; for a
   lasting change, edit `sync.interval` in the file (or import a shared configuration, below).
-- Button **"Synchroniser maintenant"** ("Sync now").
+- Button **"Sync now"**.
 - **Share the configuration** (same JSON file and same rules as `watchoo config export` and
   `watchoo config import`, see [Configuration sharing](05-cli.md#configuration-sharing-watchoo-config)):
-  - **"Exporter"** ("Export") link: `GET /settings/export`, no side effect, returns the document as an
+  - **"Export"** link: `GET /settings/export`, no side effect, returns the document as an
     attachment (`Content-Type: application/json`, `Content-Disposition: attachment`, safe file name
-    derived from the workspace name: `watchoo-config-<nom>.json`, ASCII letters, digits, `-` and `_`
+    derived from the workspace name: `watchoo-config-<name>.json`, ASCII letters, digits, `-` and `_`
     only; `Cache-Control: no-store`);
-  - **"Importer"** ("Import") form: `POST /settings/import` (`multipart/form-data`, `file` field, CSRF,
+  - **"Import a file"** form: `POST /settings/import` (`multipart/form-data`, `file` field, CSRF,
     1 MiB at most) **validates and displays the preview without applying anything**: repositories to
     add, to update (before → after: display label, branches, own thresholds), to resume, unchanged;
     settings changed; warnings (`WATCHOO_*` variable masking a setting, `config.yaml` comments lost).
     The preview does not check repository access. Invalid file: `400` with the validation message; too
     large: `413`;
-  - **"Appliquer"** ("Apply") button: `POST /settings/import/apply` (CSRF) sends the file content back
+  - **"Apply these changes"** button: `POST /settings/import/apply` (CSRF) sends the file content back
     in a hidden field (`document`, `multipart/form-data` form); the server **revalidates it entirely**
     (the preview is never taken for granted: a document modified in the meantime is treated as a new
     one), applies it like the CLI (settings, then repositories with access verification), then
@@ -251,17 +261,17 @@ nor the templates: the profile link is the address stored in the database (see
     during a sync, like adding a repository;
   - export, preview and apply re-read `config.yaml` from disk on every request (without touching the
     configuration of the process): an export made after an import reflects the new file, and
-    re-importing the same file displays "Rien à appliquer" ("Nothing to apply");
+    re-importing the same file displays "Nothing to apply: this workspace already has this configuration.";
   - **one apply at a time** per process: a second, simultaneous one receives `409` and changes nothing;
   - the summary gives the number of unreachable or failed repositories (red banner); their names are
     written to the log of the `serve` (`WARN`, `owner/repo` and the error, never an email), and
-    `watchoo config import fichier --dry-run` lists them. A file with several hundred repositories can
+    `watchoo config import file --dry-run` lists them. A file with several hundred repositories can
     exceed the request timeout (30 s): unprocessed repositories are counted as errors and the import is
     safely run again (or done through the CLI).
-- State of the GitHub **API quota** (remaining, limit, reset in local time, "quota bas" ("low quota")
+- State of the GitHub **API quota** (remaining, limit, reset in local time, "quota low"
   below 10%), read with a free request (`GET /rate_limit`) in a fragment loaded after the page and
-  reloaded at the end of a sync; "quota inconnu" ("unknown quota") if `gh` is down or the read fails.
-  Without `gh` installed and signed in (V2), "sans objet" ("not applicable"): the repositories are
+  reloaded at the end of a sync; "quota unknown" if `gh` is down or the read fails.
+  Without `gh` installed and signed in (V2), "not applicable": the repositories are
   tracked by local Git clones, without a quota, and the fragment says so (with what is then not read
   and the reminder of `gh auth login`).
 - The settings forms are plain `POST`s (a `303` redirect, or the page displayed again with the error),
@@ -275,7 +285,7 @@ contributors and chart table of the repository page, author of the commits of th
 feed and of the dashboard cards, contributor page), their name leads to **their page** (main link);
 if their forge account is known, a **secondary link** "GitHub" opens their profile in a new tab
 (`target="_blank"`, `rel="noopener noreferrer"`, like the links to the commits and the repositories),
-with the accessible label "Profil GitHub de <login>" ("GitHub profile of <login>").
+with the accessible label "GitHub profile of <login>".
 
 - The address comes from the provider (`html_url` of the account, stored in `contributors.profile_url`,
   see [Data model](04-data-model.md#contributors--identified-people)); `internal/web` builds no forge
@@ -319,8 +329,7 @@ per week with **one series per repository** (`buildRepoChart`; same counts by
 - **Colors**: plain bars in the primary color of the theme; contributor series in a categorical palette
   of 8 hues in a fixed order, with a light variant and a dark variant (checked for the common color
   blindnesses and for the contrast against the background of each theme; in the light theme, three
-  hues are below 3:1, hence the legend and the data table); "Autres contributeurs" ("Other
-  contributors") in gray; never a generated color. Axes and grid take the text color of the theme.
+  hues are below 3:1, hence the legend and the data table); "Other contributors" in gray; never a generated color. Axes and grid take the text color of the theme.
   Redrawn on theme change; no animation if the system asks for less motion.
 - **Accessibility**: each `<canvas>` has `role="img"` and an `aria-label` that summarizes the series; a
   textual summary is displayed next to the title.
@@ -330,9 +339,8 @@ per week with **one series per repository** (`buildRepoChart`; same counts by
 `watchoo serve` checks at startup, then every 30 min, whether a newer version of Watchoo has been
 released (see [CLI](05-cli.md#self-update-watchoo-update)). When it is one, **all the pages** (except
 the public error pages, shown before authentication) display under the navigation bar a discreet
-banner (DaisyUI `alert-info alert-soft` alert, `role="status"`): "Nouvelle version de Watchoo
-disponible : v0.5.0 → v0.6.0" ("New version of Watchoo available: v0.5.0 → v0.6.0"), a "Notes de
-version" ("Release notes") link to the page of the release (new tab) and what to do: `watchoo update`
+banner (DaisyUI `alert-info alert-soft` alert, `role="status"`): "New version of Watchoo available:
+v0.5.0 → v0.6.0.", a "Release notes" link to the page of the release (new tab) and what to do: `watchoo update`
 then restart `watchoo serve`; in the Docker image, change the tag of the image. No banner when the
 check is disabled (`WATCHOO_NO_UPDATE_CHECK`, set in the Docker image), fails, or the version is up to
 date. The banner makes no request: the known version is kept in memory by the process
@@ -426,7 +434,7 @@ reflect the state of the database; HTMX refreshes the relevant fragments.
 How it works (`wsync.Coordinator`, a single one per process, which reuses the engine):
 
 - **a single sync at a time** in the process: a manual request during a sync is refused with the
-  message "Synchro déjà en cours" ("Sync already in progress"); an automatic sync that falls during a
+  message "Sync already running: wait for it to finish."; an automatic sync that falls during a
   sync is skipped. A manual sync does not shift the next automatic sync. The lock in the database
   (`sync_runs`) and the quota guard remain those of the engine: a `tui` or a `watchoo sync` launched at
   the same time does not sync the same repository twice;
@@ -443,14 +451,13 @@ How it works (`wsync.Coordinator`, a single one per process, which reuses the en
   not read, local Git clone unavailable; the detail is in the tooltip); a sync launched from the
   interface and already finished when the response is rendered (immediate failure of the engine,
   repository synced quickly) carries this header as early as the response to the `POST`. The sync
-  buttons ("Synchroniser maintenant" ("Sync now"), "Synchroniser ce dépôt" ("Sync this repository"))
+  buttons ("Sync now", "Sync this repository")
   and the one that deletes a repository are never disabled at render time: most are outside the
   reloaded fragments and would remain unusable after the end of the sync; it is the `POST` that refuses
-  ("Synchro déjà en cours" ("Sync already in progress"), deletion refused during a sync);
+  ("Sync already running: wait for it to finish.", deletion refused during a sync);
 - the token is asked again from `gh` at each sync by the engine; it is never sent to the browser;
 - **shutdown** (Ctrl+C, SIGTERM): the server stops accepting requests and finishes those in progress
-  (10 s at most), the running sync is canceled (its `sync_runs` are closed as "synchro annulée"
-  ("sync canceled")) and awaited (10 s at most), then the database is closed.
+  (10 s at most), the running sync is canceled (its `sync_runs` are closed as "sync canceled") and awaited (10 s at most), then the database is closed.
 
 ## Security
 

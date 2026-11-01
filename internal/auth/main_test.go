@@ -15,10 +15,12 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/studoo-app/watchoo/internal/i18n"
 )
 
-// Valeurs factices du faux gh (testdata/fakegh), recopiées ici : le package auth ne peut pas
-// importer authtest (qui l'importe). TestFakeValuesMatchAuthtest vérifie qu'elles concordent.
+// Dummy values of the fake gh (testdata/fakegh), copied here: the auth package cannot import
+// authtest (which imports it). TestFakeValuesMatchAuthtest checks that they match.
 const (
 	fakeToken  = "gho_fake_for_tests"
 	otherToken = fakeToken + "_other"
@@ -27,23 +29,26 @@ const (
 	otherLogin = "watchoo-other"
 )
 
-// fakeGHPath est le chemin du faux gh compilé par TestMain. Le binaire s'appelle « gh » (« gh.exe »
-// sous Windows), pour pouvoir aussi être trouvé par le PATH.
+// fakeGHPath is the path of the fake gh built by TestMain. The binary is named "gh" ("gh.exe" on
+// Windows), so that it can also be found through the PATH.
 var fakeGHPath string
 
-// testLogs reçoit tous les logs slog émis pendant les tests (niveau Debug compris), pour vérifier
-// qu'ils ne contiennent jamais de token.
+// testLogs receives all the slog logs emitted during the tests (Debug level included), to check that
+// they never contain a token.
 var testLogs syncBuffer
 
+// TestMain sets the process language to English for the whole package (the expected texts of the
+// tests are written in English, whatever WATCHOO_LANG and the machine locale), then runs the tests.
 func TestMain(m *testing.M) {
+	i18n.SetProcessForTest(i18n.English)
 	os.Exit(runTests(m))
 }
 
-// runTests compile le faux gh, redirige les logs, puis lance les tests.
+// runTests builds the fake gh, redirects the logs, then runs the tests.
 func runTests(m *testing.M) int {
 	dir, err := os.MkdirTemp("", "watchoo-fakegh-")
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "création du répertoire du faux gh : %v\n", err)
+		fmt.Fprintf(os.Stderr, "creating the directory of the fake gh: %v\n", err)
 		return 1
 	}
 	defer os.RemoveAll(dir)
@@ -62,22 +67,22 @@ func runTests(m *testing.M) int {
 	return m.Run()
 }
 
-// buildFakeGH compile testdata/fakegh vers out. « go test » place GOROOT/bin en tête du PATH des
-// binaires de test, donc la commande go est trouvée.
+// buildFakeGH builds testdata/fakegh into out. "go test" puts GOROOT/bin first in the PATH of the
+// test binaries, so the go command is found.
 func buildFakeGH(out string) error {
 	goBin, err := exec.LookPath("go")
 	if err != nil {
-		return fmt.Errorf("commande go introuvable pour compiler le faux gh : %w", err)
+		return fmt.Errorf("go command not found to build the fake gh: %w", err)
 	}
 	cmd := exec.Command(goBin, "build", "-o", out, "./testdata/fakegh")
 	cmd.Env = append(os.Environ(), "CGO_ENABLED=0")
 	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("compilation du faux gh : %w\n%s", err, output)
+		return fmt.Errorf("building the fake gh: %w\n%s", err, output)
 	}
 	return nil
 }
 
-// syncBuffer est un bytes.Buffer sûr pour un usage concurrent.
+// syncBuffer is a bytes.Buffer safe for concurrent use.
 type syncBuffer struct {
 	mu  sync.Mutex
 	buf bytes.Buffer
@@ -95,14 +100,14 @@ func (b *syncBuffer) String() string {
 	return b.buf.String()
 }
 
-// fakeEnv décrit les fichiers d'un test utilisant le faux gh.
+// fakeEnv describes the files of a test using the fake gh.
 type fakeEnv struct {
-	record string // FAKEGH_RECORD_FILE : un appel par ligne
-	pid    string // FAKEGH_PID_FILE : PID du faux gh bloqué (scénario hang)
+	record string // FAKEGH_RECORD_FILE: one call per line
+	pid    string // FAKEGH_PID_FILE: PID of the blocked fake gh (hang scenario)
 }
 
-// useScenario choisit le scénario du faux gh pour le test (variables d'environnement, donc tests non
-// parallèles) et prépare ses fichiers.
+// useScenario chooses the scenario of the fake gh for the test (environment variables, hence
+// non-parallel tests) and prepares its files.
 func useScenario(t *testing.T, scenario string) fakeEnv {
 	t.Helper()
 	dir := t.TempDir()
@@ -117,18 +122,18 @@ func useScenario(t *testing.T, scenario string) fakeEnv {
 	return env
 }
 
-// fakeGH renvoie un GH pointant vers le faux gh, avec un délai large pour les machines lentes.
+// fakeGH returns a GH pointing to the fake gh, with a generous timeout for slow machines.
 func fakeGH() GH {
 	return GH{Path: fakeGHPath, Timeout: 10 * time.Second}
 }
 
-// call est un appel enregistré par le faux gh.
+// call is a call recorded by the fake gh.
 type call struct {
 	Args []string          `json:"args"`
 	Env  map[string]string `json:"env"`
 }
 
-// readCalls lit les appels enregistrés par le faux gh (aucun si le fichier n'existe pas).
+// readCalls reads the calls recorded by the fake gh (none if the file does not exist).
 func readCalls(t *testing.T, env fakeEnv) []call {
 	t.Helper()
 	f, err := os.Open(env.record)
@@ -136,7 +141,7 @@ func readCalls(t *testing.T, env fakeEnv) []call {
 		return nil
 	}
 	if err != nil {
-		t.Fatalf("ouverture des appels enregistrés : %v", err)
+		t.Fatalf("opening the recorded calls: %v", err)
 	}
 	defer f.Close()
 	var calls []call
@@ -144,20 +149,20 @@ func readCalls(t *testing.T, env fakeEnv) []call {
 	for sc.Scan() {
 		var c call
 		if err := json.Unmarshal(sc.Bytes(), &c); err != nil {
-			t.Fatalf("appel enregistré illisible %q : %v", sc.Text(), err)
+			t.Fatalf("unreadable recorded call %q: %v", sc.Text(), err)
 		}
 		calls = append(calls, c)
 	}
 	if err := sc.Err(); err != nil {
-		t.Fatalf("lecture des appels enregistrés : %v", err)
+		t.Fatalf("reading the recorded calls: %v", err)
 	}
 	return calls
 }
 
-// wantErrIs échoue si err n'enveloppe pas target.
+// wantErrIs fails if err does not wrap target.
 func wantErrIs(t *testing.T, err, target error) {
 	t.Helper()
 	if !errors.Is(err, target) {
-		t.Fatalf("erreur = %v, veut une erreur enveloppant %q", err, target)
+		t.Fatalf("error = %v, want an error wrapping %q", err, target)
 	}
 }

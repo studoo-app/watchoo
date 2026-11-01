@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/studoo-app/watchoo/internal/activity"
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/logo"
 )
 
@@ -94,12 +95,12 @@ func (m Model) tabsLine() string {
 func (m Model) syncLine() string {
 	now := m.now()
 	if m.sync.running {
-		s := "Synchro en cours"
+		s := i18n.T("tui.header.sync_running")
 		if m.sync.auto {
-			s = "Synchro automatique en cours"
+			s = i18n.T("tui.header.sync_auto_running")
 		}
 		if m.sync.total > 0 {
-			s += fmt.Sprintf(" : %d/%d dépôts", m.sync.done, m.sync.total)
+			s += i18n.T("tui.header.sync_progress", m.sync.done, m.sync.total)
 		}
 		if m.sync.current != "" {
 			s += " (" + m.sync.current + ")"
@@ -108,13 +109,13 @@ func (m Model) syncLine() string {
 	}
 	var parts []string
 	if !m.sync.lastAt.IsZero() {
-		parts = append(parts, "dernière synchro "+activity.Relative(m.sync.lastAt, now, m.deps.Location, m.deps.Unicode))
+		parts = append(parts, i18n.T("tui.header.last_sync", activity.Relative(m.sync.lastAt, now, m.deps.Location, m.deps.Unicode)))
 	}
 	if m.deps.Interval > 0 && !m.nextAuto.IsZero() {
-		parts = append(parts, fmt.Sprintf("synchro auto toutes les %s, prochaine à %s",
+		parts = append(parts, i18n.T("tui.header.auto",
 			formatInterval(m.deps.Interval), m.nextAuto.In(m.deps.Location).Format("15:04")))
 	} else {
-		parts = append(parts, "synchro manuelle (s)")
+		parts = append(parts, i18n.T("tui.header.manual"))
 	}
 	s := strings.Join(parts, " "+m.sym("·", "-")+" ")
 	return m.st.Muted.Render(strings.ToUpper(s[:1]) + s[1:])

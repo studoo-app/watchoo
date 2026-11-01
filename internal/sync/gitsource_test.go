@@ -1,7 +1,7 @@
 package sync_test
 
-// Dépôts Git locaux (V2) : choix de la source selon gh, ajout et synchro par clones Git (vrais dépôts
-// servis par file://, gittest), métadonnées gardées, retour à l'API qui résout provider_id.
+// Local Git repositories (V2): choice of the source depending on gh, addition and sync through Git
+// clones (real repositories served over file://, gittest), metadata kept, back to the API which resolves provider_id.
 
 import (
 	"errors"
@@ -20,7 +20,7 @@ import (
 	wsync "github.com/studoo-app/watchoo/internal/sync"
 )
 
-// secretAuthor est l'identité Git factice des commits (nom et e-mail jamais dans les logs).
+// secretAuthor is the dummy Git identity of the commits (name and e-mail never in the logs).
 var secretAuthor = gittest.Author{Name: secretName, Email: secretEmail}
 
 func TestSourceChoice(t *testing.T) {
@@ -30,12 +30,12 @@ func TestSourceChoice(t *testing.T) {
 		want     wsync.SourceKind
 		wantErr  error
 	}{
-		{"gh connecté", nil, wsync.SourceAPI, nil},
-		{"gh absent", fmt.Errorf("lancement de gh : %w", auth.ErrGHNotFound), wsync.SourceGit, nil},
-		{"gh non connecté", auth.ErrNotLoggedIn, wsync.SourceGit, nil},
-		{"github.user inutilisable", auth.ErrUnusableUser, wsync.SourceGit, nil},
-		{"gh en panne", auth.ErrTimeout, "", auth.ErrTimeout},
-		{"réponse illisible", auth.ErrUnexpectedOutput, "", auth.ErrUnexpectedOutput},
+		{"gh signed in", nil, wsync.SourceAPI, nil},
+		{"gh missing", fmt.Errorf("launching gh: %w", auth.ErrGHNotFound), wsync.SourceGit, nil},
+		{"gh not signed in", auth.ErrNotLoggedIn, wsync.SourceGit, nil},
+		{"unusable github.user", auth.ErrUnusableUser, wsync.SourceGit, nil},
+		{"gh broken", auth.ErrTimeout, "", auth.ErrTimeout},
+		{"unreadable answer", auth.ErrUnexpectedOutput, "", auth.ErrUnexpectedOutput},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -46,17 +46,17 @@ func TestSourceChoice(t *testing.T) {
 			src, err := e.eng.Source(t.Context())
 			if tc.wantErr != nil {
 				if !errors.Is(err, tc.wantErr) {
-					t.Errorf("Source : %v, %v attendue", err, tc.wantErr)
+					t.Errorf("Source: %v, want %v", err, tc.wantErr)
 				}
 				return
 			}
 			if err != nil || src.Kind != tc.want {
-				t.Fatalf("Source = %+v, %v ; %q attendu", src, err, tc.want)
+				t.Fatalf("Source = %+v, %v; want %q", src, err, tc.want)
 			}
 			if (src.Kind == wsync.SourceGit) != (src.Reason != "") {
-				t.Errorf("raison %q pour %q", src.Reason, src.Kind)
+				t.Errorf("reason %q for %q", src.Reason, src.Kind)
 			}
-			if src.Kind == wsync.SourceGit && src.Label() != "clones Git locaux" || src.Kind == wsync.SourceAPI && src.Label() != "API GitHub" {
+			if src.Kind == wsync.SourceGit && src.Label() != "local Git clones" || src.Kind == wsync.SourceAPI && src.Label() != "GitHub API" {
 				t.Errorf("Label = %q", src.Label())
 			}
 		})
@@ -72,13 +72,13 @@ func TestGitSourceAddAndSync(t *testing.T) {
 	r.Tag("v1", m0, "")
 
 	e := newEnv(t, withGit(srv.URL))
-	e.auth.SetTokenErr(auth.ErrNotLoggedIn) // gh installé, non connecté
+	e.auth.SetTokenErr(auth.ErrNotLoggedIn) // gh installed, not signed in
 	ctx := t.Context()
 
-	// Ajout : accès vérifié par git ls-remote, sans clone (dry-run compris).
+	// Addition: access checked by git ls-remote, without clone (dry-run included).
 	reqs := []wsync.AddRequest{
 		{Ref: repoimport.Ref{Owner: testOwner, Name: "projet"}},
-		{Ref: repoimport.Ref{Owner: testOwner, Name: "PROJET"}}, // même dépôt : planifié une fois
+		{Ref: repoimport.Ref{Owner: testOwner, Name: "PROJET"}}, // same repository: planned once
 		{Ref: repoimport.Ref{Owner: testOwner, Name: "absent"}},
 	}
 	dry, err := e.eng.AddRepositories(ctx, reqs, wsync.AddOptions{DryRun: true})
@@ -87,79 +87,79 @@ func TestGitSourceAddAndSync(t *testing.T) {
 	}
 	if dry[0].Outcome != wsync.OutcomeAdded || dry[1].Outcome != wsync.OutcomeAlreadyTracked ||
 		dry[2].Outcome != wsync.OutcomeInaccessible {
-		t.Errorf("dry-run : %v %v %v", dry[0].Outcome, dry[1].Outcome, dry[2].Outcome)
+		t.Errorf("dry-run: %v %v %v", dry[0].Outcome, dry[1].Outcome, dry[2].Outcome)
 	}
-	if !strings.HasPrefix(dry[2].Error, "accès refusé") {
-		t.Errorf("message d'un dépôt inaccessible : %q", dry[2].Error)
+	if !strings.HasPrefix(dry[2].Error, "access denied") {
+		t.Errorf("message of an inaccessible repository: %q", dry[2].Error)
 	}
 	res, err := e.eng.AddRepositories(ctx, reqs[:1], wsync.AddOptions{})
 	if err != nil || res[0].Outcome != wsync.OutcomeAdded {
-		t.Fatalf("ajout : %+v, %v", res, err)
+		t.Fatalf("addition: %+v, %v", res, err)
 	}
 	repo := res[0].Repo
 	if repo.ProviderID != 0 || repo.URL != "https://github.com/"+testOwner+"/projet" || repo.DefaultBranch != "main" {
-		t.Errorf("dépôt ajouté sans gh : %+v", repo)
+		t.Errorf("repository added without gh: %+v", repo)
 	}
-	// Ajouté une seconde fois : retrouvé par owner/name.
+	// Added a second time: found by owner/name.
 	if again, _ := e.eng.AddRepositories(ctx, reqs[1:2], wsync.AddOptions{}); again[0].Outcome != wsync.OutcomeAlreadyTracked {
-		t.Errorf("second ajout : %v", again[0].Outcome)
+		t.Errorf("second addition: %v", again[0].Outcome)
 	}
 
-	// Premier import.
+	// First import.
 	rep := e.syncAll()
 	if rep.Source.Kind != wsync.SourceGit || rep.RateLimitKnown {
-		t.Errorf("source %+v, quota connu %v", rep.Source, rep.RateLimitKnown)
+		t.Errorf("source %+v, known quota %v", rep.Source, rep.RateLimitKnown)
 	}
 	if len(rep.Repos) != 1 || rep.Repos[0].Status != wsync.StatusSuccess || rep.Repos[0].NewCommits != 2 ||
 		rep.Repos[0].TrackedBranches != 2 || len(rep.Repos[0].Warnings) != 0 {
-		t.Fatalf("premier import : %+v", rep.Repos)
+		t.Fatalf("first import: %+v", rep.Repos)
 	}
 	if got := e.commitSHAs(repo.ID, "dev"); !slices.Equal(got, []string{f1}) {
-		t.Errorf("commits propres à dev : %v", got)
+		t.Errorf("commits specific to dev: %v", got)
 	}
 	tags, err := e.st.ListTags(ctx, store.ReleaseFilter{RepoID: repo.ID})
 	if err != nil || len(tags) != 1 || tags[0].SHA != m0 {
-		t.Errorf("tags : %+v, %v", tags, err)
+		t.Errorf("tags: %+v, %v", tags, err)
 	}
 	ranking, err := e.st.ContributorRanking(ctx, store.ContributorFilter{RepoID: repo.ID})
 	if err != nil || len(ranking) != 1 || ranking[0].ProviderLogin != "" || ranking[0].Commits != 2 {
-		t.Errorf("contributeurs (fusion par e-mail, sans login) : %+v, %v", ranking, err)
+		t.Errorf("contributors (merged by e-mail, without login): %+v, %v", ranking, err)
 	}
 
-	// Synchro incrémentale : un commit de plus, statistiques par numstat (sans quota).
+	// Incremental sync: one more commit, statistics by numstat (without quota).
 	m1 := r.Commit("main", "README.md", "a\nb\nc\n", secretMessage+" 3", secretAuthor, epoch.Add(2*time.Hour))
 	e.clock.Set(e.clock.Now().Add(time.Hour))
 	rep = e.syncAll()
 	if r0 := rep.Repos[0]; r0.Status != wsync.StatusSuccess || r0.NewCommits != 1 || r0.StatsFetched != 1 {
-		t.Fatalf("synchro incrémentale : %+v", r0)
+		t.Fatalf("incremental sync: %+v", r0)
 	}
 	commits, err := e.st.ListRecentCommits(ctx, store.CommitFilter{RepoID: repo.ID, Limit: 1})
 	if err != nil || len(commits) != 1 || commits[0].SHA != m1 || commits[0].Additions != 2 {
-		t.Errorf("dernier commit : %+v, %v", commits, err)
+		t.Errorf("last commit: %+v, %v", commits, err)
 	}
 	got, err := e.st.GetRepository(ctx, repo.ID)
 	if err != nil || got.ProviderID != 0 || got.LastSyncedAt.IsZero() || got.ForgeDetails() {
-		t.Errorf("dépôt après synchro Git : %+v, %v", got, err)
+		t.Errorf("repository after Git sync: %+v, %v", got, err)
 	}
 
-	// Dépôt devenu inaccessible : en erreur, « accès refusé ».
+	// Repository that became inaccessible: in error, "access denied".
 	r.Remove()
 	rep = e.syncAll()
-	if r0 := rep.Repos[0]; r0.Status != wsync.StatusError || !strings.Contains(r0.Error, "accès refusé") {
-		t.Errorf("dépôt inaccessible : %+v", r0)
+	if r0 := rep.Repos[0]; r0.Status != wsync.StatusError || !strings.Contains(r0.Error, "access denied") {
+		t.Errorf("inaccessible repository: %+v", r0)
 	}
 
-	// gh connecté à nouveau : retour à l'API, qui résout provider_id par owner/name.
+	// gh signed in again: back to the API, which resolves provider_id by owner/name.
 	e.fake.AddRepository(provider.Repository{ID: 9001, Owner: testOwner, Name: "projet", DefaultBranch: "main",
 		URL: "https://github.com/" + testOwner + "/projet", Stars: 4, OpenIssues: 2})
 	e.auth.SetTokenErr(nil)
 	rep = e.syncAll()
 	if rep.Source.Kind != wsync.SourceAPI || rep.Repos[0].Status != wsync.StatusSuccess {
-		t.Fatalf("retour à l'API : %+v", rep)
+		t.Fatalf("back to the API: %+v", rep)
 	}
 	got, err = e.st.GetRepository(ctx, repo.ID)
 	if err != nil || got.ProviderID != 9001 || got.Stars != 4 || got.OpenIssues != 2 || !got.ForgeDetails() {
-		t.Errorf("dépôt après retour à l'API : %+v, %v", got, err)
+		t.Errorf("repository after going back to the API: %+v, %v", got, err)
 	}
 }
 
@@ -170,17 +170,17 @@ func TestGitSourceKeepsForgeMetadata(t *testing.T) {
 
 	e := newEnv(t, withGit(srv.URL))
 	ctx := t.Context()
-	// Dépôt connu par l'API (identifiant, étoiles, issues, archivé), puis synchronisé sans gh.
+	// Repository known by the API (identifier, stars, issues, archived), then synced without gh.
 	repo, err := e.st.CreateRepository(ctx, model.Repository{Provider: model.ProviderGitHub, ProviderID: 77,
 		Owner: testOwner, Name: "suivi", URL: "https://github.com/" + testOwner + "/suivi", Stars: 12,
-		OpenIssues: 3, Archived: true, Enabled: true, DefaultBranch: "ancienne"})
+		OpenIssues: 3, Archived: true, Enabled: true, DefaultBranch: "old"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	e.auth.SetTokenErr(fmt.Errorf("lancement : %w", auth.ErrGHNotFound))
+	e.auth.SetTokenErr(fmt.Errorf("launching: %w", auth.ErrGHNotFound))
 	rep := e.syncAll()
 	if rep.Repos[0].Status != wsync.StatusSuccess || rep.Repos[0].NewCommits != 1 {
-		t.Fatalf("synchro Git d'un dépôt connu par l'API : %+v", rep.Repos[0])
+		t.Fatalf("Git sync of a repository known by the API: %+v", rep.Repos[0])
 	}
 	got, err := e.st.GetRepository(ctx, repo.ID)
 	if err != nil {
@@ -188,15 +188,15 @@ func TestGitSourceKeepsForgeMetadata(t *testing.T) {
 	}
 	if got.ProviderID != 77 || got.Stars != 12 || got.OpenIssues != 3 || !got.Archived ||
 		got.URL != repo.URL || got.DefaultBranch != "main" {
-		t.Errorf("métadonnées après synchro Git : %+v (identifiant, étoiles, issues, archivé et URL gardés ; branche par défaut à jour)", got)
+		t.Errorf("metadata after Git sync: %+v (identifier, stars, issues, archived and URL kept; default branch up to date)", got)
 	}
 	if len(e.fake.CallLog()) != 0 {
-		t.Error("l'API a été appelée sans gh")
+		t.Error("the API was called without gh")
 	}
 }
 
-// CloneRefs range les dépôts par ordre d'ajout (identifiant croissant), suivis ou arrêtés : c'est
-// l'ordre de la règle des homonymes des clones.
+// CloneRefs sorts the repositories by order of addition (increasing identifier), tracked or stopped:
+// it is the order of the homonym rule of the clones.
 func TestCloneRefsOrder(t *testing.T) {
 	repos := []model.Repository{
 		{ID: 3, Owner: "carol", Name: "projet"},
@@ -210,17 +210,17 @@ func TestCloneRefsOrder(t *testing.T) {
 	}
 	for i, r := range got {
 		if r.Owner+"/"+r.Name != want[i] {
-			t.Errorf("CloneRefs[%d] = %s/%s, attendu %s", i, r.Owner, r.Name, want[i])
+			t.Errorf("CloneRefs[%d] = %s/%s, want %s", i, r.Owner, r.Name, want[i])
 		}
 	}
 	if repos[0].ID != 3 {
-		t.Error("CloneRefs a modifié la liste reçue")
+		t.Error("CloneRefs changed the received list")
 	}
 }
 
-// Contributeur connu avant la 0.5.0 (login enregistré, page de profil vide) : la synchro suivante
-// complète la page de profil à partir du login, par l'API comme par les clones Git locaux, sans
-// requête ni login dans les logs (assertNoLeak).
+// Contributor known before 0.5.0 (login recorded, empty profile page): the next sync fills the
+// profile page from the login, through the API as through the local Git clones, without request
+// or login in the logs (assertNoLeak).
 func TestSyncBackfillsProfileURL(t *testing.T) {
 	srv := gittest.NewServer(t)
 	r := srv.Create(testOwner, "projet", "main")
@@ -229,7 +229,7 @@ func TestSyncBackfillsProfileURL(t *testing.T) {
 	e := newEnv(t, withGit(srv.URL))
 	ctx := t.Context()
 	repo := e.addRepo(1, "projet")
-	// Auteur avec login, sans ProfileURL (comme avant la 0.5.0).
+	// Author with login, without ProfileURL (as before 0.5.0).
 	e.fake.SetBranch(repo.ID, "main", e.commit(repo.ID, "c1", epoch))
 
 	profileURL := func() string {
@@ -250,19 +250,19 @@ func TestSyncBackfillsProfileURL(t *testing.T) {
 
 	e.syncOK(repo.ID)
 	if got, want := profileURL(), "https://github.example.test/"+secretLogin; got != want {
-		t.Errorf("après la première synchro : profile_url = %q, attendu %q", got, want)
+		t.Errorf("after the first sync: profile_url = %q, want %q", got, want)
 	}
 
-	// Base d'avant la 0.5.0 : aucun nouveau commit, l'adresse est quand même complétée.
+	// Database from before 0.5.0: no new commit, the address is filled anyway.
 	clear()
 	if rep := e.syncOK(repo.ID); rep.NewCommits != 0 {
-		t.Fatalf("%d nouveaux commits, aucun attendu", rep.NewCommits)
+		t.Fatalf("%d new commits, none expected", rep.NewCommits)
 	}
 	if got, want := profileURL(), "https://github.example.test/"+secretLogin; got != want {
-		t.Errorf("synchro par l'API : profile_url = %q, attendu %q", got, want)
+		t.Errorf("sync through the API: profile_url = %q, want %q", got, want)
 	}
 
-	// Sans gh : clones Git locaux, même complément (adresse github.com).
+	// Without gh: local Git clones, same fill (github.com address).
 	clear()
 	e.auth.SetTokenErr(auth.ErrNotLoggedIn)
 	rep := e.syncAll()
@@ -270,6 +270,6 @@ func TestSyncBackfillsProfileURL(t *testing.T) {
 		t.Fatalf("source %q, clones Git attendus", rep.Source.Kind)
 	}
 	if got, want := profileURL(), "https://github.com/"+secretLogin; got != want {
-		t.Errorf("synchro par clones Git : profile_url = %q, attendu %q", got, want)
+		t.Errorf("sync through Git clones: profile_url = %q, want %q", got, want)
 	}
 }

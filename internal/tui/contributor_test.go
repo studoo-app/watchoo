@@ -1,6 +1,6 @@
 package tui
 
-// Détail d'un contributeur (0.5.0).
+// Contributor detail (0.5.0).
 
 import (
 	"context"
@@ -15,8 +15,8 @@ import (
 	wsync "github.com/studoo-app/watchoo/internal/sync"
 )
 
-// withContributorDetail ajoute à data la fiche d'Alice (contributeur 1) : deux dépôts, des commits
-// avec et sans lignes connues, de l'activité cette semaine et il y a deux semaines.
+// withContributorDetail adds to data the profile of Alice (contributor 1): two repositories, commits
+// with and without known lines, activity this week and two weeks ago.
 func withContributorDetail(data *fakeData) {
 	data.profiles = map[int64]store.ContributorProfile{
 		1: {Contributor: model.Contributor{ID: 1, Name: "Alice", ProviderLogin: "alice-gh", ProviderUserID: 10,
@@ -45,47 +45,47 @@ func TestContributorDetail(t *testing.T) {
 	l.press("3", "enter")
 	l.until(func(m Model) bool { return m.cdetail.open && !m.cdetail.loading })
 	screen := l.screen()
-	mustContain(t, screen, "Alice (@alice-gh)", "échap pour revenir", "@alice-gh",
-		"2 adresses rattachées (non affichées)", "5 commits dans 2 dépôts, +40/-7 (2 non comptés)", "il y a 30 j", "il y a 2 h",
-		"12 semaines", "3 commits", "Dépôts", "Alice Martin", "+40/-7", "promo/chloe",
-		"Derniers commits", "Ajoute la page d'accueil", "+12/-3", "Lignes +/- : comptées dans le clone")
+	mustContain(t, screen, "Alice (@alice-gh)", "esc to go back", "@alice-gh",
+		"2 linked addresses (not shown)", "5 commits in 2 repositories, +40/-7 (2 uncounted)", "30 d ago", "2 h ago",
+		"12 weeks", "3 commits", "Repositories", "Alice Martin", "+40/-7", "promo/chloe",
+		"Latest commits", "Ajoute la page d'accueil", "+12/-3", "+/- lines: counted in the local Git clone")
 	mustNotContain(t, screen, "rouge", "https://github.com/alice-gh", "@example")
-	// Courbe d'activité de tous ses dépôts : 2 commits cette semaine, 1 il y a deux semaines.
-	if line := lineWith(screen, "▁▁▁▁▁▁▁▁▁▅▁█"); !strings.Contains(line, "12 semaines") {
-		t.Errorf("courbe globale = %q", line)
+	// Activity curve of all their repositories: 2 commits this week, 1 two weeks ago.
+	if line := lineWith(screen, "▁▁▁▁▁▁▁▁▁▅▁█"); !strings.Contains(line, "12 weeks") {
+		t.Errorf("overall curve = %q", line)
 	}
-	// Ligne du dépôt Dead : état du dépôt, aucune activité sur la période.
-	if line := lineWith(screen, "promo/chloe"); !strings.Contains(line, "⚠ 42 j") || !strings.Contains(line, " - ") {
-		t.Errorf("ligne de promo/chloe = %q", line)
+	// Line of the Dead repository: state of the repository, no activity over the period.
+	if line := lineWith(screen, "promo/chloe"); !strings.Contains(line, "⚠ 42 d") || !strings.Contains(line, " - ") {
+		t.Errorf("line of promo/chloe = %q", line)
 	}
 	data.mu.Lock()
 	last := data.commitFilters[len(data.commitFilters)-1]
 	data.mu.Unlock()
 	if last.AuthorID != 1 || last.Limit != contribDetailCommits {
-		t.Errorf("filtre des commits = %+v", last)
+		t.Errorf("commit filter = %+v", last)
 	}
 
-	// Défilement, filtre refusé, relecture, puis retour à la liste.
+	// Scrolling, filter refused, reload, then back to the list.
 	l.press("j", "/")
 	if l.m.filtering {
-		t.Error("le filtre s'est ouvert dans le détail")
+		t.Error("the filter opened in the detail")
 	}
 	l.press("r")
 	l.until(func(m Model) bool { return !m.cdetail.loading })
 	l.press("esc")
 	if l.m.cdetail.open {
-		t.Error("échap n'a pas fermé le détail du contributeur")
+		t.Error("esc did not close the contributor detail")
 	}
-	mustContain(t, l.screen(), "CONTRIBUTEUR", "LOGIN")
+	mustContain(t, l.screen(), "CONTRIBUTOR", "LOGIN")
 
-	// Contributeur sans compte ni commit d'auteur.
+	// Contributor without an account or authored commit.
 	l.press("j", "enter")
 	l.until(func(m Model) bool { return m.cdetail.open && !m.cdetail.loading })
-	mustContain(t, l.screen(), "Bob", "aucun compte GitHub connu", "Aucun commit dont il ou elle est l'auteur.")
-	// Changer de vue ferme le détail.
+	mustContain(t, l.screen(), "Bob", "no known GitHub account", "No commit authored by them.")
+	// Switching views closes the detail.
 	l.press("1")
 	if l.m.cdetail.open {
-		t.Error("changer de vue n'a pas fermé le détail")
+		t.Error("switching views did not close the detail")
 	}
 }
 
@@ -93,11 +93,11 @@ func TestContributorDetailError(t *testing.T) {
 	data := newFakeData()
 	l := newLoop(t, testDeps(data, &fakeSyncer{}))
 	data.mu.Lock()
-	data.err = errors.New("base illisible")
+	data.err = errors.New("unreadable database")
 	data.mu.Unlock()
 	l.press("3", "enter")
 	l.until(func(m Model) bool { return m.cdetail.open && !m.cdetail.loading })
-	mustContain(t, l.screen(), "lecture impossible : base illisible")
+	mustContain(t, l.screen(), "cannot read: unreadable database")
 }
 
 func TestContributorDetailWithRealStore(t *testing.T) {
@@ -138,15 +138,15 @@ func TestContributorDetailWithRealStore(t *testing.T) {
 	l.press("3", "enter")
 	l.until(func(m Model) bool { return m.cdetail.open && !m.cdetail.loading })
 	screen := l.screen()
-	mustContain(t, screen, "Zoé (@zoe-gh)", "1 adresse rattachée", "1 commit dans 1 dépôt, +9/-1",
+	mustContain(t, screen, "Zoé (@zoe-gh)", "1 linked address", "1 commit in 1 repository, +9/-1",
 		"Zoé Leroy", "Premier rendu", "cafe000")
 	mustNotContain(t, screen, "zoe@example.test", "https://github.com/zoe-gh")
 	if line := lineWith(screen, "Zoé Leroy"); !strings.Contains(line, "▁▁▁▁▁▁▁▁▁▁▁█") {
-		t.Errorf("ligne du dépôt = %q", line)
+		t.Errorf("repository line = %q", line)
 	}
 }
 
-// Lignes d'un commit (« - » si inconnues, « +0/-0 » si nulles) et totaux (« (N non comptés) »).
+// Lines of a commit ("-" if unknown, "+0/-0" if zero) and totals ("(N uncounted)").
 func TestLineFormats(t *testing.T) {
 	for _, tc := range []struct {
 		got, want string
@@ -156,10 +156,10 @@ func TestLineFormats(t *testing.T) {
 		{commitLines(model.Commit{StatsKnown: true, Additions: 4, Deletions: 1}), "+4/-1"},
 		{lineTotals(model.LineTotals{Commits: 3}), "-"},
 		{lineTotals(model.LineTotals{Commits: 3, KnownCommits: 3, Additions: 5}), "+5/-0"},
-		{lineTotals(model.LineTotals{Commits: 3, KnownCommits: 1, Additions: 5, Deletions: 2}), "+5/-2 (2 non comptés)"},
+		{lineTotals(model.LineTotals{Commits: 3, KnownCommits: 1, Additions: 5, Deletions: 2}), "+5/-2 (2 uncounted)"},
 	} {
 		if tc.got != tc.want {
-			t.Errorf("%q, attendu %q", tc.got, tc.want)
+			t.Errorf("%q, want %q", tc.got, tc.want)
 		}
 	}
 }

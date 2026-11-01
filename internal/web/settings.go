@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/studoo-app/watchoo/internal/activity"
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/provider"
 	"github.com/studoo-app/watchoo/internal/repoimport"
@@ -108,11 +109,6 @@ type settingsRepo struct {
 	EditError string // message d'erreur de la modification ; le formulaire est alors ouvert
 }
 
-// BranchesText décrit les branches suivies : « toutes les branches » ou la liste des motifs.
-func (r settingsRepo) BranchesText() string {
-	return branchesText(r.BranchPatterns)
-}
-
 // removeConfirm est la page de confirmation du retrait d'un dépôt.
 type removeConfirm struct {
 	Repo    model.Repository
@@ -129,50 +125,50 @@ type quotaView struct {
 	Reset     time.Time
 	Low       bool   // garde-fou du moteur actif (wsync.QuotaLow)
 	Percent   int    // part restante du quota, de 0 à 100
-	Error     string // pourquoi le quota est inconnu (en français, sans token)
+	Error     string // pourquoi le quota est inconnu (message du moteur, sans token)
 	// Local : synchros par clones Git locaux (gh absent ou non connecté, V2) : pas de quota.
 	Local bool
 }
 
-// branchesText décrit des motifs de branches pour l'affichage.
-func branchesText(patterns []string) string {
+// branchesText décrit des motifs de branches pour l'affichage, dans la langue de tr : « toutes les
+// branches » / "all branches", ou la liste des motifs.
+func branchesText(tr *i18n.Translator, patterns []string) string {
 	if len(patterns) == 0 {
-		return "toutes les branches"
+		return tr.T("web.settings.all_branches")
 	}
 	return strings.Join(patterns, ", ")
 }
 
 // parseIntervalInput lit l'intervalle saisi : une durée Go (« 30m », « 1h30m »), un nombre entier de
 // minutes (« 45 ») ou 0 (synchro manuelle seule). Les bornes (0 ou au moins 15 min) sont vérifiées par
-// le coordinateur. Fonction pure.
-func parseIntervalInput(s string) (time.Duration, error) {
+// le coordinateur. Erreurs dans la langue de tr. Fonction pure.
+func parseIntervalInput(tr *i18n.Translator, s string) (time.Duration, error) {
 	s = strings.TrimSpace(s)
 	if s == "" {
-		return 0, errors.New("intervalle vide : indiquez par exemple 30m, 1h ou 0 pour la synchro manuelle seule")
+		return 0, errors.New(tr.T("web.interval.empty"))
 	}
 	if n, err := strconv.Atoi(s); err == nil {
 		if n < 0 || n > 1_000_000 {
-			return 0, fmt.Errorf("intervalle %q invalide : nombre de minutes hors des bornes", s)
+			return 0, errors.New(tr.T("web.interval.out_of_bounds", s))
 		}
 		return time.Duration(n) * time.Minute, nil
 	}
 	d, err := time.ParseDuration(s)
 	if err != nil {
-		return 0, fmt.Errorf("intervalle %q illisible : indiquez une durée comme 30m, 1h ou 1h30m, ou 0 pour la synchro manuelle seule",
-			truncate(40, s))
+		return 0, errors.New(tr.T("web.interval.unreadable", truncate(40, s)))
 	}
 	return d, nil
 }
 
 // parseRepoForm vérifie la saisie d'un formulaire de dépôt comme « watchoo repo add » : label sans
 // caractère de contrôle et de longueur bornée, motifs de branches valides (vide = toutes : nil).
-func parseRepoForm(label, branches string) (string, []string, error) {
+func parseRepoForm(tr *i18n.Translator, label, branches string) (string, []string, error) {
 	if err := repoimport.ValidateLabel(label); err != nil {
 		return "", nil, err
 	}
 	patterns, err := repoimport.ParseBranchPatterns(branches)
 	if err != nil {
-		return "", nil, fmt.Errorf("branches : %w", err)
+		return "", nil, fmt.Errorf("%s%s%w", tr.T("web.settings.branches_prefix"), tr.T("web.colon"), err)
 	}
 	return label, patterns, nil
 }
@@ -221,7 +217,7 @@ func (s *server) settingsData(r *http.Request) (settingsView, error) {
 
 // renderSettings écrit la page des réglages avec v et le code status.
 func (s *server) renderSettings(w http.ResponseWriter, r *http.Request, status int, v settingsView) {
-	s.render(w, r, status, pageSettings, s.page(r, "Réglages", navSettings, v))
+	s.render(w, r, status, pageSettings, s.page(r, s.t(r, "web.nav.settings"), navSettings, v))
 }
 
 // settingsRedirect redirige vers /settings avec le code de message code et, si id > 0, le dépôt
@@ -234,35 +230,35 @@ func settingsRedirect(w http.ResponseWriter, r *http.Request, code string, id in
 	redirect(w, r, target)
 }
 
-// flashMessage renvoie le message du code msg, pour le dépôt repo (nom affiché, vide s'il est
-// inconnu). Code inconnu : « ».
-func flashMessage(msg, repo string) string {
-	name, which := "Le dépôt", "ce dépôt"
+// flashMessage renvoie le message du code msg dans la langue de tr, pour le dépôt repo (nom affiché,
+// vide s'il est inconnu). Code inconnu : « ».
+func flashMessage(tr *i18n.Translator, msg, repo string) string {
+	name, which := tr.T("web.flash.the_repo"), tr.T("web.flash.this_repo")
 	if repo != "" {
-		name, which = "Le dépôt « "+repo+" »", "le dépôt « "+repo+" »"
+		name, which = tr.T("web.flash.the_repo_named", repo), tr.T("web.flash.repo_named", repo)
 	}
 	switch msg {
 	case msgAdded:
-		return name + " est suivi. Il sera synchronisé à la prochaine synchro ; « Synchroniser maintenant » la lance tout de suite."
+		return tr.T("web.flash.added", name)
 	case msgUpdated:
-		return name + " était déjà suivi : ses réglages sont mis à jour (et son suivi repris s'il était arrêté)."
+		return tr.T("web.flash.updated", name)
 	case msgAlready:
-		return name + " est déjà suivi : rien à changer."
+		return tr.T("web.flash.already", name)
 	case msgSaved:
-		return name + " est modifié. Les nouvelles branches seront prises en compte à la prochaine synchro."
+		return tr.T("web.flash.saved", name)
 	case msgStopped:
-		return "Suivi arrêté pour " + which + " ; son historique est gardé. « Reprendre le suivi » le relance."
+		return tr.T("web.flash.stopped", which)
 	case msgAlreadyStopped:
-		return "Le suivi de ce dépôt était déjà arrêté : rien n'a changé."
+		return tr.T("web.flash.already_stopped")
 	case msgDeleted:
-		return "Le dépôt et son historique sont supprimés de la base. Rien n'a été modifié sur GitHub."
+		return tr.T("web.flash.deleted")
 	case msgInterval:
-		return "Intervalle de synchro changé pour ce processus. config.yaml n'est pas modifié."
+		return tr.T("web.flash.interval")
 	}
 	return ""
 }
 
-// handleSettings sert GET /settings (page complète, Nav navSettings, titre « Réglages »). Les
+// handleSettings sert GET /settings (page complète, Nav navSettings, titre « Settings »). Les
 // paramètres msg et repo affichent le résultat de la dernière action.
 func (s *server) handleSettings(w http.ResponseWriter, r *http.Request) {
 	v, err := s.settingsData(r)
@@ -279,9 +275,9 @@ func (s *server) handleSettings(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
-		v.Flash = flashMessage(msg, textclean.Clean(name))
+		v.Flash = flashMessage(s.tr(r), msg, textclean.Clean(name))
 		if msg == msgImported {
-			v.Flash, v.FlashError = importFlash(r) // bilan d'un import (settings_share.go)
+			v.Flash, v.FlashError = importFlash(s.tr(r), r) // bilan d'un import (settings_share.go)
 		}
 	}
 	s.renderSettings(w, r, http.StatusOK, v)
@@ -310,7 +306,7 @@ func (s *server) handleRepoAdd(w http.ResponseWriter, r *http.Request) {
 		fail(http.StatusBadRequest, err.Error())
 		return
 	}
-	label, patterns, err := parseRepoForm(form.Label, form.Branches)
+	label, patterns, err := parseRepoForm(s.tr(r), form.Label, form.Branches)
 	if err != nil {
 		fail(http.StatusBadRequest, err.Error())
 		return
@@ -324,7 +320,7 @@ func (s *server) handleRepoAdd(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if len(results) != 1 {
-		s.serverError(w, r, fmt.Errorf("ajout du dépôt %s : résultat manquant", ref))
+		s.serverError(w, r, fmt.Errorf("ajout du dépôt %s : résultat manquant", ref)) // journal seulement
 		return
 	}
 	res := results[0]
@@ -336,14 +332,10 @@ func (s *server) handleRepoAdd(w http.ResponseWriter, r *http.Request) {
 	case wsync.OutcomeAlreadyTracked:
 		settingsRedirect(w, r, msgAlready, res.Repo.ID)
 	case wsync.OutcomeInaccessible:
-		fail(http.StatusUnprocessableEntity, fmt.Sprintf(
-			"Dépôt %s inaccessible : %s. Vérifiez son nom et que le compte gh (sans gh : la clé SSH ou les "+
-				"identifiants Git de cette machine) y a accès.", ref, textclean.Clean(res.Error)))
+		fail(http.StatusUnprocessableEntity, s.t(r, "web.settings.inaccessible", ref, textclean.Clean(res.Error)))
 	default:
 		s.logger.Error("ajout d'un dépôt impossible", "depot", ref.String(), "erreur", res.Error)
-		fail(http.StatusBadGateway, fmt.Sprintf(
-			"Ajout du dépôt %s impossible pour le moment (GitHub injoignable, quota épuisé ou erreur de la base). "+
-				"Le détail est dans le journal de « watchoo serve ».", ref))
+		fail(http.StatusBadGateway, s.t(r, "web.settings.add_failed", ref))
 	}
 }
 
@@ -356,7 +348,7 @@ func (s *server) handleRepoUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	form := repoForm{Label: formValue(r, fieldLabel), Branches: formValue(r, fieldBranches)}
-	label, patterns, err := parseRepoForm(form.Label, form.Branches)
+	label, patterns, err := parseRepoForm(s.tr(r), form.Label, form.Branches)
 	if err != nil {
 		v, lerr := s.settingsData(r)
 		if lerr != nil {
@@ -373,7 +365,7 @@ func (s *server) handleRepoUpdate(w http.ResponseWriter, r *http.Request) {
 			s.notFound(w, r)
 			return
 		}
-		v.Flash, v.FlashError = "Modification refusée : "+err.Error(), true
+		v.Flash, v.FlashError = s.t(r, "web.settings.edit_refused", err), true
 		s.renderSettings(w, r, http.StatusBadRequest, v)
 		return
 	}
@@ -399,7 +391,7 @@ func (s *server) handleRepoRemoveConfirm(w http.ResponseWriter, r *http.Request)
 	}
 	v := settingsView{Confirm: &removeConfirm{Repo: sum.Repository, Commits: sum.Commits, Running: s.sync.State().Running}}
 	s.render(w, r, http.StatusOK, pageSettings,
-		s.page(r, "Retirer "+textclean.Clean(sum.DisplayName()), navSettings, v))
+		s.page(r, s.t(r, "web.remove.title", textclean.Clean(sum.DisplayName())), navSettings, v))
 }
 
 // handleRepoRemove sert POST /settings/repos/{id}/remove. Avec keep_history=1, le suivi s'arrête et
@@ -430,8 +422,7 @@ func (s *server) handleRepoRemove(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if s.sync.State().Running {
-		s.renderError(w, r, http.StatusConflict, "Suppression impossible",
-			"Une synchro est en cours : réessayez quand elle sera terminée. Rien n'a été supprimé.")
+		s.renderError(w, r, http.StatusConflict, s.t(r, "web.remove.impossible"), s.t(r, "web.remove.impossible_text"))
 		return
 	}
 	reposDir := ""
@@ -450,13 +441,13 @@ func (s *server) handleRepoRemove(w http.ResponseWriter, r *http.Request) {
 // réécrit).
 func (s *server) handleIntervalUpdate(w http.ResponseWriter, r *http.Request) {
 	input := formValue(r, fieldInterval)
-	d, err := parseIntervalInput(input)
+	d, err := parseIntervalInput(s.tr(r), input)
 	if err == nil {
 		err = s.sync.SetInterval(d)
 	}
 	if err != nil {
 		if errors.Is(err, wsync.ErrCoordinatorClosed) {
-			s.renderError(w, r, http.StatusConflict, "Changement impossible", msgSyncClosed)
+			s.renderError(w, r, http.StatusConflict, s.t(r, "web.settings.change_impossible"), s.t(r, msgSyncClosed))
 			return
 		}
 		v, lerr := s.settingsData(r)
@@ -482,7 +473,7 @@ func (s *server) handleQuota(w http.ResponseWriter, r *http.Request) {
 		if errors.Is(err, provider.ErrUnsupported) {
 			// Sans gh : synchros par clones Git locaux, qui n'ont pas de quota (V2).
 			q.Local = true
-			s.renderFragment(w, r, http.StatusOK, pageSettings, "settings-quota", s.page(r, "Réglages", navSettings, q))
+			s.renderFragment(w, r, http.StatusOK, pageSettings, "settings-quota", s.page(r, s.t(r, "web.nav.settings"), navSettings, q))
 			return
 		}
 		if r.Context().Err() != nil || errors.Is(err, context.Canceled) {
@@ -496,5 +487,5 @@ func (s *server) handleQuota(w http.ResponseWriter, r *http.Request) {
 		q = quotaView{Known: true, Limit: rl.Limit, Remaining: rl.Remaining, Used: rl.Used, Reset: rl.Reset,
 			Low: wsync.QuotaLow(rl, s.now()), Percent: percent(rl.Remaining, rl.Limit)}
 	}
-	s.renderFragment(w, r, http.StatusOK, pageSettings, "settings-quota", s.page(r, "Réglages", navSettings, q))
+	s.renderFragment(w, r, http.StatusOK, pageSettings, "settings-quota", s.page(r, s.t(r, "web.nav.settings"), navSettings, q))
 }

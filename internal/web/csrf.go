@@ -79,8 +79,7 @@ func (c *csrfProtector) middleware(s *server) func(http.Handler) http.Handler {
 			}
 			if err := c.origin.Check(r); err != nil {
 				s.logger.Warn("requête refusée : origine étrangère", "methode", r.Method)
-				s.renderError(w, r, http.StatusForbidden, "Requête refusée",
-					"Cette action doit être lancée depuis l'interface de Watchoo.")
+				s.renderError(w, r, http.StatusForbidden, s.t(r, "web.error.refused"), s.t(r, "web.error.foreign_origin"))
 				return
 			}
 			sent := r.Header.Get(CSRFHeader)
@@ -88,16 +87,15 @@ func (c *csrfProtector) middleware(s *server) func(http.Handler) http.Handler {
 				// Corps déjà borné par limitBody ; un corps trop gros (fichier importé) donne 413
 				// plutôt qu'un refus de jeton trompeur.
 				if err := parseBody(r); isTooLarge(err) {
-					s.renderError(w, r, http.StatusRequestEntityTooLarge, "Envoi trop volumineux",
-						"Le fichier envoyé dépasse la taille autorisée (1 Mio).")
+					s.renderError(w, r, http.StatusRequestEntityTooLarge, s.t(r, "web.error.too_large"),
+						s.t(r, "web.error.too_large_text"))
 					return
 				}
 				sent = r.PostFormValue(CSRFField)
 			}
 			if !fromCookie || subtle.ConstantTimeCompare([]byte(sent), []byte(token)) != 1 {
 				s.logger.Warn("requête refusée : jeton CSRF absent ou invalide", "methode", r.Method)
-				s.renderError(w, r, http.StatusForbidden, "Requête refusée",
-					"Le jeton de sécurité de la page a expiré : rechargez la page, puis recommencez.")
+				s.renderError(w, r, http.StatusForbidden, s.t(r, "web.error.refused"), s.t(r, "web.error.csrf"))
 				return
 			}
 			next.ServeHTTP(w, r)

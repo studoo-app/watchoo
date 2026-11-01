@@ -1,7 +1,7 @@
 package cli
 
-// Données factices des tests de la phase 3 : un espace initialisé, un faux provider (providertest) à
-// horloge fixe et quelques dépôts d'étudiants fictifs.
+// Dummy data of the phase 3 tests: an initialized workspace, a fake provider (providertest) with a
+// fixed clock and a few fictional student repositories.
 
 import (
 	"encoding/json"
@@ -15,26 +15,26 @@ import (
 	"github.com/studoo-app/watchoo/internal/provider/providertest"
 )
 
-// testNow est l'heure fixe des tests (horloge de la CLI, du moteur et du faux provider).
+// testNow is the tests' fixed time (clock of the CLI, of the engine and of the fake provider).
 var testNow = time.Date(2026, 10, 27, 12, 0, 0, 0, time.UTC)
 
-// Identifiants GitHub des dépôts factices.
+// GitHub IDs of the dummy repositories.
 const (
-	aliceRepoID = 101 // alice/projet : actif, branches main et dev
-	bobRepoID   = 102 // bob/projet : Flemme (dernier commit il y a 9 jours)
-	daveRepoID  = 104 // dave/projet : Dead (dernier commit il y a 42 jours)
+	aliceRepoID = 101 // alice/projet: active, branches main and dev
+	bobRepoID   = 102 // bob/projet: Flemme (last commit 9 days ago)
+	daveRepoID  = 104 // dave/projet: Dead (last commit 42 days ago)
 )
 
-// Personnes factices.
+// Dummy people.
 var (
 	alicePerson = provider.Person{Name: "Alice Martin", Email: "alice@example.test", Login: "alice-gh", ID: 2001,
 		AvatarURL: "https://avatars.example.test/u/2001"}
-	bobPerson  = provider.Person{Name: "Bob Durand", Email: "Bob@Example.test"} // sans compte GitHub
+	bobPerson  = provider.Person{Name: "Bob Durand", Email: "Bob@Example.test"} // without a GitHub account
 	davePerson = provider.Person{Name: "Dave Petit", Email: "dave@example.test", Login: "dave-gh", ID: 2004}
 )
 
-// newWorkspace renvoie un harness dont le répertoire courant est un espace initialisé (fuseau UTC),
-// avec l'horloge testNow et un faux provider vide à la même horloge.
+// newWorkspace returns a harness whose current directory is an initialized workspace (UTC time zone),
+// with the testNow clock and an empty fake provider on the same clock.
 func newWorkspace(t *testing.T) *harness {
 	t.Helper()
 	h := newHarness(t)
@@ -47,16 +47,16 @@ func newWorkspace(t *testing.T) *harness {
 	return h
 }
 
-// fakeCommit décrit un commit factice.
+// fakeCommit describes a dummy commit.
 type fakeCommit struct {
-	seed   string // graine du SHA (providertest.SHA)
+	seed   string // seed of the SHA (providertest.SHA)
 	author provider.Person
-	ago    time.Duration // ancienneté par rapport à testNow
+	ago    time.Duration // age relative to testNow
 	msg    string
 }
 
-// addCommits ajoute au dépôt repoID une suite linéaire de commits au-dessus de parent (vide = racine),
-// place branch sur le dernier et renvoie son SHA.
+// addCommits adds to the repository repoID a linear series of commits on top of parent (empty = root),
+// puts branch on the last one and returns its SHA.
 func addCommits(f *providertest.Fake, repoID int64, branch, parent string, commits ...fakeCommit) string {
 	for _, c := range commits {
 		sha := providertest.SHA(c.seed)
@@ -75,9 +75,10 @@ func addCommits(f *providertest.Fake, repoID int64, branch, parent string, commi
 	return parent
 }
 
-// seedProvider remplit le faux provider : alice/projet (main : 2 commits d'Alice, dev : 1 commit de
-// Bob il y a 1 h ; PR n° 1 ouverte et n° 2 mergée, release v1.0, tags v1.0 et v0.1), bob/projet (1 commit de Bob il y a 9 jours), dave/projet (1 commit de Dave il y a
-// 42 jours). carol/projet n'existe pas (dépôt inaccessible).
+// seedProvider fills the fake provider: alice/projet (main: 2 commits by Alice, dev: 1 commit by Bob
+// 1 hour ago; PR #1 open and #2 merged, release v1.0, tags v1.0 and v0.1), bob/projet (1 commit by Bob
+// 9 days ago), dave/projet (1 commit by Dave 42 days ago). carol/projet does not exist (inaccessible
+// repository).
 func seedProvider(f *providertest.Fake) {
 	f.AddRepository(provider.Repository{ID: aliceRepoID, Owner: "alice", Name: "projet", Private: true,
 		URL: "https://github.example.test/alice/projet"})
@@ -85,7 +86,7 @@ func seedProvider(f *providertest.Fake) {
 		fakeCommit{"a1", alicePerson, 50 * time.Hour, "Premier jet du projet"},
 		fakeCommit{"a2", alicePerson, 2 * time.Hour, "Ajoute les tests\n\nDétail du commit"})
 	addCommits(f, aliceRepoID, "dev", head, fakeCommit{"a3", bobPerson, time.Hour, "Essai sur dev"})
-	// Pull requests, release et tags d'alice/projet (V2).
+	// Pull requests, release and tags of alice/projet (V2).
 	f.SetPullRequests(aliceRepoID,
 		provider.PullRequest{Number: 1, Title: "Ajoute la page de connexion", State: provider.PullRequestOpen,
 			Author: provider.Account{Login: "alice-gh", ID: 2001}, URL: "https://github.example.test/alice/projet/pull/1",
@@ -109,8 +110,8 @@ func seedProvider(f *providertest.Fake) {
 	addCommits(f, daveRepoID, "main", "", fakeCommit{"d1", davePerson, 42 * 24 * time.Hour, "Rendu final"})
 }
 
-// newSyncedWorkspace renvoie un espace où les trois dépôts factices sont suivis (alice/projet avec le
-// label « Alice Martin ») et synchronisés.
+// newSyncedWorkspace returns a workspace where the three dummy repositories are tracked (alice/projet
+// with the label "Alice Martin") and synced.
 func newSyncedWorkspace(t *testing.T) *harness {
 	t.Helper()
 	h := newWorkspace(t)
@@ -122,27 +123,27 @@ func newSyncedWorkspace(t *testing.T) *harness {
 	return h
 }
 
-// decodeStrict décode stdout dans v en refusant les champs inconnus et tout texte après l'objet.
+// decodeStrict decodes stdout into v, rejecting unknown fields and any text after the object.
 func decodeStrict(t *testing.T, stdout string, v any) {
 	t.Helper()
 	dec := json.NewDecoder(strings.NewReader(stdout))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(v); err != nil {
-		t.Fatalf("sortie JSON invalide : %v\n%s", err, stdout)
+		t.Fatalf("invalid JSON output: %v\n%s", err, stdout)
 	}
 	if dec.More() {
-		t.Fatalf("texte après l'objet JSON :\n%s", stdout)
+		t.Fatalf("text after the JSON object:\n%s", stdout)
 	}
 }
 
-// assertJSONKeys vérifie que l'objet JSON désigné par path (clés d'objets, ou « 0 » pour le premier
-// élément d'un tableau) dans stdout a exactement les clés want : le format des sorties --json est un
-// contrat pour les scripts.
+// assertJSONKeys checks that the JSON object designated by path (object keys, or "0" for the first
+// element of an array) in stdout has exactly the keys want: the format of the --json outputs is a
+// contract for scripts.
 func assertJSONKeys(t *testing.T, stdout string, path string, want ...string) {
 	t.Helper()
 	var v any
 	if err := json.Unmarshal([]byte(stdout), &v); err != nil {
-		t.Fatalf("sortie JSON invalide : %v\n%s", err, stdout)
+		t.Fatalf("invalid JSON output: %v\n%s", err, stdout)
 	}
 	if path != "" {
 		for _, p := range strings.Split(path, ".") {
@@ -151,17 +152,17 @@ func assertJSONKeys(t *testing.T, stdout string, path string, want ...string) {
 				v = node[p]
 			case []any:
 				if p != "0" || len(node) == 0 {
-					t.Fatalf("chemin %q : tableau vide ou indice %q non géré", path, p)
+					t.Fatalf("path %q: empty array or unsupported index %q", path, p)
 				}
 				v = node[0]
 			default:
-				t.Fatalf("chemin %q : %q dans une valeur %T", path, p, v)
+				t.Fatalf("path %q: %q in a %T value", path, p, v)
 			}
 		}
 	}
 	obj, ok := v.(map[string]any)
 	if !ok {
-		t.Fatalf("chemin %q : objet attendu, reçu %T (%v)", path, v, v)
+		t.Fatalf("path %q: want an object, got %T (%v)", path, v, v)
 	}
 	var got []string
 	for k := range obj {
@@ -171,37 +172,37 @@ func assertJSONKeys(t *testing.T, stdout string, path string, want ...string) {
 	want = slices.Clone(want)
 	slices.Sort(want)
 	if !reflect.DeepEqual(got, want) {
-		t.Errorf("clés JSON de %q = %v, attendu %v", path, got, want)
+		t.Errorf("JSON keys of %q = %v, want %v", path, got, want)
 	}
 }
 
-// repositoryKeys sont les clés de repositoryJSON.
+// repositoryKeys are the keys of repositoryJSON.
 var repositoryKeys = []string{"id", "full_name", "owner", "name", "label", "display_name", "url",
 	"default_branch", "branch_patterns", "flemme_after_days", "dead_after_days", "enabled", "archived", "stars", "open_issues", "last_synced_at",
 	"last_commit_at"}
 
-// assertContains vérifie que s contient chacun des extraits.
+// assertContains checks that s contains each of the excerpts.
 func assertContains(t *testing.T, what, s string, parts ...string) {
 	t.Helper()
 	for _, p := range parts {
 		if !strings.Contains(s, p) {
-			t.Errorf("%s sans %q :\n%s", what, p, s)
+			t.Errorf("%s without %q:\n%s", what, p, s)
 		}
 	}
 }
 
-// assertNotContains vérifie que s ne contient aucun des extraits.
+// assertNotContains checks that s contains none of the excerpts.
 func assertNotContains(t *testing.T, what, s string, parts ...string) {
 	t.Helper()
 	for _, p := range parts {
 		if strings.Contains(s, p) {
-			t.Errorf("%s avec %q :\n%s", what, p, s)
+			t.Errorf("%s with %q:\n%s", what, p, s)
 		}
 	}
 }
 
-// tableRow renvoie la ligne de out qui commence par prefix, ses colonnes séparées par des espaces
-// multiples ; échec du test si aucune.
+// tableRow returns the line of out that starts with prefix, its columns separated by multiple spaces;
+// the test fails if there is none.
 func tableRow(t *testing.T, out, prefix string) []string {
 	t.Helper()
 	for _, line := range strings.Split(out, "\n") {
@@ -215,15 +216,15 @@ func tableRow(t *testing.T, out, prefix string) []string {
 			return cols
 		}
 	}
-	t.Fatalf("aucune ligne commençant par %q :\n%s", prefix, out)
+	t.Fatalf("no line starting with %q:\n%s", prefix, out)
 	return nil
 }
 
-// mustCode vérifie le code de retour.
+// mustCode checks the exit code.
 func (r result) mustCode(t *testing.T, code int) result {
 	t.Helper()
 	if r.code != code {
-		t.Fatalf("code de retour %d, attendu %d\nstdout :\n%s\nstderr :\n%s", r.code, code, r.stdout, r.stderr)
+		t.Fatalf("exit code %d, want %d\nstdout:\n%s\nstderr:\n%s", r.code, code, r.stdout, r.stderr)
 	}
 	return r
 }

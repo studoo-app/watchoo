@@ -6,6 +6,7 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/provider"
 )
 
@@ -16,7 +17,7 @@ import (
 // réception en UTC (p.tr.now)} ; core absent (ou sans date de remise à zéro) → p.unexpected. L'état
 // est ensuite enregistré par p.quota.observe(p.fp, rl), pour LastRateLimit.
 func (p *Provider) RateLimit(ctx context.Context) (provider.RateLimit, error) {
-	const op = "lecture du quota de l'API"
+	op := i18n.T("provider.github.op.rate_limit")
 	limits, resp, err := p.client.RateLimit.Get(ctx)
 	if err != nil {
 		return provider.RateLimit{}, p.convertError(ctx, op, resp, err)

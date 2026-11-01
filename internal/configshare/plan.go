@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/model"
 	wsync "github.com/studoo-app/watchoo/internal/sync"
 	"github.com/studoo-app/watchoo/internal/workspace"
@@ -84,7 +85,7 @@ type RepoChange struct {
 	// Repository est le dépôt enregistré par Apply (owner/name actuels de la forge) ; nil dans un
 	// aperçu et pour un dépôt inaccessible ou en erreur.
 	Repository *model.Repository
-	// Error est le message (français, sans token) d'un dépôt inaccessible ou en erreur ; "" sinon.
+	// Error est le message (sans token) d'un dépôt inaccessible ou en erreur ; "" sinon.
 	Error string
 }
 
@@ -113,7 +114,7 @@ type Summary struct {
 type Warning struct {
 	Code    string // WarnEnvOverride ou WarnCommentsLost
 	Key     string // réglage concerné (WarnEnvOverride) ; "" sinon
-	Message string // message en français
+	Message string // message dans la langue du processus
 }
 
 // PlanOptions règle Plan.
@@ -140,22 +141,22 @@ type PlanOptions struct {
 // change, sinon ActionUnchanged.
 func Plan(ctx context.Context, ws *workspace.Workspace, st Store, f *File, opts PlanOptions) (*Preview, error) {
 	if ws == nil || st == nil || f == nil {
-		return nil, errors.New("aperçu de l'import : espace, base ou fichier non renseigné")
+		return nil, errors.New(i18n.T("configshare.plan.missing"))
 	}
+	sep := i18n.T("configshare.sep")
 	merged := f.Settings.ApplyTo(ws.Config)
 	if err := merged.Validate(); err != nil {
-		return nil, fmt.Errorf("%w : réglages refusés pour cet espace ; rien n'a été importé : %w", ErrInvalid, err)
+		return nil, fmt.Errorf("%w%s%s%s%w", ErrInvalid, sep, i18n.T("configshare.plan.refused"), sep, err)
 	}
 	// Configuration réellement en vigueur après l'import : les variables WATCHOO_* définies
 	// reprennent la main sur les valeurs importées, comme au chargement du fichier réécrit
 	// (workspace.WriteSharedSettings). L'aperçu refuse donc ce que l'écriture refuserait.
 	effective, err := workspace.WithEnv(merged)
 	if err != nil {
-		return nil, fmt.Errorf("aperçu de l'import : %w", err)
+		return nil, errWrapped(i18n.T("configshare.plan.prefix"), err)
 	}
 	if err := effective.Validate(); err != nil {
-		return nil, fmt.Errorf("%w : réglages refusés pour cet espace une fois les variables WATCHOO_* appliquées "+
-			"(retirez la variable ou adaptez le fichier) ; rien n'a été importé : %w", ErrInvalid, err)
+		return nil, fmt.Errorf("%w%s%s%s%w", ErrInvalid, sep, i18n.T("configshare.plan.refused_env"), sep, err)
 	}
 
 	p := &Preview{Source: f.Source, Repositories: make([]RepoChange, 0, len(f.Repositories))}
@@ -164,25 +165,23 @@ func Plan(ctx context.Context, ws *workspace.Workspace, st Store, f *File, opts 
 		return nil, err
 	}
 	for _, o := range p.Settings.Masked {
-		detail := "la valeur importée sera écrite dans config.yaml"
+		detail := i18n.T("configshare.warn.env_written")
 		if !p.Settings.changes(o.Key) {
-			detail = "config.yaml contient déjà la valeur importée"
+			detail = i18n.T("configshare.warn.env_already")
 		}
-		p.Warnings = append(p.Warnings, Warning{Code: WarnEnvOverride, Key: o.Key, Message: fmt.Sprintf(
-			"la variable %s est définie : elle masque %s (%s, mais la variable l'emporte tant qu'elle est définie)",
-			o.Var, o.Key, detail)})
+		p.Warnings = append(p.Warnings, Warning{Code: WarnEnvOverride, Key: o.Key,
+			Message: i18n.T("configshare.warn.env_override", o.Var, o.Key, detail)})
 	}
 	if p.Settings.Rewrite {
 		if _, err := os.Stat(ws.ConfigPath()); err == nil {
-			p.Warnings = append(p.Warnings, Warning{Code: WarnCommentsLost, Message: fmt.Sprintf(
-				"config.yaml sera réécrit à partir du modèle de « watchoo init » : ses commentaires personnels "+
-					"seront perdus (copie de l'ancien fichier dans %s)", workspace.BackupFileName)})
+			p.Warnings = append(p.Warnings, Warning{Code: WarnCommentsLost,
+				Message: i18n.T("configshare.warn.comments_lost", workspace.BackupFileName)})
 		}
 	}
 
 	existing, err := st.ListRepositories(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("aperçu de l'import : lecture des dépôts : %w", err)
+		return nil, errWrapped(i18n.T("configshare.plan.read_repos"), err)
 	}
 	byName := make(map[string]model.Repository, len(existing))
 	byID := make(map[int64]model.Repository, len(existing))
@@ -205,7 +204,7 @@ func Plan(ctx context.Context, ws *workspace.Workspace, st Store, f *File, opts 
 	if opts.CheckAccess != nil && len(f.Repositories) > 0 {
 		results, err := opts.CheckAccess.AddRepositories(ctx, addRequests(f), wsync.AddOptions{DryRun: true})
 		if err != nil {
-			return nil, fmt.Errorf("aperçu de l'import : %w", err)
+			return nil, errWrapped(i18n.T("configshare.plan.prefix"), err)
 		}
 		for i, res := range results {
 			if i >= len(p.Repositories) {
@@ -277,7 +276,7 @@ func settingsPreview(ws *workspace.Workspace, s workspace.SharedSettings) (Setti
 	if len(out.Masked) > 0 {
 		fileCfg, err := workspace.FileConfig(ws)
 		if err != nil {
-			return SettingsPreview{}, fmt.Errorf("aperçu de l'import : lecture des réglages de l'espace : %w", err)
+			return SettingsPreview{}, errWrapped(i18n.T("configshare.plan.read_settings"), err)
 		}
 		fileValues := workspace.SharedSettingsFrom(fileCfg).Values()
 		for _, o := range out.Masked {
@@ -350,13 +349,14 @@ func Apply(ctx context.Context, ws *workspace.Workspace, st Store, adder Adder, 
 		return nil, err
 	}
 	if len(f.Repositories) > 0 && adder == nil {
-		return nil, errors.New("import : ajout de dépôts non disponible")
+		return nil, errors.New(i18n.T("configshare.apply.no_adder"))
 	}
 	res := &Result{Preview: p}
 	if p.Settings.Rewrite {
 		w, err := workspace.WriteSharedSettings(ws, f.Settings)
 		if err != nil {
-			return nil, fmt.Errorf("écriture des réglages : %w ; rien n'a été importé", err)
+			return nil, fmt.Errorf("%s%s%w%s%s", i18n.T("configshare.apply.write"), i18n.T("configshare.sep"), err,
+				i18n.T("configshare.semicolon"), i18n.T("configshare.apply.nothing_imported"))
 		}
 		res.Settings = SettingsResult{Written: true, Path: w.Path, BackupPath: w.BackupPath}
 	}
@@ -366,7 +366,7 @@ func Apply(ctx context.Context, ws *workspace.Workspace, st Store, adder Adder, 
 
 	existing, err := st.ListRepositories(ctx)
 	if err != nil {
-		return res, fmt.Errorf("import des dépôts : lecture des dépôts : %w", err)
+		return res, errWrapped(i18n.T("configshare.apply.read_repos"), err)
 	}
 	byID := make(map[int64]model.Repository, len(existing))
 	for _, r := range existing {
@@ -390,13 +390,13 @@ func Apply(ctx context.Context, ws *workspace.Workspace, st Store, adder Adder, 
 		c := &p.Repositories[i]
 		c.Action, c.Outcome = ActionError, wsync.OutcomeError
 		if c.Error == "" {
-			c.Error = "non traité : import interrompu"
+			c.Error = i18n.T("configshare.apply.interrupted")
 		}
 	}
 	res.Summary = summarize(p.Repositories)
 	p.Summary = res.Summary
 	if err != nil {
-		return res, fmt.Errorf("import des dépôts : %w", err)
+		return res, errWrapped(i18n.T("configshare.apply.repos"), err)
 	}
 	return res, nil
 }

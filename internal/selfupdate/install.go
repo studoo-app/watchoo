@@ -21,19 +21,41 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+
+	"github.com/studoo-app/watchoo/internal/i18n"
 )
+
+// i18nError est une erreur sentinelle dont le message vient du catalogue i18n : le texte est traduit
+// au moment de l'affichage (Error), dans la langue du processus. La valeur reste comparable avec ==
+// (une structure d'un champ) : errors.Is retrouve l'erreur sentinelle à travers les emballages.
+type i18nError struct{ key string }
+
+func (e i18nError) Error() string { return i18n.T(e.key) }
+
+// sep renvoie le séparateur « : » de la langue du processus (espace avant en français).
+func sep() string { return i18n.T("selfupdate.err.sep") }
+
+// wrapErr compose un texte traduit et une erreur enveloppée, avec la ponctuation de la langue.
+func wrapErr(text string, err error) error {
+	return fmt.Errorf("%s%s%w", text, sep(), err)
+}
+
+// notWritable renvoie l'erreur ErrNotWritable du répertoire dir, cause err.
+func notWritable(dir string, err error) error {
+	return fmt.Errorf("%w%s%s%s%w", ErrNotWritable, sep(), dir, sep(), err)
+}
 
 // Erreurs de refus de la mise à jour (CheckInstallable, CheckWritable) ; la CLI les traduit en
 // messages qui disent quoi faire.
 var (
 	// ErrDocker : Watchoo tourne dans l'image Docker, mise à jour en changeant de tag.
-	ErrDocker = errors.New("watchoo tourne dans un conteneur Docker")
+	ErrDocker error = i18nError{"selfupdate.err.docker"}
 	// ErrDevBuild : la version installée n'est pas une version de release (compilée depuis les sources).
-	ErrDevBuild = errors.New("version de développement")
+	ErrDevBuild error = i18nError{"selfupdate.err.dev_build"}
 	// ErrNotWritable : le répertoire du binaire n'est pas accessible en écriture.
-	ErrNotWritable = errors.New("répertoire du binaire non accessible en écriture")
+	ErrNotWritable error = i18nError{"selfupdate.err.not_writable"}
 	// ErrChecksum : la somme SHA-256 de l'archive ne correspond pas au fichier de sommes.
-	ErrChecksum = errors.New("somme SHA-256 de l'archive incorrecte : archive corrompue ou modifiée")
+	ErrChecksum error = i18nError{"selfupdate.err.checksum"}
 )
 
 // ArchiveName renvoie le nom de l'archive de la release tag pour goos / goarch, comme
@@ -66,7 +88,7 @@ func CheckInstallable(current string, inDocker bool) error {
 		return ErrDocker
 	}
 	if !IsRelease(current) {
-		return fmt.Errorf("%w : %s", ErrDevBuild, current)
+		return fmt.Errorf("%w%s%s", ErrDevBuild, sep(), current)
 	}
 	return nil
 }
@@ -76,12 +98,12 @@ func CheckInstallable(current string, inDocker bool) error {
 func CheckWritable(dir string) error {
 	f, err := os.CreateTemp(dir, ".watchoo-update-check-*")
 	if err != nil {
-		return fmt.Errorf("%w : %s : %w", ErrNotWritable, dir, err)
+		return notWritable(dir, err)
 	}
 	name := f.Name()
 	_ = f.Close()
 	if err := os.Remove(name); err != nil {
-		return fmt.Errorf("%w : %s : %w", ErrNotWritable, dir, err)
+		return notWritable(dir, err)
 	}
 	return nil
 }
@@ -91,11 +113,11 @@ func CheckWritable(dir string) error {
 func Executable() (string, error) {
 	exe, err := os.Executable()
 	if err != nil {
-		return "", fmt.Errorf("chemin du binaire en cours introuvable : %w", err)
+		return "", wrapErr(i18n.T("selfupdate.exe.not_found"), err)
 	}
 	resolved, err := filepath.EvalSymlinks(exe)
 	if err != nil {
-		return "", fmt.Errorf("chemin du binaire en cours introuvable : %w", err)
+		return "", wrapErr(i18n.T("selfupdate.exe.not_found"), err)
 	}
 	return resolved, nil
 }
@@ -114,7 +136,7 @@ func (c *Client) Install(ctx context.Context, tag, exe string) error {
 // de l'archive et renvoie le binaire qu'elle contient.
 func (c *Client) Download(ctx context.Context, tag string) ([]byte, error) {
 	if v, ok := ParseVersion(tag); !ok || !v.IsFinal() || !strings.HasPrefix(tag, "v") {
-		return nil, fmt.Errorf("version invalide : %q (attendu : vX.Y.Z)", tag)
+		return nil, errors.New(i18n.T("selfupdate.version.invalid", tag))
 	}
 	archive := ArchiveName(tag, c.goos, c.goarch)
 	sums, err := c.download(ctx, maxChecksumsSize, "download", tag, ChecksumsName(tag))
@@ -131,7 +153,7 @@ func (c *Client) Download(ctx context.Context, tag string) ([]byte, error) {
 	}
 	got := sha256.Sum256(data)
 	if subtle.ConstantTimeCompare(got[:], want) != 1 {
-		return nil, fmt.Errorf("%s : %w", archive, ErrChecksum)
+		return nil, wrapErr(archive, ErrChecksum)
 	}
 	return extractBinary(data, archive, binaryName(c.goos))
 }
@@ -145,19 +167,18 @@ func (c *Client) download(ctx context.Context, limit int64, elems ...string) ([]
 	name := elems[len(elems)-1]
 	resp, err := c.get(ctx, c.http, u)
 	if err != nil {
-		return nil, fmt.Errorf("téléchargement de %s : %w", name, err)
+		return nil, wrapErr(i18n.T("selfupdate.download", name), err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("téléchargement de %s : réponse HTTP %d (version ou plateforme sans archive ?)",
-			name, resp.StatusCode)
+		return nil, errors.New(i18n.T("selfupdate.download.http", name, resp.StatusCode))
 	}
 	data, err := io.ReadAll(io.LimitReader(resp.Body, limit+1))
 	if err != nil {
-		return nil, fmt.Errorf("téléchargement de %s : %w", name, err)
+		return nil, wrapErr(i18n.T("selfupdate.download", name), err)
 	}
 	if int64(len(data)) > limit {
-		return nil, fmt.Errorf("téléchargement de %s : fichier trop gros (plus de %d Mo)", name, limit>>20)
+		return nil, errors.New(i18n.T("selfupdate.download.too_big", name, limit>>20))
 	}
 	return data, nil
 }
@@ -172,11 +193,11 @@ func findChecksum(sums []byte, archive string) ([]byte, error) {
 		}
 		sum, err := hex.DecodeString(fields[0])
 		if err != nil || len(sum) != sha256.Size {
-			return nil, fmt.Errorf("somme de %s illisible dans le fichier de sommes", archive)
+			return nil, errors.New(i18n.T("selfupdate.checksum.unreadable", archive))
 		}
 		return sum, nil
 	}
-	return nil, fmt.Errorf("%s absent du fichier de sommes de la release", archive)
+	return nil, errors.New(i18n.T("selfupdate.checksum.missing", archive))
 }
 
 // extractBinary renvoie le contenu du fichier name, à la racine de l'archive data (tar.gz ou zip selon
@@ -190,13 +211,13 @@ func extractBinary(data []byte, archive, name string) ([]byte, error) {
 		bin, err = extractTarGz(data, name)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("extraction de %s : %w", archive, err)
+		return nil, wrapErr(i18n.T("selfupdate.extract", archive), err)
 	}
 	if bin == nil {
-		return nil, fmt.Errorf("extraction de %s : binaire %s absent de l'archive", archive, name)
+		return nil, errors.New(i18n.T("selfupdate.extract.missing", archive, name))
 	}
 	if len(bin) == 0 {
-		return nil, fmt.Errorf("extraction de %s : binaire %s vide", archive, name)
+		return nil, errors.New(i18n.T("selfupdate.extract.empty", archive, name))
 	}
 	return bin, nil
 }
@@ -254,7 +275,7 @@ func readLimited(r io.Reader) ([]byte, error) {
 		return nil, err
 	}
 	if len(bin) > maxBinarySize {
-		return nil, fmt.Errorf("binaire trop gros (plus de %d Mo)", maxBinarySize>>20)
+		return nil, errors.New(i18n.T("selfupdate.binary.too_big", maxBinarySize>>20))
 	}
 	return bin, nil
 }
@@ -268,7 +289,7 @@ func Replace(exe string, bin []byte, goos string) (err error) {
 	dir := filepath.Dir(exe)
 	tmp, err := os.CreateTemp(dir, ".watchoo-update-*")
 	if err != nil {
-		return fmt.Errorf("%w : %s : %w", ErrNotWritable, dir, err)
+		return notWritable(dir, err)
 	}
 	tmpName := tmp.Name()
 	defer func() {
@@ -278,34 +299,34 @@ func Replace(exe string, bin []byte, goos string) (err error) {
 	}()
 	if _, err := tmp.Write(bin); err != nil {
 		_ = tmp.Close()
-		return fmt.Errorf("écriture du nouveau binaire : %w", err)
+		return wrapErr(i18n.T("selfupdate.replace.write"), err)
 	}
 	if err := tmp.Sync(); err != nil {
 		_ = tmp.Close()
-		return fmt.Errorf("écriture du nouveau binaire : %w", err)
+		return wrapErr(i18n.T("selfupdate.replace.write"), err)
 	}
 	if err := tmp.Close(); err != nil {
-		return fmt.Errorf("écriture du nouveau binaire : %w", err)
+		return wrapErr(i18n.T("selfupdate.replace.write"), err)
 	}
 	if err := os.Chmod(tmpName, 0o755); err != nil {
-		return fmt.Errorf("droits du nouveau binaire : %w", err)
+		return wrapErr(i18n.T("selfupdate.replace.perms"), err)
 	}
 	if goos != "windows" {
 		if err := os.Rename(tmpName, exe); err != nil {
-			return fmt.Errorf("remplacement de %s : %w", exe, err)
+			return wrapErr(i18n.T("selfupdate.replace.rename", exe), err)
 		}
 		return nil
 	}
 	old := exe + ".old"
 	if err := os.Remove(old); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("suppression de %s : %w", old, err)
+		return wrapErr(i18n.T("selfupdate.replace.remove", old), err)
 	}
 	if err := os.Rename(exe, old); err != nil {
-		return fmt.Errorf("mise de côté de %s : %w", exe, err)
+		return wrapErr(i18n.T("selfupdate.replace.aside", exe), err)
 	}
 	if err := os.Rename(tmpName, exe); err != nil {
 		_ = os.Rename(old, exe)
-		return fmt.Errorf("remplacement de %s : %w", exe, err)
+		return wrapErr(i18n.T("selfupdate.replace.rename", exe), err)
 	}
 	return nil
 }

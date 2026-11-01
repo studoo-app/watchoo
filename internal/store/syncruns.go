@@ -6,9 +6,9 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"time"
 
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/store/db"
 )
@@ -30,19 +30,19 @@ func (s *Store) BeginSyncRun(ctx context.Context, repoID int64, now time.Time, s
 	var locked bool
 	err := s.writeTx(ctx, func(q *db.Queries) error {
 		if _, err := q.GetRepository(ctx, repoID); err != nil {
-			return repositoryLookupError(fmt.Sprintf("dépôt %d", repoID), err)
+			return repositoryLookupError(i18n.T("store.repo.id", repoID), err)
 		}
 		if err := q.CloseStaleSyncRuns(ctx, db.CloseStaleSyncRunsParams{
-			Message:     InterruptedMessage,
+			Message:     InterruptedMessage(),
 			FinishedAt:  nullTime(now),
 			RepoID:      repoID,
 			StaleBefore: FormatTime(now.Add(-staleAfter)),
 		}); err != nil {
-			return fmt.Errorf("clôture des synchros interrompues : %w", err)
+			return wrapErr(i18n.T("store.runs.close_interrupted"), err)
 		}
 		running, err := q.CountRunningSyncRuns(ctx, repoID)
 		if err != nil {
-			return fmt.Errorf("lecture des synchros en cours : %w", err)
+			return wrapErr(i18n.T("store.runs.read_running"), err)
 		}
 		if running > 0 {
 			// Pas d'erreur ici : la clôture des synchros périmées doit être validée.
@@ -51,16 +51,16 @@ func (s *Store) BeginSyncRun(ctx context.Context, repoID int64, now time.Time, s
 		}
 		row, err := q.CreateSyncRun(ctx, db.CreateSyncRunParams{RepoID: repoID, StartedAt: FormatTime(now)})
 		if err != nil {
-			return fmt.Errorf("enregistrement de la synchro : %w", err)
+			return wrapErr(i18n.T("store.runs.record"), err)
 		}
 		run, err = syncRunFromDB(row)
 		return err
 	})
 	if err != nil {
-		return model.SyncRun{}, fmt.Errorf("début de synchro du dépôt %d : %w", repoID, err)
+		return model.SyncRun{}, wrapErr(i18n.T("store.runs.begin", repoID), err)
 	}
 	if locked {
-		return model.SyncRun{}, fmt.Errorf("dépôt %d : %w", repoID, ErrLocked)
+		return model.SyncRun{}, wrapErr(i18n.T("store.repo.id", repoID), ErrLocked)
 	}
 	return run, nil
 }
@@ -72,7 +72,7 @@ func (s *Store) BeginSyncRun(ctx context.Context, repoID int64, now time.Time, s
 // ErrNotFound si runID n'existe pas ou n'est plus « running ».
 func (s *Store) FinishSyncRun(ctx context.Context, runID int64, finishedAt time.Time, status model.SyncStatus, newCommits int, errMsg string) error {
 	if status != model.SyncSuccess && status != model.SyncError {
-		return fmt.Errorf("fin de synchro %d : statut %q invalide", runID, status)
+		return errors.New(i18n.T("store.runs.bad_status", runID, status))
 	}
 	n, err := s.queries.FinishSyncRun(ctx, db.FinishSyncRunParams{
 		Status:     string(status),
@@ -82,10 +82,10 @@ func (s *Store) FinishSyncRun(ctx context.Context, runID int64, finishedAt time.
 		ID:         runID,
 	})
 	if err != nil {
-		return fmt.Errorf("fin de synchro %d : %w", runID, err)
+		return wrapErr(i18n.T("store.runs.finish", runID), err)
 	}
 	if n == 0 {
-		return fmt.Errorf("synchro en cours %d : %w", runID, ErrNotFound)
+		return wrapErr(i18n.T("store.runs.running", runID), ErrNotFound)
 	}
 	return nil
 }
@@ -96,9 +96,9 @@ func (s *Store) LastSyncRun(ctx context.Context, repoID int64) (model.SyncRun, e
 	row, err := s.queries.LastSyncRun(ctx, repoID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return model.SyncRun{}, fmt.Errorf("synchro du dépôt %d : %w", repoID, ErrNotFound)
+			return model.SyncRun{}, wrapErr(i18n.T("store.runs.repo", repoID), ErrNotFound)
 		}
-		return model.SyncRun{}, fmt.Errorf("dernière synchro du dépôt %d : %w", repoID, err)
+		return model.SyncRun{}, wrapErr(i18n.T("store.runs.last", repoID), err)
 	}
 	return syncRunFromDB(row)
 }
@@ -107,11 +107,11 @@ func (s *Store) LastSyncRun(ctx context.Context, repoID int64) (model.SyncRun, e
 func syncRunFromDB(row db.SyncRun) (model.SyncRun, error) {
 	startedAt, err := ParseTime(row.StartedAt)
 	if err != nil {
-		return model.SyncRun{}, fmt.Errorf("synchro %d, started_at : %w", row.ID, err)
+		return model.SyncRun{}, wrapErr(i18n.T("store.runs.started_at", row.ID), err)
 	}
 	finishedAt, err := parseNullTime(row.FinishedAt)
 	if err != nil {
-		return model.SyncRun{}, fmt.Errorf("synchro %d, finished_at : %w", row.ID, err)
+		return model.SyncRun{}, wrapErr(i18n.T("store.runs.finished_at", row.ID), err)
 	}
 	return model.SyncRun{
 		ID:         row.ID,

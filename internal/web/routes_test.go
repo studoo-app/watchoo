@@ -5,8 +5,8 @@ import (
 	"testing"
 )
 
-// TestHeadAcceptedWhereGetIs vérifie que toute route GET accepte HEAD (même code, même
-// Content-Type) et qu'une route POST seule la refuse toujours.
+// TestHeadAcceptedWhereGetIs checks that every GET route accepts HEAD (same code, same
+// Content-Type) and that a POST-only route still refuses it.
 func TestHeadAcceptedWhereGetIs(t *testing.T) {
 	e := newTestEnv(t)
 	ids := e.seed()
@@ -21,20 +21,20 @@ func TestHeadAcceptedWhereGetIs(t *testing.T) {
 		get := e.get(target)
 		head := e.do(e.request(http.MethodHead, target, nil))
 		if get.Code != http.StatusOK || head.Code != get.Code {
-			t.Errorf("%s : GET %d, HEAD %d ; attendu 200 tous les deux", target, get.Code, head.Code)
+			t.Errorf("%s: GET %d, HEAD %d; want 200 for both", target, get.Code, head.Code)
 			continue
 		}
 		if g, h := get.Header().Get("Content-Type"), head.Header().Get("Content-Type"); g != h {
-			t.Errorf("%s : Content-Type GET %q, HEAD %q", target, g, h)
+			t.Errorf("%s: Content-Type GET %q, HEAD %q", target, g, h)
 		}
 	}
 	for _, target := range []string{"/sync", "/settings/interval"} {
 		if w := e.do(e.request(http.MethodHead, target, nil)); w.Code != http.StatusMethodNotAllowed {
-			t.Errorf("HEAD %s : %d, attendu 405", target, w.Code)
+			t.Errorf("HEAD %s: %d, want 405", target, w.Code)
 		}
 	}
 	if w := e.do(e.request(http.MethodHead, "/page-inconnue", nil)); w.Code != http.StatusNotFound {
-		t.Errorf("HEAD /page-inconnue : %d, attendu 404", w.Code)
+		t.Errorf("HEAD /page-inconnue: %d, want 404", w.Code)
 	}
 }
 
@@ -45,7 +45,7 @@ func TestIsAssetPath(t *testing.T) {
 		"/": false, "/static": false, "/contributors": false, "/fragments/sync": false, "/favicon.ico/x": false,
 	} {
 		if got := isAssetPath(path); got != want {
-			t.Errorf("isAssetPath(%q) = %v, attendu %v", path, got, want)
+			t.Errorf("isAssetPath(%q) = %v, want %v", path, got, want)
 		}
 	}
 }

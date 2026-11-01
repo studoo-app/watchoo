@@ -8,7 +8,7 @@ import (
 	"github.com/studoo-app/watchoo/internal/configshare"
 )
 
-// pair décrit des seuils propres (« 3/10 », « -/- » = seuils de l'espace).
+// pair describes per-repository thresholds ("3/10", "-/-" = thresholds of the workspace).
 func pair(flemme, dead *int) string {
 	s := func(p *int) string {
 		if p == nil {
@@ -19,7 +19,8 @@ func pair(flemme, dead *int) string {
 	return s(flemme) + "/" + s(dead)
 }
 
-// Les seuils propres d'un dépôt sont exportés (seulement s'il en a), relus, prévus et appliqués.
+// The per-repository thresholds are exported (only if there are any), read back, previewed and
+// applied.
 func TestThresholdsExportImport(t *testing.T) {
 	isolate(t)
 	a := newEnv(t, "licence-a")
@@ -35,15 +36,15 @@ func TestThresholdsExportImport(t *testing.T) {
 	}
 	data, _ := d.Marshal()
 	if !strings.Contains(string(data), `"flemme_after_days": 3,`) || !strings.Contains(string(data), `"dead_after_days": 10`) {
-		t.Errorf("seuils absents de l'export :\n%s", data)
+		t.Errorf("thresholds missing from the export:\n%s", data)
 	}
-	// bob n'a pas de seuil propre : pas de clé (fichier lisible par les versions précédentes).
+	// bob has no threshold of its own: no key (file readable by the previous versions).
 	_, bobPart, _ := strings.Cut(string(data), `"repo": "bob/projet"`)
 	if strings.Count(string(data), "flemme_after_days") != 2 || strings.Contains(bobPart, "dead_after_days") {
-		t.Errorf("seuils écrits pour un dépôt sans seuil propre :\n%s", data)
+		t.Errorf("thresholds written for a repository without its own:\n%s", data)
 	}
 
-	// b : alice absente, bob présent avec un seuil propre que le document ne donne pas (gardé).
+	// b: alice absent, bob present with its own threshold that the document does not give (kept).
 	b := newEnv(t, "licence-b")
 	b.forge(1, "alice", "projet")
 	bob := b.track(2, "bob", "projet", "")
@@ -53,30 +54,30 @@ func TestThresholdsExportImport(t *testing.T) {
 	}
 	f := mustParse(t, string(data))
 	if got := pair(f.Repositories[0].FlemmeAfterDays, f.Repositories[0].DeadAfterDays); got != "3/10" {
-		t.Errorf("seuils relus = %s", got)
+		t.Errorf("thresholds read back = %s", got)
 	}
 	p, err := configshare.Plan(t.Context(), b.ws, b.st, f, configshare.PlanOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if c := p.Repositories[0]; c.Action != configshare.ActionAdd || pair(c.After.FlemmeAfterDays, c.After.DeadAfterDays) != "3/10" {
-		t.Errorf("aperçu alice = %+v", c)
+		t.Errorf("preview alice = %+v", c)
 	}
 	if c := p.Repositories[1]; c.Action != configshare.ActionUnchanged || pair(c.After.FlemmeAfterDays, c.After.DeadAfterDays) != "-/7" {
-		t.Errorf("aperçu bob = %+v", c)
+		t.Errorf("preview bob = %+v", c)
 	}
 	if _, err := configshare.Apply(t.Context(), b.ws, b.st, b.eng, f, configshare.ApplyOptions{}); err != nil {
 		t.Fatal(err)
 	}
 	repos := b.repos()
 	if r := repos["alice/projet"]; pair(r.FlemmeAfterDays, r.DeadAfterDays) != "3/10" {
-		t.Errorf("alice importée = %s", pair(r.FlemmeAfterDays, r.DeadAfterDays))
+		t.Errorf("imported alice = %s", pair(r.FlemmeAfterDays, r.DeadAfterDays))
 	}
 	if r := repos["bob/projet"]; pair(r.FlemmeAfterDays, r.DeadAfterDays) != "-/7" {
 		t.Errorf("bob = %s", pair(r.FlemmeAfterDays, r.DeadAfterDays))
 	}
 
-	// 0 = seuil de l'espace : mise à jour prévue puis appliquée.
+	// 0 = threshold of the workspace: update previewed, then applied.
 	f = mustParse(t, doc("", `[{"repo": "bob/projet", "dead_after_days": 0}]`))
 	p, err = configshare.Plan(t.Context(), b.ws, b.st, f, configshare.PlanOptions{})
 	if err != nil {
@@ -84,25 +85,25 @@ func TestThresholdsExportImport(t *testing.T) {
 	}
 	if c := p.Repositories[0]; c.Action != configshare.ActionUpdate || pair(c.Before.FlemmeAfterDays, c.Before.DeadAfterDays) != "-/7" ||
 		pair(c.After.FlemmeAfterDays, c.After.DeadAfterDays) != "-/-" {
-		t.Errorf("aperçu 0 = %+v", c)
+		t.Errorf("preview 0 = %+v", c)
 	}
 	if _, err := configshare.Apply(t.Context(), b.ws, b.st, b.eng, f, configshare.ApplyOptions{}); err != nil {
 		t.Fatal(err)
 	}
 	if r := b.repos()["bob/projet"]; r.DeadAfterDays != nil {
-		t.Errorf("bob après 0 : %s", pair(r.FlemmeAfterDays, r.DeadAfterDays))
+		t.Errorf("bob after 0: %s", pair(r.FlemmeAfterDays, r.DeadAfterDays))
 	}
 }
 
 func TestThresholdsParseRejects(t *testing.T) {
 	for in, want := range map[string]string{
-		`[{"repo": "alice/projet", "flemme_after_days": 10, "dead_after_days": 4}]`: "dépôt n° 1 (alice/projet) : seuil dead (4 j) : doit être strictement supérieur",
-		`[{"repo": "alice/projet", "flemme_after_days": -1}]`:                       "seuil flemme : -1 jours invalide",
+		`[{"repo": "alice/projet", "flemme_after_days": 10, "dead_after_days": 4}]`: "repository #1 (alice/projet): dead threshold (4 d): must be strictly greater",
+		`[{"repo": "alice/projet", "flemme_after_days": -1}]`:                       "flemme threshold: -1 days is invalid",
 		`[{"repo": "alice/projet", "dead_after_days": "5"}]`:                        "type",
 	} {
 		_, err := configshare.Parse(strings.NewReader(doc("", in)))
 		if err == nil || !strings.Contains(err.Error(), want) {
-			t.Errorf("Parse(%s) = %v, attendu %q", in, err, want)
+			t.Errorf("Parse(%s) = %v, want %q", in, err, want)
 		}
 	}
 }

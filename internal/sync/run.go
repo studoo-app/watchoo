@@ -10,20 +10,14 @@ import (
 	gosync "sync"
 	"time"
 
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/provider"
 	"github.com/studoo-app/watchoo/internal/store"
 )
 
-// Messages fixes des rapports (en français, sans donnée personnelle).
-const (
-	msgLocked    = "déjà en cours de synchronisation"
-	msgCanceled  = "synchro annulée"
-	msgDeadline  = "synchro interrompue : délai dépassé"
-	reasonLow    = "quota bas"
-	reasonSpent  = "quota épuisé"
-	resumeLayout = "15:04"
-)
+// resumeLayout est le format de l'heure de reprise dans le message d'un report.
+const resumeLayout = "15:04"
 
 // progress sérialise les appels à SyncOptions.Progress et tient le compte des dépôts terminés.
 type progress struct {
@@ -53,25 +47,25 @@ type halt struct {
 	mu       gosync.Mutex
 	halted   bool
 	resumeAt time.Time
-	reason   string
+	reason   DeferReason
 }
 
 // set arrête les dépôts suivants jusqu'à resumeAt (la plus lointaine des échéances l'emporte ; un
 // quota épuisé l'emporte sur un quota bas).
-func (h *halt) set(resumeAt time.Time, reason string) {
+func (h *halt) set(resumeAt time.Time, reason DeferReason) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if !h.halted || resumeAt.After(h.resumeAt) {
 		h.resumeAt = resumeAt.UTC()
 	}
-	if !h.halted || reason == reasonSpent {
+	if !h.halted || reason == DeferQuotaExhausted {
 		h.reason = reason
 	}
 	h.halted = true
 }
 
 // get renvoie l'arrêt en cours, s'il y en a un.
-func (h *halt) get() (time.Time, string, bool) {
+func (h *halt) get() (time.Time, DeferReason, bool) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	return h.resumeAt, h.reason, h.halted
@@ -90,13 +84,21 @@ func QuotaLow(rl provider.RateLimit, now time.Time) bool {
 	return rl.Remaining*100 < rl.Limit*QuotaReservePercent
 }
 
-// deferredMessage renvoie « reporté : <raison> jusqu'à HH:MM UTC » (sans heure si elle est inconnue).
-// L'heure reste en UTC : les couches d'affichage la convertissent à partir de RepoReport.ResumeAt.
-func deferredMessage(reason string, resumeAt time.Time) string {
+// deferredMessage renvoie « deferred: <raison> until HH:MM UTC » (« reporté : <raison> jusqu'à
+// HH:MM UTC » en français ; sans heure si elle est inconnue), dans la langue du processus. L'heure
+// reste en UTC : les couches d'affichage la convertissent à partir de RepoReport.ResumeAt, et
+// traduisent la raison à partir de RepoReport.DeferReason.
+func deferredMessage(reason DeferReason, resumeAt time.Time) string {
 	if resumeAt.IsZero() {
-		return "reporté : " + reason
+		return i18n.T("sync.deferred", reason.Text())
 	}
-	return fmt.Sprintf("reporté : %s jusqu'à %s UTC", reason, resumeAt.UTC().Format(resumeLayout))
+	return i18n.T("sync.deferred_until", reason.Text(), resumeAt.UTC().Format(resumeLayout))
+}
+
+// errWrapped compose un texte traduit et une erreur enveloppée, avec la ponctuation de la langue
+// (« texte : err » en français, « texte: err » en anglais).
+func errWrapped(text string, err error) error {
+	return fmt.Errorf("%s%s%w", text, i18n.T("sync.err.sep"), err)
 }
 
 // rateLimitResume renvoie le moment où réessayer après rle : Reset, sinon now + RetryAfter, sinon
@@ -112,14 +114,15 @@ func rateLimitResume(rle *provider.RateLimitError, now time.Time) time.Time {
 	}
 }
 
-// errorMessage renvoie le message d'échec d'un dépôt, en français. Les erreurs du Provider et du
-// store ne contiennent ni token ni donnée personnelle ; le moteur masque en plus le token (redact).
+// errorMessage renvoie le message d'échec d'un dépôt, dans la langue du processus (celle de la
+// synchro : c'est le message consigné dans sync_runs.error). Les erreurs du Provider et du store ne
+// contiennent ni token ni donnée personnelle ; le moteur masque en plus le token (redact).
 func errorMessage(err error) string {
 	switch {
 	case errors.Is(err, context.Canceled):
-		return msgCanceled
+		return i18n.T("sync.canceled")
 	case errors.Is(err, context.DeadlineExceeded):
-		return msgDeadline
+		return i18n.T("sync.deadline")
 	default:
 		return err.Error()
 	}
@@ -205,19 +208,21 @@ func (e *Engine) syncOne(ctx context.Context, prov provider.Provider, cl clones,
 		}
 	}()
 	if resumeAt, reason, ok := h.get(); ok {
-		rep.Status, rep.ResumeAt, rep.Error = StatusDeferred, resumeAt, deferredMessage(reason, resumeAt)
+		rep.Status, rep.ResumeAt, rep.DeferReason = StatusDeferred, resumeAt, reason
+		rep.Error = deferredMessage(reason, resumeAt)
 		return rep
 	}
 	if rl, ok := prov.LastRateLimit(); ok && QuotaLow(rl, e.now()) {
-		h.set(rl.Reset, reasonLow)
+		h.set(rl.Reset, DeferLowQuota)
 		resumeAt, reason, _ := h.get()
-		rep.Status, rep.ResumeAt, rep.Error = StatusDeferred, resumeAt, deferredMessage(reason, resumeAt)
+		rep.Status, rep.ResumeAt, rep.DeferReason = StatusDeferred, resumeAt, reason
+		rep.Error = deferredMessage(reason, resumeAt)
 		return rep
 	}
 
 	run, err := e.store.BeginSyncRun(ctx, repo.ID, e.now().UTC(), LockStaleAfter)
 	if errors.Is(err, store.ErrLocked) {
-		rep.Status, rep.Error = StatusLocked, msgLocked
+		rep.Status, rep.Error = StatusLocked, i18n.T("sync.locked")
 		e.logger.Info("dépôt ignoré : synchro déjà en cours", "repo", rep.FullName)
 		return rep
 	}
@@ -234,7 +239,7 @@ func (e *Engine) syncOne(ctx context.Context, prov provider.Provider, cl clones,
 	if err != nil {
 		var rle *provider.RateLimitError
 		if errors.As(err, &rle) {
-			h.set(rateLimitResume(rle, e.now()), reasonSpent)
+			h.set(rateLimitResume(rle, e.now()), DeferQuotaExhausted)
 		}
 		rep.Status, rep.Error = StatusError, redact(errorMessage(err))
 		// Contexte détaché : un échec dû à l'annulation doit quand même être enregistré.

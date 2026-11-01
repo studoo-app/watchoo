@@ -10,6 +10,7 @@ package activity
 import (
 	"time"
 
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/workspace"
 )
@@ -40,26 +41,33 @@ func (s State) Gray() bool {
 	}
 }
 
-// Label renvoie le libellé français de l'état : « Actif », « Flemme », « Dead », « Suivi arrêté »,
-// « En erreur », « Jamais synchronisé », « Archivé », « Vide ».
+// Label renvoie le libellé de l'état, dans la langue du processus : « Actif », « Flemme »,
+// « Dead », « Suivi arrêté », « En erreur », « Jamais synchronisé », « Archivé », « Vide »
+// (anglais : Active, Slacking, Dead, Tracking stopped, Error, Never synced, Archived, Empty).
 func (s State) Label() string {
+	return s.LabelIn(i18n.Process())
+}
+
+// LabelIn renvoie le libellé de l'état dans la langue du traducteur tr (web : langue de l'espace de
+// supervision).
+func (s State) LabelIn(tr *i18n.Translator) string {
 	switch s {
 	case StateActive:
-		return "Actif"
+		return tr.T("activity.state.active")
 	case StateFlemme:
-		return "Flemme"
+		return tr.T("activity.state.flemme")
 	case StateDead:
-		return "Dead"
+		return tr.T("activity.state.dead")
 	case StateStopped:
-		return "Suivi arrêté"
+		return tr.T("activity.state.stopped")
 	case StateError:
-		return "En erreur"
+		return tr.T("activity.state.error")
 	case StateNeverSynced:
-		return "Jamais synchronisé"
+		return tr.T("activity.state.never_synced")
 	case StateArchived:
-		return "Archivé"
+		return tr.T("activity.state.archived")
 	case StateEmpty:
-		return "Vide"
+		return tr.T("activity.state.empty")
 	default:
 		return string(s)
 	}

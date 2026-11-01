@@ -1,7 +1,7 @@
 package cli
 
-// Tests de « watchoo serve » : options, refus de démarrer sans authentification hors boucle locale,
-// démarrage réel sur un port local libre, synchro au démarrage, arrêt propre.
+// Tests of "watchoo serve": options, refusal to start without authentication outside the loopback,
+// real start on a free local port, sync at startup, clean shutdown.
 
 import (
 	"context"
@@ -15,16 +15,16 @@ import (
 	"time"
 )
 
-// servedRun est un « watchoo serve » lancé en arrière-plan par startServe.
+// servedRun is a "watchoo serve" started in the background by startServe.
 type servedRun struct {
-	addr      string // adresse réellement écoutée
-	requested string // adresse demandée à Listen
+	addr      string // address really listened
+	requested string // address requested from Listen
 	cancel    context.CancelFunc
 	done      chan result
 }
 
-// startServe lance « watchoo serve args… » ; Listen écoute toujours sur un port libre de 127.0.0.1,
-// quelle que soit l'adresse demandée (retenue dans requested).
+// startServe starts "watchoo serve args…"; Listen always listens on a free port of 127.0.0.1,
+// whatever the requested address (kept in requested).
 func startServe(t *testing.T, h *harness, args ...string) *servedRun {
 	t.Helper()
 	run := &servedRun{done: make(chan result, 1)}
@@ -44,14 +44,14 @@ func startServe(t *testing.T, h *harness, args ...string) *servedRun {
 	select {
 	case <-ready:
 	case r := <-run.done:
-		t.Fatalf("serve s'est arrêté avant d'écouter : %d\n%s", r.code, r.stderr)
+		t.Fatalf("serve stopped before listening: %d\n%s", r.code, r.stderr)
 	case <-time.After(10 * time.Second):
-		t.Fatal("serve n'a pas ouvert d'écoute")
+		t.Fatal("serve did not open a listener")
 	}
 	return run
 }
 
-// stop arrête le serveur et renvoie le résultat de la commande.
+// stop stops the server and returns the result of the command.
 func (s *servedRun) stop(t *testing.T) result {
 	t.Helper()
 	s.cancel()
@@ -59,17 +59,17 @@ func (s *servedRun) stop(t *testing.T) result {
 	case r := <-s.done:
 		return r
 	case <-time.After(15 * time.Second):
-		t.Fatal("serve ne s'est pas arrêté")
+		t.Fatal("serve did not stop")
 		return result{}
 	}
 }
 
-// get fait un GET sur le serveur, avec l'en-tête Host de l'adresse écoutée.
+// get makes a GET on the server, with the Host header of the listened address.
 func (s *servedRun) get(t *testing.T, path string) (int, string) {
 	t.Helper()
 	resp, err := http.Get("http://" + s.addr + path)
 	if err != nil {
-		t.Fatalf("GET %s : %v", path, err)
+		t.Fatalf("GET %s: %v", path, err)
 	}
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
@@ -81,10 +81,10 @@ func (s *servedRun) get(t *testing.T, path string) (int, string) {
 
 func TestServeRefusesJSONArgsAndBadOptions(t *testing.T) {
 	h := newWorkspace(t)
-	h.run("serve", "--json").mustFail(t, "n'a pas de sortie JSON")
-	h.run("serve", "extra").mustFail(t, "« watchoo serve » ne prend pas d'argument")
-	h.run("serve", "--interval", "5m").mustFail(t, "--interval", "minimum de 15 min")
-	h.run("serve", "--addr", "pas-une-adresse").mustFail(t, "--addr", "web.addr")
+	h.run("serve", "--json").mustFail(t, "has no JSON output")
+	h.run("serve", "extra").mustFail(t, "takes no argument")
+	h.run("serve", "--interval", "5m").mustFail(t, "--interval", "minimum of 15 min")
+	h.run("serve", "--addr", "not-an-address").mustFail(t, "--addr", "web.addr")
 }
 
 func TestServeRefusesNetworkWithoutAuth(t *testing.T) {
@@ -92,22 +92,22 @@ func TestServeRefusesNetworkWithoutAuth(t *testing.T) {
 	called := false
 	h.Listen = func(string, string) (net.Listener, error) {
 		called = true
-		return nil, fmt.Errorf("ne doit pas être appelé")
+		return nil, fmt.Errorf("must not be called")
 	}
-	h.run("serve", "--addr", "0.0.0.0:8080").mustFail(t, "refusée sans authentification", "WATCHOO_WEB_PASSWORD",
+	h.run("serve", "--addr", "0.0.0.0:8080").mustFail(t, "refused without authentication", "WATCHOO_WEB_PASSWORD",
 		"web.trusted_proxy")
-	h.run("serve", "--addr", ":8080").mustFail(t, "refusée sans authentification")
-	// Reverse proxy déclaré sans ses noms publics : refus (contrôle de l'en-tête Host impossible).
+	h.run("serve", "--addr", ":8080").mustFail(t, "refused without authentication")
+	// Reverse proxy declared without its public names: refused (Host header check impossible).
 	t.Setenv("WATCHOO_WEB_TRUSTED_PROXY", "true")
 	h.run("serve", "--addr", "0.0.0.0:8080").mustFail(t, "web.allowed_hosts")
 	t.Setenv("WATCHOO_WEB_TRUSTED_PROXY", "false")
 
 	t.Setenv("WATCHOO_WEB_AUTH_USERNAME", "prof")
-	h.run("serve").mustFail(t, "WATCHOO_WEB_PASSWORD est vide")
-	t.Setenv("WATCHOO_WEB_PASSWORD", "court")
-	h.run("serve").mustFail(t, "trop court")
+	h.run("serve").mustFail(t, "WATCHOO_WEB_PASSWORD variable is empty")
+	t.Setenv("WATCHOO_WEB_PASSWORD", "short")
+	h.run("serve").mustFail(t, "too short")
 	if called {
-		t.Error("écoute ouverte malgré le refus")
+		t.Error("listener opened despite the refusal")
 	}
 }
 
@@ -116,61 +116,61 @@ func TestServeAddressInUse(t *testing.T) {
 	h.Listen = func(string, string) (net.Listener, error) {
 		return nil, &net.OpError{Op: "listen", Net: "tcp", Err: syscall.EADDRINUSE}
 	}
-	h.run("serve", "--interval", "0").mustFail(t, "127.0.0.1:8080 est déjà utilisée", "--addr")
+	h.run("serve", "--interval", "0").mustFail(t, "127.0.0.1:8080 is already in use", "--addr")
 }
 
 func TestServeRunsAndStops(t *testing.T) {
 	h := newSyncedWorkspace(t)
 	run := startServe(t, h, "--interval", "0", "--addr", "127.0.0.1:9123")
 	if run.requested != "127.0.0.1:9123" {
-		t.Errorf("adresse demandée %q, attendu celle de --addr", run.requested)
+		t.Errorf("requested address %q, want the one of --addr", run.requested)
 	}
 	code, body := run.get(t, "/fragments/sync")
 	if code != http.StatusOK || !strings.Contains(body, `id="sync-status"`) {
-		t.Errorf("GET /fragments/sync : %d\n%s", code, body)
+		t.Errorf("GET /fragments/sync: %d\n%s", code, body)
 	}
 	code, _ = run.get(t, "/static/app.css")
 	if code != http.StatusOK {
-		t.Errorf("GET /static/app.css : %d", code)
+		t.Errorf("GET /static/app.css: %d", code)
 	}
 	r := run.stop(t).mustSucceed(t)
-	for _, want := range []string{"Interface web : http://" + run.addr + "/", "Synchro automatique : désactivée",
-		"Interface web arrêtée."} {
+	for _, want := range []string{"Web interface: http://" + run.addr + "/", "Automatic sync: disabled",
+		"Web interface stopped."} {
 		if !strings.Contains(r.stdout, want) {
-			t.Errorf("sortie sans %q :\n%s", want, r.stdout)
+			t.Errorf("output without %q:\n%s", want, r.stdout)
 		}
 	}
 	if r.stderr != "" {
-		t.Errorf("sortie d'erreur non vide :\n%s", r.stderr)
+		t.Errorf("non-empty error output:\n%s", r.stderr)
 	}
 }
 
-// TestServeSyncsAtStartWhenNeverSynced : sans synchro connue, la première synchro automatique a lieu
-// au démarrage ; l'arrêt attend sa fin.
+// TestServeSyncsAtStartWhenNeverSynced: without a known sync, the first automatic sync happens at
+// startup; the shutdown waits for its end.
 func TestServeSyncsAtStartWhenNeverSynced(t *testing.T) {
 	h := newWorkspace(t)
 	seedProvider(h.Provider)
 	h.run("repo", "add", "alice/projet").mustSucceed(t)
 	before := h.Provider.Calls("RepositoryByID")
-	run := startServe(t, h) // sync.auto et sync.interval par défaut : 30 min
+	run := startServe(t, h) // sync.auto and sync.interval by default: 30 min
 	deadline := time.Now().Add(10 * time.Second)
 	for h.Provider.Calls("RepositoryByID") == before && time.Now().Before(deadline) {
 		time.Sleep(10 * time.Millisecond)
 	}
 	if h.Provider.Calls("RepositoryByID") == before {
-		t.Error("aucune synchro au démarrage")
+		t.Error("no sync at startup")
 	}
 	r := run.stop(t).mustSucceed(t)
-	if !strings.Contains(r.stdout, "Synchro automatique : toutes les 30 min") {
-		t.Errorf("sortie :\n%s", r.stdout)
+	if !strings.Contains(r.stdout, "Automatic sync: every 30 min") {
+		t.Errorf("output:\n%s", r.stdout)
 	}
-	// Relancé juste après : la dernière synchro est récente, pas de nouvelle synchro au démarrage.
+	// Started again right after: the last sync is recent, no new sync at startup.
 	after := h.Provider.Calls("RepositoryByID")
 	run = startServe(t, h)
 	time.Sleep(200 * time.Millisecond)
 	run.stop(t).mustSucceed(t)
 	if got := h.Provider.Calls("RepositoryByID"); got != after {
-		t.Errorf("synchro relancée au démarrage malgré une synchro récente (%d appels, attendu %d)", got, after)
+		t.Errorf("sync started again at startup despite a recent sync (%d calls, want %d)", got, after)
 	}
 }
 
@@ -180,35 +180,35 @@ func TestServeTrustedProxyWarns(t *testing.T) {
 	t.Setenv("WATCHOO_WEB_ALLOWED_HOSTS", "watchoo.example.test")
 	run := startServe(t, h, "--interval", "0", "--addr", "0.0.0.0:8080")
 	r := run.stop(t).mustSucceed(t)
-	if !strings.Contains(r.stderr, "attention : écoute sur 0.0.0.0:8080 sans authentification basique") {
-		t.Errorf("avertissement absent :\n%s", r.stderr)
+	if !strings.Contains(r.stderr, "warning: listening on 0.0.0.0:8080 without basic authentication") {
+		t.Errorf("warning missing:\n%s", r.stderr)
 	}
 }
 
 func TestServeWithBasicAuth(t *testing.T) {
 	h := newWorkspace(t)
 	t.Setenv("WATCHOO_WEB_AUTH_USERNAME", "prof")
-	t.Setenv("WATCHOO_WEB_PASSWORD", "un-mot-de-passe-long")
+	t.Setenv("WATCHOO_WEB_PASSWORD", "a-long-password")
 	run := startServe(t, h, "--interval", "0", "--addr", "0.0.0.0:8080")
 	if code, _ := run.get(t, "/fragments/sync"); code != http.StatusUnauthorized {
-		t.Errorf("sans identifiants : %d, attendu 401", code)
+		t.Errorf("without credentials: %d, want 401", code)
 	}
 	req, err := http.NewRequest(http.MethodGet, "http://"+run.addr+"/fragments/sync", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	req.SetBasicAuth("prof", "un-mot-de-passe-long")
+	req.SetBasicAuth("prof", "a-long-password")
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
 	_ = resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		t.Errorf("avec identifiants : %d, attendu 200", resp.StatusCode)
+		t.Errorf("with credentials: %d, want 200", resp.StatusCode)
 	}
 	r := run.stop(t).mustSucceed(t)
-	if strings.Contains(r.stdout+r.stderr+testLogs.String(), "un-mot-de-passe-long") {
-		t.Error("mot de passe affiché ou journalisé")
+	if strings.Contains(r.stdout+r.stderr+testLogs.String(), "a-long-password") {
+		t.Error("password shown or logged")
 	}
 }
 
@@ -217,10 +217,10 @@ func TestServeCardOnTerminal(t *testing.T) {
 	h.Terminal = func() TermInfo { return TermInfo{IsTerminal: true, Width: 100, Unicode: true} }
 	run := startServe(t, h, "--interval", "1h")
 	r := run.stop(t).mustSucceed(t)
-	for _, want := range []string{"╭", "Interface web de l'espace « licence-projet »", "Ctrl+C arrête le serveur",
-		"● Interface web : http://" + run.addr + "/", "● Synchro automatique : toutes les 1 h"} {
+	for _, want := range []string{"╭", `Web interface of workspace "licence-projet"`, "Ctrl+C stops the server",
+		"● Web interface: http://" + run.addr + "/", "● Automatic sync: every 1 h"} {
 		if !strings.Contains(r.stdout, want) {
-			t.Errorf("sortie sans %q :\n%s", want, r.stdout)
+			t.Errorf("output without %q:\n%s", want, r.stdout)
 		}
 	}
 }

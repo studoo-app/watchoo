@@ -14,6 +14,8 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+
+	"github.com/studoo-app/watchoo/internal/i18n"
 )
 
 // Noms des éléments d'un espace de supervision.
@@ -34,15 +36,28 @@ const (
 	FileMode = 0o600 // config.yaml, .gitignore (et watchoo.db, créé par store)
 )
 
+// i18nError est une erreur sentinelle dont le message vient du catalogue i18n : le texte est traduit
+// au moment de l'affichage (Error), dans la langue du processus. La valeur reste comparable avec ==
+// (une structure d'un champ) : errors.Is retrouve l'erreur sentinelle à travers les emballages.
+type i18nError struct{ key string }
+
+func (e i18nError) Error() string { return i18n.T(e.key) }
+
+// errWrapped compose un texte traduit et une erreur enveloppée, avec la ponctuation de la langue
+// (« texte : err » en français, « texte: err » en anglais).
+func errWrapped(text string, err error) error {
+	return fmt.Errorf("%s%s%w", text, i18n.T("workspace.err.sep"), err)
+}
+
 // Erreurs du package (à tester avec errors.Is ; les fonctions les enveloppent avec le chemin concerné).
 var (
 	// ErrNotFound : aucun répertoire .watchoo/ dans le répertoire de départ ni dans ses parents.
-	ErrNotFound = errors.New("aucun espace Watchoo ici, lancez « watchoo init »")
+	ErrNotFound = i18nError{"workspace.err.not_found"}
 	// ErrAlreadyInitialized : le répertoire contient déjà un espace (.watchoo/ existe).
-	ErrAlreadyInitialized = errors.New("ce répertoire est déjà un espace Watchoo")
+	ErrAlreadyInitialized = i18nError{"workspace.err.already_initialized"}
 	// ErrUntrusted : l'espace trouvé n'appartient pas à l'utilisateur courant ou est accessible à
 	// d'autres (droits au-delà de 0700 pour .watchoo/, 0600 pour config.yaml). Unix seulement.
-	ErrUntrusted = errors.New("espace Watchoo refusé")
+	ErrUntrusted = i18nError{"workspace.err.untrusted"}
 )
 
 // createFile crée un fichier qui ne doit pas exister encore. C'est une variable pour que les tests
@@ -93,7 +108,7 @@ func (w Workspace) ConfigPath() string {
 func Find(start string) (*Workspace, error) {
 	abs, err := filepath.Abs(start)
 	if err != nil {
-		return nil, fmt.Errorf("recherche de l'espace depuis %q : %w", start, err)
+		return nil, errWrapped(i18n.T("workspace.find.from", start), err)
 	}
 	for dir := abs; ; {
 		candidate := filepath.Join(dir, DirName)
@@ -102,7 +117,7 @@ func Find(start string) (*Workspace, error) {
 		case err == nil && info.IsDir():
 			outer, err := managingWorkspace(dir)
 			if err != nil {
-				return nil, fmt.Errorf("recherche de l'espace : %w", err)
+				return nil, errWrapped(i18n.T("workspace.find.err"), err)
 			}
 			if outer != "" {
 				dir = outer // .watchoo/ d'un clone : l'espace est celui qui contient le clone
@@ -112,11 +127,11 @@ func Find(start string) (*Workspace, error) {
 		case err == nil, isNotExist(err):
 			// Pas d'espace ici (absent, ou .watchoo n'est pas un répertoire) : on remonte.
 		default:
-			return nil, fmt.Errorf("recherche de l'espace : %w", err)
+			return nil, errWrapped(i18n.T("workspace.find.err"), err)
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
-			return nil, fmt.Errorf("%w (recherche depuis %s)", ErrNotFound, abs)
+			return nil, fmt.Errorf("%w (%s)", ErrNotFound, i18n.T("workspace.find.searched_from", abs))
 		}
 		dir = parent
 	}
@@ -152,7 +167,7 @@ func isNotExist(err error) bool {
 func Resolve(flagDir string) (*Workspace, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
-		return nil, fmt.Errorf("répertoire courant inaccessible : %w", err)
+		return nil, errWrapped(i18n.T("workspace.resolve.cwd"), err)
 	}
 	return ResolveFrom(flagDir, cwd)
 }
@@ -172,9 +187,9 @@ func ResolveFrom(flagDir, cwd string) (*Workspace, error) {
 	start, origin := cwd, ""
 	switch env := os.Getenv(EnvDir); {
 	case flagDir != "":
-		start, origin = flagDir, "option -C"
+		start, origin = flagDir, i18n.T("workspace.resolve.origin_flag")
 	case env != "":
-		start, origin = env, "variable "+EnvDir
+		start, origin = env, i18n.T("workspace.resolve.origin_env")
 	}
 
 	if origin != "" {
@@ -184,11 +199,13 @@ func ResolveFrom(flagDir, cwd string) (*Workspace, error) {
 		info, err := os.Stat(start)
 		switch {
 		case isNotExist(err):
-			return nil, fmt.Errorf("%s : le répertoire %s n'existe pas", origin, start)
+			return nil, fmt.Errorf("%s%s%s", origin, i18n.T("workspace.err.sep"),
+				i18n.T("workspace.err.dir_missing", start))
 		case err != nil:
-			return nil, fmt.Errorf("%s : %w", origin, err)
+			return nil, errWrapped(origin, err)
 		case !info.IsDir():
-			return nil, fmt.Errorf("%s : %s n'est pas un répertoire", origin, start)
+			return nil, fmt.Errorf("%s%s%s", origin, i18n.T("workspace.err.sep"),
+				i18n.T("workspace.err.not_a_dir", start))
 		}
 	}
 
@@ -226,33 +243,35 @@ type InitResult struct {
 //     trouve un (ErrNotFound n'est pas une erreur ici, une erreur d'accès non plus : seul
 //     l'avertissement est perdu) ;
 //   - crée root/.watchoo en DirMode (0700, forcé par chmod pour ne pas dépendre du umask) ;
-//   - y écrit config.yaml (contenu ConfigTemplate(nom du répertoire racine)) et .gitignore
-//     (GitignoreContent) en FileMode (0600, forcé par chmod), sans jamais écraser un fichier
+//   - y écrit config.yaml (contenu ConfigTemplate(i18n.Process().Lang(), nom du répertoire racine)) et
+//     .gitignore (GitignoreContent) en FileMode (0600, forcé par chmod), sans jamais écraser un fichier
 //     existant (O_EXCL) ;
 //   - ne crée PAS la base SQLite (voir store.CreateDBFile / store.Open) et ne vérifie pas gh : la CLI
 //     vérifie gh avant d'appeler Init, puis crée et migre la base après ;
 //   - en cas d'échec après la création de .watchoo/, supprime le répertoire qu'il vient de créer.
 func Init(root string) (result *InitResult, err error) {
+	prefix := func() string { return i18n.T("workspace.init.prefix") }
 	abs, err := filepath.Abs(root)
 	if err != nil {
-		return nil, fmt.Errorf("création de l'espace %q : %w", root, err)
+		return nil, errWrapped(i18n.T("workspace.init.create_q", root), err)
 	}
 	info, err := os.Stat(abs)
 	switch {
 	case isNotExist(err):
-		return nil, fmt.Errorf("création de l'espace : le répertoire %s n'existe pas", abs)
+		return nil, fmt.Errorf("%s%s%s", prefix(), i18n.T("workspace.err.sep"),
+			i18n.T("workspace.err.dir_missing", abs))
 	case err != nil:
-		return nil, fmt.Errorf("création de l'espace : %w", err)
+		return nil, errWrapped(prefix(), err)
 	case !info.IsDir():
-		return nil, fmt.Errorf("création de l'espace : %s n'est pas un répertoire", abs)
+		return nil, fmt.Errorf("%s%s%s", prefix(), i18n.T("workspace.err.sep"),
+			i18n.T("workspace.err.not_a_dir", abs))
 	}
 
 	switch outer, err := managingWorkspace(abs); {
 	case err != nil:
-		return nil, fmt.Errorf("création de l'espace : %w", err)
+		return nil, errWrapped(prefix(), err)
 	case outer != "":
-		return nil, fmt.Errorf("création de l'espace : %s est dans le répertoire des clones (%s/) de "+
-			"l'espace %s, géré par Watchoo ; créez l'espace ailleurs", abs, ReposDirName, outer)
+		return nil, errors.New(i18n.T("workspace.init.in_clones", abs, ReposDirName, outer))
 	}
 
 	dir := filepath.Join(abs, DirName)
@@ -260,10 +279,9 @@ func Init(root string) (result *InitResult, err error) {
 		if st, err := os.Stat(dir); err == nil && st.IsDir() {
 			return nil, fmt.Errorf("%s : %w", abs, ErrAlreadyInitialized)
 		}
-		return nil, fmt.Errorf("création de l'espace : %s existe déjà et n'est pas un répertoire, "+
-			"il n'a pas été modifié", dir)
+		return nil, errors.New(i18n.T("workspace.init.watchoo_not_dir", dir))
 	} else if !isNotExist(err) {
-		return nil, fmt.Errorf("création de l'espace : %w", err)
+		return nil, errWrapped(prefix(), err)
 	}
 
 	result = &InitResult{}
@@ -282,24 +300,24 @@ func Init(root string) (result *InitResult, err error) {
 			// Créé entre-temps par un autre processus : on ne touche à rien.
 			return nil, fmt.Errorf("%s : %w", abs, ErrAlreadyInitialized)
 		}
-		return nil, fmt.Errorf("création de %s : %w", dir, err)
+		return nil, errWrapped(i18n.T("workspace.fs.create", dir), err)
 	}
 	// À partir d'ici, le répertoire est le nôtre (Mkdir a réussi) : on le supprime en cas d'échec pour
 	// ne pas laisser un espace à moitié créé.
 	defer func() {
 		if err != nil {
 			if rmErr := os.RemoveAll(dir); rmErr != nil {
-				err = errors.Join(err, fmt.Errorf("nettoyage de %s : %w", dir, rmErr))
+				err = errors.Join(err, errWrapped(i18n.T("workspace.init.cleanup", dir), rmErr))
 			}
 		}
 	}()
 	if err := os.Chmod(dir, DirMode); err != nil {
-		return nil, fmt.Errorf("droits de %s : %w", dir, err)
+		return nil, errWrapped(i18n.T("workspace.fs.perms", dir), err)
 	}
 
 	name := filepath.Base(abs)
 	ws := &Workspace{Root: abs, Dir: dir, Config: DefaultConfig(name)}
-	if err := createFile(ws.ConfigPath(), []byte(ConfigTemplate(name))); err != nil {
+	if err := createFile(ws.ConfigPath(), []byte(ConfigTemplate(i18n.Process().Lang(), name))); err != nil {
 		return nil, err
 	}
 	if err := createFile(filepath.Join(dir, GitignoreFileName), []byte(GitignoreContent)); err != nil {
@@ -315,18 +333,18 @@ func Init(root string) (result *InitResult, err error) {
 func writeNewFile(path string, content []byte) (err error) {
 	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, FileMode)
 	if err != nil {
-		return fmt.Errorf("création de %s : %w", path, err)
+		return errWrapped(i18n.T("workspace.fs.create", path), err)
 	}
 	defer func() {
 		if cerr := f.Close(); cerr != nil && err == nil {
-			err = fmt.Errorf("écriture de %s : %w", path, cerr)
+			err = errWrapped(i18n.T("workspace.fs.write", path), cerr)
 		}
 	}()
 	if err := f.Chmod(FileMode); err != nil {
-		return fmt.Errorf("droits de %s : %w", path, err)
+		return errWrapped(i18n.T("workspace.fs.perms", path), err)
 	}
 	if _, err := f.Write(content); err != nil {
-		return fmt.Errorf("écriture de %s : %w", path, err)
+		return errWrapped(i18n.T("workspace.fs.write", path), err)
 	}
 	return nil
 }

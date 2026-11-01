@@ -12,7 +12,7 @@ import (
 	"github.com/studoo-app/watchoo/internal/store"
 )
 
-// dashRepo fabrique une carte factice pour les tests du tri.
+// dashRepo builds a dummy card for the sorting tests.
 func dashRepo(id int64, name string, st activity.State, lastCommit time.Time) DashboardRepo {
 	return DashboardRepo{
 		RepositorySummary: store.RepositorySummary{Repository: model.Repository{
@@ -41,10 +41,10 @@ func TestSortDashboardRepos(t *testing.T) {
 	for _, r := range repos {
 		got = append(got, r.Name)
 	}
-	// Dead puis Flemme (les plus anciens d'abord), Actif (idem), en erreur, puis les autres gris par nom.
+	// Dead then Flemme (the oldest first), Active (same), in error, then the other gray ones by name.
 	want := []string{"victor", "will", "ugo", "xavier", "sam", "zoe", "theo", "Alba", "bruno", "yann"}
 	if strings.Join(got, ",") != strings.Join(want, ",") {
-		t.Errorf("ordre %v, attendu %v", got, want)
+		t.Errorf("order %v, want %v", got, want)
 	}
 }
 
@@ -57,7 +57,7 @@ func TestSortDashboardReposTies(t *testing.T) {
 	}
 	sortDashboardRepos(repos)
 	if repos[0].ID != 2 || repos[1].ID != 1 || repos[2].ID != 3 {
-		t.Errorf("égalités : ordre %d,%d,%d, attendu 2,1,3", repos[0].ID, repos[1].ID, repos[2].ID)
+		t.Errorf("ties: order %d,%d,%d, want 2,1,3", repos[0].ID, repos[1].ID, repos[2].ID)
 	}
 }
 
@@ -73,10 +73,10 @@ func TestCountStates(t *testing.T) {
 	got := countStates(repos)
 	want := DashboardCounts{Total: 6, Active: 2, Flemme: 1, Dead: 1, Gray: 2}
 	if got != want {
-		t.Errorf("compteurs %+v, attendu %+v", got, want)
+		t.Errorf("counters %+v, want %+v", got, want)
 	}
 	if got := countStates(nil); got != (DashboardCounts{}) {
-		t.Errorf("aucun dépôt : %+v", got)
+		t.Errorf("no repository: %+v", got)
 	}
 }
 
@@ -86,17 +86,17 @@ func TestDashboardAccent(t *testing.T) {
 		activity.StateDead: "border-error", activity.StateNeverSynced: "border-base-300",
 	} {
 		if got := dashRepo(1, "a", st, testNow).Accent(); got != want {
-			t.Errorf("%s : %q, attendu %q", st, got, want)
+			t.Errorf("%s: %q, want %q", st, got, want)
 		}
 	}
 }
 
-// section renvoie le morceau de body qui commence à l'élément d'identifiant id (jusqu'à la fin).
+// section returns the part of body that starts at the element with identifier id (up to the end).
 func section(t *testing.T, body, id string) string {
 	t.Helper()
 	i := strings.Index(body, `id="`+id+`"`)
 	if i < 0 {
-		t.Fatalf("élément %s absent :\n%s", id, body)
+		t.Fatalf("element %s missing:\n%s", id, body)
 	}
 	return body[i:]
 }
@@ -108,62 +108,63 @@ func TestDashboardPage(t *testing.T) {
 	w := e.get("/")
 	assertStatus(t, w, http.StatusOK)
 	assertContains(t, w,
-		"<title>Tableau de bord · "+testWorkspace+" · Watchoo</title>",
-		`aria-current="page">Tableau de bord`,
+		"<title>Dashboard · "+testWorkspace+" · Watchoo</title>",
+		`aria-current="page">Dashboard`,
 		"Alice Martin", "promo/bob", "promo/carol", "promo/dave",
 		"badge-success", "badge-warning", "badge-error", "badge-neutral",
-		"Flemme · 9 j", "Dead · 40 j", "Jamais synchronisé",
-		"Derniers commits", "ajoute le README", "travail de Bob", "dernier signe de vie",
-		"Bob Durand", "il y a",
-		// Pastille gris : dépôt jamais synchronisé, sans commit.
-		"Aucun commit connu : pas encore synchronisé",
-		// Fragments rafraîchis après une synchro.
+		"Slacking · 9 d", "Dead · 40 d", "Never synced",
+		"Latest commits", "ajoute le README", "travail de Bob", "dernier signe de vie",
+		"Bob Durand", "ago",
+		// Gray badge: repository never synced, without commit.
+		"No known commit: not synced yet.",
+		// Fragments refreshed after a sync.
 		`hx-get="/fragments/dashboard/repos" hx-trigger="sync-finished from:body"`,
 		`hx-get="/fragments/dashboard/feed" hx-trigger="sync-finished from:body"`,
-		// Bouton de synchro, protégé par le jeton CSRF.
+		// Sync button, protected by the CSRF token.
 		`action="/sync"`, `name="csrf_token"`,
-		// Heure locale dans title, ISO dans datetime.
-		`datetime="2026-10-26T10:00:00Z"`, `title="26/10/2026 à 10:00"`,
+		// Local time in title, ISO in datetime.
+		`datetime="2026-10-26T10:00:00Z"`, `title="Oct 26, 2026 10:00"`,
+		`<html lang="en">`,
 	)
-	// Message de commit : toujours échappé.
+	// Commit message: always escaped.
 	assertContains(t, w, "&lt;script&gt;alert(&#39;xss&#39;)&lt;/script&gt; corrige le bug")
 	assertNotContains(t, w, xssMessage, "<script>alert", "Page en construction", "evil.example.test")
 
-	// Compteurs : 1 Actif, 1 Flemme, 1 Dead, 1 gris sur 4 dépôts.
+	// Counters: 1 Active, 1 Flemme, 1 Dead, 1 gray out of 4 repositories.
 	repos := section(t, w.Body.String(), "dashboard-repos")
 	for _, stat := range []string{
-		`text-success">1<`, `text-warning">1<`, `text-error">1<`, `text-base-content/60">1<`, "sur 4 dépôts",
+		`text-success">1<`, `text-warning">1<`, `text-error">1<`, `text-base-content/60">1<`, "out of 4 repositories",
 	} {
 		if !strings.Contains(repos, stat) {
-			t.Errorf("compteur %q absent", stat)
+			t.Errorf("counter %q missing", stat)
 		}
 	}
 
-	// Ordre des cartes : Dead (Carol), Flemme (Bob), Actif (Alice), puis gris (Dave).
+	// Order of the cards: Dead (Carol), Flemme (Bob), Active (Alice), then gray (Dave).
 	feedAt := strings.Index(repos, `id="dashboard-feed"`)
 	cards := repos[:feedAt]
 	last := -1
 	for _, id := range []int64{ids.Carol, ids.Bob, ids.Alice, ids.Dave} {
 		i := strings.Index(cards, fmt.Sprintf(`href="%s"`, repoPath(id)))
 		if i < 0 || i < last {
-			t.Fatalf("carte du dépôt %d absente ou mal placée (%d après %d)", id, i, last)
+			t.Fatalf("card of repository %d missing or misplaced (%d after %d)", id, i, last)
 		}
 		last = i
 	}
 
-	// Fil : du plus récent au plus ancien, SHA court lié au commit, lien vers le dépôt.
+	// Feed: from the most recent to the oldest, short SHA linked to the commit, link to the repository.
 	feed := section(t, w.Body.String(), "dashboard-feed")
 	xss := strings.Index(feed, "corrige le bug")
 	readme := strings.Index(feed, "ajoute le README")
 	carol := strings.Index(feed, "dernier signe de vie")
 	if xss < 0 || readme < xss || carol < readme {
-		t.Errorf("ordre du fil incorrect (%d, %d, %d)", xss, readme, carol)
+		t.Errorf("wrong feed order (%d, %d, %d)", xss, readme, carol)
 	}
 	if !strings.Contains(feed, `rel="noopener noreferrer"`) || !strings.Contains(feed, "https://github.com/promo/x/commit/") {
-		t.Error("lien vers le commit absent du fil")
+		t.Error("link to the commit missing from the feed")
 	}
 	if !strings.Contains(feed, fmt.Sprintf(`href="%s"`, repoPath(ids.Carol))) {
-		t.Error("lien vers le dépôt absent du fil")
+		t.Error("link to the repository missing from the feed")
 	}
 }
 
@@ -171,7 +172,7 @@ func TestDashboardEmpty(t *testing.T) {
 	e := newTestEnv(t)
 	w := e.get("/")
 	assertStatus(t, w, http.StatusOK)
-	assertContains(t, w, "Aucun dépôt suivi", `href="/settings"`, "Aucun commit pour l'instant", "sur 0 dépôt<")
+	assertContains(t, w, "No tracked repository", `href="/settings"`, "No commit yet", "out of 0 repositories<")
 }
 
 func TestDashboardFragments(t *testing.T) {
@@ -182,19 +183,19 @@ func TestDashboardFragments(t *testing.T) {
 	assertStatus(t, w, http.StatusOK)
 	body := strings.TrimSpace(w.Body.String())
 	if !strings.HasPrefix(body, `<section id="dashboard-repos"`) {
-		t.Errorf("fragment des dépôts : début inattendu :\n%s", body)
+		t.Errorf("repositories fragment: unexpected start:\n%s", body)
 	}
-	assertContains(t, w, "Alice Martin", "Dead · 40 j", `hx-trigger="sync-finished from:body"`)
+	assertContains(t, w, "Alice Martin", "Dead · 40 d", `hx-trigger="sync-finished from:body"`)
 	assertNotContains(t, w, "<html", "<nav", `id="dashboard-feed"`, xssMessage)
 	if !strings.Contains(w.Header().Get("Vary"), "HX-Request") {
-		t.Errorf("Vary sans HX-Request : %q", w.Header().Get("Vary"))
+		t.Errorf("Vary without HX-Request: %q", w.Header().Get("Vary"))
 	}
 
 	w = e.htmx("/fragments/dashboard/feed")
 	assertStatus(t, w, http.StatusOK)
 	body = strings.TrimSpace(w.Body.String())
 	if !strings.HasPrefix(body, `<section id="dashboard-feed"`) {
-		t.Errorf("fragment du fil : début inattendu :\n%s", body)
+		t.Errorf("feed fragment: unexpected start:\n%s", body)
 	}
 	assertContains(t, w, "&lt;script&gt;alert", "travail de Bob")
 	assertNotContains(t, w, "<html", `id="dashboard-repos"`, xssMessage)
@@ -213,9 +214,9 @@ func TestDashboardFeedLimit(t *testing.T) {
 	w := e.htmx("/fragments/dashboard/feed")
 	assertStatus(t, w, http.StatusOK)
 	if got := strings.Count(w.Body.String(), `class="list-row`); got != dashboardFeedSize {
-		t.Errorf("%d commits dans le fil, attendu %d", got, dashboardFeedSize)
+		t.Errorf("%d commits in the feed, want %d", got, dashboardFeedSize)
 	}
-	// Les plus récents d'abord : le commit 6 (il y a 6 min) est là, le 26 (il y a 26 min) non.
+	// The most recent first: commit 6 (6 min ago) is there, 26 (26 min ago) is not.
 	assertContains(t, w, "commit numéro 6<", "commit numéro 25<")
 	assertNotContains(t, w, "commit numéro 26<", "dernier signe de vie")
 }

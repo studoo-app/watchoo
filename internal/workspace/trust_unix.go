@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"syscall"
+
+	"github.com/studoo-app/watchoo/internal/i18n"
 )
 
 // currentUID renvoie l'identifiant de l'utilisateur courant. C'est une variable pour que les tests
@@ -32,7 +34,7 @@ func checkOwnedPrivate(path string, dir bool) error {
 	case isNotExist(err):
 		return nil // espace pas encore créé (Load avant Init) ou config.yaml absent : rien à lire
 	case err != nil:
-		return fmt.Errorf("contrôle de l'espace : %w", err)
+		return errWrapped(i18n.T("workspace.trust.stat"), err)
 	case info.IsDir() != dir:
 		return nil // type inattendu : la lecture des réglages le signalera
 	}
@@ -41,14 +43,12 @@ func checkOwnedPrivate(path string, dir bool) error {
 		mode, want = "600", os.FileMode(FileMode)
 	}
 	if st, ok := info.Sys().(*syscall.Stat_t); ok && int(st.Uid) != currentUID() {
-		return fmt.Errorf("%w : %s appartient à un autre utilisateur (uid %d) ; lancez la commande depuis "+
-			"votre propre espace ou désignez-le avec -C (ou %s)", ErrUntrusted, path, st.Uid, EnvDir)
+		return fmt.Errorf("%w%s%s", ErrUntrusted, i18n.T("workspace.err.sep"),
+			i18n.T("workspace.trust.other_uid", path, st.Uid, EnvDir))
 	}
 	if perm := info.Mode().Perm(); perm&^want != 0 {
-		return fmt.Errorf("%w : %s a les droits %04o, accessibles à d'autres que vous (attendu %04o) ; "+
-			"s'il s'agit bien de votre espace : chmod %s %s ; sinon (par exemple un .watchoo/ venu d'un "+
-			"dépôt cloné), désignez votre espace avec -C (ou %s)",
-			ErrUntrusted, path, perm, want, mode, path, EnvDir)
+		return fmt.Errorf("%w%s%s", ErrUntrusted, i18n.T("workspace.err.sep"),
+			i18n.T("workspace.trust.perms", path, perm, want, mode, path, EnvDir))
 	}
 	return nil
 }

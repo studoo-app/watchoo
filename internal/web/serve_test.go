@@ -10,8 +10,8 @@ import (
 	"time"
 )
 
-// TestServeAndShutdown sert sur un vrai port local, puis arrête proprement en annulant le contexte :
-// Serve rend la main sans erreur, le coordinateur est fermé (plus de synchro possible).
+// TestServeAndShutdown serves on a real local port, then shuts down cleanly by canceling the context:
+// Serve returns without error, the coordinator is closed (no more sync possible).
 func TestServeAndShutdown(t *testing.T) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -31,27 +31,27 @@ func TestServeAndShutdown(t *testing.T) {
 	body, _ := io.ReadAll(resp.Body)
 	_ = resp.Body.Close()
 	if resp.StatusCode != http.StatusOK || len(body) == 0 {
-		t.Fatalf("GET : %d, %d octets", resp.StatusCode, len(body))
+		t.Fatalf("GET: %d, %d bytes", resp.StatusCode, len(body))
 	}
 
 	cancel()
 	select {
 	case err := <-done:
 		if err != nil {
-			t.Fatalf("Serve : %v", err)
+			t.Fatalf("Serve: %v", err)
 		}
 	case <-time.After(5 * time.Second):
-		t.Fatal("Serve ne s'est pas arrêté")
+		t.Fatal("Serve did not stop")
 	}
 	if err := e.coord.SyncAll(); err == nil {
-		t.Error("synchro encore possible après l'arrêt")
+		t.Error("sync still possible after the shutdown")
 	}
 	if _, err := http.Get("http://" + ln.Addr().String() + "/"); err == nil {
-		t.Error("le serveur répond encore après l'arrêt")
+		t.Error("the server still answers after the shutdown")
 	}
 }
 
-// TestServeCancelsRunningSync : l'arrêt annule la synchro en cours et l'attend.
+// TestServeCancelsRunningSync: the shutdown cancels the running sync and waits for it.
 func TestServeCancelsRunningSync(t *testing.T) {
 	gate := newGateSyncer()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
@@ -68,16 +68,16 @@ func TestServeCancelsRunningSync(t *testing.T) {
 	<-gate.started
 	cancel()
 	if err := <-done; err != nil {
-		t.Fatalf("Serve : %v", err)
+		t.Fatalf("Serve: %v", err)
 	}
-	if st := e.coord.State(); st.Running || st.LastError != "synchro annulée" {
-		t.Errorf("état après l'arrêt : %+v", st)
+	if st := e.coord.State(); st.Running || st.LastError != "sync canceled" {
+		t.Errorf("state after the shutdown: %+v", st)
 	}
 }
 
 func TestServeRequiresListener(t *testing.T) {
 	if err := Serve(t.Context(), ServeOptions{}); err == nil {
-		t.Error("Serve sans écoute accepté")
+		t.Error("Serve without a listener accepted")
 	}
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -86,6 +86,6 @@ func TestServeRequiresListener(t *testing.T) {
 	_ = ln.Close()
 	err = Serve(t.Context(), ServeOptions{Listener: ln, Handler: http.NotFoundHandler()})
 	if err == nil || errors.Is(err, http.ErrServerClosed) {
-		t.Errorf("écoute fermée : %v", err)
+		t.Errorf("closed listener: %v", err)
 	}
 }

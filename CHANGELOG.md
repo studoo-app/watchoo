@@ -9,13 +9,32 @@ an incompatible change bumps MINOR and any compatible change bumps PATCH (see
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-01
+
+Bilingual interface: English by default, French on demand, for the CLI, the TUI, the web interface
+and the install script; bilingual documentation.
+
 ### Added
 
+- **Bilingual interface**: the CLI, TUI and web interface are available in English (default) and
+  French; the CLI/TUI language comes from `WATCHOO_LANG` or the system locale, the web language from
+  the workspace's new `lang` setting (`en` by default, shared through `watchoo config export /
+  import`); no new dependency (the `internal/i18n` package). The `config.yaml` written by
+  `watchoo init` and `config.example.yaml` are now commented in English (in French when the language
+  is French).
+- **Bilingual install script**: `install.sh` speaks English by default, French with `WATCHOO_LANG=fr`
+  or a French system locale.
 - **Bilingual documentation**: the design documentation is now available in English and French,
   reorganized into mirror trees `documentation/en/` and `documentation/fr/` with the same numbering
   and a bilingual index ([INDEX.md](documentation/INDEX.md)); the root `README.md` is English with a
   `README.fr.md` French version; `AGENTS.md` is English. Any change to a document is mirrored in the
   other language in the same commit.
+
+### Changed
+
+- **English by default**: messages, help, tables, dates ("2 h ago", "~ 9 d") and web pages are now
+  in English unless French is selected (`WATCHOO_LANG=fr`, a French system locale, or `lang: fr` for
+  the web). `--json` keys and state values do not change; message values follow the language.
 
 ## [0.6.2] - 2026-10-27
 
@@ -276,7 +295,8 @@ First published release: the MVP (phases 1 to 5 of the [roadmap](documentation/e
   `gh` is the official binary verified by SHA-256; base images and GitHub actions pinned by
   digest.
 
-[Unreleased]: https://github.com/studoo-app/watchoo/compare/v0.6.2...HEAD
+[Unreleased]: https://github.com/studoo-app/watchoo/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/studoo-app/watchoo/compare/v0.6.2...v0.7.0
 [0.6.2]: https://github.com/studoo-app/watchoo/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/studoo-app/watchoo/compare/v0.6.0...v0.6.1
 [0.6.0]: https://github.com/studoo-app/watchoo/compare/v0.5.0...v0.6.0

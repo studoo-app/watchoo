@@ -21,8 +21,8 @@ import (
 	"github.com/studoo-app/watchoo/internal/provider"
 )
 
-// trSentinels est la liste des erreurs sentinelles du package provider, pour vérifier qu'une erreur
-// convertie n'en satisfait pas d'autres que celles attendues.
+// trSentinels is the list of the sentinel errors of the provider package, to check that a converted
+// error satisfies no other than the expected ones.
 var trSentinels = map[string]error{
 	"ErrNotFound": provider.ErrNotFound, "ErrUnauthorized": provider.ErrUnauthorized,
 	"ErrForbidden": provider.ErrForbidden, "ErrRateLimited": provider.ErrRateLimited,
@@ -31,7 +31,7 @@ var trSentinels = map[string]error{
 	"ErrUnavailable": provider.ErrUnavailable, "ErrUnexpected": provider.ErrUnexpected,
 }
 
-// trCheckSentinels vérifie que err satisfait exactement les sentinelles want.
+// trCheckSentinels checks that err satisfies exactly the sentinels want.
 func trCheckSentinels(t *testing.T, err error, want ...error) {
 	t.Helper()
 	for name, s := range trSentinels {
@@ -40,17 +40,17 @@ func trCheckSentinels(t *testing.T, err error, want ...error) {
 			expected = expected || w == s
 		}
 		if got := errors.Is(err, s); got != expected {
-			t.Errorf("errors.Is(%q, %s) = %v, veut %v", err, name, got, expected)
+			t.Errorf("errors.Is(%q, %s) = %v, want %v", err, name, got, expected)
 		}
 	}
 }
 
-// trErrorBody est le corps d'erreur des réponses simulées : il contient des données qui ne doivent
-// jamais se retrouver dans une erreur de Watchoo.
+// trErrorBody is the error body of the simulated responses: it holds data that must never end up in
+// a Watchoo error.
 var trErrorBody = fmt.Sprintf(`{"message":"%s %s","documentation_url":"https://docs.github.com/rest"}`,
 	trSecretMessage, trSecretEmail)
 
-// trReply renvoie un handler qui répond status avec les en-têtes h et le corps body.
+// trReply returns a handler that answers status with the headers h and the body body.
 func trReply(status int, h map[string]string, body string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		for k, v := range h {
@@ -62,18 +62,18 @@ func trReply(status int, h map[string]string, body string) http.HandlerFunc {
 	}
 }
 
-// trConvert envoie GET /repos/alice/projet?per_page=100 à un serveur servi par h et renvoie l'erreur
-// convertie, après avoir vérifié les champs communs de l'APIError et l'absence de fuite.
+// trConvert sends GET /repos/alice/projet?per_page=100 to a server served by h and returns the
+// converted error, after checking the common fields of the APIError and the absence of leaks.
 func trConvert(t *testing.T, h http.Handler, opts Options, wantStatus int) (*Provider, error) {
 	t.Helper()
 	srv := httptest.NewServer(h)
 	t.Cleanup(srv.Close)
 	clock := newTrClock(trEpoch)
 	p := trNew(t, srv.URL, testToken, opts, clock)
-	const op = "lecture du dépôt alice/projet"
+	const op = "reading repository alice/projet"
 	_, resp, err := trGet(context.Background(), p, "repos/alice/projet?per_page=100")
 	if err == nil {
-		t.Fatal("erreur attendue")
+		t.Fatal("want an error")
 	}
 	e := p.convertError(context.Background(), op, resp, err)
 	trCheckAPIError(t, e, op, http.MethodGet, "/repos/alice/projet", wantStatus)
@@ -81,33 +81,33 @@ func trConvert(t *testing.T, h http.Handler, opts Options, wantStatus int) (*Pro
 	return p, e
 }
 
-// trCheckAPIError vérifie les champs de l'*APIError e.
+// trCheckAPIError checks the fields of the *APIError e.
 func trCheckAPIError(t *testing.T, e error, op, method, path string, status int) *provider.APIError {
 	t.Helper()
 	var apiErr *provider.APIError
 	if !errors.As(e, &apiErr) {
-		t.Fatalf("%T %v : *provider.APIError attendue", e, e)
+		t.Fatalf("%T %v: want *provider.APIError", e, e)
 	}
 	if apiErr.Op != op || apiErr.Method != method || apiErr.Path != path || apiErr.Status != status {
-		t.Errorf("APIError = {Op %q, Method %q, Path %q, Status %d}, veut {%q, %q, %q, %d}",
+		t.Errorf("APIError = {Op %q, Method %q, Path %q, Status %d}, want {%q, %q, %q, %d}",
 			apiErr.Op, apiErr.Method, apiErr.Path, apiErr.Status, op, method, path, status)
 	}
 	return apiErr
 }
 
-// trNoLeak vérifie que le message de e ne contient ni token, ni corps de réponse, ni paramètre de
-// requête, ni aucun des fragments extra.
+// trNoLeak checks that the message of e contains neither token, nor response body, nor request
+// parameter, nor any of the extra fragments.
 func trNoLeak(t *testing.T, e error, extra ...string) {
 	t.Helper()
 	msg := e.Error()
 	for _, f := range append([]string{testToken, "Bearer", trSecretMessage, trSecretEmail, "per_page", "docs.github.com"}, extra...) {
 		if f != "" && strings.Contains(msg, f) {
-			t.Errorf("le message %q contient %q", msg, f)
+			t.Errorf("the message %q contains %q", msg, f)
 		}
 	}
 }
 
-// TestConvertErrorStatus vérifie la conversion de chaque code HTTP d'erreur.
+// TestConvertErrorStatus checks the conversion of every HTTP error code.
 func TestConvertErrorStatus(t *testing.T) {
 	reset := trEpoch.Add(42 * time.Minute)
 	resetHeader := strconv.FormatInt(reset.Unix(), 10)
@@ -120,9 +120,9 @@ func TestConvertErrorStatus(t *testing.T) {
 		check   func(t *testing.T, p *Provider, e error)
 	}{
 		{name: "401", status: 401, want: []error{provider.ErrUnauthorized}},
-		{name: "401 double authentification", status: 401, headers: map[string]string{"X-GitHub-OTP": "required; app"},
+		{name: "401 two-factor authentication", status: 401, headers: map[string]string{"X-GitHub-OTP": "required; app"},
 			want: []error{provider.ErrUnauthorized}},
-		{name: "403 quota épuisé", status: 403,
+		{name: "403 rate limit exhausted", status: 403,
 			headers: map[string]string{"X-RateLimit-Remaining": "0", "X-RateLimit-Limit": "5000", "X-RateLimit-Reset": resetHeader},
 			body:    `{"message":"API rate limit exceeded for user ID 1."}`,
 			want:    []error{provider.ErrRateLimited},
@@ -132,7 +132,7 @@ func TestConvertErrorStatus(t *testing.T) {
 					t.Errorf("RateLimitError = %+v", rle)
 				}
 			}},
-		{name: "429 quota épuisé avec Retry-After", status: 429,
+		{name: "429 rate limit exhausted with Retry-After", status: 429,
 			headers: map[string]string{"X-RateLimit-Remaining": "0", "X-RateLimit-Reset": resetHeader, "Retry-After": "120"},
 			want:    []error{provider.ErrRateLimited},
 			check: func(t *testing.T, p *Provider, e error) {
@@ -141,7 +141,7 @@ func TestConvertErrorStatus(t *testing.T) {
 					t.Errorf("RateLimitError = %+v", rle)
 				}
 			}},
-		{name: "403 quota épuisé sans date de remise à zéro", status: 403,
+		{name: "403 rate limit exhausted without reset date", status: 403,
 			headers: map[string]string{"X-RateLimit-Remaining": "0", "Retry-After": "30"},
 			want:    []error{provider.ErrRateLimited},
 			check: func(t *testing.T, p *Provider, e error) {
@@ -161,17 +161,17 @@ func TestConvertErrorStatus(t *testing.T) {
 				}
 				trNoLeak(t, e, "A1B2C3", "authorization_request")
 				if !strings.Contains(e.Error(), "ecole-exemple") {
-					t.Errorf("le message doit nommer l'organisation : %v", e)
+					t.Errorf("the message must name the organization: %v", e)
 				}
 			}},
-		{name: "403 SSO sans lien", status: 403, headers: map[string]string{"X-GitHub-SSO": "Required"},
+		{name: "403 SSO without link", status: 403, headers: map[string]string{"X-GitHub-SSO": "Required"},
 			want: []error{provider.ErrForbidden},
 			check: func(t *testing.T, p *Provider, e error) {
 				if sso := trSSOError(t, e); sso.Organization != "alice" || sso.URL != "" {
-					t.Errorf("SSORequiredError = %+v (organisation tirée du chemin attendue)", sso)
+					t.Errorf("SSORequiredError = %+v (want the organization taken from the path)", sso)
 				}
 			}},
-		{name: "403 SSO lien douteux", status: 403,
+		{name: "403 SSO dubious link", status: 403,
 			headers: map[string]string{"X-GitHub-SSO": "required; url=javascript:alert(1)"},
 			want:    []error{provider.ErrForbidden},
 			check: func(t *testing.T, p *Provider, e error) {
@@ -179,15 +179,15 @@ func TestConvertErrorStatus(t *testing.T) {
 					t.Errorf("SSORequiredError = %+v", sso)
 				}
 			}},
-		{name: "403 SSO résultats partiels", status: 403,
+		{name: "403 SSO partial results", status: 403,
 			headers: map[string]string{"X-GitHub-SSO": "partial-results; organizations=21955855,20582480"},
 			want:    []error{provider.ErrForbidden},
 			check: func(t *testing.T, p *Provider, e error) {
 				if _, ok := errors.AsType[*provider.SSORequiredError](e); ok {
-					t.Error("partial-results n'est pas une demande de SSO")
+					t.Error("partial-results is not an SSO request")
 				}
 			}},
-		{name: "403 limite secondaire Retry-After", status: 403, headers: map[string]string{"Retry-After": "60"},
+		{name: "403 secondary limit Retry-After", status: 403, headers: map[string]string{"Retry-After": "60"},
 			want: []error{provider.ErrRateLimited},
 			check: func(t *testing.T, p *Provider, e error) {
 				rle := trRateLimitError(t, e)
@@ -195,29 +195,29 @@ func TestConvertErrorStatus(t *testing.T) {
 					t.Errorf("RateLimitError = %+v", rle)
 				}
 				if b := p.quota.blocked(p.fp, trEpoch.Add(30*time.Second)); b == nil || !b.Secondary {
-					t.Error("les requêtes suivantes doivent être retenues")
+					t.Error("the following requests must be held back")
 				}
 			}},
-		{name: "403 limite secondaire documentation", status: 403,
+		{name: "403 secondary limit documentation", status: 403,
 			headers: map[string]string{"X-RateLimit-Remaining": "12", "X-RateLimit-Reset": resetHeader},
 			body:    `{"message":"Blocked","documentation_url":"https://docs.github.com/rest/overview/rate-limits-for-the-rest-api#about-secondary-rate-limits"}`,
 			want:    []error{provider.ErrRateLimited},
 			check: func(t *testing.T, p *Provider, e error) {
-				// Sans Retry-After, une minute d'attente (recommandation de GitHub), et non
-				// X-RateLimit-Reset, qui est la fin de la fenêtre du quota horaire.
+				// Without Retry-After, one minute of waiting (GitHub's recommendation), and not
+				// X-RateLimit-Reset, which is the end of the hourly quota window.
 				rle := trRateLimitError(t, e)
 				wantReset := trEpoch.Add(time.Minute)
 				if !rle.Secondary || rle.RetryAfter != 0 || !rle.Reset.Equal(wantReset) {
 					t.Errorf("RateLimitError = %+v", rle)
 				}
 				if b := p.quota.blocked(p.fp, trEpoch); b == nil || !b.Reset.Equal(wantReset) {
-					t.Errorf("les requêtes suivantes doivent être retenues jusqu'à %v : %v", wantReset, b)
+					t.Errorf("the following requests must be held back until %v: %v", wantReset, b)
 				}
 				if b := p.quota.blocked(p.fp, wantReset); b != nil {
-					t.Errorf("les requêtes ne doivent plus être retenues après une minute : %v", b)
+					t.Errorf("the requests must no longer be held back after one minute: %v", b)
 				}
 			}},
-		{name: "403 limite secondaire message", status: 403,
+		{name: "403 secondary limit message", status: 403,
 			body: `{"message":"You have exceeded a Secondary Rate Limit. Please wait a few minutes."}`,
 			want: []error{provider.ErrRateLimited},
 			check: func(t *testing.T, p *Provider, e error) {
@@ -227,7 +227,7 @@ func TestConvertErrorStatus(t *testing.T) {
 				}
 				trNoLeak(t, e, "Please wait")
 			}},
-		{name: "429 sans indication", status: 429, want: []error{provider.ErrRateLimited},
+		{name: "429 without hint", status: 429, want: []error{provider.ErrRateLimited},
 			check: func(t *testing.T, p *Provider, e error) {
 				if rle := trRateLimitError(t, e); !rle.Secondary {
 					t.Errorf("RateLimitError = %+v", rle)
@@ -237,23 +237,23 @@ func TestConvertErrorStatus(t *testing.T) {
 			want: []error{provider.ErrForbidden}},
 		{name: "451", status: 451, want: []error{provider.ErrForbidden}},
 		{name: "404", status: 404, want: []error{provider.ErrNotFound}},
-		{name: "409 dépôt vide", status: 409, body: `{"message":"Git Repository is empty."}`,
+		{name: "409 empty repository", status: 409, body: `{"message":"Git Repository is empty."}`,
 			want: []error{provider.ErrEmptyRepository}},
 		{name: "500", status: 500, want: []error{provider.ErrUnavailable}},
 		{name: "502", status: 502, want: []error{provider.ErrUnavailable}},
 		{name: "503", status: 503, want: []error{provider.ErrUnavailable}},
 		{name: "400", status: 400, want: []error{provider.ErrUnexpected}},
 		{name: "422", status: 422, want: []error{provider.ErrUnexpected}},
-		{name: "304 sans entrée de cache", status: 304, body: "", want: []error{provider.ErrUnexpected}},
-		{name: "202 calcul en cours", status: 202, body: "{}", want: []error{provider.ErrUnexpected}},
-		{name: "301 sans Location", status: 301, body: "", want: []error{provider.ErrUnexpected}},
+		{name: "304 without cache entry", status: 304, body: "", want: []error{provider.ErrUnexpected}},
+		{name: "202 computation in progress", status: 202, body: "{}", want: []error{provider.ErrUnexpected}},
+		{name: "301 without Location", status: 301, body: "", want: []error{provider.ErrUnexpected}},
 		{name: "200 JSON invalide", status: 200, body: `{"id": 42, "name": "pro`, want: []error{provider.ErrUnexpected},
 			check: func(t *testing.T, p *Provider, e error) {
 				if !strings.Contains(e.Error(), "JSON") {
-					t.Errorf("message : %v", e)
+					t.Errorf("message: %v", e)
 				}
 			}},
-		{name: "200 JSON d'un autre type", status: 200, body: `["` + trSecretMessage + `"]`,
+		{name: "200 JSON of another type", status: 200, body: `["` + trSecretMessage + `"]`,
 			want: []error{provider.ErrUnexpected}},
 	}
 	for _, tt := range tests {
@@ -275,7 +275,7 @@ func trRateLimitError(t *testing.T, e error) *provider.RateLimitError {
 	t.Helper()
 	rle, ok := errors.AsType[*provider.RateLimitError](e)
 	if !ok {
-		t.Fatalf("%v : *provider.RateLimitError attendue", e)
+		t.Fatalf("%v: want *provider.RateLimitError", e)
 	}
 	return rle
 }
@@ -284,16 +284,16 @@ func trSSOError(t *testing.T, e error) *provider.SSORequiredError {
 	t.Helper()
 	sso, ok := errors.AsType[*provider.SSORequiredError](e)
 	if !ok {
-		t.Fatalf("%v : *provider.SSORequiredError attendue", e)
+		t.Fatalf("%v: want *provider.SSORequiredError", e)
 	}
 	return sso
 }
 
-// TestConvertErrorRedirects vérifie qu'une redirection sur le même hôte est suivie (le chemin de
-// l'erreur est celui de la dernière requête) et qu'une redirection vers un autre hôte est refusée.
+// TestConvertErrorRedirects checks that a redirection on the same host is followed (the path of the
+// error is the one of the last request) and that a redirection to another host is refused.
 func TestConvertErrorRedirects(t *testing.T) {
 	other := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		t.Errorf("l'autre hôte ne doit recevoir aucune requête (Authorization présent : %v)", r.Header.Get("Authorization") != "")
+		t.Errorf("the other host must receive no request (Authorization present: %v)", r.Header.Get("Authorization") != "")
 	}))
 	defer other.Close()
 	var lastAuth string
@@ -312,30 +312,30 @@ func TestConvertErrorRedirects(t *testing.T) {
 	p := trNew(t, srv.URL, testToken, Options{}, nil)
 
 	_, resp, err := trGet(context.Background(), p, "repos/ancien/projet")
-	e := p.convertError(context.Background(), "lecture du dépôt ancien/projet", resp, err)
-	trCheckAPIError(t, e, "lecture du dépôt ancien/projet", http.MethodGet, "/repositories/42", http.StatusNotFound)
+	e := p.convertError(context.Background(), "reading repository ancien/projet", resp, err)
+	trCheckAPIError(t, e, "reading repository ancien/projet", http.MethodGet, "/repositories/42", http.StatusNotFound)
 	trCheckSentinels(t, e, provider.ErrNotFound)
 	if lastAuth != "Bearer "+testToken {
-		t.Error("le token doit suivre une redirection sur le même hôte")
+		t.Error("the token must follow a redirection on the same host")
 	}
 
 	_, resp, err = trGet(context.Background(), p, "repos/alice/projet")
-	e = p.convertError(context.Background(), "lecture du dépôt alice/projet", resp, err)
-	trCheckAPIError(t, e, "lecture du dépôt alice/projet", http.MethodGet, "/repos/alice/projet", http.StatusMovedPermanently)
+	e = p.convertError(context.Background(), "reading repository alice/projet", resp, err)
+	trCheckAPIError(t, e, "reading repository alice/projet", http.MethodGet, "/repos/alice/projet", http.StatusMovedPermanently)
 	trCheckSentinels(t, e, provider.ErrUnexpected)
 	trNoLeak(t, e, "/vol")
 }
 
-// TestConvertErrorNetwork vérifie la conversion des échecs de transport : serveur injoignable, délai
-// dépassé avant ou pendant la lecture du corps, connexion coupée.
+// TestConvertErrorNetwork checks the conversion of transport failures: unreachable server, timeout
+// before or while reading the body, connection cut.
 func TestConvertErrorNetwork(t *testing.T) {
-	t.Run("serveur fermé", func(t *testing.T) {
+	t.Run("closed server", func(t *testing.T) {
 		srv := httptest.NewServer(http.NotFoundHandler())
 		srv.Close()
 		p, e := trConvertNoServer(t, srv.URL, Options{})
 		trCheckSentinels(t, e, provider.ErrUnavailable)
-		if !strings.Contains(e.Error(), "connexion impossible") {
-			t.Errorf("message : %v", e)
+		if !strings.Contains(e.Error(), "connection failed") {
+			t.Errorf("message: %v", e)
 		}
 		_ = p
 	})
@@ -357,72 +357,72 @@ func TestConvertErrorNetwork(t *testing.T) {
 		handler http.HandlerFunc
 		status  int
 	}{
-		{"délai avant la réponse", block, 0},
-		{"délai pendant la lecture du corps", partial(""), http.StatusOK},
-		{"délai pendant la mise en cache", partial(`"e"`), 0},
+		{"timeout before the response", block, 0},
+		{"timeout while reading the body", partial(""), http.StatusOK},
+		{"timeout while caching", partial(`"e"`), 0},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			_, e := trConvert(t, tt.handler, Options{Timeout: 100 * time.Millisecond}, tt.status)
 			trCheckSentinels(t, e, provider.ErrUnavailable)
-			if !strings.Contains(e.Error(), "délai dépassé") {
-				t.Errorf("message : %v", e)
+			if !strings.Contains(e.Error(), "timed out") {
+				t.Errorf("message: %v", e)
 			}
 			if errors.Is(e, context.DeadlineExceeded) {
-				t.Error("un délai du client ne doit pas passer pour le délai du contexte de l'appelant")
+				t.Error("a client timeout must not pass for the timeout of the caller's context")
 			}
 		})
 	}
 
-	t.Run("corps incomplet", func(t *testing.T) {
+	t.Run("incomplete body", func(t *testing.T) {
 		_, e := trConvert(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Length", "100")
 			_, _ = io.WriteString(w, `{"id":`)
 		}), Options{}, http.StatusOK)
 		trCheckSentinels(t, e, provider.ErrUnavailable)
-		if !strings.Contains(e.Error(), "connexion interrompue") {
-			t.Errorf("message : %v", e)
+		if !strings.Contains(e.Error(), "connection interrupted") {
+			t.Errorf("message: %v", e)
 		}
 	})
 
-	t.Run("erreur du transport de base", func(t *testing.T) {
+	t.Run("base transport error", func(t *testing.T) {
 		for _, tt := range []struct {
 			err    error
 			nature string
 		}{
-			{&net.DNSError{Err: "no such host", Name: "api.github.com", IsNotFound: true}, "nom d'hôte introuvable"},
+			{&net.DNSError{Err: "no such host", Name: "api.github.com", IsNotFound: true}, "host name not found"},
 			{&tls.CertificateVerificationError{Err: errors.New("x509: certificate signed by unknown authority")}, "TLS"},
-			{&net.OpError{Op: "read", Net: "tcp", Err: os.NewSyscallError("read", syscall.ECONNRESET)}, "connexion interrompue"},
-			{io.EOF, "connexion interrompue"},
-			{errors.New("proxyconnect tcp: dial tcp 10.0.0.1:3128: refus"), "erreur réseau"},
+			{&net.OpError{Op: "read", Net: "tcp", Err: os.NewSyscallError("read", syscall.ECONNRESET)}, "connection interrupted"},
+			{io.EOF, "connection interrupted"},
+			{errors.New("proxyconnect tcp: dial tcp 10.0.0.1:3128: refused"), "network error"},
 		} {
 			base := trRoundTripFunc(func(*http.Request) (*http.Response, error) { return nil, tt.err })
 			_, e := trConvertNoServer(t, "https://api.github.com/", Options{Transport: base})
 			trCheckSentinels(t, e, provider.ErrUnavailable)
 			if !strings.Contains(e.Error(), tt.nature) {
-				t.Errorf("%T : message %q, veut %q", tt.err, e, tt.nature)
+				t.Errorf("%T: message %q, want %q", tt.err, e, tt.nature)
 			}
 			trNoLeak(t, e, "api.github.com", "10.0.0.1", "x509", "no such host")
 		}
 	})
 }
 
-// trConvertNoServer envoie GET /repos/alice/projet?per_page=100 vers baseURL et renvoie l'erreur
-// convertie (sans réponse : Status 0).
+// trConvertNoServer sends GET /repos/alice/projet?per_page=100 to baseURL and returns the converted
+// error (without a response: Status 0).
 func trConvertNoServer(t *testing.T, baseURL string, opts Options) (*Provider, error) {
 	t.Helper()
 	p := trNew(t, baseURL, testToken, opts, nil)
 	_, resp, err := trGet(context.Background(), p, "repos/alice/projet?per_page=100")
 	if err == nil {
-		t.Fatal("erreur attendue")
+		t.Fatal("want an error")
 	}
-	e := p.convertError(context.Background(), "lecture du dépôt alice/projet", resp, err)
-	trCheckAPIError(t, e, "lecture du dépôt alice/projet", http.MethodGet, "/repos/alice/projet", 0)
+	e := p.convertError(context.Background(), "reading repository alice/projet", resp, err)
+	trCheckAPIError(t, e, "reading repository alice/projet", http.MethodGet, "/repos/alice/projet", 0)
 	trNoLeak(t, e, strings.TrimPrefix(baseURL, "http://"))
 	return p, e
 }
 
-// TestConvertErrorCallerContext vérifie qu'un contexte de l'appelant annulé ou expiré donne une erreur
-// qui enveloppe ctx.Err(), et non ErrUnavailable.
+// TestConvertErrorCallerContext checks that a canceled or expired caller context gives an error that
+// wraps ctx.Err(), and not ErrUnavailable.
 func TestConvertErrorCallerContext(t *testing.T) {
 	arrived := make(chan struct{}, 4)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -445,64 +445,64 @@ func TestConvertErrorCallerContext(t *testing.T) {
 		_, resp, err := trGet(ctx, p, path)
 		e := p.convertError(ctx, "lecture", resp, err)
 		if !errors.Is(e, want) || errors.Is(e, provider.ErrUnavailable) || errors.Is(e, provider.ErrUnexpected) {
-			t.Errorf("%s : %v, veut %v seulement", path, e, want)
+			t.Errorf("%s: %v, want only %v", path, e, want)
 		}
 		if !strings.Contains(e.Error(), msg) {
-			t.Errorf("%s : message %q, veut %q", path, e, msg)
+			t.Errorf("%s: message %q, want %q", path, e, msg)
 		}
 		if _, ok := errors.AsType[*provider.APIError](e); !ok {
-			t.Errorf("%s : *provider.APIError attendue", path)
+			t.Errorf("%s: want *provider.APIError", path)
 		}
 	}
 
-	t.Run("annulé avant", func(t *testing.T) {
+	t.Run("canceled before", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
-		check(t, ctx, "repos/alice/projet", context.Canceled, "requête annulée")
+		check(t, ctx, "repos/alice/projet", context.Canceled, "request canceled")
 	})
-	t.Run("annulé pendant", func(t *testing.T) {
+	t.Run("canceled during", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		go func() { <-arrived; cancel() }()
-		check(t, ctx, "repos/alice/projet", context.Canceled, "requête annulée")
+		check(t, ctx, "repos/alice/projet", context.Canceled, "request canceled")
 	})
 	for _, path := range []string{"repos/alice/projet", "repos/alice/corps", "repos/alice/corps?etag=1"} {
-		t.Run("expiré "+path, func(t *testing.T) {
+		t.Run("expired "+path, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 			defer cancel()
-			check(t, ctx, path, context.DeadlineExceeded, "délai de l'appelant dépassé")
+			check(t, ctx, path, context.DeadlineExceeded, "caller's deadline exceeded")
 		})
 	}
 }
 
-// TestConvertErrorMisc couvre nil, une erreur déjà convertie, une erreur sans réponse ni requête et le
-// refus préventif.
+// TestConvertErrorMisc covers nil, an already converted error, an error without response or request,
+// and the preventive refusal.
 func TestConvertErrorMisc(t *testing.T) {
 	noNetwork := trRoundTripFunc(func(*http.Request) (*http.Response, error) {
-		t.Error("aucune requête ne doit partir")
-		return nil, errors.New("envoi interdit dans ce test")
+		t.Error("no request must leave")
+		return nil, errors.New("sending forbidden in this test")
 	})
 	p := trNew(t, "https://api.github.com/", testToken, Options{Transport: noNetwork}, nil)
 	if p.convertError(context.Background(), "op", nil, nil) != nil {
-		t.Error("convertError(nil) doit renvoyer nil")
+		t.Error("convertError(nil) must return nil")
 	}
-	already := &provider.APIError{Op: "déjà", Err: provider.ErrNotFound}
+	already := &provider.APIError{Op: "already", Err: provider.ErrNotFound}
 	if got := p.convertError(context.Background(), "op", nil, already); got != already {
-		t.Errorf("une APIError doit être renvoyée telle quelle : %v", got)
+		t.Errorf("an APIError must be returned as is: %v", got)
 	}
-	e := p.convertError(context.Background(), "op", nil, errors.New("détail interne "+testToken))
+	e := p.convertError(context.Background(), "op", nil, errors.New("internal detail "+testToken))
 	trCheckAPIError(t, e, "op", "", "", 0)
 	trCheckSentinels(t, e, provider.ErrUnexpected)
-	trNoLeak(t, e, "détail interne")
+	trNoLeak(t, e, "internal detail")
 
-	// Refus préventif (quota épuisé connu) : l'erreur du transport est retrouvée à travers *url.Error.
+	// Preventive refusal (known exhausted quota): the transport error is found through *url.Error.
 	p.quota.observe(p.fp, provider.RateLimit{Limit: 5000, Remaining: 0, Reset: time.Now().Add(time.Hour).UTC()})
 	_, resp, err := trGet(context.Background(), p, "repos/alice/projet")
-	e = p.convertError(context.Background(), "lecture du dépôt alice/projet", resp, err)
-	trCheckAPIError(t, e, "lecture du dépôt alice/projet", http.MethodGet, "/repos/alice/projet", 0)
+	e = p.convertError(context.Background(), "reading repository alice/projet", resp, err)
+	trCheckAPIError(t, e, "reading repository alice/projet", http.MethodGet, "/repos/alice/projet", 0)
 	trCheckSentinels(t, e, provider.ErrRateLimited)
 }
 
-// TestUnexpectedHelper vérifie unexpected avec et sans réponse.
+// TestUnexpectedHelper checks unexpected with and without a response.
 func TestUnexpectedHelper(t *testing.T) {
 	srv := httptest.NewServer(trReply(http.StatusOK, nil, "null"))
 	defer srv.Close()
@@ -511,14 +511,14 @@ func TestUnexpectedHelper(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	e := p.unexpected("lecture du dépôt alice/projet", resp)
-	trCheckAPIError(t, e, "lecture du dépôt alice/projet", http.MethodGet, "/repos/alice/projet", http.StatusOK)
+	e := p.unexpected("reading repository alice/projet", resp)
+	trCheckAPIError(t, e, "reading repository alice/projet", http.MethodGet, "/repos/alice/projet", http.StatusOK)
 	trCheckSentinels(t, e, provider.ErrUnexpected)
 	e = p.unexpected("op", nil)
 	trCheckAPIError(t, e, "op", "", "", 0)
 }
 
-// TestSSOHeaderParsing teste la lecture de l'en-tête X-GitHub-SSO.
+// TestSSOHeaderParsing tests the reading of the X-GitHub-SSO header.
 func TestSSOHeaderParsing(t *testing.T) {
 	tests := []struct {
 		header, url, org string
@@ -543,75 +543,75 @@ func TestSSOHeaderParsing(t *testing.T) {
 		}
 		link := ssoURL(tt.header)
 		if link != tt.url {
-			t.Errorf("ssoURL(%q) = %q, veut %q", tt.header, link, tt.url)
+			t.Errorf("ssoURL(%q) = %q, want %q", tt.header, link, tt.url)
 		}
 		if got := ssoOrganization(link); got != tt.org {
-			t.Errorf("ssoOrganization(%q) = %q, veut %q", link, got, tt.org)
+			t.Errorf("ssoOrganization(%q) = %q, want %q", link, got, tt.org)
 		}
 	}
 	for path, want := range map[string]string{
 		"/repos/alice/projet": "alice", "/repos/alice": "alice", "/repos": "", "/repositories/42": "", "/repos/a b/x": "",
 	} {
 		if got := repoOwner(path); got != want {
-			t.Errorf("repoOwner(%q) = %q, veut %q", path, got, want)
+			t.Errorf("repoOwner(%q) = %q, want %q", path, got, want)
 		}
 	}
 }
 
-// TestConvertErrorContextDecides vérifie que le classement « contexte de l'appelant terminé » dépend de
-// l'état du contexte de l'appelant, et non de la forme de l'erreur. Non-régression : pendant la lecture
-// du corps, le délai du http.Client (Options.Timeout) peut remonter la valeur context.DeadlineExceeded
-// brute (sans *url.Error ni timeoutError), selon l'ordre dans lequel l'échéance du contexte de la
-// requête et le minuteur du client se déclenchent ; il était alors parfois pris pour l'échéance de
-// l'appelant (test « délai pendant la lecture du corps » intermittent).
+// TestConvertErrorContextDecides checks that the "caller's context done" classification depends on
+// the state of the caller's context, and not on the shape of the error. Non-regression: while reading
+// the body, the http.Client timeout (Options.Timeout) can bubble up the raw context.DeadlineExceeded
+// value (without *url.Error or timeoutError), depending on the order in which the request context's
+// deadline and the client's timer fire; it was then sometimes taken for the caller's deadline
+// (intermittent "timeout while reading the body" test).
 func TestConvertErrorContextDecides(t *testing.T) {
 	noNetwork := trRoundTripFunc(func(*http.Request) (*http.Response, error) {
-		t.Error("aucune requête ne doit partir")
-		return nil, errors.New("envoi interdit dans ce test")
+		t.Error("no request must leave")
+		return nil, errors.New("sending forbidden in this test")
 	})
 	p := trNew(t, "https://api.github.com/", testToken, Options{Transport: noNetwork}, nil)
 	req, _ := http.NewRequest(http.MethodGet, "https://api.github.com/repos/alice/projet?per_page=100", nil)
 	reply := func(status int) *gogithub.Response {
 		return &gogithub.Response{Response: &http.Response{StatusCode: status, Header: http.Header{}, Request: req}}
 	}
-	const op = "lecture du dépôt alice/projet"
+	const op = "reading repository alice/projet"
 
 	expired, cancelExpired := context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
 	defer cancelExpired()
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
 	stopped, stop := context.WithCancelCause(context.Background())
-	cause := errors.New("arrêt demandé par le moteur")
+	cause := errors.New("stop requested by the engine")
 	stop(cause)
 
 	tests := []struct {
 		name    string
 		ctx     context.Context
 		err     error
-		want    error  // sentinelle du package provider ou valeur du contexte attendue
-		msg     string // fragment du message
-		ctxDone bool   // l'erreur doit envelopper ctx.Err(), et aucune sentinelle du package provider
+		want    error  // sentinel of the provider package or expected context value
+		msg     string // fragment of the message
+		ctxDone bool   // the error must wrap ctx.Err(), and no sentinel of the provider package
 	}{
-		{"délai brut, contexte de l'appelant actif", context.Background(), context.DeadlineExceeded,
-			provider.ErrUnavailable, "délai dépassé", false},
-		{"délai enveloppé, contexte de l'appelant actif", context.Background(),
-			fmt.Errorf("lecture du corps : %w", context.DeadlineExceeded), provider.ErrUnavailable, "délai dépassé", false},
-		{"délai brut, échéance de l'appelant dépassée", expired, context.DeadlineExceeded,
-			context.DeadlineExceeded, "délai de l'appelant dépassé", true},
-		{"délai du client, échéance de l'appelant dépassée", expired, trLookalike{},
-			context.DeadlineExceeded, "délai de l'appelant dépassé", true},
-		{"annulation, contexte annulé", canceled, context.Canceled, context.Canceled, "requête annulée", true},
-		{"cause personnalisée, contexte annulé", stopped, cause, context.Canceled, "requête annulée", true},
+		{"raw timeout, caller's context active", context.Background(), context.DeadlineExceeded,
+			provider.ErrUnavailable, "timed out", false},
+		{"wrapped timeout, caller's context active", context.Background(),
+			fmt.Errorf("reading the body: %w", context.DeadlineExceeded), provider.ErrUnavailable, "timed out", false},
+		{"raw timeout, caller's deadline exceeded", expired, context.DeadlineExceeded,
+			context.DeadlineExceeded, "caller's deadline exceeded", true},
+		{"client timeout, caller's deadline exceeded", expired, trLookalike{},
+			context.DeadlineExceeded, "caller's deadline exceeded", true},
+		{"cancellation, canceled context", canceled, context.Canceled, context.Canceled, "request canceled", true},
+		{"custom cause, canceled context", stopped, cause, context.Canceled, "request canceled", true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			e := p.convertError(tt.ctx, op, reply(http.StatusOK), tt.err)
 			trCheckAPIError(t, e, op, http.MethodGet, "/repos/alice/projet", http.StatusOK)
 			if !errors.Is(e, tt.want) {
-				t.Errorf("%v : veut %v", e, tt.want)
+				t.Errorf("%v: want %v", e, tt.want)
 			}
 			if !strings.Contains(e.Error(), tt.msg) {
-				t.Errorf("message %q, veut %q", e, tt.msg)
+				t.Errorf("message %q, want %q", e, tt.msg)
 			}
 			if tt.ctxDone {
 				trCheckSentinels(t, e)
@@ -619,41 +619,41 @@ func TestConvertErrorContextDecides(t *testing.T) {
 			}
 			trCheckSentinels(t, e, provider.ErrUnavailable)
 			if errors.Is(e, context.DeadlineExceeded) || errors.Is(e, context.Canceled) {
-				t.Errorf("%v : un délai du client ne doit pas passer pour la fin du contexte de l'appelant", e)
+				t.Errorf("%v: a client timeout must not pass for the end of the caller's context", e)
 			}
 		})
 	}
 
-	// Contexte de l'appelant terminé, mais erreur sans rapport (réponse 404 reçue juste avant) : la
-	// réponse l'emporte.
+	// Caller's context done, but unrelated error (404 response received just before): the response
+	// wins.
 	notFound := reply(http.StatusNotFound)
 	e := p.convertError(canceled, op, notFound, &gogithub.ErrorResponse{Response: notFound.Response, Message: "Not Found"})
 	trCheckSentinels(t, e, provider.ErrNotFound)
 	if errors.Is(e, context.Canceled) {
-		t.Errorf("%v : une réponse 404 ne doit pas passer pour une annulation", e)
+		t.Errorf("%v: a 404 response must not pass for a cancellation", e)
 	}
 }
 
 type trLookalike struct{}
 
-func (trLookalike) Error() string        { return "délai" }
+func (trLookalike) Error() string        { return "timeout" }
 func (trLookalike) Is(target error) bool { return target == context.DeadlineExceeded }
 func (trLookalike) Timeout() bool        { return true }
 
-// TestFailureNature vérifie la description des échecs de transport.
+// TestFailureNature checks the description of transport failures.
 func TestFailureNature(t *testing.T) {
 	tests := map[string]error{
-		"nom d'hôte introuvable":               &net.DNSError{Err: "no such host", Name: "x", IsTimeout: true},
-		"délai dépassé":                        trLookalike{},
-		"requête annulée":                      fmt.Errorf("x : %w", context.Canceled),
-		"connexion sécurisée (TLS) impossible": tls.RecordHeaderError{Msg: "first record does not look like a TLS handshake"},
-		"connexion impossible":                 &net.OpError{Op: "dial", Net: "tcp", Err: syscall.ECONNREFUSED},
-		"connexion interrompue":                io.ErrUnexpectedEOF,
-		"erreur réseau":                        errors.New("autre"),
+		"host name not found":            &net.DNSError{Err: "no such host", Name: "x", IsTimeout: true},
+		"timed out":                      trLookalike{},
+		"request canceled":               fmt.Errorf("x: %w", context.Canceled),
+		"secure connection (TLS) failed": tls.RecordHeaderError{Msg: "first record does not look like a TLS handshake"},
+		"connection failed":              &net.OpError{Op: "dial", Net: "tcp", Err: syscall.ECONNREFUSED},
+		"connection interrupted":         io.ErrUnexpectedEOF,
+		"network error":                  errors.New("other"),
 	}
 	for want, err := range tests {
 		if got := failureNature(err); got != want {
-			t.Errorf("failureNature(%v) = %q, veut %q", err, got, want)
+			t.Errorf("failureNature(%v) = %q, want %q", err, got, want)
 		}
 	}
 	if !isNetworkError(&net.OpError{Op: "read", Err: syscall.ECONNRESET}) || isNetworkError(errors.New("x")) {
@@ -661,12 +661,12 @@ func TestFailureNature(t *testing.T) {
 	}
 }
 
-// TestConvertErrorGoGitHubTypes vérifie la reconnaissance des types d'erreur de go-github quand la
-// réponse n'est connue que par l'erreur (resp nil).
+// TestConvertErrorGoGitHubTypes checks the recognition of go-github's error types when the response
+// is only known through the error (resp nil).
 func TestConvertErrorGoGitHubTypes(t *testing.T) {
 	noNetwork := trRoundTripFunc(func(*http.Request) (*http.Response, error) {
-		t.Error("aucune requête ne doit partir")
-		return nil, errors.New("envoi interdit dans ce test")
+		t.Error("no request must leave")
+		return nil, errors.New("sending forbidden in this test")
 	})
 	p := trNew(t, "https://api.github.com/", testToken, Options{Transport: noNetwork}, newTrClock(trEpoch))
 	req, _ := http.NewRequest(http.MethodGet, "https://api.github.com/repos/alice/projet?per_page=100", nil)
@@ -690,13 +690,13 @@ func TestConvertErrorGoGitHubTypes(t *testing.T) {
 		{"RedirectionError", &gogithub.RedirectionError{Response: response(302, nil), StatusCode: 302}, provider.ErrUnexpected},
 	}
 	for _, tt := range tests {
-		e := p.convertError(context.Background(), "lecture du dépôt alice/projet", nil, tt.err)
+		e := p.convertError(context.Background(), "reading repository alice/projet", nil, tt.err)
 		status := httpResponse(nil, tt.err).StatusCode
-		trCheckAPIError(t, e, "lecture du dépôt alice/projet", http.MethodGet, "/repos/alice/projet", status)
+		trCheckAPIError(t, e, "reading repository alice/projet", http.MethodGet, "/repos/alice/projet", status)
 		trCheckSentinels(t, e, tt.want)
 		trNoLeak(t, e)
 	}
-	// Abus sans Retry-After : limite secondaire, une minute d'attente (recommandation de GitHub).
+	// Abuse without Retry-After: secondary limit, one minute of waiting (GitHub's recommendation).
 	e := p.convertError(context.Background(), "op", nil, &gogithub.AbuseRateLimitError{Response: response(403, nil)})
 	if rle := trRateLimitError(t, e); !rle.Secondary || !rle.Reset.Equal(trEpoch.Add(time.Minute)) || rle.RetryAfter != 0 {
 		t.Errorf("RateLimitError = %+v", rle)

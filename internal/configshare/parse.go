@@ -15,6 +15,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/repoimport"
 	"github.com/studoo-app/watchoo/internal/workspace"
@@ -57,8 +58,8 @@ type Entry struct {
 	DeadAfterDays   *int
 }
 
-// Parse lit et valide un document (MaxFileSize octets au plus). Erreurs, toutes en français et
-// enveloppant une erreur sentinelle :
+// Parse lit et valide un document (MaxFileSize octets au plus). Erreurs, toutes dans la langue du
+// processus et enveloppant une erreur sentinelle :
 //   - ErrTooLarge : plus de MaxFileSize octets ;
 //   - ErrUnsupportedFormat : clé format absente ou différente de Format ;
 //   - ErrNewerVersion : version supérieure à Version ;
@@ -67,15 +68,15 @@ type Entry struct {
 //     provider autre que github, repo invalide (repoimport.ParseRef), doublon (sans tenir compte de la
 //     casse), label invalide (repoimport.ValidateLabel), seuils d'activité d'un dépôt invalides
 //     (repoimport.ValidateThresholds), motif de branche vide, avec virgule ou invalide,
-//     durée illisible, motif de branches.exclude ou fuseau avec caractère de contrôle, texte
-//     informatif invalide. Les problèmes sont tous cités (20 au plus).
+//     durée illisible, motif de branches.exclude ou fuseau avec caractère de contrôle, langue autre
+//     que « en » ou « fr », texte informatif invalide. Les problèmes sont tous cités (20 au plus).
 //
 // Les règles qui dépendent de l'espace (dead_after_days > flemme_after_days, bornes, fuseau inconnu)
 // sont vérifiées par Plan, après fusion avec la configuration de l'espace.
 func Parse(r io.Reader) (*File, error) {
 	data, err := io.ReadAll(io.LimitReader(r, MaxFileSize+1))
 	if err != nil {
-		return nil, fmt.Errorf("lecture du fichier de configuration : %w", err)
+		return nil, errWrapped(i18n.T("configshare.parse.read"), err)
 	}
 	return ParseBytes(data)
 }
@@ -93,10 +94,10 @@ func ParseBytes(data []byte) (*File, error) {
 	dec := json.NewDecoder(bytes.NewReader(data))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&doc); err != nil {
-		return nil, fmt.Errorf("%w : %s", ErrInvalid, jsonMessage(err))
+		return nil, invalidf("%s", jsonMessage(err))
 	}
 	if err := dec.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
-		return nil, fmt.Errorf("%w : texte après l'objet JSON (un seul objet attendu)", ErrInvalid)
+		return nil, invalidf("%s", i18n.T("configshare.parse.trailing"))
 	}
 	return validate(&doc)
 }
@@ -110,54 +111,58 @@ func checkHeader(data []byte) error {
 	}
 	// Premier objet seulement : un texte qui suit est signalé par ParseBytes.
 	if err := json.NewDecoder(bytes.NewReader(data)).Decode(&head); err != nil {
-		return fmt.Errorf("%w : %s", ErrInvalid, jsonMessage(err))
+		return invalidf("%s", jsonMessage(err))
 	}
 	var format string
 	if len(head.Format) == 0 || json.Unmarshal(head.Format, &format) != nil || format != Format {
-		return fmt.Errorf("%w (clé format absente ou différente de %q)", ErrUnsupportedFormat, Format)
+		return fmt.Errorf("%w %s", ErrUnsupportedFormat, i18n.T("configshare.parse.format_key", Format))
 	}
 	if len(head.Version) == 0 || string(head.Version) == "null" {
-		return fmt.Errorf("%w : clé version absente", ErrInvalid)
+		return invalidf("%s", i18n.T("configshare.parse.version_missing"))
 	}
 	var version int
 	if err := json.Unmarshal(head.Version, &version); err != nil {
-		return fmt.Errorf("%w : version : nombre entier attendu", ErrInvalid)
+		return invalidf("%s", i18n.T("configshare.parse.version_int"))
 	}
 	switch {
 	case version > Version:
-		return fmt.Errorf("%w (format version %d, cette version de Watchoo lit la version %d) : "+
-			"mettez Watchoo à jour", ErrNewerVersion, version, Version)
+		return fmt.Errorf("%w %s", ErrNewerVersion, i18n.T("configshare.parse.version_newer", version, Version))
 	case version < 1:
-		return fmt.Errorf("%w : version %d invalide (%d attendue)", ErrInvalid, version, Version)
+		return invalidf("%s", i18n.T("configshare.parse.version_invalid", version, Version))
 	}
 	return nil
 }
 
-// jsonMessage traduit une erreur de encoding/json en français.
+// invalidf renvoie une erreur qui enveloppe ErrInvalid suivie du détail (« fichier de configuration
+// invalide : détail »).
+func invalidf(format string, args ...any) error {
+	return fmt.Errorf("%w%s%s", ErrInvalid, i18n.T("configshare.sep"), fmt.Sprintf(format, args...))
+}
+
+// jsonMessage décrit une erreur de encoding/json en mots simples, dans la langue du processus.
 func jsonMessage(err error) string {
 	var syntax *json.SyntaxError
 	var typeErr *json.UnmarshalTypeError
 	switch {
 	case errors.As(err, &syntax):
-		return fmt.Sprintf("JSON invalide (octet %d)", syntax.Offset)
+		return i18n.T("configshare.json.syntax", syntax.Offset)
 	case errors.Is(err, io.EOF), errors.Is(err, io.ErrUnexpectedEOF):
-		return "JSON incomplet ou vide"
+		return i18n.T("configshare.json.incomplete")
 	case errors.As(err, &typeErr):
 		field := typeErr.Field
 		if field == "" {
-			return fmt.Sprintf("objet JSON attendu, reçu %s", typeErr.Value)
+			return i18n.T("configshare.json.want_object", typeErr.Value)
 		}
-		return fmt.Sprintf("%s : type %s refusé (attendu : %s)", field, typeErr.Value, goTypeName(typeErr.Type.String()))
+		return i18n.T("configshare.json.type", field, typeErr.Value, goTypeName(typeErr.Type.String()))
 	}
 	msg := err.Error()
 	if name, ok := strings.CutPrefix(msg, "json: unknown field "); ok {
-		return fmt.Sprintf("clé inconnue %s (seules les clés du format %s v%d sont acceptées ; "+
-			"github.* et web.* ne se partagent jamais)", name, Format, Version)
+		return i18n.T("configshare.json.unknown_key", name, Format, Version)
 	}
 	if strings.Contains(msg, "parsing time") {
-		return "exported_at : date RFC 3339 attendue (ex. « 2026-10-27T10:00:00Z »)"
+		return i18n.T("configshare.json.exported_at")
 	}
-	return "JSON illisible"
+	return i18n.T("configshare.json.unreadable")
 }
 
 // goTypeName décrit un type Go attendu en mots simples.
@@ -165,22 +170,22 @@ func goTypeName(t string) string {
 	t = strings.TrimLeft(t, "*")
 	switch {
 	case t == "string":
-		return "texte"
+		return i18n.T("configshare.type.text")
 	case t == "int":
-		return "nombre entier"
+		return i18n.T("configshare.type.int")
 	case t == "bool":
-		return "true ou false"
+		return i18n.T("configshare.type.bool")
 	case strings.HasPrefix(t, "[]"):
-		return "liste"
+		return i18n.T("configshare.type.list")
 	default:
-		return "objet"
+		return i18n.T("configshare.type.object")
 	}
 }
 
 // validate vérifie le contenu d'un document décodé et renvoie le File correspondant.
 func validate(doc *Document) (*File, error) {
 	var errs []string
-	fail := func(format string, args ...any) { errs = append(errs, fmt.Sprintf(format, args...)) }
+	fail := func(key string, args ...any) { errs = append(errs, i18n.T(key, args...)) }
 
 	f := &File{Source: Source{
 		WorkspaceName:  doc.Workspace.Name,
@@ -188,10 +193,10 @@ func validate(doc *Document) (*File, error) {
 		ExportedAt:     doc.ExportedAt.UTC(),
 	}}
 	if msg := checkText(doc.Workspace.Name); msg != "" {
-		fail("workspace.name : %s", msg)
+		fail("configshare.v.field", "workspace.name", msg)
 	}
 	if msg := checkText(doc.WatchooVersion); msg != "" {
-		fail("watchoo_version : %s", msg)
+		fail("configshare.v.field", "watchoo_version", msg)
 	}
 
 	if doc.Settings != nil {
@@ -199,39 +204,39 @@ func validate(doc *Document) (*File, error) {
 	}
 
 	if n := len(doc.Repositories); n > MaxRepositories {
-		return nil, fmt.Errorf("%w : %d dépôts, %d au plus", ErrInvalid, n, MaxRepositories)
+		return nil, invalidf("%s", i18n.T("configshare.v.too_many_repos", n, MaxRepositories))
 	}
 	seen := make(map[string]int, len(doc.Repositories))
 	for i, r := range doc.Repositories {
 		idx := i + 1
-		where := fmt.Sprintf("dépôt n° %d", idx)
+		where := i18n.T("configshare.v.repo_n", idx)
 		if r.Provider != "" && r.Provider != model.ProviderGitHub {
-			fail("%s : forge %s non prise en charge (seule %q l'est)", where, quote(r.Provider), model.ProviderGitHub)
+			fail("configshare.v.provider", where, quote(r.Provider), model.ProviderGitHub)
 			continue
 		}
 		ref, err := repoimport.ParseRef(r.Repo)
 		if err != nil {
-			fail("%s : %v", where, err)
+			fail("configshare.v.field", where, err)
 			continue
 		}
-		where = fmt.Sprintf("dépôt n° %d (%s)", idx, ref)
+		where = i18n.T("configshare.v.repo_n_ref", idx, ref)
 		key := strings.ToLower(ref.String())
 		if first, dup := seen[key]; dup {
-			fail("%s : présent deux fois (déjà en n° %d)", where, first)
+			fail("configshare.v.duplicate", where, first)
 			continue
 		}
 		seen[key] = idx
 		if err := repoimport.ValidateLabel(r.Label); err != nil {
-			fail("%s : %v", where, err)
+			fail("configshare.v.field", where, err)
 			continue
 		}
 		branches, msg := parseBranches(r.Branches)
 		if msg != "" {
-			fail("%s : branches : %s", where, msg)
+			fail("configshare.v.branches", where, msg)
 			continue
 		}
 		if err := repoimport.ValidateThresholds(r.FlemmeAfterDays, r.DeadAfterDays); err != nil {
-			fail("%s : %v", where, err)
+			fail("configshare.v.field", where, err)
 			continue
 		}
 		f.Repositories = append(f.Repositories, Entry{Index: idx, Ref: ref, Label: r.Label, Branches: branches,
@@ -241,14 +246,20 @@ func validate(doc *Document) (*File, error) {
 	if len(errs) > 0 {
 		if len(errs) > maxReportedErrors {
 			extra := len(errs) - maxReportedErrors
-			errs = append(errs[:maxReportedErrors], fmt.Sprintf("… et %d autre%s problème%s", extra, plural(extra), plural(extra)))
+			more := "configshare.v.more_problems_many"
+			if extra == 1 {
+				more = "configshare.v.more_problems_one"
+			}
+			errs = append(errs[:maxReportedErrors], i18n.T(more, extra))
 		}
-		return nil, fmt.Errorf("%w ; rien n'a été importé :\n  %s", ErrInvalid, strings.Join(errs, "\n  "))
+		return nil, fmt.Errorf("%w%s\n  %s", ErrInvalid, i18n.T("configshare.v.nothing_imported_list"), strings.Join(errs, "\n  "))
 	}
 	return f, nil
 }
 
 // parseSettings convertit les réglages du document ; les problèmes sont signalés par fail.
+//
+// fail reçoit une clé du catalogue i18n et ses arguments.
 func parseSettings(s *Settings, fail func(string, ...any)) workspace.SharedSettings {
 	var out workspace.SharedSettings
 	if s.Sync != nil {
@@ -257,7 +268,7 @@ func parseSettings(s *Settings, fail func(string, ...any)) workspace.SharedSetti
 		if s.Sync.Interval != nil {
 			d, err := time.ParseDuration(strings.TrimSpace(*s.Sync.Interval))
 			if err != nil {
-				fail("settings.sync.interval : durée %s illisible (exemples : \"30m\", \"1h30m\", \"0\")", quote(*s.Sync.Interval))
+				fail("configshare.v.interval", quote(*s.Sync.Interval))
 			} else {
 				out.SyncInterval = &d
 			}
@@ -273,14 +284,14 @@ func parseSettings(s *Settings, fail func(string, ...any)) workspace.SharedSetti
 		for i, p := range *s.Branches.Exclude {
 			switch {
 			case strings.TrimSpace(p) == "":
-				fail("settings.branches.exclude : le motif n° %d est vide", i+1)
+				fail("configshare.v.exclude_empty", i+1)
 				ok = false
 			case strings.ContainsFunc(p, unicode.IsControl):
-				fail("settings.branches.exclude : le motif n° %d contient un caractère de contrôle", i+1)
+				fail("configshare.v.exclude_control", i+1)
 				ok = false
 			default:
 				if _, err := path.Match(p, ""); err != nil {
-					fail("settings.branches.exclude : motif %s invalide (syntaxe de path.Match, ex. « dependabot/* »)", quote(p))
+					fail("configshare.v.exclude_invalid", quote(p))
 					ok = false
 				}
 				list = append(list, p)
@@ -292,10 +303,18 @@ func parseSettings(s *Settings, fail func(string, ...any)) workspace.SharedSetti
 	}
 	if s.Timezone != nil {
 		if msg := checkText(*s.Timezone); msg != "" {
-			fail("settings.timezone : %s", msg)
+			fail("configshare.v.field", "settings.timezone", msg)
 		} else {
 			tz := *s.Timezone
 			out.Timezone = &tz
+		}
+	}
+	if s.Lang != nil {
+		// Même forme canonique que config.yaml (« FR » → « fr ») ; seules « en » et « fr » passent.
+		if lang := workspace.NormalizeLang(*s.Lang); i18n.Valid(i18n.Lang(lang)) {
+			out.Lang = &lang
+		} else {
+			fail("configshare.v.lang", quote(*s.Lang))
 		}
 	}
 	return out
@@ -313,9 +332,9 @@ func parseBranches(in []string) ([]string, string) {
 		p = strings.TrimSpace(p)
 		switch {
 		case p == "":
-			return nil, fmt.Sprintf("le motif n° %d est vide", i+1)
+			return nil, i18n.T("configshare.v.pattern_empty", i+1)
 		case strings.Contains(p, ","):
-			return nil, fmt.Sprintf("motif %s : virgule interdite (un motif par élément de la liste)", quote(p))
+			return nil, i18n.T("configshare.v.pattern_comma", quote(p))
 		}
 		parsed, err := repoimport.ParseBranchPatterns(p)
 		if err != nil {
@@ -333,11 +352,11 @@ func parseBranches(in []string) ([]string, string) {
 func checkText(v string) string {
 	switch {
 	case !utf8.ValidString(v):
-		return "texte UTF-8 invalide"
+		return i18n.T("configshare.v.text_utf8")
 	case strings.ContainsFunc(v, unicode.IsControl):
-		return "caractère de contrôle interdit"
+		return i18n.T("configshare.v.text_control")
 	case utf8.RuneCountInString(v) > MaxTextRunes:
-		return fmt.Sprintf("texte trop long (%d caractères au plus)", MaxTextRunes)
+		return i18n.T("configshare.v.text_long", MaxTextRunes)
 	}
 	return ""
 }
@@ -348,12 +367,4 @@ func quote(s string) string {
 		s = string([]rune(s)[:80]) + "…"
 	}
 	return fmt.Sprintf("%q", s)
-}
-
-// plural renvoie « s » si n > 1.
-func plural(n int) string {
-	if n > 1 {
-		return "s"
-	}
-	return ""
 }

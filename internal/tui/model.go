@@ -12,6 +12,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/studoo-app/watchoo/internal/activity"
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/store"
 )
 
@@ -42,11 +43,11 @@ const (
 func (v view) title() string {
 	switch v {
 	case viewRepos:
-		return "Dépôts"
+		return i18n.T("tui.view.repos")
 	case viewCommits:
-		return "Commits"
+		return i18n.T("tui.view.commits")
 	default:
-		return "Contributeurs"
+		return i18n.T("tui.view.contributors")
 	}
 }
 
@@ -292,7 +293,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil // on quitte : rien à signaler
 			}
 			m.loadErr = msg.err
-			m.setError("lecture de la base impossible : " + msg.err.Error())
+			m.setError(i18n.T("tui.err.load", msg.err.Error()))
 			return m, nil
 		}
 		m.loadErr = nil
@@ -418,7 +419,7 @@ func (m Model) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, k.SyncRepo):
 		id, ok := m.selectedRepoID()
 		if !ok {
-			m.setError("aucun dépôt sélectionné : choisissez-en un dans la vue Dépôts ou Commits")
+			m.setError(i18n.T("tui.err.no_repo"))
 			return m, nil
 		}
 		return m.startSync(id, false)
@@ -625,7 +626,7 @@ func (m Model) openDetail() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	if _, found := m.repoByID(id); !found {
-		m.setError("ce dépôt n'est plus suivi : relisez la base (« r »)")
+		m.setError(i18n.T("tui.err.not_tracked"))
 		return m, nil
 	}
 	m.detail = detailState{open: true, repoID: id, loading: true}

@@ -20,32 +20,31 @@ import (
 	"github.com/studoo-app/watchoo/internal/provider"
 )
 
-// Ce fichier porte les tests de repos.go et les helpers (préfixe api…) partagés avec commits_test.go
-// et ratelimit_test.go. Les réponses viennent de testdata/ : JSON au format exact de l'API REST de
-// GitHub, écrit à la main avec des données factices. Aucun appel réseau réel : httptest seulement.
+// This file holds the tests of repos.go and the helpers (api… prefix) shared with commits_test.go
+// and ratelimit_test.go. The responses come from testdata/: JSON in the exact format of GitHub's
+// REST API, written by hand with dummy data. No real network call: httptest only.
 
-// Données factices de testdata/.
+// Dummy data of testdata/.
 const (
 	apiOwner  = "promo-2026"
 	apiName   = "projet-alice"
 	apiRepoID = 424242
-	// apiRepoPath est le chemin de l'API du dépôt factice.
+	// apiRepoPath is the API path of the dummy repository.
 	apiRepoPath = "/repos/" + apiOwner + "/" + apiName
 )
 
-// apiRequest est une requête reçue par le faux serveur.
+// apiRequest is a request received by the fake server.
 type apiRequest struct {
 	Method   string
 	Path     string
 	RawQuery string
 	Query    url.Values
-	HasAuth  bool   // Authorization = « Bearer <testToken> »
-	IfNone   string // en-tête If-None-Match
+	HasAuth  bool   // Authorization = "Bearer <testToken>"
+	IfNone   string // If-None-Match header
 }
 
-// apiServer est un faux GitHub minimal : routes exactes (chemin, sans paramètres) vers des
-// gestionnaires, journal des requêtes. Une méthode autre que GET ou HEAD, ou une route inconnue, fait
-// échouer le test.
+// apiServer is a minimal fake GitHub: exact routes (path, without parameters) to handlers, request
+// log. A method other than GET or HEAD, or an unknown route, fails the test.
 type apiServer struct {
 	t      *testing.T
 	srv    *httptest.Server
@@ -54,7 +53,7 @@ type apiServer struct {
 	reqs   []apiRequest
 }
 
-// apiNewServer démarre un faux serveur, arrêté à la fin du test.
+// apiNewServer starts a fake server, stopped at the end of the test.
 func apiNewServer(t *testing.T) *apiServer {
 	t.Helper()
 	s := &apiServer{t: t, routes: make(map[string]http.HandlerFunc)}
@@ -76,33 +75,33 @@ func (s *apiServer) serve(w http.ResponseWriter, r *http.Request) {
 	h := s.routes[r.URL.Path]
 	s.mu.Unlock()
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {
-		s.t.Errorf("requête %s %s reçue : Watchoo n'accède à GitHub qu'en lecture", r.Method, r.URL.Path)
+		s.t.Errorf("request %s %s received: Watchoo only reads from GitHub", r.Method, r.URL.Path)
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
 	if h == nil {
-		s.t.Errorf("route inattendue : %s %s", r.Method, r.URL.Path)
+		s.t.Errorf("unexpected route: %s %s", r.Method, r.URL.Path)
 		apiWrite(w, http.StatusNotFound, []byte(`{"message":"Not Found","status":"404"}`), nil)
 		return
 	}
 	h(w, r)
 }
 
-// handle branche h sur le chemin path (sans paramètres de requête).
+// handle plugs h into the path path (without query parameters).
 func (s *apiServer) handle(path string, h http.HandlerFunc) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.routes[path] = h
 }
 
-// requests renvoie une copie du journal des requêtes.
+// requests returns a copy of the request log.
 func (s *apiServer) requests() []apiRequest {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return append([]apiRequest(nil), s.reqs...)
 }
 
-// count renvoie le nombre de requêtes reçues sur path.
+// count returns the number of requests received on path.
 func (s *apiServer) count(path string) int {
 	n := 0
 	for _, r := range s.requests() {
@@ -113,28 +112,28 @@ func (s *apiServer) count(path string) int {
 	return n
 }
 
-// apiProvider construit un Provider branché sur le faux serveur, avec le faux token des tests.
+// apiProvider builds a Provider plugged into the fake server, with the tests' fake token.
 func apiProvider(t *testing.T, s *apiServer, opts Options) *Provider {
 	t.Helper()
 	opts.BaseURL = s.srv.URL
 	p, err := New(testToken, opts)
 	if err != nil {
-		t.Fatalf("New : %v", err)
+		t.Fatalf("New: %v", err)
 	}
 	return p
 }
 
-// apiFixture lit testdata/<name>.
+// apiFixture reads testdata/<name>.
 func apiFixture(t *testing.T, name string) []byte {
 	t.Helper()
 	b, err := os.ReadFile(filepath.Join("testdata", name))
 	if err != nil {
-		t.Fatalf("lecture de la réponse factice : %v", err)
+		t.Fatalf("reading the dummy response: %v", err)
 	}
 	return b
 }
 
-// apiWrite écrit une réponse JSON, avec les en-têtes h en plus.
+// apiWrite writes a JSON response, with the headers h in addition.
 func apiWrite(w http.ResponseWriter, status int, body []byte, h http.Header) {
 	for k, v := range h {
 		w.Header()[k] = v
@@ -144,13 +143,13 @@ func apiWrite(w http.ResponseWriter, status int, body []byte, h http.Header) {
 	_, _ = w.Write(body)
 }
 
-// apiStatic renvoie un gestionnaire qui répond toujours status et body.
+// apiStatic returns a handler that always answers status and body.
 func apiStatic(status int, body []byte) http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) { apiWrite(w, status, body, nil) }
 }
 
-// apiLink construit l'en-tête Link de GitHub pour la page page sur last, avec des URL absolues sous
-// linkPath (GitHub les donne sous /repositories/{id}/…) ; "" s'il n'y a qu'une page.
+// apiLink builds GitHub's Link header for the page page out of last, with absolute URLs under
+// linkPath (GitHub gives them under /repositories/{id}/…); "" if there is only one page.
 func apiLink(base, linkPath string, page, last int) string {
 	u := func(n int) string { return fmt.Sprintf("<%s%s?per_page=100&page=%d>", base, linkPath, n) }
 	var links []string
@@ -163,7 +162,7 @@ func apiLink(base, linkPath string, page, last int) string {
 	return strings.Join(links, ", ")
 }
 
-// apiPage renvoie le paramètre page de la requête (1 s'il est absent ou invalide).
+// apiPage returns the page parameter of the request (1 if it is missing or invalid).
 func apiPage(r *http.Request) int {
 	n, err := strconv.Atoi(r.URL.Query().Get("page"))
 	if err != nil || n < 1 {
@@ -172,9 +171,9 @@ func apiPage(r *http.Request) int {
 	return n
 }
 
-// apiPaged renvoie un gestionnaire qui sert les réponses factices fixtures, une par page, avec
-// l'en-tête Link ; au-delà de la dernière page, il sert empty. Les fichiers sont lus tout de suite
-// (depuis la goroutine du test).
+// apiPaged returns a handler that serves the dummy responses fixtures, one per page, with the Link
+// header; past the last page, it serves empty. The files are read right away (from the test's
+// goroutine).
 func apiPaged(t *testing.T, s *apiServer, linkPath string, empty string, fixtures ...string) http.HandlerFunc {
 	t.Helper()
 	bodies := make([][]byte, len(fixtures))
@@ -195,25 +194,25 @@ func apiPaged(t *testing.T, s *apiServer, linkPath string, empty string, fixture
 	}
 }
 
-// apiAPIError vérifie que err est un *provider.APIError d'opération op et de code status, et le
-// renvoie.
+// apiAPIError checks that err is a *provider.APIError of operation op and code status, and returns
+// it.
 func apiAPIError(t *testing.T, err error, op string, status int) *provider.APIError {
 	t.Helper()
 	var apiErr *provider.APIError
 	if !errors.As(err, &apiErr) {
-		t.Fatalf("erreur %v (%T) : *provider.APIError attendue", err, err)
+		t.Fatalf("error %v (%T): want *provider.APIError", err, err)
 	}
 	if apiErr.Op != op {
-		t.Errorf("Op = %q, veut %q", apiErr.Op, op)
+		t.Errorf("Op = %q, want %q", apiErr.Op, op)
 	}
 	if apiErr.Status != status {
-		t.Errorf("Status = %d, veut %d", apiErr.Status, status)
+		t.Errorf("Status = %d, want %d", apiErr.Status, status)
 	}
 	return apiErr
 }
 
-// apiNoLeak vérifie que le message de err ne cite aucun des textes interdits (token, corps de la
-// réponse, données personnelles).
+// apiNoLeak checks that the message of err quotes none of the forbidden texts (token, response body,
+// personal data).
 func apiNoLeak(t *testing.T, err error, forbidden ...string) {
 	t.Helper()
 	if err == nil {
@@ -222,7 +221,7 @@ func apiNoLeak(t *testing.T, err error, forbidden ...string) {
 	msg := err.Error()
 	for _, s := range append([]string{testToken, "Bearer"}, forbidden...) {
 		if strings.Contains(msg, s) {
-			t.Errorf("le message d'erreur cite %q : %s", s, msg)
+			t.Errorf("the error message quotes %q: %s", s, msg)
 		}
 	}
 }
@@ -234,7 +233,7 @@ func TestRepository(t *testing.T) {
 
 	repo, err := p.Repository(context.Background(), apiOwner, apiName)
 	if err != nil {
-		t.Fatalf("Repository : %v", err)
+		t.Fatalf("Repository: %v", err)
 	}
 	want := provider.Repository{
 		ID:            apiRepoID,
@@ -249,22 +248,22 @@ func TestRepository(t *testing.T) {
 		PushedAt:      time.Date(2026, 10, 20, 14, 5, 0, 0, time.UTC),
 	}
 	if repo != want {
-		t.Errorf("Repository =\n%+v\nveut\n%+v", repo, want)
+		t.Errorf("Repository =\n%+v\nwant\n%+v", repo, want)
 	}
 	if repo.PushedAt.Location() != time.UTC {
-		t.Errorf("PushedAt n'est pas en UTC : %v", repo.PushedAt.Location())
+		t.Errorf("PushedAt is not in UTC: %v", repo.PushedAt.Location())
 	}
 	if repo.FullName() != "promo-2026/projet-alice" {
 		t.Errorf("FullName = %q", repo.FullName())
 	}
 	reqs := s.requests()
 	if len(reqs) != 1 || reqs[0].Method != http.MethodGet || reqs[0].Path != apiRepoPath || !reqs[0].HasAuth {
-		t.Errorf("requêtes = %+v", reqs)
+		t.Errorf("requests = %+v", reqs)
 	}
 }
 
-// TestRepositoryRenamed simule un dépôt renommé et transféré : GitHub répond 301 vers
-// /repositories/{id}, le client suit la redirection et renvoie les owner/nom actuels.
+// TestRepositoryRenamed simulates a renamed and transferred repository: GitHub answers 301 to
+// /repositories/{id}, the client follows the redirection and returns the current owner/name.
 func TestRepositoryRenamed(t *testing.T) {
 	s := apiNewServer(t)
 	moved := apiFixture(t, "moved_permanently.json")
@@ -277,20 +276,20 @@ func TestRepositoryRenamed(t *testing.T) {
 
 	repo, err := p.Repository(context.Background(), "alice-martin-dev", "projet-web")
 	if err != nil {
-		t.Fatalf("Repository : %v", err)
+		t.Fatalf("Repository: %v", err)
 	}
 	if repo.ID != 424243 || repo.Owner != "promo-2026" || repo.Name != "projet-web-alice" {
-		t.Errorf("dépôt renommé : ID %d, %s ; veut 424243, promo-2026/projet-web-alice", repo.ID, repo.FullName())
+		t.Errorf("renamed repository: ID %d, %s; want 424243, promo-2026/projet-web-alice", repo.ID, repo.FullName())
 	}
 	if repo.DefaultBranch != "develop" || !repo.Archived || repo.Stars != 0 || repo.OpenIssues != 0 {
-		t.Errorf("champs actuels mal lus : %+v", repo)
+		t.Errorf("current fields misread: %+v", repo)
 	}
 	if !repo.PushedAt.Equal(time.Date(2026, 10, 2, 9, 30, 0, 0, time.UTC)) {
 		t.Errorf("PushedAt = %v", repo.PushedAt)
 	}
 	reqs := s.requests()
 	if len(reqs) != 2 || reqs[1].Path != "/repositories/424243" || reqs[1].Method != http.MethodGet || !reqs[1].HasAuth {
-		t.Errorf("la redirection doit être suivie en GET, avec le token : %+v", reqs)
+		t.Errorf("the redirection must be followed in GET, with the token: %+v", reqs)
 	}
 }
 
@@ -301,7 +300,7 @@ func TestRepositoryByID(t *testing.T) {
 
 	repo, err := p.RepositoryByID(context.Background(), apiRepoID)
 	if err != nil {
-		t.Fatalf("RepositoryByID : %v", err)
+		t.Fatalf("RepositoryByID: %v", err)
 	}
 	if repo.ID != apiRepoID || repo.FullName() != "promo-2026/projet-alice" || !repo.Private {
 		t.Errorf("RepositoryByID = %+v", repo)
@@ -309,25 +308,25 @@ func TestRepositoryByID(t *testing.T) {
 
 	for _, id := range []int64{0, -1} {
 		if _, err := p.RepositoryByID(context.Background(), id); !errors.Is(err, provider.ErrInvalidRef) {
-			t.Errorf("RepositoryByID(%d) : %v, veut ErrInvalidRef", id, err)
+			t.Errorf("RepositoryByID(%d): %v, want ErrInvalidRef", id, err)
 		}
 	}
 	if n := len(s.requests()); n != 1 {
-		t.Errorf("%d requêtes, veut 1 (un identifiant invalide ne doit pas partir)", n)
+		t.Errorf("%d requests, want 1 (an invalid identifier must not leave)", n)
 	}
 }
 
-// TestRepositoryUnexpected vérifie qu'une réponse 200 inexploitable donne ErrUnexpected.
+// TestRepositoryUnexpected checks that an unusable 200 response gives ErrUnexpected.
 func TestRepositoryUnexpected(t *testing.T) {
 	bodies := map[string]string{
-		"null":          `null`,
-		"sans id":       `{"name":"projet-alice","owner":{"login":"promo-2026"}}`,
-		"id nul":        `{"id":0,"name":"projet-alice","owner":{"login":"promo-2026"}}`,
-		"sans owner":    `{"id":1,"name":"projet-alice"}`,
-		"owner vide":    `{"id":1,"name":"projet-alice","owner":{"login":""}}`,
-		"sans nom":      `{"id":1,"owner":{"login":"promo-2026"}}`,
-		"owner nul":     `{"id":1,"name":"projet-alice","owner":null}`,
-		"pushed_at nul": `{"id":1,"name":"projet-alice","owner":{"login":"promo-2026"},"pushed_at":null}`,
+		"null":           `null`,
+		"without id":     `{"name":"projet-alice","owner":{"login":"promo-2026"}}`,
+		"null id":        `{"id":0,"name":"projet-alice","owner":{"login":"promo-2026"}}`,
+		"without owner":  `{"id":1,"name":"projet-alice"}`,
+		"empty owner":    `{"id":1,"name":"projet-alice","owner":{"login":""}}`,
+		"without name":   `{"id":1,"owner":{"login":"promo-2026"}}`,
+		"null owner":     `{"id":1,"name":"projet-alice","owner":null}`,
+		"null pushed_at": `{"id":1,"name":"projet-alice","owner":{"login":"promo-2026"},"pushed_at":null}`,
 	}
 	for label, body := range bodies {
 		t.Run(label, func(t *testing.T) {
@@ -337,31 +336,31 @@ func TestRepositoryUnexpected(t *testing.T) {
 			p := apiProvider(t, s, Options{})
 
 			repo, err := p.Repository(context.Background(), apiOwner, apiName)
-			if label == "pushed_at nul" {
-				// pushed_at absent : dépôt valide, date zéro.
+			if label == "null pushed_at" {
+				// pushed_at missing: valid repository, zero date.
 				if err != nil || !repo.PushedAt.IsZero() || repo.ID != 1 {
-					t.Errorf("Repository = %+v, %v ; veut PushedAt zéro sans erreur", repo, err)
+					t.Errorf("Repository = %+v, %v; want a zero PushedAt without error", repo, err)
 				}
 				return
 			}
 			if !errors.Is(err, provider.ErrUnexpected) {
-				t.Fatalf("Repository : %v, veut ErrUnexpected", err)
+				t.Fatalf("Repository: %v, want ErrUnexpected", err)
 			}
-			apiErr := apiAPIError(t, err, "lecture du dépôt promo-2026/projet-alice", http.StatusOK)
+			apiErr := apiAPIError(t, err, "reading repository promo-2026/projet-alice", http.StatusOK)
 			if apiErr.Method != http.MethodGet || apiErr.Path != apiRepoPath {
 				t.Errorf("Method, Path = %q, %q", apiErr.Method, apiErr.Path)
 			}
 			_, err = p.RepositoryByID(context.Background(), 1)
 			if !errors.Is(err, provider.ErrUnexpected) {
-				t.Errorf("RepositoryByID : %v, veut ErrUnexpected", err)
+				t.Errorf("RepositoryByID: %v, want ErrUnexpected", err)
 			}
-			apiAPIError(t, err, "lecture du dépôt n° 1", http.StatusOK)
+			apiAPIError(t, err, "reading repository #1", http.StatusOK)
 		})
 	}
 }
 
-// TestRepositoryErrors vérifie que les erreurs HTTP passent par convertError : 404 (dépôt privé sans
-// accès), 401, et que le message ne reprend ni le corps ni le message de GitHub.
+// TestRepositoryErrors checks that HTTP errors go through convertError: 404 (private repository
+// without access), 401, and that the message repeats neither the body nor GitHub's message.
 func TestRepositoryErrors(t *testing.T) {
 	const canary = "canari-corps-de-reponse"
 	tests := []struct {
@@ -382,23 +381,23 @@ func TestRepositoryErrors(t *testing.T) {
 
 			_, err := p.Repository(context.Background(), apiOwner, apiName)
 			if !errors.Is(err, tt.want) {
-				t.Fatalf("Repository : %v, veut %v", err, tt.want)
+				t.Fatalf("Repository: %v, want %v", err, tt.want)
 			}
-			apiAPIError(t, err, "lecture du dépôt promo-2026/projet-alice", tt.status)
+			apiAPIError(t, err, "reading repository promo-2026/projet-alice", tt.status)
 			apiNoLeak(t, err, canary, "docs.github.com")
 
 			_, err = p.RepositoryByID(context.Background(), apiRepoID)
 			if !errors.Is(err, tt.want) {
-				t.Errorf("RepositoryByID : %v, veut %v", err, tt.want)
+				t.Errorf("RepositoryByID: %v, want %v", err, tt.want)
 			}
-			apiAPIError(t, err, "lecture du dépôt n° 424242", tt.status)
+			apiAPIError(t, err, "reading repository #424242", tt.status)
 			apiNoLeak(t, err, canary)
 		})
 	}
 }
 
-// TestForbiddenAndRateLimited vérifie que les refus 403 (SSO imposé, quota épuisé) remontent de
-// chaque appel avec leur type, sans être pris pour un dépôt vide.
+// TestForbiddenAndRateLimited checks that the 403 refusals (enforced SSO, exhausted quota) come up
+// from every call with their type, without being taken for an empty repository.
 func TestForbiddenAndRateLimited(t *testing.T) {
 	sso := func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("X-GitHub-SSO", "required; url=https://github.com/orgs/promo-2026/sso?authorization_request=fake")
@@ -439,7 +438,7 @@ func TestForbiddenAndRateLimited(t *testing.T) {
 			err := call(apiProvider(t, s, Options{}))
 			var ssoErr *provider.SSORequiredError
 			if !errors.As(err, &ssoErr) || !errors.Is(err, provider.ErrForbidden) {
-				t.Fatalf("erreur %v, veut *SSORequiredError", err)
+				t.Fatalf("error %v, want *SSORequiredError", err)
 			}
 			if ssoErr.Organization != apiOwner {
 				t.Errorf("Organization = %q", ssoErr.Organization)
@@ -456,7 +455,7 @@ func TestForbiddenAndRateLimited(t *testing.T) {
 			err := call(apiProvider(t, s, Options{}))
 			var rle *provider.RateLimitError
 			if !errors.As(err, &rle) || !errors.Is(err, provider.ErrRateLimited) || rle.Secondary {
-				t.Fatalf("erreur %v, veut *RateLimitError (quota épuisé)", err)
+				t.Fatalf("error %v, want *RateLimitError (exhausted quota)", err)
 			}
 			if !rle.Reset.Equal(time.Unix(1792000000, 0)) {
 				t.Errorf("Reset = %v", rle.Reset)
@@ -466,8 +465,8 @@ func TestForbiddenAndRateLimited(t *testing.T) {
 	}
 }
 
-// TestInvalidArgumentsNoRequest vérifie que des owner, nom, branche ou SHA invalides sont refusés
-// (ErrInvalidRef) sans qu'aucune requête ne parte.
+// TestInvalidArgumentsNoRequest checks that invalid owners, names, branches or SHAs are refused
+// (ErrInvalidRef) without any request leaving.
 func TestInvalidArgumentsNoRequest(t *testing.T) {
 	s := apiNewServer(t)
 	base := &countingTransport{next: http.DefaultTransport}
@@ -493,7 +492,7 @@ func TestInvalidArgumentsNoRequest(t *testing.T) {
 		_, calls["CommitStats"] = p.CommitStats(ctx, owner, name, okSHA)
 		for method, err := range calls {
 			if !errors.Is(err, provider.ErrInvalidRef) {
-				t.Errorf("%s(%q, %q) : %v, veut ErrInvalidRef", method, owner, name, err)
+				t.Errorf("%s(%q, %q): %v, want ErrInvalidRef", method, owner, name, err)
 			}
 		}
 	}
@@ -502,13 +501,13 @@ func TestInvalidArgumentsNoRequest(t *testing.T) {
 		"../../" + strings.Repeat("a", 34), strings.Repeat("g", 40), "main"}
 	for _, sha := range badSHAs {
 		if _, err := p.CommitStats(ctx, apiOwner, apiName, sha); !errors.Is(err, provider.ErrInvalidRef) {
-			t.Errorf("CommitStats(%q) : %v, veut ErrInvalidRef", sha, err)
+			t.Errorf("CommitStats(%q): %v, want ErrInvalidRef", sha, err)
 		}
 		if _, err := p.CompareCommits(ctx, apiOwner, apiName, sha, okSHA); !errors.Is(err, provider.ErrInvalidRef) {
-			t.Errorf("CompareCommits(base %q) : %v, veut ErrInvalidRef", sha, err)
+			t.Errorf("CompareCommits(base %q): %v, want ErrInvalidRef", sha, err)
 		}
 		if _, err := p.CompareCommits(ctx, apiOwner, apiName, okSHA, sha); !errors.Is(err, provider.ErrInvalidRef) {
-			t.Errorf("CompareCommits(head %q) : %v, veut ErrInvalidRef", sha, err)
+			t.Errorf("CompareCommits(head %q): %v, want ErrInvalidRef", sha, err)
 		}
 	}
 
@@ -516,15 +515,15 @@ func TestInvalidArgumentsNoRequest(t *testing.T) {
 	for _, branch := range badBranches {
 		opts := provider.ListCommitsOptions{Branch: branch}
 		if _, err := p.ListCommits(ctx, apiOwner, apiName, opts); !errors.Is(err, provider.ErrInvalidRef) {
-			t.Errorf("ListCommits(branche %q) : %v, veut ErrInvalidRef", branch, err)
+			t.Errorf("ListCommits(branch %q): %v, want ErrInvalidRef", branch, err)
 		}
 	}
 
 	if n := len(s.requests()); n != 0 {
-		t.Errorf("%d requête(s) reçue(s) par le serveur, veut 0", n)
+		t.Errorf("%d request(s) received by the server, want 0", n)
 	}
 	if n := base.n.Load(); n != 0 {
-		t.Errorf("%d requête(s) ont atteint le transport, veut 0", n)
+		t.Errorf("%d request(s) reached the transport, want 0", n)
 	}
 }
 
@@ -536,7 +535,7 @@ func TestBranches(t *testing.T) {
 
 	branches, err := p.Branches(context.Background(), apiOwner, apiName)
 	if err != nil {
-		t.Fatalf("Branches : %v", err)
+		t.Fatalf("Branches: %v", err)
 	}
 	want := []provider.Branch{
 		{Name: "dev", HeadSHA: "c2e09fb4a95488767c48bcc67e2fe0fc4f375fcc"},
@@ -545,21 +544,21 @@ func TestBranches(t *testing.T) {
 		{Name: "release/v1", HeadSHA: "6d1c0ad1ec043e07c41dc7844d6b447d8017b143"},
 	}
 	if fmt.Sprint(branches) != fmt.Sprint(want) {
-		t.Errorf("Branches =\n%v\nveut\n%v", branches, want)
+		t.Errorf("Branches =\n%v\nwant\n%v", branches, want)
 	}
 	reqs := s.requests()
 	if len(reqs) != 2 {
-		t.Fatalf("%d requêtes, veut 2 : %+v", len(reqs), reqs)
+		t.Fatalf("%d requests, want 2: %+v", len(reqs), reqs)
 	}
 	for i, r := range reqs {
 		if r.Query.Get("per_page") != "100" || r.Query.Get("page") != strconv.Itoa(i+1) || r.Query.Has("protected") {
-			t.Errorf("requête %d : paramètres %q", i+1, r.RawQuery)
+			t.Errorf("request %d: parameters %q", i+1, r.RawQuery)
 		}
 	}
 }
 
-// TestBranchesEmptyRepository : un dépôt vide donne une liste vide non nil, qu'il réponde 200 [] ou
-// 409 « Git Repository is empty ».
+// TestBranchesEmptyRepository: an empty repository gives an empty non-nil list, whether it answers
+// 200 [] or 409 "Git Repository is empty".
 func TestBranchesEmptyRepository(t *testing.T) {
 	for label, h := range map[string]http.HandlerFunc{
 		"200 []": apiStatic(http.StatusOK, []byte("[]")),
@@ -571,7 +570,7 @@ func TestBranchesEmptyRepository(t *testing.T) {
 			p := apiProvider(t, s, Options{})
 			branches, err := p.Branches(context.Background(), apiOwner, apiName)
 			if err != nil || branches == nil || len(branches) != 0 {
-				t.Errorf("Branches = %#v, %v ; veut une liste vide non nil, sans erreur", branches, err)
+				t.Errorf("Branches = %#v, %v; want an empty non-nil list, without error", branches, err)
 			}
 		})
 	}
@@ -583,19 +582,19 @@ func TestBranchesErrors(t *testing.T) {
 	p := apiProvider(t, s, Options{})
 	_, err := p.Branches(context.Background(), apiOwner, apiName)
 	if !errors.Is(err, provider.ErrNotFound) {
-		t.Fatalf("Branches : %v, veut ErrNotFound", err)
+		t.Fatalf("Branches: %v, want ErrNotFound", err)
 	}
-	apiAPIError(t, err, "liste des branches de promo-2026/projet-alice", http.StatusNotFound)
+	apiAPIError(t, err, "listing branches of promo-2026/projet-alice", http.StatusNotFound)
 }
 
 func TestBranchesUnexpected(t *testing.T) {
 	for label, body := range map[string]string{
-		"sans SHA":      `[{"name":"main","commit":{"url":"x"},"protected":false}]`,
-		"SHA invalide":  `[{"name":"main","commit":{"sha":"abc"},"protected":false}]`,
-		"sans nom":      `[{"commit":{"sha":"0a934d3dea406ccab14c373d35d84c7b619d0e01"}}]`,
-		"commit nul":    `[{"name":"main","commit":null}]`,
-		"élément nul":   `[null]`,
-		"JSON invalide": `[{"name":`,
+		"without SHA":  `[{"name":"main","commit":{"url":"x"},"protected":false}]`,
+		"invalid SHA":  `[{"name":"main","commit":{"sha":"abc"},"protected":false}]`,
+		"without name": `[{"commit":{"sha":"0a934d3dea406ccab14c373d35d84c7b619d0e01"}}]`,
+		"null commit":  `[{"name":"main","commit":null}]`,
+		"null element": `[null]`,
+		"invalid JSON": `[{"name":`,
 	} {
 		t.Run(label, func(t *testing.T) {
 			s := apiNewServer(t)
@@ -603,13 +602,13 @@ func TestBranchesUnexpected(t *testing.T) {
 			p := apiProvider(t, s, Options{})
 			_, err := p.Branches(context.Background(), apiOwner, apiName)
 			if !errors.Is(err, provider.ErrUnexpected) {
-				t.Errorf("Branches : %v, veut ErrUnexpected", err)
+				t.Errorf("Branches: %v, want ErrUnexpected", err)
 			}
 		})
 	}
 }
 
-// apiBranchPage renvoie une page de n branches factices, numérotées à partir de first.
+// apiBranchPage returns a page of n dummy branches, numbered from first.
 func apiBranchPage(first, n int) []byte {
 	var b bytes.Buffer
 	b.WriteByte('[')
@@ -623,8 +622,8 @@ func apiBranchPage(first, n int) []byte {
 	return b.Bytes()
 }
 
-// TestBranchesCap : un serveur qui annonce toujours une page suivante de 100 branches est lu jusqu'au
-// plafond provider.MaxBranches, sans aller au-delà.
+// TestBranchesCap: a server that always announces a next page of 100 branches is read up to the cap
+// provider.MaxBranches, without going further.
 func TestBranchesCap(t *testing.T) {
 	s := apiNewServer(t)
 	s.handle(apiRepoPath+"/branches", func(w http.ResponseWriter, r *http.Request) {
@@ -635,20 +634,20 @@ func TestBranchesCap(t *testing.T) {
 	p := apiProvider(t, s, Options{})
 	branches, err := p.Branches(context.Background(), apiOwner, apiName)
 	if err != nil {
-		t.Fatalf("Branches : %v", err)
+		t.Fatalf("Branches: %v", err)
 	}
 	if len(branches) != provider.MaxBranches {
-		t.Errorf("%d branches, veut le plafond %d", len(branches), provider.MaxBranches)
+		t.Errorf("%d branches, want the cap %d", len(branches), provider.MaxBranches)
 	}
 	if n := len(s.requests()); n != provider.MaxBranches/PerPage {
-		t.Errorf("%d requêtes, veut %d", n, provider.MaxBranches/PerPage)
+		t.Errorf("%d requests, want %d", n, provider.MaxBranches/PerPage)
 	}
 }
 
-// TestPaginationGuards : une page suivante qui ne progresse pas, ou un serveur qui annonce sans fin
-// des pages d'une seule branche, n'entraînent pas de boucle sans fin.
+// TestPaginationGuards: a next page that does not progress, or a server that endlessly announces
+// pages of a single branch, do not cause an endless loop.
 func TestPaginationGuards(t *testing.T) {
-	t.Run("page suivante qui ne progresse pas", func(t *testing.T) {
+	t.Run("next page that does not progress", func(t *testing.T) {
 		s := apiNewServer(t)
 		s.handle(apiRepoPath+"/branches", func(w http.ResponseWriter, r *http.Request) {
 			h := http.Header{"Link": {fmt.Sprintf(`<%s/repositories/424242/branches?per_page=100&page=1>; rel="next"`, s.srv.URL)}}
@@ -657,13 +656,13 @@ func TestPaginationGuards(t *testing.T) {
 		p := apiProvider(t, s, Options{})
 		branches, err := p.Branches(context.Background(), apiOwner, apiName)
 		if err != nil || len(branches) != 1 {
-			t.Errorf("Branches = %d branches, %v ; veut 1", len(branches), err)
+			t.Errorf("Branches = %d branches, %v; want 1", len(branches), err)
 		}
 		if n := len(s.requests()); n != 1 {
-			t.Errorf("%d requêtes, veut 1", n)
+			t.Errorf("%d requests, want 1", n)
 		}
 	})
-	t.Run("pages sans fin", func(t *testing.T) {
+	t.Run("endless pages", func(t *testing.T) {
 		s := apiNewServer(t)
 		s.handle(apiRepoPath+"/branches", func(w http.ResponseWriter, r *http.Request) {
 			page := apiPage(r)
@@ -673,13 +672,13 @@ func TestPaginationGuards(t *testing.T) {
 		p := apiProvider(t, s, Options{})
 		branches, err := p.Branches(context.Background(), apiOwner, apiName)
 		if err != nil {
-			t.Fatalf("Branches : %v", err)
+			t.Fatalf("Branches: %v", err)
 		}
 		if n := len(s.requests()); n != maxBranchPages || len(branches) != maxBranchPages {
-			t.Errorf("%d requêtes, %d branches ; veut %d", n, len(branches), maxBranchPages)
+			t.Errorf("%d requests, %d branches; want %d", n, len(branches), maxBranchPages)
 		}
 	})
-	t.Run("page vide qui annonce une suite", func(t *testing.T) {
+	t.Run("empty page announcing more", func(t *testing.T) {
 		s := apiNewServer(t)
 		s.handle(apiRepoPath+"/branches", func(w http.ResponseWriter, r *http.Request) {
 			page := apiPage(r)
@@ -692,12 +691,12 @@ func TestPaginationGuards(t *testing.T) {
 			t.Errorf("Branches = %#v, %v", branches, err)
 		}
 		if n := len(s.requests()); n != 1 {
-			t.Errorf("%d requêtes, veut 1", n)
+			t.Errorf("%d requests, want 1", n)
 		}
 	})
 }
 
-// TestContextCanceled : un contexte annulé arrête l'appel ; l'erreur enveloppe context.Canceled.
+// TestContextCanceled: a canceled context stops the call; the error wraps context.Canceled.
 func TestContextCanceled(t *testing.T) {
 	s := apiNewServer(t)
 	s.handle(apiRepoPath, apiStatic(http.StatusOK, apiFixture(t, "repo.json")))
@@ -705,19 +704,19 @@ func TestContextCanceled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	if _, err := p.Repository(ctx, apiOwner, apiName); !errors.Is(err, context.Canceled) {
-		t.Errorf("Repository : %v, veut context.Canceled", err)
+		t.Errorf("Repository: %v, want context.Canceled", err)
 	}
 	if _, err := p.Branches(ctx, apiOwner, apiName); !errors.Is(err, context.Canceled) {
-		t.Errorf("Branches : %v, veut context.Canceled", err)
+		t.Errorf("Branches: %v, want context.Canceled", err)
 	}
 }
 
-// apiLogger renvoie un logger qui écrit tous les niveaux dans buf (sûr en concurrence).
+// apiLogger returns a logger that writes all the levels to buf (concurrency-safe).
 func apiLogger(buf *apiLogBuffer) *slog.Logger {
 	return slog.New(slog.NewTextHandler(buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
 }
 
-// apiLogBuffer est un tampon de logs sûr en concurrence.
+// apiLogBuffer is a concurrency-safe log buffer.
 type apiLogBuffer struct {
 	mu  sync.Mutex
 	buf bytes.Buffer

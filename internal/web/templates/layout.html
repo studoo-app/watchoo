@@ -1,5 +1,7 @@
 {{/*
   Document complet de toutes les pages (socle). Donnée : PageData (render.go).
+  Textes : fonctions t / tn (render.go), dans la langue de l'espace (PageData.Lang) ; « watchoo-texts »
+  porte les textes de static/app.js (graphiques), en JSON.
   Blocs de la page : « content » (obligatoire, vérifié au démarrage), « head » et
   « scripts » (facultatifs).
   Aucun script ni style en ligne (CSP) : HTMX est réglé par la balise meta htmx-config
@@ -7,7 +9,7 @@
   d'historique gardé dans localStorage : les pages contiennent des données privées).
 */}}
 {{define "layout"}}<!doctype html>
-<html lang="fr">
+<html lang="{{.Lang}}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -27,21 +29,21 @@
 <body class="min-h-screen flex flex-col bg-base-200 text-base-content" hx-headers='{"X-CSRF-Token": "{{.CSRFToken}}"}'>
   <header class="navbar bg-base-100 shadow-sm flex-wrap gap-x-2 gap-y-1 px-4">
     <div class="flex-1 flex items-center gap-2 min-w-0 order-1">
-      <a href="/" class="flex items-center gap-2 font-bold text-lg shrink-0" aria-label="Watchoo, tableau de bord">
+      <a href="/" class="flex items-center gap-2 font-bold text-lg shrink-0" aria-label="{{t "web.layout.home_aria"}}">
         <img src="/static/watchoo-logo-final-nom.svg" alt="" width="177" height="36" class="h-9 w-auto dark:hidden">
         <img src="/static/watchoo-logo-final-nom-dark.svg" alt="" width="177" height="36" class="h-9 w-auto hidden dark:block">
       </a>
-      {{if not .Public}}<span class="badge badge-ghost truncate max-w-48 sm:max-w-xs" title="Espace de supervision">{{.Workspace}}</span>{{end}}
+      {{if not .Public}}<span class="badge badge-ghost truncate max-w-48 sm:max-w-xs" title="{{t "web.layout.workspace_title"}}">{{.Workspace}}</span>{{end}}
     </div>
-    <button id="theme-toggle" type="button" class="btn btn-ghost btn-sm btn-square order-2 lg:order-5" aria-label="Basculer entre le thème clair et le thème sombre" title="Thème clair / sombre">
+    <button id="theme-toggle" type="button" class="btn btn-ghost btn-sm btn-square order-2 lg:order-5" aria-label="{{t "web.layout.theme_aria"}}" title="{{t "web.layout.theme_title"}}">
       <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor"/></svg>
     </button>
     {{if not .Public}}
-    <nav aria-label="Navigation principale" class="order-3 w-full overflow-x-auto lg:w-auto">
+    <nav aria-label="{{t "web.layout.nav_aria"}}" class="order-3 w-full overflow-x-auto lg:w-auto">
       <ul class="menu menu-horizontal menu-sm sm:menu-md flex-nowrap px-0 lg:px-1 gap-1">
-        <li><a href="/" class="whitespace-nowrap {{if eq .Nav "dashboard"}}menu-active{{end}}"{{if eq .Nav "dashboard"}} aria-current="page"{{end}}>Tableau de bord</a></li>
-        <li><a href="/contributors" class="whitespace-nowrap {{if eq .Nav "contributors"}}menu-active{{end}}"{{if eq .Nav "contributors"}} aria-current="page"{{end}}>Contributeurs</a></li>
-        <li><a href="/settings" class="whitespace-nowrap {{if eq .Nav "settings"}}menu-active{{end}}"{{if eq .Nav "settings"}} aria-current="page"{{end}}>Réglages</a></li>
+        <li><a href="/" class="whitespace-nowrap {{if eq .Nav "dashboard"}}menu-active{{end}}"{{if eq .Nav "dashboard"}} aria-current="page"{{end}}>{{t "web.nav.dashboard"}}</a></li>
+        <li><a href="/contributors" class="whitespace-nowrap {{if eq .Nav "contributors"}}menu-active{{end}}"{{if eq .Nav "contributors"}} aria-current="page"{{end}}>{{t "web.nav.contributors"}}</a></li>
+        <li><a href="/settings" class="whitespace-nowrap {{if eq .Nav "settings"}}menu-active{{end}}"{{if eq .Nav "settings"}} aria-current="page"{{end}}>{{t "web.nav.settings"}}</a></li>
       </ul>
     </nav>
     {{template "sync-status" .}}
@@ -50,9 +52,9 @@
   {{if and (not .Public) .Update}}
   <div class="w-full max-w-7xl mx-auto px-4 md:px-6 pt-4" id="update-banner">
     <div role="status" class="alert alert-info alert-soft text-sm">
-      <span>Nouvelle version de Watchoo disponible : <strong>{{.Update.Current}} → {{.Update.Latest}}</strong>.
-      {{if .Update.Docker}}Changez le tag de l'image Docker pour la mettre à jour.{{else}}Mettez-la à jour avec <code>watchoo update</code>, puis redémarrez <code>watchoo serve</code>.{{end}}
-      <a class="link" href="{{.Update.ReleaseURL}}" target="_blank" rel="noopener noreferrer">Notes de version</a></span>
+      <span>{{t "web.update.available"}} <strong>{{.Update.Current}} → {{.Update.Latest}}</strong>.
+      {{if .Update.Docker}}{{t "web.update.docker"}}{{else}}{{t "web.update.cli_before"}} <code>watchoo update</code>{{t "web.update.cli_middle"}} <code>watchoo serve</code>.{{end}}
+      <a class="link" href="{{.Update.ReleaseURL}}" target="_blank" rel="noopener noreferrer">{{t "web.update.notes"}}</a></span>
     </div>
   </div>
   {{end}}
@@ -60,8 +62,9 @@
     {{template "content" .}}
   </main>
   <footer class="footer footer-center p-4 text-sm text-base-content/60">
-    <p>Watchoo {{.Version}} · lecture seule : rien n'est jamais écrit sur GitHub · données gardées sur cette machine</p>
+    <p>{{t "web.footer" .Version}}</p>
   </footer>
+  <script type="application/json" id="watchoo-texts">{{jsTexts}}</script>
   {{block "scripts" .}}{{end}}
 </body>
 </html>

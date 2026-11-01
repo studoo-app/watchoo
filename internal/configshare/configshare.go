@@ -30,6 +30,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/model"
 	wsync "github.com/studoo-app/watchoo/internal/sync"
 	"github.com/studoo-app/watchoo/internal/workspace"
@@ -45,18 +46,31 @@ const (
 	MaxTextRunes = 200
 )
 
-// Erreurs de Parse et de Plan (à tester avec errors.Is ; le message dit ce qui ne va pas, en français).
+// i18nError est une erreur sentinelle dont le message vient du catalogue i18n : le texte est traduit
+// au moment de l'affichage, dans la langue du processus (errors.Is compare la clé).
+type i18nError struct{ key string }
+
+func (e i18nError) Error() string { return i18n.T(e.key) }
+
+// errWrapped compose un texte traduit et une erreur enveloppée, avec la ponctuation de la langue
+// (« texte : err » en français, « texte: err » en anglais).
+func errWrapped(text string, err error) error {
+	return fmt.Errorf("%s%s%w", text, i18n.T("configshare.sep"), err)
+}
+
+// Erreurs de Parse et de Plan (à tester avec errors.Is ; le message dit ce qui ne va pas, dans la
+// langue du processus).
 var (
 	// ErrTooLarge : le document dépasse MaxFileSize.
-	ErrTooLarge = errors.New("fichier de configuration trop gros (1 Mio au plus)")
+	ErrTooLarge = i18nError{"configshare.err.too_large"}
 	// ErrUnsupportedFormat : clé format absente ou différente de Format (ce n'est pas un fichier de
 	// configuration Watchoo).
-	ErrUnsupportedFormat = errors.New("ce fichier n'est pas une configuration Watchoo partagée")
+	ErrUnsupportedFormat = i18nError{"configshare.err.unsupported_format"}
 	// ErrNewerVersion : version plus grande que Version.
-	ErrNewerVersion = errors.New("fichier créé par une version plus récente de Watchoo")
+	ErrNewerVersion = i18nError{"configshare.err.newer_version"}
 	// ErrInvalid : tout autre refus (JSON invalide, clé inconnue, dépôt, label, motif ou réglage
 	// invalide, doublon, trop de dépôts, version absente ou inférieure à 1).
-	ErrInvalid = errors.New("fichier de configuration invalide")
+	ErrInvalid = i18nError{"configshare.err.invalid"}
 )
 
 // Document est le fichier de partage (format v1). Les clés JSON sont en snake_case ; voir
@@ -83,6 +97,9 @@ type Settings struct {
 	Activity *ActivitySettings `json:"activity,omitempty"`
 	Branches *BranchesSettings `json:"branches,omitempty"`
 	Timezone *string           `json:"timezone,omitempty"`
+	// Lang est la langue de l'interface web (« en » ou « fr ») ; clé facultative, ajoutée sans
+	// changer la version du format (un fichier sans elle reste valide).
+	Lang *string `json:"lang,omitempty"`
 }
 
 // SyncSettings : sync.auto, sync.interval (durée Go écrite en chaîne : « 30m », « 1h30m », « 0 »),
@@ -146,11 +163,11 @@ type ExportOptions struct {
 // motifs ([] = toutes les branches) et seuils d'activité propres (s'il y en a). Aucun appel à gh ni à la forge.
 func Export(ctx context.Context, ws *workspace.Workspace, st Store, opts ExportOptions) (*Document, error) {
 	if ws == nil || st == nil {
-		return nil, errors.New("export de la configuration : espace ou base non renseigné")
+		return nil, errors.New(i18n.T("configshare.export.no_workspace"))
 	}
 	repos, err := st.ListRepositories(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("export de la configuration : lecture des dépôts : %w", err)
+		return nil, errWrapped(i18n.T("configshare.export.read_repos"), err)
 	}
 	now := opts.Now
 	if now.IsZero() {
@@ -213,6 +230,7 @@ func settingsFromConfig(c workspace.Config) *Settings {
 		},
 		Branches: &BranchesSettings{Exclude: &exclude},
 		Timezone: &c.Timezone,
+		Lang:     &c.Lang,
 	}
 }
 
@@ -227,7 +245,7 @@ func (d *Document) Marshal() ([]byte, error) {
 	enc := json.NewEncoder(&buf)
 	enc.SetIndent("", "  ")
 	if err := enc.Encode(d); err != nil {
-		return nil, fmt.Errorf("écriture de la configuration en JSON : %w", err)
+		return nil, errWrapped(i18n.T("configshare.marshal"), err)
 	}
 	return buf.Bytes(), nil
 }

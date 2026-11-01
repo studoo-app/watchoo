@@ -10,6 +10,7 @@ import (
 
 	gogithub "github.com/google/go-github/v93/github"
 
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/provider"
 )
 
@@ -45,7 +46,7 @@ func (p *Provider) PullRequests(ctx context.Context, owner, name string, opts pr
 	if err := provider.ValidateRepo(owner, name); err != nil {
 		return nil, err
 	}
-	op := "liste des pull requests de " + owner + "/" + name
+	op := i18n.T("provider.github.op.pulls", owner, name)
 	limit := opts.Limit
 	if limit <= 0 || limit > provider.MaxPullRequests {
 		limit = provider.MaxPullRequests
@@ -145,7 +146,7 @@ func (p *Provider) Releases(ctx context.Context, owner, name string) ([]provider
 	if err := provider.ValidateRepo(owner, name); err != nil {
 		return nil, err
 	}
-	op := "liste des releases de " + owner + "/" + name
+	op := i18n.T("provider.github.op.releases", owner, name)
 	lo := &gogithub.ListOptions{PerPage: PerPage, Page: 1}
 	releases := make([]provider.Release, 0)
 	pages, stop := 0, stopLastPage
@@ -202,7 +203,7 @@ func (p *Provider) Tags(ctx context.Context, owner, name string) ([]provider.Tag
 	if err := provider.ValidateRepo(owner, name); err != nil {
 		return nil, err
 	}
-	op := "liste des tags de " + owner + "/" + name
+	op := i18n.T("provider.github.op.tags", owner, name)
 	lo := &gogithub.ListOptions{PerPage: PerPage, Page: 1}
 	tags := make([]provider.Tag, 0)
 	pages, stop := 0, stopLastPage

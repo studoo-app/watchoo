@@ -9,7 +9,7 @@ three questions: what moved, when, and who did it. It offers a CLI, an interacti
 (`watchoo tui`) and a local web interface (`watchoo serve`). Every monitored group (e.g. a class's
 projects) lives in its own directory, initialized by `watchoo init`.
 
-**Current state: v0.6.2 (MVP complete, phases 1 to 6 of the [roadmap](documentation/en/07-roadmap.md) in place: MVP, configuration sharing and V2, then the per-contributor page and updating Watchoo).**
+**Current state: v0.7.0 (MVP complete, phases 1 to 6 of the [roadmap](documentation/en/07-roadmap.md) in place: MVP, configuration sharing and V2, then the per-contributor page, updating Watchoo and the bilingual interface — English by default, French).**
 `watchoo init` creates a workspace; `repo add / import / list / remove`, `sync`, `log`,
 `contributors`, `prs`, `releases`, `status`, `version` and `update` work in text and `--json` (stable schema, documented in
 [05-cli.md](documentation/en/05-cli.md#json-output) and verified by `internal/cli/json_schema_test.go`);
@@ -165,7 +165,9 @@ make docker           # local Docker image (IMAGE=watchoo:dev), never pushed
 
 - Code formatted with `gofmt`; `go vet` without warning.
 - Go identifiers in English, per Go conventions.
-- User-facing messages (CLI, TUI, web) in **French**; commit messages in French.
+- User-facing messages (CLI, TUI, web) are **bilingual: English by default, French** available; every
+  displayed text goes through the `internal/i18n` catalog, and any new message is added in both
+  languages in the same commit. Commit messages in French.
 - Errors wrapped with context (`fmt.Errorf("…: %w", err)`); structured logs with `log/slog`.
 
 ## Skills
