@@ -1,11 +1,10 @@
 # Documentation Watchoo
 
-> Document de définition du projet — version du 27 octobre 2026 · Benoit
+> Document de définition du projet — version du 1er novembre 2026 · Benoit
 >
-> Statut : **MVP v0.1.0**. Les phases 1 (fondations), 2 (provider GitHub), 3 (moteur de synchro, CLI et
-> TUI), 4 (interface web) et 5 (finitions : graphiques, `--json`, binaires, image Docker, README,
-> versions) de la [roadmap](07-roadmap.md) sont réalisées ; la phase 6 (V2) reste à faire. Historique
-> des versions : [CHANGELOG.md](../../CHANGELOG.md).
+> Statut : **v0.7.0**. Les phases 1 à 5 (MVP) et 6 (V2) de la [roadmap](07-roadmap.md) sont réalisées,
+> puis la page par contributeur (0.5.0), la mise à jour de Watchoo (0.6.0) et l'interface bilingue,
+> anglais par défaut et français (0.7.0). Historique des versions : [CHANGELOG.md](../../CHANGELOG.md).
 
 Watchoo est un binaire Go unique qui surveille une liste de dépôts GitHub et répond à trois questions :
 **qu'est-ce qui a bougé, quand, et qui l'a fait.** Il s'utilise en ligne de commande (CLI), en mode

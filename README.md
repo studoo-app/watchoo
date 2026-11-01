@@ -9,7 +9,7 @@
 Watchoo watches a list of GitHub repositories and shows you
 their activity at a glance: new commits, contributors, and the repositories that stopped moving.
 
-> **Status: v0.6.2, MVP complete and V2 released, plus the per-contributor page and the one-command update (`watchoo update`).** Phases 1 to 5 of the
+> **Status: v0.7.0, MVP complete and V2 released, plus the per-contributor page, the one-command update (`watchoo update`) and a bilingual interface (English by default, French).** Phases 1 to 5 of the
 > [roadmap](documentation/en/07-roadmap.md) are in place: command line, interactive mode
 > (`watchoo tui`), local web interface (`watchoo serve`), `--json` output, binaries and Docker image. The
 > V2 (phase 6) adds per-repository thresholds, per-contributor activity within a repository, pull requests,
@@ -83,7 +83,7 @@ curl -fsSL https://raw.githubusercontent.com/studoo-app/watchoo/main/install.sh 
 
 The [script](install.sh) downloads the latest release for your system, verifies its SHA-256
 checksum, then installs `watchoo` into `~/.local/bin`, without sudo. It touches neither your PATH nor
-`gh`, and warns you if either is missing. Settings, placed before `sh`: `WATCHOO_VERSION=v0.6.2`
+`gh`, and warns you if either is missing. Settings, placed before `sh`: `WATCHOO_VERSION=v0.7.0`
 for a specific version, `WATCHOO_INSTALL_DIR=…` for another directory, `WATCHOO_LANG=fr` for French
 messages (default: the system locale, otherwise English). You can read the
 script before running it: `curl -fsSL …/install.sh -o install.sh`.
@@ -96,10 +96,10 @@ SHA-256 checksum file `watchoo_<version>_checksums.txt`.
 
 ```bash
 # example: Linux amd64
-curl -fsSLO https://github.com/studoo-app/watchoo/releases/download/v0.6.2/watchoo_0.6.2_linux_amd64.tar.gz
-curl -fsSLO https://github.com/studoo-app/watchoo/releases/download/v0.6.2/watchoo_0.6.2_checksums.txt
-sha256sum --check --ignore-missing watchoo_0.6.2_checksums.txt
-tar -xzf watchoo_0.6.2_linux_amd64.tar.gz watchoo
+curl -fsSLO https://github.com/studoo-app/watchoo/releases/download/v0.7.0/watchoo_0.7.0_linux_amd64.tar.gz
+curl -fsSLO https://github.com/studoo-app/watchoo/releases/download/v0.7.0/watchoo_0.7.0_checksums.txt
+sha256sum --check --ignore-missing watchoo_0.7.0_checksums.txt
+tar -xzf watchoo_0.7.0_linux_amd64.tar.gz watchoo
 sudo install -m 0755 watchoo /usr/local/bin/watchoo
 watchoo version
 ```
@@ -118,15 +118,15 @@ the interface listens outside the container's loopback, a password is **mandator
 export GH_TOKEN=…               # GitHub token, preferably fine-grained and read-only
 export WATCHOO_WEB_PASSWORD=…   # web interface password
 docker volume create watchoo-data
-docker run --rm -e GH_TOKEN -v watchoo-data:/data ghcr.io/studoo-app/watchoo:0.6.2 init
-docker run --rm -e GH_TOKEN -v watchoo-data:/data ghcr.io/studoo-app/watchoo:0.6.2 repo add owner/repo
+docker run --rm -e GH_TOKEN -v watchoo-data:/data ghcr.io/studoo-app/watchoo:0.7.0 init
+docker run --rm -e GH_TOKEN -v watchoo-data:/data ghcr.io/studoo-app/watchoo:0.7.0 repo add owner/repo
 docker run -d --name watchoo --restart unless-stopped \
   -e GH_TOKEN -e WATCHOO_WEB_PASSWORD -e WATCHOO_WEB_AUTH_USERNAME=prof \
   -e WATCHOO_TIMEZONE=Europe/Paris \
   -v watchoo-data:/data -p 127.0.0.1:8080:8080 \
   --read-only --tmpfs /tmp --tmpfs /home/nonroot:uid=65532,gid=65532,mode=0700 \
   --cap-drop ALL --security-opt no-new-privileges:true \
-  ghcr.io/studoo-app/watchoo:0.6.2
+  ghcr.io/studoo-app/watchoo:0.7.0
 ```
 
 Then open <http://127.0.0.1:8080/> (user `prof`). The
@@ -139,7 +139,7 @@ Details: [Distribution](documentation/en/03-architecture.md#distribution).
 With Go (version stated in `go.mod`):
 
 ```bash
-go install github.com/studoo-app/watchoo/cmd/watchoo@v0.6.2
+go install github.com/studoo-app/watchoo/cmd/watchoo@v0.7.0
 ```
 
 Or in a clone of the repository:
