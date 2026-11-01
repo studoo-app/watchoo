@@ -272,7 +272,7 @@ func (s *session) clockText(t time.Time) string {
 	if local.Year() == now.Year() && local.YearDay() == now.YearDay() {
 		return local.Format("15:04")
 	}
-	return local.Format("02/01/2006 15:04")
+	return local.Format(i18n.T("cli.core.fmt.datetime"))
 }
 
 // durationText renvoie une durée courte : « 0.4 s », « 12 s », « 3 min 05 s » (séparateur décimal

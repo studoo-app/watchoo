@@ -144,7 +144,7 @@ func newSyncRunJSON(r model.SyncRun) *syncRunJSON {
 // activityJSON décrit l'état d'activité d'un dépôt.
 type activityJSON struct {
 	State           activity.State `json:"state"`       // active, flemme, dead, stopped, error, never_synced, archived, empty
-	Label           string         `json:"state_label"` // libellé français (« Actif »…)
+	Label           string         `json:"state_label"` // libellé dans la langue choisie (« Active »…)
 	Gray            bool           `json:"gray"`        // état hors activité
 	DaysSinceCommit *int           `json:"days_since_last_commit"`
 	FlemmeAfterDays int            `json:"flemme_after_days"` // seuils appliqués

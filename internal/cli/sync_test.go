@@ -225,3 +225,21 @@ func TestSyncDetailDeferred(t *testing.T) {
 		t.Errorf("syncDetail in French = %q", got)
 	}
 }
+
+// clockText: the time alone today, otherwise the date in the order of the language (month first in
+// English). Not parallel: the process language is shared.
+func TestClockText(t *testing.T) {
+	now := time.Date(2026, 10, 20, 10, 0, 0, 0, time.UTC)
+	s := &session{loc: time.UTC, deps: Deps{Now: func() time.Time { return now }}}
+	if got := s.clockText(now.Add(time.Hour)); got != "11:00" {
+		t.Errorf("clockText(today) = %q, want 11:00", got)
+	}
+	later := time.Date(2026, 10, 21, 9, 30, 0, 0, time.UTC)
+	if got := s.clockText(later); got != "10/21/2026 09:30" {
+		t.Errorf("clockText(tomorrow) = %q, want 10/21/2026 09:30", got)
+	}
+	defer i18n.SetProcessForTest(i18n.French)()
+	if got := s.clockText(later); got != "21/10/2026 09:30" {
+		t.Errorf("clockText(tomorrow) in French = %q, want 21/10/2026 09:30", got)
+	}
+}

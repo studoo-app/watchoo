@@ -42,13 +42,13 @@ GitHub quota: 4321 / 5000 requests left (resets at 12:20).
 
 Repositories: 4
   up to date (Active)    1
-  Flemme                 0
+  Slacking               0
   Dead                   0
   in error               1   bob/projet
   never synced           1
   tracking stopped       1
 
-Last sync: just now (27/10/2026 12:00)
+Last sync: just now (10/27/2026 12:00)
 Tracked branches: 3
 `, displayPath(h.cwd))
 	if r.stdout != want || r.stderr != "" {

@@ -186,7 +186,7 @@ Un problème de gh (non installé, non connecté) est signalé dans le résumé 
 	},
 	"cli.sync.status_repos_count":  {"Repositories: %d", "Dépôts : %d"},
 	"cli.sync.status_lbl_active":   {"up to date (Active)", "à jour (Actif)"},
-	"cli.sync.status_lbl_flemme":   {"Flemme", "Flemme"},
+	"cli.sync.status_lbl_flemme":   {"Slacking", "Flemme"},
 	"cli.sync.status_lbl_dead":     {"Dead", "Dead"},
 	"cli.sync.status_lbl_error":    {"in error", "en erreur"},
 	"cli.sync.status_lbl_never":    {"never synced", "jamais synchronisés"},

@@ -81,8 +81,8 @@ type SyncConfig struct {
 }
 
 // ActivityConfig regroupe les seuils d'activité globaux, en jours entiers (clés activity.*).
-// La base prévoit des seuils par dépôt (colonnes flemme_after_days / dead_after_days, lus par
-// activity.ThresholdsFor), mais aucune commande ne les règle encore en v0.1.0.
+// Un dépôt peut avoir ses propres seuils (colonnes flemme_after_days / dead_after_days, lus par
+// activity.ThresholdsFor), réglés par « repo add --flemme / --dead », l'import et l'interface web.
 type ActivityConfig struct {
 	// FlemmeAfterDays : au-delà de ce nombre de jours sans commit, un dépôt passe en « Flemme »
 	// (défaut 5, au moins 1).
