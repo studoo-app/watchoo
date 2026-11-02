@@ -30,7 +30,7 @@ func TestContributorsWeeks(t *testing.T) {
 	var rep contributorsReport
 	decodeStrict(t, r.stdout, &rep)
 	assertJSONKeys(t, r.stdout, "contributors.0", "id", "name", "login", "display_name", "avatar_url", "commits",
-		"additions", "deletions", "repositories", "last_commit_at", "ai_signed_commits", "ai_scanned_commits", "ai_tools", "weekly")
+		"additions", "deletions", "repositories", "share", "last_commit_at", "ai_signed_commits", "ai_scanned_commits", "ai_tools", "weekly")
 	assertJSONKeys(t, r.stdout, "contributors.0.weekly.0", "week", "count")
 	if len(rep.Contributors) != 2 {
 		t.Fatalf("contributors --weeks 3 = %+v; want Bob and Alice", rep)

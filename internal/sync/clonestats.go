@@ -12,6 +12,7 @@ import (
 	"errors"
 
 	"github.com/studoo-app/watchoo/internal/i18n"
+	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/provider"
 	"github.com/studoo-app/watchoo/internal/store"
 )
@@ -21,11 +22,12 @@ const unknownStatsPage = 2000
 
 // CloneStats est ce que le moteur demande au provider des clones Git locaux pour les statistiques
 // de lignes (implémenté par *git.Provider) : créer ou mettre à jour le clone d'un dépôt en extrayant
-// sa branche par défaut, puis calculer les statistiques d'un paquet de commits (SHA absents du clone
-// omis du résultat).
+// sa branche par défaut, calculer les statistiques d'un paquet de commits (SHA absents du clone omis
+// du résultat), et lire les langages de la branche par défaut.
 type CloneStats interface {
 	Prepare(ctx context.Context, owner, name, defaultBranch string) error
 	CommitStatsBatch(ctx context.Context, owner, name string, shas []string) (map[string]provider.CommitStats, error)
+	Languages(ctx context.Context, owner, name string) ([]provider.Language, error)
 }
 
 // clones est l'accès aux clones Git locaux pendant une synchro, pour les statistiques.
@@ -97,6 +99,24 @@ func (s *repoSync) lineStats(ctx context.Context, h *halt, repoID int64, firstIm
 	}
 	n, err := s.fetchStats(ctx, h, repoID)
 	return n, nil, warning, err
+}
+
+// languages lit les langages du dépôt dans son clone (cl.stats non nil). Clone illisible : avertissement,
+// et ok faux (ce qui est en base est gardé) ; erreur seulement si le contexte est terminé.
+func (s *repoSync) languages(ctx context.Context, cl clones) (langs []model.RepositoryLanguage, ok bool, warning string, err error) {
+	got, err := cl.stats.Languages(ctx, s.owner, s.name)
+	if err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return nil, false, "", errWrapped(i18n.T("sync.languages.error"), ctxErr)
+		}
+		s.e.logger.Info("langages non lus", "repo", s.full, "erreur", errorMessage(err))
+		return nil, false, i18n.T("sync.languages.not_computed", errorMessage(err)), nil
+	}
+	langs = make([]model.RepositoryLanguage, len(got))
+	for i, l := range got {
+		langs[i] = model.RepositoryLanguage{Language: l.Name, Bytes: l.Bytes}
+	}
+	return langs, true, "", nil
 }
 
 // storeError distingue un échec de la base (qui fait échouer le dépôt) d'un échec du clone (repli).

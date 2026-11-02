@@ -110,6 +110,12 @@ type Repository struct {
 	BranchPatterns  string
 }
 
+type RepositoryLanguage struct {
+	RepoID   int64
+	Language string
+	Bytes    int64
+}
+
 type SyncRun struct {
 	ID         int64
 	RepoID     int64

@@ -86,7 +86,7 @@ dépôt (carte du tableau de bord, en-tête et contributeurs de la page d'un dé
 agrégées) : ils additionnent les commits connus et ajoutent « (dont N commits non comptés) » quand une
 partie des commits n'en a pas encore ; « — » si aucun n'en a. Template partagé `line-totals`.
 
-### Signatures d'IA (1.1.0)
+### Signatures d'IA (1.2.0)
 
 Partout où un commit est listé (fil du tableau de bord, historique d'un dépôt, commits d'un contributeur), un
 badge « IA : Claude » nomme chaque outil déclaré dessus ; **rien** sans signature (template partagé
@@ -148,7 +148,8 @@ ne prouve rien. » Pas de pourcentage, pas de classement sur ce chiffre, aucune 
   `app.js` relit la page (même origine), extrait les données avec `DOMParser` (qui n'exécute rien) et
   redessine.
 - Liste des contributeurs du dépôt (avatar ou initiale, nom lié à la page du contributeur, lien
-  secondaire vers son profil GitHub, dernier commit, ses lignes ajoutées / supprimées dans ce dépôt).
+  secondaire vers son profil GitHub, dernier commit, ses lignes ajoutées / supprimées dans ce dépôt, sa part des commits du dépôt en
+  pourcentage, 1.1.0).
 - **Activité par contributeur sur 12 semaines** (V2) : le graphique de la page des contributeurs
   (barres empilées des commits par semaine, 8 contributeurs les plus actifs de la période, les autres
   regroupés, table « Données du graphique » repliable), restreint aux commits du dépôt : toutes les
@@ -156,6 +157,11 @@ ne prouve rien. » Pas de pourcentage, pas de classement sur ce chiffre, aucune 
   avec le dépôt). Toujours affiché : sans commit d'auteur connu sur la période, le résumé le dit
   (« Aucun commit d'auteur connu depuis le … ») et la table aussi ; le graphique se remplit à la fin
   d'une synchro, sans recharger la page. Voir [Graphiques d'activité](#graphiques-dactivité).
+- **Langages** (1.1.0, fragment `repo-languages`) : langages de la branche par défaut, du plus gros au plus
+  petit, chacun avec une barre de progression et sa part des octets (une décimale). Calculés depuis le clone
+  Git local, donc les mêmes avec ou sans `gh` ; une note rappelle que les chiffres peuvent différer un peu de
+  ceux de GitHub. Sans donnée : la carte indique qu'ils apparaissent après la prochaine synchro. Voir
+  [Architecture](03-architecture.md#langages-dun-dépôt-110).
 - **Pull requests, releases et tags** (V2, fragment `repo-pulls`) : deux cartes côte à côte (l'une sous
   l'autre sur un écran étroit).
   - **Pull requests** : toutes les PR ouvertes (brouillons marqués), puis les 10 dernières mergées ;
@@ -175,8 +181,8 @@ ne prouve rien. » Pas de pourcentage, pas de classement sur ce chiffre, aucune 
     valeurs.
 - Bouton **« Synchroniser ce dépôt »** (absent si le suivi est arrêté).
 - Fragments : `/repos/{id}/commits` (historique) ; `/repos/{id}` avec l'en-tête `HX-Target`
-  `repo-overview`, `repo-contributors` ou `repo-pulls` renvoie l'en-tête, les contributeurs ou les pull
-  requests et releases seuls. Tous se rechargent à la fin d'une synchro.
+  `repo-overview`, `repo-contributors`, `repo-languages` ou `repo-pulls` renvoie l'en-tête, les
+  contributeurs, les langages ou les pull requests et releases seuls. Tous se rechargent à la fin d'une synchro.
 
 ### 3. Contributeurs
 - Classement global (commits, part du total, lignes ajoutées / retirées ; « — » si aucun de ses commits

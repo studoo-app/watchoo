@@ -88,15 +88,15 @@ func TestContributors(t *testing.T) {
 	r := h.run("contributors").mustSucceed(t)
 	// Unknown lines ("-"): first import through the API, without a local Git clone in this test.
 	// The relative dates ("… ago") come from internal/activity, a layer translated separately.
-	assertContains(t, "contributors", r.stdout, "CONTRIBUTOR", "LOGIN", "COMMITS", "ADDITIONS", "DELETIONS",
+	assertContains(t, "contributors", r.stdout, "CONTRIBUTOR", "LOGIN", "COMMITS", "SHARE", "ADDITIONS", "DELETIONS",
 		"REPOSITORIES", "LAST COMMIT")
-	if row := tableRow(t, r.stdout, "Bob Durand"); !slices.Equal(row, []string{"Bob Durand", "-", "2", "-", "-", "0/2", "2", "1 h ago"}) {
+	if row := tableRow(t, r.stdout, "Bob Durand"); !slices.Equal(row, []string{"Bob Durand", "-", "2", "40.0%", "-", "-", "0/2", "2", "1 h ago"}) {
 		t.Errorf("Bob Durand row = %q", row)
 	}
-	if row := tableRow(t, r.stdout, "Alice Martin"); !slices.Equal(row, []string{"Alice Martin", "alice-gh", "2", "-", "-", "0/2", "1", "2 h ago"}) {
+	if row := tableRow(t, r.stdout, "Alice Martin"); !slices.Equal(row, []string{"Alice Martin", "alice-gh", "2", "40.0%", "-", "-", "0/2", "1", "2 h ago"}) {
 		t.Errorf("Alice Martin row = %q", row)
 	}
-	if row := tableRow(t, r.stdout, "Dave Petit"); !slices.Equal(row, []string{"Dave Petit", "dave-gh", "1", "-", "-", "0/1", "1", "42 d ago"}) {
+	if row := tableRow(t, r.stdout, "Dave Petit"); !slices.Equal(row, []string{"Dave Petit", "dave-gh", "1", "20.0%", "-", "-", "0/1", "1", "42 d ago"}) {
 		t.Errorf("Dave Petit row = %q", row)
 	}
 
@@ -110,7 +110,7 @@ func TestContributors(t *testing.T) {
 	}
 	assertJSONKeys(t, r.stdout, "", "contributors")
 	assertJSONKeys(t, r.stdout, "contributors.0", "id", "name", "login", "display_name", "avatar_url", "commits",
-		"additions", "deletions", "repositories", "last_commit_at", "ai_signed_commits", "ai_scanned_commits", "ai_tools", "weekly")
+		"additions", "deletions", "repositories", "share", "last_commit_at", "ai_signed_commits", "ai_scanned_commits", "ai_tools", "weekly")
 
 	r = h.run("contributors", "--since", "30d", "--json").mustSucceed(t)
 	decodeStrict(t, r.stdout, &rep)

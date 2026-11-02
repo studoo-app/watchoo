@@ -1,6 +1,6 @@
 package sync_test
 
-// AI signatures (1.1.0): every sync analyzes the waiting commits, without any request to the forge.
+// AI signatures (1.2.0): every sync analyzes the waiting commits, without any request to the forge.
 
 import (
 	"strings"

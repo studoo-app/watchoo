@@ -1,6 +1,6 @@
 package web
 
-// AI signatures (1.1.0): badge on the commits, totals on the contributors pages, the same wording
+// AI signatures (1.2.0): badge on the commits, totals on the contributors pages, the same wording
 // everywhere ("declared", never "written by").
 
 import (

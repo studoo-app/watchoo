@@ -149,3 +149,9 @@ func Sparkline(counts []int, unicode bool) string {
 	}
 	return string(out)
 }
+
+// PercentText écrit une part en pour mille avec une décimale, dans la langue du processus : 624 donne
+// « 62.4% » (« 62,4 % » en français).
+func PercentText(permille int) string {
+	return i18n.T("activity.fmt.percent_tenths", permille/10, permille%10)
+}

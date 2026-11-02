@@ -72,7 +72,7 @@ watchoo/
   internal/repoimport/ parsing of repository references, of --branch and of import files
   internal/configshare/ sharing of a workspace's configuration (JSON export, validation, preview and
                        application of an import; "watchoo config", Settings page)
-  internal/aisignature/ AI signatures declared in the commits (1.1.0): catalog and detection, pure functions
+  internal/aisignature/ AI signatures declared in the commits (1.2.0): catalog and detection, pure functions
   internal/textclean/  cleaning of displayed texts (escape sequences, control characters), CLI and TUI
   internal/selfupdate/ Watchoo's own self-update (0.6.0): latest published release, SemVer
                        comparison, verified download and replacement of the binary, periodic
@@ -346,10 +346,12 @@ Fakes for the tests: `providertest` (in-memory Provider), `githubtest` (simulate
   `store.BackfillProfileURLs` in one transaction. Only these rows are read (negligible cost after the
   first pass); a known address is never replaced. A failure is logged (without login) and never fails the
   sync.
+- **Languages** (1.1.0): after the line statistics, see
+  [Languages of a repository](#languages-of-a-repository-110).
 - **Commit without a date**: a commit with neither an author date nor a commit date is ignored (counted in
   a log); a single missing date is filled in with the other.
 - **Writes**: everything a repository sync writes (metadata, branches, commits, statistics of the commits,
-  contributors, `commit_branches`, `last_commit_at`, pull requests, releases, tags, end of the `sync_run`)
+  contributors, `commit_branches`, `last_commit_at`, pull requests, releases, tags, languages, end of the `sync_run`)
   is written in **one transaction**.
 - **Empty repository** (a student's repository just created, to which GitHub answers `409`): empty
   branches and commits, with no error.
@@ -633,14 +635,14 @@ In place since phase 6 ([Roadmap](07-roadmap.md#phase-6--v2)).
   email only (two emails of the same person make two contributors as long as a sync through the API has
   not linked them to a same account).
 
-### AI signatures (1.1.0)
+### AI signatures (1.2.0)
 
 Rules on the [Features](02-features.md#ai-signatures) page. Everything is in `internal/aisignature` (catalog,
 `Detect`, pure functions); `internal/sync` runs it, `cli`, `tui` and `web` only display.
 
 - **When**: at the end of each successful sync of a repository, after the commits and their authors are
   written (`ApplyRepoSync`), the commits whose `commits.ai_rules_version` is below
-  `aisignature.RulesVersion` are analyzed, 2,000 at a time. A database from before 1.1.0 is therefore
+  `aisignature.RulesVersion` are analyzed, 2,000 at a time. A database from before 1.2.0 is therefore
   analyzed at the next sync.
 - **Cost**: **no request to the forge**, with or without `gh`: the message and the author are already in the
   database. Incremental rule respected: nothing is downloaded again.
@@ -742,6 +744,23 @@ display.
   cleaned of escape sequences before display; no email is displayed. During the TUI, the logs of the
   engine are muted (they would break the screen).
 - Code in `internal/tui/`.
+
+### Languages of a repository (1.1.0)
+
+- **Source**: the local Git clone only (`git ls-tree -r -l -z` on the default branch of the remote), with
+  or without `gh`, with no request and no quota. The GitHub API (`/languages`) is deliberately not used:
+  it gives nothing for a repository tracked without `gh`, and mixing two calculations would make the
+  percentages change depending on the source of the sync.
+- **Detection**: by file name and extension, with a table in `internal/provider/git/languages.go` (no
+  dependency). Like GitHub, it counts the languages of programming and markup, in bytes; data and prose
+  (JSON, YAML, Markdown…) and unknown extensions are ignored. SQL is counted, unlike GitHub.
+- **Excluded**: symbolic links and submodules; the directories `node_modules`, `vendor`,
+  `bower_components`, `dist`, `build`, `target`, `__pycache__`, `.venv`, `venv`, `.idea`, `.vscode`,
+  `.gradle`, `.next`, `.nuxt`, wherever they are; the `*.min.js` and `*.min.css` files; lockfiles.
+- **Limit**: the figures are close to those of GitHub, not identical (no analysis of the content, no
+  `.gitattributes`).
+- **Failure**: a clone that cannot be read gives a warning and does not fail the repository; the
+  languages already in the database are kept. An empty repository has no language.
 
 ### Languages and translations
 - **Decision**: the interface (CLI, TUI, web) is bilingual, in **English by default** and in **French**.

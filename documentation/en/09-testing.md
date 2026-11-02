@@ -152,6 +152,9 @@ Two fakes, written in phase 2 and reused by the following phases:
   empty addresses of the forge contributors with a login are completed, known addresses kept, second
   pass without effect); sync (address cleared as before 0.5.0, completed without a new commit by the
   API then by the local Git clones, no login in the logs).
+- **Languages** (1.1.0): classification and exclusions, `Languages` against `gittest` repositories (empty
+  repository, symbolic link, cancellation); store (replacement, keeping when not read again, percentages);
+  engine (with and without `gh`, unreadable clone); CLI, web page and TUI detail.
 - **Pull requests, releases and tags** (V2): GitHub provider against `githubtest` (conversion, order,
   pagination and caps of 1,000, early stop `UpdatedSince` on a single page, `Limit`, free `304`s,
   empty repository, `409`, unusable response, `5xx`, `404`, invalid arguments without a request;
@@ -430,12 +433,12 @@ No test reaches GitHub: the root of the releases is that of a fake `httptest` se
   a very narrow terminal, escape sequences cleaned); nothing when Watchoo is up to date, on error,
   when quitting before the answer or without a function (check disabled).
 
-## AI signatures (1.1.0)
+## AI signatures (1.2.0)
 
 - `internal/aisignature`: each signature of the catalog, case ignored, several tools, one signature per
   kind; **false positives that stay silent**: a person named Claude, tool names in free text, a signature in
   the subject, indented lines, a footer inside a sentence, Dependabot, another no-reply account.
-- Store: migration `00007` (commit from before the migration waiting, constraints, rollback), scan and rewrite,
+- Store: migration `00008` (commit from before the migration waiting, constraints, rollback), scan and rewrite,
   a new rules version analyzes again, cascade on deletion, totals (a commit with two tools counts once,
   filters applied).
 - Engine: signatures after a sync (co-author, agent account, none), new analysis by a sync without any new

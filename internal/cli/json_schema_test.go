@@ -36,6 +36,7 @@ var jsonTopLevelKeys = map[string][]string{
 	"contributors": {"contributors"},
 	"prs":          {"pull_requests"},
 	"releases":     {"releases", "tags"},
+	"languages":    {"languages"},
 	"status": {"workspace", "github", "source", "rate_limit", "rate_limit_error", "quota_low", "repositories", "errors",
 		"last_synced_at", "tracked_branches"},
 	"config export": {"format", "version", "exported_at", "watchoo_version", "workspace", "settings", "repositories"},
@@ -87,6 +88,7 @@ func TestJSONSchemaAllCommands(t *testing.T) {
 	outputs["contributors"] = h.run("contributors", "--json").mustSucceed(t).stdout
 	outputs["prs"] = h.run("prs", "--json").mustSucceed(t).stdout
 	outputs["releases"] = h.run("releases", "--json").mustSucceed(t).stdout
+	outputs["languages"] = h.run("languages", "--json").mustSucceed(t).stdout
 	outputs["status"] = h.run("status", "--json").mustSucceed(t).stdout
 	outputs["repo remove"] = h.run("repo", "remove", "dave/projet", "--yes", "--json").mustSucceed(t).stdout
 	outputs["config export"] = h.run("config", "export", "--json").mustSucceed(t).stdout
@@ -128,7 +130,7 @@ func TestJSONSchemaAllCommands(t *testing.T) {
 
 // contributorKeys are the keys of an item of "contributors" (05-cli.md, JSON output).
 var contributorKeys = []string{"id", "name", "login", "display_name", "avatar_url", "commits", "additions",
-	"deletions", "repositories", "last_commit_at", "ai_signed_commits", "ai_scanned_commits", "ai_tools", "weekly"}
+	"deletions", "repositories", "share", "last_commit_at", "ai_signed_commits", "ai_scanned_commits", "ai_tools", "weekly"}
 
 // The contract is documented: the "JSON output" table of documentation/en/05-cli.md and the "Sortie
 // JSON" table of its French mirror list, for each command, the same top-level keys as jsonTopLevelKeys.
@@ -248,6 +250,7 @@ func TestJSONSchemaEmptyWorkspace(t *testing.T) {
 		{[]string{"contributors"}, `"contributors": []`},
 		{[]string{"prs"}, `"pull_requests": []`},
 		{[]string{"releases"}, `"tags": []`},
+		{[]string{"languages"}, `"languages": []`},
 		{[]string{"sync"}, `"repositories": []`},
 		{[]string{"status"}, `"errors": []`},
 	} {

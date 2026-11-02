@@ -151,6 +151,9 @@ Deux faux, écrits en phase 2 et réutilisés par les phases suivantes :
   adresses vides des contributeurs de la forge avec login sont complétées, adresses connues gardées,
   second passage sans effet) ; synchro (adresse vidée comme avant la 0.5.0, complétée sans nouveau
   commit par l'API puis par les clones Git locaux, aucun login dans les logs).
+- **Langages** (1.1.0) : classement et exclusions, `Languages` contre des dépôts `gittest` (dépôt vide, lien
+  symbolique, annulation) ; store (remplacement, conservation sans nouvelle lecture, pourcentages) ; moteur
+  (avec et sans `gh`, clone illisible) ; CLI, page web et détail du TUI.
 - **Pull requests, releases et tags** (V2) : provider GitHub contre `githubtest` (conversion, ordre,
   pagination et plafonds de 1 000, arrêt anticipé `UpdatedSince` sur une seule page, `Limit`, `304`
   gratuits, dépôt vide, `409`, réponse inexploitable, `5xx`, `404`, arguments invalides sans requête ;
@@ -426,13 +429,13 @@ Aucun test ne joint GitHub : la racine des releases est celle d'un faux serveur 
   coupe sur un terminal très étroit, séquences d'échappement nettoyées) ; rien quand Watchoo est à jour,
   en cas d'erreur, si l'on quitte avant la réponse ou sans fonction (vérification coupée).
 
-## Signatures d'IA (1.1.0)
+## Signatures d'IA (1.2.0)
 
 - `internal/aisignature` : chaque signature du catalogue, sans casse, plusieurs outils, une signature par type ;
   **faux positifs qui restent muets** : une personne appelée Claude, noms d'outils dans un texte libre,
   signature dans le sujet, lignes en retrait, pied de message dans une phrase, Dependabot, autre compte sans
   réponse.
-- Store : migration `00007` (commit d'avant la migration en attente, contraintes, retour arrière), analyse et
+- Store : migration `00008` (commit d'avant la migration en attente, contraintes, retour arrière), analyse et
   réécriture, nouvelle version des règles qui analyse de nouveau, cascade à la suppression, totaux (un commit à
   deux outils compte une fois, filtres appliqués).
 - Moteur : signatures après une synchro (co-auteur, compte d'agent, aucune), nouvelle analyse par une synchro sans

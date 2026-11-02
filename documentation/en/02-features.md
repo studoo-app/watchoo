@@ -62,6 +62,13 @@ an incompatible change requires a major version. **Released in v1.0.0**.
 
 | Feature | Detail |
 | --- | --- |
+| Languages of a repository | Languages of the default branch with their percentage (share of the bytes), computed at each sync from the local Git clone, with or without `gh` and without any quota: `watchoo languages`, "Languages" card of a repository's page, repository detail in the TUI. The figures are close to those of GitHub, not identical (see [Architecture](03-architecture.md#languages-of-a-repository-110)). **Released in v1.1.0** |
+| Share of the contributors | Share of the commits of each contributor as a percentage, in `watchoo contributors` (`share` key in JSON), on a repository's page and in the repository detail of the TUI. **Released in v1.1.0** |
+
+## 1.2.0
+
+| Feature | Detail |
+| --- | --- |
 | AI signatures | Tools declared in the commits (co-author, footer, agent account), per commit and per contributor, in `log`, `contributors`, the TUI and the web interface. See [AI signatures](#ai-signatures) |
 
 ## V3
@@ -117,7 +124,7 @@ an incompatible change requires a major version. **Released in v1.0.0**.
 
 ## AI signatures
 
-Since 1.1.0, Watchoo shows which AI tools are **declared** in the commits. It answers "is a tool
+Since 1.2.0, Watchoo shows which AI tools are **declared** in the commits. It answers "is a tool
 signed on this commit?", never "was this code written by AI?".
 
 - **What a signature says**: a tool is declared on the commit. It may have written only the message, it

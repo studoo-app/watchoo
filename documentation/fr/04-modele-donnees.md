@@ -6,8 +6,8 @@ Sept tables suffisent pour le MVP ; `commits` est la table centrale, reliée aux
 `commit_branches`) et aux contributeurs. La V2 en ajoute trois (migration `00003`) : `pull_requests`,
 `releases` et `tags`, soit **dix tables** ; la migration `00004` rend `repositories.provider_id`
 facultatif (dépôts suivis par clones Git locaux) ; la migration `00005` (0.5.0) ajoute
-`contributors.profile_url` et la migration `00006` (0.5.0) `commits.stats_known` ; la migration `00007` (1.1.0) ajoute `commits.ai_rules_version` et la table
-`commit_ai_signatures`, soit **onze tables**. Le stockage est un fichier SQLite versionné par des migrations
+`contributors.profile_url` et la migration `00006` (0.5.0) `commits.stats_known` ; la migration `00007` (1.1.0) ajoute `repository_languages` ; la migration `00008` (1.2.0)
+ajoute `commits.ai_rules_version` et la table `commit_ai_signatures`, soit **douze tables**. Le stockage est un fichier SQLite versionné par des migrations
 `goose`, avec **une base par espace de supervision** (`.watchoo/watchoo.db`, voir
 [Espaces de supervision](10-espaces-de-supervision.md)). Les tables ne connaissent donc pas la notion
 d'espace : deux espaces ne partagent jamais de données.
@@ -21,6 +21,7 @@ erDiagram
     repositories ||--o{ sync_runs : "journalise"
     repositories ||--o{ pull_requests : "reçoit"
     repositories ||--o{ releases : "publie"
+    repositories ||--o{ repository_languages : "est écrit en"
     repositories ||--o{ tags : "marque"
     commits ||--o{ commit_branches : "vu sur"
     commits ||--o{ commit_ai_signatures : "déclare"
@@ -125,7 +126,7 @@ soit le nombre de branches qui le contiennent.
 | deletions | Lignes supprimées (0 si inconnu) |
 | stats_known | `1` si `additions` et `deletions` ont été calculées (même à 0), `0` si elles sont encore inconnues. Ajoutée par la migration `00006` (0.5.0) |
 | url | Lien vers le commit sur la forge |
-| ai_rules_version | Version des règles de signatures d'IA avec laquelle le commit a été analysé ; `0` = pas encore analysé. Ajoutée par la migration `00007` (1.1.0) |
+| ai_rules_version | Version des règles de signatures d'IA avec laquelle le commit a été analysé ; `0` = pas encore analysé. Ajoutée par la migration `00008` (1.2.0) |
 
 - **Statistiques** (`additions`, `deletions`) : calculées dans le **clone Git local** du dépôt
   (`git diff-tree --numstat`, sans quota), avec ou sans `gh`, pour **tous** les commits, premier import
@@ -162,7 +163,7 @@ Clé primaire : **`(repo_id, sha, branch_id)`**. Clé étrangère `(repo_id, sha
 - Comptages et statistiques (contributeurs, graphiques) : sur `commits` seule, donc sans doublon.
 - Filtre par branche : jointure avec `commit_branches`.
 
-### `commit_ai_signatures` — signatures d'IA des commits (1.1.0)
+### `commit_ai_signatures` — signatures d'IA des commits (1.2.0)
 
 Une ligne par outil et par type de signature trouvés dans un commit (voir
 [Signatures d'IA](02-fonctionnalites.md#signatures-dia)). **L'absence de ligne n'est pas la preuve d'un
@@ -262,6 +263,20 @@ La forge ne donne pas de date pour un tag : l'affichage reprend la date du commi
 base (jointure sur `commits (repo_id, sha)`, sans clé étrangère : le commit peut être sur une branche
 non suivie).
 
+### `repository_languages` — langages d'un dépôt (1.1.0)
+
+Clé primaire : **`(repo_id, language)`**. La liste d'un dépôt est **remplacée** à chaque synchro qui a pu
+lire son clone Git local ; sinon, ce qui est en base est gardé.
+
+| Colonne | Description |
+| --- | --- |
+| repo_id | Dépôt |
+| language | Nom du langage (`Go`, `TypeScript`…), le même dans toutes les langues de l'interface |
+| bytes | Taille de ses fichiers sur la branche par défaut, en octets (au moins 1) |
+
+Les pourcentages ne sont pas stockés : ils sont calculés à l'affichage, à partir du total du dépôt. Voir
+[Langages d'un dépôt](03-architecture.md#langages-dun-dépôt-110).
+
 ## Index
 
 | Index | Usage |
@@ -273,7 +288,7 @@ non suivie).
 | `contributor_emails(contributor_id)` | Technique : clé étrangère souvent parcourue (e-mails d'un contributeur) |
 | `sync_runs(repo_id, started_at DESC)` | Technique : dernière synchro d'un dépôt |
 | `commits(repo_id, sha) WHERE stats_known = 0` | Index partiel : commits dont les lignes `+/-` restent à lire (migration `00006`) |
-| `commits(repo_id, ai_rules_version)` | Commits restant à analyser pour les signatures d'IA (migration `00007`) |
+| `commits(repo_id, ai_rules_version)` | Commits restant à analyser pour les signatures d'IA (migration `00008`) |
 
 ## Fusion des identités
 

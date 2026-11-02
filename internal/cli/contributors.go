@@ -29,8 +29,9 @@ type contributorJSON struct {
 	Additions    int        `json:"additions"`    // lignes ajoutées (statistiques connues seulement)
 	Deletions    int        `json:"deletions"`    // lignes supprimées
 	Repositories int        `json:"repositories"` // dépôts distincts
+	Share        float64    `json:"share"`        // part des commits du classement, en %, une décimale
 	LastCommitAt *time.Time `json:"last_commit_at"`
-	// Signatures d'IA (1.1.0) : commits signés, commits analysés, outils ; 0 n'est jamais une preuve de
+	// Signatures d'IA (1.2.0) : commits signés, commits analysés, outils ; 0 n'est jamais une preuve de
 	// travail sans IA.
 	AISignedCommits  int          `json:"ai_signed_commits"`
 	AIScannedCommits int          `json:"ai_scanned_commits"`
@@ -115,6 +116,10 @@ func runContributors(ctx context.Context, deps Deps, opts *options, repoRef, sin
 	if err != nil {
 		return err
 	}
+	var total int64
+	for _, c := range ranking {
+		total += int64(c.Commits)
+	}
 	if opts.json {
 		report := contributorsReport{Contributors: make([]contributorJSON, 0, len(ranking))}
 		for _, c := range ranking {
@@ -132,6 +137,7 @@ func runContributors(ctx context.Context, deps Deps, opts *options, repoRef, sin
 				Additions:        c.Additions,
 				Deletions:        c.Deletions,
 				Repositories:     c.Repos,
+				Share:            float64(model.Permille(int64(c.Commits), total)) / 10,
 				LastCommitAt:     timeJSON(c.LastCommitAt),
 				AISignedCommits:  c.AI.Signed,
 				AIScannedCommits: c.AI.Scanned,
@@ -168,6 +174,7 @@ func runContributors(ctx context.Context, deps Deps, opts *options, repoRef, sin
 			c.DisplayName(),
 			login,
 			fmt.Sprint(c.Commits),
+			activity.PercentText(model.Permille(int64(c.Commits), total)),
 			knownLines(c.KnownCommits > 0, "+", c.Additions),
 			knownLines(c.KnownCommits > 0, "-", c.Deletions),
 			aiTotalsText(c.AI),
@@ -175,7 +182,7 @@ func runContributors(ctx context.Context, deps Deps, opts *options, repoRef, sin
 			activity.Relative(c.LastCommitAt, now, s.loc, st.unicode()),
 		}
 	}
-	headers := []string{i18n.T("cli.sync.header_contributor"), "Login", "Commits",
+	headers := []string{i18n.T("cli.sync.header_contributor"), "Login", "Commits", i18n.T("cli.sync.header_share"),
 		i18n.T("cli.sync.header_additions"), i18n.T("cli.sync.header_deletions"), i18n.T("cli.sync.header_ai"),
 		st.pick(i18n.T("cli.sync.header_repos"), i18n.T("cli.sync.header_repos_ascii")),
 		i18n.T("cli.sync.header_last_commit")}

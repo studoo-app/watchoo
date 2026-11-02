@@ -91,7 +91,7 @@ type commitJSON struct {
 	Additions   int         `json:"additions"` // 0 si les statistiques sont inconnues
 	Deletions   int         `json:"deletions"`
 	StatsKnown  bool        `json:"stats_known"` // additions et deletions calculées (même à 0)
-	// AISignatures : signatures d'outils d'IA déclarées (1.1.0) ; [] n'est jamais une preuve de travail sans IA.
+	// AISignatures : signatures d'outils d'IA déclarées (1.2.0) ; [] n'est jamais une preuve de travail sans IA.
 	AISignatures []aiSignatureJSON `json:"ai_signatures"`
 	AIScanned    bool              `json:"ai_scanned"` // commit analysé ; false : ai_signatures ne dit encore rien
 }

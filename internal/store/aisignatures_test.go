@@ -1,6 +1,6 @@
 package store
 
-// Migration 00007 (1.1.0): commits.ai_rules_version and commit_ai_signatures, and their use.
+// Migration 00008 (1.2.0): commits.ai_rules_version and commit_ai_signatures, and their use.
 
 import (
 	"path/filepath"
@@ -24,8 +24,8 @@ func TestMigrationAISignatures(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := p.UpTo(ctx, 6); err != nil {
-		t.Fatalf("UpTo(6): %v", err)
+	if _, err := p.UpTo(ctx, 7); err != nil {
+		t.Fatalf("UpTo(7): %v", err)
 	}
 	repo := mustExec(t, s, `INSERT INTO repositories (provider, provider_id, owner, name) VALUES ('github', 1, 'promo', 'a')`)
 	mustExec(t, s, `INSERT INTO commits (repo_id, sha, message, authored_at, committed_at) VALUES (?, ?, 'x', ?, ?)`,
@@ -47,8 +47,8 @@ func TestMigrationAISignatures(t *testing.T) {
 	}
 
 	// Rollback: table, index and column removed, the commit kept.
-	if _, err := p.DownTo(ctx, 6); err != nil {
-		t.Fatalf("DownTo(6): %v", err)
+	if _, err := p.DownTo(ctx, 7); err != nil {
+		t.Fatalf("DownTo(7): %v", err)
 	}
 	if n := count(t, s, "SELECT count(*) FROM commits"); n != 1 {
 		t.Errorf("%d commits after the rollback", n)

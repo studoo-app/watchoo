@@ -115,7 +115,10 @@ type RepoSyncWrite struct {
 	// ReplaceTags et Tags : de même pour les tags.
 	ReplaceTags bool
 	Tags        []model.Tag
-	SyncedAt    time.Time // fin de la synchro : repositories.last_synced_at et sync_runs.finished_at
+	// ReplaceLanguages et Languages : de même pour les langages (clone lu ; RepoID ignoré).
+	ReplaceLanguages bool
+	Languages        []model.RepositoryLanguage
+	SyncedAt         time.Time // fin de la synchro : repositories.last_synced_at et sync_runs.finished_at
 }
 
 // RepoSyncResult est le résultat de ApplyRepoSync.
@@ -296,6 +299,16 @@ type TagView struct {
 	CommittedAt time.Time // date du commit visé ; zéro s'il n'est pas en base
 	CommitURL   string    // lien vers le commit visé ; vide s'il n'est pas en base
 }
+
+// LanguageView est une ligne de la vue des langages : le langage, son dépôt et le total de ce dépôt.
+type LanguageView struct {
+	model.RepositoryLanguage
+	RepoRef
+	TotalBytes int64 // somme des langages du dépôt
+}
+
+// Permille renvoie la part du langage dans son dépôt, en pour mille.
+func (v LanguageView) Permille() int { return model.Permille(v.Bytes, v.TotalBytes) }
 
 // Lines renvoie les totaux de lignes des commits du contributeur.
 func (p ContributorProfile) Lines() model.LineTotals {

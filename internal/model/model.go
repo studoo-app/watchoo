@@ -298,3 +298,18 @@ type Tag struct {
 	Name   string // nom du tag
 	SHA    string // SHA du commit visé
 }
+
+// RepositoryLanguage est un langage d'un dépôt, sur sa branche par défaut (1.1.0).
+type RepositoryLanguage struct {
+	RepoID   int64  // dépôt
+	Language string // nom du langage
+	Bytes    int64  // taille de ses fichiers, en octets (> 0)
+}
+
+// Permille renvoie part/total en pour mille, arrondi au plus proche (624 = 62,4 %) ; 0 si total <= 0.
+func Permille(part, total int64) int {
+	if total <= 0 {
+		return 0
+	}
+	return int((part*1000 + total/2) / total)
+}

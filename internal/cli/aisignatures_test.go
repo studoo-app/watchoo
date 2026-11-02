@@ -1,6 +1,6 @@
 package cli
 
-// AI signatures (1.1.0) in "watchoo log" and "watchoo contributors", in text and in JSON.
+// AI signatures (1.2.0) in "watchoo log" and "watchoo contributors", in text and in JSON.
 
 import (
 	"encoding/json"

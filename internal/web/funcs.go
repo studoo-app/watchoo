@@ -60,6 +60,7 @@ const maxFirstLine = 120
 //	profileURL s     s si c'est une adresse https:// (page de profil donnée par le provider), sinon « »
 //	interval d       « 30 min », « 1 h », "1 h 30 min" / « 1 h 30 », "manual only" / « manuelle seule » (0)
 //	percent a b      a*100/b arrondi, entre 0 et 100 (0 si b <= 0)
+//	div a b, mod a b quotient et reste entiers (b non nul)
 //	dict k1 v1 k2 v2…       map[string]any, pour passer plusieurs valeurs à un template
 //	withQuery path k1 v1…   path suivi de la query string encodée (url.Values) ; paires de valeur vide
 //	                 ou 0 omises : « /repos/3?author=a%26b&page=2 ». À utiliser pour TOUTE URL avec des
@@ -100,6 +101,8 @@ func (s *server) funcs(tr *i18n.Translator) template.FuncMap {
 		"profileURL":   profileURL,
 		"interval":     func(d time.Duration) string { return formatInterval(tr, d) },
 		"percent":      percent,
+		"div":          func(a, b int) int { return a / b },
+		"mod":          func(a, b int) int { return a % b },
 		"dict":         dict,
 		"withQuery":    withQuery,
 	}

@@ -113,6 +113,20 @@ func (e *Engine) syncRepository(ctx context.Context, prov provider.Provider, cl 
 	if statsWarning != "" {
 		x.warnings = append([]string{statsWarning}, x.warnings...)
 	}
+	// Clone déjà signalé indisponible : pas de seconde tentative ni de second avertissement.
+	var (
+		langs        []model.RepositoryLanguage
+		replaceLangs bool
+	)
+	if cl.stats != nil && statsWarning == "" {
+		var warning string
+		if langs, replaceLangs, warning, err = s.languages(ctx, cl); err != nil {
+			return repoOutcome{}, err
+		}
+		if warning != "" {
+			x.warnings = append(x.warnings, warning)
+		}
+	}
 
 	states := make([]store.BranchState, len(tracked))
 	for i, b := range tracked {
@@ -132,15 +146,17 @@ func (e *Engine) syncRepository(ctx context.Context, prov provider.Provider, cl 
 			OpenIssues:    meta.OpenIssues,
 			Archived:      meta.Archived,
 		},
-		Branches:        states,
-		Commits:         s.commits,
-		Stats:           statsWrites,
-		PullRequests:    x.pulls,
-		ReplaceReleases: x.replaceReleases,
-		Releases:        x.releases,
-		ReplaceTags:     x.replaceTags,
-		Tags:            x.tags,
-		SyncedAt:        e.now().UTC(),
+		Branches:         states,
+		Commits:          s.commits,
+		Stats:            statsWrites,
+		PullRequests:     x.pulls,
+		ReplaceReleases:  x.replaceReleases,
+		Releases:         x.releases,
+		ReplaceTags:      x.replaceTags,
+		Tags:             x.tags,
+		ReplaceLanguages: replaceLangs,
+		Languages:        langs,
+		SyncedAt:         e.now().UTC(),
 	})
 	if err != nil {
 		return repoOutcome{}, err

@@ -87,7 +87,7 @@ repository (dashboard card, header and contributors of the repository page) and 
 queries): they sum the known commits and add "(including N commits not counted)" when part of the commits does not have them yet; "—" if none has them. Shared `line-totals`
 template.
 
-### AI signatures (1.1.0)
+### AI signatures (1.2.0)
 
 Everywhere a commit is listed (dashboard feed, history of a repository, commits of a contributor), a badge
 "AI: Claude" names each tool declared on it; **nothing** without a signature (shared `commit-ai` template).
@@ -151,7 +151,7 @@ this figure, no address displayed. Rules: [AI signatures](02-features.md#ai-sign
   extracts the data with `DOMParser` (which executes nothing) and redraws.
 - List of the repository's contributors (avatar or initial, name linked to the contributor page,
   secondary link to their GitHub profile, last commit, their lines added / removed in this
-  repository).
+  repository, their share of the commits of the repository as a percentage, 1.1.0).
 - **Per-contributor activity over 12 weeks** (V2): the chart of the contributors page (stacked bars of
   commits per week, the 8 most active contributors of the period, the others grouped, collapsible
   "Chart data" table), restricted to the commits of the repository: all the
@@ -160,6 +160,11 @@ this figure, no address displayed. Rules: [AI signatures](02-features.md#ai-sign
   says so ("No commit by a known author since …") and so
   does the table; the chart fills in at the end of a sync, without reloading the page. See
   [Activity charts](#activity-charts).
+- **Languages** (1.1.0, `repo-languages` fragment): languages of the default branch, from the largest to
+  the smallest, each with a progress bar and its share of the bytes (one decimal). Computed from the local
+  Git clone, hence the same with or without `gh`; a note recalls that the figures can differ slightly from
+  those of GitHub. Without data: the card says that they appear after the next sync. See
+  [Architecture](03-architecture.md#languages-of-a-repository-110).
 - **Pull requests, releases and tags** (V2, `repo-pulls` fragment): two cards side by side (one below
   the other on a narrow screen).
   - **Pull requests**: all the open PRs (drafts marked), then the 10 last merged; for each, number and
@@ -180,8 +185,8 @@ this figure, no address displayed. Rules: [AI signatures](02-features.md#ai-sign
     keeps its latest values.
 - Button **"Sync this repository"** (absent if tracking is stopped).
 - Fragments: `/repos/{id}/commits` (history); `/repos/{id}` with the `HX-Target` header
-  `repo-overview`, `repo-contributors` or `repo-pulls` returns the header, the contributors or the
-  pull requests and releases alone. All of them reload at the end of a sync.
+  `repo-overview`, `repo-contributors`, `repo-languages` or `repo-pulls` returns the header, the
+  contributors, the languages or the pull requests and releases alone. All of them reload at the end of a sync.
 
 ### 3. Contributors
 - Global ranking (commits, share of the total, lines added / removed; "—" if none of their commits has

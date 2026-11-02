@@ -18,7 +18,24 @@ PATCH (see [Skills](documentation/en/11-skills.md#versions-and-changelogmd)).
   sync, without any request to the forge.
 - **`--json`**: `ai_signatures` and `ai_scanned` on commits; `ai_signed_commits`, `ai_scanned_commits` and
   `ai_tools` on `contributors`.
-- **Database**: migration `00007` (`commits.ai_rules_version`, table `commit_ai_signatures`).
+- **Database**: migration `00008` (`commits.ai_rules_version`, table `commit_ai_signatures`).
+
+## [1.1.0] - 2026-11-02
+
+Languages and share of the contributors for each tracked repository. No incompatible change: the
+database is migrated at the first command, and the languages of a repository appear at its next sync.
+
+### Added
+
+- **Languages of a repository**: languages of the default branch with their percentage (share of the
+  bytes), computed at each sync from the local Git clone, with or without `gh` and without any quota.
+  New `watchoo languages [--repo X]` command (text and `--json`), "Languages" card on a repository's
+  page, "Languages" line in the repository detail of the TUI. Dependencies, generated files, lockfiles,
+  data and prose are ignored; the figures are close to those of GitHub, not identical.
+- **Share of the contributors**: share of the commits of each contributor as a percentage, in
+  `watchoo contributors` (SHARE column, `share` key in JSON), on a repository's page and in the
+  repository detail of the TUI.
+- **Database**: `repository_languages` table (migration `00007`).
 
 ## [1.0.0] - 2026-11-01
 
@@ -335,7 +352,8 @@ First published release: the MVP (phases 1 to 5 of the [roadmap](documentation/e
   `gh` is the official binary verified by SHA-256; base images and GitHub actions pinned by
   digest.
 
-[Unreleased]: https://github.com/studoo-app/watchoo/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/studoo-app/watchoo/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/studoo-app/watchoo/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/studoo-app/watchoo/compare/v0.7.0...v1.0.0
 [0.7.0]: https://github.com/studoo-app/watchoo/compare/v0.6.2...v0.7.0
 [0.6.2]: https://github.com/studoo-app/watchoo/compare/v0.6.1...v0.6.2

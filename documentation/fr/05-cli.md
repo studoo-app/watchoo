@@ -45,6 +45,7 @@ refait à chaque synchro (voir [Architecture](03-architecture.md#authentificatio
 | `watchoo contributors [--repo X] [--since 30d \| --weeks 12]` | Classement des contributeurs ; avec `--weeks`, leurs commits semaine par semaine | MVP (`--weeks` : V2) |
 | `watchoo prs [--repo X] [--state open\|merged\|closed\|all] [-n 20]` | Pull requests des dépôts suivis, de la plus récemment modifiée à la plus ancienne | V2 |
 | `watchoo releases [--repo X] [-n 20]` | Releases des dépôts suivis, puis leurs tags (`-n` ou `--limit`) | V2 |
+| `watchoo languages [--repo X]` | Langages des dépôts suivis, avec leur pourcentage | 1.1.0 |
 | `watchoo status` | Résumé : dépôts à jour, inactifs, en erreur, source des synchros (API GitHub ou clones Git locaux), quota API restant, compte `gh` utilisé et ses droits (sans afficher le token) | MVP (source : V2) |
 | `watchoo serve [--addr 127.0.0.1:8080] [--interval 30m]` | Lance l'interface web et la synchro périodique (30 min par défaut, 15 min minimum) | MVP |
 | `watchoo tui [--interval 30m]` | Ouvre le mode interactif dans le terminal | MVP |
@@ -93,9 +94,9 @@ refait à chaque synchro (voir [Architecture](03-architecture.md#authentificatio
   (minutes), par exemple `7d`, `30d`, `12h`.
 - **`log`** affiche, pour chaque commit, la date, le dépôt, l'auteur, le SHA court, ses lignes (colonne
   `+/-` : « +12/-3 », « +0/-0 » pour un commit réellement sans ligne, « - » si elles sont encore
-  inconnues ; 0.5.0), les outils d'IA signés dessus (colonne IA, « - » si aucun ; 1.1.0, voir
+  inconnues ; 0.5.0), les outils d'IA signés dessus (colonne IA, « - » si aucun ; 1.2.0, voir
   [Signatures d'IA](02-fonctionnalites.md#signatures-dia)) et la première ligne du message.
-- **Signatures d'IA dans le TUI** (1.1.0) : une ligne dans le détail d'un contributeur, « 3/120 (Claude 2,
+- **Signatures d'IA dans le TUI** (1.2.0) : une ligne dans le détail d'un contributeur, « 3/120 (Claude 2,
   Cursor 1) », seulement si une signature existe.
 - **Lignes `+/-` dans le TUI** (0.5.0) : par commit, « +12/-3 », « +0/-0 » ou « - » (inconnues) ; les
   totaux (contributeur, dépôt) additionnent les commits connus et ajoutent « (N non comptés) » quand une
@@ -107,7 +108,7 @@ refait à chaque synchro (voir [Architecture](03-architecture.md#authentificatio
 - **`log --branch`** montre les commits **vus sur cette branche** pendant les synchros : ceux qu'elle
   partage avec la branche de référence (souvent `main`) n'y sont rattachés que s'ils ont été vus en la
   comparant (voir [Architecture](03-architecture.md#synchronisation-incrémentale)).
-- **Colonne IA de `contributors`** (1.1.0) : commits signés / commits analysés (« 3/120 »), « - » si aucun
+- **Colonne IA de `contributors`** (1.2.0) : commits signés / commits analysés (« 3/120 »), « - » si aucun
   n'est encore analysé. Une ligne sous le tableau rappelle, dès qu'une signature est affichée, que son
   absence ne prouve rien.
 - **`contributors`** classe les **auteurs** de commits par nombre de commits. Les lignes ajoutées et
@@ -133,6 +134,14 @@ refait à chaque synchro (voir [Architecture](03-architecture.md#authentificatio
   commit s'il est en base, sinon `-`), du commit le plus récent au plus ancien. `-n` limite chaque
   tableau (20 par défaut, `0` = tout). Les brouillons ne sont visibles que si le compte `gh` a le droit
   d'écriture sur le dépôt (règle de GitHub).
+- **`languages`** (1.1.0) affiche, par dépôt, ses langages du plus gros au plus petit : nom, part des octets
+  (une décimale) et taille, sur la branche par défaut. Ils sont calculés à chaque synchro depuis le clone Git
+  local (voir [Architecture](03-architecture.md#langages-dun-dépôt-110)) : un dépôt n'en a aucun avant sa
+  prochaine synchro. Le TUI les donne dans le détail d'un dépôt.
+- **Part des commits** (1.1.0) : `contributors` donne la part de chaque contributeur (colonne PART ; `share`
+  en JSON), par rapport aux commits du classement : avec `--repo`, ceux du dépôt ; avec `--since` ou
+  `--weeks`, ceux de la période. Un commit sans auteur connu ne compte pas. Le tableau de `--weeks` n'a pas
+  cette colonne, le JSON si. Le TUI donne cette part dans le détail d'un dépôt.
 - **`status`** : compte `gh` et ses droits, **source** des synchros (V2 : « Source : API GitHub (gh
   connecté) » ou « Source : clones Git locaux », avec le rappel de `gh auth login`), quota restant
   (lecture gratuite ; « sans objet » avec les clones Git locaux), dépôts par état, dépôts en erreur,
@@ -255,9 +264,10 @@ Clés de premier niveau (la liste est vérifiée par un test, `internal/cli/json
 | `watchoo repo remove` | `action`, `repository`, `deleted_commits` | `action` : `deleted`, `stopped` ou `already_stopped` |
 | `watchoo sync` | `started_at`, `finished_at`, `summary`, `repositories`, `rate_limit`, `source` | `source` : `api`, `git` (clones Git locaux, V2 ; `rate_limit` est alors `null`) ou `""` si la synchro n'a pas commencé ; `summary` : `repositories`, `success`, `error`, `locked`, `deferred`, `new_commits` ; chaque dépôt : `id`, `full_name`, `display_name`, `status` (`success`, `error`, `locked` : déjà en cours de synchro, `ignoré` en texte ; `deferred` : quota bas ; `success` est `ok` en texte), `new_commits`, `tracked_branches`, `stats_fetched`, `duration_ms`, `error`, `resume_at`, `warnings` (messages en français : pull requests, releases ou tags non synchronisés, ou clone Git local indisponible avec `gh`, alors que le dépôt a réussi ; `[]` sinon) ; `stats_fetched` : statistiques de commits calculées dans le clone, ou demandées à l'API en repli |
 | `watchoo log` | `commits` | Du plus récent au plus ancien ; objets commit |
-| `watchoo contributors` | `contributors` | Chaque élément : `id`, `name`, `login`, `display_name`, `avatar_url`, `commits`, `additions`, `deletions`, `repositories`, `last_commit_at`, `ai_signed_commits`, `ai_scanned_commits`, `ai_tools` (1.1.0 : commits avec une signature, commits analysés, chaque outil avec `tool` et `commits` ; `0` n'est pas la preuve d'un travail sans IA), `weekly` (avec `--weeks N` : N objets `week` (lundi, `AAAA-MM-JJ`, fuseau d'affichage) et `count`, du plus ancien au plus récent ; `[]` sans `--weeks`) |
+| `watchoo contributors` | `contributors` | Chaque élément : `id`, `name`, `login`, `display_name`, `avatar_url`, `commits`, `additions`, `deletions`, `repositories`, `share` (1.1.0 : part des commits du classement, en pourcentage avec une décimale), `last_commit_at`, `ai_signed_commits`, `ai_scanned_commits`, `ai_tools` (1.2.0 : commits avec une signature, commits analysés, chaque outil avec `tool` et `commits` ; `0` n'est pas la preuve d'un travail sans IA), `weekly` (avec `--weeks N` : N objets `week` (lundi, `AAAA-MM-JJ`, fuseau d'affichage) et `count`, du plus ancien au plus récent ; `[]` sans `--weeks`) |
 | `watchoo prs` | `pull_requests` | De la plus récemment modifiée à la plus ancienne ; objets pull request |
 | `watchoo releases` | `releases`, `tags` | Objets release (du plus récent au plus ancien) et tag ; `-n` limite chaque liste |
+| `watchoo languages` | `languages` | D'un dépôt au suivant, plus gros langage d'abord. Chaque élément : `repository`, `name`, `bytes`, `percent` (part du dépôt, une décimale) |
 | `watchoo status` | `workspace`, `github`, `source`, `rate_limit`, `rate_limit_error`, `quota_low`, `repositories`, `errors`, `last_synced_at`, `tracked_branches` | `workspace` : `name`, `root` ; `github` : `ok`, `host`, `login`, `token_source`, `scopes`, `error` ; `source` (V2) : `kind` (`api`, `git`, ou `""` si `gh` est en panne) et `reason` (pourquoi les clones Git locaux, ou l'erreur de `gh`) ; `repositories` : `total`, `active`, `flemme`, `dead`, `error`, `never_synced`, `archived`, `empty`, `stopped` ; chaque erreur : `repo`, `message` |
 | `watchoo update` | `current`, `latest`, `update_available`, `release_url` | Seulement avec `--check` (voir [Mise à jour](#mise-à-jour--watchoo-update)) ; `watchoo update --json` sans `--check` est refusé |
 | `watchoo config export` | `format`, `version`, `exported_at`, `watchoo_version`, `workspace`, `settings`, `repositories` | Le document de partage lui-même (voir [Partage de la configuration](#partage-de-la-configuration--watchoo-config)), avec ou sans `--json` ; avec `-o`, il va dans le fichier et la sortie standard ne reçoit qu'une ligne de confirmation en texte (rien avec `--json`) |
@@ -272,7 +282,7 @@ Objets partagés :
 - **commit** : `repository` (`id`, `full_name`, `display_name`), `sha`, `short_sha`, `message`, `url`,
   `author` (`name`, `login`, `display_name`), `authored_at`, `committed_at`, `additions`, `deletions`,
   `stats_known` (0.5.0 : `true` si `additions` et `deletions` ont été calculées, même à 0 ; `false` si
-  elles sont encore inconnues, `additions` et `deletions` valant alors 0), `ai_signatures` (1.1.0 : `tool` et
+  elles sont encore inconnues, `additions` et `deletions` valant alors 0), `ai_signatures` (1.2.0 : `tool` et
   `kind` de chaque signature, `[]` si aucune) et `ai_scanned` (`false` : pas encore analysé, `ai_signatures`
   ne dit encore rien) ;
 - **activité** : `state` (`active`, `flemme`, `dead`, `stopped`, `error`, `never_synced`, `archived`,

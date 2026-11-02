@@ -1,4 +1,4 @@
--- Signatures d'outils d'IA declarees dans les commits (1.1.0) : une ligne par outil et par type de
+-- Signatures d'outils d'IA declarees dans les commits (1.2.0) : une ligne par outil et par type de
 -- signature ; aucune ligne = aucune signature, jamais une preuve de travail sans IA. ai_rules_version
 -- est la version des regles (internal/aisignature) avec laquelle le commit a ete analyse ; 0 = pas encore
 -- analyse. La synchro reprend les commits dont la version est inferieure a la version courante, sans

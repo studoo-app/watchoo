@@ -11,7 +11,8 @@ page par contributeur publiée en **v0.5.0** ; mise à jour de Watchoo (`watchoo
 **v0.6.0** ; ajout d'un dépôt depuis le TUI et lien de profil corrigé en **v0.6.1** ; avis de nouvelle version
 corrigé (`watchoo` seul, TUI) en **v0.6.2** ; l'interface bilingue est publiée en **v0.7.0** ([0.7.0](#070--interface-bilingue)) ; après une
 semaine de plus d'usage réel, la surface publique est stabilisée et publiée en **v1.0.0**
-([1.0.0](#100--stabilisation)).
+([1.0.0](#100--stabilisation)) ; les langages et la part des contributeurs sont publiés en **v1.1.0**
+([1.1.0](#110--langages-et-part-des-contributeurs)).
 
 ```mermaid
 flowchart LR
@@ -133,7 +134,14 @@ L'import d'une organisation entière et les alertes passent en V3 (voir
   [Skills](11-skills.md#versions-et-changelogmd)). La V3 ([Fonctionnalités](02-fonctionnalites.md#v3))
   arrive en versions MINOR.
 
-### 1.1.0 : signatures d'IA
+### 1.1.0 : langages et part des contributeurs
+- Langages de chaque dépôt avec leur pourcentage (table `repository_languages`, migration `00007`,
+  `git ls-tree` dans le clone local, `watchoo languages`, carte de la page d'un dépôt, détail du TUI) :
+  **en place**.
+- Part des commits de chaque contributeur dans `watchoo contributors`, sur la page d'un dépôt et dans le
+  détail du TUI : **en place**.
+
+### 1.2.0 : signatures d'IA
 - Signatures d'outils d'IA déclarées dans les commits, par commit et par contributeur (CLI, TUI, web,
   `--json`), analysées sans aucune requête à la forge : **en place**, à publier. Voir
   [Signatures d'IA](02-fonctionnalites.md#signatures-dia). Les indices de style ou de rythme sont

@@ -72,7 +72,7 @@ watchoo/
   internal/repoimport/ analyse des références de dépôts, de --branch et des fichiers d'import
   internal/configshare/ partage de la configuration d'un espace (export JSON, validation, aperçu et
                        application d'un import ; « watchoo config », page Réglages)
-  internal/aisignature/ signatures d'IA déclarées dans les commits (1.1.0) : catalogue et détection, fonctions pures
+  internal/aisignature/ signatures d'IA déclarées dans les commits (1.2.0) : catalogue et détection, fonctions pures
   internal/textclean/  nettoyage des textes affichés (séquences d'échappement, contrôles), CLI et TUI
   internal/selfupdate/ mise à jour de Watchoo lui-même (0.6.0) : dernière version publiée, comparaison
                        SemVer, téléchargement vérifié et remplacement du binaire, vérification
@@ -344,10 +344,12 @@ Faux pour les tests : `providertest` (Provider en mémoire), `githubtest` (serve
   et l'adresse vide : `Provider.ProfileURL(login)`, écrit par `store.BackfillProfileURLs` en une
   transaction. Seules ces lignes sont lues (coût négligeable après le premier passage) ; une adresse
   connue n'est jamais remplacée. Un échec est journalisé (sans login) et n'échoue jamais la synchro.
+- **Langages** (1.1.0) : après les statistiques de lignes, voir
+  [Langages d'un dépôt](#langages-dun-dépôt-110).
 - **Commit sans date** : un commit sans date d'écriture ni de commit est ignoré (compté dans un log) ; une
   seule date manquante est complétée par l'autre.
 - **Écriture** : tout ce qu'une synchro de dépôt écrit (métadonnées, branches, commits, statistiques des
-  commits, contributeurs, `commit_branches`, `last_commit_at`, pull requests, releases, tags, fin du
+  commits, contributeurs, `commit_branches`, `last_commit_at`, pull requests, releases, tags, langages, fin du
   `sync_run`) l'est dans
   **une transaction**.
 - **Dépôt vide** (dépôt d'étudiant tout juste créé, auquel GitHub répond `409`) : branches et commits
@@ -633,7 +635,7 @@ En place depuis la phase 6 ([Roadmap](07-roadmap.md#phase-6--v2)).
   rattachés que par e-mail (deux e-mails d'une même personne font deux contributeurs tant qu'une synchro
   par l'API ne les a pas reliés à un même compte).
 
-### Signatures d'IA (1.1.0)
+### Signatures d'IA (1.2.0)
 
 Règles dans la page [Fonctionnalités](02-fonctionnalites.md#signatures-dia). Tout est dans
 `internal/aisignature` (catalogue, `Detect`, fonctions pures) ; `internal/sync` le lance, `cli`, `tui` et
@@ -641,7 +643,7 @@ Règles dans la page [Fonctionnalités](02-fonctionnalites.md#signatures-dia). T
 
 - **Quand** : à la fin de chaque synchro réussie d'un dépôt, une fois les commits et leurs auteurs écrits
   (`ApplyRepoSync`), les commits dont `commits.ai_rules_version` est inférieure à
-  `aisignature.RulesVersion` sont analysés, 2 000 à la fois. Une base d'avant la 1.1.0 est donc analysée à la
+  `aisignature.RulesVersion` sont analysés, 2 000 à la fois. Une base d'avant la 1.2.0 est donc analysée à la
   synchro suivante.
 - **Coût** : **aucune requête à la forge**, avec ou sans `gh` : le message et l'auteur sont déjà en base.
   La règle de l'incrémental est respectée : rien n'est re-téléchargé.
@@ -747,6 +749,24 @@ font qu'afficher.
   nettoyés des séquences d'échappement avant affichage ; aucun e-mail n'est affiché. Pendant le TUI, les
   logs du moteur sont coupés (ils casseraient l'écran).
 - Code dans `internal/tui/`.
+
+### Langages d'un dépôt (1.1.0)
+
+- **Source** : le clone Git local seulement (`git ls-tree -r -l -z` sur la branche par défaut du distant),
+  avec ou sans `gh`, sans requête ni quota. L'API GitHub (`/languages`) n'est volontairement pas utilisée :
+  elle ne donne rien pour un dépôt suivi sans `gh`, et mélanger deux calculs ferait varier les
+  pourcentages selon la source de la synchro.
+- **Détection** : par nom de fichier et extension, avec une table dans
+  `internal/provider/git/languages.go` (aucune dépendance). Comme GitHub, elle compte les langages de
+  programmation et de balisage, en octets ; les données et la prose (JSON, YAML, Markdown…) et les
+  extensions inconnues sont ignorées. Le SQL est compté, contrairement à GitHub.
+- **Exclus** : liens symboliques et sous-modules ; les répertoires `node_modules`, `vendor`,
+  `bower_components`, `dist`, `build`, `target`, `__pycache__`, `.venv`, `venv`, `.idea`, `.vscode`,
+  `.gradle`, `.next`, `.nuxt`, où qu'ils soient ; les fichiers `*.min.js` et `*.min.css` ; les lockfiles.
+- **Limite** : les chiffres sont proches de ceux de GitHub, sans être identiques (pas d'analyse du
+  contenu, pas de `.gitattributes`).
+- **Échec** : un clone illisible donne un avertissement et ne fait pas échouer le dépôt ; les langages
+  déjà en base sont gardés. Un dépôt vide n'a aucun langage.
 
 ### Langues et traductions
 - **Décision** : l'interface (CLI, TUI, web) est bilingue, en **anglais par défaut** et en **français**.

@@ -32,6 +32,7 @@ type fakeData struct {
 	loads         int
 	commitFilters []store.CommitFilter
 	contribFilter []store.ContributorFilter
+	languages     []store.LanguageView
 	// authorTimes: author and date of the commits, per repository (AuthorCommitTimes).
 	authorTimes map[int64][]model.AuthorCommitTime
 	authorReads []int64 // repositories asked of AuthorCommitTimes
@@ -94,6 +95,18 @@ func (f *fakeData) ContributorRanking(_ context.Context, flt store.ContributorFi
 	defer f.mu.Unlock()
 	f.contribFilter = append(f.contribFilter, flt)
 	return slices.Clone(f.contribs), f.err
+}
+
+func (f *fakeData) ListLanguages(_ context.Context, repoID int64) ([]store.LanguageView, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var out []store.LanguageView
+	for _, l := range f.languages {
+		if l.RepoID == repoID {
+			out = append(out, l)
+		}
+	}
+	return out, f.err
 }
 
 func (f *fakeData) AuthorCommitTimes(_ context.Context, repoID int64, since time.Time) ([]model.AuthorCommitTime, error) {

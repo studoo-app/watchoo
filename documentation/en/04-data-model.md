@@ -7,8 +7,8 @@ branches (via `commit_branches`) and the contributors. V2 adds three of them (mi
 `pull_requests`, `releases` and `tags`, i.e. **ten tables**; the migration `00004` makes
 `repositories.provider_id` optional (repositories tracked through local Git repositories); the
 migration `00005` (0.5.0) adds `contributors.profile_url` and the migration `00006` (0.5.0)
-`commits.stats_known`; the migration `00007` (1.1.0) adds `commits.ai_rules_version` and the
-`commit_ai_signatures` table, i.e. **eleven tables**. The storage is a SQLite file versioned by `goose` migrations, with **one
+`commits.stats_known`; the migration `00007` (1.1.0) adds `repository_languages`; the migration `00008` (1.2.0)
+adds `commits.ai_rules_version` and the `commit_ai_signatures` table, i.e. **twelve tables**. The storage is a SQLite file versioned by `goose` migrations, with **one
 database per workspace** (`.watchoo/watchoo.db`, see [Workspaces](10-workspaces.md)). The tables
 therefore do not know the notion of workspace: two workspaces never share data.
 
@@ -22,6 +22,7 @@ erDiagram
     repositories ||--o{ pull_requests : "receives"
     repositories ||--o{ releases : "publishes"
     repositories ||--o{ tags : "marks"
+    repositories ||--o{ repository_languages : "written in"
     commits ||--o{ commit_branches : "seen on"
     commits ||--o{ commit_ai_signatures : "declares"
     branches ||--o{ commit_branches : "contains"
@@ -126,7 +127,7 @@ number of branches that contain it.
 | deletions | Lines deleted (0 if unknown) |
 | stats_known | `1` if `additions` and `deletions` have been computed (even at 0), `0` if they are still unknown. Added by the migration `00006` (0.5.0) |
 | url | Link to the commit on the forge |
-| ai_rules_version | Version of the AI signature rules the commit was analyzed with; `0` = not analyzed yet. Added by the migration `00007` (1.1.0) |
+| ai_rules_version | Version of the AI signature rules the commit was analyzed with; `0` = not analyzed yet. Added by the migration `00008` (1.2.0) |
 
 - **Stats** (`additions`, `deletions`): computed in the **local Git clone** of the repository
   (`git diff-tree --numstat`, without quota), with or without `gh`, for **all** the commits, the first
@@ -163,7 +164,7 @@ Primary key: **`(repo_id, sha, branch_id)`**. Foreign key `(repo_id, sha)` to `c
 - Counts and stats (contributors, charts): on `commits` only, therefore without duplicates.
 - Filter by branch: join with `commit_branches`.
 
-### `commit_ai_signatures` — AI signatures of the commits (1.1.0)
+### `commit_ai_signatures` — AI signatures of the commits (1.2.0)
 
 One row per tool and per kind of signature found in a commit (see
 [AI signatures](02-features.md#ai-signatures)). **No row is not evidence of work done without AI.**
@@ -262,6 +263,20 @@ The forge gives no date for a tag: the display takes the date of the targeted co
 database (join on `commits (repo_id, sha)`, without a foreign key: the commit can be on an untracked
 branch).
 
+### `repository_languages` — languages of a repository (1.1.0)
+
+Primary key: **`(repo_id, language)`**. The list of a repository is **replaced** at each sync that could
+read its local Git clone; otherwise, what is in the database is kept.
+
+| Column | Description |
+| --- | --- |
+| repo_id | Repository |
+| language | Name of the language (`Go`, `TypeScript`…), same in every interface language |
+| bytes | Size of its files on the default branch, in bytes (at least 1) |
+
+Percentages are not stored: they are computed at display time, from the total of the repository. See
+[Languages of a repository](03-architecture.md#languages-of-a-repository-110).
+
 ## Index
 
 | Index | Usage |
@@ -273,7 +288,7 @@ branch).
 | `contributor_emails(contributor_id)` | Technical: foreign key often walked (e-mails of a contributor) |
 | `sync_runs(repo_id, started_at DESC)` | Technical: last sync of a repository |
 | `commits(repo_id, sha) WHERE stats_known = 0` | Partial index: commits whose `+/-` lines are still to be read (migration `00006`) |
-| `commits(repo_id, ai_rules_version)` | Commits still to analyze for the AI signatures (migration `00007`) |
+| `commits(repo_id, ai_rules_version)` | Commits still to analyze for the AI signatures (migration `00008`) |
 
 ## Identity merging
 

@@ -1,6 +1,6 @@
 package sync
 
-// Signatures d'IA (1.1.0, documentation/fr/03-architecture.md, « Signatures d'IA ») : après chaque
+// Signatures d'IA (1.2.0, documentation/fr/03-architecture.md, « Signatures d'IA ») : après chaque
 // écriture d'une synchro, les commits du dépôt pas encore analysés avec la version courante des règles
 // le sont, à partir de ce qui est déjà en base, sans aucune requête à la forge.
 

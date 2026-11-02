@@ -1,4 +1,4 @@
-// Package aisignature reconnaît les signatures d'outils d'IA déclarées dans un commit (1.1.0,
+// Package aisignature reconnaît les signatures d'outils d'IA déclarées dans un commit (1.2.0,
 // documentation/fr/02-fonctionnalites.md, « Signatures d'IA ») : co-auteur, pied de message, compte
 // d'agent. Fonctions pures, sans accès à la base ni à la forge.
 //

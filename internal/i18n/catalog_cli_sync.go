@@ -332,6 +332,9 @@ dépôt comptent, une fois chacun quelle que soit sa branche.`,
 		" (les contributeurs viennent des commits synchronisés : « watchoo sync »).\n",
 	},
 	"cli.sync.header_contributor": {"Contributor", "Contributeur"},
+	"cli.sync.header_share":       {"Share", "Part"},
+	"cli.sync.header_language":    {"Language", "Langage"},
+	"cli.sync.header_size":        {"Size", "Taille"},
 	"cli.sync.header_additions":   {"Additions", "Ajouts"},
 	"cli.sync.header_deletions":   {"Deletions", "Suppressions"},
 	"cli.sync.header_repos":       {"Repositories", "Dépôts"},
@@ -638,6 +641,33 @@ Filtres :
 	"cli.sync.prs_status_closed_ascii": {"closed", "fermee"},
 	"cli.sync.prs_status_draft":        {"draft", "brouillon"},
 	"cli.sync.prs_status_open":         {"open", "ouverte"},
+
+	// languages (languages.go) : aide, liste vide, tailles.
+	"cli.sync.languages_short": {
+		"Shows the languages of the tracked repositories, with their percentage",
+		"Affiche les langages des dépôts suivis, avec leur pourcentage",
+	},
+	"cli.sync.languages_long": {
+		`Shows the languages of the default branch of each repository, from the largest to the
+smallest, with their share of the bytes. They are computed at each sync from the local
+Git clone, with or without gh: the figures are close to those of GitHub, not identical.
+
+Options:
+  --repo     one tracked repository (owner/repo or URL)`,
+		`Affiche les langages de la branche par défaut de chaque dépôt, du plus gros au plus
+petit, avec leur part des octets. Ils sont calculés à chaque synchro depuis le clone Git
+local, avec ou sans gh : les chiffres sont proches de ceux de GitHub, sans être identiques.
+
+Options :
+  --repo     un dépôt suivi (owner/repo ou URL)`,
+	},
+	"cli.sync.languages_none": {
+		"No language in the database. Run \"watchoo sync\" first.\n",
+		"Aucun langage en base. Lancez d'abord « watchoo sync ».\n",
+	},
+	"cli.sync.size_b":  {"%d B", "%d o"},
+	"cli.sync.size_kb": {"%d KB", "%d Ko"},
+	"cli.sync.size_mb": {"%d MB", "%d Mo"},
 
 	// releases (releases.go) : aide, listes, états, en-têtes.
 	"cli.sync.releases_short": {
