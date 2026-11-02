@@ -141,6 +141,8 @@ var storeTexts = map[string]entry{
 	"store.web.dates":                {"dates of commits", "dates des commits"},
 	"store.web.dates_author":         {"dates of commits by author", "dates des commits par auteur"},
 	"store.web.history":              {"history of commits", "historique des commits"},
+	"store.ai.read":                  {"reading the commits to analyze for AI signatures", "lecture des commits à analyser (signatures d'IA)"},
+	"store.ai.write":                 {"writing the AI signatures", "écriture des signatures d'IA"},
 }
 
 func init() { register(storeTexts) }

@@ -78,6 +78,11 @@
         <div class="stat-desc">{{t "web.contributor.added_deleted"}}</div>
       </div>
       <div class="stat">
+        <div class="stat-title">{{t "web.ai.col"}}</div>
+        <div class="stat-value text-2xl tabular-nums">{{template "ai-totals" $p.AI}}</div>
+        <div class="stat-desc">{{range $i, $tool := $p.AI.Tools}}{{if $i}}, {{end}}{{aiTool $tool.Tool}} {{$tool.Commits}}{{else}}{{t "web.ai.signed_scanned"}}{{end}}</div>
+      </div>
+      <div class="stat">
         <div class="stat-title">{{t "web.contributor.first_commit"}}</div>
         <div class="stat-value text-lg">{{template "rel-time" $p.FirstCommitAt}}</div>
       </div>
@@ -87,6 +92,7 @@
       </div>
     </div>
     <p class="text-xs text-base-content/60">{{t "web.contributor.overview_note"}}</p>
+    <p class="text-xs text-base-content/60">{{t "web.ai.note"}}</p>
   </div>
 </section>
 {{end}}

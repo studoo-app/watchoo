@@ -149,6 +149,14 @@
      si aucun n'en a. Donnée : model.LineTotals. */}}
 {{define "line-totals"}}{{if .Known}}<span class="text-success">+{{.Additions}}</span> <span class="text-error">−{{.Deletions}}</span>{{if .Uncounted}} <span class="text-xs font-normal text-base-content/60" title="{{t "web.lines.uncounted_title"}}">{{t "web.lines.including" (tn "web.n.uncounted" .Uncounted)}}</span>{{end}}{{else}}<span class="text-base-content/40" title="{{t "web.lines.unknown_title"}}">—</span>{{end}}{{end}}
 
+{{/* Outils d'IA signés sur un commit. Donnée : store.CommitView. Rien sans signature : son absence ne
+     prouve rien. */}}
+{{define "commit-ai"}}{{range .AITools}} <span class="badge badge-outline badge-sm" title="{{t "web.ai.commit_title"}}">{{t "web.ai.badge" (aiTool .)}}</span>{{end}}{{end}}
+
+{{/* Signatures d'IA d'un contributeur : « 3 / 120 », outils en infobulle ; « — » si aucun commit n'est
+     encore analysé. Donnée : model.AITotals. */}}
+{{define "ai-totals"}}{{if .Known}}<span title="{{t "web.ai.totals_title"}}">{{.Signed}} / {{.Scanned}}</span>{{else}}<span class="text-base-content/40" title="{{t "web.ai.unscanned_title"}}">—</span>{{end}}{{end}}
+
 {{/* Un commit d'un historique (page d'un dépôt, page d'un contributeur). Donnée : dict "Commit"
      store.CommitView ["ShowRepo" true : dépôt du commit, lien vers sa page] ["ShowAuthor" true : auteur,
      lien vers sa page et vers son profil]. Message nettoyé (firstLine), jamais d'e-mail. */}}
@@ -160,7 +168,7 @@
       {{- if .ShowRepo}}<a href="{{repoPath $c.RepoID}}" class="link link-hover font-medium">{{clean $c.RepoDisplayName}}</a> · {{end -}}
       {{- if .ShowAuthor}}{{template "contributor-link" (dict "ID" $c.AuthorID "Name" $c.AuthorDisplayName)}}{{with $c.AuthorProfileURL}} {{template "profile-link" (dict "URL" . "Login" $c.AuthorLogin)}}{{end}} · {{end -}}
       {{template "rel-time" $c.CommittedAt}}
-      · {{template "commit-lines" $c.Commit}}
+      · {{template "commit-lines" $c.Commit}}{{template "commit-ai" $c}}
     </p>
   </div>
   <div class="shrink-0">

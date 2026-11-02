@@ -145,6 +145,12 @@ func (e *Engine) syncRepository(ctx context.Context, prov provider.Provider, cl 
 	if err != nil {
 		return repoOutcome{}, err
 	}
+	// Après l'écriture : les commits et leurs auteurs sont en base. Un échec n'annule pas la synchro,
+	// la suivante reprend les commits restants.
+	if err := e.scanAISignatures(ctx, repo.ID); err != nil {
+		e.logger.Warn("signatures d'IA non analysées", "repo", s.full, "erreur", errorMessage(err))
+		x.warnings = append(x.warnings, i18n.T("sync.ai.not_scanned"))
+	}
 	display := repo.Label
 	if display == "" {
 		display = s.full

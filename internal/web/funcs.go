@@ -20,6 +20,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/studoo-app/watchoo/internal/activity"
+	"github.com/studoo-app/watchoo/internal/aisignature"
 	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/textclean"
 )
@@ -89,6 +90,7 @@ func (s *server) funcs(tr *i18n.Translator) template.FuncMap {
 		"firstLine":    firstLine,
 		"truncate":     truncate,
 		"shortSHA":     shortSHA,
+		"aiTool":       aisignature.ToolName,
 		"initial":      initial,
 		"avatarURL":    avatarURL,
 		"add":          func(a, b int) int { return a + b },

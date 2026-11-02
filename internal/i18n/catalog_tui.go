@@ -185,6 +185,7 @@ var tuiTexts = map[string]entry{
 	"tui.field.identities":     {"Git identities", "Identités Git"},
 	"tui.field.commits":        {"Commits", "Commits"},
 	"tui.field.first_commit":   {"First commit", "Premier commit"},
+	"tui.field.ai":             {"AI signatures", "Signatures d'IA"},
 	"tui.field.weeks":          {"%d weeks", "%d semaines"},
 	"tui.cdetail.address_one":  {"%d linked address", "%d adresse rattachée"},
 	"tui.cdetail.address_many": {"%d linked addresses", "%d adresses rattachées"},

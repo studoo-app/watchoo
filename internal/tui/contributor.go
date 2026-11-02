@@ -11,10 +11,12 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/studoo-app/watchoo/internal/activity"
+	"github.com/studoo-app/watchoo/internal/aisignature"
 	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/store"
@@ -130,6 +132,9 @@ func (m Model) contribDetailLines() []string {
 	lines = append(lines, field(i18n.T("tui.field.commits"), i18n.T("tui.cdetail.commits_in",
 		plural(p.Commits, "tui.count.commit_one", "tui.count.commit_many"),
 		plural(p.Repos, "cli.sync.count_repo_one", "cli.sync.count_repo_many"), lineTotals(p.Lines()))))
+	if p.AI.Signed > 0 { // rien sans signature : son absence ne prouve rien
+		lines = append(lines, field(i18n.T("tui.field.ai"), aiTotals(p.AI)))
+	}
 	lines = append(lines, field(i18n.T("tui.field.first_commit"), activity.Relative(p.FirstCommitAt, now, loc, uni)))
 	lines = append(lines, field(i18n.T("tui.field.last_commit"), activity.Relative(p.LastCommitAt, now, loc, uni)))
 	weeks := len(d.weekly.Weeks)
@@ -190,6 +195,17 @@ func commitLines(c model.Commit) string {
 		return "-"
 	}
 	return fmt.Sprintf("+%d/-%d", c.Additions, c.Deletions)
+}
+
+// aiTotals écrit les signatures d'IA d'un contributeur : « 3/120 (Claude 2, Cursor 1) » (commits signés,
+// commits analysés, outils).
+func aiTotals(a model.AITotals) string {
+	s := fmt.Sprintf("%d/%d", a.Signed, a.Scanned)
+	tools := make([]string, len(a.Tools))
+	for i, t := range a.Tools {
+		tools[i] = fmt.Sprintf("%s %d", aisignature.ToolName(t.Tool), t.Commits)
+	}
+	return s + " (" + strings.Join(tools, ", ") + ")"
 }
 
 // lineTotals écrit les totaux de lignes d'un ensemble de commits : « +12/-3 », suivi de

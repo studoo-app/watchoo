@@ -163,3 +163,10 @@ func TestLineFormats(t *testing.T) {
 		}
 	}
 }
+
+func TestAITotalsFormat(t *testing.T) {
+	got := aiTotals(model.AITotals{Scanned: 120, Signed: 3, Tools: []model.AIToolCount{{Tool: "claude", Commits: 2}, {Tool: "cursor", Commits: 1}}})
+	if want := "3/120 (Claude 2, Cursor 1)"; got != want {
+		t.Errorf("aiTotals = %q, want %q", got, want)
+	}
+}

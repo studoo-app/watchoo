@@ -194,7 +194,7 @@ func TestRepoList(t *testing.T) {
 	assertJSONKeys(t, r.stdout, "repositories.0.activity", "state", "state_label", "gray",
 		"days_since_last_commit", "flemme_after_days", "dead_after_days")
 	assertJSONKeys(t, r.stdout, "repositories.0.last_commit", "repository", "sha", "short_sha", "message", "url",
-		"author", "authored_at", "committed_at", "additions", "deletions", "stats_known")
+		"author", "authored_at", "committed_at", "additions", "deletions", "stats_known", "ai_signatures", "ai_scanned")
 	assertJSONKeys(t, r.stdout, "repositories.0.last_commit.author", "name", "login", "display_name")
 	assertJSONKeys(t, r.stdout, "repositories.0.last_sync", "status", "started_at", "finished_at", "new_commits", "error")
 }

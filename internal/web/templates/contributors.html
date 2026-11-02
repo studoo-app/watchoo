@@ -54,6 +54,7 @@
           <th scope="col">{{t "web.col.contributor"}}</th>
           <th scope="col" class="text-right">{{t "web.col.commits"}}</th>
           <th scope="col" class="hidden md:table-cell text-right">{{t "web.col.lines"}}</th>
+          <th scope="col" class="hidden md:table-cell text-right" title="{{t "web.ai.totals_title"}}">{{t "web.ai.col"}}</th>
           <th scope="col">{{t "web.contributors.per_repo"}}</th>
           <th scope="col">{{t "web.contributors.last_activity"}}</th>
         </tr>
@@ -81,6 +82,10 @@
           <td class="hidden md:table-cell text-right tabular-nums whitespace-nowrap">
             {{- template "line-totals" .Lines}}
           </td>
+          <td class="hidden md:table-cell text-right tabular-nums whitespace-nowrap">
+            {{- template "ai-totals" .AI}}
+            {{- range .AI.Tools}}<div class="text-xs text-base-content/60">{{aiTool .Tool}} {{.Commits}}</div>{{end}}
+          </td>
           <td>
             <ul class="flex flex-wrap gap-1" aria-label="{{t "web.contributors.per_repo"}}">
               {{- range .Repos}}
@@ -94,6 +99,7 @@
       </tbody>
     </table>
   </div>
+  <p class="hidden md:block text-xs text-base-content/60 mt-2">{{t "web.ai.note"}}</p>
   {{- end}}
 </section>
 {{end}}

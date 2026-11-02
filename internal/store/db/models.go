@@ -17,17 +17,25 @@ type Branch struct {
 }
 
 type Commit struct {
-	RepoID      int64
-	SHA         string
-	AuthorID    sql.NullInt64
-	CommitterID sql.NullInt64
-	Message     string
-	AuthoredAt  string
-	CommittedAt string
-	Additions   int64
-	Deletions   int64
-	URL         string
-	StatsKnown  bool
+	RepoID         int64
+	SHA            string
+	AuthorID       sql.NullInt64
+	CommitterID    sql.NullInt64
+	Message        string
+	AuthoredAt     string
+	CommittedAt    string
+	Additions      int64
+	Deletions      int64
+	URL            string
+	StatsKnown     bool
+	AiRulesVersion int64
+}
+
+type CommitAiSignature struct {
+	RepoID int64
+	SHA    string
+	Tool   string
+	Kind   string
 }
 
 type CommitBranch struct {

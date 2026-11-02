@@ -89,6 +89,55 @@ func (q *Queries) CommitTimesSince(ctx context.Context, arg CommitTimesSincePara
 	return items, nil
 }
 
+const contributorAITools = `-- name: ContributorAITools :many
+SELECT c.author_id AS contributor_id, s.tool, count(DISTINCT c.repo_id || ':' || c.sha) AS commits
+FROM commit_ai_signatures s
+JOIN commits c ON c.repo_id = s.repo_id AND c.sha = s.sha
+WHERE c.author_id IS NOT NULL
+  AND (?1 IS NULL OR c.author_id = ?1)
+  AND (?2 IS NULL OR c.repo_id = ?2)
+  AND (?3 IS NULL OR c.committed_at >= ?3)
+GROUP BY c.author_id, s.tool
+ORDER BY c.author_id, commits DESC, s.tool
+`
+
+type ContributorAIToolsParams struct {
+	ContributorID interface{}
+	RepoID        interface{}
+	Since         interface{}
+}
+
+type ContributorAIToolsRow struct {
+	ContributorID sql.NullInt64
+	Tool          string
+	Commits       int64
+}
+
+// Outils d'IA signes dans les commits de chaque auteur (contributor_id NULL = tous), avec les memes filtres
+// que ContributorRanking : nombre de commits par outil, du plus grand au plus petit, puis outil.
+func (q *Queries) ContributorAITools(ctx context.Context, arg ContributorAIToolsParams) ([]ContributorAIToolsRow, error) {
+	rows, err := q.db.QueryContext(ctx, contributorAITools, arg.ContributorID, arg.RepoID, arg.Since)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ContributorAIToolsRow{}
+	for rows.Next() {
+		var i ContributorAIToolsRow
+		if err := rows.Scan(&i.ContributorID, &i.Tool, &i.Commits); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const contributorCommitTimesSince = `-- name: ContributorCommitTimesSince :many
 SELECT repo_id, committed_at
 FROM commits
@@ -137,6 +186,9 @@ SELECT ct.id, ct.provider, ct.provider_user_id, ct.provider_login, ct.name, ct.a
        CAST(COALESCE(sum(c.additions), 0) AS INTEGER) AS additions,
        CAST(COALESCE(sum(c.deletions), 0) AS INTEGER) AS deletions,
        CAST(COALESCE(sum(c.stats_known), 0) AS INTEGER) AS known_commits,
+       CAST(COALESCE(sum(c.ai_rules_version > 0), 0) AS INTEGER) AS ai_scanned_commits,
+       CAST(COALESCE(sum(EXISTS (SELECT 1 FROM commit_ai_signatures s
+                                 WHERE s.repo_id = c.repo_id AND s.sha = c.sha)), 0) AS INTEGER) AS ai_signed_commits,
        count(DISTINCT c.repo_id) AS repos,
        CAST(max(c.committed_at) AS TEXT) AS last_commit_at
 FROM commits c
@@ -155,19 +207,21 @@ type ContributorRankingParams struct {
 }
 
 type ContributorRankingRow struct {
-	ID             int64
-	Provider       sql.NullString
-	ProviderUserID sql.NullInt64
-	ProviderLogin  string
-	Name           string
-	AvatarURL      string
-	ProfileURL     string
-	Commits        int64
-	Additions      int64
-	Deletions      int64
-	KnownCommits   int64
-	Repos          int64
-	LastCommitAt   string
+	ID               int64
+	Provider         sql.NullString
+	ProviderUserID   sql.NullInt64
+	ProviderLogin    string
+	Name             string
+	AvatarURL        string
+	ProfileURL       string
+	Commits          int64
+	Additions        int64
+	Deletions        int64
+	KnownCommits     int64
+	AiScannedCommits int64
+	AiSignedCommits  int64
+	Repos            int64
+	LastCommitAt     string
 }
 
 // Classement des auteurs : commits decroissants, puis dernier commit le plus recent, puis id.
@@ -193,6 +247,8 @@ func (q *Queries) ContributorRanking(ctx context.Context, arg ContributorRanking
 			&i.Additions,
 			&i.Deletions,
 			&i.KnownCommits,
+			&i.AiScannedCommits,
+			&i.AiSignedCommits,
 			&i.Repos,
 			&i.LastCommitAt,
 		); err != nil {
@@ -404,7 +460,9 @@ func (q *Queries) CountTrackedBranchesByRepo(ctx context.Context, repoID interfa
 
 const lastCommitByRepo = `-- name: LastCommitByRepo :many
 SELECT c.repo_id, c.sha, c.author_id, c.committer_id, c.message, c.authored_at, c.committed_at,
-       c.additions, c.deletions, c.stats_known, c.url,
+       c.additions, c.deletions, c.stats_known, c.url, c.ai_rules_version,
+       CAST(COALESCE((SELECT group_concat(s.tool || ':' || s.kind, ',') FROM commit_ai_signatures s
+                      WHERE s.repo_id = c.repo_id AND s.sha = c.sha), '') AS TEXT) AS ai_signatures,
        CAST(COALESCE(a.name, '') AS TEXT) AS author_name,
        CAST(COALESCE(a.provider_login, '') AS TEXT) AS author_login,
        CAST(COALESCE(a.profile_url, '') AS TEXT) AS author_profile_url
@@ -433,6 +491,8 @@ type LastCommitByRepoRow struct {
 	Deletions        int64
 	StatsKnown       bool
 	URL              string
+	AiRulesVersion   int64
+	AiSignatures     string
 	AuthorName       string
 	AuthorLogin      string
 	AuthorProfileURL string
@@ -460,6 +520,8 @@ func (q *Queries) LastCommitByRepo(ctx context.Context, repoID interface{}) ([]L
 			&i.Deletions,
 			&i.StatsKnown,
 			&i.URL,
+			&i.AiRulesVersion,
+			&i.AiSignatures,
 			&i.AuthorName,
 			&i.AuthorLogin,
 			&i.AuthorProfileURL,
@@ -536,7 +598,9 @@ func (q *Queries) LastSyncRunByRepo(ctx context.Context, repoID interface{}) ([]
 
 const listRecentCommits = `-- name: ListRecentCommits :many
 SELECT c.repo_id, c.sha, c.author_id, c.committer_id, c.message, c.authored_at, c.committed_at,
-       c.additions, c.deletions, c.stats_known, c.url,
+       c.additions, c.deletions, c.stats_known, c.url, c.ai_rules_version,
+       CAST(COALESCE((SELECT group_concat(s.tool || ':' || s.kind, ',') FROM commit_ai_signatures s
+                      WHERE s.repo_id = c.repo_id AND s.sha = c.sha), '') AS TEXT) AS ai_signatures,
        r.owner AS repo_owner, r.name AS repo_name, r.label AS repo_label,
        CAST(COALESCE(a.name, '') AS TEXT) AS author_name,
        CAST(COALESCE(a.provider_login, '') AS TEXT) AS author_login,
@@ -584,6 +648,8 @@ type ListRecentCommitsRow struct {
 	Deletions        int64
 	StatsKnown       bool
 	URL              string
+	AiRulesVersion   int64
+	AiSignatures     string
 	RepoOwner        string
 	RepoName         string
 	RepoLabel        string
@@ -625,6 +691,8 @@ func (q *Queries) ListRecentCommits(ctx context.Context, arg ListRecentCommitsPa
 			&i.Deletions,
 			&i.StatsKnown,
 			&i.URL,
+			&i.AiRulesVersion,
+			&i.AiSignatures,
 			&i.RepoOwner,
 			&i.RepoName,
 			&i.RepoLabel,

@@ -337,6 +337,11 @@ dépôt comptent, une fois chacun quelle que soit sa branche.`,
 	"cli.sync.header_repos":       {"Repositories", "Dépôts"},
 	"cli.sync.header_repos_ascii": {"Repositories", "Depots"},
 	"cli.sync.header_last_commit": {"Last commit", "Dernier commit"},
+	"cli.sync.header_ai":          {"AI", "IA"},
+	"cli.sync.ai_note": {
+		"AI: signatures declared in the commits (per contributor: signed/analyzed commits). A signature says a tool was declared on the commit, not who wrote the code; its absence proves nothing.\n",
+		"IA : signatures déclarées dans les commits (par contributeur : commits signés/analysés). Une signature dit qu'un outil est déclaré sur le commit, pas qui a écrit le code ; son absence ne prouve rien.\n",
+	},
 	"cli.sync.weekly_note": {
 		"Commits per week (Monday to Sunday, columns dated by Monday, display time zone); " +
 			"the last week is in progress.\n",

@@ -90,6 +90,10 @@ var syncTexts = map[string]entry{
 
 	// Statistiques de lignes (clonestats.go, repo.go).
 	"sync.stats.error": {"commit statistics", "statistiques des commits"},
+	"sync.ai.not_scanned": {
+		"AI signatures not analyzed; the next sync will resume",
+		"signatures d'IA non analysées ; la prochaine synchro reprendra",
+	},
 	"sync.stats.not_computed": {
 		"line statistics not computed: %s",
 		"statistiques de lignes non calculées : %s",

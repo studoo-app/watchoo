@@ -115,6 +115,25 @@ var webTexts = map[string]entry{
 	// Pastille d'état, lignes, liens communs (partials.html).
 	"web.state.title":     {"State: %s", "État : %s"},
 	"web.state.with_days": {"%s · %d d", "%s · %d j"},
+	"web.ai.col":          {"AI signatures", "Signatures d'IA"},
+	"web.ai.badge":        {"AI: %s", "IA : %s"},
+	"web.ai.note": {
+		"An AI signature says a tool was declared on the commit, not who wrote the code; its absence proves nothing.",
+		"Une signature d'IA dit qu'un outil est déclaré sur le commit, pas qui a écrit le code ; son absence ne prouve rien.",
+	},
+	"web.ai.commit_title": {
+		"Tool declared on this commit; this says nothing about who wrote the code",
+		"Outil déclaré sur ce commit ; cela ne dit pas qui a écrit le code",
+	},
+	"web.ai.totals_title": {
+		"Commits with a declared AI signature / commits analyzed",
+		"Commits avec une signature d'IA déclarée / commits analysés",
+	},
+	"web.ai.unscanned_title": {
+		"Not analyzed yet: done at the next sync",
+		"Pas encore analysés : c'est fait à la prochaine synchro",
+	},
+	"web.ai.signed_scanned": {"signed / analyzed commits", "commits signés / analysés"},
 	"web.lines.unknown_title": {
 		"Lines unknown: not counted yet (local Git clone unavailable)",
 		"Lignes inconnues : pas encore comptées (clone Git local indisponible)",
