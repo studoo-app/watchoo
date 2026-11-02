@@ -7,7 +7,8 @@ branches (via `commit_branches`) and the contributors. V2 adds three of them (mi
 `pull_requests`, `releases` and `tags`, i.e. **ten tables**; the migration `00004` makes
 `repositories.provider_id` optional (repositories tracked through local Git repositories); the
 migration `00005` (0.5.0) adds `contributors.profile_url` and the migration `00006` (0.5.0)
-`commits.stats_known`. The storage is a SQLite file versioned by `goose` migrations, with **one
+`commits.stats_known`; the migration `00007` (1.1.0) adds `repository_languages`, i.e. **eleven
+tables**. The storage is a SQLite file versioned by `goose` migrations, with **one
 database per workspace** (`.watchoo/watchoo.db`, see [Workspaces](10-workspaces.md)). The tables
 therefore do not know the notion of workspace: two workspaces never share data.
 
@@ -21,6 +22,7 @@ erDiagram
     repositories ||--o{ pull_requests : "receives"
     repositories ||--o{ releases : "publishes"
     repositories ||--o{ tags : "marks"
+    repositories ||--o{ repository_languages : "written in"
     commits ||--o{ commit_branches : "seen on"
     branches ||--o{ commit_branches : "contains"
     contributors ||--o{ contributor_emails : "uses"
@@ -239,6 +241,20 @@ successful sync of that list.
 The forge gives no date for a tag: the display takes the date of the targeted commit when it is in the
 database (join on `commits (repo_id, sha)`, without a foreign key: the commit can be on an untracked
 branch).
+
+### `repository_languages` — languages of a repository (1.1.0)
+
+Primary key: **`(repo_id, language)`**. The list of a repository is **replaced** at each sync that could
+read its local Git clone; otherwise, what is in the database is kept.
+
+| Column | Description |
+| --- | --- |
+| repo_id | Repository |
+| language | Name of the language (`Go`, `TypeScript`…), same in every interface language |
+| bytes | Size of its files on the default branch, in bytes (at least 1) |
+
+Percentages are not stored: they are computed at display time, from the total of the repository. See
+[Languages of a repository](03-architecture.md#languages-of-a-repository-110).
 
 ## Index
 

@@ -58,6 +58,13 @@ Aucune fonctionnalité nouvelle : la surface publique (commandes, options, codes
 `--json`, réglages et variables `WATCHOO_*`, schéma de la base, routes web) est relue et déclarée
 **stable** ; désormais, un changement incompatible demande une version majeure. **Publié en v1.0.0**.
 
+## 1.1.0
+
+| Fonctionnalité | Détail |
+| --- | --- |
+| Langages d'un dépôt | Langages de la branche par défaut avec leur pourcentage (part des octets), calculés à chaque synchro depuis le clone Git local, avec ou sans `gh` et sans quota : `watchoo languages`, carte « Langages » de la page d'un dépôt, détail d'un dépôt dans le TUI. Les chiffres sont proches de ceux de GitHub, sans être identiques (voir [Architecture](03-architecture.md#langages-dun-dépôt-110)). **Publié en v1.1.0** |
+| Part des contributeurs | Part des commits de chaque contributeur en pourcentage, dans `watchoo contributors` (clé `share` en JSON), sur la page d'un dépôt et dans le détail d'un dépôt du TUI. **Publié en v1.1.0** |
+
 ## V3
 
 | Fonctionnalité | Détail |

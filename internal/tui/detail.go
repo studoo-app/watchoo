@@ -11,6 +11,7 @@ import (
 	"github.com/studoo-app/watchoo/internal/activity"
 	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/model"
+	"github.com/studoo-app/watchoo/internal/store"
 )
 
 // renderDetail renvoie les lignes du détail, à partir du défilement courant.
@@ -92,6 +93,9 @@ func (m Model) detailLines() []string {
 		pulls = m.pullsText(r.OpenPullRequests, r.LatestRelease)
 	}
 	lines = append(lines, field(i18n.T("tui.field.pulls"), pulls))
+	if !m.detail.loading && m.detail.err == nil {
+		lines = append(lines, field(i18n.T("tui.field.languages"), languagesText(m.detail.languages)))
+	}
 
 	lines = append(lines, "", m.st.Header.Render(i18n.T("tui.detail.recent_commits")))
 	switch {
@@ -118,17 +122,39 @@ func (m Model) detailLines() []string {
 		lines = append(lines, "", m.st.Header.Render(i18n.T("tui.detail.top_contribs"))+
 			m.st.Muted.Render(i18n.T("tui.detail.activity", weeks)))
 		cols := []column{{title: i18n.T("tui.col.contributor"), flex: true}, {title: i18n.T("tui.col.commits"), right: true},
+			{title: "%", right: true},
 			{title: "+/-", right: true}, {title: i18n.T("tui.col.weeks", weeks), right: true},
 			{title: i18n.T("tui.col.per_week")}, {title: i18n.T("tui.col.last_commit")}}
 		rows := make([]row, 0, len(m.detail.contribs))
 		for _, c := range m.detail.contribs {
 			rows = append(rows, row{cells: []string{clean(c.DisplayName()), strconv.Itoa(c.Commits),
+				activity.PercentText(model.Permille(int64(c.Commits), m.detail.contribCommits)),
 				lineTotals(c.Lines()), strconv.Itoa(m.detail.weekly.TotalOf(c.ID)), activity.Sparkline(m.detail.weekly.Of(c.ID), uni),
 				activity.Relative(c.LastCommitAt, now, loc, uni)}, stateCol: -1})
 		}
 		lines = append(lines, m.renderTable(cols, rows, -1, 0, len(rows), false)...)
 	}
 	return lines
+}
+
+// detailLanguages est le nombre de langages cités dans le détail d'un dépôt ; les suivants sont regroupés.
+const detailLanguages = 5
+
+// languagesText décrit les langages d'un dépôt : « Go 62,4 %, HTML 20,1 %, autres 17,5 % ».
+func languagesText(langs []store.LanguageView) string {
+	if len(langs) == 0 {
+		return i18n.T("tui.detail.languages_none")
+	}
+	parts := make([]string, 0, detailLanguages+1)
+	rest := 1000
+	for _, l := range langs[:min(len(langs), detailLanguages)] {
+		parts = append(parts, clean(l.Language)+" "+activity.PercentText(l.Permille()))
+		rest -= l.Permille()
+	}
+	if len(langs) > detailLanguages {
+		parts = append(parts, i18n.T("tui.detail.languages_others", activity.PercentText(max(rest, 0))))
+	}
+	return strings.Join(parts, ", ")
 }
 
 // pullsText décrit les pull requests ouvertes et la dernière release publiée d'un dépôt (V2) :

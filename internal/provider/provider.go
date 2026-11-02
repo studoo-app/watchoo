@@ -243,6 +243,12 @@ type Tag struct {
 	SHA  string // SHA complet du commit visé
 }
 
+// Language est un langage d'un dépôt et la taille de ses fichiers.
+type Language struct {
+	Name  string // nom du langage (« Go », « TypeScript »…)
+	Bytes int64  // taille en octets (> 0)
+}
+
 // Repository décrit un dépôt sur la forge.
 type Repository struct {
 	ID            int64     // identifiant numérique sur la forge, qui ne change jamais (model.Repository.ProviderID)

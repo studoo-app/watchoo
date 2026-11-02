@@ -139,6 +139,24 @@ func (s *Store) ListTags(ctx context.Context, f ReleaseFilter) ([]TagView, error
 	return views, nil
 }
 
+// ListLanguages renvoie les langages du dépôt repoID (0 = tous les dépôts), dépôt après dépôt, plus gros
+// langage d'abord ; liste vide non nil si aucun.
+func (s *Store) ListLanguages(ctx context.Context, repoID int64) ([]LanguageView, error) {
+	rows, err := s.queries.ListRepositoryLanguages(ctx, optionalID(repoID))
+	if err != nil {
+		return nil, wrapErr(i18n.T("store.languages.list"), err)
+	}
+	views := make([]LanguageView, 0, len(rows))
+	for _, row := range rows {
+		views = append(views, LanguageView{
+			RepositoryLanguage: model.RepositoryLanguage{RepoID: row.RepoID, Language: row.Language, Bytes: row.Bytes},
+			RepoRef:            RepoRef{RepoOwner: row.RepoOwner, RepoName: row.RepoName, RepoLabel: row.RepoLabel},
+			TotalBytes:         row.TotalBytes,
+		})
+	}
+	return views, nil
+}
+
 // releaseFromDB convertit une ligne sqlc en model.Release.
 func releaseFromDB(row db.Release) (model.Release, error) {
 	r := model.Release{

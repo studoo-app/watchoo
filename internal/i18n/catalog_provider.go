@@ -317,6 +317,10 @@ var providerTexts = map[string]entry{
 		"statistics of commit %s in %s/%s",
 		"statistiques du commit %s de %s/%s",
 	},
+	"provider.git.op.languages": {
+		"languages of %s/%s",
+		"langages de %s/%s",
+	},
 	"provider.git.op.commits_stats": {
 		"statistics of commits of %s/%s",
 		"statistiques des commits de %s/%s",

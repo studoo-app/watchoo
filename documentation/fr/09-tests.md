@@ -151,6 +151,9 @@ Deux faux, écrits en phase 2 et réutilisés par les phases suivantes :
   adresses vides des contributeurs de la forge avec login sont complétées, adresses connues gardées,
   second passage sans effet) ; synchro (adresse vidée comme avant la 0.5.0, complétée sans nouveau
   commit par l'API puis par les clones Git locaux, aucun login dans les logs).
+- **Langages** (1.1.0) : classement et exclusions, `Languages` contre des dépôts `gittest` (dépôt vide, lien
+  symbolique, annulation) ; store (remplacement, conservation sans nouvelle lecture, pourcentages) ; moteur
+  (avec et sans `gh`, clone illisible) ; CLI, page web et détail du TUI.
 - **Pull requests, releases et tags** (V2) : provider GitHub contre `githubtest` (conversion, ordre,
   pagination et plafonds de 1 000, arrêt anticipé `UpdatedSince` sur une seule page, `Limit`, `304`
   gratuits, dépôt vide, `409`, réponse inexploitable, `5xx`, `404`, arguments invalides sans requête ;

@@ -89,7 +89,12 @@ var syncTexts = map[string]entry{
 	"sync.thresholds.error": {"activity thresholds of the repository", "seuils d'activité du dépôt"},
 
 	// Statistiques de lignes (clonestats.go, repo.go).
-	"sync.stats.error": {"commit statistics", "statistiques des commits"},
+	"sync.stats.error":     {"commit statistics", "statistiques des commits"},
+	"sync.languages.error": {"reading the languages", "lecture des langages"},
+	"sync.languages.not_computed": {
+		"languages not computed: %s",
+		"langages non calculés : %s",
+	},
 	"sync.stats.not_computed": {
 		"line statistics not computed: %s",
 		"statistiques de lignes non calculées : %s",
