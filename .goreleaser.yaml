@@ -85,5 +85,5 @@ release:
   prerelease: auto
   name_template: "Watchoo {{ .Tag }}"
   footer: |
-    Journal des modifications : [CHANGELOG.md](https://github.com/studoo-app/watchoo/blob/{{ .Tag }}/CHANGELOG.md).
-    Image Docker : `ghcr.io/studoo-app/watchoo:{{ .Version }}`.
+    Changelog: [CHANGELOG.md](https://github.com/studoo-app/watchoo/blob/{{ .Tag }}/CHANGELOG.md).
+    Docker image: `ghcr.io/studoo-app/watchoo:{{ .Version }}`.
