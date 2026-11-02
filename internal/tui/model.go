@@ -65,6 +65,9 @@ type detailState struct {
 	loading  bool
 	commits  []store.CommitView
 	contribs []store.ContributorStats
+	// contribCommits : commits de tous les auteurs du dépôt (part de chacun), languages : ses langages.
+	contribCommits int64
+	languages      []store.LanguageView
 	// weekly : commits par semaine des contributeurs du dépôt sur activity.ContributorWeeks semaines.
 	weekly activity.ContributorWeekCounts
 	err    error
@@ -167,11 +170,13 @@ type (
 	// detailMsg apporte les commits et contributeurs du dépôt détaillé, et l'activité par semaine de
 	// ses contributeurs.
 	detailMsg struct {
-		repoID   int64
-		commits  []store.CommitView
-		contribs []store.ContributorStats
-		weekly   activity.ContributorWeekCounts
-		err      error
+		repoID         int64
+		commits        []store.CommitView
+		contribs       []store.ContributorStats
+		contribCommits int64
+		languages      []store.LanguageView
+		weekly         activity.ContributorWeekCounts
+		err            error
 	}
 	// autoSyncMsg déclenche la synchro automatique.
 	autoSyncMsg struct{}
@@ -263,8 +268,16 @@ func (m Model) detailCmd(repoID int64) tea.Cmd {
 			store.CommitFilter{RepoID: repoID, Limit: detailCommits}); msg.err != nil {
 			return msg
 		}
-		if msg.contribs, msg.err = data.ContributorRanking(ctx,
-			store.ContributorFilter{RepoID: repoID, Limit: detailContributors}); msg.err != nil {
+		ranking, err := data.ContributorRanking(ctx, store.ContributorFilter{RepoID: repoID})
+		if err != nil {
+			msg.err = err
+			return msg
+		}
+		for _, c := range ranking {
+			msg.contribCommits += int64(c.Commits)
+		}
+		msg.contribs = ranking[:min(len(ranking), detailContributors)]
+		if msg.languages, msg.err = data.ListLanguages(ctx, repoID); msg.err != nil {
 			return msg
 		}
 		times, err := data.AuthorCommitTimes(ctx, repoID, activity.WeeksStart(now, activity.ContributorWeeks, loc))
@@ -308,6 +321,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.detail.loading = false
 		m.detail.commits, m.detail.contribs, m.detail.weekly, m.detail.err = msg.commits, msg.contribs, msg.weekly, msg.err
+		m.detail.contribCommits, m.detail.languages = msg.contribCommits, msg.languages
 		return m, nil
 	case contribDetailMsg:
 		if !m.cdetail.open || msg.id != m.cdetail.id {

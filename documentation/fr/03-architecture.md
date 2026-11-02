@@ -343,10 +343,12 @@ Faux pour les tests : `providertest` (Provider en mémoire), `githubtest` (serve
   et l'adresse vide : `Provider.ProfileURL(login)`, écrit par `store.BackfillProfileURLs` en une
   transaction. Seules ces lignes sont lues (coût négligeable après le premier passage) ; une adresse
   connue n'est jamais remplacée. Un échec est journalisé (sans login) et n'échoue jamais la synchro.
+- **Langages** (1.1.0) : après les statistiques de lignes, voir
+  [Langages d'un dépôt](#langages-dun-dépôt-110).
 - **Commit sans date** : un commit sans date d'écriture ni de commit est ignoré (compté dans un log) ; une
   seule date manquante est complétée par l'autre.
 - **Écriture** : tout ce qu'une synchro de dépôt écrit (métadonnées, branches, commits, statistiques des
-  commits, contributeurs, `commit_branches`, `last_commit_at`, pull requests, releases, tags, fin du
+  commits, contributeurs, `commit_branches`, `last_commit_at`, pull requests, releases, tags, langages, fin du
   `sync_run`) l'est dans
   **une transaction**.
 - **Dépôt vide** (dépôt d'étudiant tout juste créé, auquel GitHub répond `409`) : branches et commits
@@ -724,6 +726,24 @@ font qu'afficher.
   nettoyés des séquences d'échappement avant affichage ; aucun e-mail n'est affiché. Pendant le TUI, les
   logs du moteur sont coupés (ils casseraient l'écran).
 - Code dans `internal/tui/`.
+
+### Langages d'un dépôt (1.1.0)
+
+- **Source** : le clone Git local seulement (`git ls-tree -r -l -z` sur la branche par défaut du distant),
+  avec ou sans `gh`, sans requête ni quota. L'API GitHub (`/languages`) n'est volontairement pas utilisée :
+  elle ne donne rien pour un dépôt suivi sans `gh`, et mélanger deux calculs ferait varier les
+  pourcentages selon la source de la synchro.
+- **Détection** : par nom de fichier et extension, avec une table dans
+  `internal/provider/git/languages.go` (aucune dépendance). Comme GitHub, elle compte les langages de
+  programmation et de balisage, en octets ; les données et la prose (JSON, YAML, Markdown…) et les
+  extensions inconnues sont ignorées. Le SQL est compté, contrairement à GitHub.
+- **Exclus** : liens symboliques et sous-modules ; les répertoires `node_modules`, `vendor`,
+  `bower_components`, `dist`, `build`, `target`, `__pycache__`, `.venv`, `venv`, `.idea`, `.vscode`,
+  `.gradle`, `.next`, `.nuxt`, où qu'ils soient ; les fichiers `*.min.js` et `*.min.css` ; les lockfiles.
+- **Limite** : les chiffres sont proches de ceux de GitHub, sans être identiques (pas d'analyse du
+  contenu, pas de `.gitattributes`).
+- **Échec** : un clone illisible donne un avertissement et ne fait pas échouer le dépôt ; les langages
+  déjà en base sont gardés. Un dépôt vide n'a aucun langage.
 
 ### Langues et traductions
 - **Décision** : l'interface (CLI, TUI, web) est bilingue, en **anglais par défaut** et en **français**.

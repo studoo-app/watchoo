@@ -6,7 +6,8 @@ Sept tables suffisent pour le MVP ; `commits` est la table centrale, reliée aux
 `commit_branches`) et aux contributeurs. La V2 en ajoute trois (migration `00003`) : `pull_requests`,
 `releases` et `tags`, soit **dix tables** ; la migration `00004` rend `repositories.provider_id`
 facultatif (dépôts suivis par clones Git locaux) ; la migration `00005` (0.5.0) ajoute
-`contributors.profile_url` et la migration `00006` (0.5.0) `commits.stats_known`. Le stockage est un fichier SQLite versionné par des migrations
+`contributors.profile_url` et la migration `00006` (0.5.0) `commits.stats_known` ; la migration `00007` (1.1.0) ajoute `repository_languages`, soit **onze
+tables**. Le stockage est un fichier SQLite versionné par des migrations
 `goose`, avec **une base par espace de supervision** (`.watchoo/watchoo.db`, voir
 [Espaces de supervision](10-espaces-de-supervision.md)). Les tables ne connaissent donc pas la notion
 d'espace : deux espaces ne partagent jamais de données.
@@ -20,6 +21,7 @@ erDiagram
     repositories ||--o{ sync_runs : "journalise"
     repositories ||--o{ pull_requests : "reçoit"
     repositories ||--o{ releases : "publie"
+    repositories ||--o{ repository_languages : "est écrit en"
     repositories ||--o{ tags : "marque"
     commits ||--o{ commit_branches : "vu sur"
     branches ||--o{ commit_branches : "contient"
@@ -238,6 +240,20 @@ synchro réussie de cette liste.
 La forge ne donne pas de date pour un tag : l'affichage reprend la date du commit visé quand il est en
 base (jointure sur `commits (repo_id, sha)`, sans clé étrangère : le commit peut être sur une branche
 non suivie).
+
+### `repository_languages` — langages d'un dépôt (1.1.0)
+
+Clé primaire : **`(repo_id, language)`**. La liste d'un dépôt est **remplacée** à chaque synchro qui a pu
+lire son clone Git local ; sinon, ce qui est en base est gardé.
+
+| Colonne | Description |
+| --- | --- |
+| repo_id | Dépôt |
+| language | Nom du langage (`Go`, `TypeScript`…), le même dans toutes les langues de l'interface |
+| bytes | Taille de ses fichiers sur la branche par défaut, en octets (au moins 1) |
+
+Les pourcentages ne sont pas stockés : ils sont calculés à l'affichage, à partir du total du dépôt. Voir
+[Langages d'un dépôt](03-architecture.md#langages-dun-dépôt-110).
 
 ## Index
 

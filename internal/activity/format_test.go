@@ -188,3 +188,11 @@ func TestSparkline(t *testing.T) {
 		}
 	}
 }
+
+func TestPercentText(t *testing.T) {
+	for permille, want := range map[int]string{624: "62.4%", 1000: "100.0%", 0: "0.0%", 5: "0.5%"} {
+		if got := PercentText(permille); got != want {
+			t.Errorf("PercentText(%d) = %q, want %q", permille, got, want)
+		}
+	}
+}

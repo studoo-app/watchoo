@@ -12,7 +12,8 @@ phase 6 (V2) was completed and released as **v0.4.0**; the per-contributor page 
 from the TUI and a fixed profile link in **v0.6.1**; the new-version notice fixed (`watchoo` only,
 TUI) in **v0.6.2**; the bilingual interface was released as **v0.7.0** ([0.7.0](#070-bilingual-interface)); after one
 more week of real usage, the public surface was stabilized and released as **v1.0.0**
-([1.0.0](#100-stabilization)).
+([1.0.0](#100-stabilization)); languages and share of the contributors were released as **v1.1.0**
+([1.1.0](#110-languages-and-share-of-the-contributors)).
 
 ```mermaid
 flowchart LR
@@ -133,6 +134,13 @@ Importing a whole organization and the alerts move to V3 (see
 - From now on, SemVer applies fully: an incompatible change bumps MAJOR (see
   [Skills](11-skills.md#versions-and-changelogmd)). The V3 ([Features](02-features.md#v3)) comes in
   MINOR releases.
+
+### 1.1.0: Languages and share of the contributors
+- Languages of each repository with their percentage (`repository_languages` table, migration `00007`,
+  `git ls-tree` in the local clone, `watchoo languages`, card of a repository's page, TUI detail): **in
+  place**.
+- Share of the commits of each contributor in `watchoo contributors`, on a repository's page and in the
+  TUI detail: **in place**.
 
 ## Definition of "done" for each phase
 

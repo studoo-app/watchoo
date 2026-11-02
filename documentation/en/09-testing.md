@@ -152,6 +152,9 @@ Two fakes, written in phase 2 and reused by the following phases:
   empty addresses of the forge contributors with a login are completed, known addresses kept, second
   pass without effect); sync (address cleared as before 0.5.0, completed without a new commit by the
   API then by the local Git clones, no login in the logs).
+- **Languages** (1.1.0): classification and exclusions, `Languages` against `gittest` repositories (empty
+  repository, symbolic link, cancellation); store (replacement, keeping when not read again, percentages);
+  engine (with and without `gh`, unreadable clone); CLI, web page and TUI detail.
 - **Pull requests, releases and tags** (V2): GitHub provider against `githubtest` (conversion, order,
   pagination and caps of 1,000, early stop `UpdatedSince` on a single page, `Limit`, free `304`s,
   empty repository, `409`, unusable response, `5xx`, `404`, invalid arguments without a request;

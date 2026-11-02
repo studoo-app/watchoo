@@ -318,11 +318,16 @@ func checkExtras(w RepoSyncWrite) error {
 			return errors.New(i18n.T("store.sync.tag_invalid", shortSHA(t.SHA)))
 		}
 	}
+	for _, l := range w.Languages {
+		if l.Language == "" || l.Bytes <= 0 {
+			return errors.New(i18n.T("store.sync.language_invalid", l.Language))
+		}
+	}
 	return nil
 }
 
-// writeExtras écrit les pull requests (créées ou mises à jour), puis remplace releases et tags si
-// demandé.
+// writeExtras écrit les pull requests (créées ou mises à jour), puis remplace releases, tags et
+// langages si demandé.
 func writeExtras(ctx context.Context, q *db.Queries, w RepoSyncWrite) error {
 	for _, pr := range w.PullRequests {
 		if err := q.UpsertPullRequest(ctx, db.UpsertPullRequestParams{
@@ -373,6 +378,17 @@ func writeExtras(ctx context.Context, q *db.Queries, w RepoSyncWrite) error {
 		for _, t := range w.Tags {
 			if err := q.InsertTag(ctx, db.InsertTagParams{RepoID: w.RepoID, Name: t.Name, SHA: t.SHA}); err != nil {
 				return wrapErr(i18n.T("store.sync.tag_record", shortSHA(t.SHA)), err)
+			}
+		}
+	}
+	if w.ReplaceLanguages {
+		if err := q.DeleteRepositoryLanguages(ctx, w.RepoID); err != nil {
+			return wrapErr(i18n.T("store.sync.languages_replace"), err)
+		}
+		for _, l := range w.Languages {
+			if err := q.InsertRepositoryLanguage(ctx, db.InsertRepositoryLanguageParams{RepoID: w.RepoID,
+				Language: l.Language, Bytes: l.Bytes}); err != nil {
+				return wrapErr(i18n.T("store.sync.language_record", l.Language), err)
 			}
 		}
 	}

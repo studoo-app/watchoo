@@ -49,6 +49,7 @@ type DataSource interface {
 	RepositorySummaries(ctx context.Context) ([]store.RepositorySummary, error)
 	ListRecentCommits(ctx context.Context, f store.CommitFilter) ([]store.CommitView, error)
 	ContributorRanking(ctx context.Context, f store.ContributorFilter) ([]store.ContributorStats, error)
+	ListLanguages(ctx context.Context, repoID int64) ([]store.LanguageView, error)
 	AuthorCommitTimes(ctx context.Context, repoID int64, since time.Time) ([]model.AuthorCommitTime, error)
 	// Détail d'un contributeur (0.5.0).
 	ContributorProfile(ctx context.Context, id int64) (store.ContributorProfile, error)

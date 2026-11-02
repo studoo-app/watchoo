@@ -23,6 +23,7 @@ var activityTexts = map[string]entry{
 	"activity.short.stopped":        {"stopped", "arrêté"},
 	"activity.short.stopped_ascii":  {"stopped", "arrete"},
 	"activity.short.error":          {"error", "erreur"},
+	"activity.fmt.percent_tenths":   {"%d.%d%%", "%d,%d %%"},
 	"activity.short.never":          {"never", "jamais"},
 	"activity.short.archived":       {"archived", "archivé"},
 	"activity.short.archived_ascii": {"archived", "archive"},
