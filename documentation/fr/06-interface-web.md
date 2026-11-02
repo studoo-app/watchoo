@@ -86,6 +86,16 @@ dépôt (carte du tableau de bord, en-tête et contributeurs de la page d'un dé
 agrégées) : ils additionnent les commits connus et ajoutent « (dont N commits non comptés) » quand une
 partie des commits n'en a pas encore ; « — » si aucun n'en a. Template partagé `line-totals`.
 
+### Signatures d'IA (1.1.0)
+
+Partout où un commit est listé (fil du tableau de bord, historique d'un dépôt, commits d'un contributeur), un
+badge « IA : Claude » nomme chaque outil déclaré dessus ; **rien** sans signature (template partagé
+`commit-ai`). Le classement des contributeurs et la page d'un contributeur donnent « signés / analysés »
+(« 1 / 2 ») et les outils, « — » si aucun commit n'est encore analysé (template partagé `ai-totals`), avec la
+phrase « Une signature d'IA dit qu'un outil est déclaré sur le commit, pas qui a écrit le code ; son absence
+ne prouve rien. » Pas de pourcentage, pas de classement sur ce chiffre, aucune adresse affichée. Règles :
+[Signatures d'IA](02-fonctionnalites.md#signatures-dia).
+
 ### 1. Tableau de bord
 - Une **carte par dépôt** : nom affiché (`label`, ex. « Alice Martin ») ou `owner/repo` (rappelé sous le
   label), première ligne du dernier commit, auteur, ancienneté, nombre de commits et leurs lignes

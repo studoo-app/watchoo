@@ -430,6 +430,19 @@ No test reaches GitHub: the root of the releases is that of a fake `httptest` se
   a very narrow terminal, escape sequences cleaned); nothing when Watchoo is up to date, on error,
   when quitting before the answer or without a function (check disabled).
 
+## AI signatures (1.1.0)
+
+- `internal/aisignature`: each signature of the catalog, case ignored, several tools, one signature per
+  kind; **false positives that stay silent**: a person named Claude, tool names in free text, a signature in
+  the subject, indented lines, a footer inside a sentence, Dependabot, another no-reply account.
+- Store: migration `00007` (commit from before the migration waiting, constraints, rollback), scan and rewrite,
+  a new rules version analyzes again, cascade on deletion, totals (a commit with two tools counts once,
+  filters applied).
+- Engine: signatures after a sync (co-author, agent account, none), new analysis by a sync without any new
+  commit, nothing in the logs.
+- CLI (text and `--json`, `json_schema_test.go`), web (badge, totals, "—" before the analysis, sentence), TUI
+  (line of the detail), both languages.
+
 ## Languages in tests
 
 The interface (CLI, TUI, web) is bilingual: **English by default**, French via `WATCHOO_LANG=fr`

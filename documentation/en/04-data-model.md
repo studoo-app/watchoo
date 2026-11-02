@@ -7,7 +7,8 @@ branches (via `commit_branches`) and the contributors. V2 adds three of them (mi
 `pull_requests`, `releases` and `tags`, i.e. **ten tables**; the migration `00004` makes
 `repositories.provider_id` optional (repositories tracked through local Git repositories); the
 migration `00005` (0.5.0) adds `contributors.profile_url` and the migration `00006` (0.5.0)
-`commits.stats_known`. The storage is a SQLite file versioned by `goose` migrations, with **one
+`commits.stats_known`; the migration `00007` (1.1.0) adds `commits.ai_rules_version` and the
+`commit_ai_signatures` table, i.e. **eleven tables**. The storage is a SQLite file versioned by `goose` migrations, with **one
 database per workspace** (`.watchoo/watchoo.db`, see [Workspaces](10-workspaces.md)). The tables
 therefore do not know the notion of workspace: two workspaces never share data.
 
@@ -22,6 +23,7 @@ erDiagram
     repositories ||--o{ releases : "publishes"
     repositories ||--o{ tags : "marks"
     commits ||--o{ commit_branches : "seen on"
+    commits ||--o{ commit_ai_signatures : "declares"
     branches ||--o{ commit_branches : "contains"
     contributors ||--o{ contributor_emails : "uses"
     contributors ||--o{ commits : "author"
@@ -124,6 +126,7 @@ number of branches that contain it.
 | deletions | Lines deleted (0 if unknown) |
 | stats_known | `1` if `additions` and `deletions` have been computed (even at 0), `0` if they are still unknown. Added by the migration `00006` (0.5.0) |
 | url | Link to the commit on the forge |
+| ai_rules_version | Version of the AI signature rules the commit was analyzed with; `0` = not analyzed yet. Added by the migration `00007` (1.1.0) |
 
 - **Stats** (`additions`, `deletions`): computed in the **local Git clone** of the repository
   (`git diff-tree --numstat`, without quota), with or without `gh`, for **all** the commits, the first
@@ -159,6 +162,25 @@ Primary key: **`(repo_id, sha, branch_id)`**. Foreign key `(repo_id, sha)` to `c
 
 - Counts and stats (contributors, charts): on `commits` only, therefore without duplicates.
 - Filter by branch: join with `commit_branches`.
+
+### `commit_ai_signatures` — AI signatures of the commits (1.1.0)
+
+One row per tool and per kind of signature found in a commit (see
+[AI signatures](02-features.md#ai-signatures)). **No row is not evidence of work done without AI.**
+
+Primary key: **`(repo_id, sha, tool, kind)`**. Foreign key `(repo_id, sha)` to `commits`, with cascade: the
+signatures disappear with the commit.
+
+| Column | Description |
+| --- | --- |
+| repo_id | Repository |
+| sha | Commit |
+| tool | Identifier of the tool (`aider`, `claude`, `codex`, `copilot`, `cursor`) |
+| kind | Kind of signature (`agent_account`, `coauthor_trailer`, `footer`) |
+
+The signatures are derived data: they are rewritten at each analysis of the commit, from the message and
+the author already in the database. Neither the message line nor an address is copied here. Rolling back
+(`Down`): table, index and column removed; the commits remain.
 
 ### `sync_runs` — sync log
 
@@ -251,6 +273,7 @@ branch).
 | `contributor_emails(contributor_id)` | Technical: foreign key often walked (e-mails of a contributor) |
 | `sync_runs(repo_id, started_at DESC)` | Technical: last sync of a repository |
 | `commits(repo_id, sha) WHERE stats_known = 0` | Partial index: commits whose `+/-` lines are still to be read (migration `00006`) |
+| `commits(repo_id, ai_rules_version)` | Commits still to analyze for the AI signatures (migration `00007`) |
 
 ## Identity merging
 

@@ -49,7 +49,9 @@ mélangent jamais. Voir [Espaces de supervision](10-espaces-de-supervision.md).
 ## Hors périmètre (pour l'instant)
 
 - Outil multi-utilisateurs ou SaaS : Watchoo est un outil **personnel et local**.
-- Analyse du contenu du code (qualité, sécurité, diff détaillé).
+- Analyse du contenu du code (qualité, sécurité, diff détaillé), y compris deviner d'après le code ou
+  le style des messages si l'IA a été utilisée : Watchoo lit seulement les [signatures déclarées dans
+  les commits](02-fonctionnalites.md#signatures-dia).
 - Écriture sur GitHub : Watchoo est **en lecture seule**.
 
 ## Utilisateurs cibles
