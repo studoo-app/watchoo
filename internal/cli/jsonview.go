@@ -91,6 +91,15 @@ type commitJSON struct {
 	Additions   int         `json:"additions"` // 0 si les statistiques sont inconnues
 	Deletions   int         `json:"deletions"`
 	StatsKnown  bool        `json:"stats_known"` // additions et deletions calculées (même à 0)
+	// AISignatures : signatures d'outils d'IA déclarées (1.2.0) ; [] n'est jamais une preuve de travail sans IA.
+	AISignatures []aiSignatureJSON `json:"ai_signatures"`
+	AIScanned    bool              `json:"ai_scanned"` // commit analysé ; false : ai_signatures ne dit encore rien
+}
+
+// aiSignatureJSON décrit une signature d'outil d'IA.
+type aiSignatureJSON struct {
+	Tool string `json:"tool"` // identifiant stable de l'outil
+	Kind string `json:"kind"` // agent_account, coauthor_trailer ou footer
 }
 
 // newCommitJSON convertit une ligne de la vue des commits.
@@ -110,12 +119,23 @@ func newCommitJSON(c store.CommitView) commitJSON {
 			Login:       c.AuthorLogin,
 			DisplayName: c.AuthorDisplayName(),
 		},
-		AuthoredAt:  timeJSON(c.AuthoredAt),
-		CommittedAt: timeJSON(c.CommittedAt),
-		Additions:   c.Additions,
-		Deletions:   c.Deletions,
-		StatsKnown:  c.StatsKnown,
+		AuthoredAt:   timeJSON(c.AuthoredAt),
+		CommittedAt:  timeJSON(c.CommittedAt),
+		Additions:    c.Additions,
+		Deletions:    c.Deletions,
+		StatsKnown:   c.StatsKnown,
+		AISignatures: aiSignaturesJSON(c.AISignatures),
+		AIScanned:    c.AIScanned,
 	}
+}
+
+// aiSignaturesJSON convertit des signatures ([] si aucune, jamais null).
+func aiSignaturesJSON(signatures []model.AISignature) []aiSignatureJSON {
+	out := make([]aiSignatureJSON, len(signatures))
+	for i, sig := range signatures {
+		out[i] = aiSignatureJSON{Tool: sig.Tool, Kind: sig.Kind}
+	}
+	return out
 }
 
 // syncRunJSON décrit une synchro enregistrée (sync_runs).

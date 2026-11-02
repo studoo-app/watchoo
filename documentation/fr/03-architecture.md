@@ -72,6 +72,7 @@ watchoo/
   internal/repoimport/ analyse des références de dépôts, de --branch et des fichiers d'import
   internal/configshare/ partage de la configuration d'un espace (export JSON, validation, aperçu et
                        application d'un import ; « watchoo config », page Réglages)
+  internal/aisignature/ signatures d'IA déclarées dans les commits (1.2.0) : catalogue et détection, fonctions pures
   internal/textclean/  nettoyage des textes affichés (séquences d'échappement, contrôles), CLI et TUI
   internal/selfupdate/ mise à jour de Watchoo lui-même (0.6.0) : dernière version publiée, comparaison
                        SemVer, téléchargement vérifié et remplacement du binaire, vérification
@@ -633,6 +634,28 @@ En place depuis la phase 6 ([Roadmap](07-roadmap.md#phase-6--v2)).
 - Avec les clones Git locaux (V2, sans `gh`), le login n'est jamais connu : les commits ne sont
   rattachés que par e-mail (deux e-mails d'une même personne font deux contributeurs tant qu'une synchro
   par l'API ne les a pas reliés à un même compte).
+
+### Signatures d'IA (1.2.0)
+
+Règles dans la page [Fonctionnalités](02-fonctionnalites.md#signatures-dia). Tout est dans
+`internal/aisignature` (catalogue, `Detect`, fonctions pures) ; `internal/sync` le lance, `cli`, `tui` et
+`web` ne font qu'afficher.
+
+- **Quand** : à la fin de chaque synchro réussie d'un dépôt, une fois les commits et leurs auteurs écrits
+  (`ApplyRepoSync`), les commits dont `commits.ai_rules_version` est inférieure à
+  `aisignature.RulesVersion` sont analysés, 2 000 à la fois. Une base d'avant la 1.2.0 est donc analysée à la
+  synchro suivante.
+- **Coût** : **aucune requête à la forge**, avec ou sans `gh` : le message et l'auteur sont déjà en base.
+  La règle de l'incrémental est respectée : rien n'est re-téléchargé.
+- **Nouvelles règles** : ajouter une signature au catalogue augmente `RulesVersion`, ce qui fait analyser de
+  nouveau tous les commits à la synchro suivante.
+- **Échec** : une analyse qui échoue n'annule pas la synchro : avertissement sur le dépôt (`warnings`), et la
+  synchro suivante reprend.
+- **Exception documentée** à la règle « rien de spécifique à GitHub hors de `internal/provider/github` et
+  `internal/provider/git` » : le catalogue contient des noms de comptes et le format des adresses GitHub
+  sans réponse. Ce sont des valeurs comparées à des données déjà en base, sans aucun accès à la forge.
+- **Données personnelles** : seuls l'identifiant de l'outil et le type sont enregistrés ; message et adresses
+  restent en mémoire pendant l'analyse et ne vont jamais dans les journaux.
 
 ### Mise à jour de Watchoo (0.6.0)
 

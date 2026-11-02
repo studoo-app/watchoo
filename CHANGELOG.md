@@ -9,6 +9,17 @@ PATCH (see [Skills](documentation/en/11-skills.md#versions-and-changelogmd)).
 
 ## [Unreleased]
 
+### Added
+
+- **AI signatures**: `watchoo log`, `watchoo contributors`, the TUI and the web interface show the AI
+  tools **declared** in the commits (co-author line, footer, agent account) for Aider, Claude, Codex,
+  GitHub Copilot and Cursor. A signature says a tool was declared, not who wrote the code, and its absence
+  proves nothing: no score, no percentage, never "human". Existing commits are analyzed at the next
+  sync, without any request to the forge.
+- **`--json`**: `ai_signatures` and `ai_scanned` on commits; `ai_signed_commits`, `ai_scanned_commits` and
+  `ai_tools` on `contributors`.
+- **Database**: migration `00008` (`commits.ai_rules_version`, table `commit_ai_signatures`).
+
 ## [1.1.0] - 2026-11-02
 
 Languages and share of the contributors for each tracked repository. No incompatible change: the

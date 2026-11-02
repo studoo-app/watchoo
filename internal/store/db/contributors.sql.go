@@ -123,6 +123,9 @@ SELECT ct.id, ct.provider, ct.provider_user_id, ct.provider_login, ct.name, ct.a
        CAST(COALESCE(sum(c.additions), 0) AS INTEGER) AS additions,
        CAST(COALESCE(sum(c.deletions), 0) AS INTEGER) AS deletions,
        CAST(COALESCE(sum(c.stats_known), 0) AS INTEGER) AS known_commits,
+       CAST(COALESCE(sum(c.ai_rules_version > 0), 0) AS INTEGER) AS ai_scanned_commits,
+       CAST(COALESCE(sum(EXISTS (SELECT 1 FROM commit_ai_signatures s
+                                 WHERE s.repo_id = c.repo_id AND s.sha = c.sha)), 0) AS INTEGER) AS ai_signed_commits,
        count(DISTINCT c.repo_id) AS repos,
        CAST(COALESCE(min(c.committed_at), '') AS TEXT) AS first_commit_at,
        CAST(COALESCE(max(c.committed_at), '') AS TEXT) AS last_commit_at
@@ -133,21 +136,23 @@ GROUP BY ct.id
 `
 
 type GetContributorProfileRow struct {
-	ID             int64
-	Provider       sql.NullString
-	ProviderUserID sql.NullInt64
-	ProviderLogin  string
-	Name           string
-	AvatarURL      string
-	ProfileURL     string
-	Emails         int64
-	Commits        int64
-	Additions      int64
-	Deletions      int64
-	KnownCommits   int64
-	Repos          int64
-	FirstCommitAt  string
-	LastCommitAt   string
+	ID               int64
+	Provider         sql.NullString
+	ProviderUserID   sql.NullInt64
+	ProviderLogin    string
+	Name             string
+	AvatarURL        string
+	ProfileURL       string
+	Emails           int64
+	Commits          int64
+	Additions        int64
+	Deletions        int64
+	KnownCommits     int64
+	AiScannedCommits int64
+	AiSignedCommits  int64
+	Repos            int64
+	FirstCommitAt    string
+	LastCommitAt     string
 }
 
 // Contributeur et totaux de ses commits d'AUTEUR (zeros et chaines vides s'il n'en a aucun) ; le nombre
@@ -168,6 +173,8 @@ func (q *Queries) GetContributorProfile(ctx context.Context, id int64) (GetContr
 		&i.Additions,
 		&i.Deletions,
 		&i.KnownCommits,
+		&i.AiScannedCommits,
+		&i.AiSignedCommits,
 		&i.Repos,
 		&i.FirstCommitAt,
 		&i.LastCommitAt,

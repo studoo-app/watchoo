@@ -7,6 +7,7 @@ package store
 // Les méthodes correspondantes sont dans repositories.go, syncruns.go, syncwrite.go et views.go.
 
 import (
+	"slices"
 	"time"
 
 	"github.com/studoo-app/watchoo/internal/i18n"
@@ -154,6 +155,8 @@ type CommitView struct {
 	AuthorLogin string // login de forge de l'auteur ; vide si inconnu
 	// AuthorProfileURL est la page de profil de l'auteur sur la forge ; vide si inconnue.
 	AuthorProfileURL string
+	AISignatures     []model.AISignature // signatures d'IA, triées par outil puis type ; vide non nil
+	AIScanned        bool                // commit déjà analysé (faux : AISignatures ne dit encore rien)
 }
 
 // RepoDisplayName renvoie le nom affiché du dépôt du commit (RepoLabel, sinon owner/name).
@@ -180,19 +183,31 @@ type ContributorFilter struct {
 // ContributorStats est une ligne du classement des contributeurs (commits dont il est l'AUTEUR,
 // comptés sur la table commits seule, donc sans doublon entre branches).
 type ContributorStats struct {
-	model.Contributor           // Emails reste nil
-	Commits           int       // nombre de commits
-	Additions         int       // somme des lignes ajoutées (statistiques connues seulement)
-	Deletions         int       // somme des lignes supprimées
-	KnownCommits      int       // commits dont les statistiques sont connues
-	Repos             int       // nombre de dépôts distincts
-	LastCommitAt      time.Time // date du commit le plus récent (committed_at)
+	model.Contributor                // Emails reste nil
+	Commits           int            // nombre de commits
+	Additions         int            // somme des lignes ajoutées (statistiques connues seulement)
+	Deletions         int            // somme des lignes supprimées
+	KnownCommits      int            // commits dont les statistiques sont connues
+	Repos             int            // nombre de dépôts distincts
+	LastCommitAt      time.Time      // date du commit le plus récent (committed_at)
+	AI                model.AITotals // signatures d'IA de ces commits
 }
 
 // Lines renvoie les totaux de lignes des commits du classement.
 func (c ContributorStats) Lines() model.LineTotals {
 	return model.LineTotals{Commits: c.Commits, KnownCommits: c.KnownCommits, Additions: c.Additions,
 		Deletions: c.Deletions}
+}
+
+// AITools renvoie les outils d'IA distincts signés sur le commit, triés ; liste vide non nil si aucun.
+func (c CommitView) AITools() []string {
+	tools := make([]string, 0, len(c.AISignatures))
+	for _, sig := range c.AISignatures {
+		if !slices.Contains(tools, sig.Tool) {
+			tools = append(tools, sig.Tool)
+		}
+	}
+	return tools
 }
 
 // SumLines additionne les totaux de lignes des dépôts summaries (totaux de l'espace).
@@ -308,11 +323,26 @@ type ContributorProfile struct {
 	// Identities est le nombre d'adresses e-mail Git rattachées au contributeur ; les adresses ne
 	// sont jamais lues ici.
 	Identities    int
-	Commits       int       // commits dont il est l'auteur
-	Additions     int       // lignes ajoutées (statistiques connues seulement)
-	Deletions     int       // lignes supprimées
-	KnownCommits  int       // commits dont les statistiques sont connues
-	Repos         int       // dépôts distincts
-	FirstCommitAt time.Time // premier commit (committed_at) ; zéro si aucun
-	LastCommitAt  time.Time // dernier commit (committed_at) ; zéro si aucun
+	Commits       int            // commits dont il est l'auteur
+	Additions     int            // lignes ajoutées (statistiques connues seulement)
+	Deletions     int            // lignes supprimées
+	KnownCommits  int            // commits dont les statistiques sont connues
+	Repos         int            // dépôts distincts
+	FirstCommitAt time.Time      // premier commit (committed_at) ; zéro si aucun
+	LastCommitAt  time.Time      // dernier commit (committed_at) ; zéro si aucun
+	AI            model.AITotals // signatures d'IA de ses commits
+}
+
+// AIScanCommit est un commit à analyser pour les signatures d'IA, avec son auteur.
+type AIScanCommit struct {
+	SHA          string
+	Message      string
+	AuthorLogin  string
+	AuthorEmails []string
+}
+
+// AIScanResult est le résultat de l'analyse d'un commit.
+type AIScanResult struct {
+	SHA        string
+	Signatures []model.AISignature
 }

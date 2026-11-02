@@ -24,6 +24,22 @@ func (q *Queries) CountCommits(ctx context.Context, repoID int64) (int64, error)
 	return count, err
 }
 
+const deleteCommitAISignatures = `-- name: DeleteCommitAISignatures :exec
+DELETE FROM commit_ai_signatures
+WHERE repo_id = ? AND sha = ?
+`
+
+type DeleteCommitAISignaturesParams struct {
+	RepoID int64
+	SHA    string
+}
+
+// Retire les signatures d'un commit avant de les reecrire.
+func (q *Queries) DeleteCommitAISignatures(ctx context.Context, arg DeleteCommitAISignaturesParams) error {
+	_, err := q.db.ExecContext(ctx, deleteCommitAISignatures, arg.RepoID, arg.SHA)
+	return err
+}
+
 const existingCommitSHAs = `-- name: ExistingCommitSHAs :many
 SELECT sha FROM commits
 WHERE repo_id = ?1 AND sha IN (/*SLICE:shas*/?)
@@ -115,6 +131,30 @@ func (q *Queries) InsertCommit(ctx context.Context, arg InsertCommitParams) (int
 	return result.RowsAffected()
 }
 
+const insertCommitAISignature = `-- name: InsertCommitAISignature :exec
+INSERT INTO commit_ai_signatures (repo_id, sha, tool, kind)
+VALUES (?, ?, ?, ?)
+ON CONFLICT (repo_id, sha, tool, kind) DO NOTHING
+`
+
+type InsertCommitAISignatureParams struct {
+	RepoID int64
+	SHA    string
+	Tool   string
+	Kind   string
+}
+
+// Enregistre une signature d'un commit, sans doublon.
+func (q *Queries) InsertCommitAISignature(ctx context.Context, arg InsertCommitAISignatureParams) error {
+	_, err := q.db.ExecContext(ctx, insertCommitAISignature,
+		arg.RepoID,
+		arg.SHA,
+		arg.Tool,
+		arg.Kind,
+	)
+	return err
+}
+
 const insertCommitBranch = `-- name: InsertCommitBranch :exec
 INSERT INTO commit_branches (repo_id, sha, branch_id)
 VALUES (?, ?, ?)
@@ -131,6 +171,61 @@ type InsertCommitBranchParams struct {
 func (q *Queries) InsertCommitBranch(ctx context.Context, arg InsertCommitBranchParams) error {
 	_, err := q.db.ExecContext(ctx, insertCommitBranch, arg.RepoID, arg.SHA, arg.BranchID)
 	return err
+}
+
+const listCommitsToScanForAI = `-- name: ListCommitsToScanForAI :many
+SELECT c.sha, c.message,
+       CAST(COALESCE(a.provider_login, '') AS TEXT) AS author_login,
+       CAST(COALESCE((SELECT group_concat(e.email, char(10)) FROM contributor_emails e
+                      WHERE e.contributor_id = c.author_id), '') AS TEXT) AS author_emails
+FROM commits c
+LEFT JOIN contributors a ON a.id = c.author_id
+WHERE c.repo_id = ?1 AND c.ai_rules_version < ?2
+ORDER BY c.sha
+LIMIT ?3
+`
+
+type ListCommitsToScanForAIParams struct {
+	RepoID         int64
+	CurrentVersion int64
+	RowLimit       int64
+}
+
+type ListCommitsToScanForAIRow struct {
+	SHA          string
+	Message      string
+	AuthorLogin  string
+	AuthorEmails string
+}
+
+// Commits du depot pas encore analyses avec la version de regles current_version (au plus row_limit),
+// avec le login et les adresses de leur auteur (separees par un saut de ligne).
+func (q *Queries) ListCommitsToScanForAI(ctx context.Context, arg ListCommitsToScanForAIParams) ([]ListCommitsToScanForAIRow, error) {
+	rows, err := q.db.QueryContext(ctx, listCommitsToScanForAI, arg.RepoID, arg.CurrentVersion, arg.RowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListCommitsToScanForAIRow{}
+	for rows.Next() {
+		var i ListCommitsToScanForAIRow
+		if err := rows.Scan(
+			&i.SHA,
+			&i.Message,
+			&i.AuthorLogin,
+			&i.AuthorEmails,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listUnknownStatsSHAs = `-- name: ListUnknownStatsSHAs :many
@@ -221,6 +316,24 @@ type ReassignCommitCommittersParams struct {
 // Reattribue a to_id les commits dont from_id est le committer (fusion de contributeurs).
 func (q *Queries) ReassignCommitCommitters(ctx context.Context, arg ReassignCommitCommittersParams) error {
 	_, err := q.db.ExecContext(ctx, reassignCommitCommitters, arg.ToID, arg.FromID)
+	return err
+}
+
+const setCommitAIRulesVersion = `-- name: SetCommitAIRulesVersion :exec
+UPDATE commits
+SET ai_rules_version = ?1
+WHERE repo_id = ?2 AND sha = ?3
+`
+
+type SetCommitAIRulesVersionParams struct {
+	RulesVersion int64
+	RepoID       int64
+	SHA          string
+}
+
+// Marque un commit analyse avec cette version de regles.
+func (q *Queries) SetCommitAIRulesVersion(ctx context.Context, arg SetCommitAIRulesVersionParams) error {
+	_, err := q.db.ExecContext(ctx, setCommitAIRulesVersion, arg.RulesVersion, arg.RepoID, arg.SHA)
 	return err
 }
 

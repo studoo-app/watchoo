@@ -142,6 +142,11 @@ Importing a whole organization and the alerts move to V3 (see
 - Share of the commits of each contributor in `watchoo contributors`, on a repository's page and in the
   TUI detail: **in place**.
 
+### 1.2.0: AI signatures
+- Signatures of AI tools declared in the commits, per commit and per contributor (CLI, TUI, web, `--json`),
+  analyzed without any request to the forge: **in place**, to be released. See
+  [AI signatures](02-features.md#ai-signatures). Clues based on style or pace are deliberately left out.
+
 ## Definition of "done" for each phase
 
 - Code written and reviewed.

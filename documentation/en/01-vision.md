@@ -51,7 +51,9 @@ students. Data is never mixed. See [Workspaces](10-workspaces.md).
 ## Out of scope (for now)
 
 - Multi-user tool or SaaS: Watchoo is a **personal and local** tool.
-- Code content analysis (quality, security, detailed diff).
+- Code content analysis (quality, security, detailed diff), including guessing from the code or the
+  style of the messages whether AI was used: Watchoo only reads the [signatures declared in the
+  commits](02-features.md#ai-signatures).
 - Writing to GitHub: Watchoo is **read-only**.
 
 ## Target users

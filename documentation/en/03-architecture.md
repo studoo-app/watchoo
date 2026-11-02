@@ -72,6 +72,7 @@ watchoo/
   internal/repoimport/ parsing of repository references, of --branch and of import files
   internal/configshare/ sharing of a workspace's configuration (JSON export, validation, preview and
                        application of an import; "watchoo config", Settings page)
+  internal/aisignature/ AI signatures declared in the commits (1.2.0): catalog and detection, pure functions
   internal/textclean/  cleaning of displayed texts (escape sequences, control characters), CLI and TUI
   internal/selfupdate/ Watchoo's own self-update (0.6.0): latest published release, SemVer
                        comparison, verified download and replacement of the binary, periodic
@@ -633,6 +634,27 @@ In place since phase 6 ([Roadmap](07-roadmap.md#phase-6--v2)).
 - With the local Git clones (V2, without `gh`), the login is never known: the commits are attached by
   email only (two emails of the same person make two contributors as long as a sync through the API has
   not linked them to a same account).
+
+### AI signatures (1.2.0)
+
+Rules on the [Features](02-features.md#ai-signatures) page. Everything is in `internal/aisignature` (catalog,
+`Detect`, pure functions); `internal/sync` runs it, `cli`, `tui` and `web` only display.
+
+- **When**: at the end of each successful sync of a repository, after the commits and their authors are
+  written (`ApplyRepoSync`), the commits whose `commits.ai_rules_version` is below
+  `aisignature.RulesVersion` are analyzed, 2,000 at a time. A database from before 1.2.0 is therefore
+  analyzed at the next sync.
+- **Cost**: **no request to the forge**, with or without `gh`: the message and the author are already in the
+  database. Incremental rule respected: nothing is downloaded again.
+- **New rules**: adding a signature to the catalog bumps `RulesVersion`, which has all the commits analyzed
+  again at the next sync.
+- **Failure**: an analysis that fails does not undo the sync: warning on the repository (`warnings`), and the
+  next sync resumes.
+- **Documented exception** to the rule "nothing specific to GitHub outside `internal/provider/github` and
+  `internal/provider/git`": the catalog contains account names and the format of GitHub's no-reply
+  addresses. They are values compared with data already in the database, with no access to the forge.
+- **Personal data**: only the tool identifier and the kind are stored; message and addresses stay in
+  memory during the analysis and never go to the logs.
 
 ### Watchoo self-update (0.6.0)
 

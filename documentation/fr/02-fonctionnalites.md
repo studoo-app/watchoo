@@ -65,6 +65,12 @@ Aucune fonctionnalité nouvelle : la surface publique (commandes, options, codes
 | Langages d'un dépôt | Langages de la branche par défaut avec leur pourcentage (part des octets), calculés à chaque synchro depuis le clone Git local, avec ou sans `gh` et sans quota : `watchoo languages`, carte « Langages » de la page d'un dépôt, détail d'un dépôt dans le TUI. Les chiffres sont proches de ceux de GitHub, sans être identiques (voir [Architecture](03-architecture.md#langages-dun-dépôt-110)). **Publié en v1.1.0** |
 | Part des contributeurs | Part des commits de chaque contributeur en pourcentage, dans `watchoo contributors` (clé `share` en JSON), sur la page d'un dépôt et dans le détail d'un dépôt du TUI. **Publié en v1.1.0** |
 
+## 1.2.0
+
+| Fonctionnalité | Détail |
+| --- | --- |
+| Signatures d'IA | Outils déclarés dans les commits (co-auteur, pied de message, compte d'agent), par commit et par contributeur, dans `log`, `contributors`, le TUI et l'interface web. Voir [Signatures d'IA](#signatures-dia) |
+
 ## V3
 
 | Fonctionnalité | Détail |
@@ -111,3 +117,37 @@ Aucune fonctionnalité nouvelle : la surface publique (commandes, options, codes
 - **Identité** : un contributeur peut utiliser plusieurs e-mails ; ils sont rattachés à son login GitHub
   quand celui-ci est connu.
 - **Lecture seule** : Watchoo n'écrit jamais sur GitHub.
+
+## Signatures d'IA
+
+Depuis la 1.2.0, Watchoo montre quels outils d'IA sont **déclarés** dans les commits. Il répond à « un
+outil est-il signé sur ce commit ? », jamais à « ce code a-t-il été écrit par une IA ? ».
+
+- **Ce que dit une signature** : un outil est déclaré sur le commit. Il a pu n'écrire que le message, la
+  signature s'ajoute ou se retire à la main, et un squash peut la rattacher à la personne qui a fusionné.
+  **Son absence ne prouve rien** : la plupart des outils permettent de la désactiver. L'interface ne dit
+  donc jamais « humain », ne donne ni score ni pourcentage, et un commit sans signature n'affiche rien.
+- **Trois types de signature** (`kind`) : `coauthor_trailer` (ligne `Co-authored-by` du message dont
+  l'adresse appartient à un outil), `footer` (ligne entière écrite par un outil), `agent_account` (l'auteur
+  du commit est le compte ou l'adresse d'un agent).
+- **Éviter les faux positifs** : adresses et comptes sont comparés exactement, **jamais les noms Git**
+  (une personne peut s'appeler Claude) ; le sujet et les lignes en retrait ne sont pas lus (citations,
+  exemples) ; un texte libre qui mentionne un outil ne compte pas ; l'automatisation sans IA (Dependabot,
+  Renovate) n'est pas au catalogue.
+- **Catalogue** : uniquement des signatures observées sur de vrais commits publics. Un outil sans
+  signature vérifiée est laissé de côté plutôt que deviné.
+
+| Outil (`tool`) | Signatures reconnues |
+| --- | --- |
+| `aider` | Co-auteur `aider@aider.chat` ou `noreply@aider.chat` |
+| `claude` | Co-auteur `noreply@anthropic.com` ; pied de message `Generated with [Claude Code]` |
+| `codex` | Co-auteur `noreply@openai.com` ou `codex@openai.com` |
+| `copilot` | Co-auteur `copilot@github.com` ; co-auteur ou auteur : le compte `Copilot` ou `copilot-swe-agent[bot]` |
+| `cursor` | Co-auteur ou auteur `cursoragent@cursor.com` |
+
+- **Non lus** : le contenu du code, le style des messages, le rythme des commits. Ces indices ont des
+  explications innocentes (push groupé, rebase, étudiant qui vient d'apprendre Conventional Commits) et
+  aucune fiabilité mesurée ; ils ne sont pas implémentés.
+- **Objectif** : être en mesure de savoir quels outils sont déclarés, par qui et où, pas sanctionner. Pour
+  en savoir plus, demander aux contributeurs de laisser activée l'attribution de leurs outils : Watchoo
+  ne voit que ce que les commits déclarent.

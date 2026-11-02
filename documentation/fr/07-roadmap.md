@@ -141,6 +141,12 @@ L'import d'une organisation entière et les alertes passent en V3 (voir
 - Part des commits de chaque contributeur dans `watchoo contributors`, sur la page d'un dépôt et dans le
   détail du TUI : **en place**.
 
+### 1.2.0 : signatures d'IA
+- Signatures d'outils d'IA déclarées dans les commits, par commit et par contributeur (CLI, TUI, web,
+  `--json`), analysées sans aucune requête à la forge : **en place**, à publier. Voir
+  [Signatures d'IA](02-fonctionnalites.md#signatures-dia). Les indices de style ou de rythme sont
+  volontairement écartés.
+
 ## Définition de « terminé » pour chaque phase
 
 - Code écrit et relu.

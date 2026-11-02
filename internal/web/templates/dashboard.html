@@ -109,7 +109,7 @@
           <p class="text-sm truncate" title="{{firstLine .Message}}">{{firstLine .Message}}</p>
           <p class="text-xs text-base-content/70 truncate">
             <a href="{{repoPath .RepoID}}" class="link link-hover font-medium">{{clean .RepoDisplayName}}</a>
-            · {{template "contributor-link" (dict "ID" .AuthorID "Name" .AuthorDisplayName)}}{{if .AuthorProfileURL}} {{template "profile-link" (dict "URL" .AuthorProfileURL "Login" .AuthorLogin)}}{{end}} · {{template "rel-time" .CommittedAt}} · {{template "commit-lines" .Commit}}
+            · {{template "contributor-link" (dict "ID" .AuthorID "Name" .AuthorDisplayName)}}{{if .AuthorProfileURL}} {{template "profile-link" (dict "URL" .AuthorProfileURL "Login" .AuthorLogin)}}{{end}} · {{template "rel-time" .CommittedAt}} · {{template "commit-lines" .Commit}}{{template "commit-ai" .}}
           </p>
         </div>
         {{if .URL}}<a href="{{.URL}}" class="font-mono text-xs link link-hover text-base-content/60" target="_blank" rel="noopener noreferrer" title="{{t "web.commit.view_forge"}}">{{shortSHA .SHA}}</a>

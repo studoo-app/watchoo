@@ -105,6 +105,8 @@ func commitViewsFromRows(rows []db.ListRecentCommitsRow) ([]CommitView, error) {
 			AuthorName:       row.AuthorName,
 			AuthorLogin:      row.AuthorLogin,
 			AuthorProfileURL: row.AuthorProfileURL,
+			AISignatures:     parseAISignatures(row.AiSignatures),
+			AIScanned:        row.AiRulesVersion > 0,
 		})
 	}
 	return views, nil
@@ -276,6 +278,11 @@ func (s *Store) ContributorProfile(ctx context.Context, id int64) (ContributorPr
 		KnownCommits: int(row.KnownCommits),
 		Repos:        int(row.Repos),
 	}
+	tools, err := contributorAITools(ctx, s.queries, id, 0, time.Time{})
+	if err != nil {
+		return ContributorProfile{}, wrapErr(i18n.T("store.web.contrib", id), err)
+	}
+	p.AI = aiTotals(row.Commits, row.AiScannedCommits, row.AiSignedCommits, tools[id])
 	for _, d := range []struct {
 		raw string
 		dst *time.Time

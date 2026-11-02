@@ -136,6 +136,30 @@ type Commit struct {
 	URL         string    // lien vers le commit sur la forge
 }
 
+// AISignature est une signature d'outil d'IA déclarée dans un commit (commit_ai_signatures) : elle dit
+// qu'un outil est déclaré sur le commit, pas qui a écrit le code ; son absence ne dit rien.
+type AISignature struct {
+	Tool string // identifiant de l'outil (aisignature.ToolName donne le nom affiché)
+	Kind string // type de signature (agent_account, coauthor_trailer, footer)
+}
+
+// AIToolCount donne le nombre de commits signés par un outil.
+type AIToolCount struct {
+	Tool    string // identifiant de l'outil
+	Commits int    // commits distincts qui portent sa signature
+}
+
+// AITotals résume les signatures d'IA d'un ensemble de commits (un contributeur).
+type AITotals struct {
+	Commits int           // commits de l'ensemble
+	Scanned int           // commits déjà analysés
+	Signed  int           // commits avec au moins une signature
+	Tools   []AIToolCount // outils, du plus de commits au moins ; vide non nil
+}
+
+// Known indique si au moins un commit a été analysé (sinon les totaux s'affichent « — »).
+func (a AITotals) Known() bool { return a.Scanned > 0 }
+
 // LineTotals additionne les lignes ajoutées et supprimées d'un ensemble de commits (un dépôt, l'espace).
 // Seuls les commits dont les statistiques sont connues (commits.stats_known) sont additionnés.
 type LineTotals struct {

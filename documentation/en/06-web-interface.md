@@ -87,6 +87,15 @@ repository (dashboard card, header and contributors of the repository page) and 
 queries): they sum the known commits and add "(including N commits not counted)" when part of the commits does not have them yet; "—" if none has them. Shared `line-totals`
 template.
 
+### AI signatures (1.2.0)
+
+Everywhere a commit is listed (dashboard feed, history of a repository, commits of a contributor), a badge
+"AI: Claude" names each tool declared on it; **nothing** without a signature (shared `commit-ai` template).
+The contributors ranking and a contributor's page give "signed / analyzed" ("1 / 2") and the tools, "—" if
+no commit is analyzed yet (shared `ai-totals` template), with the sentence "An AI signature says a tool was
+declared on the commit, not who wrote the code; its absence proves nothing." No percentage, no ranking on
+this figure, no address displayed. Rules: [AI signatures](02-features.md#ai-signatures).
+
 ### 1. Dashboard
 - One **card per repository**: display label (`label`, e.g. "Alice Martin") or `owner/repo` (repeated
   under the label), first line of the last commit, author, age, number of commits and their lines

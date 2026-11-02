@@ -31,9 +31,20 @@ type contributorJSON struct {
 	Repositories int        `json:"repositories"` // dépôts distincts
 	Share        float64    `json:"share"`        // part des commits du classement, en %, une décimale
 	LastCommitAt *time.Time `json:"last_commit_at"`
+	// Signatures d'IA (1.2.0) : commits signés, commits analysés, outils ; 0 n'est jamais une preuve de
+	// travail sans IA.
+	AISignedCommits  int          `json:"ai_signed_commits"`
+	AIScannedCommits int          `json:"ai_scanned_commits"`
+	AITools          []aiToolJSON `json:"ai_tools"`
 	// Weekly : commits par semaine (lundi de la semaine, fuseau d'affichage) sur la période de --weeks,
 	// de la plus ancienne à la plus récente ; [] sans --weeks.
 	Weekly []activity.WeekCount `json:"weekly"`
+}
+
+// aiToolJSON donne le nombre de commits signés par un outil d'IA.
+type aiToolJSON struct {
+	Tool    string `json:"tool"`
+	Commits int    `json:"commits"`
 }
 
 // maxContributorWeeks borne --weeks (un an).
@@ -117,18 +128,21 @@ func runContributors(ctx context.Context, deps Deps, opts *options, repoRef, sin
 				perWeek = append(perWeek, activity.WeekCount{Week: weekly.Weeks[i], Count: n})
 			}
 			report.Contributors = append(report.Contributors, contributorJSON{
-				ID:           c.ID,
-				Name:         c.Name,
-				Login:        c.ProviderLogin,
-				DisplayName:  c.DisplayName(),
-				AvatarURL:    c.AvatarURL,
-				Commits:      c.Commits,
-				Additions:    c.Additions,
-				Deletions:    c.Deletions,
-				Repositories: c.Repos,
-				Share:        float64(model.Permille(int64(c.Commits), total)) / 10,
-				LastCommitAt: timeJSON(c.LastCommitAt),
-				Weekly:       perWeek,
+				ID:               c.ID,
+				Name:             c.Name,
+				Login:            c.ProviderLogin,
+				DisplayName:      c.DisplayName(),
+				AvatarURL:        c.AvatarURL,
+				Commits:          c.Commits,
+				Additions:        c.Additions,
+				Deletions:        c.Deletions,
+				Repositories:     c.Repos,
+				Share:            float64(model.Permille(int64(c.Commits), total)) / 10,
+				LastCommitAt:     timeJSON(c.LastCommitAt),
+				AISignedCommits:  c.AI.Signed,
+				AIScannedCommits: c.AI.Scanned,
+				AITools:          aiToolsJSON(c.AI.Tools),
+				Weekly:           perWeek,
 			})
 		}
 		return writeJSON(deps.Stdout, report)
@@ -149,7 +163,9 @@ func runContributors(ctx context.Context, deps Deps, opts *options, repoRef, sin
 	}
 	now := s.now()
 	rows := make([][]string, len(ranking))
+	signed := false
 	for i, c := range ranking {
+		signed = signed || c.AI.Signed > 0
 		login := c.ProviderLogin
 		if login == "" {
 			login = "-"
@@ -161,15 +177,37 @@ func runContributors(ctx context.Context, deps Deps, opts *options, repoRef, sin
 			activity.PercentText(model.Permille(int64(c.Commits), total)),
 			knownLines(c.KnownCommits > 0, "+", c.Additions),
 			knownLines(c.KnownCommits > 0, "-", c.Deletions),
+			aiTotalsText(c.AI),
 			fmt.Sprint(c.Repos),
 			activity.Relative(c.LastCommitAt, now, s.loc, st.unicode()),
 		}
 	}
 	headers := []string{i18n.T("cli.sync.header_contributor"), "Login", "Commits", i18n.T("cli.sync.header_share"),
-		i18n.T("cli.sync.header_additions"), i18n.T("cli.sync.header_deletions"),
+		i18n.T("cli.sync.header_additions"), i18n.T("cli.sync.header_deletions"), i18n.T("cli.sync.header_ai"),
 		st.pick(i18n.T("cli.sync.header_repos"), i18n.T("cli.sync.header_repos_ascii")),
 		i18n.T("cli.sync.header_last_commit")}
-	return writeText(deps.Stdout, renderTable(st, headers, rows, nil))
+	out := renderTable(st, headers, rows, nil)
+	if signed {
+		out += i18n.T("cli.sync.ai_note")
+	}
+	return writeText(deps.Stdout, out)
+}
+
+// aiTotalsText écrit « commits signés/commits analysés », « - » si aucun commit n'est encore analysé.
+func aiTotalsText(a model.AITotals) string {
+	if !a.Known() {
+		return "-"
+	}
+	return fmt.Sprintf("%d/%d", a.Signed, a.Scanned)
+}
+
+// aiToolsJSON convertit les outils d'un contributeur ([] si aucun, jamais null).
+func aiToolsJSON(tools []model.AIToolCount) []aiToolJSON {
+	out := make([]aiToolJSON, len(tools))
+	for i, t := range tools {
+		out[i] = aiToolJSON{Tool: t.Tool, Commits: t.Commits}
+	}
+	return out
 }
 
 // weeklyContributorsTable renvoie le tableau de « contributors --weeks » : une ligne par contributeur

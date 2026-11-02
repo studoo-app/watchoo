@@ -118,7 +118,7 @@ func TestJSONSchemaAllCommands(t *testing.T) {
 	assertContains(t, "sync --json", outputs["sync"], `"warnings": []`)
 	// Items of "log" (stats_known: 0.5.0).
 	assertJSONKeys(t, outputs["log"], "commits.0", "repository", "sha", "short_sha", "message", "url", "author",
-		"authored_at", "committed_at", "additions", "deletions", "stats_known")
+		"authored_at", "committed_at", "additions", "deletions", "stats_known", "ai_signatures", "ai_scanned")
 	// Items of "contributors": weekly ([] without --weeks, week / count objects with it).
 	assertJSONKeys(t, outputs["contributors"], "contributors.0", contributorKeys...)
 	weekly := h.run("contributors", "--weeks", "2", "--json").mustSucceed(t).stdout
@@ -130,7 +130,7 @@ func TestJSONSchemaAllCommands(t *testing.T) {
 
 // contributorKeys are the keys of an item of "contributors" (05-cli.md, JSON output).
 var contributorKeys = []string{"id", "name", "login", "display_name", "avatar_url", "commits", "additions",
-	"deletions", "repositories", "share", "last_commit_at", "weekly"}
+	"deletions", "repositories", "share", "last_commit_at", "ai_signed_commits", "ai_scanned_commits", "ai_tools", "weekly"}
 
 // The contract is documented: the "JSON output" table of documentation/en/05-cli.md and the "Sortie
 // JSON" table of its French mirror list, for each command, the same top-level keys as jsonTopLevelKeys.

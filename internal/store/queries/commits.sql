@@ -61,3 +61,33 @@ WHERE author_id = sqlc.arg(from_id);
 UPDATE commits
 SET committer_id = sqlc.arg(to_id)
 WHERE committer_id = sqlc.arg(from_id);
+
+-- name: ListCommitsToScanForAI :many
+-- Commits du depot pas encore analyses avec la version de regles current_version (au plus row_limit),
+-- avec le login et les adresses de leur auteur (separees par un saut de ligne).
+SELECT c.sha, c.message,
+       CAST(COALESCE(a.provider_login, '') AS TEXT) AS author_login,
+       CAST(COALESCE((SELECT group_concat(e.email, char(10)) FROM contributor_emails e
+                      WHERE e.contributor_id = c.author_id), '') AS TEXT) AS author_emails
+FROM commits c
+LEFT JOIN contributors a ON a.id = c.author_id
+WHERE c.repo_id = sqlc.arg(repo_id) AND c.ai_rules_version < sqlc.arg(current_version)
+ORDER BY c.sha
+LIMIT sqlc.arg(row_limit);
+
+-- name: DeleteCommitAISignatures :exec
+-- Retire les signatures d'un commit avant de les reecrire.
+DELETE FROM commit_ai_signatures
+WHERE repo_id = ? AND sha = ?;
+
+-- name: InsertCommitAISignature :exec
+-- Enregistre une signature d'un commit, sans doublon.
+INSERT INTO commit_ai_signatures (repo_id, sha, tool, kind)
+VALUES (?, ?, ?, ?)
+ON CONFLICT (repo_id, sha, tool, kind) DO NOTHING;
+
+-- name: SetCommitAIRulesVersion :exec
+-- Marque un commit analyse avec cette version de regles.
+UPDATE commits
+SET ai_rules_version = sqlc.arg(rules_version)
+WHERE repo_id = sqlc.arg(repo_id) AND sha = sqlc.arg(sha);
