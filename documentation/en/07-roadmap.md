@@ -14,7 +14,8 @@ TUI) in **v0.6.2**; the bilingual interface was released as **v0.7.0** ([0.7.0](
 more week of real usage, the public surface was stabilized and released as **v1.0.0**
 ([1.0.0](#100-stabilization)); languages and share of the contributors were released as **v1.1.0**
 ([1.1.0](#110-languages-and-share-of-the-contributors)); the AI signatures and the languages of the
-contributors were released as **v1.2.0** ([1.2.0](#120-ai-signatures-and-languages-of-the-contributors)).
+contributors were released as **v1.2.0** ([1.2.0](#120-ai-signatures-and-languages-of-the-contributors)); the sync
+warnings per repository were released as **v1.3.0** ([1.3.0](#130-sync-warnings-per-repository)).
 
 ```mermaid
 flowchart LR
@@ -150,6 +151,11 @@ Importing a whole organization and the alerts move to V3 (see
 - Languages of a contributor: lines added per language in their commits, read from the clone (contributor
   page, `watchoo contributors`, TUI, migration `00009`): **released in v1.2.0**. See
   [Languages of a contributor](03-architecture.md#languages-of-a-contributor-120).
+
+### 1.3.0: sync warnings per repository
+- Warnings of the last sync recorded per repository (`sync_runs.warnings`, migration `00010`): badge on the
+  dashboard card, alert with the full message on the repository's page, menu of the repositories concerned
+  in the sync indicator: **released in v1.3.0**. See [Web interface](06-web-interface.md#1-dashboard).
 
 ## Definition of "done" for each phase
 
