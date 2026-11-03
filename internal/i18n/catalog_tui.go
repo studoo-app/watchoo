@@ -176,6 +176,7 @@ var tuiTexts = map[string]entry{
 	"tui.detail.run_running":      {", in progress", ", en cours"},
 	"tui.detail.run_success":      {", successful (%s)", ", réussie (%s)"},
 	"tui.detail.top_contribs":     {"Top contributors", "Principaux contributeurs"},
+	"tui.cdetail.languages_none":  {"no line in a recognized language", "aucune ligne dans un langage reconnu"},
 	"tui.detail.languages_none":   {"none yet (computed at the next sync)", "aucun pour l'instant (calculés à la prochaine synchro)"},
 	"tui.detail.languages_others": {"others %s", "autres %s"},
 	"tui.field.languages":         {"Languages", "Langages"},

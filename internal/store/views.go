@@ -50,7 +50,10 @@ func (s *Store) ListRecentCommits(ctx context.Context, f CommitFilter) ([]Commit
 // (author_id NULL) ne sont pas comptés. Liste vide non nil si aucun.
 func (s *Store) ContributorRanking(ctx context.Context, f ContributorFilter) ([]ContributorStats, error) {
 	var rows []db.ContributorRankingRow
-	var tools map[int64][]model.AIToolCount
+	var (
+		tools map[int64][]model.AIToolCount
+		langs contributorLanguageLines
+	)
 	err := s.readTx(ctx, func(q *db.Queries) error {
 		var err error
 		rows, err = q.ContributorRanking(ctx, db.ContributorRankingParams{
@@ -61,7 +64,10 @@ func (s *Store) ContributorRanking(ctx context.Context, f ContributorFilter) ([]
 		if err != nil {
 			return err
 		}
-		tools, err = contributorAITools(ctx, q, 0, f.RepoID, f.Since)
+		if tools, err = contributorAITools(ctx, q, 0, f.RepoID, f.Since); err != nil {
+			return err
+		}
+		langs, err = contributorLanguages(ctx, q, 0, f.RepoID, f.Since)
 		return err
 	})
 	if err != nil {
@@ -86,6 +92,7 @@ func (s *Store) ContributorRanking(ctx context.Context, f ContributorFilter) ([]
 			Repos:        int(row.Repos),
 			LastCommitAt: last,
 			AI:           aiTotals(row.Commits, row.AiScannedCommits, row.AiSignedCommits, tools[row.ID]),
+			Languages:    langs.totals(row.ID, row.Commits, row.LanguagesScannedCommits),
 		})
 	}
 	return stats, nil
@@ -338,6 +345,45 @@ func contributorAITools(ctx context.Context, q *db.Queries, contributorID, repoI
 		tools[id] = append(tools[id], model.AIToolCount{Tool: row.Tool, Commits: int(row.Commits)})
 	}
 	return tools, nil
+}
+
+// contributorLanguageLines regroupe les lignes ajoutées par langage lues par ContributorLanguages : par
+// contributeur (tous dépôts du filtre), et le langage principal de chaque (contributeur, dépôt).
+type contributorLanguageLines struct {
+	lines map[int64]map[string]int
+	main  map[[2]int64]string
+}
+
+// totals renvoie les langages du contributeur id, qui a commits commits dont scanned analysés.
+func (c contributorLanguageLines) totals(id, commits, scanned int64) model.LanguageTotals {
+	return model.LanguageTotals{Commits: int(commits), Scanned: int(scanned), Lines: model.SortedLanguageLines(c.lines[id])}
+}
+
+// contributorLanguages lit les lignes ajoutées par langage dans les commits de chaque auteur
+// (contributorID 0 = tous), avec les filtres du classement (repoID 0 = tous les dépôts, since zéro =
+// sans borne).
+func contributorLanguages(ctx context.Context, q *db.Queries, contributorID, repoID int64, since time.Time) (contributorLanguageLines, error) {
+	rows, err := q.ContributorLanguages(ctx, db.ContributorLanguagesParams{
+		ContributorID: optionalID(contributorID),
+		RepoID:        optionalID(repoID),
+		Since:         optionalTime(since),
+	})
+	if err != nil {
+		return contributorLanguageLines{}, err
+	}
+	out := contributorLanguageLines{lines: make(map[int64]map[string]int), main: make(map[[2]int64]string)}
+	for _, row := range rows {
+		id := row.ContributorID.Int64
+		if out.lines[id] == nil {
+			out.lines[id] = make(map[string]int)
+		}
+		out.lines[id][row.Language] += int(row.Additions)
+		// Lignes triées par dépôt puis lignes décroissantes : la première est le langage principal.
+		if key := [2]int64{id, row.RepoID}; out.main[key] == "" {
+			out.main[key] = row.Language
+		}
+	}
+	return out, nil
 }
 
 // parseAISignatures lit la colonne agrégée « outil:type,outil:type » (valeurs du catalogue, sans

@@ -5,7 +5,9 @@ package sync
 // ou sans gh, chaque dépôt suivi a son clone dans repos/, qui donne les lignes ajoutées et supprimées
 // de tous ses commits (premier import compris), sans plafond ni quota. Clone indisponible : repli sur
 // les statistiques de l'API (fetchStats : premier import exclu, MaxStatsPerRepo, garde-fou de quota)
-// et avertissement, sans faire échouer le dépôt.
+// et avertissement, sans faire échouer le dépôt. Le même passage lit les lignes ajoutées par langage
+// (1.2.0, documentation/fr/03-architecture.md, « Langages d'un contributeur ») : commits nouveaux, et
+// commits en base lus avec une version de règles inférieure à git.LanguageRulesVersion.
 
 import (
 	"context"
@@ -14,6 +16,7 @@ import (
 	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/provider"
+	gitprov "github.com/studoo-app/watchoo/internal/provider/git"
 	"github.com/studoo-app/watchoo/internal/store"
 )
 
@@ -23,7 +26,8 @@ const unknownStatsPage = 2000
 // CloneStats est ce que le moteur demande au provider des clones Git locaux pour les statistiques
 // de lignes (implémenté par *git.Provider) : créer ou mettre à jour le clone d'un dépôt en extrayant
 // sa branche par défaut, calculer les statistiques d'un paquet de commits (SHA absents du clone omis
-// du résultat), et lire les langages de la branche par défaut.
+// du résultat ; lignes ajoutées par langage dans CommitStats.Languages, lues avec
+// git.LanguageRulesVersion), et lire les langages de la branche par défaut.
 type CloneStats interface {
 	Prepare(ctx context.Context, owner, name, defaultBranch string) error
 	CommitStatsBatch(ctx context.Context, owner, name string, shas []string) (map[string]provider.CommitStats, error)
@@ -125,8 +129,9 @@ type storeError struct{ err error }
 func (e *storeError) Error() string { return e.err.Error() }
 
 // cloneStats crée ou met à jour le clone (branche par défaut defaultBranch) puis calcule les
-// statistiques des nouveaux commits (renseignées dans s.commits) et de tous les commits du dépôt déjà
-// en base dont les statistiques sont inconnues (renvoyées pour ApplyRepoSync), page par page.
+// statistiques et les langages des nouveaux commits (renseignés dans s.commits) et de tous les commits
+// du dépôt déjà en base dont les statistiques sont inconnues ou les langages à relire (renvoyés pour
+// ApplyRepoSync), page par page.
 func (s *repoSync) cloneStats(ctx context.Context, repoID int64, defaultBranch string, cs CloneStats) (int, []store.CommitStatsWrite, error) {
 	if err := cs.Prepare(ctx, s.owner, s.name, defaultBranch); err != nil {
 		return 0, nil, err
@@ -157,16 +162,18 @@ func (s *repoSync) cloneStats(ctx context.Context, repoID int64, defaultBranch s
 			c := &s.commits[i]
 			if st, ok := got[c.SHA]; ok && !existing[c.SHA] {
 				c.Additions, c.Deletions, c.StatsKnown = st.Additions, st.Deletions, true
+				c.Languages = st.Languages
 				computed++
 			}
 		}
 	}
 
-	// Commits déjà en base sans statistiques (base d'avant la 0.5.0, synchro sans clone…).
+	// Commits déjà en base sans statistiques ou sans langages à jour (base d'avant la 0.5.0 ou la 1.2.0,
+	// synchro sans clone, nouvelle version des règles de langages…).
 	var writes []store.CommitStatsWrite
 	after := ""
 	for {
-		page, err := s.e.store.UnknownStatsSHAs(ctx, repoID, after, unknownStatsPage)
+		page, err := s.e.store.UnknownStatsSHAs(ctx, repoID, gitprov.LanguageRulesVersion, after, unknownStatsPage)
 		if err != nil {
 			return 0, nil, &storeError{err}
 		}
@@ -179,7 +186,8 @@ func (s *repoSync) cloneStats(ctx context.Context, repoID int64, defaultBranch s
 		}
 		for _, sha := range page {
 			if st, ok := got[sha]; ok {
-				writes = append(writes, store.CommitStatsWrite{SHA: sha, Additions: st.Additions, Deletions: st.Deletions})
+				writes = append(writes, store.CommitStatsWrite{SHA: sha, Additions: st.Additions, Deletions: st.Deletions,
+					Languages: st.Languages})
 			}
 		}
 		if len(page) < unknownStatsPage {

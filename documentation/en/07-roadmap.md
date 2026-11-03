@@ -146,6 +146,9 @@ Importing a whole organization and the alerts move to V3 (see
 - Signatures of AI tools declared in the commits, per commit and per contributor (CLI, TUI, web, `--json`),
   analyzed without any request to the forge: **in place**, to be released. See
   [AI signatures](02-features.md#ai-signatures). Clues based on style or pace are deliberately left out.
+- Languages of a contributor: lines added per language in their commits, read from the clone (contributor
+  page, `watchoo contributors`, TUI, migration `00009`): **in place**, to be released. See
+  [Languages of a contributor](03-architecture.md#languages-of-a-contributor-120).
 
 ## Definition of "done" for each phase
 

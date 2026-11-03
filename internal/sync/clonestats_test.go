@@ -239,12 +239,12 @@ func TestCloneUnavailableFallsBackToAPI(t *testing.T) {
 	}
 
 	// Location freed: the clone is created and catches up the commit that stayed unknown; the one read
-	// through the API is not computed again.
+	// through the API keeps its lines, only its languages are read (two commits read in the clone).
 	if err := os.RemoveAll(occupied); err != nil {
 		t.Fatal(err)
 	}
 	r0 = e.syncAll().Repos[0]
-	if r0.Status != wsync.StatusSuccess || len(r0.Warnings) != 0 || r0.StatsFetched != 1 {
+	if r0.Status != wsync.StatusSuccess || len(r0.Warnings) != 0 || r0.StatsFetched != 2 {
 		t.Fatalf("clone back: %+v", r0)
 	}
 	if add, _, known := e.stats(repo.ID, m0); !known || add != 1 {

@@ -8,7 +8,8 @@ branches (via `commit_branches`) and the contributors. V2 adds three of them (mi
 `repositories.provider_id` optional (repositories tracked through local Git repositories); the
 migration `00005` (0.5.0) adds `contributors.profile_url` and the migration `00006` (0.5.0)
 `commits.stats_known`; the migration `00007` (1.1.0) adds `repository_languages`; the migration `00008` (1.2.0)
-adds `commits.ai_rules_version` and the `commit_ai_signatures` table, i.e. **twelve tables**. The storage is a SQLite file versioned by `goose` migrations, with **one
+adds `commits.ai_rules_version` and the `commit_ai_signatures` table; the migration `00009` (1.2.0) adds
+`commits.languages_version` and the `commit_languages` table, i.e. **thirteen tables**. The storage is a SQLite file versioned by `goose` migrations, with **one
 database per workspace** (`.watchoo/watchoo.db`, see [Workspaces](10-workspaces.md)). The tables
 therefore do not know the notion of workspace: two workspaces never share data.
 
@@ -25,6 +26,7 @@ erDiagram
     repositories ||--o{ repository_languages : "written in"
     commits ||--o{ commit_branches : "seen on"
     commits ||--o{ commit_ai_signatures : "declares"
+    commits ||--o{ commit_languages : "changes"
     branches ||--o{ commit_branches : "contains"
     contributors ||--o{ contributor_emails : "uses"
     contributors ||--o{ commits : "author"
@@ -128,6 +130,7 @@ number of branches that contain it.
 | stats_known | `1` if `additions` and `deletions` have been computed (even at 0), `0` if they are still unknown. Added by the migration `00006` (0.5.0) |
 | url | Link to the commit on the forge |
 | ai_rules_version | Version of the AI signature rules the commit was analyzed with; `0` = not analyzed yet. Added by the migration `00008` (1.2.0) |
+| languages_version | Version of the language rules the languages of the commit were read with in the clone; `0` = not yet. Added by the migration `00009` (1.2.0) |
 
 - **Stats** (`additions`, `deletions`): computed in the **local Git clone** of the repository
   (`git diff-tree --numstat`, without quota), with or without `gh`, for **all** the commits, the first
@@ -277,6 +280,26 @@ read its local Git clone; otherwise, what is in the database is kept.
 Percentages are not stored: they are computed at display time, from the total of the repository. See
 [Languages of a repository](03-architecture.md#languages-of-a-repository-110).
 
+### `commit_languages` — lines added per language in a commit (1.2.0)
+
+One row per language in which the commit adds at least one line, read from the local Git clone (see
+[Languages of a contributor](03-architecture.md#languages-of-a-contributor-120)). An analyzed commit
+(`languages_version` > 0) with no row here adds nothing in a recognized language (merge commit, Markdown
+only…).
+
+Primary key: **`(repo_id, sha, language)`**. Foreign key `(repo_id, sha)` to `commits`, with cascade.
+
+| Column | Description |
+| --- | --- |
+| repo_id | Repository |
+| sha | Commit |
+| language | Name of the language, as in `repository_languages` |
+| additions | Lines added in this language (at least 1) |
+
+Derived data: rewritten at each analysis of the commit. The totals of a contributor go through
+`commits.author_id`: a merge of contributors follows them without rewriting anything. Rolling back
+(`Down`): table, index and column removed; the commits remain.
+
 ## Index
 
 | Index | Usage |
@@ -289,6 +312,7 @@ Percentages are not stored: they are computed at display time, from the total of
 | `sync_runs(repo_id, started_at DESC)` | Technical: last sync of a repository |
 | `commits(repo_id, sha) WHERE stats_known = 0` | Partial index: commits whose `+/-` lines are still to be read (migration `00006`) |
 | `commits(repo_id, ai_rules_version)` | Commits still to analyze for the AI signatures (migration `00008`) |
+| `commits(repo_id, languages_version)` | Commits whose languages are still to read from the clone (migration `00009`) |
 
 ## Identity merging
 

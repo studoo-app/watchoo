@@ -16,9 +16,16 @@ PATCH (see [Skills](documentation/en/11-skills.md#versions-and-changelogmd)).
   GitHub Copilot and Cursor. A signature says a tool was declared, not who wrote the code, and its absence
   proves nothing: no score, no percentage, never "human". Existing commits are analyzed at the next
   sync, without any request to the forge.
-- **`--json`**: `ai_signatures` and `ai_scanned` on commits; `ai_signed_commits`, `ai_scanned_commits` and
-  `ai_tools` on `contributors`.
-- **Database**: migration `00008` (`commits.ai_rules_version`, table `commit_ai_signatures`).
+- **Languages of a contributor**: lines added in each language by the commits of a contributor, with their
+  percentage, read from the local Git clone in the same pass as the `+/-` lines (no extra request). New
+  "Languages" card on a contributor's page and main language of each of their repositories, LANGUAGE
+  column of `watchoo contributors`, "Languages" line in the contributor detail of the TUI. Merge commits,
+  dependencies and generated files do not count. Existing commits are read again from the clone at the
+  next sync; their `+/-` lines do not change.
+- **`--json`**: `ai_signatures` and `ai_scanned` on commits; `ai_signed_commits`, `ai_scanned_commits`,
+  `ai_tools`, `languages_scanned_commits` and `languages` on `contributors`.
+- **Database**: migration `00008` (`commits.ai_rules_version`, table `commit_ai_signatures`) and migration
+  `00009` (`commits.languages_version`, table `commit_languages`).
 
 ## [1.1.0] - 2026-11-02
 

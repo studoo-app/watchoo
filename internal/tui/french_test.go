@@ -58,9 +58,10 @@ func TestFrenchScreens(t *testing.T) {
 	data := newFakeData()
 	withContributorDetail(data)
 	l = newLoop(t, testDeps(data, &fakeSyncer{}))
+	l.send(tea.WindowSizeMsg{Width: 120, Height: 40})
 	l.press("3", "enter")
 	l.until(func(m Model) bool { return m.cdetail.open && !m.cdetail.loading })
-	mustContain(t, l.screen(), "Identités Git", "2 adresses rattachées (non affichées)",
+	mustContain(t, l.screen(), "Langages          PHP 75,0 %, Go 25,0 %", "Identités Git", "2 adresses rattachées (non affichées)",
 		"5 commits dans 2 dépôts, +40/-7 (2 non comptés)", "12 semaines", "Lignes +/- : comptées dans le clone")
 }
 

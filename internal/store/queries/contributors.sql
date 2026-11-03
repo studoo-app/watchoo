@@ -48,6 +48,7 @@ SELECT ct.id, ct.provider, ct.provider_user_id, ct.provider_login, ct.name, ct.a
        CAST(COALESCE(sum(c.deletions), 0) AS INTEGER) AS deletions,
        CAST(COALESCE(sum(c.stats_known), 0) AS INTEGER) AS known_commits,
        CAST(COALESCE(sum(c.ai_rules_version > 0), 0) AS INTEGER) AS ai_scanned_commits,
+       CAST(COALESCE(sum(c.languages_version > 0), 0) AS INTEGER) AS languages_scanned_commits,
        CAST(COALESCE(sum(EXISTS (SELECT 1 FROM commit_ai_signatures s
                                  WHERE s.repo_id = c.repo_id AND s.sha = c.sha)), 0) AS INTEGER) AS ai_signed_commits,
        count(DISTINCT c.repo_id) AS repos,

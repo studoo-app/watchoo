@@ -20,16 +20,20 @@ INSERT INTO commits (
 ON CONFLICT (repo_id, sha) DO NOTHING;
 
 -- name: SetCommitStats :execrows
--- Enregistre les statistiques d'un commit deja en base et les marque connues.
+-- Enregistre les statistiques d'un commit deja en base dont elles sont inconnues et les marque connues
+-- (des statistiques connues ne sont jamais recalculees).
 UPDATE commits
 SET additions = sqlc.arg(additions), deletions = sqlc.arg(deletions), stats_known = 1
-WHERE repo_id = sqlc.arg(repo_id) AND sha = sqlc.arg(sha);
+WHERE repo_id = sqlc.arg(repo_id) AND sha = sqlc.arg(sha) AND stats_known = 0;
 
 -- name: ListUnknownStatsSHAs :many
--- SHA des commits du depot dont les statistiques sont inconnues, par ordre croissant, apres after_sha
--- (pagination ; chaine vide = depuis le debut), au plus row_limit.
+-- SHA des commits du depot dont les statistiques sont inconnues, ou les langages lus avec une version de
+-- regles inferieure a languages_version, par ordre croissant, apres after_sha (pagination ; chaine vide =
+-- depuis le debut), au plus row_limit.
 SELECT sha FROM commits
-WHERE repo_id = sqlc.arg(repo_id) AND stats_known = 0 AND sha > sqlc.arg(after_sha)
+WHERE repo_id = sqlc.arg(repo_id)
+  AND (stats_known = 0 OR languages_version < sqlc.arg(languages_version))
+  AND sha > sqlc.arg(after_sha)
 ORDER BY sha
 LIMIT sqlc.arg(row_limit);
 
@@ -90,4 +94,20 @@ ON CONFLICT (repo_id, sha, tool, kind) DO NOTHING;
 -- Marque un commit analyse avec cette version de regles.
 UPDATE commits
 SET ai_rules_version = sqlc.arg(rules_version)
+WHERE repo_id = sqlc.arg(repo_id) AND sha = sqlc.arg(sha);
+
+-- name: DeleteCommitLanguages :exec
+-- Retire les langages d'un commit avant de les reecrire.
+DELETE FROM commit_languages
+WHERE repo_id = ? AND sha = ?;
+
+-- name: InsertCommitLanguage :exec
+-- Enregistre les lignes ajoutees dans un langage par un commit.
+INSERT INTO commit_languages (repo_id, sha, language, additions)
+VALUES (?, ?, ?, ?);
+
+-- name: SetCommitLanguagesVersion :execrows
+-- Marque les langages d'un commit lus avec cette version de regles (0 ligne : commit absent).
+UPDATE commits
+SET languages_version = sqlc.arg(languages_version)
 WHERE repo_id = sqlc.arg(repo_id) AND sha = sqlc.arg(sha);

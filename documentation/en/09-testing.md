@@ -446,6 +446,18 @@ No test reaches GitHub: the root of the releases is that of a fake `httptest` se
 - CLI (text and `--json`, `json_schema_test.go`), web (badge, totals, "—" before the analysis, sentence), TUI
   (line of the detail), both languages.
 
+## Languages of a contributor (1.2.0)
+
+- Git provider: lines added per language in `CommitStatsBatch` (exclusions, binaries, root commit, merge
+  commit analyzed with no line) against `gittest` repositories.
+- Store: migration `00009` (commit from before the migration waiting, constraints, rollback), writing with
+  the new commits and as a catch-up, cascade, totals per contributor and per repository (filters, merge of
+  contributors).
+- Engine: languages at the first import, single catch-up of a database from before 1.2.0, new rules
+  version, fallback to the API without languages.
+- CLI (column, `--json`, `json_schema_test.go`), web (card, "No known language", commits not analyzed yet,
+  main language per repository), TUI (line of the detail), both languages.
+
 ## Languages in tests
 
 The interface (CLI, TUI, web) is bilingual: **English by default**, French via `WATCHOO_LANG=fr`

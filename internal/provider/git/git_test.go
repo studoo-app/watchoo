@@ -196,7 +196,7 @@ func TestRepositoryAndHistory(t *testing.T) {
 		{x, provider.CommitStats{Additions: 1}}, // the merge brings "c" to dev
 	} {
 		st, err := p.CommitStats(ctx, "alice", "projet", tc.sha)
-		if err != nil || st != tc.want {
+		if err != nil || st.Additions != tc.want.Additions || st.Deletions != tc.want.Deletions {
 			t.Errorf("CommitStats(%s) = %+v, %v; want %+v", provider.ShortSHA(tc.sha), st, err, tc.want)
 		}
 	}

@@ -1,6 +1,7 @@
 package cli
 
-// « watchoo contributors [--repo owner/repo] [--since 30d | --weeks 12] » : store.ContributorRanking ;
+// « watchoo contributors [--repo owner/repo] [--since 30d | --weeks 12] » : store.ContributorRanking
+// (langage principal de chacun, 1.2.0) ;
 // avec --weeks, commits par semaine de chacun (store.AuthorCommitTimes, activity.CountContributorWeeks).
 
 import (
@@ -36,6 +37,9 @@ type contributorJSON struct {
 	AISignedCommits  int          `json:"ai_signed_commits"`
 	AIScannedCommits int          `json:"ai_scanned_commits"`
 	AITools          []aiToolJSON `json:"ai_tools"`
+	// Langages (1.2.0) : commits dont les langages sont lus dans le clone, lignes ajoutées par langage.
+	LanguagesScannedCommits int                       `json:"languages_scanned_commits"`
+	Languages               []contributorLanguageJSON `json:"languages"`
 	// Weekly : commits par semaine (lundi de la semaine, fuseau d'affichage) sur la période de --weeks,
 	// de la plus ancienne à la plus récente ; [] sans --weeks.
 	Weekly []activity.WeekCount `json:"weekly"`
@@ -45,6 +49,13 @@ type contributorJSON struct {
 type aiToolJSON struct {
 	Tool    string `json:"tool"`
 	Commits int    `json:"commits"`
+}
+
+// contributorLanguageJSON donne les lignes ajoutées par un contributeur dans un langage.
+type contributorLanguageJSON struct {
+	Name    string  `json:"name"`
+	Lines   int     `json:"lines"`   // lignes ajoutées
+	Percent float64 `json:"percent"` // part de ses lignes ajoutées, une décimale
 }
 
 // maxContributorWeeks borne --weeks (un an).
@@ -128,21 +139,23 @@ func runContributors(ctx context.Context, deps Deps, opts *options, repoRef, sin
 				perWeek = append(perWeek, activity.WeekCount{Week: weekly.Weeks[i], Count: n})
 			}
 			report.Contributors = append(report.Contributors, contributorJSON{
-				ID:               c.ID,
-				Name:             c.Name,
-				Login:            c.ProviderLogin,
-				DisplayName:      c.DisplayName(),
-				AvatarURL:        c.AvatarURL,
-				Commits:          c.Commits,
-				Additions:        c.Additions,
-				Deletions:        c.Deletions,
-				Repositories:     c.Repos,
-				Share:            float64(model.Permille(int64(c.Commits), total)) / 10,
-				LastCommitAt:     timeJSON(c.LastCommitAt),
-				AISignedCommits:  c.AI.Signed,
-				AIScannedCommits: c.AI.Scanned,
-				AITools:          aiToolsJSON(c.AI.Tools),
-				Weekly:           perWeek,
+				ID:                      c.ID,
+				Name:                    c.Name,
+				Login:                   c.ProviderLogin,
+				DisplayName:             c.DisplayName(),
+				AvatarURL:               c.AvatarURL,
+				Commits:                 c.Commits,
+				Additions:               c.Additions,
+				Deletions:               c.Deletions,
+				Repositories:            c.Repos,
+				Share:                   float64(model.Permille(int64(c.Commits), total)) / 10,
+				LastCommitAt:            timeJSON(c.LastCommitAt),
+				AISignedCommits:         c.AI.Signed,
+				AIScannedCommits:        c.AI.Scanned,
+				AITools:                 aiToolsJSON(c.AI.Tools),
+				LanguagesScannedCommits: c.Languages.Scanned,
+				Languages:               contributorLanguagesJSON(c.Languages),
+				Weekly:                  perWeek,
 			})
 		}
 		return writeJSON(deps.Stdout, report)
@@ -178,12 +191,14 @@ func runContributors(ctx context.Context, deps Deps, opts *options, repoRef, sin
 			knownLines(c.KnownCommits > 0, "+", c.Additions),
 			knownLines(c.KnownCommits > 0, "-", c.Deletions),
 			aiTotalsText(c.AI),
+			mainLanguageText(c.Languages),
 			fmt.Sprint(c.Repos),
 			activity.Relative(c.LastCommitAt, now, s.loc, st.unicode()),
 		}
 	}
 	headers := []string{i18n.T("cli.sync.header_contributor"), "Login", "Commits", i18n.T("cli.sync.header_share"),
 		i18n.T("cli.sync.header_additions"), i18n.T("cli.sync.header_deletions"), i18n.T("cli.sync.header_ai"),
+		i18n.T("cli.sync.header_language"),
 		st.pick(i18n.T("cli.sync.header_repos"), i18n.T("cli.sync.header_repos_ascii")),
 		i18n.T("cli.sync.header_last_commit")}
 	out := renderTable(st, headers, rows, nil)
@@ -199,6 +214,23 @@ func aiTotalsText(a model.AITotals) string {
 		return "-"
 	}
 	return fmt.Sprintf("%d/%d", a.Signed, a.Scanned)
+}
+
+// mainLanguageText écrit le langage où le contributeur a ajouté le plus de lignes, « - » si aucun.
+func mainLanguageText(t model.LanguageTotals) string {
+	if t.Main() == "" {
+		return "-"
+	}
+	return t.Main()
+}
+
+// contributorLanguagesJSON convertit les langages d'un contributeur ([] si aucun, jamais null).
+func contributorLanguagesJSON(t model.LanguageTotals) []contributorLanguageJSON {
+	out := make([]contributorLanguageJSON, len(t.Lines))
+	for i, l := range t.Lines {
+		out[i] = contributorLanguageJSON{Name: l.Language, Lines: l.Lines, Percent: float64(t.Share(l)) / 10}
+	}
+	return out
 }
 
 // aiToolsJSON convertit les outils d'un contributeur ([] si aucun, jamais null).

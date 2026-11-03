@@ -228,10 +228,16 @@ nor the templates: the profile link is the address stored in the database (see
   same palette), one series per repository among the 8 where they have the most commits over the
   period, the others grouped under "Other repositories", with the collapsible
   "Chart data" table (repository name linked to its page).
+- **Languages** (1.2.0, `contributor-languages` fragment): lines added in each language by their commits,
+  across all repositories, from the language with the most to the least: name, lines, percentage and bar
+  (`<progress>`, like the card of a repository); beyond 8, the rest is grouped under "Other languages".
+  "No known language" if none of their commits is analyzed yet; a note points out the commits not analyzed
+  yet and recalls that these are added lines. Rules:
+  [Architecture](03-architecture.md#languages-of-a-contributor-120).
 - **Their repositories** (`contributor-repos` fragment): for each repository where they are the author
   of at least one commit, name linked to the repository page, status badge of the repository (rules
-  and thresholds of the repository), their commits, their `+/-` lines ("—" if unknown), their last
-  commit in that repository; sorted by decreasing number of commits, then most recent last commit.
+  and thresholds of the repository), their commits, their `+/-` lines ("—" if unknown), their main
+  language in that repository (1.2.0, "—" if unknown), their last commit in that repository; sorted by decreasing number of commits, then most recent last commit.
 - **Their commits** (`contributor-commits` fragment): paginated history (50 per page, like that of a
   repository; previous / next HTMX links, `?page=` pushed into the address), each commit with the
   first line of the message (cleaned), the repository (link), the date, the `+/-` lines ("—" if they
@@ -246,7 +252,7 @@ nor the templates: the profile link is the address stored in the database (see
   kept, and a login can change owner.
 - Contributor without any author commit (they are only a committer): the page displays, totals at
   zero, empty charts and "No commit…" messages.
-- Fragments reloaded at the end of a sync (`sync-finished`): `contributor-overview`,
+- Fragments reloaded at the end of a sync (`sync-finished`): `contributor-overview`, `contributor-languages`,
   `contributor-repos` and `contributor-pulls` (`GET /contributors/{id}` with the `HX-Target` header),
   `contributor-commits` (`GET /contributors/{id}/commits`, which serves the full page outside HTMX);
   the two charts re-read the page, as elsewhere.

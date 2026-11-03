@@ -180,6 +180,62 @@ func (q *Queries) ContributorCommitTimesSince(ctx context.Context, arg Contribut
 	return items, nil
 }
 
+const contributorLanguages = `-- name: ContributorLanguages :many
+SELECT c.author_id AS contributor_id, c.repo_id, l.language,
+       CAST(sum(l.additions) AS INTEGER) AS additions
+FROM commit_languages l
+JOIN commits c ON c.repo_id = l.repo_id AND c.sha = l.sha
+WHERE c.author_id IS NOT NULL
+  AND (?1 IS NULL OR c.author_id = ?1)
+  AND (?2 IS NULL OR c.repo_id = ?2)
+  AND (?3 IS NULL OR c.committed_at >= ?3)
+GROUP BY c.author_id, c.repo_id, l.language
+ORDER BY c.author_id, c.repo_id, additions DESC, l.language
+`
+
+type ContributorLanguagesParams struct {
+	ContributorID interface{}
+	RepoID        interface{}
+	Since         interface{}
+}
+
+type ContributorLanguagesRow struct {
+	ContributorID sql.NullInt64
+	RepoID        int64
+	Language      string
+	Additions     int64
+}
+
+// Lignes ajoutees par langage dans les commits de chaque auteur (contributor_id NULL = tous), par depot,
+// avec les memes filtres que ContributorRanking ; tri par auteur, depot, lignes decroissantes, langage.
+func (q *Queries) ContributorLanguages(ctx context.Context, arg ContributorLanguagesParams) ([]ContributorLanguagesRow, error) {
+	rows, err := q.db.QueryContext(ctx, contributorLanguages, arg.ContributorID, arg.RepoID, arg.Since)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ContributorLanguagesRow{}
+	for rows.Next() {
+		var i ContributorLanguagesRow
+		if err := rows.Scan(
+			&i.ContributorID,
+			&i.RepoID,
+			&i.Language,
+			&i.Additions,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const contributorRanking = `-- name: ContributorRanking :many
 SELECT ct.id, ct.provider, ct.provider_user_id, ct.provider_login, ct.name, ct.avatar_url, ct.profile_url,
        count(*) AS commits,
@@ -187,6 +243,7 @@ SELECT ct.id, ct.provider, ct.provider_user_id, ct.provider_login, ct.name, ct.a
        CAST(COALESCE(sum(c.deletions), 0) AS INTEGER) AS deletions,
        CAST(COALESCE(sum(c.stats_known), 0) AS INTEGER) AS known_commits,
        CAST(COALESCE(sum(c.ai_rules_version > 0), 0) AS INTEGER) AS ai_scanned_commits,
+       CAST(COALESCE(sum(c.languages_version > 0), 0) AS INTEGER) AS languages_scanned_commits,
        CAST(COALESCE(sum(EXISTS (SELECT 1 FROM commit_ai_signatures s
                                  WHERE s.repo_id = c.repo_id AND s.sha = c.sha)), 0) AS INTEGER) AS ai_signed_commits,
        count(DISTINCT c.repo_id) AS repos,
@@ -207,21 +264,22 @@ type ContributorRankingParams struct {
 }
 
 type ContributorRankingRow struct {
-	ID               int64
-	Provider         sql.NullString
-	ProviderUserID   sql.NullInt64
-	ProviderLogin    string
-	Name             string
-	AvatarURL        string
-	ProfileURL       string
-	Commits          int64
-	Additions        int64
-	Deletions        int64
-	KnownCommits     int64
-	AiScannedCommits int64
-	AiSignedCommits  int64
-	Repos            int64
-	LastCommitAt     string
+	ID                      int64
+	Provider                sql.NullString
+	ProviderUserID          sql.NullInt64
+	ProviderLogin           string
+	Name                    string
+	AvatarURL               string
+	ProfileURL              string
+	Commits                 int64
+	Additions               int64
+	Deletions               int64
+	KnownCommits            int64
+	AiScannedCommits        int64
+	LanguagesScannedCommits int64
+	AiSignedCommits         int64
+	Repos                   int64
+	LastCommitAt            string
 }
 
 // Classement des auteurs : commits decroissants, puis dernier commit le plus recent, puis id.
@@ -248,6 +306,7 @@ func (q *Queries) ContributorRanking(ctx context.Context, arg ContributorRanking
 			&i.Deletions,
 			&i.KnownCommits,
 			&i.AiScannedCommits,
+			&i.LanguagesScannedCommits,
 			&i.AiSignedCommits,
 			&i.Repos,
 			&i.LastCommitAt,

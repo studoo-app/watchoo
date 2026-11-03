@@ -299,7 +299,7 @@ func (e *testEnv) applySync(repoID int64, name string, commits ...store.CommitWr
 		RepoID: repoID, RunID: run.ID,
 		Metadata: store.RepositoryMetadata{Owner: "promo", Name: name, DefaultBranch: "main",
 			URL: "https://github.com/promo/" + name},
-		Branches: branches, Commits: commits, SyncedAt: e.now.Add(-time.Hour + time.Minute),
+		Branches: branches, Commits: commits, LanguagesVersion: 1, SyncedAt: e.now.Add(-time.Hour + time.Minute),
 	}); err != nil {
 		e.t.Fatalf("ApplyRepoSync: %v", err)
 	}

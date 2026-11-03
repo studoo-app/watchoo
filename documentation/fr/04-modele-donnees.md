@@ -7,7 +7,8 @@ Sept tables suffisent pour le MVP ; `commits` est la table centrale, reliée aux
 `releases` et `tags`, soit **dix tables** ; la migration `00004` rend `repositories.provider_id`
 facultatif (dépôts suivis par clones Git locaux) ; la migration `00005` (0.5.0) ajoute
 `contributors.profile_url` et la migration `00006` (0.5.0) `commits.stats_known` ; la migration `00007` (1.1.0) ajoute `repository_languages` ; la migration `00008` (1.2.0)
-ajoute `commits.ai_rules_version` et la table `commit_ai_signatures`, soit **douze tables**. Le stockage est un fichier SQLite versionné par des migrations
+ajoute `commits.ai_rules_version` et la table `commit_ai_signatures` ; la migration `00009` (1.2.0) ajoute
+`commits.languages_version` et la table `commit_languages`, soit **treize tables**. Le stockage est un fichier SQLite versionné par des migrations
 `goose`, avec **une base par espace de supervision** (`.watchoo/watchoo.db`, voir
 [Espaces de supervision](10-espaces-de-supervision.md)). Les tables ne connaissent donc pas la notion
 d'espace : deux espaces ne partagent jamais de données.
@@ -25,6 +26,7 @@ erDiagram
     repositories ||--o{ tags : "marque"
     commits ||--o{ commit_branches : "vu sur"
     commits ||--o{ commit_ai_signatures : "déclare"
+    commits ||--o{ commit_languages : "modifie"
     branches ||--o{ commit_branches : "contient"
     contributors ||--o{ contributor_emails : "utilise"
     contributors ||--o{ commits : "auteur"
@@ -127,6 +129,7 @@ soit le nombre de branches qui le contiennent.
 | stats_known | `1` si `additions` et `deletions` ont été calculées (même à 0), `0` si elles sont encore inconnues. Ajoutée par la migration `00006` (0.5.0) |
 | url | Lien vers le commit sur la forge |
 | ai_rules_version | Version des règles de signatures d'IA avec laquelle le commit a été analysé ; `0` = pas encore analysé. Ajoutée par la migration `00008` (1.2.0) |
+| languages_version | Version des règles de langages avec laquelle les langages du commit ont été lus dans le clone ; `0` = pas encore. Ajoutée par la migration `00009` (1.2.0) |
 
 - **Statistiques** (`additions`, `deletions`) : calculées dans le **clone Git local** du dépôt
   (`git diff-tree --numstat`, sans quota), avec ou sans `gh`, pour **tous** les commits, premier import
@@ -277,6 +280,26 @@ lire son clone Git local ; sinon, ce qui est en base est gardé.
 Les pourcentages ne sont pas stockés : ils sont calculés à l'affichage, à partir du total du dépôt. Voir
 [Langages d'un dépôt](03-architecture.md#langages-dun-dépôt-110).
 
+### `commit_languages` — lignes ajoutées par langage dans un commit (1.2.0)
+
+Une ligne par langage dans lequel le commit ajoute au moins une ligne, lue dans le clone Git local (voir
+[Langages d'un contributeur](03-architecture.md#langages-dun-contributeur-120)). Un commit analysé
+(`languages_version` > 0) sans ligne ici n'ajoute rien dans un langage reconnu (commit de fusion, Markdown
+seul…).
+
+Clé primaire : **`(repo_id, sha, language)`**. Clé étrangère `(repo_id, sha)` vers `commits`, en cascade.
+
+| Colonne | Description |
+| --- | --- |
+| repo_id | Dépôt |
+| sha | Commit |
+| language | Nom du langage, comme dans `repository_languages` |
+| additions | Lignes ajoutées dans ce langage (au moins 1) |
+
+Donnée dérivée : réécrite à chaque analyse du commit. Les totaux d'un contributeur passent par
+`commits.author_id` : une fusion de contributeurs les suit sans rien réécrire. Retour arrière (`Down`) :
+table, index et colonne supprimés ; les commits restent.
+
 ## Index
 
 | Index | Usage |
@@ -289,6 +312,7 @@ Les pourcentages ne sont pas stockés : ils sont calculés à l'affichage, à pa
 | `sync_runs(repo_id, started_at DESC)` | Technique : dernière synchro d'un dépôt |
 | `commits(repo_id, sha) WHERE stats_known = 0` | Index partiel : commits dont les lignes `+/-` restent à lire (migration `00006`) |
 | `commits(repo_id, ai_rules_version)` | Commits restant à analyser pour les signatures d'IA (migration `00008`) |
+| `commits(repo_id, languages_version)` | Commits dont les langages restent à lire dans le clone (migration `00009`) |
 
 ## Fusion des identités
 
