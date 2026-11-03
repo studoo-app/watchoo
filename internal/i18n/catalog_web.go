@@ -169,6 +169,34 @@ var webTexts = map[string]entry{
 		"Last sync of each repository: repository page and settings",
 		"Dernière synchro de chaque dépôt : page du dépôt et réglages",
 	},
+	"web.sync.warnings_menu": {"Repositories with warnings", "Dépôts avec avertissements"},
+
+	// Avertissements de synchro (syncwarnings.go) : libellé court par code, conséquence sur la carte
+	// d'un dépôt, alerte de la page d'un dépôt.
+	"web.warn.label.stats_not_computed":     {"Line statistics not computed", "Statistiques de lignes non calculées"},
+	"web.warn.label.clone_unavailable":      {"Local Git clone unavailable", "Clone Git local indisponible"},
+	"web.warn.label.languages_not_computed": {"Languages not computed", "Langages non calculés"},
+	"web.warn.label.lists_not_synced":       {"Pull requests, releases or tags not read", "Pull requests, releases ou tags non lus"},
+	"web.warn.label.ai_not_scanned":         {"AI signatures not analyzed", "Signatures d'IA non analysées"},
+	"web.warn.label.other":                  {"Sync warning", "Avertissement de synchro"},
+	"web.warn.effect.stats_not_computed":    {"Lines of the new commits not counted", "Lignes des nouveaux commits non comptées"},
+	"web.warn.effect.clone_unavailable": {
+		"Line statistics read through the API (limited)",
+		"Statistiques de lignes lues par l'API (limitées)",
+	},
+	"web.warn.effect.languages_not_computed": {"Languages not updated", "Langages non mis à jour"},
+	"web.warn.effect.lists_not_synced": {
+		"Pull requests, releases or tags may be out of date",
+		"Pull requests, releases ou tags peut-être pas à jour",
+	},
+	"web.warn.effect.ai_not_scanned": {"AI signatures analyzed at the next sync", "Signatures d'IA analysées à la prochaine synchro"},
+	"web.warn.badge_aria":            {"Warnings of the last sync: %s", "Avertissements de la dernière synchro : %s"},
+	"web.warn.alert_title":           {"Last sync finished with %s", "La dernière synchro s'est terminée avec %s"},
+	"web.warn.alert_failed":          {"Last sync failed", "La dernière synchro a échoué"},
+	"web.warn.clone_hint": {
+		"Check this machine's SSH key or Git credentials, then sync again.",
+		"Vérifiez la clé SSH ou les identifiants Git de cette machine, puis relancez une synchro.",
+	},
 	"web.sync.quota_low": {"quota low", "quota bas"},
 	"web.sync.quota_low_title": {
 		"Less than 10% of the GitHub quota left: syncs are deferred until it resets",

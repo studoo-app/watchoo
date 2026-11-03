@@ -74,6 +74,7 @@
       </div>
       {{if $r.Enabled}}{{template "sync-repo-button" (dict "Page" . "RepoID" $r.ID)}}{{end}}
     </div>
+    {{template "repo-sync-alert" $r.LastRun}}
 
     <dl class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 text-sm">
       <div>
@@ -114,6 +115,31 @@
     </dl>
   </div>
 </section>
+{{end}}
+
+{{/* Alerte de la dernière synchro (1.3.0) : avertissements d'une synchro réussie (message complet,
+     tel qu'enregistré) ou message d'une synchro échouée. Donnée : model.SyncRun. */}}
+{{define "repo-sync-alert"}}
+{{- if eq (print .Status) "error"}}
+<div id="repo-sync-alert" role="alert" class="alert alert-error alert-soft items-start scroll-mt-4">
+  <div class="min-w-0">
+    <p class="font-semibold">{{t "web.warn.alert_failed"}} · {{template "rel-time" .StartedAt}}</p>
+    <p class="text-sm break-words">{{truncate 500 .Error}}</p>
+  </div>
+</div>
+{{- else if .Warnings}}
+<div id="repo-sync-alert" role="alert" class="alert alert-warning alert-soft items-start scroll-mt-4">
+  <div class="min-w-0">
+    <p class="font-semibold">{{t "web.warn.alert_title" (tn "web.n.warning" (len .Warnings))}} · {{template "rel-time" .StartedAt}}</p>
+    <ul class="list-disc pl-5 text-sm space-y-1 mt-1">
+      {{- range .Warnings}}
+      <li class="break-words"><span class="font-medium">{{warnLabel .Kind}}</span><br><span class="text-xs">{{truncate 500 .Message}}</span></li>
+      {{- end}}
+    </ul>
+    {{- if warnCloneHint .Warnings}}<p class="text-sm mt-2">{{t "web.warn.clone_hint"}}</p>{{end}}
+  </div>
+</div>
+{{- end}}
 {{end}}
 
 {{/* Seuils d'activité propres au dépôt (repo_thresholds.go). Hors du fragment « repo-overview » :

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/studoo-app/watchoo/internal/i18n"
+	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/provider"
 )
 
@@ -61,10 +62,20 @@ type RepoReport struct {
 	DeferReason DeferReason
 	// Warnings sont les avertissements d'un dépôt réussi (StatusSuccess) : pull requests, releases ou
 	// tags non synchronisés (« releases not synced: … »), clone Git local indisponible
-	// (« local Git clone unavailable, line statistics read through the API (limited): … »), dans la
-	// langue du processus, sans donnée personnelle ;
-	// nil sinon. Ils ne changent pas le statut du dépôt.
-	Warnings []string
+	// (« local Git clone unavailable, line statistics read through the API (limited): … »)…, avec leur
+	// code (Kind) et leur message dans la langue du processus, sans donnée personnelle ; nil sinon.
+	// Ils ne changent pas le statut du dépôt et sont aussi enregistrés dans sync_runs.warnings.
+	Warnings []model.SyncWarning
+}
+
+// WarningMessages renvoie les messages des avertissements du dépôt, dans l'ordre ; liste vide non nil
+// si aucun.
+func (r RepoReport) WarningMessages() []string {
+	msgs := make([]string, 0, len(r.Warnings))
+	for _, w := range r.Warnings {
+		msgs = append(msgs, w.Message)
+	}
+	return msgs
 }
 
 // Warnings renvoie le nombre total d'avertissements du rapport.

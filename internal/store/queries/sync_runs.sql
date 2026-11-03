@@ -28,3 +28,9 @@ SELECT * FROM sync_runs
 WHERE repo_id = ?
 ORDER BY started_at DESC, id DESC
 LIMIT 1;
+
+-- name: SetSyncRunWarnings :execrows
+-- Enregistre les avertissements (tableau JSON) d'une synchro close en succes (0 ligne sinon).
+UPDATE sync_runs
+SET warnings = sqlc.arg(warnings)
+WHERE id = sqlc.arg(id) AND status = 'success';

@@ -58,7 +58,7 @@ func TestSyncLanguages(t *testing.T) {
 	}
 	r0 := rep.Repos[0]
 	if r0.Status != wsync.StatusSuccess || len(r0.Warnings) != 1 ||
-		!strings.Contains(r0.Warnings[0], "languages not computed") {
+		!strings.Contains(r0.Warnings[0].Message, "languages not computed") {
 		t.Errorf("repository: %+v", r0)
 	}
 	if got, err := e.st.ListLanguages(ctx, repo.ID); err != nil || len(got) != 2 {

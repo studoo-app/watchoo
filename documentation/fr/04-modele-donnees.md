@@ -8,7 +8,8 @@ Sept tables suffisent pour le MVP ; `commits` est la table centrale, reliée aux
 facultatif (dépôts suivis par clones Git locaux) ; la migration `00005` (0.5.0) ajoute
 `contributors.profile_url` et la migration `00006` (0.5.0) `commits.stats_known` ; la migration `00007` (1.1.0) ajoute `repository_languages` ; la migration `00008` (1.2.0)
 ajoute `commits.ai_rules_version` et la table `commit_ai_signatures` ; la migration `00009` (1.2.0) ajoute
-`commits.languages_version` et la table `commit_languages`, soit **treize tables**. Le stockage est un fichier SQLite versionné par des migrations
+`commits.languages_version` et la table `commit_languages`, soit **treize tables** ; la migration `00010` (1.3.0)
+ajoute `sync_runs.warnings`. Le stockage est un fichier SQLite versionné par des migrations
 `goose`, avec **une base par espace de supervision** (`.watchoo/watchoo.db`, voir
 [Espaces de supervision](10-espaces-de-supervision.md)). Les tables ne connaissent donc pas la notion
 d'espace : deux espaces ne partagent jamais de données.
@@ -197,8 +198,11 @@ message et de l'auteur déjà en base. Ni la ligne du message ni une adresse n'y
 | new_commits | Nombre de nouveaux commits récupérés |
 | status | `running`, `success` ou `error` |
 | error | Message d'erreur éventuel, dans la langue active lors de la synchro (anglais ou français), sans donnée personnelle |
+| warnings | Avertissements d'une synchro réussie (1.3.0, migration `00010`) : tableau JSON de `{"kind": …, "message": …}`, `[]` si aucun. `kind` est un code stable (`stats_not_computed`, `clone_unavailable`, `languages_not_computed`, `lists_not_synced`, `ai_not_scanned`), traduit à l'affichage ; `message` est le texte complet, dans la langue active lors de la synchro, sans donnée personnelle |
 
-Le dernier `sync_run` d'un dépôt donne l'état « en erreur ». Un `sync_run` `running` sert aussi de
+Le dernier `sync_run` d'un dépôt donne l'état « en erreur », et ses avertissements sont ceux affichés
+sur la carte et la page du dépôt (voir [Interface web](06-interface-web.md#1-tableau-de-bord)) : ils
+survivent à un redémarrage de `watchoo serve` et disparaissent à la synchro suivante sans avertissement. Un `sync_run` `running` sert aussi de
 **verrou** : voir [Architecture](03-architecture.md#fréquence-de-synchronisation).
 
 ### `pull_requests` — pull requests (V2)

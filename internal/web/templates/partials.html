@@ -40,7 +40,14 @@
   {{- if $v.LastError}} <span class="badge badge-error badge-sm" title="{{clean $v.LastError}}">{{t "web.sync.failed"}}</span>
   {{- else if $v.Errors}} <span class="badge badge-error badge-sm">{{tn "web.n.repo_error" $v.Errors}}</span>{{end}}
   {{- if $v.Deferred}} <span class="badge badge-warning badge-sm">{{tn "web.n.repo_deferred" $v.Deferred}}</span>{{end}}
-  {{- if $v.Warnings}} <span class="badge badge-warning badge-outline badge-sm" title="{{clean $v.WarningText}}">{{tn "web.n.warning" $v.Warnings}}</span>{{end}}
+  {{- if $v.Warnings}} <details id="sync-warnings" class="dropdown dropdown-end">
+    <summary class="badge badge-warning badge-outline badge-sm cursor-pointer list-none">{{tn "web.n.warning" $v.Warnings}}</summary>
+    <ul class="dropdown-content menu bg-base-100 rounded-box shadow-md z-20 w-80 max-w-[90vw] p-2 text-sm" aria-label="{{t "web.sync.warnings_menu"}}">
+      {{- range $v.WarningRepos}}
+      <li><a href="{{repoPath .ID}}" class="flex items-baseline justify-between gap-3"><span class="truncate font-medium">{{clean .DisplayName}}</span><span class="text-xs text-base-content/70 text-right">{{.Summary}}</span></a></li>
+      {{- end}}
+    </ul>
+  </details>{{end}}
   {{- else}}
   <span class="text-base-content/60" title="{{t "web.sync.none_title"}}">{{t "web.sync.none"}}</span>
   {{- end}}

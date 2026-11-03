@@ -74,6 +74,8 @@ var storeTexts = map[string]entry{
 	"store.runs.repo":                 {"sync of repository %d", "synchro du dépôt %d"},
 	"store.runs.running":              {"running sync %d", "synchro en cours %d"},
 	"store.runs.started_at":           {"sync %d, started_at", "synchro %d, started_at"},
+	"store.runs.success":              {"successful sync %d", "synchro réussie %d"},
+	"store.runs.warnings":             {"warnings of sync %d", "avertissements de la synchro %d"},
 	"store.sync.author":               {"author of commit %s", "auteur du commit %s"},
 	"store.sync.branch":               {"branch %q", "branche %q"},
 	"store.sync.branch_duplicate":     {"duplicate branch %q", "branche %q en double"},

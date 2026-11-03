@@ -22,6 +22,7 @@ import (
 	"github.com/studoo-app/watchoo/internal/activity"
 	"github.com/studoo-app/watchoo/internal/aisignature"
 	"github.com/studoo-app/watchoo/internal/i18n"
+	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/textclean"
 )
 
@@ -44,6 +45,10 @@ const maxFirstLine = 120
 //	                 badge-error (Dead), badge-neutral (états gris)
 //	stateText res    libellé de l'état : "Active", "Slacking · 9 d" / « Flemme · 9 j », « Dead · 42 j »…
 //	stateLabel st    libellé seul de l'état (activity.State.LabelIn)
+//	warnLabel k      libellé court d'un avertissement de synchro (syncwarnings.go)
+//	warnEffect k     sa conséquence ("Line statistics read through the API (limited)")
+//	warnTitle ws     libellés courts des avertissements, un par ligne (infobulle)
+//	warnCloneHint ws l'un d'eux vient du clone Git local (conseil : clé SSH, identifiants Git)
 //	branchesText p   motifs de branches suivis, ou "all branches" / « toutes les branches »
 //	thresholdOrigin own  origine d'un seuil : "this repository's" / « propre à ce dépôt », sinon celui de l'espace
 //	importAction r   action d'un dépôt dans l'aperçu d'un import ("to add" / « à ajouter »…)
@@ -68,17 +73,21 @@ const maxFirstLine = 120
 //	                 sont pour lui des attributs de texte)
 func (s *server) funcs(tr *i18n.Translator) template.FuncMap {
 	return template.FuncMap{
-		"t":            tr.T,
-		"tn":           func(key string, n int) string { return pluralText(tr, key, n) },
-		"relTime":      func(t time.Time) string { return activity.RelativeIn(tr, t, s.now(), s.loc, true) },
-		"localTime":    func(t time.Time) string { return s.formatLocal(t, tr.T("web.fmt.datetime")) },
-		"localDate":    func(t time.Time) string { return s.formatLocal(t, tr.T("web.fmt.date")) },
-		"localClock":   func(t time.Time) string { return s.formatLocal(t, "15:04") },
-		"isoTime":      isoTime,
-		"badgeClass":   badgeClass,
-		"stateText":    func(res activity.Result) string { return stateText(tr, res) },
-		"stateLabel":   func(st activity.State) string { return st.LabelIn(tr) },
-		"branchesText": func(patterns []string) string { return branchesText(tr, patterns) },
+		"t":             tr.T,
+		"tn":            func(key string, n int) string { return pluralText(tr, key, n) },
+		"relTime":       func(t time.Time) string { return activity.RelativeIn(tr, t, s.now(), s.loc, true) },
+		"localTime":     func(t time.Time) string { return s.formatLocal(t, tr.T("web.fmt.datetime")) },
+		"localDate":     func(t time.Time) string { return s.formatLocal(t, tr.T("web.fmt.date")) },
+		"localClock":    func(t time.Time) string { return s.formatLocal(t, "15:04") },
+		"isoTime":       isoTime,
+		"badgeClass":    badgeClass,
+		"stateText":     func(res activity.Result) string { return stateText(tr, res) },
+		"stateLabel":    func(st activity.State) string { return st.LabelIn(tr) },
+		"warnLabel":     func(k model.SyncWarningKind) string { return warnLabel(tr, k) },
+		"warnEffect":    func(k model.SyncWarningKind) string { return warnEffect(tr, k) },
+		"warnTitle":     func(ws []model.SyncWarning) string { return warnTitle(tr, ws) },
+		"warnCloneHint": warnCloneHint,
+		"branchesText":  func(patterns []string) string { return branchesText(tr, patterns) },
 		"thresholdOrigin": func(own bool) string {
 			if own {
 				return tr.T("web.repo.threshold_own")

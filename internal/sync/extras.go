@@ -31,7 +31,7 @@ type extras struct {
 	replaceReleases bool // releases lues : à remplacer en base
 	tags            []model.Tag
 	replaceTags     bool // tags lus : à remplacer en base
-	warnings        []string
+	warnings        []model.SyncWarning
 	skipped         int // éléments inexploitables ignorés (comptés dans un log)
 }
 
@@ -146,7 +146,8 @@ func (x *extras) warn(reason string, lists ...string) {
 	if slices.Contains(lists, listTags) {
 		key = "sync.extras.not_synced_masc"
 	}
-	x.warnings = append(x.warnings, i18n.T(key, joinLists(lists), reason))
+	x.warnings = append(x.warnings, model.SyncWarning{Kind: model.WarnListsNotSynced,
+		Message: i18n.T(key, joinLists(lists), reason)})
 }
 
 // joinLists écrit « a », « a and b », « a, b and c » (« et » en français).

@@ -16,7 +16,6 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"github.com/studoo-app/watchoo/internal/i18n"
 	wsync "github.com/studoo-app/watchoo/internal/sync"
@@ -43,16 +42,20 @@ type SyncView struct {
 	Deferred     int    // dépôts reportés (quota) dans le dernier rapport
 	NewCommits   int    // nouveaux commits du dernier rapport
 	Warnings     int    // avertissements du dernier rapport (listes non lues, clone Git local indisponible)
-	// WarningText reprend ces avertissements (« dépôt : message », séparés par « ; », ponctuation de
-	// la langue de la page), pour l'infobulle ; tronqué à maxWarningText caractères.
-	WarningText string
+	// WarningRepos sont les dépôts du dernier rapport qui ont des avertissements, dans l'ordre du
+	// rapport (menu de la pastille des avertissements).
+	WarningRepos []WarningRepo
 }
 
-// maxWarningText borne le texte des avertissements de l'indicateur de synchro.
-const maxWarningText = 500
+// WarningRepo est un dépôt du menu des avertissements de l'indicateur de synchro.
+type WarningRepo struct {
+	ID          int64
+	DisplayName string
+	Summary     string // libellé court de l'avertissement, ou leur nombre (warnSummary)
+}
 
-// syncView renvoie l'état courant des synchros, avec un éventuel message (déjà traduit) ; la
-// ponctuation de WarningText suit la langue de tr.
+// syncView renvoie l'état courant des synchros, avec un éventuel message (déjà traduit) ; les
+// résumés de WarningRepos sont dans la langue de tr.
 func (s *server) syncView(tr *i18n.Translator, message string) SyncView {
 	st := s.sync.State()
 	v := SyncView{SyncState: st, Message: message, Percent: percent(st.Done, st.Total)}
@@ -61,13 +64,12 @@ func (s *server) syncView(tr *i18n.Translator, message string) SyncView {
 		v.Deferred = st.LastReport.Count(wsync.StatusDeferred)
 		v.NewCommits = st.LastReport.NewCommits()
 		v.Warnings = st.LastReport.Warnings()
-		var parts []string
 		for _, r := range st.LastReport.Repos {
-			for _, w := range r.Warnings {
-				parts = append(parts, r.DisplayName+tr.T("web.colon")+w)
+			if len(r.Warnings) > 0 {
+				v.WarningRepos = append(v.WarningRepos, WarningRepo{ID: r.RepoID, DisplayName: r.DisplayName,
+					Summary: warnSummary(tr, r.Warnings)})
 			}
 		}
-		v.WarningText = truncate(maxWarningText, strings.Join(parts, tr.T("web.semicolon")))
 		v.QuotaLow = st.LastReport.RateLimitKnown && wsync.QuotaLow(st.LastReport.RateLimit, s.now())
 	}
 	return v

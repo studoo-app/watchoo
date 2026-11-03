@@ -5,6 +5,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"time"
 
@@ -90,6 +91,27 @@ func (s *Store) FinishSyncRun(ctx context.Context, runID int64, finishedAt time.
 	return nil
 }
 
+// SetSyncRunWarnings enregistre les avertissements du sync_run runID, clos en succès (ApplyRepoSync) :
+// ils remplacent ceux déjà enregistrés. Erreur enveloppant ErrNotFound si runID n'existe pas ou n'est
+// pas un succès.
+func (s *Store) SetSyncRunWarnings(ctx context.Context, runID int64, warnings []model.SyncWarning) error {
+	if warnings == nil {
+		warnings = []model.SyncWarning{}
+	}
+	raw, err := json.Marshal(warnings)
+	if err != nil {
+		return wrapErr(i18n.T("store.runs.warnings", runID), err)
+	}
+	n, err := s.queries.SetSyncRunWarnings(ctx, db.SetSyncRunWarningsParams{Warnings: string(raw), ID: runID})
+	if err != nil {
+		return wrapErr(i18n.T("store.runs.warnings", runID), err)
+	}
+	if n == 0 {
+		return wrapErr(i18n.T("store.runs.success", runID), ErrNotFound)
+	}
+	return nil
+}
+
 // LastSyncRun renvoie le dernier sync_run du dépôt repoID (started_at le plus récent, puis id le plus
 // grand), ou une erreur enveloppant ErrNotFound s'il n'y en a aucun.
 func (s *Store) LastSyncRun(ctx context.Context, repoID int64) (model.SyncRun, error) {
@@ -113,6 +135,10 @@ func syncRunFromDB(row db.SyncRun) (model.SyncRun, error) {
 	if err != nil {
 		return model.SyncRun{}, wrapErr(i18n.T("store.runs.finished_at", row.ID), err)
 	}
+	warnings := []model.SyncWarning{}
+	if err := json.Unmarshal([]byte(row.Warnings), &warnings); err != nil {
+		return model.SyncRun{}, wrapErr(i18n.T("store.runs.warnings", row.ID), err)
+	}
 	return model.SyncRun{
 		ID:         row.ID,
 		RepoID:     row.RepoID,
@@ -121,5 +147,6 @@ func syncRunFromDB(row db.SyncRun) (model.SyncRun, error) {
 		NewCommits: int(row.NewCommits),
 		Status:     model.SyncStatus(row.Status),
 		Error:      row.Error,
+		Warnings:   warnings,
 	}, nil
 }
