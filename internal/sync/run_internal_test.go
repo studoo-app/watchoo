@@ -113,3 +113,18 @@ func TestForEachBorne(t *testing.T) {
 		}
 	}
 }
+
+// An unknown SSH host key makes the repository inaccessible at addition, with its own advice.
+func TestInaccessibleMessageHostKey(t *testing.T) {
+	err := &provider.APIError{Op: "ls-remote", Err: provider.ErrHostKeyUnknown}
+	if !isInaccessible(err) {
+		t.Fatal("unknown host key: repository not inaccessible")
+	}
+	if got := inaccessibleMessage(err); got != provider.ErrHostKeyUnknown.Error() {
+		t.Errorf("inaccessibleMessage = %q", got)
+	}
+	denied := &provider.APIError{Op: "ls-remote", Err: provider.ErrAccessDenied}
+	if got := inaccessibleMessage(denied); got != provider.ErrAccessDenied.Error() {
+		t.Errorf("inaccessibleMessage(access denied) = %q", got)
+	}
+}

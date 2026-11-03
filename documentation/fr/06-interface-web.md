@@ -132,8 +132,8 @@ ne prouve rien. » Pas de pourcentage, pas de classement sur ce chiffre, aucune 
 - **Alerte de la dernière synchro** (1.3.0), sous l'en-tête, quand la dernière synchro du dépôt a des
   avertissements : une alerte orange (`alert-warning`) avec la date de la synchro, le message complet de
   chaque avertissement (tel qu'enregistré, dans la langue active lors de la synchro) et, pour le clone
-  Git local, le conseil « Vérifiez la clé SSH ou les identifiants Git de cette machine, puis relancez une
-  synchro ». Une alerte rouge (`alert-error`) donne au même endroit le message d'une synchro échouée.
+  Git local, le conseil « Corrigez la cause indiquée ci-dessus (accès SSH ou identifiants Git de cette
+  machine), puis relancez une synchro ». Une alerte rouge (`alert-error`) donne au même endroit le message d'une synchro échouée.
 - **Seuils d'activité de ce dépôt** (bloc repliable sous l'en-tête, hors des fragments HTMX : une saisie
   en cours n'est pas effacée par le rafraîchissement d'après synchro) : deux champs, « Flemme après » et
   « Dead après », en jours sans commit, préremplis avec les seuils propres du dépôt ; vide (ou `0`) =

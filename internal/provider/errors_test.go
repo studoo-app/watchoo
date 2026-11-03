@@ -35,6 +35,24 @@ func TestSentinelsAreDistinct(t *testing.T) {
 	}
 }
 
+func TestErrHostKeyUnknown(t *testing.T) {
+	if !errors.Is(ErrHostKeyUnknown, ErrAccessDenied) {
+		t.Error("ErrHostKeyUnknown must be an ErrAccessDenied")
+	}
+	wrapped := &APIError{Op: "update", Err: ErrHostKeyUnknown}
+	if !errors.Is(wrapped, ErrHostKeyUnknown) || !errors.Is(wrapped, ErrAccessDenied) {
+		t.Errorf("errors.Is through APIError: %v", wrapped)
+	}
+	if errors.Is(ErrAccessDenied, ErrHostKeyUnknown) {
+		t.Error("ErrAccessDenied must not be an ErrHostKeyUnknown")
+	}
+	msg := ErrHostKeyUnknown.Error()
+	if !strings.HasPrefix(msg, "access denied") || !strings.Contains(msg, "ssh -T git@github.com") ||
+		msg == ErrAccessDenied.Error() {
+		t.Errorf("ErrHostKeyUnknown = %q", msg)
+	}
+}
+
 func TestRateLimitError(t *testing.T) {
 	reset := time.Date(2026, 10, 26, 15, 4, 5, 0, time.FixedZone("CET", 3600))
 	tests := []struct {

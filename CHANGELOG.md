@@ -9,6 +9,19 @@ PATCH (see [Skills](documentation/en/11-skills.md#versions-and-changelogmd)).
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-11-03
+
+Dedicated message for an unknown SSH host key with local Git clones. No incompatible change.
+
+### Fixed
+
+- **Unknown SSH host key** (local Git clones): "Host key verification failed" no longer gives the
+  misleading "check the SSH key" advice. The message now says that the server fingerprint is unknown or
+  changed and to run `ssh -T git@github.com` once to accept it (for example when the SSH configuration
+  sends `github.com` to `ssh.github.com` port 443). The repository is still treated as inaccessible, as
+  before. On a repository's page, the advice under a local Git clone warning now points to the cause
+  shown above.
+
 ## [1.3.0] - 2026-11-03
 
 Sync warnings of each repository in the web interface. No incompatible change: the database is migrated
@@ -389,7 +402,8 @@ First published release: the MVP (phases 1 to 5 of the [roadmap](documentation/e
   `gh` is the official binary verified by SHA-256; base images and GitHub actions pinned by
   digest.
 
-[Unreleased]: https://github.com/studoo-app/watchoo/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/studoo-app/watchoo/compare/v1.3.1...HEAD
+[1.3.1]: https://github.com/studoo-app/watchoo/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/studoo-app/watchoo/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/studoo-app/watchoo/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/studoo-app/watchoo/compare/v1.0.0...v1.1.0

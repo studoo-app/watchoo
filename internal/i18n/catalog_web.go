@@ -194,8 +194,8 @@ var webTexts = map[string]entry{
 	"web.warn.alert_title":           {"Last sync finished with %s", "La dernière synchro s'est terminée avec %s"},
 	"web.warn.alert_failed":          {"Last sync failed", "La dernière synchro a échoué"},
 	"web.warn.clone_hint": {
-		"Check this machine's SSH key or Git credentials, then sync again.",
-		"Vérifiez la clé SSH ou les identifiants Git de cette machine, puis relancez une synchro.",
+		"Fix the cause shown above (SSH access or Git credentials of this machine), then sync again.",
+		"Corrigez la cause indiquée ci-dessus (accès SSH ou identifiants Git de cette machine), puis relancez une synchro.",
 	},
 	"web.sync.quota_low": {"quota low", "quota bas"},
 	"web.sync.quota_low_title": {

@@ -14,7 +14,8 @@ semaine de plus d'usage réel, la surface publique est stabilisée et publiée e
 ([1.0.0](#100--stabilisation)) ; les langages et la part des contributeurs sont publiés en **v1.1.0**
 ([1.1.0](#110--langages-et-part-des-contributeurs)) ; les signatures d'IA et les langages des contributeurs
 sont publiés en **v1.2.0** ([1.2.0](#120--signatures-dia-et-langages-des-contributeurs)) ; les avertissements de
-synchro par dépôt sont publiés en **v1.3.0** ([1.3.0](#130--avertissements-de-synchro-par-dépôt)).
+synchro par dépôt sont publiés en **v1.3.0** ([1.3.0](#130--avertissements-de-synchro-par-dépôt)) ; un message
+dédié pour une empreinte de serveur SSH inconnue (clones Git locaux) en **v1.3.1**.
 
 ```mermaid
 flowchart LR

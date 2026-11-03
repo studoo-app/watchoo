@@ -56,7 +56,19 @@ var (
 	// identifiants Git absents ou refusés, hôte SSH inconnu, dépôt introuvable ou sans accès. git ne
 	// distingue pas ces cas de façon fiable ; Watchoo ne demande ni ne stocke aucun identifiant.
 	ErrAccessDenied = i18nError{"provider.err.access_denied"}
+	// ErrHostKeyUnknown : ssh n'a pas reconnu l'empreinte du serveur (absente de known_hosts pour le
+	// nom et le port réellement contactés, ou changée) ; ssh est lancé sans invite et ne peut pas
+	// l'accepter. Cas particulier de ErrAccessDenied : errors.Is(ErrHostKeyUnknown, ErrAccessDenied)
+	// est vrai.
+	ErrHostKeyUnknown = hostKeyError{i18nError{"provider.err.host_key_unknown"}}
 )
+
+// hostKeyError est le type de ErrHostKeyUnknown : son propre message, mais traité partout comme un
+// accès refusé.
+type hostKeyError struct{ i18nError }
+
+// Is rattache ErrHostKeyUnknown à ErrAccessDenied.
+func (hostKeyError) Is(target error) bool { return target == ErrAccessDenied }
 
 // APIError est l'erreur renvoyée pour une requête à la forge qui a échoué (ou qui a été bloquée avant
 // l'envoi). Elle enveloppe la cause (Err), à tester avec errors.Is / errors.As : une erreur sentinelle du
