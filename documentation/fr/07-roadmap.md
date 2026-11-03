@@ -13,7 +13,8 @@ corrigé (`watchoo` seul, TUI) en **v0.6.2** ; l'interface bilingue est publiée
 semaine de plus d'usage réel, la surface publique est stabilisée et publiée en **v1.0.0**
 ([1.0.0](#100--stabilisation)) ; les langages et la part des contributeurs sont publiés en **v1.1.0**
 ([1.1.0](#110--langages-et-part-des-contributeurs)) ; les signatures d'IA et les langages des contributeurs
-sont publiés en **v1.2.0** ([1.2.0](#120--signatures-dia-et-langages-des-contributeurs)).
+sont publiés en **v1.2.0** ([1.2.0](#120--signatures-dia-et-langages-des-contributeurs)) ; les avertissements de
+synchro par dépôt sont publiés en **v1.3.0** ([1.3.0](#130--avertissements-de-synchro-par-dépôt)).
 
 ```mermaid
 flowchart LR
@@ -150,6 +151,12 @@ L'import d'une organisation entière et les alertes passent en V3 (voir
 - Langages d'un contributeur : lignes ajoutées par langage dans ses commits, lues dans le clone (page d'un
   contributeur, `watchoo contributors`, TUI, migration `00009`) : **publié en v1.2.0**. Voir
   [Langages d'un contributeur](03-architecture.md#langages-dun-contributeur-120).
+
+### 1.3.0 : avertissements de synchro par dépôt
+- Avertissements de la dernière synchro enregistrés par dépôt (`sync_runs.warnings`, migration `00010`) :
+  pastille sur la carte du tableau de bord, alerte avec le message complet sur la page du dépôt, menu des
+  dépôts concernés dans l'indicateur de synchro : **publié en v1.3.0**. Voir
+  [Interface web](06-interface-web.md#1-tableau-de-bord).
 
 ## Définition de « terminé » pour chaque phase
 
