@@ -106,6 +106,13 @@ this figure, no address displayed. Rules: [AI signatures](02-features.md#ai-sign
   synced, Error, Archived, Tracking stopped or Empty in gray (`badge-neutral`). Labels identical to the
   CLI ("Slacking · 9 d", "Dead · 40 d"). The left border of the card takes
   the color.
+- **Sync badges** (1.3.0), next to the status badge, from the repository's last sync
+  (`sync_runs`, so they survive a restart): an orange outlined badge with the number of **warnings**
+  (local Git clone unavailable, line statistics or languages not computed, pull requests, releases or
+  tags not read, AI signatures not analyzed), with their short labels in the tooltip and, under the
+  last commit, the consequence of the first one ("Line statistics read through the API (limited)").
+  The badge leads to the repository's page. A repository whose last sync failed (gray Error state)
+  shows, in the same place, the first line of the error message in red.
 - **Sorting**: Dead first, then Slacking, then Active, the oldest last commit first within each group;
   then the repositories in error (so that they get seen), then the other gray states; ties broken by
   display label.
@@ -125,6 +132,11 @@ this figure, no address displayed. Rules: [AI signatures](02-features.md#ai-sign
   workspace's", an "Edit" link to the thresholds form), last
   commit, last sync and its result, number of commits and their lines added / removed (0.5.0),
   default branch, tracked branches and patterns, stars and issues.
+- **Last sync alert** (1.3.0), under the header, when the repository's last sync has warnings: one
+  orange alert (`alert-warning`) with the date of the sync, the full message of each warning (as
+  recorded, in the language active at sync time) and, for the local Git clone, the advice "Check
+  this machine's SSH key or Git credentials, then sync again". A red alert (`alert-error`) gives in
+  the same place the message of a failed sync.
 - **Activity thresholds of this repository** (collapsible block under the header, outside the HTMX
   fragments: an input in progress is not cleared by the post-sync refresh): two fields, "Slacking
   after (days)" and "Dead after (days)", in days without a commit, pre-filled with
@@ -501,7 +513,9 @@ How it works (`wsync.Coordinator`, a single one per process, which reuses the en
   response carries the `HX-Trigger: sync-finished` header, and the fragments of the pages (cards, feed,
   history…) as well as the charts reload. Outside a sync, it gives the summary of the last one:
   repositories in error, postponed, and the number of **warnings** (pull requests, releases or tags
-  not read, local Git clone unavailable; the detail is in the tooltip); a sync launched from the
+  not read, local Git clone unavailable…). Since 1.3.0, this badge opens a menu (`<details>`) that lists
+  the repositories concerned, each linked to its page with the short label of its warning (or their
+  number); the polling pauses while the menu is open. A sync launched from the
   interface and already finished when the response is rendered (immediate failure of the engine,
   repository synced quickly) carries this header as early as the response to the `POST`. The sync
   buttons ("Sync now", "Sync this repository")

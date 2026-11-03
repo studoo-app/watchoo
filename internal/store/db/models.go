@@ -132,6 +132,7 @@ type SyncRun struct {
 	NewCommits int64
 	Status     string
 	Error      string
+	Warnings   string
 }
 
 type Tag struct {

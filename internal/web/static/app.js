@@ -419,6 +419,16 @@
     });
   }
 
+  // Menu des avertissements de l'indicateur de synchro (<details id="sync-warnings">) : tant qu'il
+  // est ouvert, le sondage du fragment « sync-status » est suspendu (sinon l'échange le refermerait).
+  document.addEventListener("htmx:beforeRequest", function (evt) {
+    var menu = document.getElementById("sync-warnings");
+    if (menu && menu.open && evt.detail && evt.detail.elt && evt.detail.elt.id === "sync-status" &&
+        evt.detail.requestConfig && evt.detail.requestConfig.verb === "get") {
+      evt.preventDefault();
+    }
+  });
+
   document.addEventListener("DOMContentLoaded", function () {
     if (!canvases().length) {
       return;

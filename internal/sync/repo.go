@@ -23,8 +23,8 @@ type repoOutcome struct {
 	stats       int // statistiques calculées par le clone, ou appels CommitStats faits (repli sur l'API)
 	pulls       int // pull requests lues (créées ou mises à jour)
 	// warnings : listes (pull requests, releases, tags) non synchronisées, clone Git local
-	// indisponible, en français.
-	warnings []string
+	// indisponible…, dans la langue du processus.
+	warnings []model.SyncWarning
 }
 
 // repoSync accumule les commits vus pendant la synchro d'un dépôt.
@@ -111,20 +111,20 @@ func (e *Engine) syncRepository(ctx context.Context, prov provider.Provider, cl 
 	if err != nil {
 		return repoOutcome{}, err
 	}
-	if statsWarning != "" {
-		x.warnings = append([]string{statsWarning}, x.warnings...)
+	if statsWarning.Kind != "" {
+		x.warnings = append([]model.SyncWarning{statsWarning}, x.warnings...)
 	}
 	// Clone déjà signalé indisponible : pas de seconde tentative ni de second avertissement.
 	var (
 		langs        []model.RepositoryLanguage
 		replaceLangs bool
 	)
-	if cl.stats != nil && statsWarning == "" {
-		var warning string
+	if cl.stats != nil && statsWarning.Kind == "" {
+		var warning model.SyncWarning
 		if langs, replaceLangs, warning, err = s.languages(ctx, cl); err != nil {
 			return repoOutcome{}, err
 		}
-		if warning != "" {
+		if warning.Kind != "" {
 			x.warnings = append(x.warnings, warning)
 		}
 	}
@@ -167,7 +167,8 @@ func (e *Engine) syncRepository(ctx context.Context, prov provider.Provider, cl 
 	// la suivante reprend les commits restants.
 	if err := e.scanAISignatures(ctx, repo.ID); err != nil {
 		e.logger.Warn("signatures d'IA non analysées", "repo", s.full, "erreur", errorMessage(err))
-		x.warnings = append(x.warnings, i18n.T("sync.ai.not_scanned"))
+		x.warnings = append(x.warnings, model.SyncWarning{Kind: model.WarnAINotScanned,
+			Message: i18n.T("sync.ai.not_scanned")})
 	}
 	display := repo.Label
 	if display == "" {

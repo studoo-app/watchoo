@@ -613,7 +613,7 @@ func (q *Queries) LastSyncFinishedAt(ctx context.Context) (string, error) {
 }
 
 const lastSyncRunByRepo = `-- name: LastSyncRunByRepo :many
-SELECT s.id, s.repo_id, s.started_at, s.finished_at, s.new_commits, s.status, s.error
+SELECT s.id, s.repo_id, s.started_at, s.finished_at, s.new_commits, s.status, s.error, s.warnings
 FROM repositories r
 JOIN sync_runs s ON s.id = (
     SELECT s2.id FROM sync_runs s2
@@ -641,6 +641,7 @@ func (q *Queries) LastSyncRunByRepo(ctx context.Context, repoID interface{}) ([]
 			&i.NewCommits,
 			&i.Status,
 			&i.Error,
+			&i.Warnings,
 		); err != nil {
 			return nil, err
 		}

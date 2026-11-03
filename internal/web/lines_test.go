@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/store"
 	wsync "github.com/studoo-app/watchoo/internal/sync"
 )
@@ -73,16 +74,26 @@ func TestLinesAllUnknown(t *testing.T) {
 	assertNotContains(t, w, "(including", zeroLines)
 }
 
-// Warnings of the last report (local Git clone unavailable…): badge and tooltip.
+// Warnings of the last report (local Git clone unavailable…): badge and menu of the repositories,
+// with the short label in the language of the page.
 func TestSyncStatusWarnings(t *testing.T) {
 	e := newTestEnv(t, withSyncer(&reportSyncer{report: wsync.Report{Repos: []wsync.RepoReport{{
-		DisplayName: "promo/alice", Status: wsync.StatusSuccess,
-		Warnings: []string{"clone Git local indisponible, statistiques de lignes lues par l'API (limitées) : accès refusé"},
+		RepoID: 7, DisplayName: "promo/alice", Status: wsync.StatusSuccess,
+		Warnings: []model.SyncWarning{{Kind: model.WarnCloneUnavailable,
+			Message: "clone Git local indisponible, statistiques de lignes lues par l'API (limitées) : accès refusé"}},
+	}, {
+		RepoID: 8, DisplayName: "promo/bob", Status: wsync.StatusSuccess,
+		Warnings: []model.SyncWarning{{Kind: model.WarnListsNotSynced, Message: "tags not synced: HTTP 502"},
+			{Kind: model.WarnAINotScanned, Message: "AI signatures not analyzed"}},
+	}, {
+		RepoID: 9, DisplayName: "promo/carol", Status: wsync.StatusSuccess,
 	}}}}))
 	assertStatus(t, e.post("/sync", nil, true), http.StatusOK)
 	e.waitSyncIdle()
 	w := e.htmx("/fragments/sync?gen=0&run=0")
-	assertContains(t, w, "1 warning", `title="promo/alice: clone Git local indisponible`)
+	assertContains(t, w, "3 warnings", `id="sync-warnings"`, `href="/repos/7"`, "Local Git clone unavailable",
+		`href="/repos/8"`, "2 warnings")
+	assertNotContains(t, w, `href="/repos/9"`, "accès refusé")
 }
 
 // reportSyncer is a fake engine that returns report right away.

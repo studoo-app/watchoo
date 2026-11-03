@@ -50,7 +50,7 @@ func (q *Queries) CountRunningSyncRuns(ctx context.Context, repoID int64) (int64
 const createSyncRun = `-- name: CreateSyncRun :one
 INSERT INTO sync_runs (repo_id, started_at, status, new_commits)
 VALUES (?, ?, 'running', 0)
-RETURNING id, repo_id, started_at, finished_at, new_commits, status, error
+RETURNING id, repo_id, started_at, finished_at, new_commits, status, error, warnings
 `
 
 type CreateSyncRunParams struct {
@@ -70,6 +70,7 @@ func (q *Queries) CreateSyncRun(ctx context.Context, arg CreateSyncRunParams) (S
 		&i.NewCommits,
 		&i.Status,
 		&i.Error,
+		&i.Warnings,
 	)
 	return i, err
 }
@@ -105,7 +106,7 @@ func (q *Queries) FinishSyncRun(ctx context.Context, arg FinishSyncRunParams) (i
 }
 
 const lastSyncRun = `-- name: LastSyncRun :one
-SELECT id, repo_id, started_at, finished_at, new_commits, status, error FROM sync_runs
+SELECT id, repo_id, started_at, finished_at, new_commits, status, error, warnings FROM sync_runs
 WHERE repo_id = ?
 ORDER BY started_at DESC, id DESC
 LIMIT 1
@@ -123,6 +124,27 @@ func (q *Queries) LastSyncRun(ctx context.Context, repoID int64) (SyncRun, error
 		&i.NewCommits,
 		&i.Status,
 		&i.Error,
+		&i.Warnings,
 	)
 	return i, err
+}
+
+const setSyncRunWarnings = `-- name: SetSyncRunWarnings :execrows
+UPDATE sync_runs
+SET warnings = ?1
+WHERE id = ?2 AND status = 'success'
+`
+
+type SetSyncRunWarningsParams struct {
+	Warnings string
+	ID       int64
+}
+
+// Enregistre les avertissements (tableau JSON) d'une synchro close en succes (0 ligne sinon).
+func (q *Queries) SetSyncRunWarnings(ctx context.Context, arg SetSyncRunWarningsParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, setSyncRunWarnings, arg.Warnings, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }

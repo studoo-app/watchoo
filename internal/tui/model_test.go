@@ -668,7 +668,7 @@ func TestDetailPullsAndRelease(t *testing.T) {
 		t.Errorf("pullsText without anything = %q", got)
 	}
 	text, bad := l.m.summarize(wsync.Report{Repos: []wsync.RepoReport{
-		{DisplayName: "a", Status: wsync.StatusSuccess, Warnings: []string{"tags non synchronisés : x"}},
+		{DisplayName: "a", Status: wsync.StatusSuccess, Warnings: []model.SyncWarning{{Kind: model.WarnListsNotSynced, Message: "tags non synchronisés : x"}}},
 		{DisplayName: "b", Status: wsync.StatusSuccess}}})
 	if text != "sync finished: 2 repositories, 0 new commits, 1 warning (pull requests, releases or tags)" || bad {
 		t.Errorf("summarize with a warning = %q, %v", text, bad)

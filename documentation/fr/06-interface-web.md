@@ -105,6 +105,13 @@ ne prouve rien. » Pas de pourcentage, pas de classement sur ce chiffre, aucune 
   (`badge-success`), Flemme en orange (`badge-warning`), Dead en rouge (`badge-error`) ; jamais
   synchronisé, en erreur, archivé, arrêté ou vide en gris (`badge-neutral`). Libellés identiques à la
   CLI (« Flemme · 9 j », « Dead · 40 j »). La bordure gauche de la carte reprend la couleur.
+- **Pastilles de synchro** (1.3.0), à côté de la pastille d'état, d'après la dernière synchro du dépôt
+  (`sync_runs`, elles survivent donc à un redémarrage) : une pastille orange en contour avec le nombre
+  d'**avertissements** (clone Git local indisponible, statistiques de lignes ou langages non calculés,
+  pull requests, releases ou tags non lus, signatures d'IA non analysées), leurs libellés courts en
+  infobulle et, sous le dernier commit, la conséquence du premier (« Statistiques de lignes lues par
+  l'API (limitées) »). La pastille mène à la page du dépôt. Un dépôt dont la dernière synchro a échoué
+  (état gris « en erreur ») affiche au même endroit, en rouge, la première ligne du message d'erreur.
 - **Tri** : Dead, puis Flemme, puis Actif, le dernier commit le plus ancien d'abord dans chaque groupe ;
   ensuite les dépôts en erreur (pour qu'ils se voient), puis les autres états gris ; égalités départagées
   par nom affiché.
@@ -122,6 +129,11 @@ ne prouve rien. » Pas de pourcentage, pas de classement sur ce chiffre, aucune 
   « Modifier » vers le formulaire des seuils), dernier commit, dernière synchro et son résultat, nombre
   de commits et leurs lignes ajoutées / supprimées (0.5.0), branche par défaut, branches suivies et
   motifs, étoiles et issues.
+- **Alerte de la dernière synchro** (1.3.0), sous l'en-tête, quand la dernière synchro du dépôt a des
+  avertissements : une alerte orange (`alert-warning`) avec la date de la synchro, le message complet de
+  chaque avertissement (tel qu'enregistré, dans la langue active lors de la synchro) et, pour le clone
+  Git local, le conseil « Vérifiez la clé SSH ou les identifiants Git de cette machine, puis relancez une
+  synchro ». Une alerte rouge (`alert-error`) donne au même endroit le message d'une synchro échouée.
 - **Seuils d'activité de ce dépôt** (bloc repliable sous l'en-tête, hors des fragments HTMX : une saisie
   en cours n'est pas effacée par le rafraîchissement d'après synchro) : deux champs, « Flemme après » et
   « Dead après », en jours sans commit, préremplis avec les seuils propres du dépôt ; vide (ou `0`) =
@@ -498,8 +510,9 @@ Fonctionnement (`wsync.Coordinator`, un seul par processus, qui réutilise le mo
   constate la fin d'une synchro, sa réponse porte l'en-tête `HX-Trigger: sync-finished`, et les
   fragments des pages (cartes, fil, historique…) ainsi que les graphiques se rechargent. Hors synchro,
   il donne le bilan de la dernière : dépôts en erreur, reportés, et nombre d'**avertissements** (pull
-  requests, releases ou tags non lus, clone Git local indisponible ; le détail est dans l'infobulle) ;
-  Une synchro lancée depuis l'interface et déjà terminée quand la réponse est rendue (échec immédiat
+  requests, releases ou tags non lus, clone Git local indisponible…). Depuis la 1.3.0, cette pastille
+  ouvre un menu (`<details>`) qui liste les dépôts concernés, chacun lié à sa page avec le libellé court
+  de son avertissement (ou leur nombre) ; le sondage s'interrompt tant que le menu est ouvert. Une synchro lancée depuis l'interface et déjà terminée quand la réponse est rendue (échec immédiat
   du moteur, dépôt vite synchronisé) porte cet en-tête dès la réponse au `POST`. Les boutons de synchro
   (« Synchroniser maintenant », « Synchroniser ce dépôt ») et celui de la suppression d'un dépôt ne
   sont jamais désactivés au rendu : la plupart sont hors des fragments rechargés et resteraient

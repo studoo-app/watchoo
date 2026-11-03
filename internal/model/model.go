@@ -273,6 +273,30 @@ type SyncRun struct {
 	NewCommits int        // nombre de nouveaux commits récupérés
 	Status     SyncStatus // résultat
 	Error      string     // message d'erreur éventuel ; vide si aucun (jamais de token dedans)
+	// Warnings sont les avertissements d'une synchro réussie (1.3.0), dans l'ordre où ils sont apparus ;
+	// liste vide si aucun.
+	Warnings []SyncWarning
+}
+
+// SyncWarningKind est le code stable d'un avertissement de synchro (colonne sync_runs.warnings) : les
+// couches d'affichage le traduisent au lieu d'analyser le message.
+type SyncWarningKind string
+
+// Valeurs de SyncWarningKind.
+const (
+	WarnStatsNotComputed     SyncWarningKind = "stats_not_computed"     // dépôt Git local : clone illisible, lignes non calculées
+	WarnCloneUnavailable     SyncWarningKind = "clone_unavailable"      // clone illisible, lignes lues par l'API (limitées)
+	WarnLanguagesNotComputed SyncWarningKind = "languages_not_computed" // langages non lus dans le clone
+	WarnListsNotSynced       SyncWarningKind = "lists_not_synced"       // pull requests, releases ou tags non lus
+	WarnAINotScanned         SyncWarningKind = "ai_not_scanned"         // signatures d'IA non analysées
+)
+
+// SyncWarning est un avertissement de synchro : un dépôt réussi, avec une donnée manquante ou limitée.
+type SyncWarning struct {
+	Kind SyncWarningKind `json:"kind"`
+	// Message est le texte complet, dans la langue du processus lors de la synchro, sans token ni
+	// donnée personnelle.
+	Message string `json:"message"`
 }
 
 // États d'une pull request (colonne pull_requests.state), comme sur la forge. Une PR mergée est fermée

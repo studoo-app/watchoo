@@ -9,6 +9,21 @@ PATCH (see [Skills](documentation/en/11-skills.md#versions-and-changelogmd)).
 
 ## [Unreleased]
 
+### Added
+
+- **Sync warnings per repository** (web): an orange badge with the number of warnings on the dashboard
+  card (local Git clone unavailable, line statistics or languages not computed, pull requests, releases
+  or tags not read, AI signatures not analyzed), with its consequence under the last commit; a repository
+  in error shows the first line of its error. On the repository's page, an alert gives the full message
+  of each warning of the last sync (or of the failed sync) and, for the local Git clone, what to check.
+  The warnings are recorded with the sync, so they survive a restart of `watchoo serve`.
+- **Database**: migration `00010` (`sync_runs.warnings`).
+
+### Changed
+
+- **Sync indicator** (web): the warnings badge opens a menu of the repositories concerned, each linked to
+  its page, instead of a truncated tooltip; its short labels follow the language of the interface.
+
 ## [1.2.0] - 2026-11-03
 
 AI signatures declared in the commits, and languages of the contributors. No incompatible change: the

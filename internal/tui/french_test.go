@@ -9,6 +9,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/studoo-app/watchoo/internal/i18n"
+	"github.com/studoo-app/watchoo/internal/model"
 	wsync "github.com/studoo-app/watchoo/internal/sync"
 )
 
@@ -44,7 +45,7 @@ func TestFrenchScreens(t *testing.T) {
 
 	// Sync summaries: French plural for zero, French typography before ":".
 	text, _ := l.m.summarize(wsync.Report{Repos: []wsync.RepoReport{
-		{DisplayName: "a", Status: wsync.StatusSuccess, Warnings: []string{"x"}},
+		{DisplayName: "a", Status: wsync.StatusSuccess, Warnings: []model.SyncWarning{{Kind: model.WarnListsNotSynced, Message: "x"}}},
 		{DisplayName: "b", Status: wsync.StatusSuccess}}})
 	if want := "synchro terminée : 2 dépôts, 0 nouveau commit, 1 avertissement (pull requests, releases ou tags)"; text != want {
 		t.Errorf("summarize = %q; want %q", text, want)

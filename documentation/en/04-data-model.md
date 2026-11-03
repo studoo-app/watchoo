@@ -9,7 +9,8 @@ branches (via `commit_branches`) and the contributors. V2 adds three of them (mi
 migration `00005` (0.5.0) adds `contributors.profile_url` and the migration `00006` (0.5.0)
 `commits.stats_known`; the migration `00007` (1.1.0) adds `repository_languages`; the migration `00008` (1.2.0)
 adds `commits.ai_rules_version` and the `commit_ai_signatures` table; the migration `00009` (1.2.0) adds
-`commits.languages_version` and the `commit_languages` table, i.e. **thirteen tables**. The storage is a SQLite file versioned by `goose` migrations, with **one
+`commits.languages_version` and the `commit_languages` table, i.e. **thirteen tables**; the migration `00010` (1.3.0)
+adds `sync_runs.warnings`. The storage is a SQLite file versioned by `goose` migrations, with **one
 database per workspace** (`.watchoo/watchoo.db`, see [Workspaces](10-workspaces.md)). The tables
 therefore do not know the notion of workspace: two workspaces never share data.
 
@@ -197,8 +198,11 @@ the author already in the database. Neither the message line nor an address is c
 | new_commits | Number of new commits fetched |
 | status | `running`, `success` or `error` |
 | error | Optional error message, in the language active at sync time (English or French), with no personal data |
+| warnings | Warnings of a successful sync (1.3.0, migration `00010`): JSON array of `{"kind": …, "message": …}`, `[]` if none. `kind` is a stable code (`stats_not_computed`, `clone_unavailable`, `languages_not_computed`, `lists_not_synced`, `ai_not_scanned`), translated at display; `message` is the full text, in the language active at sync time, with no personal data |
 
-The last `sync_run` of a repository gives the Error state. A `running` `sync_run` also serves as a
+The last `sync_run` of a repository gives the Error state, and its warnings are those shown on the
+repository's card and page (see [Web interface](06-web-interface.md#1-dashboard)): they survive a
+restart of `watchoo serve` and disappear at the next sync without warning. A `running` `sync_run` also serves as a
 **lock**: see [Architecture](03-architecture.md#sync-frequency).
 
 ### `pull_requests` — pull requests (V2)

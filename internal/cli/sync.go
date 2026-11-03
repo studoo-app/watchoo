@@ -130,7 +130,7 @@ func runSync(ctx context.Context, deps Deps, opts *options, ref string) (err err
 				DurationMS:      r.Duration.Milliseconds(),
 				Error:           r.Error,
 				ResumeAt:        timeJSON(r.ResumeAt),
-				Warnings:        append([]string{}, r.Warnings...),
+				Warnings:        r.WarningMessages(),
 			})
 		}
 		if report.RateLimitKnown {
@@ -260,7 +260,7 @@ func (s *session) syncDetail(r wsync.RepoReport) string {
 		return i18n.T("cli.sync.deferred_detail", deferReason(r).Text(), s.clockText(r.ResumeAt))
 	}
 	if r.Status == wsync.StatusSuccess && len(r.Warnings) > 0 {
-		return strings.Join(r.Warnings, i18n.T("cli.sync.warnings_join"))
+		return strings.Join(r.WarningMessages(), i18n.T("cli.sync.warnings_join"))
 	}
 	return r.Error
 }

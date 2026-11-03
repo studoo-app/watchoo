@@ -111,7 +111,7 @@ WHERE (sqlc.narg(repo_id) IS NULL OR r.id = sqlc.narg(repo_id));
 
 -- name: LastSyncRunByRepo :many
 -- Derniere synchro de chaque depot (started_at le plus recent, puis id le plus grand).
-SELECT s.id, s.repo_id, s.started_at, s.finished_at, s.new_commits, s.status, s.error
+SELECT s.id, s.repo_id, s.started_at, s.finished_at, s.new_commits, s.status, s.error, s.warnings
 FROM repositories r
 JOIN sync_runs s ON s.id = (
     SELECT s2.id FROM sync_runs s2

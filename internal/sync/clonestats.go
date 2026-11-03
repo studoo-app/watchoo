@@ -71,32 +71,34 @@ func (e *Engine) openClones(ctx context.Context, prov provider.Provider, src Sou
 // lineStats renseigne les statistiques de lignes des commits du dépôt : par le clone si possible
 // (cloneStats), sinon par l'API (fetchStats, sauf au premier import). Renvoie le nombre de
 // statistiques calculées ou demandées, les statistiques des commits déjà en base à écrire, et un
-// avertissement (clone indisponible) ; erreur seulement si le contexte est terminé ou la base en
+// avertissement (clone indisponible ; Kind vide si aucun) ; erreur seulement si le contexte est terminé ou la base en
 // échec.
 func (s *repoSync) lineStats(ctx context.Context, h *halt, repoID int64, firstImport bool, defaultBranch string,
-	cl clones, src Source) (int, []store.CommitStatsWrite, string, error) {
+	cl clones, src Source) (int, []store.CommitStatsWrite, model.SyncWarning, error) {
 	cloneErr := cl.err
 	if cl.stats != nil {
 		n, writes, err := s.cloneStats(ctx, repoID, defaultBranch, cl.stats)
 		if err == nil {
-			return n, writes, "", nil
+			return n, writes, model.SyncWarning{}, nil
 		}
 		if ctxErr := ctx.Err(); ctxErr != nil {
-			return 0, nil, "", errWrapped(i18n.T("sync.stats.error"), ctxErr)
+			return 0, nil, model.SyncWarning{}, errWrapped(i18n.T("sync.stats.error"), ctxErr)
 		}
 		var storeErr *storeError
 		if errors.As(err, &storeErr) {
-			return 0, nil, "", storeErr.err
+			return 0, nil, model.SyncWarning{}, storeErr.err
 		}
 		cloneErr = err
 	}
-	warning := ""
+	var warning model.SyncWarning
 	if cloneErr != nil {
 		s.e.logger.Info("clone Git local indisponible", "repo", s.full, "erreur", errorMessage(cloneErr))
 		if src.Kind == SourceGit {
-			return 0, nil, i18n.T("sync.stats.not_computed", errorMessage(cloneErr)), nil
+			return 0, nil, model.SyncWarning{Kind: model.WarnStatsNotComputed,
+				Message: i18n.T("sync.stats.not_computed", errorMessage(cloneErr))}, nil
 		}
-		warning = i18n.T("sync.stats.clone_unavailable", errorMessage(cloneErr))
+		warning = model.SyncWarning{Kind: model.WarnCloneUnavailable,
+			Message: i18n.T("sync.stats.clone_unavailable", errorMessage(cloneErr))}
 	}
 	if firstImport {
 		return 0, nil, warning, nil
@@ -105,22 +107,24 @@ func (s *repoSync) lineStats(ctx context.Context, h *halt, repoID int64, firstIm
 	return n, nil, warning, err
 }
 
-// languages lit les langages du dépôt dans son clone (cl.stats non nil). Clone illisible : avertissement,
-// et ok faux (ce qui est en base est gardé) ; erreur seulement si le contexte est terminé.
-func (s *repoSync) languages(ctx context.Context, cl clones) (langs []model.RepositoryLanguage, ok bool, warning string, err error) {
+// languages lit les langages du dépôt dans son clone (cl.stats non nil). Clone illisible : avertissement
+// (Kind vide si aucun) et ok faux (ce qui est en base est gardé) ; erreur seulement si le contexte est
+// terminé.
+func (s *repoSync) languages(ctx context.Context, cl clones) (langs []model.RepositoryLanguage, ok bool, warning model.SyncWarning, err error) {
 	got, err := cl.stats.Languages(ctx, s.owner, s.name)
 	if err != nil {
 		if ctxErr := ctx.Err(); ctxErr != nil {
-			return nil, false, "", errWrapped(i18n.T("sync.languages.error"), ctxErr)
+			return nil, false, model.SyncWarning{}, errWrapped(i18n.T("sync.languages.error"), ctxErr)
 		}
 		s.e.logger.Info("langages non lus", "repo", s.full, "erreur", errorMessage(err))
-		return nil, false, i18n.T("sync.languages.not_computed", errorMessage(err)), nil
+		return nil, false, model.SyncWarning{Kind: model.WarnLanguagesNotComputed,
+			Message: i18n.T("sync.languages.not_computed", errorMessage(err))}, nil
 	}
 	langs = make([]model.RepositoryLanguage, len(got))
 	for i, l := range got {
 		langs[i] = model.RepositoryLanguage{Language: l.Name, Bytes: l.Bytes}
 	}
-	return langs, true, "", nil
+	return langs, true, model.SyncWarning{}, nil
 }
 
 // storeError distingue un échec de la base (qui fait échouer le dépôt) d'un échec du clone (repli).
