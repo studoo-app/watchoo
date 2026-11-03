@@ -15,7 +15,8 @@ more week of real usage, the public surface was stabilized and released as **v1.
 ([1.0.0](#100-stabilization)); languages and share of the contributors were released as **v1.1.0**
 ([1.1.0](#110-languages-and-share-of-the-contributors)); the AI signatures and the languages of the
 contributors were released as **v1.2.0** ([1.2.0](#120-ai-signatures-and-languages-of-the-contributors)); the sync
-warnings per repository were released as **v1.3.0** ([1.3.0](#130-sync-warnings-per-repository)).
+warnings per repository were released as **v1.3.0** ([1.3.0](#130-sync-warnings-per-repository)); a dedicated
+message for an unknown SSH host key (local Git clones) in **v1.3.1**.
 
 ```mermaid
 flowchart LR
