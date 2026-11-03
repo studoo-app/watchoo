@@ -348,6 +348,8 @@ Fakes for the tests: `providertest` (in-memory Provider), `githubtest` (simulate
   sync.
 - **Languages** (1.1.0): after the line statistics, see
   [Languages of a repository](#languages-of-a-repository-110).
+- **Languages of the commits** (1.2.0): in the same pass as the line statistics, see
+  [Languages of a contributor](#languages-of-a-contributor-120).
 - **Commit without a date**: a commit with neither an author date nor a commit date is ignored (counted in
   a log); a single missing date is filled in with the other.
 - **Writes**: everything a repository sync writes (metadata, branches, commits, statistics of the commits,
@@ -761,6 +763,30 @@ display.
   `.gitattributes`).
 - **Failure**: a clone that cannot be read gives a warning and does not fail the repository; the
   languages already in the database are kept. An empty repository has no language.
+
+### Languages of a contributor (1.2.0)
+
+- **Measure**: the **lines added** in each language by the commits they authored; removed lines do not
+  count. The percentage is the share of their added lines in the recognized languages, computed at
+  display. Their page covers all their repositories; `watchoo contributors` applies its filters (`--repo`,
+  `--since`, `--weeks`).
+- **Source**: the local Git clone, **in the same pass** as the `+/-` lines (`git diff-tree --numstat` gives
+  the path of each changed file): no extra git command nor request. Without a clone (fallback to the API),
+  the languages of a commit stay unknown until a sync that can read the clone.
+- **Detection**: the table and the exclusions of the [languages of a repository](#languages-of-a-repository-110),
+  applied to the path of the changed file (`classifyLanguage`); binary files ignored.
+- **Merge commits** (several parents): analyzed with no line. Their difference with the first parent holds
+  the whole merged branch, which would otherwise be counted for the person who merges.
+- **Rules version**: `commits.languages_version` is the version (`git.LanguageRulesVersion`) the commit was
+  analyzed with; `0` = not yet. Each sync that reads the clone takes up, 2,000 at a time, the commits whose
+  lines are unknown **or** whose version is lower (a single loop). A database from before 1.2.0 is thus
+  analyzed once at the next sync, locally, with no quota; changing the language table increases the version
+  and has everything analyzed again.
+- **Display**: "—" if none of their commits is analyzed yet; otherwise, their commits not analyzed yet are
+  pointed out ("3 commits not analyzed yet").
+- **Limit**: added lines measure neither quality nor skill: a file copied or generated outside the excluded
+  directories counts as written code.
+- **Failure**: that of the line statistics (warning, fallback, repository not failed).
 
 ### Languages and translations
 - **Decision**: the interface (CLI, TUI, web) is bilingual, in **English by default** and in **French**.

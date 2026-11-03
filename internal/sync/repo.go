@@ -11,6 +11,7 @@ import (
 	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/provider"
+	gitprov "github.com/studoo-app/watchoo/internal/provider/git"
 	"github.com/studoo-app/watchoo/internal/store"
 )
 
@@ -149,6 +150,7 @@ func (e *Engine) syncRepository(ctx context.Context, prov provider.Provider, cl 
 		Branches:         states,
 		Commits:          s.commits,
 		Stats:            statsWrites,
+		LanguagesVersion: gitprov.LanguageRulesVersion,
 		PullRequests:     x.pulls,
 		ReplaceReleases:  x.replaceReleases,
 		Releases:         x.releases,

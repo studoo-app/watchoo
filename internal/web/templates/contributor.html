@@ -3,6 +3,7 @@
   ContributorView (contributor.go).
   Fragments HTMX, rafraîchis à la fin d'une synchro (événement sync-finished, syncview.go) :
     « contributor-overview » : en-tête et totaux (GET /contributors/{id}, HX-Target: contributor-overview) ;
+    « contributor-languages » : ses langages, 1.2.0 (HX-Target: contributor-languages) ;
     « contributor-repos »    : ses dépôts (HX-Target: contributor-repos) ;
     « contributor-pulls »    : ses pull requests (HX-Target: contributor-pulls) ;
     « contributor-commits »  : historique paginé (GET /contributors/{id}/commits).
@@ -40,6 +41,7 @@
     </section>
     {{template "contributors-chart" (dict "Chart" .Content.Weekly "ID" "contributor-repos-chart" "RefreshURL" (contribPath $p.ID) "Title" (t "web.contributor.chart_title" .Content.Weekly.Weeks) "Scope" "" "ByRepo" true "Note" (t "web.contributor.chart_note"))}}
   </div>
+  {{template "contributor-languages" .}}
   {{template "contributor-repos" .}}
   {{template "contributor-pulls" .}}
   {{template "contributor-commits" .}}
@@ -97,6 +99,40 @@
 </section>
 {{end}}
 
+{{/* Ses langages (1.2.0). Donnée : PageData (Content.Languages). */}}
+{{define "contributor-languages"}}{{$v := .Content}}{{$l := $v.Languages}}
+<section id="contributor-languages" class="card bg-base-100 shadow-sm min-w-0" aria-labelledby="contributor-languages-title"
+         hx-get="{{contribPath $v.Profile.ID}}" hx-trigger="sync-finished from:body" hx-swap="outerHTML">
+  <div class="card-body p-4 md:p-6">
+    <h2 id="contributor-languages-title" class="card-title text-lg">{{t "web.repo.languages_title"}}</h2>
+    {{if $l.Shown}}
+    <ul class="grid gap-x-6 gap-y-2 md:grid-cols-2" role="list">
+      {{range $l.Shown}}{{template "contributor-language" .}}{{end}}
+      {{if $l.Others.Lines}}{{template "contributor-language" (dict "Language" (t "web.contributor.languages_others") "Lines" $l.Others.Lines "Permille" $l.Others.Permille)}}{{end}}
+    </ul>
+    {{end}}
+    {{if not $l.Totals.Known}}
+    <p class="text-sm text-base-content/70">{{t "web.contributor.languages_unknown"}}</p>
+    {{else if not $l.Shown}}
+    <p class="text-sm text-base-content/70">{{t "web.contributor.languages_none"}}</p>
+    {{end}}
+    {{if and $l.Totals.Known $l.Totals.Pending}}<p class="text-xs text-base-content/60">{{tn "web.n.commit_not_analyzed" $l.Totals.Pending}}</p>{{end}}
+    <p class="text-xs text-base-content/60">{{t "web.contributor.languages_note"}}</p>
+  </div>
+</section>
+{{end}}
+
+{{/* Un langage de la carte : nom, lignes ajoutées, part et barre. Donnée : languageShare (ou dict). */}}
+{{define "contributor-language"}}
+      <li class="min-w-0">
+        <div class="flex items-baseline justify-between gap-3 text-sm">
+          <span class="font-medium truncate">{{clean .Language}}</span>
+          <span class="tabular-nums whitespace-nowrap"><span class="text-base-content/60">{{tn "web.n.line_added" .Lines}} · </span>{{t "activity.fmt.percent_tenths" (div .Permille 10) (mod .Permille 10)}}</span>
+        </div>
+        <progress class="progress progress-primary w-full" value="{{.Permille}}" max="1000" aria-hidden="true"></progress>
+      </li>
+{{end}}
+
 {{/* Ses dépôts. Donnée : PageData (Content.Repos). */}}
 {{define "contributor-repos"}}{{$v := .Content}}
 <section id="contributor-repos" class="card bg-base-100 shadow-sm min-w-0" aria-labelledby="contributor-repos-title"
@@ -113,6 +149,7 @@
             <th scope="col">{{t "web.contributor.repo_state"}}</th>
             <th scope="col" class="text-right">{{t "web.col.commits"}}</th>
             <th scope="col" class="text-right">{{t "web.col.lines"}}</th>
+            <th scope="col">{{t "web.contributor.main_language"}}</th>
             <th scope="col">{{t "web.contributor.their_last_commit"}}</th>
           </tr>
         </thead>
@@ -125,6 +162,7 @@
             <td class="text-right tabular-nums whitespace-nowrap">
               {{- template "line-totals" .Lines}}
             </td>
+            <td class="whitespace-nowrap">{{if .MainLanguage}}{{clean .MainLanguage}}{{else}}<span class="text-base-content/50">—</span>{{end}}</td>
             <td class="whitespace-nowrap">{{template "rel-time" .LastCommitAt}}</td>
           </tr>
           {{- end}}

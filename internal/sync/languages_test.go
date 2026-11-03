@@ -8,10 +8,12 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/studoo-app/watchoo/internal/provider"
 	gitprov "github.com/studoo-app/watchoo/internal/provider/git"
 	"github.com/studoo-app/watchoo/internal/provider/git/gittest"
+	"github.com/studoo-app/watchoo/internal/store"
 	wsync "github.com/studoo-app/watchoo/internal/sync"
 )
 
@@ -61,5 +63,61 @@ func TestSyncLanguages(t *testing.T) {
 	}
 	if got, err := e.st.ListLanguages(ctx, repo.ID); err != nil || len(got) != 2 {
 		t.Errorf("languages after the failure: %+v, %v", got, err)
+	}
+}
+
+// Languages of the commits (1.2.0): read from the clone with the line statistics at the first import,
+// caught up once for a database from before 1.2.0 (lines kept), and summed per contributor.
+func TestSyncCommitLanguages(t *testing.T) {
+	srv := gittest.NewServer(t)
+	r := srv.Create(testOwner, "projet", "main")
+	goSHA := r.Commit("main", "main.go", "package main\n\nfunc main() {}\n", secretMessage, secretAuthor, epoch)
+	r.Commit("main", "index.php", "<?php\n", secretMessage+" 2", secretAuthor, epoch.Add(time.Hour))
+	e := newEnv(t, withGit(srv.URL))
+	repo := e.addRepo(1, "projet")
+	e.mirror(srv.URL, 1, "projet")
+	ctx := t.Context()
+
+	e.syncAll()
+	languages := func() string {
+		t.Helper()
+		var got string
+		if err := e.st.DB().QueryRowContext(ctx, `SELECT COALESCE(group_concat(language || ':' || additions, ','), '')
+			FROM (SELECT language, additions FROM commit_languages WHERE repo_id = ? ORDER BY language)`, repo.ID).Scan(&got); err != nil {
+			t.Fatal(err)
+		}
+		return got
+	}
+	if got := languages(); got != "Go:3,PHP:1" {
+		t.Errorf("languages after the first import = %q", got)
+	}
+
+	// Database from before 1.2.0: the next sync, without any new commit, reads the languages again and
+	// keeps the known lines.
+	if _, err := e.st.DB().ExecContext(ctx, `DELETE FROM commit_languages`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.st.DB().ExecContext(ctx, `UPDATE commits SET languages_version = 0, additions = 42 WHERE sha = ?`, goSHA); err != nil {
+		t.Fatal(err)
+	}
+	if r0 := e.syncAll().Repos[0]; r0.Status != wsync.StatusSuccess || r0.StatsFetched != 1 || r0.NewCommits != 0 {
+		t.Fatalf("catch-up: %+v", r0)
+	}
+	if got := languages(); got != "Go:3" {
+		t.Errorf("languages after the catch-up = %q (the commit read before keeps nothing new)", got)
+	}
+	if add, _, _ := e.stats(repo.ID, goSHA); add != 42 {
+		t.Errorf("known lines recomputed: +%d", add)
+	}
+	if n := e.syncAll().Repos[0].StatsFetched; n != 0 {
+		t.Errorf("third sync: %d commits read again", n)
+	}
+
+	ranking, err := e.st.ContributorRanking(ctx, store.ContributorFilter{})
+	if err != nil || len(ranking) != 1 {
+		t.Fatalf("ranking = %+v, %v", ranking, err)
+	}
+	if l := ranking[0].Languages; l.Main() != "Go" || l.Scanned != 2 || l.Pending() != 0 {
+		t.Errorf("languages of the contributor = %+v", l)
 	}
 }

@@ -222,9 +222,16 @@ lien de profil est l'adresse enregistrée en base (voir [Liens vers les profils]
   palette), une série par dépôt parmi les 8 où il a le plus de commits sur la période, les autres
   regroupés dans « Autres dépôts », avec la table « Données du graphique » repliable (nom du dépôt lié
   à sa page).
+- **Langages** (1.2.0, fragment `contributor-languages`) : lignes ajoutées dans chaque langage par ses
+  commits, tous dépôts confondus, du langage qui en a le plus au moins : nom, lignes, pourcentage et barre
+  (`<progress>`, comme la carte d'un dépôt) ; au-delà de 8, le reste est regroupé dans « Autres langages ».
+  « Aucun langage connu » si aucun de ses commits n'est encore analysé ; une note signale les commits pas
+  encore analysés et rappelle que ce sont des lignes ajoutées. Règles :
+  [Architecture](03-architecture.md#langages-dun-contributeur-120).
 - **Ses dépôts** (fragment `contributor-repos`) : pour chaque dépôt où il est auteur d'au moins un
   commit, nom lié à la page du dépôt, pastille d'état du dépôt (règles et seuils du dépôt), ses commits,
-  ses lignes `+/-` (« — » si inconnues), son dernier commit dans ce dépôt ; tri par commits
+  ses lignes `+/-` (« — » si inconnues), son langage principal dans ce dépôt (1.2.0, « — » si inconnu),
+  son dernier commit dans ce dépôt ; tri par commits
   décroissants, puis dernier commit le plus récent.
 - **Ses commits** (fragment `contributor-commits`) : historique paginé (50 par page, comme celui d'un
   dépôt ; liens précédent / suivant HTMX, `?page=` poussé dans l'adresse), chaque commit avec la
@@ -241,7 +248,7 @@ lien de profil est l'adresse enregistrée en base (voir [Liens vers les profils]
   gardé, et un login peut changer de titulaire.
 - Contributeur sans aucun commit d'auteur (il n'est que committer) : la page s'affiche, totaux à zéro,
   graphiques vides et messages « Aucun commit… ».
-- Fragments rechargés à la fin d'une synchro (`sync-finished`) : `contributor-overview`,
+- Fragments rechargés à la fin d'une synchro (`sync-finished`) : `contributor-overview`, `contributor-languages`,
   `contributor-repos` et `contributor-pulls` (`GET /contributors/{id}` avec l'en-tête `HX-Target`),
   `contributor-commits` (`GET /contributors/{id}/commits`, qui sert la page complète hors HTMX) ; les
   deux graphiques relisent la page, comme ailleurs.

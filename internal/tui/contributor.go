@@ -135,6 +135,7 @@ func (m Model) contribDetailLines() []string {
 	if p.AI.Signed > 0 { // rien sans signature : son absence ne prouve rien
 		lines = append(lines, field(i18n.T("tui.field.ai"), aiTotals(p.AI)))
 	}
+	lines = append(lines, field(i18n.T("tui.field.languages"), contributorLanguagesText(p.Languages)))
 	lines = append(lines, field(i18n.T("tui.field.first_commit"), activity.Relative(p.FirstCommitAt, now, loc, uni)))
 	lines = append(lines, field(i18n.T("tui.field.last_commit"), activity.Relative(p.LastCommitAt, now, loc, uni)))
 	weeks := len(d.weekly.Weeks)
@@ -220,4 +221,25 @@ func lineTotals(t model.LineTotals) string {
 		s += i18n.T("tui.lines.uncounted", n)
 	}
 	return s
+}
+
+// contributorLanguagesText décrit les langages d'un contributeur (lignes ajoutées, 1.2.0) : « PHP 52,0 %,
+// Twig 33,5 %, autres 14,5 % », « - » si aucun de ses commits n'est encore analysé.
+func contributorLanguagesText(t model.LanguageTotals) string {
+	switch {
+	case !t.Known():
+		return "-"
+	case len(t.Lines) == 0:
+		return i18n.T("tui.cdetail.languages_none")
+	}
+	parts := make([]string, 0, detailLanguages+1)
+	rest := 1000
+	for _, l := range t.Lines[:min(len(t.Lines), detailLanguages)] {
+		parts = append(parts, clean(l.Language)+" "+activity.PercentText(t.Share(l)))
+		rest -= t.Share(l)
+	}
+	if len(t.Lines) > detailLanguages {
+		parts = append(parts, i18n.T("tui.detail.languages_others", activity.PercentText(max(rest, 0))))
+	}
+	return strings.Join(parts, ", ")
 }

@@ -98,6 +98,8 @@ refait à chaque synchro (voir [Architecture](03-architecture.md#authentificatio
   [Signatures d'IA](02-fonctionnalites.md#signatures-dia)) et la première ligne du message.
 - **Signatures d'IA dans le TUI** (1.2.0) : une ligne dans le détail d'un contributeur, « 3/120 (Claude 2,
   Cursor 1) », seulement si une signature existe.
+- **Langages dans le TUI** (1.2.0) : une ligne dans le détail d'un contributeur, « PHP 52,0 %, Twig 33,5 %,
+  autres 14,5 % » (cinq langages, puis le reste regroupé), « - » si aucun commit n'est encore analysé.
 - **Lignes `+/-` dans le TUI** (0.5.0) : par commit, « +12/-3 », « +0/-0 » ou « - » (inconnues) ; les
   totaux (contributeur, dépôt) additionnent les commits connus et ajoutent « (N non comptés) » quand une
   partie des commits n'en a pas encore, « - » si aucun n'en a.
@@ -138,6 +140,9 @@ refait à chaque synchro (voir [Architecture](03-architecture.md#authentificatio
   (une décimale) et taille, sur la branche par défaut. Ils sont calculés à chaque synchro depuis le clone Git
   local (voir [Architecture](03-architecture.md#langages-dun-dépôt-110)) : un dépôt n'en a aucun avant sa
   prochaine synchro. Le TUI les donne dans le détail d'un dépôt.
+- **Langages de `contributors`** (1.2.0) : colonne LANGAGE, le langage où le contributeur a ajouté le plus de
+  lignes sur la période et le dépôt du classement, « - » si aucun de ses commits n'est encore analysé ; en
+  JSON, tous ses langages. Règles : [Architecture](03-architecture.md#langages-dun-contributeur-120).
 - **Part des commits** (1.1.0) : `contributors` donne la part de chaque contributeur (colonne PART ; `share`
   en JSON), par rapport aux commits du classement : avec `--repo`, ceux du dépôt ; avec `--since` ou
   `--weeks`, ceux de la période. Un commit sans auteur connu ne compte pas. Le tableau de `--weeks` n'a pas
@@ -264,7 +269,7 @@ Clés de premier niveau (la liste est vérifiée par un test, `internal/cli/json
 | `watchoo repo remove` | `action`, `repository`, `deleted_commits` | `action` : `deleted`, `stopped` ou `already_stopped` |
 | `watchoo sync` | `started_at`, `finished_at`, `summary`, `repositories`, `rate_limit`, `source` | `source` : `api`, `git` (clones Git locaux, V2 ; `rate_limit` est alors `null`) ou `""` si la synchro n'a pas commencé ; `summary` : `repositories`, `success`, `error`, `locked`, `deferred`, `new_commits` ; chaque dépôt : `id`, `full_name`, `display_name`, `status` (`success`, `error`, `locked` : déjà en cours de synchro, `ignoré` en texte ; `deferred` : quota bas ; `success` est `ok` en texte), `new_commits`, `tracked_branches`, `stats_fetched`, `duration_ms`, `error`, `resume_at`, `warnings` (messages en français : pull requests, releases ou tags non synchronisés, ou clone Git local indisponible avec `gh`, alors que le dépôt a réussi ; `[]` sinon) ; `stats_fetched` : statistiques de commits calculées dans le clone, ou demandées à l'API en repli |
 | `watchoo log` | `commits` | Du plus récent au plus ancien ; objets commit |
-| `watchoo contributors` | `contributors` | Chaque élément : `id`, `name`, `login`, `display_name`, `avatar_url`, `commits`, `additions`, `deletions`, `repositories`, `share` (1.1.0 : part des commits du classement, en pourcentage avec une décimale), `last_commit_at`, `ai_signed_commits`, `ai_scanned_commits`, `ai_tools` (1.2.0 : commits avec une signature, commits analysés, chaque outil avec `tool` et `commits` ; `0` n'est pas la preuve d'un travail sans IA), `weekly` (avec `--weeks N` : N objets `week` (lundi, `AAAA-MM-JJ`, fuseau d'affichage) et `count`, du plus ancien au plus récent ; `[]` sans `--weeks`) |
+| `watchoo contributors` | `contributors` | Chaque élément : `id`, `name`, `login`, `display_name`, `avatar_url`, `commits`, `additions`, `deletions`, `repositories`, `share` (1.1.0 : part des commits du classement, en pourcentage avec une décimale), `last_commit_at`, `ai_signed_commits`, `ai_scanned_commits`, `ai_tools` (1.2.0 : commits avec une signature, commits analysés, chaque outil avec `tool` et `commits` ; `0` n'est pas la preuve d'un travail sans IA), `languages_scanned_commits`, `languages` (1.2.0 : commits dont les langages sont lus ; chaque langage avec `name`, `lines` (lignes ajoutées) et `percent` (part de ses lignes, une décimale), de celui qui en a le plus au moins ; `[]` si aucun), `weekly` (avec `--weeks N` : N objets `week` (lundi, `AAAA-MM-JJ`, fuseau d'affichage) et `count`, du plus ancien au plus récent ; `[]` sans `--weeks`) |
 | `watchoo prs` | `pull_requests` | De la plus récemment modifiée à la plus ancienne ; objets pull request |
 | `watchoo releases` | `releases`, `tags` | Objets release (du plus récent au plus ancien) et tag ; `-n` limite chaque liste |
 | `watchoo languages` | `languages` | D'un dépôt au suivant, plus gros langage d'abord. Chaque élément : `repository`, `name`, `bytes`, `percent` (part du dépôt, une décimale) |

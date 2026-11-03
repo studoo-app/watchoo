@@ -9,6 +9,8 @@
 package model
 
 import (
+	"cmp"
+	"slices"
 	"time"
 
 	"github.com/studoo-app/watchoo/internal/i18n"
@@ -159,6 +161,61 @@ type AITotals struct {
 
 // Known indique si au moins un commit a été analysé (sinon les totaux s'affichent « — »).
 func (a AITotals) Known() bool { return a.Scanned > 0 }
+
+// LanguageLines donne les lignes ajoutées dans un langage par un ensemble de commits (1.2.0).
+type LanguageLines struct {
+	Language string // nom du langage, comme dans RepositoryLanguage
+	Lines    int    // lignes ajoutées (au moins 1)
+}
+
+// LanguageTotals résume les langages d'un ensemble de commits (un contributeur, 1.2.0) : lignes ajoutées
+// par langage, lues dans le clone Git local.
+type LanguageTotals struct {
+	Commits int             // commits de l'ensemble
+	Scanned int             // commits dont les langages sont lus (commits.languages_version > 0)
+	Lines   []LanguageLines // du plus de lignes au moins, puis par nom ; vide non nil
+}
+
+// Known indique si au moins un commit a été analysé (sinon les langages s'affichent « — »).
+func (t LanguageTotals) Known() bool { return t.Scanned > 0 }
+
+// Pending renvoie le nombre de commits dont les langages ne sont pas encore lus.
+func (t LanguageTotals) Pending() int { return max(t.Commits-t.Scanned, 0) }
+
+// Total renvoie les lignes ajoutées dans tous les langages.
+func (t LanguageTotals) Total() int {
+	n := 0
+	for _, l := range t.Lines {
+		n += l.Lines
+	}
+	return n
+}
+
+// Main renvoie le langage qui a le plus de lignes ajoutées ; vide si aucun.
+func (t LanguageTotals) Main() string {
+	if len(t.Lines) == 0 {
+		return ""
+	}
+	return t.Lines[0].Language
+}
+
+// Share renvoie la part de l dans les lignes ajoutées de t, en pour mille (voir Permille).
+func (t LanguageTotals) Share(l LanguageLines) int { return Permille(int64(l.Lines), int64(t.Total())) }
+
+// SortedLanguageLines convertit des lignes ajoutées par langage, triées comme LanguageTotals.Lines (vide
+// non nil ; langages sans ligne ignorés).
+func SortedLanguageLines(lines map[string]int) []LanguageLines {
+	out := make([]LanguageLines, 0, len(lines))
+	for lang, n := range lines {
+		if n > 0 {
+			out = append(out, LanguageLines{Language: lang, Lines: n})
+		}
+	}
+	slices.SortFunc(out, func(a, b LanguageLines) int {
+		return cmp.Or(cmp.Compare(b.Lines, a.Lines), cmp.Compare(a.Language, b.Language))
+	})
+	return out
+}
 
 // LineTotals additionne les lignes ajoutées et supprimées d'un ensemble de commits (un dépôt, l'espace).
 // Seuls les commits dont les statistiques sont connues (commits.stats_known) sont additionnés.

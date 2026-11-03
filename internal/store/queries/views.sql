@@ -57,6 +57,7 @@ SELECT ct.id, ct.provider, ct.provider_user_id, ct.provider_login, ct.name, ct.a
        CAST(COALESCE(sum(c.deletions), 0) AS INTEGER) AS deletions,
        CAST(COALESCE(sum(c.stats_known), 0) AS INTEGER) AS known_commits,
        CAST(COALESCE(sum(c.ai_rules_version > 0), 0) AS INTEGER) AS ai_scanned_commits,
+       CAST(COALESCE(sum(c.languages_version > 0), 0) AS INTEGER) AS languages_scanned_commits,
        CAST(COALESCE(sum(EXISTS (SELECT 1 FROM commit_ai_signatures s
                                  WHERE s.repo_id = c.repo_id AND s.sha = c.sha)), 0) AS INTEGER) AS ai_signed_commits,
        count(DISTINCT c.repo_id) AS repos,
@@ -178,3 +179,17 @@ WHERE c.author_id IS NOT NULL
   AND (sqlc.narg(since) IS NULL OR c.committed_at >= sqlc.narg(since))
 GROUP BY c.author_id, s.tool
 ORDER BY c.author_id, commits DESC, s.tool;
+
+-- name: ContributorLanguages :many
+-- Lignes ajoutees par langage dans les commits de chaque auteur (contributor_id NULL = tous), par depot,
+-- avec les memes filtres que ContributorRanking ; tri par auteur, depot, lignes decroissantes, langage.
+SELECT c.author_id AS contributor_id, c.repo_id, l.language,
+       CAST(sum(l.additions) AS INTEGER) AS additions
+FROM commit_languages l
+JOIN commits c ON c.repo_id = l.repo_id AND c.sha = l.sha
+WHERE c.author_id IS NOT NULL
+  AND (sqlc.narg(contributor_id) IS NULL OR c.author_id = sqlc.narg(contributor_id))
+  AND (sqlc.narg(repo_id) IS NULL OR c.repo_id = sqlc.narg(repo_id))
+  AND (sqlc.narg(since) IS NULL OR c.committed_at >= sqlc.narg(since))
+GROUP BY c.author_id, c.repo_id, l.language
+ORDER BY c.author_id, c.repo_id, additions DESC, l.language;

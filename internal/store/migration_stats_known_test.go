@@ -42,7 +42,7 @@ func TestMigrationStatsKnown(t *testing.T) {
 	if got := count(t, s, "SELECT count(*) FROM commits WHERE stats_known = 1"); got != 2 {
 		t.Errorf("%d known commits after the migration, want 2 (non-zero lines)", got)
 	}
-	unknown, err := s.UnknownStatsSHAs(ctx, repo, "", 10)
+	unknown, err := s.UnknownStatsSHAs(ctx, repo, 0, "", 10)
 	if err != nil || !slices.Equal(unknown, []string{sha(2), sha(4)}) {
 		t.Errorf("UnknownStatsSHAs = %v, %v", unknown, err)
 	}
@@ -86,7 +86,7 @@ func TestApplyRepoSyncStats(t *testing.T) {
 	c1.Additions, c1.Deletions, c1.StatsKnown = 5, 1, true
 	c2.StatsKnown = true // empty commit: 0/0 known
 	applySync(t, s, repoID, main, c1, c2, c3)
-	unknown, err := s.UnknownStatsSHAs(ctx, repoID, "", 10)
+	unknown, err := s.UnknownStatsSHAs(ctx, repoID, 0, "", 10)
 	if err != nil || !slices.Equal(unknown, []string{sha(3)}) {
 		t.Fatalf("UnknownStatsSHAs = %v, %v", unknown, err)
 	}
@@ -111,7 +111,7 @@ func TestApplyRepoSyncStats(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if unknown, _ := s.UnknownStatsSHAs(ctx, repoID, "", 10); len(unknown) != 0 {
+	if unknown, _ := s.UnknownStatsSHAs(ctx, repoID, 0, "", 10); len(unknown) != 0 {
 		t.Errorf("still unknown: %v", unknown)
 	}
 	sum, err := s.RepositorySummary(ctx, repoID)
@@ -132,7 +132,7 @@ func TestApplyRepoSyncStats(t *testing.T) {
 		}
 		mustExec(t, s, `UPDATE sync_runs SET status = 'error', finished_at = ? WHERE status = 'running'`, testDate)
 	}
-	if _, err := s.UnknownStatsSHAs(ctx, repoID, "", 0); err == nil {
+	if _, err := s.UnknownStatsSHAs(ctx, repoID, 0, "", 0); err == nil {
 		t.Error("limit 0 accepted")
 	}
 }
@@ -156,7 +156,7 @@ func TestUnknownStatsPagingAndTotals(t *testing.T) {
 	var all []string
 	after := ""
 	for {
-		page, err := s.UnknownStatsSHAs(ctx, repoID, after, 2)
+		page, err := s.UnknownStatsSHAs(ctx, repoID, 0, after, 2)
 		if err != nil {
 			t.Fatal(err)
 		}

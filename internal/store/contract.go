@@ -48,6 +48,9 @@ type CommitWrite struct {
 	// StatsKnown : Additions et Deletions ont été calculées (même à 0) ; faux = inconnues
 	// (commits.stats_known = 0, reprises plus tard par RepoSyncWrite.Stats).
 	StatsKnown bool
+	// Languages : lignes ajoutées par langage (1.2.0), lues avec RepoSyncWrite.LanguagesVersion ; nil =
+	// inconnues (commits.languages_version = 0, reprises plus tard par RepoSyncWrite.Stats).
+	Languages map[string]int
 	// Branches sont les noms des branches (présentes dans RepoSyncWrite.Branches) sur lesquelles le
 	// commit a été vu pendant cette synchro : une ligne commit_branches par branche.
 	Branches []string
@@ -59,6 +62,9 @@ type CommitStatsWrite struct {
 	SHA       string // SHA complet
 	Additions int    // lignes ajoutées (>= 0)
 	Deletions int    // lignes supprimées (>= 0)
+	// Languages : lignes ajoutées par langage (1.2.0), lues avec RepoSyncWrite.LanguagesVersion ; nil =
+	// non lues (langages inchangés).
+	Languages map[string]int
 }
 
 // BranchState est une branche suivie après filtrage, avec sa tête actuelle sur la forge.
@@ -104,6 +110,9 @@ type RepoSyncWrite struct {
 	// Commits peut donc y figurer) : additions, deletions et stats_known = 1. Un SHA absent de la base
 	// est ignoré.
 	Stats []CommitStatsWrite
+	// LanguagesVersion est la version des règles de langages (git.LanguageRulesVersion, > 0) avec
+	// laquelle les Languages des Commits et des Stats ont été lus ; obligatoire si l'un d'eux en a.
+	LanguagesVersion int64
 	// PullRequests sont les pull requests lues pendant la synchro (modifiées depuis la précédente) :
 	// chacune est créée ou mise à jour en entier (RepoID ignoré). Les autres PR du dépôt ne changent pas.
 	PullRequests []model.PullRequest
@@ -183,14 +192,15 @@ type ContributorFilter struct {
 // ContributorStats est une ligne du classement des contributeurs (commits dont il est l'AUTEUR,
 // comptés sur la table commits seule, donc sans doublon entre branches).
 type ContributorStats struct {
-	model.Contributor                // Emails reste nil
-	Commits           int            // nombre de commits
-	Additions         int            // somme des lignes ajoutées (statistiques connues seulement)
-	Deletions         int            // somme des lignes supprimées
-	KnownCommits      int            // commits dont les statistiques sont connues
-	Repos             int            // nombre de dépôts distincts
-	LastCommitAt      time.Time      // date du commit le plus récent (committed_at)
-	AI                model.AITotals // signatures d'IA de ces commits
+	model.Contributor                      // Emails reste nil
+	Commits           int                  // nombre de commits
+	Additions         int                  // somme des lignes ajoutées (statistiques connues seulement)
+	Deletions         int                  // somme des lignes supprimées
+	KnownCommits      int                  // commits dont les statistiques sont connues
+	Repos             int                  // nombre de dépôts distincts
+	LastCommitAt      time.Time            // date du commit le plus récent (committed_at)
+	AI                model.AITotals       // signatures d'IA de ces commits
+	Languages         model.LanguageTotals // lignes ajoutées par langage dans ces commits (1.2.0)
 }
 
 // Lines renvoie les totaux de lignes des commits du classement.
@@ -323,14 +333,15 @@ type ContributorProfile struct {
 	// Identities est le nombre d'adresses e-mail Git rattachées au contributeur ; les adresses ne
 	// sont jamais lues ici.
 	Identities    int
-	Commits       int            // commits dont il est l'auteur
-	Additions     int            // lignes ajoutées (statistiques connues seulement)
-	Deletions     int            // lignes supprimées
-	KnownCommits  int            // commits dont les statistiques sont connues
-	Repos         int            // dépôts distincts
-	FirstCommitAt time.Time      // premier commit (committed_at) ; zéro si aucun
-	LastCommitAt  time.Time      // dernier commit (committed_at) ; zéro si aucun
-	AI            model.AITotals // signatures d'IA de ses commits
+	Commits       int                  // commits dont il est l'auteur
+	Additions     int                  // lignes ajoutées (statistiques connues seulement)
+	Deletions     int                  // lignes supprimées
+	KnownCommits  int                  // commits dont les statistiques sont connues
+	Repos         int                  // dépôts distincts
+	FirstCommitAt time.Time            // premier commit (committed_at) ; zéro si aucun
+	LastCommitAt  time.Time            // dernier commit (committed_at) ; zéro si aucun
+	AI            model.AITotals       // signatures d'IA de ses commits
+	Languages     model.LanguageTotals // lignes ajoutées par langage dans ses commits (1.2.0)
 }
 
 // AIScanCommit est un commit à analyser pour les signatures d'IA, avec son auteur.

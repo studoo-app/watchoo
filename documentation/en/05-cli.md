@@ -102,6 +102,8 @@ stars. The choice is made again at each sync (see
   [AI signatures](02-features.md#ai-signatures)) and the first line of the message.
 - **AI signatures in the TUI** (1.2.0): one line in a contributor's detail, "3/120 (Claude 2, Cursor 1)",
   only when a signature exists.
+- **Languages in the TUI** (1.2.0): one line in a contributor's detail, "PHP 52.0%, Twig 33.5%, others
+  14.5%" (five languages, then the rest grouped), "-" if no commit is analyzed yet.
 - **`+/-` lines in the TUI** (0.5.0): per commit, "+12/-3", "+0/-0" or "-" (unknown); the totals
   (contributor, repository) sum the known commits and add "(N uncounted)" when a
   part of the commits has none yet, "-" if none has.
@@ -142,6 +144,9 @@ stars. The choice is made again at each sync (see
   share of the bytes (one decimal) and size, on the default branch. They are computed at each sync from
   the local Git clone (see [Architecture](03-architecture.md#languages-of-a-repository-110)): a repository
   has none until its next sync. The TUI gives them in the detail of a repository.
+- **Languages of `contributors`** (1.2.0): LANGUAGE column, the language in which the contributor added the
+  most lines over the period and the repository of the ranking, "-" if none of their commits is analyzed
+  yet; in JSON, all their languages. Rules: [Architecture](03-architecture.md#languages-of-a-contributor-120).
 - **Share of the commits** (1.1.0): `contributors` gives the share of each contributor (SHARE column;
   `share` in JSON), relative to the commits of the ranking: with `--repo`, those of the repository; with
   `--since` or `--weeks`, those of the period. A commit without a known author does not count. The table
@@ -268,7 +273,7 @@ Top-level keys (the list is checked by a test, `internal/cli/json_schema_test.go
 | `watchoo repo remove` | `action`, `repository`, `deleted_commits` | `action`: `deleted`, `stopped` or `already_stopped` |
 | `watchoo sync` | `started_at`, `finished_at`, `summary`, `repositories`, `rate_limit`, `source` | `source`: `api`, `git` (local Git repositories, V2; `rate_limit` is then `null`) or `""` if the sync did not start; `summary`: `repositories`, `success`, `error`, `locked`, `deferred`, `new_commits`; each repository: `id`, `full_name`, `display_name`, `status` (`success`, `error`, `locked`: already being synced, `skipped` in text; `deferred`: low quota; `success` is `ok` in text), `new_commits`, `tracked_branches`, `stats_fetched`, `duration_ms`, `error`, `resume_at`, `warnings` (messages in the selected language: pull requests, releases or tags not synced, or local Git clone unavailable with `gh`, while the repository succeeded; `[]` otherwise); `stats_fetched`: commit stats computed in the clone, or requested from the API as a fallback |
 | `watchoo log` | `commits` | From newest to oldest; commit objects |
-| `watchoo contributors` | `contributors` | Each element: `id`, `name`, `login`, `display_name`, `avatar_url`, `commits`, `additions`, `deletions`, `repositories`, `share` (1.1.0: share of the commits of the ranking, as a percentage with one decimal), `last_commit_at`, `ai_signed_commits`, `ai_scanned_commits`, `ai_tools` (1.2.0: commits with a signature, commits analyzed, each tool with `tool` and `commits`; `0` is not evidence of work done without AI), `weekly` (with `--weeks N`: N `week` objects (Monday, `YYYY-MM-DD`, display time zone) and `count`, from the oldest to the newest; `[]` without `--weeks`) |
+| `watchoo contributors` | `contributors` | Each element: `id`, `name`, `login`, `display_name`, `avatar_url`, `commits`, `additions`, `deletions`, `repositories`, `share` (1.1.0: share of the commits of the ranking, as a percentage with one decimal), `last_commit_at`, `ai_signed_commits`, `ai_scanned_commits`, `ai_tools` (1.2.0: commits with a signature, commits analyzed, each tool with `tool` and `commits`; `0` is not evidence of work done without AI), `languages_scanned_commits`, `languages` (1.2.0: commits whose languages are read; each language with `name`, `lines` (lines added) and `percent` (share of their lines, one decimal), from the one with the most to the least; `[]` if none), `weekly` (with `--weeks N`: N `week` objects (Monday, `YYYY-MM-DD`, display time zone) and `count`, from the oldest to the newest; `[]` without `--weeks`) |
 | `watchoo prs` | `pull_requests` | From the most recently updated to the oldest; pull request objects |
 | `watchoo releases` | `releases`, `tags` | Release objects (from the newest to the oldest) and tag; `-n` limits each list |
 | `watchoo languages` | `languages` | From one repository to the next, largest language first. Each element: `repository`, `name`, `bytes`, `percent` (share of the repository, one decimal) |

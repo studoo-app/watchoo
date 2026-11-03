@@ -69,6 +69,7 @@ an incompatible change requires a major version. **Released in v1.0.0**.
 
 | Feature | Detail |
 | --- | --- |
+| Languages of a contributor | Lines added per language by the commits they authored, with their percentage, read from the local Git clone: "Languages" card on a contributor's page (and main language of each of their repositories), `watchoo contributors` (LANGUAGE column, `languages` key in JSON), contributor detail of the TUI. See [Architecture](03-architecture.md#languages-of-a-contributor-120) |
 | AI signatures | Tools declared in the commits (co-author, footer, agent account), per commit and per contributor, in `log`, `contributors`, the TUI and the web interface. See [AI signatures](#ai-signatures) |
 
 ## V3

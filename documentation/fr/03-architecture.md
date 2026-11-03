@@ -346,6 +346,8 @@ Faux pour les tests : `providertest` (Provider en mémoire), `githubtest` (serve
   connue n'est jamais remplacée. Un échec est journalisé (sans login) et n'échoue jamais la synchro.
 - **Langages** (1.1.0) : après les statistiques de lignes, voir
   [Langages d'un dépôt](#langages-dun-dépôt-110).
+- **Langages des commits** (1.2.0) : dans le même passage que les statistiques de lignes, voir
+  [Langages d'un contributeur](#langages-dun-contributeur-120).
 - **Commit sans date** : un commit sans date d'écriture ni de commit est ignoré (compté dans un log) ; une
   seule date manquante est complétée par l'autre.
 - **Écriture** : tout ce qu'une synchro de dépôt écrit (métadonnées, branches, commits, statistiques des
@@ -767,6 +769,30 @@ font qu'afficher.
   contenu, pas de `.gitattributes`).
 - **Échec** : un clone illisible donne un avertissement et ne fait pas échouer le dépôt ; les langages
   déjà en base sont gardés. Un dépôt vide n'a aucun langage.
+
+### Langages d'un contributeur (1.2.0)
+
+- **Mesure** : les **lignes ajoutées** dans chaque langage par les commits dont il est l'auteur ; les lignes
+  retirées ne comptent pas. Le pourcentage est la part de ses lignes ajoutées dans les langages reconnus,
+  calculée à l'affichage. Tous ses dépôts sont confondus sur sa page ; `watchoo contributors` applique ses
+  filtres (`--repo`, `--since`, `--weeks`).
+- **Source** : le clone Git local, **dans le même passage** que les lignes `+/-` (`git diff-tree --numstat`
+  donne le chemin de chaque fichier modifié) : aucune commande git ni requête de plus. Sans clone (repli sur
+  l'API), les langages d'un commit restent inconnus jusqu'à une synchro qui peut lire le clone.
+- **Détection** : la table et les exclusions des [langages d'un dépôt](#langages-dun-dépôt-110), appliquées
+  au chemin du fichier modifié (`classifyLanguage`) ; fichiers binaires ignorés.
+- **Commits de fusion** (plusieurs parents) : analysés sans aucune ligne. Leur différence avec le premier
+  parent contient toute la branche fusionnée, qui serait sinon comptée à la personne qui fusionne.
+- **Version des règles** : `commits.languages_version` est la version (`git.LanguageRulesVersion`) avec
+  laquelle le commit a été analysé ; `0` = pas encore. Chaque synchro qui lit le clone reprend, 2 000 à la
+  fois, les commits dont les lignes sont inconnues **ou** la version inférieure (une seule boucle). Une base
+  d'avant la 1.2.0 est donc analysée une fois à la synchro suivante, en local, sans quota ; changer la table
+  des langages augmente la version et fait tout analyser de nouveau.
+- **Affichage** : « — » si aucun de ses commits n'est encore analysé ; sinon, ses commits pas encore
+  analysés sont signalés (« 3 commits pas encore analysés »).
+- **Limite** : des lignes ajoutées ne mesurent ni la qualité ni la compétence : un fichier copié ou généré
+  hors des répertoires exclus compte comme du code écrit.
+- **Échec** : celui des statistiques de lignes (avertissement, repli, dépôt non échoué).
 
 ### Langues et traductions
 - **Décision** : l'interface (CLI, TUI, web) est bilingue, en **anglais par défaut** et en **français**.

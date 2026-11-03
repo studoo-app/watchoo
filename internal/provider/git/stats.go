@@ -42,9 +42,11 @@ func (p *Provider) Prepare(ctx context.Context, owner, name, defaultBranch strin
 
 // CommitStatsBatch renvoie les statistiques des commits shas (SHA complets) du clone de owner/name,
 // avec les règles de CommitStats (premier parent, arbre vide pour un commit racine, fichiers binaires
-// non comptés ; un commit sans changement donne 0/0). Le clone est d'abord créé ou mis à jour (voir
-// Prepare). Un SHA absent du clone, ou qui n'est pas un commit, est omis du résultat ; les doublons
-// sont permis. Les SHA sont traités par paquets de StatsBatchSize, chacun par deux processus git :
+// non comptés ; un commit sans changement donne 0/0), et les lignes ajoutées par langage (1.2.0,
+// Languages jamais nil ; vide pour un commit de fusion, voir LanguageRulesVersion). Le clone est
+// d'abord créé ou mis à jour (voir Prepare). Un SHA absent du clone, ou qui n'est pas un commit, est
+// omis du résultat ; les doublons sont permis. Les SHA sont traités par paquets de StatsBatchSize,
+// chacun par deux processus git :
 //
 //	git rev-list --no-walk=unsorted --parents --ignore-missing --stdin   (parents des commits présents)
 //	git diff-tree --stdin --always -r -z --numstat --root …              (« commit premier-parent »)
@@ -92,10 +94,14 @@ func (p *Provider) statsBatch(ctx context.Context, owner, name, path string, sha
 	// Une ligne « commit premier-parent » (ou « commit » pour une racine) par commit présent.
 	var lines bytes.Buffer
 	n := 0
+	merges := make(map[string]bool)
 	for line := range strings.SplitSeq(string(res.stdout), "\n") {
 		fields := strings.Fields(line)
 		if len(fields) == 0 || provider.ValidateSHA(fields[0]) != nil {
 			continue
+		}
+		if len(fields) > 2 {
+			merges[fields[0]] = true
 		}
 		lines.WriteString(fields[0])
 		if len(fields) > 1 {
@@ -115,14 +121,16 @@ func (p *Provider) statsBatch(ctx context.Context, owner, name, path string, sha
 	if res.exitCode != 0 {
 		return localError(op, res)
 	}
-	parseBatchNumstat(res.stdout, out)
+	parseBatchNumstat(res.stdout, merges, out)
 	return nil
 }
 
 // parseBatchNumstat lit la sortie de « diff-tree --stdin --always -z --numstat » : pour chaque commit,
 // son SHA (« <sha><NUL> »), puis un enregistrement « ajoutées<TAB>supprimées<TAB>chemin<NUL> » par
-// fichier modifié (« - » pour un fichier binaire, ignoré). Un SHA sans fichier donne 0/0.
-func parseBatchNumstat(raw []byte, out map[string]provider.CommitStats) {
+// fichier modifié (« - » pour un fichier binaire, ignoré). Un SHA sans fichier donne 0/0. Les lignes
+// ajoutées sont aussi comptées par langage du chemin (classifyLanguage), sauf pour les commits de
+// fusion (merges) : leur différence avec le premier parent contient toute la branche fusionnée.
+func parseBatchNumstat(raw []byte, merges map[string]bool, out map[string]provider.CommitStats) {
 	current := ""
 	for rec := range bytes.SplitSeq(raw, []byte{0}) {
 		s := strings.TrimLeft(string(rec), "\n")
@@ -133,7 +141,7 @@ func parseBatchNumstat(raw []byte, out map[string]provider.CommitStats) {
 			if provider.ValidateSHA(s) == nil {
 				current = s
 				if _, ok := out[current]; !ok {
-					out[current] = provider.CommitStats{}
+					out[current] = provider.CommitStats{Languages: map[string]int{}}
 				}
 			}
 			continue
@@ -145,6 +153,20 @@ func parseBatchNumstat(raw []byte, out map[string]provider.CommitStats) {
 		total := out[current]
 		total.Additions += st.Additions
 		total.Deletions += st.Deletions
+		if st.Additions > 0 && !merges[current] {
+			if file, ok := numstatPath(s); ok {
+				if lang := classifyLanguage(file); lang != "" {
+					total.Languages[lang] += st.Additions
+				}
+			}
+		}
 		out[current] = total
 	}
+}
+
+// numstatPath renvoie le chemin d'un enregistrement « ajoutées<TAB>supprimées<TAB>chemin » (sans le NUL).
+func numstatPath(rec string) (string, bool) {
+	_, rest, ok1 := strings.Cut(rec, "\t")
+	_, file, ok2 := strings.Cut(rest, "\t")
+	return file, ok1 && ok2 && file != ""
 }

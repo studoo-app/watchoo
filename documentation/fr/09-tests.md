@@ -443,6 +443,18 @@ Aucun test ne joint GitHub : la racine des releases est celle d'un faux serveur 
 - CLI (texte et `--json`, `json_schema_test.go`), web (badge, totaux, « — » avant l'analyse, phrase), TUI (ligne
   du détail), dans les deux langues.
 
+## Langages d'un contributeur (1.2.0)
+
+- Provider Git : lignes ajoutées par langage dans `CommitStatsBatch` (exclusions, binaires, commit racine,
+  commit de fusion analysé sans ligne) contre des dépôts `gittest`.
+- Store : migration `00009` (commit d'avant la migration en attente, contraintes, retour arrière), écriture
+  avec les nouveaux commits et en rattrapage, cascade, totaux par contributeur et par dépôt (filtres, fusion
+  de contributeurs).
+- Moteur : langages au premier import, rattrapage unique d'une base d'avant la 1.2.0, nouvelle version des
+  règles, repli sur l'API sans langages.
+- CLI (colonne, `--json`, `json_schema_test.go`), web (carte, « Aucun langage connu », commits pas encore
+  analysés, langage principal par dépôt), TUI (ligne du détail), dans les deux langues.
+
 ## Langues dans les tests
 
 L'interface (CLI, TUI, web) est bilingue : **anglais par défaut**, français par `WATCHOO_LANG=fr`

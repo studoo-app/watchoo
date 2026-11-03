@@ -478,10 +478,10 @@ func TestCompareCommitsMaxCommits(t *testing.T) {
 func TestCommitStats(t *testing.T) {
 	f, g := newGraph(t)
 	f.SetStats(101, g.merge, provider.CommitStats{Additions: 12, Deletions: 3})
-	if s, err := f.CommitStats(ctx, "alice", "projet", g.merge); err != nil || s != (provider.CommitStats{Additions: 12, Deletions: 3}) {
+	if s, err := f.CommitStats(ctx, "alice", "projet", g.merge); err != nil || (s.Additions != 12 || s.Deletions != 3) {
 		t.Errorf("CommitStats(merge) = %+v, %v", s, err)
 	}
-	if s, err := f.CommitStats(ctx, "alice", "projet", g.r1); err != nil || s != (provider.CommitStats{}) {
+	if s, err := f.CommitStats(ctx, "alice", "projet", g.r1); err != nil || (s.Additions != 0 || s.Deletions != 0) {
 		t.Errorf("CommitStats(r1) = %+v, %v; want zero", s, err)
 	}
 	_, err := f.CommitStats(ctx, "alice", "projet", SHA("absent"))

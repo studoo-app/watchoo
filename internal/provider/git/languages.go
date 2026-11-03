@@ -18,6 +18,12 @@ import (
 	"github.com/studoo-app/watchoo/internal/provider"
 )
 
+// LanguageRulesVersion est la version des règles de langages (table, exclusions, commits de fusion) avec
+// laquelle CommitStatsBatch lit les langages des commits (1.2.0, commits.languages_version) : toute
+// modification de ces règles l'augmente, ce qui fait relire les langages de tous les commits à la
+// synchro suivante.
+const LanguageRulesVersion = 1
+
 // languageExcludedDirs sont les répertoires ignorés où qu'ils soient : dépendances et fichiers générés,
 // souvent commités par erreur.
 var languageExcludedDirs = map[string]bool{

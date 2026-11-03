@@ -130,7 +130,8 @@ func TestJSONSchemaAllCommands(t *testing.T) {
 
 // contributorKeys are the keys of an item of "contributors" (05-cli.md, JSON output).
 var contributorKeys = []string{"id", "name", "login", "display_name", "avatar_url", "commits", "additions",
-	"deletions", "repositories", "share", "last_commit_at", "ai_signed_commits", "ai_scanned_commits", "ai_tools", "weekly"}
+	"deletions", "repositories", "share", "last_commit_at", "ai_signed_commits", "ai_scanned_commits", "ai_tools",
+	"languages_scanned_commits", "languages", "weekly"}
 
 // The contract is documented: the "JSON output" table of documentation/en/05-cli.md and the "Sortie
 // JSON" table of its French mirror list, for each command, the same top-level keys as jsonTopLevelKeys.

@@ -40,6 +40,22 @@ func (q *Queries) DeleteCommitAISignatures(ctx context.Context, arg DeleteCommit
 	return err
 }
 
+const deleteCommitLanguages = `-- name: DeleteCommitLanguages :exec
+DELETE FROM commit_languages
+WHERE repo_id = ? AND sha = ?
+`
+
+type DeleteCommitLanguagesParams struct {
+	RepoID int64
+	SHA    string
+}
+
+// Retire les langages d'un commit avant de les reecrire.
+func (q *Queries) DeleteCommitLanguages(ctx context.Context, arg DeleteCommitLanguagesParams) error {
+	_, err := q.db.ExecContext(ctx, deleteCommitLanguages, arg.RepoID, arg.SHA)
+	return err
+}
+
 const existingCommitSHAs = `-- name: ExistingCommitSHAs :many
 SELECT sha FROM commits
 WHERE repo_id = ?1 AND sha IN (/*SLICE:shas*/?)
@@ -173,6 +189,29 @@ func (q *Queries) InsertCommitBranch(ctx context.Context, arg InsertCommitBranch
 	return err
 }
 
+const insertCommitLanguage = `-- name: InsertCommitLanguage :exec
+INSERT INTO commit_languages (repo_id, sha, language, additions)
+VALUES (?, ?, ?, ?)
+`
+
+type InsertCommitLanguageParams struct {
+	RepoID    int64
+	SHA       string
+	Language  string
+	Additions int64
+}
+
+// Enregistre les lignes ajoutees dans un langage par un commit.
+func (q *Queries) InsertCommitLanguage(ctx context.Context, arg InsertCommitLanguageParams) error {
+	_, err := q.db.ExecContext(ctx, insertCommitLanguage,
+		arg.RepoID,
+		arg.SHA,
+		arg.Language,
+		arg.Additions,
+	)
+	return err
+}
+
 const listCommitsToScanForAI = `-- name: ListCommitsToScanForAI :many
 SELECT c.sha, c.message,
        CAST(COALESCE(a.provider_login, '') AS TEXT) AS author_login,
@@ -230,21 +269,30 @@ func (q *Queries) ListCommitsToScanForAI(ctx context.Context, arg ListCommitsToS
 
 const listUnknownStatsSHAs = `-- name: ListUnknownStatsSHAs :many
 SELECT sha FROM commits
-WHERE repo_id = ?1 AND stats_known = 0 AND sha > ?2
+WHERE repo_id = ?1
+  AND (stats_known = 0 OR languages_version < ?2)
+  AND sha > ?3
 ORDER BY sha
-LIMIT ?3
+LIMIT ?4
 `
 
 type ListUnknownStatsSHAsParams struct {
-	RepoID   int64
-	AfterSha string
-	RowLimit int64
+	RepoID           int64
+	LanguagesVersion int64
+	AfterSha         string
+	RowLimit         int64
 }
 
-// SHA des commits du depot dont les statistiques sont inconnues, par ordre croissant, apres after_sha
-// (pagination ; chaine vide = depuis le debut), au plus row_limit.
+// SHA des commits du depot dont les statistiques sont inconnues, ou les langages lus avec une version de
+// regles inferieure a languages_version, par ordre croissant, apres after_sha (pagination ; chaine vide =
+// depuis le debut), au plus row_limit.
 func (q *Queries) ListUnknownStatsSHAs(ctx context.Context, arg ListUnknownStatsSHAsParams) ([]string, error) {
-	rows, err := q.db.QueryContext(ctx, listUnknownStatsSHAs, arg.RepoID, arg.AfterSha, arg.RowLimit)
+	rows, err := q.db.QueryContext(ctx, listUnknownStatsSHAs,
+		arg.RepoID,
+		arg.LanguagesVersion,
+		arg.AfterSha,
+		arg.RowLimit,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -337,10 +385,31 @@ func (q *Queries) SetCommitAIRulesVersion(ctx context.Context, arg SetCommitAIRu
 	return err
 }
 
+const setCommitLanguagesVersion = `-- name: SetCommitLanguagesVersion :execrows
+UPDATE commits
+SET languages_version = ?1
+WHERE repo_id = ?2 AND sha = ?3
+`
+
+type SetCommitLanguagesVersionParams struct {
+	LanguagesVersion int64
+	RepoID           int64
+	SHA              string
+}
+
+// Marque les langages d'un commit lus avec cette version de regles (0 ligne : commit absent).
+func (q *Queries) SetCommitLanguagesVersion(ctx context.Context, arg SetCommitLanguagesVersionParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, setCommitLanguagesVersion, arg.LanguagesVersion, arg.RepoID, arg.SHA)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const setCommitStats = `-- name: SetCommitStats :execrows
 UPDATE commits
 SET additions = ?1, deletions = ?2, stats_known = 1
-WHERE repo_id = ?3 AND sha = ?4
+WHERE repo_id = ?3 AND sha = ?4 AND stats_known = 0
 `
 
 type SetCommitStatsParams struct {
@@ -350,7 +419,8 @@ type SetCommitStatsParams struct {
 	SHA       string
 }
 
-// Enregistre les statistiques d'un commit deja en base et les marque connues.
+// Enregistre les statistiques d'un commit deja en base dont elles sont inconnues et les marque connues
+// (des statistiques connues ne sont jamais recalculees).
 func (q *Queries) SetCommitStats(ctx context.Context, arg SetCommitStatsParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, setCommitStats,
 		arg.Additions,

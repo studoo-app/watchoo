@@ -307,6 +307,10 @@ type Commit struct {
 type CommitStats struct {
 	Additions int // lignes ajoutées
 	Deletions int // lignes supprimées
+	// Languages : lignes ajoutées par langage (1.2.0), lues dans le clone Git local seulement ; vide non
+	// nil pour un commit analysé sans ligne dans un langage reconnu (commit de fusion, Markdown seul…),
+	// nil si inconnues (API).
+	Languages map[string]int
 }
 
 // RateLimit est l'état du quota de l'API (ressource « core » sur GitHub : 5 000 requêtes par heure).

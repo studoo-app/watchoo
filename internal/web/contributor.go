@@ -1,12 +1,13 @@
 package web
 
 // Page d'un contributeur « /contributors/{id} » (documentation/fr/06-interface-web.md, page 4, 0.5.0) :
-// sa fiche et ses totaux, ses commits par jour et par semaine (une série par dépôt), ses dépôts, ses
-// commits paginés et ses pull requests.
+// sa fiche et ses totaux, ses commits par jour et par semaine (une série par dépôt), ses langages
+// (1.2.0), ses dépôts, ses commits paginés et ses pull requests.
 //
 // Fragments HTMX, rafraîchis à la fin d'une synchro (hx-trigger="sync-finished from:body") :
-//   - « contributor-overview », « contributor-repos », « contributor-pulls » : servis par GET
-//     /contributors/{id} quand la requête HTMX les vise (en-tête HX-Target) ;
+//   - « contributor-overview », « contributor-languages » (1.2.0), « contributor-repos »,
+//     « contributor-pulls » : servis par GET /contributors/{id} quand la requête HTMX les vise (en-tête
+//     HX-Target) ;
 //   - « contributor-commits » : historique paginé (contributorCommitsPerPage par page), servi par GET
 //     /contributors/{id}/commits (page complète hors HTMX). Un lien de pagination pousse l'adresse de
 //     la page complète (/contributors/{id}?page=…), qui se recharge telle quelle.
@@ -25,6 +26,7 @@ import (
 	"time"
 
 	"github.com/studoo-app/watchoo/internal/activity"
+	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/store"
 )
 
@@ -36,16 +38,23 @@ const contributorCommitsPerPage = repoCommitsPerPage
 // récemment modifiées).
 const contributorPulls = 20
 
+// contributorLanguagesShown est le nombre de langages de la carte « Langages » d'un contributeur ; les
+// suivants sont regroupés dans « Autres langages ».
+const contributorLanguagesShown = 8
+
 // Identifiants HTML des fragments de la page (cibles HTMX, en-tête HX-Target).
 const (
-	contributorOverviewID = "contributor-overview"
-	contributorReposID    = "contributor-repos"
-	contributorPullsID    = "contributor-pulls"
+	contributorOverviewID  = "contributor-overview"
+	contributorLanguagesID = "contributor-languages"
+	contributorReposID     = "contributor-repos"
+	contributorPullsID     = "contributor-pulls"
 )
 
 // ContributorView est le Content de la page d'un contributeur et de ses fragments.
 type ContributorView struct {
 	Profile store.ContributorProfile
+	// Languages : ses langages (fragment « contributor-languages », 1.2.0).
+	Languages contributorLanguages
 	// Repos : ses dépôts, commits décroissants puis dernier commit le plus récent.
 	Repos []contributorRepoRow
 	// Daily : ses commits par jour sur activity.ChartDays jours.
@@ -58,6 +67,37 @@ type ContributorView struct {
 	// pull_requests.author_provider_id).
 	HasAccount bool
 	Pulls      []store.PullRequestView
+}
+
+// contributorLanguages est la carte « Langages » d'un contributeur : les contributorLanguagesShown
+// langages qui ont le plus de lignes ajoutées, puis le reste regroupé.
+type contributorLanguages struct {
+	Totals model.LanguageTotals
+	Shown  []languageShare
+	Others languageShare // Lines = 0 : aucun langage regroupé
+}
+
+// languageShare est un langage de la carte, avec sa part des lignes ajoutées en pour mille.
+type languageShare struct {
+	Language string
+	Lines    int
+	Permille int
+}
+
+// newContributorLanguages découpe les langages de t pour la carte.
+func newContributorLanguages(t model.LanguageTotals) contributorLanguages {
+	out := contributorLanguages{Totals: t}
+	for i, l := range t.Lines {
+		if i < contributorLanguagesShown {
+			out.Shown = append(out.Shown, languageShare{Language: l.Language, Lines: l.Lines, Permille: t.Share(l)})
+			continue
+		}
+		out.Others.Lines += l.Lines
+	}
+	if out.Others.Lines > 0 {
+		out.Others.Permille = model.Permille(int64(out.Others.Lines), int64(t.Total()))
+	}
+	return out
 }
 
 // contributorRepoRow est un dépôt de la page d'un contributeur : ses commits dans ce dépôt et l'état
@@ -95,7 +135,7 @@ func (s *server) handleContributor(w http.ResponseWriter, r *http.Request) {
 	data := s.page(r, view.Profile.DisplayName(), navContributors, view)
 	if isHTMX(r) && !isHistoryRestore(r) {
 		switch target := r.Header.Get("HX-Target"); target {
-		case contributorOverviewID, contributorReposID, contributorPullsID:
+		case contributorOverviewID, contributorLanguagesID, contributorReposID, contributorPullsID:
 			s.renderFragment(w, r, http.StatusOK, pageContributor, target, data)
 			return
 		}
@@ -134,7 +174,7 @@ func (s *server) contributorView(r *http.Request, id int64, full bool) (Contribu
 		return ContributorView{}, err
 	}
 	view := ContributorView{Profile: profile, HasAccount: profile.ProviderUserID > 0,
-		Commits: ContributorCommitsView{ContributorID: id}}
+		Languages: newContributorLanguages(profile.Languages), Commits: ContributorCommitsView{ContributorID: id}}
 	if view.Commits.Page, err = s.store.CommitPage(ctx, store.CommitFilter{AuthorID: id}, pageParam(r),
 		contributorCommitsPerPage); err != nil {
 		return ContributorView{}, err

@@ -69,6 +69,7 @@ Aucune fonctionnalité nouvelle : la surface publique (commandes, options, codes
 
 | Fonctionnalité | Détail |
 | --- | --- |
+| Langages d'un contributeur | Lignes ajoutées par langage dans les commits dont il est l'auteur, avec leur pourcentage, lues dans le clone Git local : carte « Langages » de la page d'un contributeur (et langage principal de chacun de ses dépôts), `watchoo contributors` (colonne LANGAGE, clé `languages` en JSON), détail d'un contributeur du TUI. Voir [Architecture](03-architecture.md#langages-dun-contributeur-120) |
 | Signatures d'IA | Outils déclarés dans les commits (co-auteur, pied de message, compte d'agent), par commit et par contributeur, dans `log`, `contributors`, le TUI et l'interface web. Voir [Signatures d'IA](#signatures-dia) |
 
 ## V3

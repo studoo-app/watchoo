@@ -146,6 +146,9 @@ L'import d'une organisation entière et les alertes passent en V3 (voir
   `--json`), analysées sans aucune requête à la forge : **en place**, à publier. Voir
   [Signatures d'IA](02-fonctionnalites.md#signatures-dia). Les indices de style ou de rythme sont
   volontairement écartés.
+- Langages d'un contributeur : lignes ajoutées par langage dans ses commits, lues dans le clone (page d'un
+  contributeur, `watchoo contributors`, TUI, migration `00009`) : **en place**, à publier. Voir
+  [Langages d'un contributeur](03-architecture.md#langages-dun-contributeur-120).
 
 ## Définition de « terminé » pour chaque phase
 

@@ -77,14 +77,15 @@ func existingCommitSHAs(ctx context.Context, q *db.Queries, repoID int64, shas [
 }
 
 // UnknownStatsSHAs renvoie, par ordre croissant, au plus limit SHA (limit > 0) des commits du dépôt
-// repoID dont les statistiques sont inconnues (stats_known = 0), strictement après after (vide = depuis
-// le début) : pagination des commits à calculer par le clone Git local.
-func (s *Store) UnknownStatsSHAs(ctx context.Context, repoID int64, after string, limit int) ([]string, error) {
+// repoID dont les statistiques sont inconnues (stats_known = 0) ou dont les langages ont été lus avec
+// une version de règles inférieure à languagesVersion (0 : langages ignorés), strictement après after
+// (vide = depuis le début) : pagination des commits à calculer par le clone Git local.
+func (s *Store) UnknownStatsSHAs(ctx context.Context, repoID, languagesVersion int64, after string, limit int) ([]string, error) {
 	if limit <= 0 {
 		return nil, errors.New(i18n.T("store.sync.no_stats_limit", repoID, limit))
 	}
 	shas, err := s.queries.ListUnknownStatsSHAs(ctx, db.ListUnknownStatsSHAsParams{
-		RepoID: repoID, AfterSha: after, RowLimit: int64(limit),
+		RepoID: repoID, LanguagesVersion: languagesVersion, AfterSha: after, RowLimit: int64(limit),
 	})
 	if err != nil {
 		return nil, wrapErr(i18n.T("store.sync.no_stats", repoID), err)
@@ -105,7 +106,10 @@ func (s *Store) UnknownStatsSHAs(ctx context.Context, repoID int64, after string
 //     le nom le plus récent l'emporte ;
 //  4. commit_branches : une ligne par (commit, branche de CommitWrite.Branches), commits déjà connus
 //     compris, sans doublon ; une branche absente de w.Branches est une erreur ; puis statistiques
-//     w.Stats (additions, deletions, stats_known = 1) des commits en base, SHA inconnus ignorés ;
+//     w.Stats (additions, deletions, stats_known = 1) des commits en base dont elles sont inconnues,
+//     SHA inconnus ignorés ;
+//     langages (commit_languages remplacées, languages_version = w.LanguagesVersion) des nouveaux
+//     commits et des w.Stats qui en ont (1.2.0) ;
 //  5. last_commit_at = max(committed_at) des commits liés à une branche suivie (NULL si aucun) ;
 //  6. pull requests (V2) : chaque w.PullRequests créée ou mise à jour en entier ; releases et tags
 //     remplacés par w.Releases et w.Tags si w.ReplaceReleases / w.ReplaceTags (doublons ignorés) ;
@@ -164,6 +168,11 @@ func (s *Store) ApplyRepoSync(ctx context.Context, w RepoSyncWrite) (RepoSyncRes
 					return err
 				}
 				result.NewCommits += inserted
+				if inserted > 0 && c.Languages != nil {
+					if err := writeCommitLanguages(ctx, q, w.RepoID, w.LanguagesVersion, c.SHA, c.Languages); err != nil {
+						return err
+					}
+				}
 			}
 			for _, name := range c.Branches {
 				if err := q.InsertCommitBranch(ctx, db.InsertCommitBranchParams{
@@ -179,6 +188,11 @@ func (s *Store) ApplyRepoSync(ctx context.Context, w RepoSyncWrite) (RepoSyncRes
 				Additions: int64(st.Additions), Deletions: int64(st.Deletions), RepoID: w.RepoID, SHA: st.SHA,
 			}); err != nil {
 				return wrapErr(i18n.T("store.sync.commit_stats", shortSHA(st.SHA)), err)
+			}
+			if st.Languages != nil {
+				if err := writeCommitLanguages(ctx, q, w.RepoID, w.LanguagesVersion, st.SHA, st.Languages); err != nil {
+					return err
+				}
 			}
 		}
 
@@ -274,13 +288,21 @@ func prepareRepoSync(w RepoSyncWrite) ([]CommitWrite, error) {
 		c.Branches = slices.Clone(c.Branches)
 		merged = append(merged, c)
 	}
+	languages := false
+	for _, c := range merged {
+		languages = languages || c.Languages != nil
+	}
 	for _, st := range w.Stats {
+		languages = languages || st.Languages != nil
 		switch {
 		case st.SHA == "":
 			return nil, errors.New(i18n.T("store.sync.stats_no_sha"))
 		case st.Additions < 0 || st.Deletions < 0:
 			return nil, errors.New(i18n.T("store.sync.stats_negative", shortSHA(st.SHA)))
 		}
+	}
+	if languages && w.LanguagesVersion <= 0 {
+		return nil, errors.New(i18n.T("store.sync.no_languages_version"))
 	}
 	if err := checkExtras(w); err != nil {
 		return nil, err
@@ -453,6 +475,31 @@ func writeBranches(ctx context.Context, q *db.Queries, repoID int64, branches []
 		ids[b.Name] = id
 	}
 	return ids, nil
+}
+
+// writeCommitLanguages note la version de règles avec laquelle les langages du commit sha ont été lus et
+// les remplace (langages sans ligne ignorés) ; un commit absent de la base est ignoré.
+func writeCommitLanguages(ctx context.Context, q *db.Queries, repoID, version int64, sha string, langs map[string]int) error {
+	n, err := q.SetCommitLanguagesVersion(ctx, db.SetCommitLanguagesVersionParams{
+		LanguagesVersion: version, RepoID: repoID, SHA: sha,
+	})
+	if err != nil {
+		return wrapErr(i18n.T("store.sync.commit_languages", shortSHA(sha)), err)
+	}
+	if n == 0 {
+		return nil
+	}
+	if err := q.DeleteCommitLanguages(ctx, db.DeleteCommitLanguagesParams{RepoID: repoID, SHA: sha}); err != nil {
+		return wrapErr(i18n.T("store.sync.commit_languages", shortSHA(sha)), err)
+	}
+	for _, l := range model.SortedLanguageLines(langs) {
+		if err := q.InsertCommitLanguage(ctx, db.InsertCommitLanguageParams{
+			RepoID: repoID, SHA: sha, Language: l.Language, Additions: int64(l.Lines),
+		}); err != nil {
+			return wrapErr(i18n.T("store.sync.commit_languages", shortSHA(sha)), err)
+		}
+	}
+	return nil
 }
 
 // insertCommit résout l'auteur et le committer de c puis l'insère ; renvoie 1 si le commit a été
