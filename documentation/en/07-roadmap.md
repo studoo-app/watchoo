@@ -13,7 +13,8 @@ from the TUI and a fixed profile link in **v0.6.1**; the new-version notice fixe
 TUI) in **v0.6.2**; the bilingual interface was released as **v0.7.0** ([0.7.0](#070-bilingual-interface)); after one
 more week of real usage, the public surface was stabilized and released as **v1.0.0**
 ([1.0.0](#100-stabilization)); languages and share of the contributors were released as **v1.1.0**
-([1.1.0](#110-languages-and-share-of-the-contributors)).
+([1.1.0](#110-languages-and-share-of-the-contributors)); the AI signatures and the languages of the
+contributors were released as **v1.2.0** ([1.2.0](#120-ai-signatures-and-languages-of-the-contributors)).
 
 ```mermaid
 flowchart LR
@@ -142,12 +143,12 @@ Importing a whole organization and the alerts move to V3 (see
 - Share of the commits of each contributor in `watchoo contributors`, on a repository's page and in the
   TUI detail: **in place**.
 
-### 1.2.0: AI signatures
+### 1.2.0: AI signatures and languages of the contributors
 - Signatures of AI tools declared in the commits, per commit and per contributor (CLI, TUI, web, `--json`),
-  analyzed without any request to the forge: **in place**, to be released. See
+  analyzed without any request to the forge: **released in v1.2.0**. See
   [AI signatures](02-features.md#ai-signatures). Clues based on style or pace are deliberately left out.
 - Languages of a contributor: lines added per language in their commits, read from the clone (contributor
-  page, `watchoo contributors`, TUI, migration `00009`): **in place**, to be released. See
+  page, `watchoo contributors`, TUI, migration `00009`): **released in v1.2.0**. See
   [Languages of a contributor](03-architecture.md#languages-of-a-contributor-120).
 
 ## Definition of "done" for each phase

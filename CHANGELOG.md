@@ -9,6 +9,12 @@ PATCH (see [Skills](documentation/en/11-skills.md#versions-and-changelogmd)).
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-11-03
+
+AI signatures declared in the commits, and languages of the contributors. No incompatible change: the
+database is migrated at the first command, and the existing commits are analyzed at the next sync, without
+any request to the forge.
+
 ### Added
 
 - **AI signatures**: `watchoo log`, `watchoo contributors`, the TUI and the web interface show the AI
@@ -26,6 +32,10 @@ PATCH (see [Skills](documentation/en/11-skills.md#versions-and-changelogmd)).
   `ai_tools`, `languages_scanned_commits` and `languages` on `contributors`.
 - **Database**: migration `00008` (`commits.ai_rules_version`, table `commit_ai_signatures`) and migration
   `00009` (`commits.languages_version`, table `commit_languages`).
+
+### Fixed
+
+- **Release notes**: the footer of the GitHub release (changelog link, Docker image) is in English.
 
 ## [1.1.0] - 2026-11-02
 
@@ -359,7 +369,8 @@ First published release: the MVP (phases 1 to 5 of the [roadmap](documentation/e
   `gh` is the official binary verified by SHA-256; base images and GitHub actions pinned by
   digest.
 
-[Unreleased]: https://github.com/studoo-app/watchoo/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/studoo-app/watchoo/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/studoo-app/watchoo/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/studoo-app/watchoo/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/studoo-app/watchoo/compare/v0.7.0...v1.0.0
 [0.7.0]: https://github.com/studoo-app/watchoo/compare/v0.6.2...v0.7.0
