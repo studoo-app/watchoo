@@ -70,7 +70,7 @@ func TestRepoSyncAlert(t *testing.T) {
 	assertStatus(t, w, http.StatusOK)
 	assertContains(t, w, `id="repo-sync-alert"`, "alert-warning", "Last sync finished with 2 warnings",
 		"Local Git clone unavailable", html.EscapeString(cloneWarning), "Pull requests, releases or tags not read",
-		"tags non synchronisés : HTTP 502", "Check this machine&#39;s SSH key or Git credentials")
+		"tags non synchronisés : HTTP 502", "Fix the cause shown above (SSH access or Git credentials of this machine)")
 	// Refreshed with the header fragment.
 	h := e.request(http.MethodGet, repoPath(ids.Alice), nil)
 	h.Header.Set("HX-Request", "true")
@@ -91,7 +91,7 @@ func TestSyncWarningsFrench(t *testing.T) {
 
 	assertContains(t, e.get("/"), "Statistiques de lignes lues par l&#39;API (limitées)")
 	assertContains(t, e.get(repoPath(ids.Alice)), "La dernière synchro s&#39;est terminée avec 2 avertissements",
-		"Clone Git local indisponible", "Vérifiez la clé SSH ou les identifiants Git de cette machine")
+		"Clone Git local indisponible", "Corrigez la cause indiquée ci-dessus (accès SSH ou identifiants Git de cette machine)")
 }
 
 func TestWarnHelpers(t *testing.T) {

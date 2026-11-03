@@ -585,7 +585,10 @@ En place depuis la phase 6 ([Roadmap](07-roadmap.md#phase-6--v2)).
   rien demander. `git` est lancé avec `LC_ALL=C` pour classer ses échecs. Un échec d'accès (clé
   refusée, hôte inconnu, identifiants absents, dépôt introuvable ou privé sans accès) donne
   `ErrAccessDenied` : « en erreur : accès refusé : vérifiez la clé SSH ou les identifiants Git de cette
-  machine » ; un échec réseau donne `ErrUnavailable`. La sortie de `git` n'est jamais recopiée dans une
+  machine ». Une empreinte de serveur SSH inconnue ou changée (« Host key verification failed », par
+  exemple `known_hosts` connaît `github.com` mais la configuration SSH redirige vers `ssh.github.com`
+  port 443) donne `ErrHostKeyUnknown`, un cas de `ErrAccessDenied` avec son propre conseil : lancer une
+  fois `ssh -T git@github.com` pour vérifier et accepter l'empreinte de GitHub ; un échec réseau donne `ErrUnavailable`. La sortie de `git` n'est jamais recopiée dans une
   erreur ni dans les logs (niveau Debug : commande, durée et code de retour seulement).
 - **Ajout d'un dépôt** (`repo add`, `repo import`, web) : l'accès est vérifié par
   `git ls-remote --symref <url> HEAD`, sans rien cloner (`--dry-run` compris) ; il donne aussi la

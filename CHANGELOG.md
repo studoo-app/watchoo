@@ -9,6 +9,15 @@ PATCH (see [Skills](documentation/en/11-skills.md#versions-and-changelogmd)).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Unknown SSH host key** (local Git clones): "Host key verification failed" no longer gives the
+  misleading "check the SSH key" advice. The message now says that the server fingerprint is unknown or
+  changed and to run `ssh -T git@github.com` once to accept it (for example when the SSH configuration
+  sends `github.com` to `ssh.github.com` port 443). The repository is still treated as inaccessible, as
+  before. On a repository's page, the advice under a local Git clone warning now points to the cause
+  shown above.
+
 ## [1.3.0] - 2026-11-03
 
 Sync warnings of each repository in the web interface. No incompatible change: the database is migrated

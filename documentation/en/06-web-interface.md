@@ -134,8 +134,8 @@ this figure, no address displayed. Rules: [AI signatures](02-features.md#ai-sign
   default branch, tracked branches and patterns, stars and issues.
 - **Last sync alert** (1.3.0), under the header, when the repository's last sync has warnings: one
   orange alert (`alert-warning`) with the date of the sync, the full message of each warning (as
-  recorded, in the language active at sync time) and, for the local Git clone, the advice "Check
-  this machine's SSH key or Git credentials, then sync again". A red alert (`alert-error`) gives in
+  recorded, in the language active at sync time) and, for the local Git clone, the advice "Fix
+  the cause shown above (SSH access or Git credentials of this machine), then sync again". A red alert (`alert-error`) gives in
   the same place the message of a failed sync.
 - **Activity thresholds of this repository** (collapsible block under the header, outside the HTMX
   fragments: an input in progress is not cleared by the post-sync refresh): two fields, "Slacking

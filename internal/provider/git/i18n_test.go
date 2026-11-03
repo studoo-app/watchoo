@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/studoo-app/watchoo/internal/i18n"
+	"github.com/studoo-app/watchoo/internal/provider"
 )
 
 // TestMessagesInFrench checks a few key messages of the package in French: the messages come from
@@ -16,6 +17,9 @@ func TestMessagesInFrench(t *testing.T) {
 	if got := ErrGitNotFound.Error(); !strings.Contains(got, "git est introuvable") ||
 		!strings.Contains(got, "https://git-scm.com") {
 		t.Errorf("ErrGitNotFound = %q", got)
+	}
+	if got := provider.ErrHostKeyUnknown.Error(); !strings.Contains(got, "empreinte du serveur SSH inconnue") {
+		t.Errorf("ErrHostKeyUnknown = %q", got)
 	}
 	if got := i18n.T("provider.git.op.clone", "alice", "projet"); got != "clone du dépôt alice/projet" {
 		t.Errorf("op clone = %q", got)

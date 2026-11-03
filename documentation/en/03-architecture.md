@@ -584,7 +584,10 @@ In place since phase 6 ([Roadmap](07-roadmap.md#phase-6--v2)).
   must then itself ask for nothing. `git` is run with `LC_ALL=C` to classify its failures. An access
   failure (key refused, unknown host, missing credentials, repository not found or private without access)
   gives `ErrAccessDenied`: "access denied: check the SSH key or the Git credentials of this machine"
-  (the repository is then in error); a
+  (the repository is then in error). An unknown or changed SSH host key ("Host key verification
+  failed", for example `known_hosts` knows `github.com` but the SSH configuration redirects to
+  `ssh.github.com` port 443) gives `ErrHostKeyUnknown`, a case of `ErrAccessDenied` with its own
+  advice: run `ssh -T git@github.com` once to check and accept GitHub's fingerprint; a
   network failure gives `ErrUnavailable`. The output of `git` is never copied into an error nor into the
   logs (Debug level: command, duration and return code only).
 - **Adding a repository** (`repo add`, `repo import`, web): the access is checked by
