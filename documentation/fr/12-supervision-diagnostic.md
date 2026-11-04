@@ -2,8 +2,8 @@
 
 [← Sommaire](README.md)
 
-**Statut** : décision du mainteneur. Phase **7.1 réalisée** (fondations, non publiée, section 9.1) ; phases
-7.2 à 7.6 à venir, chacune après validation de son plan (voir [Roadmap](07-roadmap.md)). Source de la partie
+**Statut** : décision du mainteneur. Phases **7.1 et 7.2 réalisées** (fondations, signaux déclaratifs et
+commande `watchoo diagnostic` ; non publiées, sections 9.1 et 9.2) ; phases 7.3 à 7.6 à venir, chacune après validation de son plan (voir [Roadmap](07-roadmap.md)). Source de la partie
 signaux : la spécification « Détection des signaux de production de code assistée par IA », **version 0.2**
 (3 novembre 2026, références vérifiées).
 
@@ -204,7 +204,7 @@ résumé de ce qui marche. Le plan et l'arborescence de chaque phase sont propos
 
 - **7.1 Fondations** (réalisée) : détaillée en section 9.1. Livrable : `watchoo sync` alimente la table des
   signaux par commit, activée par espace, sans rien changer à l'affichage ni aux sorties publiques existantes.
-- **7.2 Déclaratif** : signaux D1 à D5 (D2 pour les descriptions de PR et D5 en plus de 7.1), niveau
+- **7.2 Déclaratif** (réalisée) : signaux D1 à D5 (D2 pour les descriptions de PR et D5 en plus de 7.1), niveau
   « Déclaré », sortie `watchoo diagnostic`. Livrable : flags déclaratifs visibles et expliqués en CLI.
 - **7.3 Rythme** : signaux R1 à R6, fenêtre de 90 jours, z modifié, niveaux « Probable » et « À regarder ».
   Livrable : flags statistiques avec historique insuffisant signalé.
@@ -258,10 +258,34 @@ internal/workspace/        réglages diagnostic.enabled, diagnostic.exclude, dia
 - **Échec isolé** : un échec d'écriture des signaux devient un avertissement de la synchro du dépôt, sans
   la faire échouer.
 
-**Tests** : voir [Tests](09-tests.md#supervision-et-diagnostic-phase-71).
+**Tests** : voir [Tests](09-tests.md#supervision-et-diagnostic-phase-7).
 
 **Reste pour l'affichage** (phases suivantes) : la commande `watchoo diagnostic`, les niveaux, la revue
 humaine. Aucune sortie publique existante (`log`, `status`, `--json`) n'a changé.
+
+## 9.2 Phase 7.2 — signaux déclaratifs et première sortie (réalisée)
+
+Plan validé par le mainteneur le 4 novembre 2026 : seuls les outils détectés sont gardés (jamais le texte
+d'une description de PR), clés `--json` en anglais comme le reste de Watchoo, sortie en CLI seulement
+(web et TUI en 7.4, avec la fiche de revue).
+
+- **Signal précisé** : chaque outil reconnu est gardé avec le signal qui l'a trouvé (`D1:claude` pour un
+  trailer, `D2:unnamed` pour une signature), pour que chaque piste dise d'où elle vient.
+- **D2 sur les PR** : la description d'une PR est lue en mémoire par le provider GitHub ; seuls les
+  identifiants d'outils sont gardés (`pull_requests.tool_ids`, migration `00008`). Pour les PR lues après la
+  mise à jour, diagnostic activé ; les clones locaux n'ont pas de PR.
+- **D5** : préfixe de la branche d'une PR (`codex/`, `copilot/`, `claude/`, `cursor/`), lu dans
+  `pull_requests.head_branch`, déjà en base.
+- **D4 en contexte** : date du premier ajout d'un fichier de configuration d'agent dans le dépôt
+  (`git log --diff-filter=A` sur le clone), gardée dans `repositories.agent_config_since` (migration
+  `00008`) et affichée comme contexte, sans niveau.
+- **Niveau « Déclaré »** (`declared`) : au moins un signal D1, D2, D3 ou D5 ; calculé par
+  `internal/diagnostic`, avec la liste des signaux et de leurs valeurs.
+- **Commande `watchoo diagnostic [--repo X] [--author Y] [--since 30d]`** (texte et `--json`), réservée au
+  formateur : pistes de réflexion du plus récent au plus ancien (commits et PR), signaux et valeurs, contexte
+  D4 par dépôt, rappel « piste de réflexion, pas un verdict ». Diagnostic désactivé : la commande le dit, sans
+  erreur.
+- **Purge** : les identifiants d'outils des PR suivent aussi `diagnostic.retention_days` (date d'ouverture).
 
 ## 10. Points ouverts (à trancher par le mainteneur)
 

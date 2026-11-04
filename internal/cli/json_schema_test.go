@@ -41,6 +41,7 @@ var jsonTopLevelKeys = map[string][]string{
 	"config export": {"format", "version", "exported_at", "watchoo_version", "workspace", "settings", "repositories"},
 	"config import": {"file", "dry_run", "applied", "source", "settings", "repositories", "summary", "warnings"},
 	"update":        {"current", "latest", "update_available", "release_url"},
+	"diagnostic":    {"enabled", "leads", "contexts", "notice", "filters"},
 }
 
 // pendingJSONCommands are documented in 05-cli.md but not implemented yet (none today): a command
@@ -88,6 +89,7 @@ func TestJSONSchemaAllCommands(t *testing.T) {
 	outputs["prs"] = h.run("prs", "--json").mustSucceed(t).stdout
 	outputs["releases"] = h.run("releases", "--json").mustSucceed(t).stdout
 	outputs["status"] = h.run("status", "--json").mustSucceed(t).stdout
+	outputs["diagnostic"] = h.run("diagnostic", "--json").mustSucceed(t).stdout
 	outputs["repo remove"] = h.run("repo", "remove", "dave/projet", "--yes", "--json").mustSucceed(t).stdout
 	outputs["config export"] = h.run("config", "export", "--json").mustSucceed(t).stdout
 	writeFile(t, filepath.Join(h.cwd, "partage.json"), outputs["config export"])

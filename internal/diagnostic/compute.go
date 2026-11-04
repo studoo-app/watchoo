@@ -23,8 +23,8 @@ type Signals struct {
 	FilesExcluded int // fichiers binaires ou exclus par un motif
 	AdditionsKept int // lignes ajoutées dans les fichiers retenus
 	DeletionsKept int // lignes supprimées dans les fichiers retenus
-	// Tools sont les identifiants d'outils déclarés (D1 trailers, D2 signatures), triés, sans doublon ;
-	// vide si aucun.
+	// Tools sont les outils déclarés dans le message, chacun avec son signal, encodés « D1:claude »
+	// (trailer) ou « D2:unnamed » (signature) : voir Declaration. Triés, sans doublon ; vide si aucun.
 	Tools       []string
 	AgentConfig bool // D4 : le commit modifie un fichier de configuration d'agent
 	BotAuthor   bool // D3 : l'auteur est un compte bot connu
@@ -48,18 +48,19 @@ func Compute(in Input, ex *Excluder) (s Signals, ok bool) {
 		s.AdditionsKept += f.Additions
 		s.DeletionsKept += f.Deletions
 	}
-	s.Tools = DeclaredTools(in.Message)
+	s.Tools = EncodeDeclarations(MessageDeclarations(in.Message))
 	s.BotAuthor = isBot(in.AuthorName) || isBot(in.AuthorLogin)
 	return s, true
 }
 
-// DeclaredTools renvoie les outils déclarés dans un message de commit : trailers « Co-authored-by: »
-// (signal D1) et signatures (signal D2), triés, sans doublon ; liste vide (non nil) si aucun.
-func DeclaredTools(message string) []string {
-	found := []string{}
-	add := func(tool string) {
-		if !slices.Contains(found, tool) {
-			found = append(found, tool)
+// MessageDeclarations renvoie les outils déclarés dans un message de commit : trailers
+// « Co-authored-by: » (signal D1) et signatures (signal D2), triés (signal puis outil), sans doublon ;
+// liste vide (non nil) si aucun.
+func MessageDeclarations(message string) []Declaration {
+	found := []Declaration{}
+	add := func(d Declaration) {
+		if !slices.Contains(found, d) {
+			found = append(found, d)
 		}
 	}
 	for line := range strings.Lines(message) {
@@ -67,19 +68,45 @@ func DeclaredTools(message string) []string {
 		if m := coAuthorTrailer.FindStringSubmatch(line); m != nil {
 			for _, p := range coAuthorPatterns {
 				if p.re.MatchString(m[1]) {
-					add(p.tool)
+					add(Declaration{Signal: SignalCoAuthor, Tool: p.tool})
 				}
 			}
 			continue
 		}
 		for _, p := range signaturePatterns {
 			if p.re.MatchString(line) {
-				add(p.tool)
+				add(Declaration{Signal: SignalSignature, Tool: p.tool})
 			}
 		}
 	}
-	slices.Sort(found)
+	sortDeclarations(found)
 	return found
+}
+
+// PullRequestDeclarations renvoie les outils déclarés dans la description d'une pull request : toute
+// mention reconnue (signature ou trailer) y relève du signal D2 (signature dans la PR). Triés, sans
+// doublon ; liste vide (non nil) si aucun. La description n'est lue qu'en mémoire.
+func PullRequestDeclarations(body string) []Declaration {
+	found := []Declaration{}
+	for _, d := range MessageDeclarations(body) {
+		d.Signal = SignalSignature
+		if !slices.Contains(found, d) {
+			found = append(found, d)
+		}
+	}
+	sortDeclarations(found)
+	return found
+}
+
+// AgentBranch renvoie l'outil dont le préfixe commence le nom de branche branch (signal D5 :
+// « codex/… », « copilot/… », « claude/… », « cursor/… ») ; ok faux sinon.
+func AgentBranch(branch string) (tool string, ok bool) {
+	for _, p := range agentBranchPrefixes {
+		if strings.HasPrefix(branch, p.prefix) && len(branch) > len(p.prefix) {
+			return p.tool, true
+		}
+	}
+	return "", false
 }
 
 // isBot indique si un nom ou un login désigne un compte bot connu (signal D3).

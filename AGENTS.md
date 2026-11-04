@@ -11,7 +11,7 @@ projects) lives in its own directory, initialized by `watchoo init`.
 
 **Current state: v1.0.0, stable release (phases 1 to 6 of the [roadmap](documentation/en/07-roadmap.md) in place: MVP, configuration sharing and V2, then the per-contributor page, updating Watchoo, the bilingual interface — English by default, French — and the stabilization of the public surface). Since 1.0.0, an incompatible change to the public surface (commands, flags, exit codes, `--json` keys, settings, `WATCHOO_*` variables, database schema, web routes) requires a MAJOR version.**
 `watchoo init` creates a workspace; `repo add / import / list / remove`, `sync`, `log`,
-`contributors`, `prs`, `releases`, `status`, `version` and `update` work in text and `--json` (stable schema, documented in
+`contributors`, `prs`, `releases`, `status`, `version`, `update` and `diagnostic` work in text and `--json` (stable schema, documented in
 [05-cli.md](documentation/en/05-cli.md#json-output) and verified by `internal/cli/json_schema_test.go`);
 `watchoo tui` opens the interactive mode; `watchoo serve` serves the local web interface (dashboard and
 contributors with activity charts, repository detail, a contributor's page, settings) and syncs in the background. The
@@ -43,7 +43,7 @@ the same numbering; the index is [INDEX.md](documentation/INDEX.md).
 | Vision, scope | [01-vision.md](documentation/en/01-vision.md) |
 | Features and rules (Actif / Flemme / Dead states…) | [02-features.md](documentation/en/02-features.md) |
 | Architecture, stack, technical decisions | [03-architecture.md](documentation/en/03-architecture.md) |
-| Data model (11 tables) | [04-data-model.md](documentation/en/04-data-model.md) |
+| Data model (12 tables) | [04-data-model.md](documentation/en/04-data-model.md) |
 | CLI, TUI, bulk import | [05-cli.md](documentation/en/05-cli.md) |
 | Web interface | [06-web-interface.md](documentation/en/06-web-interface.md) |
 | Roadmap by phases | [07-roadmap.md](documentation/en/07-roadmap.md) |
@@ -85,8 +85,9 @@ internal/provider/    Provider interface, types, errors; providertest/ (fake Pro
                       git/: local Git repositories (git binary); git/gittest/ (test repositories over file://)
 internal/sync/        sync engine (business core)
 internal/activity/    activity rules (Actif / Flemme / Dead, gray states), series, short formats
-internal/diagnostic/  diagnosis signals per commit (phase 7): file exclusions, declared AI tools, bot
-                      author, agent configuration file; keeps neither message nor path
+internal/diagnostic/  diagnosis (phase 7): per-commit signals (file exclusions, declared AI tools, bot
+                      author, agent configuration file), reflection leads ("declared" level); keeps neither
+                      message, PR description nor path
 internal/repoimport/  repository refs, --branch patterns, import files
 internal/configshare/ configuration sharing (JSON export, validation, preview, import)
 internal/textclean/   cleaning of displayed texts (escape sequences), CLI and TUI

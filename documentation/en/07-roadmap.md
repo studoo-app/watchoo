@@ -141,9 +141,10 @@ Importing a whole organization and the alerts move to V3 (see
 - Sub-phases 7.1 to 7.6 (foundations, declarative, rhythm, review, form, calibration): see
   [Supervision and diagnosis](12-supervision-diagnostic.md#9-phase-plan-proposal).
 - **Status**: **7.1 done** (foundations: `commit_signals` table, `diagnostic.*` settings, disabled by
-  default; unreleased). Phases 7.2 to 7.6 follow, each after its plan is approved; educational context
-  settled (learners, results reserved to the trainer); informing learners must still be prepared before any
-  display of the signals.
+  default) and **7.2 done** (declarative signals D1, D2, D3, D5, D4 context, `watchoo diagnostic` command for
+  the trainer); unreleased. Phases 7.3 to 7.6 follow, each after its plan is approved. Educational context
+  settled (learners, results reserved to the trainer); learners are informed (existence of the diagnosis,
+  purpose, criteria) before it is enabled.
 
 ## Definition of "done" for each phase
 

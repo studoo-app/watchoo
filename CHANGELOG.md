@@ -22,6 +22,15 @@ PATCH (see [Skills](documentation/en/11-skills.md#versions-and-changelogmd)).
   `WATCHOO_DIAGNOSTIC_ENABLED`, `WATCHOO_DIAGNOSTIC_EXCLUDE`, `WATCHOO_DIAGNOSTIC_RETENTION_DAYS`; never
   shared by `watchoo config`. See
   [Supervision and diagnosis](documentation/en/12-supervision-diagnostic.md).
+- **Diagnosis, phase 7.2 (declarative signals)**: new `watchoo diagnostic [--repo X] [--author Y]
+  [--since 30d]` command (text and `--json`), for the trainer who supervises the workspace: the reflection
+  leads of level "declared", commits and pull requests that declare the use of an AI tool, newest first,
+  with their signals and raw values (D1 co-author trailer, D2 signature in the commit message or the PR
+  description, D3 bot author, D5 PR branch named by an agent), and the date an agent configuration file was
+  first added to each repository (D4, context only). A lead is never a verdict. Each declared tool is kept
+  with the signal that found it (`D1:claude`); for pull requests, only the tools found in the description
+  are kept, never the description (`pull_requests.tool_ids`, new `repository_signals` table, migration
+  `00008`). With the diagnosis disabled, the command says so.
 
 ## [1.0.0] - 2026-11-01
 

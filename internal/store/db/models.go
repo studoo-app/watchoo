@@ -82,6 +82,7 @@ type PullRequest struct {
 	UpdatedAt        string
 	ClosedAt         sql.NullString
 	MergedAt         sql.NullString
+	ToolIds          string
 }
 
 type Release struct {
@@ -115,6 +116,12 @@ type Repository struct {
 	DeadAfterDays   sql.NullInt64
 	Enabled         bool
 	BranchPatterns  string
+}
+
+type RepositorySignal struct {
+	RepoID           int64
+	AgentConfigSince sql.NullString
+	ComputedAt       string
 }
 
 type SyncRun struct {

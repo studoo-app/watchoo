@@ -2,8 +2,8 @@
 
 [← Contents](README.md)
 
-**Status**: maintainer decision. Phase **7.1 done** (foundations, unreleased, section 9.1); phases 7.2 to 7.6
-to come, each after its plan is approved (see [Roadmap](07-roadmap.md)). Source of the signal part: the specification
+**Status**: maintainer decision. Phases **7.1 and 7.2 done** (foundations, declarative signals and the
+`watchoo diagnostic` command; unreleased, sections 9.1 and 9.2); phases 7.3 to 7.6 to come, each after its plan is approved (see [Roadmap](07-roadmap.md)). Source of the signal part: the specification
 "Detection of AI-assisted code production signals", **version 0.2** (November 3, 2026, references verified),
 written in French.
 
@@ -198,7 +198,7 @@ summary of what works. The plan and tree of each phase are proposed before the c
 
 - **7.1 Foundations** (done): detailed in section 9.1. Deliverable: `watchoo sync` fills the per-commit signal
   table, enabled per workspace, without changing existing displays or public outputs.
-- **7.2 Declarative**: signals D1 to D5 (D2 for PR descriptions and D5 on top of 7.1), "Declared" level,
+- **7.2 Declarative** (done): signals D1 to D5 (D2 for PR descriptions and D5 on top of 7.1), "Declared" level,
   `watchoo diagnostic` output. Deliverable: declarative flags visible and explained in the CLI.
 - **7.3 Rhythm**: signals R1 to R6, 90-day window, modified z-score, "Probable" and "To review" levels.
   Deliverable: statistical flags, with insufficient history reported.
@@ -251,10 +251,34 @@ internal/workspace/        settings diagnostic.enabled, diagnostic.exclude, diag
 - **Isolated failure**: a failure to write the signals becomes a warning of the repository's sync, without
   failing it.
 
-**Tests**: see [Testing](09-testing.md#supervision-and-diagnosis-phase-71).
+**Tests**: see [Testing](09-testing.md#supervision-and-diagnosis-phase-7).
 
 **Left for the display** (next phases): the `watchoo diagnostic` command, the levels, the human review. No
 existing public output (`log`, `status`, `--json`) changed.
+
+## 9.2 Phase 7.2: declarative signals and first output (done)
+
+Plan approved by the maintainer on November 4, 2026: only detected tools are kept (never the text of a PR
+description), `--json` keys in English like the rest of Watchoo, CLI output only (web and TUI in 7.4, with
+the review sheet).
+
+- **Signal made explicit**: each recognised tool is kept with the signal that found it (`D1:claude` for a
+  trailer, `D2:unnamed` for a signature), so that each lead says where it comes from.
+- **D2 on PRs**: a PR description is read in memory by the GitHub provider; only tool identifiers are kept
+  (`pull_requests.tool_ids`, migration `00008`). For PRs read after the update, with the diagnosis enabled;
+  local clones have no PRs.
+- **D5**: prefix of a PR's branch (`codex/`, `copilot/`, `claude/`, `cursor/`), read from
+  `pull_requests.head_branch`, already stored.
+- **D4 as context**: date an agent configuration file was first added to the repository (`git log
+  --diff-filter=A` on the clone), kept in `repositories.agent_config_since` (migration `00008`) and shown
+  as context, without a level.
+- **"Declared" level** (`declared`): at least one D1, D2, D3 or D5 signal; computed by `internal/diagnostic`,
+  with the list of signals and their values.
+- **`watchoo diagnostic [--repo X] [--author Y] [--since 30d]` command** (text and `--json`), for the
+  trainer: reflection leads from newest to oldest (commits and PRs), signals and values, D4 context per
+  repository, reminder "a reflection lead, not a verdict". Diagnosis disabled: the command says so, without
+  an error.
+- **Purge**: the tool identifiers of PRs also follow `diagnostic.retention_days` (opening date).
 
 ## 10. Open questions (for the maintainer to decide)
 

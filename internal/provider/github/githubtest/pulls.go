@@ -35,6 +35,7 @@ type PullRequest struct {
 	Author    string    // author's login; empty = "user": null (deleted account)
 	Base      string    // target branch; empty = default branch
 	Head      string    // proposed branch; empty = "feature-<number>"
+	Body      string    // description; empty = null
 	CreatedAt time.Time // opening (not zero)
 	UpdatedAt time.Time // last update; zero = CreatedAt
 	ClosedAt  time.Time // closing; zero = null (Closed requires a date: zero = UpdatedAt)
@@ -265,6 +266,7 @@ func (s *Server) pullJSON(repo *repoState, pr PullRequest) pullJSON {
 		State:     state,
 		Title:     pr.Title,
 		User:      user,
+		Body:      nullableString(pr.Body),
 		CreatedAt: timeJSON(pr.CreatedAt),
 		UpdatedAt: timeJSON(pr.UpdatedAt),
 		ClosedAt:  nullableTime(pr.ClosedAt),

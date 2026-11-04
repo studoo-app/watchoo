@@ -73,6 +73,7 @@ func (s *repoSync) lineStats(ctx context.Context, h *halt, repoID int64, firstIm
 	if cl.stats != nil {
 		n, writes, err := s.cloneStats(ctx, repoID, defaultBranch, cl.stats)
 		if err == nil {
+			s.clone = cl.stats
 			return n, writes, "", nil
 		}
 		if ctxErr := ctx.Err(); ctxErr != nil {

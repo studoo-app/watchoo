@@ -442,7 +442,7 @@ L'interface (CLI, TUI, web) est bilingue : **anglais par défaut**, français pa
   système, puis anglais), retour anglais puis clé pour une clé absente, formatage des arguments, et
   **exhaustivité du catalogue** : chaque clé existe dans les deux langues.
 
-## Supervision et diagnostic (phase 7.1)
+## Supervision et diagnostic (phase 7)
 
 Voir [Supervision et diagnostic](12-supervision-diagnostic.md). Aucun service extérieur : données
 fictives, dépôts `gittest`, base SQLite temporaire.
@@ -461,6 +461,13 @@ fictives, dépôts `gittest`, base SQLite temporaire.
 - `internal/sync`, sur un dépôt `gittest` réel : signaux des nouveaux commits (trailer, bot, fichier exclu,
   binaire, `AGENTS.md`), commit de fusion sans signal, synchro incrémentale sans recalcul, rien sans
   `diagnostic.enabled`, purge en fin de synchro ; aucun message, nom ni e-mail dans les logs.
+- Phase 7.2 : déclarations avec leur signal (`D1:claude`, `D2:unnamed`, forme sans signal relue en D1),
+  descriptions de PR (D2) et branches d'agents (D5) ; dans le store, pistes déclarées filtrées (dépôt, login,
+  e-mail, période), contexte D4 remplacé à chaque calcul, outils des PR relus puis purgés, migration `00008`
+  montée et descendue ; à la synchro, outils des PR gardés seulement avec le diagnostic activé (description
+  jamais dans les logs), contexte D4 sur un dépôt `gittest` (avec et sans `AGENTS.md`), pistes assemblées
+  par `diagnostic.Declared` ; `watchoo diagnostic` en texte (anglais et français), en `--json` (clés vérifiées,
+  description de PR jamais écrite), filtres et diagnostic désactivé.
 
 ## En CI
 

@@ -140,9 +140,10 @@ L'import d'une organisation entière et les alertes passent en V3 (voir
 - Sous-phases 7.1 à 7.6 (fondations, déclaratif, rythme, revue, forme, calibration) : voir
   [Supervision et diagnostic](12-supervision-diagnostic.md#9-plan-par-phases-proposition).
 - **Statut** : **7.1 réalisée** (fondations : table `commit_signals`, réglages `diagnostic.*`, désactivé par
-  défaut ; non publiée). Les phases 7.2 à 7.6 suivent, chacune après validation de son plan ; contexte
-  pédagogique tranché (apprenants, résultats réservés au formateur) ; l'information des apprenants reste à
-  préparer avant tout affichage des signaux.
+  défaut) et **7.2 réalisée** (signaux déclaratifs D1, D2, D3, D5, contexte D4, commande
+  `watchoo diagnostic` réservée au formateur) ; non publiées. Les phases 7.3 à 7.6 suivent, chacune après
+  validation de son plan. Contexte pédagogique tranché (apprenants, résultats réservés au formateur) ;
+  l'information des apprenants (existence du diagnostic, finalité, critères) se fait avant de l'activer.
 
 ## Définition de « terminé » pour chaque phase
 

@@ -7,6 +7,7 @@ package db
 
 import (
 	"context"
+	"database/sql"
 )
 
 const countCommitSignals = `-- name: CountCommitSignals :one
@@ -69,6 +70,54 @@ func (q *Queries) InsertCommitSignals(ctx context.Context, arg InsertCommitSigna
 	return result.RowsAffected()
 }
 
+const listAgentConfigContexts = `-- name: ListAgentConfigContexts :many
+SELECT rs.repo_id, CAST(rs.agent_config_since AS TEXT) AS agent_config_since,
+       r.owner AS repo_owner, r.name AS repo_name, r.label AS repo_label
+FROM repository_signals rs
+JOIN repositories r ON r.id = rs.repo_id
+WHERE rs.agent_config_since IS NOT NULL
+  AND (?1 IS NULL OR rs.repo_id = ?1)
+ORDER BY rs.agent_config_since, rs.repo_id
+`
+
+type ListAgentConfigContextsRow struct {
+	RepoID           int64
+	AgentConfigSince string
+	RepoOwner        string
+	RepoName         string
+	RepoLabel        string
+}
+
+// Depots ou un fichier de configuration d'agent a ete trouve (repo_id NULL = tous), par date.
+func (q *Queries) ListAgentConfigContexts(ctx context.Context, repoID interface{}) ([]ListAgentConfigContextsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listAgentConfigContexts, repoID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAgentConfigContextsRow{}
+	for rows.Next() {
+		var i ListAgentConfigContextsRow
+		if err := rows.Scan(
+			&i.RepoID,
+			&i.AgentConfigSince,
+			&i.RepoOwner,
+			&i.RepoName,
+			&i.RepoLabel,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listCommitSignals = `-- name: ListCommitSignals :many
 SELECT repo_id, sha, author_id, authored_at, files_kept, files_excluded, additions_kept, deletions_kept,
     tool_ids, agent_config, bot_author, computed_at
@@ -114,6 +163,107 @@ func (q *Queries) ListCommitSignals(ctx context.Context, repoID int64) ([]Commit
 	return items, nil
 }
 
+const listDeclaredCommitSignals = `-- name: ListDeclaredCommitSignals :many
+SELECT cs.repo_id, cs.sha, cs.author_id, cs.authored_at, cs.files_kept, cs.files_excluded,
+       cs.additions_kept, cs.deletions_kept, cs.tool_ids, cs.agent_config, cs.bot_author, cs.computed_at,
+       c.url,
+       r.owner AS repo_owner, r.name AS repo_name, r.label AS repo_label,
+       CAST(COALESCE(a.name, '') AS TEXT) AS author_name,
+       CAST(COALESCE(a.provider_login, '') AS TEXT) AS author_login
+FROM commit_signals cs
+JOIN commits c ON c.repo_id = cs.repo_id AND c.sha = cs.sha
+JOIN repositories r ON r.id = cs.repo_id
+LEFT JOIN contributors a ON a.id = cs.author_id
+WHERE (cs.tool_ids <> '' OR cs.bot_author = 1)
+  AND (?1 IS NULL OR cs.repo_id = ?1)
+  AND (?2 IS NULL OR cs.authored_at >= ?2)
+  AND (?3 IS NULL OR (cs.author_id IS NOT NULL AND (
+        a.provider_login = ?3 COLLATE NOCASE
+        OR a.name = ?3 COLLATE NOCASE
+        OR EXISTS (
+          SELECT 1 FROM contributor_emails e
+          WHERE e.contributor_id = cs.author_id AND e.email = ?4))))
+ORDER BY cs.authored_at DESC, cs.repo_id, cs.sha
+`
+
+type ListDeclaredCommitSignalsParams struct {
+	RepoID      interface{}
+	Since       interface{}
+	Author      interface{}
+	AuthorEmail sql.NullString
+}
+
+type ListDeclaredCommitSignalsRow struct {
+	RepoID        int64
+	SHA           string
+	AuthorID      sql.NullInt64
+	AuthoredAt    string
+	FilesKept     int64
+	FilesExcluded int64
+	AdditionsKept int64
+	DeletionsKept int64
+	ToolIds       string
+	AgentConfig   bool
+	BotAuthor     bool
+	ComputedAt    string
+	URL           string
+	RepoOwner     string
+	RepoName      string
+	RepoLabel     string
+	AuthorName    string
+	AuthorLogin   string
+}
+
+// Signaux des commits qui ont au moins un signal declaratif (outil declare ou auteur bot), filtres
+// (depot, auteur, periode sur la date d'ecriture), du plus recent au plus ancien. author_email doit
+// etre deja en minuscules ; author est compare sans casse (ASCII) au login et au nom.
+func (q *Queries) ListDeclaredCommitSignals(ctx context.Context, arg ListDeclaredCommitSignalsParams) ([]ListDeclaredCommitSignalsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listDeclaredCommitSignals,
+		arg.RepoID,
+		arg.Since,
+		arg.Author,
+		arg.AuthorEmail,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListDeclaredCommitSignalsRow{}
+	for rows.Next() {
+		var i ListDeclaredCommitSignalsRow
+		if err := rows.Scan(
+			&i.RepoID,
+			&i.SHA,
+			&i.AuthorID,
+			&i.AuthoredAt,
+			&i.FilesKept,
+			&i.FilesExcluded,
+			&i.AdditionsKept,
+			&i.DeletionsKept,
+			&i.ToolIds,
+			&i.AgentConfig,
+			&i.BotAuthor,
+			&i.ComputedAt,
+			&i.URL,
+			&i.RepoOwner,
+			&i.RepoName,
+			&i.RepoLabel,
+			&i.AuthorName,
+			&i.AuthorLogin,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const purgeCommitSignals = `-- name: PurgeCommitSignals :execrows
 DELETE FROM commit_signals
 WHERE authored_at < ?1
@@ -126,4 +276,38 @@ func (q *Queries) PurgeCommitSignals(ctx context.Context, before string) (int64,
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+const purgePullRequestTools = `-- name: PurgePullRequestTools :execrows
+UPDATE pull_requests SET tool_ids = ''
+WHERE tool_ids <> '' AND created_at < ?1
+`
+
+// Efface les outils declares des pull requests ouvertes avant before (tous les depots).
+func (q *Queries) PurgePullRequestTools(ctx context.Context, before string) (int64, error) {
+	result, err := q.db.ExecContext(ctx, purgePullRequestTools, before)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const upsertRepositorySignals = `-- name: UpsertRepositorySignals :exec
+INSERT INTO repository_signals (repo_id, agent_config_since, computed_at)
+VALUES (?1, ?2, ?3)
+ON CONFLICT (repo_id) DO UPDATE SET
+    agent_config_since = excluded.agent_config_since,
+    computed_at = excluded.computed_at
+`
+
+type UpsertRepositorySignalsParams struct {
+	RepoID           int64
+	AgentConfigSince sql.NullString
+	ComputedAt       string
+}
+
+// Enregistre le contexte de diagnostic du depot (remplace le precedent).
+func (q *Queries) UpsertRepositorySignals(ctx context.Context, arg UpsertRepositorySignalsParams) error {
+	_, err := q.db.ExecContext(ctx, upsertRepositorySignals, arg.RepoID, arg.AgentConfigSince, arg.ComputedAt)
+	return err
 }

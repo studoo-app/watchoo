@@ -11,7 +11,10 @@
 // Robbes et al. (2026, arXiv:2601.18341) ; signatures par agent de Ghaleb (MSR 2026, arXiv:2601.17406).
 package diagnostic
 
-import "regexp"
+import (
+	"regexp"
+	"slices"
+)
 
 // Identifiants d'outils, écrits dans commit_signals.tool_ids. Stables : ils font partie des données
 // de l'espace (une valeur ne change jamais de sens ; un nouvel outil reçoit un nouvel identifiant).
@@ -23,6 +26,15 @@ const (
 	// ToolUnnamed : signature d'IA reconnue sans outil nommé (« 🤖 Generated … »).
 	ToolUnnamed = "unnamed"
 )
+
+// agentBranchPrefixes (signal D5) sont les préfixes de branches créées par des agents de codage
+// (spécification, section 4.1).
+var agentBranchPrefixes = []struct{ prefix, tool string }{
+	{"codex/", ToolCodex},
+	{"copilot/", ToolCopilot},
+	{"claude/", ToolClaude},
+	{"cursor/", ToolCursor},
+}
 
 // toolPattern associe une expression régulière à un identifiant d'outil.
 type toolPattern struct {
@@ -81,4 +93,34 @@ var DefaultExclude = []string{
 	"vendor/", "node_modules/", "third_party/",
 	"*.pb.go", "*_generated.*", "*.min.js", "dist/", "build/",
 	"__snapshots__/", "*.snap",
+}
+
+// AgentConfigPathspecs renvoie les pathspecs Git (magie « glob » et « literal ») des fichiers de
+// configuration d'agent du signal D4, n'importe où dans le dépôt : mêmes règles qu'isAgentConfig.
+// Sert à dater le premier ajout d'un tel fichier sur un clone (contexte D4).
+func AgentConfigPathspecs() []string {
+	var out []string
+	names := make([]string, 0, len(agentConfigNames))
+	for n := range agentConfigNames {
+		names = append(names, n)
+	}
+	slices.Sort(names)
+	for _, n := range names {
+		out = append(out, ":(glob)"+n, ":(glob)**/"+n)
+	}
+	for _, prefix := range agentConfigPrefixes {
+		out = append(out, ":(glob)"+prefix+"*", ":(glob)**/"+prefix+"*")
+	}
+	paths := make([]string, 0, len(agentConfigPaths))
+	for p := range agentConfigPaths {
+		paths = append(paths, p)
+	}
+	slices.Sort(paths)
+	for _, p := range paths {
+		out = append(out, ":(literal)"+p)
+	}
+	for _, d := range agentConfigDirs {
+		out = append(out, ":(glob)"+d+"/**", ":(glob)**/"+d+"/**")
+	}
+	return out
 }

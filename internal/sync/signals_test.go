@@ -5,14 +5,17 @@ package sync_test
 
 import (
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/studoo-app/watchoo/internal/auth"
 	"github.com/studoo-app/watchoo/internal/diagnostic"
 	"github.com/studoo-app/watchoo/internal/model"
+	"github.com/studoo-app/watchoo/internal/provider"
 	"github.com/studoo-app/watchoo/internal/provider/git/gittest"
 	"github.com/studoo-app/watchoo/internal/repoimport"
+	"github.com/studoo-app/watchoo/internal/store"
 	wsync "github.com/studoo-app/watchoo/internal/sync"
 )
 
@@ -81,7 +84,7 @@ func TestSignalsComputedAtSync(t *testing.T) {
 		t.Error("the merge commit has signals")
 	}
 	if s := bySHA[shas["ai"]]; s.FilesKept != 1 || s.AdditionsKept != 3 || s.FilesExcluded != 0 ||
-		!slices.Equal(s.Tools, []string{diagnostic.ToolClaude}) || s.BotAuthor || s.AgentConfig || s.AuthorID == 0 ||
+		!slices.Equal(s.Tools, []string{diagnostic.SignalCoAuthor + ":" + diagnostic.ToolClaude}) || s.BotAuthor || s.AgentConfig || s.AuthorID == 0 ||
 		!s.AuthoredAt.Equal(epoch) || !s.ComputedAt.Equal(e.clock.Now()) {
 		t.Errorf("AI commit: %+v", s)
 	}
@@ -143,5 +146,100 @@ func TestSignalsPurgedAfterRetention(t *testing.T) {
 	}
 	if _, ok := shas["ai"]; !ok {
 		t.Fatal("test repository incomplete")
+	}
+}
+
+// D2 on pull requests: the description is read in memory at sync, only the tools are kept, and only
+// with diagnostic.enabled; D5 comes from the branch name. diagnostic.Declared assembles the leads.
+func TestPullRequestDeclarationsAtSync(t *testing.T) {
+	for _, enabled := range []bool{true, false} {
+		opts := []envOption{}
+		if enabled {
+			opts = append(opts, withDiagnostic(3650))
+		}
+		e := newEnv(t, opts...)
+		repo := e.addRepo(1, "projet")
+		e.fake.AppendCommits(1, "main", 2, epoch, time.Hour)
+		agent := fakePR(1, provider.PullRequestOpen, 1)
+		agent.HeadBranch = "codex/fix-login"
+		agent.Body = secretMessage + "\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)"
+		plain := fakePR(2, provider.PullRequestOpen, 2)
+		plain.Body = secretMessage
+		e.fake.SetPullRequests(1, agent, plain)
+		e.syncOK(repo.ID)
+
+		byNumber := map[int][]string{}
+		for _, p := range e.pulls(repo.ID) {
+			byNumber[p.Number] = p.ToolIDs
+		}
+		want := []string{"D2:claude", "D2:unnamed"}
+		if !enabled {
+			want = []string{}
+		}
+		if !slices.Equal(byNumber[1], want) || len(byNumber[2]) != 0 {
+			t.Errorf("enabled=%v: tool_ids %v / %v, want %v / []", enabled, byNumber[1], byNumber[2], want)
+		}
+		if !enabled {
+			continue
+		}
+		rep, err := diagnostic.Declared(t.Context(), e.st, store.DiagnosticFilter{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(rep.Leads) != 1 {
+			t.Fatalf("leads: %+v", rep.Leads)
+		}
+		l := rep.Leads[0]
+		wantHits := []diagnostic.Hit{{Signal: "D2", Value: "claude"}, {Signal: "D2", Value: "unnamed"},
+			{Signal: "D5", Value: "codex/fix-login"}}
+		if l.Kind != diagnostic.KindPullRequest || l.Level != diagnostic.LevelDeclared || l.Number != 1 ||
+			l.AuthorLogin != secretLogin || !slices.Equal(l.Hits, wantHits) {
+			t.Errorf("PR lead: %+v", l)
+		}
+		// Filters: another author, or a period after the opening, leave nothing.
+		for _, f := range []store.DiagnosticFilter{{Author: "quelquun"}, {Since: epoch.Add(time.Minute)}} {
+			if r, err := diagnostic.Declared(t.Context(), e.st, f); err != nil || len(r.Leads) != 0 {
+				t.Errorf("filter %+v: %+v, %v", f, r.Leads, err)
+			}
+		}
+		if r, _ := diagnostic.Declared(t.Context(), e.st, store.DiagnosticFilter{Author: strings.ToUpper(secretLogin)}); len(r.Leads) != 1 {
+			t.Errorf("author login, other case: %+v", r.Leads)
+		}
+	}
+}
+
+// D4 context and commit leads, on a real Git repository (local clones).
+func TestAgentContextAndCommitLeads(t *testing.T) {
+	srv := gittest.NewServer(t)
+	_, shas := signalRepo(t, srv, epoch)
+	e := newEnv(t, withGit(srv.URL), withDiagnostic(3650))
+	repo, _ := addAndSync(t, e)
+
+	rep, err := diagnostic.Declared(t.Context(), e.st, store.DiagnosticFilter{RepoID: repo.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rep.Contexts) != 1 || !rep.Contexts[0].Since.Equal(epoch.Add(4*time.Hour)) {
+		t.Errorf("D4 context: %+v", rep.Contexts)
+	}
+	if len(rep.Leads) != 2 || rep.Leads[0].SHA != shas["bot"] || rep.Leads[1].SHA != shas["ai"] {
+		t.Fatalf("commit leads: %+v", rep.Leads)
+	}
+	if h := rep.Leads[0].Hits; len(h) != 1 || h[0].Signal != diagnostic.SignalBot || h[0].Value != "dependabot[bot]" {
+		t.Errorf("bot lead: %+v", h)
+	}
+	if h := rep.Leads[1].Hits; !slices.Equal(h, []diagnostic.Hit{{Signal: "D1", Value: "claude"}}) ||
+		rep.Leads[1].URL == "" || rep.Leads[1].Kind != diagnostic.KindCommit {
+		t.Errorf("AI lead: %+v", rep.Leads[1])
+	}
+
+	// Without agent configuration file: no context.
+	srv2 := gittest.NewServer(t)
+	r2 := srv2.Create(testOwner, "projet", "main")
+	r2.Commit("main", "main.go", "package main\n", secretMessage, secretAuthor, epoch)
+	e2 := newEnv(t, withGit(srv2.URL), withDiagnostic(3650))
+	repo2, _ := addAndSync(t, e2)
+	if ctxs, err := e2.st.AgentConfigContexts(t.Context(), repo2.ID); err != nil || len(ctxs) != 0 {
+		t.Errorf("context without agent file: %+v, %v", ctxs, err)
 	}
 }

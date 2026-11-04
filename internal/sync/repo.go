@@ -41,6 +41,9 @@ type repoSync struct {
 	// files est le détail des fichiers des nouveaux commits, donné par le clone, gardé seulement quand
 	// le diagnostic est activé (Engine.diag) : la synchro en calcule les signaux (signals.go).
 	files map[string][]provider.CommitFile
+	// clone est le clone Git local du dépôt quand il est à jour pour cette synchro (statistiques
+	// calculées par lui) ; nil sinon. Sert au contexte D4 du diagnostic (signals.go).
+	clone CloneStats
 }
 
 // syncRepository synchronise repo avec le sync_run run déjà ouvert (verrou pris) ; en cas de succès,
@@ -154,6 +157,7 @@ func (e *Engine) syncRepository(ctx context.Context, prov provider.Provider, cl 
 	if w := e.writeSignals(ctx, s, repo.ID); w != "" {
 		x.warnings = append(x.warnings, w)
 	}
+	e.updateAgentContext(ctx, s, repo.ID)
 	display := repo.Label
 	if display == "" {
 		display = s.full

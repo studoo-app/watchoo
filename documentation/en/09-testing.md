@@ -446,7 +446,7 @@ The interface (CLI, TUI, web) is bilingual: **English by default**, French via `
   locale, then English), English then key fallback for a missing key, argument formatting, and
   **catalog completeness**: every key exists in both languages.
 
-## Supervision and diagnosis (phase 7.1)
+## Supervision and diagnosis (phase 7)
 
 See [Supervision and diagnosis](12-supervision-diagnostic.md). No external service: dummy data,
 `gittest` repositories, temporary SQLite database.
@@ -464,6 +464,13 @@ See [Supervision and diagnosis](12-supervision-diagnostic.md). No external servi
 - `internal/sync`, on a real `gittest` repository: signals of new commits (trailer, bot, excluded file,
   binary, `AGENTS.md`), merge commit without signals, incremental sync without recomputation, nothing
   without `diagnostic.enabled`, purge at the end of the sync; no message, name or e-mail in the logs.
+- Phase 7.2: declarations with their signal (`D1:claude`, `D2:unnamed`, form without signal read as D1), PR
+  descriptions (D2) and agent branches (D5); in the store, declared leads filtered (repository, login,
+  e-mail, period), D4 context replaced at each computation, PR tools read back then purged, migration
+  `00008` up and down; at sync, PR tools kept only with the diagnosis enabled (description never in the
+  logs), D4 context on a `gittest` repository (with and without `AGENTS.md`), leads assembled by
+  `diagnostic.Declared`; `watchoo diagnostic` in text (English and French), in `--json` (keys checked, PR
+  description never written), filters and disabled diagnosis.
 
 ## In CI
 

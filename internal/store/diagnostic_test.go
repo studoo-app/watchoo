@@ -10,6 +10,7 @@ import (
 
 	"github.com/pressly/goose/v3"
 
+	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/store/migrations"
 )
 
@@ -120,5 +121,146 @@ func TestMigrationCommitSignals(t *testing.T) {
 	}
 	if _, err := p.UpTo(ctx, 7); err != nil {
 		t.Fatalf("UpTo(7) again: %v", err)
+	}
+}
+
+func TestDeclaredSignalsStore(t *testing.T) {
+	s := newTestStore(t)
+	ctx := t.Context()
+	repoID := mustCreateRepo(t, s, 1, "promo", "alice")
+	other := mustCreateRepo(t, s, 2, "promo", "bob")
+	alice := person("Alice", "alice@example.test", "alice", 501)
+	bob := person("Bob", "bob@example.test", "bob", 502)
+	main := []BranchState{{Name: "main", HeadSHA: sha(3)}}
+	applySync(t, s, repoID, main, cw(1, alice, "main"), cw(2, alice, "main"), cw(3, bob, "main"))
+	computed := t0.Add(2000 * time.Hour)
+	if _, err := s.WriteCommitSignals(ctx, repoID, []CommitSignalWrite{
+		{SHA: sha(1), Tools: []string{"D1:claude"}},
+		{SHA: sha(2), FilesKept: 4}, // no declarative signal: not listed
+		{SHA: sha(3), BotAuthor: true},
+	}, computed); err != nil {
+		t.Fatal(err)
+	}
+
+	all, err := s.ListDeclaredCommitSignals(ctx, DiagnosticFilter{})
+	if err != nil || len(all) != 2 || all[0].SHA != sha(3) || all[1].SHA != sha(1) {
+		t.Fatalf("ListDeclaredCommitSignals = %+v, %v", all, err)
+	}
+	if v := all[1]; !slices.Equal(v.Tools, []string{"D1:claude"}) || v.AuthorLogin != "alice" || v.AuthorName != "Alice" ||
+		v.URL == "" || v.RepoFullName() != "promo/alice" {
+		t.Errorf("view of commit 1: %+v", v)
+	}
+	for _, tc := range []struct {
+		name string
+		f    DiagnosticFilter
+		want []string
+	}{
+		{"author login", DiagnosticFilter{Author: "ALICE"}, []string{sha(1)}},
+		{"author e-mail", DiagnosticFilter{Author: "Bob@Example.test"}, []string{sha(3)}},
+		{"since", DiagnosticFilter{Since: t0.Add(2 * time.Hour)}, []string{sha(3)}},
+		{"other repository", DiagnosticFilter{RepoID: other}, nil},
+	} {
+		got, err := s.ListDeclaredCommitSignals(ctx, tc.f)
+		var shas []string
+		for _, v := range got {
+			shas = append(shas, v.SHA)
+		}
+		if err != nil || !slices.Equal(shas, tc.want) || got == nil {
+			t.Errorf("%s: %v, %v; want %v", tc.name, shas, err, tc.want)
+		}
+	}
+
+	// D4 context: replaced at each computation, NULL = none, listed by date.
+	if err := s.SetAgentConfigSince(ctx, repoID, t0.Add(5*time.Hour), computed); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SetAgentConfigSince(ctx, other, time.Time{}, computed); err != nil {
+		t.Fatal(err)
+	}
+	ctxs, err := s.AgentConfigContexts(ctx, 0)
+	if err != nil || len(ctxs) != 1 || ctxs[0].RepoID != repoID || !ctxs[0].Since.Equal(t0.Add(5*time.Hour)) {
+		t.Fatalf("AgentConfigContexts = %+v, %v", ctxs, err)
+	}
+	if err := s.SetAgentConfigSince(ctx, repoID, t0.Add(time.Hour), computed); err != nil {
+		t.Fatal(err)
+	}
+	if ctxs, _ := s.AgentConfigContexts(ctx, repoID); len(ctxs) != 1 || !ctxs[0].Since.Equal(t0.Add(time.Hour)) {
+		t.Errorf("context after update: %+v", ctxs)
+	}
+	if ctxs, _ := s.AgentConfigContexts(ctx, other); len(ctxs) != 0 || ctxs == nil {
+		t.Errorf("repository without agent file: %+v", ctxs)
+	}
+
+	// Tool identifiers of pull requests: written with the PR, read back, purged by opening date.
+	_, err = s.ApplyRepoSync(ctx, RepoSyncWrite{
+		RepoID: repoID, RunID: beginRun(t, s, repoID, computed), Metadata: meta("promo", "alice"), Branches: main,
+		PullRequests: []model.PullRequest{
+			{Number: 1, State: model.PullRequestOpen, HeadBranch: "codex/x", CreatedAt: t0, UpdatedAt: t0,
+				ToolIDs: []string{"D2:claude", "D2:unnamed"}},
+			{Number: 2, State: model.PullRequestOpen, CreatedAt: t0.Add(10 * time.Hour), UpdatedAt: t0.Add(10 * time.Hour),
+				ToolIDs: []string{"D2:codex"}},
+		},
+		SyncedAt: computed,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	pulls, err := s.ListPullRequests(ctx, PullRequestFilter{RepoID: repoID})
+	if err != nil || len(pulls) != 2 || !slices.Equal(pulls[1].ToolIDs, []string{"D2:claude", "D2:unnamed"}) {
+		t.Fatalf("ListPullRequests = %+v, %v", pulls, err)
+	}
+	if n, err := s.PurgePullRequestTools(ctx, t0.Add(5*time.Hour)); err != nil || n != 1 {
+		t.Errorf("PurgePullRequestTools = %d, %v; want 1", n, err)
+	}
+	pulls, _ = s.ListPullRequests(ctx, PullRequestFilter{RepoID: repoID})
+	if len(pulls[1].ToolIDs) != 0 || pulls[1].ToolIDs == nil || !slices.Equal(pulls[0].ToolIDs, []string{"D2:codex"}) {
+		t.Errorf("after the purge: %+v / %+v", pulls[0].ToolIDs, pulls[1].ToolIDs)
+	}
+
+	// Deleting the repository deletes its context.
+	mustExec(t, s, `DELETE FROM repositories WHERE id = ?`, repoID)
+	if c := count(t, s, "SELECT count(*) FROM repository_signals WHERE repo_id = ?", repoID); c != 0 {
+		t.Errorf("%d context rows after the repository was deleted", c)
+	}
+}
+
+func TestMigrationDeclaredSignals(t *testing.T) {
+	ctx := t.Context()
+	s, err := Open(ctx, filepath.Join(t.TempDir(), "watchoo.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+	p, err := goose.NewProvider(MigrationDialect, s.DB(), migrations.FS, goose.WithDisableGlobalRegistry(true))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.UpTo(ctx, 7); err != nil {
+		t.Fatalf("UpTo(7): %v", err)
+	}
+	repo := mustExec(t, s, `INSERT INTO repositories (provider, provider_id, owner, name) VALUES ('github', 1, 'promo', 'a')`)
+	mustExec(t, s, `INSERT INTO pull_requests (repo_id, number, state, created_at, updated_at) VALUES (?, 1, 'open', ?, ?)`,
+		repo, testDate, testDate)
+	if err := s.Migrate(ctx); err != nil {
+		t.Fatalf("Migrate: %v", err)
+	}
+	if c := count(t, s, "SELECT count(*) FROM pull_requests WHERE tool_ids = ''"); c != 1 {
+		t.Errorf("existing PR: tool_ids not empty (%d)", c)
+	}
+	if err := execErr(t, s, `INSERT INTO repository_signals (repo_id, agent_config_since, computed_at) VALUES (?, 'hier', ?)`,
+		repo, testDate); err == nil {
+		t.Error("badly formatted date accepted")
+	}
+	if _, err := p.DownTo(ctx, 7); err != nil {
+		t.Fatalf("DownTo(7): %v", err)
+	}
+	if err := execErr(t, s, "SELECT tool_ids FROM pull_requests"); err == nil {
+		t.Error("tool_ids still present after the rollback")
+	}
+	if c := count(t, s, "SELECT count(*) FROM pull_requests"); c != 1 {
+		t.Errorf("%d PRs after the rollback, want 1", c)
+	}
+	if _, err := p.UpTo(ctx, 8); err != nil {
+		t.Fatalf("UpTo(8) again: %v", err)
 	}
 }

@@ -232,6 +232,9 @@ type PullRequest struct {
 	UpdatedAt        time.Time // dernière modification, UTC
 	ClosedAt         time.Time // fermeture, UTC ; zéro si ouverte
 	MergedAt         time.Time // merge, UTC ; zéro si non mergée
+	// ToolIDs sont les outils déclarés dans la description (signal D2 du diagnostic, phase 7.2),
+	// encodés « D2:claude », triés ; vide si aucun ou non mesuré. La description n'est jamais gardée.
+	ToolIDs []string
 }
 
 // Status renvoie l'état affiché : mergée, fermée sans merge ou ouverte.

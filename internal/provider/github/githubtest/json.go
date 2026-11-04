@@ -20,6 +20,14 @@ func timeJSON(t time.Time) string {
 	return t.UTC().Format("2006-01-02T15:04:05Z")
 }
 
+// nullableString returns v as a JSON string, or nil (null) if v is empty.
+func nullableString(v string) *string {
+	if v == "" {
+		return nil
+	}
+	return &v
+}
+
 // nullableTime returns timeJSON(t), or nil (null) if t is zero.
 func nullableTime(t time.Time) *string {
 	if t.IsZero() {

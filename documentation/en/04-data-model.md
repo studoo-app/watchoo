@@ -7,7 +7,8 @@ branches (via `commit_branches`) and the contributors. V2 adds three of them (mi
 `pull_requests`, `releases` and `tags`, i.e. **ten tables**; the migration `00004` makes
 `repositories.provider_id` optional (repositories tracked through local Git repositories); the
 migration `00005` (0.5.0) adds `contributors.profile_url` and the migration `00006` (0.5.0)
-`commits.stats_known`. The migration `00007` (phase 7.1) adds `commit_signals`, i.e. **eleven tables**
+`commits.stats_known`. The migration `00007` (phase 7.1) adds `commit_signals`, and the migration `00008` (phase 7.2)
+`pull_requests.tool_ids` and `repository_signals`, i.e. **twelve tables**
 (see [Supervision and diagnosis](12-supervision-diagnostic.md)). The storage is a SQLite file versioned by `goose` migrations, with **one
 database per workspace** (`.watchoo/watchoo.db`, see [Workspaces](10-workspaces.md)). The tables
 therefore do not know the notion of workspace: two workspaces never share data.
@@ -24,6 +25,7 @@ erDiagram
     repositories ||--o{ tags : "marks"
     commits ||--o{ commit_branches : "seen on"
     commits ||--o| commit_signals : "measured by"
+    repositories ||--o| repository_signals : "context"
     branches ||--o{ commit_branches : "contains"
     contributors ||--o{ contributor_emails : "uses"
     contributors ||--o{ commits : "author"
@@ -201,6 +203,7 @@ removed, except with its repository.
 | updated_at | Last update (serves as the resume point of the next sync) |
 | closed_at | Date of closing; empty if open |
 | merged_at | Date of merge; empty if not merged. A merged PR has `state = closed` and `merged_at` filled |
+| tool_ids | Diagnosis (phase 7.2, migration `00008`): tools declared in the description, encoded `D2:claude`, sorted, comma-separated; empty if none or not measured. The description is never kept; value cleared by the purge (`diagnostic.retention_days`, opening date) |
 
 - **Author**: kept as is (login and account ID), **without a link** to `contributors`: a
   contributor is the author of at least one commit, and an author of PRs without a commit must not
@@ -258,13 +261,24 @@ message, no e-mail address, no file path.
 | files_kept | Files kept (neither binary nor excluded by `diagnostic.exclude`) |
 | files_excluded | Binary files or files excluded by a pattern |
 | additions_kept, deletions_kept | Lines added and deleted in the kept files |
-| tool_ids | Declared tool identifiers (signals D1 and D2: `claude`, `copilot`, `codex`, `cursor`, `unnamed`), sorted, comma-separated; empty if none |
+| tool_ids | Declared tools, each with its signal (phase 7.2): `D1:<tool>` for a trailer, `D2:<tool>` for a signature; tools: `claude`, `copilot`, `codex`, `cursor`, `unnamed`. Sorted, comma-separated; empty if none |
 | agent_config | Signal D4: the commit changes an agent configuration file (`AGENTS.md`, `CLAUDE.md`…) |
 | bot_author | Signal D3: the author is a known bot account (`*[bot]`, `copilot-swe-agent`) |
 | computed_at | Date of the computation |
 
 Purge: at the end of each sync, rows whose `authored_at` is older than `diagnostic.retention_days`
 (365 days by default) are deleted.
+
+### `repository_signals` — diagnosis context of a repository (phase 7.2)
+
+Primary key: **`repo_id`**, deleted with the repository. Updated at each sync from the local Git clone,
+with the diagnosis enabled.
+
+| Column | Description |
+| --- | --- |
+| repo_id | Repository |
+| agent_config_since | Signal D4 (context): author date of the first commit adding an agent configuration file on the default branch; `NULL` if none |
+| computed_at | Date of the computation |
 
 ## Index
 

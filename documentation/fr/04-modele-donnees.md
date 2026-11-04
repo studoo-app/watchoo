@@ -7,7 +7,8 @@ Sept tables suffisent pour le MVP ; `commits` est la table centrale, reliée aux
 `releases` et `tags`, soit **dix tables** ; la migration `00004` rend `repositories.provider_id`
 facultatif (dépôts suivis par clones Git locaux) ; la migration `00005` (0.5.0) ajoute
 `contributors.profile_url` et la migration `00006` (0.5.0) `commits.stats_known`. La migration `00007`
-(phase 7.1) ajoute `commit_signals`, soit **onze tables** (voir
+(phase 7.1) ajoute `commit_signals`, et la migration `00008` (phase 7.2) `pull_requests.tool_ids` et
+`repository_signals`, soit **douze tables** (voir
 [Supervision et diagnostic](12-supervision-diagnostic.md)). Le stockage est un fichier SQLite versionné par des migrations
 `goose`, avec **une base par espace de supervision** (`.watchoo/watchoo.db`, voir
 [Espaces de supervision](10-espaces-de-supervision.md)). Les tables ne connaissent donc pas la notion
@@ -25,6 +26,7 @@ erDiagram
     repositories ||--o{ tags : "marque"
     commits ||--o{ commit_branches : "vu sur"
     commits ||--o| commit_signals : "mesuré par"
+    repositories ||--o| repository_signals : "contexte"
     branches ||--o{ commit_branches : "contient"
     contributors ||--o{ contributor_emails : "utilise"
     contributors ||--o{ commits : "auteur"
@@ -201,6 +203,7 @@ supprimée, sauf avec son dépôt.
 | updated_at | Dernière modification (sert de point de reprise de la synchro suivante) |
 | closed_at | Date de fermeture ; vide si ouverte |
 | merged_at | Date de merge ; vide si non mergée. Une PR mergée a `state = closed` et `merged_at` renseigné |
+| tool_ids | Diagnostic (phase 7.2, migration `00008`) : outils déclarés dans la description, encodés `D2:claude`, triés, séparés par des virgules ; vide si aucun ou non mesuré. La description n'est jamais gardée ; valeur effacée par la purge (`diagnostic.retention_days`, date d'ouverture) |
 
 - **Auteur** : gardé tel quel (login et identifiant de compte), **sans lien** vers `contributors` : un
   contributeur est l'auteur d'au moins un commit, et un auteur de PR sans commit ne doit pas apparaître
@@ -258,13 +261,24 @@ fusion, dont le clone Git local donne le détail des fichiers. Une ligne n'est j
 | files_kept | Fichiers retenus (ni binaires ni exclus par `diagnostic.exclude`) |
 | files_excluded | Fichiers binaires ou exclus par un motif |
 | additions_kept, deletions_kept | Lignes ajoutées et supprimées dans les fichiers retenus |
-| tool_ids | Identifiants d'outils déclarés (signaux D1 et D2 : `claude`, `copilot`, `codex`, `cursor`, `unnamed`), triés, séparés par des virgules ; vide si aucun |
+| tool_ids | Outils déclarés, chacun avec son signal (phase 7.2) : `D1:<outil>` pour un trailer, `D2:<outil>` pour une signature ; outils : `claude`, `copilot`, `codex`, `cursor`, `unnamed`. Triés, séparés par des virgules ; vide si aucun |
 | agent_config | Signal D4 : le commit modifie un fichier de configuration d'agent (`AGENTS.md`, `CLAUDE.md`…) |
 | bot_author | Signal D3 : l'auteur est un compte bot connu (`*[bot]`, `copilot-swe-agent`) |
 | computed_at | Date du calcul |
 
 Purge : en fin de chaque synchro, les lignes dont `authored_at` dépasse `diagnostic.retention_days`
 (365 jours par défaut) sont supprimées.
+
+### `repository_signals` — contexte de diagnostic d'un dépôt (phase 7.2)
+
+Clé primaire : **`repo_id`**, supprimée avec le dépôt. Mise à jour à chaque synchro par le clone Git local,
+diagnostic activé.
+
+| Colonne | Description |
+| --- | --- |
+| repo_id | Dépôt |
+| agent_config_since | Signal D4 (contexte) : date d'écriture du premier commit qui ajoute un fichier de configuration d'agent sur la branche par défaut ; `NULL` si aucun |
+| computed_at | Date du calcul |
 
 ## Index
 

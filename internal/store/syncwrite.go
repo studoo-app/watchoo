@@ -341,6 +341,7 @@ func writeExtras(ctx context.Context, q *db.Queries, w RepoSyncWrite) error {
 			UpdatedAt:        FormatTime(pr.UpdatedAt),
 			ClosedAt:         nullTime(pr.ClosedAt),
 			MergedAt:         nullTime(pr.MergedAt),
+			ToolIds:          strings.Join(pr.ToolIDs, ","),
 		}); err != nil {
 			return wrapErr(i18n.T("store.sync.pr_record", pr.Number), err)
 		}

@@ -66,6 +66,7 @@ func (s *Store) ListPullRequests(ctx context.Context, f PullRequestFilter) ([]Pu
 			URL:              row.URL,
 			BaseBranch:       row.BaseBranch,
 			HeadBranch:       row.HeadBranch,
+			ToolIDs:          splitList(row.ToolIds),
 		}
 		if err := parseTimes(i18n.T("store.pulls.number", row.Number),
 			[]string{row.CreatedAt, row.UpdatedAt}, []*time.Time{&pr.CreatedAt, &pr.UpdatedAt},

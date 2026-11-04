@@ -69,8 +69,9 @@ watchoo/
   internal/sync/       moteur de synchronisation (Engine : SyncAll, SyncRepo, AddRepositories) et
                        coordinateur des synchros d'un processus long (Coordinator, « watchoo serve »)
   internal/activity/   règles d'activité (Actif / Flemme / Dead, états gris), formats courts
-  internal/diagnostic/ signaux de diagnostic par commit (phase 7) : exclusions de fichiers, outils déclarés,
-                       auteur bot, fichier de configuration d'agent ; ne garde ni message ni chemin
+  internal/diagnostic/ diagnostic (phase 7) : signaux par commit (exclusions de fichiers, outils déclarés,
+                       auteur bot, fichier de configuration d'agent) et pistes de réflexion (niveau
+                       « déclaré ») ; ne garde ni message, ni description de PR, ni chemin
   internal/repoimport/ analyse des références de dépôts, de --branch et des fichiers d'import
   internal/configshare/ partage de la configuration d'un espace (export JSON, validation, aperçu et
                        application d'un import ; « watchoo config », page Réglages)

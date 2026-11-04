@@ -209,19 +209,22 @@ type Account struct {
 
 // PullRequest est une pull request (merge request) d'un dépôt.
 type PullRequest struct {
-	Number     int       // numéro dans le dépôt (> 0)
-	Title      string    // titre (donnée venue du dépôt : jamais dans les logs)
-	State      string    // PullRequestOpen ou PullRequestClosed
-	Merged     bool      // mergée (MergedAt non nul) ; une PR mergée est fermée
-	Draft      bool      // brouillon
-	Author     Account   // auteur
-	URL        string    // page web de la PR (html_url sur GitHub)
-	BaseBranch string    // branche visée
-	HeadBranch string    // branche proposée
-	CreatedAt  time.Time // ouverture, UTC
-	UpdatedAt  time.Time // dernière modification, UTC
-	ClosedAt   time.Time // fermeture, UTC ; zéro si ouverte
-	MergedAt   time.Time // merge, UTC ; zéro si non mergée
+	Number     int     // numéro dans le dépôt (> 0)
+	Title      string  // titre (donnée venue du dépôt : jamais dans les logs)
+	State      string  // PullRequestOpen ou PullRequestClosed
+	Merged     bool    // mergée (MergedAt non nul) ; une PR mergée est fermée
+	Draft      bool    // brouillon
+	Author     Account // auteur
+	URL        string  // page web de la PR (html_url sur GitHub)
+	BaseBranch string  // branche visée
+	HeadBranch string  // branche proposée
+	// Body est la description de la PR (texte venu du dépôt : jamais dans les logs ni en base). Seul le
+	// diagnostic la lit, en mémoire, pour y reconnaître des outils déclarés (signal D2).
+	Body      string
+	CreatedAt time.Time // ouverture, UTC
+	UpdatedAt time.Time // dernière modification, UTC
+	ClosedAt  time.Time // fermeture, UTC ; zéro si ouverte
+	MergedAt  time.Time // merge, UTC ; zéro si non mergée
 }
 
 // Release est une release d'un dépôt.

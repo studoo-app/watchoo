@@ -58,6 +58,36 @@ func (e *Engine) writeSignals(ctx context.Context, s *repoSync, repoID int64) st
 	return ""
 }
 
+// firstAdder est implémenté par le provider des clones Git locaux (*git.Provider) : date du premier
+// ajout d'un fichier correspondant à des pathspecs.
+type firstAdder interface {
+	FirstAdded(ctx context.Context, owner, name string, pathspecs []string) (time.Time, bool, error)
+}
+
+// updateAgentContext met à jour le contexte D4 du dépôt (premier ajout d'un fichier de configuration
+// d'agent), lu sur le clone quand il est à jour pour cette synchro. Un échec est seulement journalisé :
+// le contexte précédent reste.
+func (e *Engine) updateAgentContext(ctx context.Context, s *repoSync, repoID int64) {
+	if e.diag == nil || s.clone == nil || ctx.Err() != nil {
+		return
+	}
+	fa, ok := s.clone.(firstAdder)
+	if !ok {
+		return
+	}
+	since, found, err := fa.FirstAdded(ctx, s.owner, s.name, diagnostic.AgentConfigPathspecs())
+	if err != nil {
+		e.logger.Debug("contexte de diagnostic non lu", "repo", s.full, "erreur", errorMessage(err))
+		return
+	}
+	if !found {
+		since = time.Time{}
+	}
+	if err := e.store.SetAgentConfigSince(ctx, repoID, since, e.now().UTC()); err != nil {
+		e.logger.Warn("contexte de diagnostic non enregistré", "repo", s.full, "erreur", errorMessage(err))
+	}
+}
+
 // purgeSignals supprime, en fin de synchro, les signaux des commits écrits avant la durée de
 // conservation (diagnostic.retention_days). Rien quand le diagnostic est désactivé ; un échec est
 // seulement journalisé (la purge suivante reprendra).
@@ -75,7 +105,12 @@ func (e *Engine) purgeSignals(ctx context.Context) {
 		e.logger.Warn("purge des signaux de diagnostic impossible", "erreur", errorMessage(err))
 		return
 	}
-	if n > 0 {
-		e.logger.Info("signaux de diagnostic purgés", "commits", n, "conservation_jours", days)
+	prs, err := e.store.PurgePullRequestTools(ctx, before)
+	if err != nil {
+		e.logger.Warn("purge des signaux de diagnostic impossible", "erreur", errorMessage(err))
+		return
+	}
+	if n > 0 || prs > 0 {
+		e.logger.Info("signaux de diagnostic purgés", "commits", n, "pull_requests", prs, "conservation_jours", days)
 	}
 }
