@@ -9,14 +9,6 @@
 Watchoo surveille une liste de dépôts GitHub et vous montre
 d'un coup d'œil leur activité : les nouveaux commits, les contributeurs, et les dépôts qui ne bougent plus.
 
-> **Statut : v1.6.1, version stable : MVP et V2, la page par contributeur, la mise à jour en une commande (`watchoo update`), une interface bilingue (anglais par défaut, français), les langages des dépôts et des contributeurs, les signatures d'IA déclarées dans les commits, les avertissements de synchro de chaque dépôt dans l'interface web, le diagnostic pour le formateur (pistes de réflexion sur la production assistée par IA : signaux déclarés, de rythme, de forme et absolus, traces de travail humain, revue humaine avec les lignes en cause de chaque signal, score par dépôt et par contributeur ; désactivé par défaut), un sélecteur de langue EN / FR dans l'interface web, et un lien vers la documentation dans la langue de l'interface.** Les phases 1 à 5 de la
-> [roadmap](documentation/fr/07-roadmap.md) sont en place : ligne de commande, mode interactif
-> (`watchoo tui`), interface web locale (`watchoo serve`), sortie `--json`, binaires et image Docker. La
-> V2 (phase 6) ajoute les seuils par dépôt, l'activité par contributeur dans un dépôt, les pull requests,
-> releases et tags, et le suivi par clones Git locaux sans `gh`. Depuis la 1.0.0, l'interface (commandes,
-> options, clés `--json`, réglages, routes web) est stable : un changement incompatible n'arrive
-> qu'avec une nouvelle version majeure (voir le [journal des modifications](CHANGELOG.md)).
-
 <p align="center">
   <img src="assets/screenshots/contributeurs.png" alt="Tableau des activités de l'espace sur 90 jours, compteurs Actif, Flemme et Dead, cartes des dépôts et derniers commits (données factices)" width="900">
   <br><sub>Tableau des activités ...</sub>
