@@ -481,6 +481,15 @@ fictives, dépôts `gittest`, base SQLite temporaire.
   (pas d'entrée de navigation, 404 sur la fiche et les `POST`), liste et filtre, français, fiche de revue,
   saisie refusée réaffichée et échappée, revue enregistrée (relecteur, liste), note jamais dans les logs,
   bouton de reprise en arrière-plan.
+- Phase 7.5 : mesure de forme sur des lignes construites (commentaires de ligne et blocs, docstrings et
+  chaînes triples Python, définitions documentées ou non en Go, Python, TypeScript, PHP et Java, fichiers
+  ignorés ou exclus, fichiers de test, ligne trop longue, MATTR sur des identifiants distincts puis
+  répétés, style des messages) ; signaux F1 à F5 sur un historique construit, historique trop court, formes
+  non mesurées écartées, F4 sans nouveauté, niveaux « probable » et « à regarder » ; lignes ajoutées lues en
+  flux sur un clone `gittest` existant seulement (commit racine, blocs, chemin avec espace et accent,
+  suppressions) ; forme mesurée à la synchro et complétée par la reprise de l'historique ; colonnes de forme
+  dans le store (ligne complétée une seule fois, migration `00010`) ; libellés des signaux et des niveaux
+  dans les deux langues.
 
 ## En CI
 

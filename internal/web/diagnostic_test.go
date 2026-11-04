@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/studoo-app/watchoo/internal/diagnostic"
+	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/provider/providertest"
 	"github.com/studoo-app/watchoo/internal/store"
 )
@@ -125,4 +127,23 @@ func TestDiagnosticBackfillButton(t *testing.T) {
 	// The clones of the test environment are unreachable: every repository fails, the page says so.
 	w = e.get("/diagnostic")
 	assertContains(t, w, "Last history measurement", "Repositories not measured")
+}
+
+// Every signal and every level has its label, in both languages.
+func TestDiagnosticLabels(t *testing.T) {
+	for _, lang := range []i18n.Lang{i18n.English, i18n.French} {
+		tr := i18n.For(lang)
+		for _, id := range []string{"D1", "D2", "D3", "D5", "R1", "R2", "R3", "R4", "R5", "R6", "F1", "F2", "F3", "F4", "F5"} {
+			if key := "web.diag.signal." + id; tr.T(key) == key {
+				t.Errorf("%s: no label for %s", lang, key)
+			}
+		}
+		for _, l := range []string{diagnostic.LevelDeclared, diagnostic.LevelProbable, diagnostic.LevelToReview} {
+			for _, key := range []string{"web.diag.level." + l, "cli.diag.level." + l} {
+				if tr.T(key) == key {
+					t.Errorf("%s: no label for %s", lang, key)
+				}
+			}
+		}
+	}
 }

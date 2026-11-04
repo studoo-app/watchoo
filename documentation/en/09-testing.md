@@ -483,6 +483,14 @@ See [Supervision and diagnosis](12-supervision-diagnostic.md). No external servi
   `gittest` clone (nothing is cloned), root commit, truncation; web pages: disabled diagnosis (no navigation
   entry, 404 on the sheet and the `POST`s), list and filter, French, review sheet, refused input shown again
   and escaped, saved review (reviewer, list), note never in the logs, background backfill button.
+- Phase 7.5: form measurement on built lines (line and block comments, Python docstrings and triple-quoted
+  strings, documented or undocumented definitions in Go, Python, TypeScript, PHP and Java, ignored or
+  excluded files, test files, overlong line, MATTR on distinct then repeated identifiers, message style); F1
+  to F5 signals on a built history, too short a history, unmeasured forms left out, F4 without novelty,
+  "probable" and "to review" levels; added lines streamed from an existing `gittest` clone only (root commit,
+  hunks, path with a space and an accent, deletions); form measured at sync and completed by the history
+  backfill; form columns in the store (row completed once only, migration `00010`); signal and level labels
+  in both languages.
 
 ## In CI
 

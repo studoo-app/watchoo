@@ -9,7 +9,7 @@ branches (via `commit_branches`) and the contributors. V2 adds three of them (mi
 migration `00005` (0.5.0) adds `contributors.profile_url` and the migration `00006` (0.5.0)
 `commits.stats_known`. The migration `00007` (phase 7.1) adds `commit_signals`, and the migration `00008` (phase 7.2)
 `pull_requests.tool_ids` and `repository_signals`, and the migration `00009` (phase 7.4) `diagnostic_reviews`,
-i.e. **thirteen tables**
+i.e. **thirteen tables**; the migration `00010` (phase 7.5) adds the form columns of `commit_signals`
 (see [Supervision and diagnosis](12-supervision-diagnostic.md)). The storage is a SQLite file versioned by `goose` migrations, with **one
 database per workspace** (`.watchoo/watchoo.db`, see [Workspaces](10-workspaces.md)). The tables
 therefore do not know the notion of workspace: two workspaces never share data.
@@ -252,8 +252,9 @@ branch).
 Primary key: **`(repo_id, sha)`**, foreign key to `commits (repo_id, sha)` with `ON DELETE CASCADE`
 (deleting a commit or a repository deletes its signals). One row per commit measured while the
 `diagnostic.enabled` setting is on: new commits synced after it was enabled, merge commits excluded,
-whose local Git clone gives the file detail. A row is never rewritten. **Data minimisation**: no
-message, no e-mail address, no file path.
+whose local Git clone gives the file detail. A row is never rewritten, except to complete a form not
+measured (`form_known = 0`) with a measured one (phase 7.5). **Data minimisation**: no message, no e-mail
+address, no file path, no line of code.
 
 | Column | Description |
 | --- | --- |
@@ -267,6 +268,12 @@ message, no e-mail address, no file path.
 | agent_config | Signal D4: the commit changes an agent configuration file (`AGENTS.md`, `CLAUDE.md`…) |
 | bot_author | Signal D3: the author is a known bot account (`*[bot]`, `copilot-swe-agent`) |
 | computed_at | Date of the computation |
+| form_known | Form measured (phase 7.5); 0 for a row written before phase 7.5 or a failed read (all the following columns are then 0) |
+| source_lines, comment_lines | Non-blank added lines of the recognised source files (tests included), and among them the comment or docstring lines (F1) |
+| functions, documented_functions | Function definitions added, and among them the documented ones (F2) |
+| identifiers, lexical_diversity | Identifiers of the added code (keywords and strings left out) and their MATTR lexical diversity, window of 50; `NULL` with fewer than 50 identifiers (F3) |
+| test_lines | Non-blank added lines of the test files (F5) |
+| message_length, message_bullets, message_conventional | Message length without trailers and signatures, list lines, Conventional Commits subject (F4); the message is not copied |
 
 Purge: at the end of each sync, rows whose `authored_at` is older than `diagnostic.retention_days`
 (365 days by default) are deleted.

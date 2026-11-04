@@ -4,6 +4,7 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"strconv"
 	"strings"
 	"time"
@@ -24,11 +25,13 @@ type CommitSignalWrite struct {
 	Tools         []string // identifiants d'outils (sans virgule), triés
 	AgentConfig   bool
 	BotAuthor     bool
+	Form          model.CommitForm // Form.Known faux : forme non mesurée
 }
 
 // WriteCommitSignals enregistre, dans une seule transaction, les signaux de commits du dépôt repoID
-// déjà en base, calculés à computedAt. Un commit qui a déjà ses signaux n'est jamais modifié ; un SHA
-// absent de la base est ignoré. Renvoie le nombre de lignes créées.
+// déjà en base, calculés à computedAt. Un commit qui a déjà ses signaux n'est modifié que pour compléter
+// une forme non mesurée (ligne d'avant la phase 7.5) par une forme mesurée ; un SHA absent de la base est
+// ignoré. Renvoie le nombre de lignes créées ou complétées.
 func (s *Store) WriteCommitSignals(ctx context.Context, repoID int64, rows []CommitSignalWrite, computedAt time.Time) (int, error) {
 	if len(rows) == 0 {
 		return 0, nil
@@ -37,16 +40,28 @@ func (s *Store) WriteCommitSignals(ctx context.Context, repoID int64, rows []Com
 	err := s.writeTx(ctx, func(q *db.Queries) error {
 		for _, r := range rows {
 			n, err := q.InsertCommitSignals(ctx, db.InsertCommitSignalsParams{
-				RepoID:        repoID,
-				SHA:           r.SHA,
-				FilesKept:     int64(max(r.FilesKept, 0)),
-				FilesExcluded: int64(max(r.FilesExcluded, 0)),
-				AdditionsKept: int64(max(r.AdditionsKept, 0)),
-				DeletionsKept: int64(max(r.DeletionsKept, 0)),
-				ToolIds:       strings.Join(r.Tools, ","),
-				AgentConfig:   r.AgentConfig,
-				BotAuthor:     r.BotAuthor,
-				ComputedAt:    FormatTime(computedAt),
+				RepoID:              repoID,
+				SHA:                 r.SHA,
+				FilesKept:           int64(max(r.FilesKept, 0)),
+				FilesExcluded:       int64(max(r.FilesExcluded, 0)),
+				AdditionsKept:       int64(max(r.AdditionsKept, 0)),
+				DeletionsKept:       int64(max(r.DeletionsKept, 0)),
+				ToolIds:             strings.Join(r.Tools, ","),
+				AgentConfig:         r.AgentConfig,
+				BotAuthor:           r.BotAuthor,
+				ComputedAt:          FormatTime(computedAt),
+				FormKnown:           r.Form.Known,
+				SourceLines:         int64(max(r.Form.SourceLines, 0)),
+				CommentLines:        int64(max(r.Form.CommentLines, 0)),
+				Functions:           int64(max(r.Form.Functions, 0)),
+				DocumentedFunctions: int64(max(r.Form.DocumentedFunctions, 0)),
+				Identifiers:         int64(max(r.Form.Identifiers, 0)),
+				LexicalDiversity: sql.NullFloat64{Float64: min(max(r.Form.LexicalDiversity, 0), 1),
+					Valid: r.Form.HasDiversity},
+				TestLines:           int64(max(r.Form.TestLines, 0)),
+				MessageLength:       int64(max(r.Form.MessageLength, 0)),
+				MessageBullets:      int64(max(r.Form.MessageBullets, 0)),
+				MessageConventional: r.Form.MessageConventional,
 			})
 			if err != nil {
 				return wrapErr(i18n.T("store.diagnostic.write", shortSHA(r.SHA)), err)
@@ -101,9 +116,23 @@ func (s *Store) CommitSignals(ctx context.Context, repoID int64) ([]model.Commit
 			AgentConfig:   r.AgentConfig,
 			BotAuthor:     r.BotAuthor,
 			ComputedAt:    computed,
+			Form: formOf(r.FormKnown, r.SourceLines, r.CommentLines, r.Functions, r.DocumentedFunctions,
+				r.Identifiers, r.LexicalDiversity, r.TestLines, r.MessageLength, r.MessageBullets,
+				r.MessageConventional),
 		})
 	}
 	return out, nil
+}
+
+// formOf convertit les colonnes de forme d'une ligne de commit_signals.
+func formOf(known bool, source, comment, functions, documented, identifiers int64, diversity sql.NullFloat64,
+	tests, msgLength, msgBullets int64, conventional bool) model.CommitForm {
+	return model.CommitForm{
+		Known: known, SourceLines: int(source), CommentLines: int(comment), Functions: int(functions),
+		DocumentedFunctions: int(documented), Identifiers: int(identifiers),
+		LexicalDiversity: diversity.Float64, HasDiversity: diversity.Valid, TestLines: int(tests),
+		MessageLength: int(msgLength), MessageBullets: int(msgBullets), MessageConventional: conventional,
+	}
 }
 
 // CountCommitSignals renvoie le nombre de commits du dépôt repoID qui ont des signaux.
@@ -184,6 +213,9 @@ func commitSignalView(r db.ListCommitSignalViewsRow) (CommitSignalView, error) {
 			AdditionsKept: int(r.AdditionsKept), DeletionsKept: int(r.DeletionsKept),
 			Tools: splitList(r.ToolIds), AgentConfig: r.AgentConfig, BotAuthor: r.BotAuthor,
 			ComputedAt: computed,
+			Form: formOf(r.FormKnown, r.SourceLines, r.CommentLines, r.Functions, r.DocumentedFunctions,
+				r.Identifiers, r.LexicalDiversity, r.TestLines, r.MessageLength, r.MessageBullets,
+				r.MessageConventional),
 		},
 		RepoRef:     RepoRef{RepoOwner: r.RepoOwner, RepoName: r.RepoName, RepoLabel: r.RepoLabel},
 		URL:         r.URL,

@@ -135,9 +135,9 @@ func TestDeclaredSignalsStore(t *testing.T) {
 	applySync(t, s, repoID, main, cw(1, alice, "main"), cw(2, alice, "main"), cw(3, bob, "main"))
 	computed := t0.Add(2000 * time.Hour)
 	if _, err := s.WriteCommitSignals(ctx, repoID, []CommitSignalWrite{
-		{SHA: sha(1), Tools: []string{"D1:claude"}},
-		{SHA: sha(2), FilesKept: 4}, // no declarative signal: not listed
-		{SHA: sha(3), BotAuthor: true},
+		{SHA: sha(1), Tools: []string{"D1:claude"}, Form: model.CommitForm{Known: true}},
+		{SHA: sha(2), FilesKept: 4, Form: model.CommitForm{Known: true}}, // no declarative signal: not listed
+		{SHA: sha(3), BotAuthor: true, Form: model.CommitForm{Known: true}},
 	}, computed); err != nil {
 		t.Fatal(err)
 	}
@@ -172,6 +172,31 @@ func TestDeclaredSignalsStore(t *testing.T) {
 	}
 	if page, _ := s.CommitsWithoutSignals(ctx, repoID, t0.Add(5*time.Hour), "", 10); len(page) != 1 || page[0].SHA != sha(5) {
 		t.Errorf("since: %+v", page)
+	}
+
+	// Form not measured (row written before phase 7.5): listed again, then completed once.
+	if n, err := s.WriteCommitSignals(ctx, repoID, []CommitSignalWrite{{SHA: sha(4), FilesKept: 1}}, computed); err != nil || n != 1 {
+		t.Fatalf("write without form = %d, %v", n, err)
+	}
+	if page, _ := s.CommitsWithoutSignals(ctx, repoID, time.Time{}, "", 10); len(page) != 2 || page[0].SHA != sha(4) {
+		t.Errorf("row without form not listed again: %+v", page)
+	}
+	form := model.CommitForm{Known: true, SourceLines: 40, CommentLines: 10, Functions: 3, DocumentedFunctions: 2,
+		Identifiers: 120, LexicalDiversity: 0.75, HasDiversity: true, TestLines: 5, MessageLength: 42,
+		MessageBullets: 2, MessageConventional: true}
+	for _, want := range []int{1, 0} { // completed, then never modified again
+		n, err := s.WriteCommitSignals(ctx, repoID, []CommitSignalWrite{{SHA: sha(4), FilesKept: 2, Form: form}}, computed)
+		if err != nil || n != want {
+			t.Fatalf("write with form = %d, %v; want %d", n, err, want)
+		}
+	}
+	if page, _ := s.CommitsWithoutSignals(ctx, repoID, time.Time{}, "", 10); len(page) != 1 || page[0].SHA != sha(5) {
+		t.Errorf("after the form: %+v", page)
+	}
+	views, _ := s.CommitSignalViews(ctx, repoID)
+	if i := slices.IndexFunc(views, func(v CommitSignalView) bool { return v.SHA == sha(4) }); i < 0 ||
+		views[i].Form != form || views[i].FilesKept != 2 {
+		t.Errorf("view of commit 4: %+v", views)
 	}
 
 	// D4 context: replaced at each computation, NULL = none, listed by date.

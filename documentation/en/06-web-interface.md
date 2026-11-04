@@ -393,7 +393,8 @@ enabled (`diagnostic.enabled`). Details: [Supervision and diagnosis](12-supervis
   repository, author, item, level, signals, review status), filter by repository, number of reviewed leads,
   insufficient histories, D4 context, "Measure the history" button (backfill started in the background, one
   at a time; the result shows on reload). No commit message.
-- **Review sheet** (`/diagnostic/lead`): level; signals with their description, raw value, personal median
+- **Levels**: "declared" badge (blue), "probable" (red, phase 7.5), "to review" (orange).
+- **Review sheet** (`/diagnostic/lead`): level; signals (D, R and, since phase 7.5, F) with their description, raw value, personal median
   and z-score; the author's throughput chart over 90 days (lines added per day, day of the lead
   highlighted); for a commit, the neighbouring measured commits (± 3) and the diff read from the local clone
   when shown (never stored, cut beyond 200 KB; "unavailable" without a clone); D4 context; link to the

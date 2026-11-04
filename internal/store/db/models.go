@@ -37,18 +37,29 @@ type CommitBranch struct {
 }
 
 type CommitSignal struct {
-	RepoID        int64
-	SHA           string
-	AuthorID      sql.NullInt64
-	AuthoredAt    string
-	FilesKept     int64
-	FilesExcluded int64
-	AdditionsKept int64
-	DeletionsKept int64
-	ToolIds       string
-	AgentConfig   bool
-	BotAuthor     bool
-	ComputedAt    string
+	RepoID              int64
+	SHA                 string
+	AuthorID            sql.NullInt64
+	AuthoredAt          string
+	FilesKept           int64
+	FilesExcluded       int64
+	AdditionsKept       int64
+	DeletionsKept       int64
+	ToolIds             string
+	AgentConfig         bool
+	BotAuthor           bool
+	ComputedAt          string
+	FormKnown           bool
+	SourceLines         int64
+	CommentLines        int64
+	Functions           int64
+	DocumentedFunctions int64
+	Identifiers         int64
+	LexicalDiversity    sql.NullFloat64
+	TestLines           int64
+	MessageLength       int64
+	MessageBullets      int64
+	MessageConventional bool
 }
 
 type Contributor struct {

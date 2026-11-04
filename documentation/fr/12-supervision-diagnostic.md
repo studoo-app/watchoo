@@ -2,9 +2,10 @@
 
 [← Sommaire](README.md)
 
-**Statut** : décision du mainteneur. Phases **7.1 à 7.4 réalisées** (fondations, signaux déclaratifs,
-commande `watchoo diagnostic`, signaux de rythme, reprise de l'historique, revue humaine sur le web ; non
-publiées, sections 9.1 à 9.4) ; phases 7.5 et 7.6 à venir, chacune après validation de son plan (voir [Roadmap](07-roadmap.md)). Source de la partie
+**Statut** : décision du mainteneur. Phases **7.1 à 7.5 réalisées** (fondations, signaux déclaratifs,
+commande `watchoo diagnostic`, signaux de rythme, reprise de l'historique, revue humaine sur le web, signaux
+de forme F1 à F5 ; non publiées, sections 9.1 à 9.5) ; phase 7.6 à venir, puis F6 (classifieur de contenu,
+reporté), chacune après validation de son plan (voir [Roadmap](07-roadmap.md)). Source de la partie
 signaux : la spécification « Détection des signaux de production de code assistée par IA », **version 0.2**
 (3 novembre 2026, références vérifiées).
 
@@ -141,7 +142,9 @@ Indices d'appoint, **ne déclenchent jamais un flag seuls**.
 | F5 | Tests livrés dans le même commit que le code | < 10 % des commits historiques de la personne |
 | F6 | Classifieur de contenu (optionnel, **désactivé par défaut**) | Probabilité > 0,9 |
 
-F6 a un poids faible : les détecteurs existants généralisent mal (Suh et al., 2025).
+F6 a un poids faible : les détecteurs existants généralisent mal (Suh et al., 2025). Il est **reporté** à une
+étape ultérieure (section 9) : il demanderait un modèle externe, donc une dépendance hors de la pile
+documentée. F1 à F5 sont réalisés en phase 7.5 (règles précises en section 9.5).
 
 ## 6. Niveaux, score et sortie
 
@@ -212,9 +215,15 @@ résumé de ce qui marche. Le plan et l'arborescence de chaque phase sont propos
   insuffisant signalé.
 - **7.4 Revue** (réalisée) : fiche de revue en CLI et sur le web, enregistrement des décisions, graphique de débit.
   Livrable : chaque flag peut être étiqueté.
-- **7.5 Forme** : signaux F1 à F5, F6 optionnel et désactivé. Livrable : indices d'appoint, jamais seuls.
+- **7.5 Forme** (réalisée) : signaux F1 à F5, niveau « Probable ». Livrable : indices d'appoint, jamais seuls.
+  Détaillée en section 9.5.
 - **7.6 Calibration** : précision par signal, recalibrage, κ. Livrable : rapport de calibration, seuils
   documentés. Démarre quand un volume de revues suffisant existe.
+- **Étape ultérieure — F6, classifieur de contenu** (reporté par le mainteneur le 4 novembre 2026) : optionnel,
+  désactivé par défaut, poids faible (0,5). Il demande un modèle de détection (type GPTSniffer ou
+  DetectCodeGPT, références 17 à 19), donc une dépendance hors de la pile documentée, soumise à l'accord du
+  mainteneur ; il serait calculé en local, sans envoyer de code ailleurs. À reconsidérer après la
+  calibration (7.6), si les revues montrent que F1 à F5 ne suffisent pas.
 
 ## 9.1 Phase 7.1 — fondations (réalisée)
 
@@ -348,6 +357,46 @@ relecteur (outil mono-utilisateur) : le compte de l'interface web s'il existe, s
   (calibration de la phase 7.6).
 - **Purge** : une revue suit la durée de conservation, à partir de la date de sa piste.
 
+## 9.5 Phase 7.5 — signaux de forme (réalisée)
+
+Plan validé par le mainteneur le 4 novembre 2026 : seules les **mesures** sont gardées, jamais le code (à
+revoir seulement si la calibration en montre le besoin) ; F6 reporté (section 9).
+
+- **Mesure** : à la synchro (et par la reprise de l'historique), les **lignes ajoutées** de chaque commit
+  mesuré sont lues en flux sur le clone local (`git diff-tree -p -U0 -M`, premier parent, fichiers binaires
+  et motifs de `diagnostic.exclude` écartés) et analysées **en mémoire** (`internal/diagnostic`,
+  `FormMeter`), sans analyse syntaxique : reconnaissance ligne à ligne des commentaires, des définitions de
+  fonctions et des identifiants, pour Go, JavaScript/TypeScript (Vue, Svelte), PHP, Java, Kotlin, C#, Scala,
+  Swift, Rust, Dart, C/C++, Python, Ruby, scripts shell, SQL, HTML/Twig/XML et CSS. Une ligne de plus de
+  1 000 caractères (code minifié) est ignorée. Le message du commit est mesuré en mémoire lui aussi.
+- **Gardé** (11 colonnes de `commit_signals`, migration `00010`) : nombres seulement — lignes source,
+  lignes de commentaire, définitions et définitions documentées, identifiants et leur diversité lexicale,
+  lignes de test, longueur du message, lignes en liste, sujet Conventional Commits. Ni ligne de code, ni
+  identifiant, ni chemin, ni message. `form_known` distingue une forme mesurée d'une ligne d'avant la phase
+  7.5 ou d'une lecture en échec ; la reprise de l'historique complète ces lignes.
+- **Signaux** (calculés à la lecture, comme R1 à R6 ; historique de l'auteur dans le dépôt, 90 jours, au
+  moins 20 observations, commits dont la forme est mesurée seulement) :
+
+| ID | Mesure | Déclenchement |
+| --- | --- | --- |
+| F1 | Lignes de commentaire / lignes source ajoutées (commits d'au moins 20 lignes source) | z\* > 3,5 |
+| F2 | Définitions documentées / définitions (commentaire juste avant, docstring juste après en Python) | ≥ 3 définitions, part > 90 %, médiane personnelle < 30 % |
+| F3 | Diversité lexicale des identifiants (hors mots-clés et chaînes) : MATTR, fenêtre de 50 identifiants (Covington et McFall, 2010) | z\* < −3,5 |
+| F4 | Longueur du message (hors trailers et signatures) par rapport aux 20 messages précédents | z\* > 3,5 **et** une nouveauté absente des 20 messages : liste d'au moins 2 lignes, ou sujet Conventional Commits |
+| F5 | Lignes de test livrées avec au moins 20 lignes de code (fichiers `*_test.go`, `test_*.py`, `*.spec.ts`, `*Test.java`, répertoires `tests/`, `__tests__/`…) | ≥ 5 lignes de test, alors que moins de 10 % des commits de code de l'historique en ont |
+
+- **Choix de mise en œuvre** (la spécification laisse ces points ouverts) : MATTR plutôt que le simple
+  rapport « identifiants distincts / identifiants », qui baisse mécaniquement avec la taille du commit ; F4
+  exige une longueur inhabituelle **et** une nouveauté de forme, pour qu'un apprenant qui adopte
+  Conventional Commits après un cours ne soit pas signalé sur ce seul changement ; F5 compare à une part
+  (pas à une médiane) ; un MAD nul ne donne pas de score, comme pour R1 à R6.
+- **Niveaux** (section 6) : « Probable » (`probable`) pour au moins 2 signaux R et 1 signal F ; « À
+  regarder » pour 1 signal R ou au moins 2 signaux F ; **un signal F seul ne lève jamais de piste**. Les
+  signaux F portent sur un commit : ils se combinent avec R2 à R5 du même commit, pas avec R1 et R6 (pistes
+  par jour). « Déclaré » garde la priorité ; les signaux F présents s'affichent alors avec les autres.
+- **Affichage** : chaque signal F donne sa valeur brute, la médiane personnelle (F5 : la part habituelle des
+  commits avec tests) et, pour F1, F3 et F4, le score z ; libellés en anglais et en français.
+
 ## 10. Points ouverts (à trancher par le mainteneur)
 
 1. **Information des apprenants** : texte et moment (avant la première analyse : présentation du module,
@@ -362,6 +411,8 @@ relecteur (outil mono-utilisateur) : le compte de l'interface web s'il existe, s
    commit »), pas détecteur de triche.
 5. **Références** : celles de la spécification v0.2, section 8, toutes vérifiées le 3 novembre 2026. Les sources
    secondaires y sont signalées ; McConnell (2006) reste à vérifier dans le livre.
+6. **Contenu du code** : la phase 7.5 ne garde que des mesures. Garder des extraits (pour revoir F1 à F3
+   sans clone) n'est pas prévu ; à reconsidérer seulement si la calibration (7.6) le demande.
 
 ## 11. Références
 
@@ -376,6 +427,11 @@ les autres sections. Les sources secondaires sont signalées.
 - **Régression logistique et courbes précision / rappel** (section 6.3) : méthodes standard, sans référence propre
   dans la spec.
 - **κ de Cohen** (accord entre relecteurs, section 6.3) : méthode standard, sans référence propre dans la spec.
+- **MATTR, moving-average type-token ratio** (F3, section 9.5) : Covington, M. A., McFall, J. D. (2010). « Cutting the
+  Gordian Knot: The Moving-Average Type–Token Ratio (MATTR) ». *Journal of Quantitative Linguistics*, 17(2), 94-100.
+  DOI : 10.1080/09296171003643098. *(Ajoutée en phase 7.5 : diversité lexicale indépendante de la longueur.)*
+- **Conventional Commits 1.0.0** (F4) : https://www.conventionalcommits.org/fr/v1.0.0/ ; **trailers Git** (retirés de la
+  longueur du message) : documentation de `git interpret-trailers`, https://git-scm.com/docs/git-interpret-trailers
 
 ### 11.2 Productivité des développeurs (sans IA) : section 3
 

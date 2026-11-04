@@ -2,9 +2,10 @@
 
 [← Contents](README.md)
 
-**Status**: maintainer decision. Phases **7.1 to 7.4 done** (foundations, declarative signals, the
-`watchoo diagnostic` command, rhythm signals, history backfill, human review on the web; unreleased,
-sections 9.1 to 9.4); phases 7.5 and 7.6 to come, each after its plan is approved (see [Roadmap](07-roadmap.md)). Source of the signal part: the specification
+**Status**: maintainer decision. Phases **7.1 to 7.5 done** (foundations, declarative signals, the
+`watchoo diagnostic` command, rhythm signals, history backfill, human review on the web, form signals F1 to
+F5; unreleased, sections 9.1 to 9.5); phase 7.6 to come, then F6 (content classifier, postponed), each after
+its plan is approved (see [Roadmap](07-roadmap.md)). Source of the signal part: the specification
 "Detection of AI-assisted code production signals", **version 0.2** (November 3, 2026, references verified),
 written in French.
 
@@ -134,7 +135,9 @@ Supporting hints, **never trigger a flag on their own**.
 | F5 | Tests delivered in the same commit as code | < 10% of the person's historical commits |
 | F6 | Content classifier (optional, **disabled by default**) | Probability > 0.9 |
 
-F6 has low weight: existing detectors generalise poorly (Suh et al., 2025).
+F6 has low weight: existing detectors generalise poorly (Suh et al., 2025). It is **postponed** to a later
+step (section 9): it would need an external model, hence a dependency outside the documented stack. F1 to F5
+are done in phase 7.5 (exact rules in section 9.5).
 
 ## 6. Levels, score and output
 
@@ -205,9 +208,15 @@ summary of what works. The plan and tree of each phase are proposed before the c
   waits for phase 7.5), history backfill. Deliverable: statistical leads, insufficient history reported.
 - **7.4 Review** (done): review sheet in CLI and on the web, decision recording, throughput chart. Deliverable: every
   flag can be labelled.
-- **7.5 Form**: signals F1 to F5, F6 optional and disabled. Deliverable: supporting hints, never alone.
+- **7.5 Form** (done): signals F1 to F5, "Probable" level. Deliverable: supporting hints, never alone.
+  Detailed in section 9.5.
 - **7.6 Calibration**: precision per signal, recalibration, κ. Deliverable: calibration report, documented
   thresholds. Starts once enough reviews exist.
+- **Later step: F6, content classifier** (postponed by the maintainer on November 4, 2026): optional, off by
+  default, low weight (0.5). It needs a detection model (GPTSniffer or DetectCodeGPT style, references 17 to
+  19), hence a dependency outside the documented stack, subject to the maintainer's approval; it would run
+  locally, without sending code anywhere. To be reconsidered after calibration (7.6), if the reviews show
+  that F1 to F5 are not enough.
 
 ## 9.1 Phase 7.1: foundations (done)
 
@@ -336,6 +345,46 @@ tool): the web interface account if any, otherwise the workspace name.
   one review, replaced if done again; the signals present at review time are kept (calibration in phase 7.6).
 - **Purge**: a review follows the retention period, from the date of its lead.
 
+## 9.5 Phase 7.5: form signals (done)
+
+Plan approved by the maintainer on November 4, 2026: only the **measures** are kept, never the code (to be
+revisited only if calibration shows the need); F6 postponed (section 9).
+
+- **Measurement**: at sync (and through the history backfill), the **added lines** of each measured commit
+  are streamed from the local clone (`git diff-tree -p -U0 -M`, first parent, binary files and
+  `diagnostic.exclude` patterns left out) and analysed **in memory** (`internal/diagnostic`, `FormMeter`),
+  without parsing: line-by-line recognition of comments, function definitions and identifiers, for Go,
+  JavaScript/TypeScript (Vue, Svelte), PHP, Java, Kotlin, C#, Scala, Swift, Rust, Dart, C/C++, Python, Ruby,
+  shell scripts, SQL, HTML/Twig/XML and CSS. A line over 1,000 characters (minified code) is ignored. The
+  commit message is measured in memory too.
+- **Kept** (11 columns of `commit_signals`, migration `00010`): numbers only — source lines, comment lines,
+  definitions and documented definitions, identifiers and their lexical diversity, test lines, message
+  length, list lines, Conventional Commits subject. No line of code, identifier, path or message.
+  `form_known` tells a measured form from a row written before phase 7.5 or a failed read; the history
+  backfill completes those rows.
+- **Signals** (computed when read, like R1 to R6; the author's history in the repository, 90 days, at least
+  20 observations, commits with a measured form only):
+
+| ID | Measure | Trigger |
+| --- | --- | --- |
+| F1 | Comment lines / source lines added (commits of at least 20 source lines) | z\* > 3.5 |
+| F2 | Documented definitions / definitions (comment just before, docstring just after in Python) | ≥ 3 definitions, share > 90%, personal median < 30% |
+| F3 | Lexical diversity of the identifiers (keywords and strings left out): MATTR, window of 50 identifiers (Covington and McFall, 2010) | z\* < −3.5 |
+| F4 | Message length (trailers and signatures left out) against the 20 previous messages | z\* > 3.5 **and** a novelty absent from the 20 messages: a list of at least 2 lines, or a Conventional Commits subject |
+| F5 | Test lines delivered with at least 20 lines of code (files `*_test.go`, `test_*.py`, `*.spec.ts`, `*Test.java`, directories `tests/`, `__tests__/`…) | ≥ 5 test lines, while fewer than 10% of the code commits of the history have some |
+
+- **Implementation choices** (the specification leaves them open): MATTR rather than the plain ratio
+  "distinct identifiers / identifiers", which mechanically drops with the size of the commit; F4 requires an
+  unusual length **and** a novelty of form, so that a learner who adopts Conventional Commits after a lesson
+  is not flagged for that change alone; F5 compares with a share (not a median); a zero MAD gives no score,
+  as for R1 to R6.
+- **Levels** (section 6): "Probable" (`probable`) for at least 2 R signals and 1 F signal; "To review" for 1
+  R signal or at least 2 F signals; **an F signal alone never raises a lead**. F signals are about a commit:
+  they combine with R2 to R5 of the same commit, not with R1 and R6 (day leads). "Declared" keeps priority;
+  the F signals present are then shown with the others.
+- **Display**: each F signal gives its raw value, the personal median (F5: the usual share of commits with
+  tests) and, for F1, F3 and F4, the z-score; labels in English and French.
+
 ## 10. Open questions (for the maintainer to decide)
 
 1. **Informing learners**: text and timing (before the first analysis: course introduction, course charter…).
@@ -349,6 +398,8 @@ tool): the web interface account if any, otherwise the workspace name.
    cheating detector.
 5. **References**: those of specification v0.2, section 8, all verified on November 3, 2026. Secondary sources are
    flagged there; McConnell (2006) still has to be checked in the book.
+6. **Code content**: phase 7.5 keeps measures only. Keeping excerpts (to review F1 to F3 without a clone) is
+   not planned; to be reconsidered only if calibration (7.6) calls for it.
 
 ## 11. References
 
@@ -363,6 +414,11 @@ from the other sections. Secondary sources are flagged.
 - **Logistic regression and precision / recall curves** (section 6.3): standard methods, no specific reference in
   the specification.
 - **Cohen's κ** (inter-reviewer agreement, section 6.3): standard method, no specific reference in the specification.
+- **MATTR, moving-average type-token ratio** (F3, section 9.5): Covington, M. A., McFall, J. D. (2010). "Cutting the
+  Gordian Knot: The Moving-Average Type–Token Ratio (MATTR)". *Journal of Quantitative Linguistics*, 17(2), 94-100.
+  DOI: 10.1080/09296171003643098. *(Added in phase 7.5: lexical diversity independent of length.)*
+- **Conventional Commits 1.0.0** (F4): https://www.conventionalcommits.org/en/v1.0.0/; **Git trailers** (removed from the
+  message length): `git interpret-trailers` documentation, https://git-scm.com/docs/git-interpret-trailers
 
 ### 11.2 Developer productivity (without AI): section 3
 

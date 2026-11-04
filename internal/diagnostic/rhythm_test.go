@@ -166,6 +166,11 @@ func TestLevel(t *testing.T) {
 		{[]Hit{{Signal: "R2"}, {Signal: "D1"}}, LevelDeclared},
 		{[]Hit{{Signal: "D5"}}, LevelDeclared},
 		{[]Hit{{Signal: "D4"}}, ""},
+		{[]Hit{{Signal: "F1"}}, ""}, // a form signal never raises a lead alone
+		{[]Hit{{Signal: "F1"}, {Signal: "F3"}}, LevelToReview},
+		{[]Hit{{Signal: "R2"}, {Signal: "F2"}}, LevelToReview},
+		{[]Hit{{Signal: "R2"}, {Signal: "R5"}, {Signal: "F2"}}, LevelProbable},
+		{[]Hit{{Signal: "R2"}, {Signal: "R5"}, {Signal: "F2"}, {Signal: "D2"}}, LevelDeclared},
 	} {
 		if got := Level(tc.hits); got != tc.want {
 			t.Errorf("Level(%v) = %q, want %q", hitIDs(tc.hits), got, tc.want)

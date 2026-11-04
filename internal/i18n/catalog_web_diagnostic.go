@@ -48,6 +48,7 @@ var webDiagnosticTexts = map[string]entry{
 	"web.diag.not_reviewed": {"not reviewed", "non revue"},
 
 	"web.diag.level.declared":    {"declared", "déclaré"},
+	"web.diag.level.probable":    {"probable", "probable"},
 	"web.diag.level.to_review":   {"to review", "à regarder"},
 	"web.diag.kind.commit":       {"Commit", "Commit"},
 	"web.diag.kind.pull_request": {"Pull request", "Pull request"},
@@ -63,6 +64,11 @@ var webDiagnosticTexts = map[string]entry{
 	"web.diag.signal.R4": {"apparent speed (lines per minute)", "vitesse apparente (lignes par minute)"},
 	"web.diag.signal.R5": {"files changed by the commit", "fichiers modifiés par le commit"},
 	"web.diag.signal.R6": {"regime break (14-day median over the previous 90 days)", "rupture de régime (médiane sur 14 jours rapportée aux 90 jours précédents)"},
+	"web.diag.signal.F1": {"comment density (comment lines / source lines added)", "densité de commentaires (lignes de commentaire / lignes source ajoutées)"},
+	"web.diag.signal.F2": {"share of documented functions", "part des fonctions documentées"},
+	"web.diag.signal.F3": {"lexical diversity of the identifiers (MATTR)", "diversité lexicale des identifiants (MATTR)"},
+	"web.diag.signal.F4": {"message length, with an unusual list or Conventional Commits subject", "longueur du message, avec une liste ou un sujet Conventional Commits inhabituels"},
+	"web.diag.signal.F5": {"test lines delivered with the code (reference: usual share of commits with tests)", "lignes de test livrées avec le code (référence : part habituelle des commits avec tests)"},
 
 	"web.diag.lead_title":        {"Lead review", "Revue d'une piste"},
 	"web.diag.open_forge":        {"open on the forge", "ouvrir sur la forge"},

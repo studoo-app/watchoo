@@ -1,7 +1,8 @@
 package diagnostic
 
-// Pistes de réflexion (phases 7.2 et 7.3) : commits, jours et pull requests qui portent au moins un
-// signal déclaratif (niveau « Déclaré ») ou de rythme (« À regarder »), avec les signaux et leurs
+// Pistes de réflexion (phases 7.2, 7.3 et 7.5) : commits, jours et pull requests qui portent au moins un
+// signal déclaratif (niveau « Déclaré »), un faisceau de signaux de rythme et de forme (« Probable ») ou
+// un signal de rythme ou deux de forme (« À regarder »), avec les signaux et leurs
 // valeurs, le contexte D4 des dépôts et l'historique des auteurs. Le
 // résultat est réservé au formateur qui supervise l'espace ; une piste n'est jamais un verdict.
 
@@ -19,16 +20,18 @@ import (
 // Niveaux et natures des pistes. Valeurs stables (sorties --json).
 const (
 	LevelDeclared   = "declared"     // au moins un signal D1, D2, D3 ou D5 (spécification, section 5.1)
-	LevelToReview   = "to_review"    // au moins un signal de rythme R, sans signal déclaratif
+	LevelProbable   = "probable"     // au moins 2 signaux de rythme R et 1 signal de forme F, sans signal déclaratif
+	LevelToReview   = "to_review"    // 1 signal de rythme R, ou au moins 2 signaux de forme F
 	KindCommit      = "commit"       // piste portée par un commit
 	KindPullRequest = "pull_request" // piste portée par une pull request
 	KindDay         = "day"          // piste portée par un jour de travail d'un auteur (R1, R6)
 )
 
 // Hit est un signal déclenché, avec sa valeur brute : outil déclaré (D1, D2), compte bot (D3), nom de
-// branche (D5), ou mesure d'un signal de rythme (R1 à R6) avec la médiane personnelle et le score z.
+// branche (D5), ou mesure d'un signal de rythme (R1 à R6) ou de forme (F1 à F5) avec la médiane
+// personnelle (F5 : part habituelle des commits avec tests) et le score z.
 type Hit struct {
-	Signal    string  // identifiant du signal (D1… R6)
+	Signal    string  // identifiant du signal (D1… R6, F1… F5)
 	Value     string  // valeur affichée : outil, compte, branche, ou mesure écrite (« 412 », « 0.97 »)
 	Raw       float64 // mesure d'un signal de rythme ; 0 pour un signal déclaratif
 	Median    float64 // médiane personnelle (R6 : médiane des 90 jours de référence) ; voir HasMedian
@@ -40,7 +43,7 @@ type Hit struct {
 // Lead est une piste de réflexion : un commit ou une pull request et les signaux qui l'ont levée.
 type Lead struct {
 	Kind   string // KindCommit, KindPullRequest ou KindDay
-	Level  string // LevelDeclared ou LevelToReview
+	Level  string // LevelDeclared, LevelProbable ou LevelToReview
 	RepoID int64
 	store.RepoRef
 	AuthorID    int64     // contributeur auteur (commit, jour) ; 0 pour une PR ou si inconnu
@@ -62,20 +65,29 @@ type Report struct {
 	Histories []*AuthorHistory
 }
 
-// Level renvoie le niveau d'un ensemble de signaux (spécification, section 5.1, sans les signaux de forme
-// de la phase 7.5) : LevelDeclared s'il contient un signal déclaratif (D1, D2, D3, D5), sinon
-// LevelToReview s'il contient un signal de rythme (R1 à R6), vide sinon. D4 n'est que du contexte.
+// Level renvoie le niveau d'un ensemble de signaux (spécification, section 6) : LevelDeclared s'il
+// contient un signal déclaratif (D1, D2, D3, D5) ; sinon LevelProbable avec au moins 2 signaux de rythme
+// (R1 à R6) et 1 signal de forme (F1 à F5) ; sinon LevelToReview avec 1 signal de rythme ou au moins 2
+// signaux de forme ; vide sinon (un signal de forme seul ne lève pas de piste). D4 n'est que du contexte.
 func Level(hits []Hit) string {
-	level := ""
+	rhythm, form := 0, 0
 	for _, h := range hits {
 		switch h.Signal {
 		case SignalCoAuthor, SignalSignature, SignalBot, SignalAgentBranch:
 			return LevelDeclared
 		case SignalDailyLines, SignalCommitSize, SignalAddRatio, SignalSpeed, SignalFiles, SignalRegimeBreak:
-			level = LevelToReview
+			rhythm++
+		case SignalCommentDensity, SignalDocstrings, SignalLexicon, SignalMessageStyle, SignalTests:
+			form++
 		}
 	}
-	return level
+	switch {
+	case rhythm >= 2 && form >= 1:
+		return LevelProbable
+	case rhythm >= 1 || form >= 2:
+		return LevelToReview
+	}
+	return ""
 }
 
 // CommitHits renvoie les signaux déclaratifs d'un commit mesuré : outils déclarés (D1, D2) et auteur
@@ -106,7 +118,8 @@ func PullRequestHits(p store.PullRequestView) []Hit {
 	return hits
 }
 
-// Build renvoie les pistes de réflexion qui satisfont f (niveaux « Déclaré » et « À regarder »), le
+// Build renvoie les pistes de réflexion qui satisfont f (niveaux « Déclaré », « Probable » et « À
+// regarder »), le
 // contexte D4 des dépôts et l'historique des auteurs. Les signaux de rythme sont calculés sur tout
 // l'historique mesuré (les 90 jours qui précèdent chaque événement), puis filtrés. Filtres : dépôt, date
 // de la piste (f.Since) et auteur (f.Author : login, nom ou e-mail d'un contributeur ; login seulement
@@ -136,7 +149,7 @@ func Build(ctx context.Context, st *store.Store, f store.DiagnosticFilter, opts 
 	}
 
 	commits, days, histories := rhythm(views, opts)
-	extra := map[string][]Hit{} // repo/SHA → signaux de rythme
+	extra := map[string][]Hit{} // repo/SHA → signaux de rythme et de forme
 	for _, c := range commits {
 		extra[leadKey(c.view.RepoID, c.view.SHA)] = c.hits
 	}

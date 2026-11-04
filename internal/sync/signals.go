@@ -11,6 +11,7 @@ import (
 
 	"github.com/studoo-app/watchoo/internal/diagnostic"
 	"github.com/studoo-app/watchoo/internal/i18n"
+	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/store"
 )
 
@@ -21,6 +22,13 @@ func (e *Engine) writeSignals(ctx context.Context, s *repoSync, repoID int64) st
 	if e.diag == nil || len(s.files) == 0 {
 		return ""
 	}
+	shas := make([]string, 0, len(s.files))
+	for _, c := range s.commits {
+		if _, ok := s.files[c.SHA]; ok && !s.merges[c.SHA] {
+			shas = append(shas, c.SHA)
+		}
+	}
+	forms := e.measureForms(ctx, s.clone, s.owner, s.name, s.full, shas)
 	rows := make([]store.CommitSignalWrite, 0, len(s.files))
 	for _, c := range s.commits {
 		files, ok := s.files[c.SHA]
@@ -35,6 +43,9 @@ func (e *Engine) writeSignals(ctx context.Context, s *repoSync, repoID int64) st
 		}, e.diag)
 		if !ok {
 			continue
+		}
+		if f, ok := forms[c.SHA]; ok {
+			sig.SetForm(f)
 		}
 		rows = append(rows, signalWrite(c.SHA, sig))
 	}
@@ -60,7 +71,58 @@ func signalWrite(sha string, sig diagnostic.Signals) store.CommitSignalWrite {
 		Tools:         sig.Tools,
 		AgentConfig:   sig.AgentConfig,
 		BotAuthor:     sig.BotAuthor,
+		Form:          commitForm(sig),
 	}
+}
+
+// commitForm convertit les mesures de forme d'un commit (zéro si elles sont inconnues).
+func commitForm(sig diagnostic.Signals) model.CommitForm {
+	if !sig.FormKnown {
+		return model.CommitForm{}
+	}
+	f := sig.Form
+	return model.CommitForm{
+		Known: true, SourceLines: f.SourceLines, CommentLines: f.CommentLines, Functions: f.Functions,
+		DocumentedFunctions: f.DocumentedFunctions, Identifiers: f.Identifiers,
+		LexicalDiversity: f.LexicalDiversity, HasDiversity: f.HasDiversity, TestLines: f.TestLines,
+		MessageLength: sig.Message.Length, MessageBullets: sig.Message.Bullets,
+		MessageConventional: sig.Message.Conventional,
+	}
+}
+
+// lineReader est implémenté par le provider des clones Git locaux (*git.Provider) : lignes ajoutées des
+// commits, lues en flux sur le clone existant.
+type lineReader interface {
+	AddedLines(ctx context.Context, owner, name string, shas []string, fn func(sha, path, line string, hunk bool)) error
+}
+
+// measureForms mesure la forme (signaux F1 à F5) des commits shas sur le clone existant de owner/name.
+// Les lignes ajoutées ne sont lues qu'en mémoire. Un échec, ou un clone qui ne lit pas les lignes, donne
+// des formes inconnues (map vide) : la reprise de l'historique les mesurera ; seul le motif de l'échec
+// est journalisé.
+func (e *Engine) measureForms(ctx context.Context, clone any, owner, name, full string, shas []string) map[string]diagnostic.Form {
+	out := map[string]diagnostic.Form{}
+	lr, ok := clone.(lineReader)
+	if !ok || len(shas) == 0 || e.diag == nil {
+		return out
+	}
+	meters := make(map[string]*diagnostic.FormMeter, len(shas))
+	for _, sha := range shas {
+		meters[sha] = diagnostic.NewFormMeter(e.diag)
+	}
+	err := lr.AddedLines(ctx, owner, name, shas, func(sha, path, line string, hunk bool) {
+		if m, ok := meters[sha]; ok {
+			m.Line(path, line, hunk)
+		}
+	})
+	if err != nil {
+		e.logger.Debug("forme des commits non mesurée", "repo", full, "erreur", errorMessage(err))
+		return out
+	}
+	for sha, m := range meters {
+		out[sha] = m.Result()
+	}
+	return out
 }
 
 // firstAdder est implémenté par le provider des clones Git locaux (*git.Provider) : date du premier

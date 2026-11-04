@@ -385,8 +385,11 @@ func diagnosticFuncs(tr *i18n.Translator) template.FuncMap {
 	return template.FuncMap{
 		"diagLevel": func(l string) string { return tr.T("web.diag.level." + l) },
 		"diagLevelClass": func(l string) string {
-			if l == diagnostic.LevelDeclared {
+			switch l {
+			case diagnostic.LevelDeclared:
 				return "badge-info"
+			case diagnostic.LevelProbable:
+				return "badge-error"
 			}
 			return "badge-warning"
 		},

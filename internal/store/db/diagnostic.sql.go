@@ -26,31 +26,69 @@ func (q *Queries) CountCommitSignals(ctx context.Context, repoID int64) (int64, 
 const insertCommitSignals = `-- name: InsertCommitSignals :execrows
 INSERT INTO commit_signals (
     repo_id, sha, author_id, authored_at, files_kept, files_excluded, additions_kept, deletions_kept,
-    tool_ids, agent_config, bot_author, computed_at
+    tool_ids, agent_config, bot_author, computed_at, form_known, source_lines, comment_lines, functions,
+    documented_functions, identifiers, lexical_diversity, test_lines, message_length, message_bullets,
+    message_conventional
 )
 SELECT c.repo_id, c.sha, c.author_id, c.authored_at,
     ?1, ?2, ?3, ?4,
-    ?5, ?6, ?7, ?8
+    ?5, ?6, ?7, ?8,
+    ?9, ?10, ?11, ?12,
+    ?13, ?14, ?15,
+    ?16, ?17, ?18,
+    ?19
 FROM commits c
-WHERE c.repo_id = ?9 AND c.sha = ?10
-ON CONFLICT (repo_id, sha) DO NOTHING
+WHERE c.repo_id = ?20 AND c.sha = ?21
+ON CONFLICT (repo_id, sha) DO UPDATE SET
+    files_kept = excluded.files_kept,
+    files_excluded = excluded.files_excluded,
+    additions_kept = excluded.additions_kept,
+    deletions_kept = excluded.deletions_kept,
+    tool_ids = excluded.tool_ids,
+    agent_config = excluded.agent_config,
+    bot_author = excluded.bot_author,
+    computed_at = excluded.computed_at,
+    form_known = excluded.form_known,
+    source_lines = excluded.source_lines,
+    comment_lines = excluded.comment_lines,
+    functions = excluded.functions,
+    documented_functions = excluded.documented_functions,
+    identifiers = excluded.identifiers,
+    lexical_diversity = excluded.lexical_diversity,
+    test_lines = excluded.test_lines,
+    message_length = excluded.message_length,
+    message_bullets = excluded.message_bullets,
+    message_conventional = excluded.message_conventional
+WHERE commit_signals.form_known = 0 AND excluded.form_known = 1
 `
 
 type InsertCommitSignalsParams struct {
-	FilesKept     int64
-	FilesExcluded int64
-	AdditionsKept int64
-	DeletionsKept int64
-	ToolIds       string
-	AgentConfig   bool
-	BotAuthor     bool
-	ComputedAt    string
-	RepoID        int64
-	SHA           string
+	FilesKept           int64
+	FilesExcluded       int64
+	AdditionsKept       int64
+	DeletionsKept       int64
+	ToolIds             string
+	AgentConfig         bool
+	BotAuthor           bool
+	ComputedAt          string
+	FormKnown           bool
+	SourceLines         int64
+	CommentLines        int64
+	Functions           int64
+	DocumentedFunctions int64
+	Identifiers         int64
+	LexicalDiversity    sql.NullFloat64
+	TestLines           int64
+	MessageLength       int64
+	MessageBullets      int64
+	MessageConventional bool
+	RepoID              int64
+	SHA                 string
 }
 
 // Enregistre les signaux d'un commit deja en base ; author_id et authored_at sont recopies du commit.
-// Une ligne deja presente n'est jamais modifiee (0 ligne inseree), un SHA absent de la base est ignore.
+// Une ligne deja presente n'est remplacee que si sa forme n'etait pas mesuree (form_known = 0, ligne
+// d'avant la phase 7.5) ; sinon 0 ligne. Un SHA absent de la base est ignore.
 func (q *Queries) InsertCommitSignals(ctx context.Context, arg InsertCommitSignalsParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, insertCommitSignals,
 		arg.FilesKept,
@@ -61,6 +99,17 @@ func (q *Queries) InsertCommitSignals(ctx context.Context, arg InsertCommitSigna
 		arg.AgentConfig,
 		arg.BotAuthor,
 		arg.ComputedAt,
+		arg.FormKnown,
+		arg.SourceLines,
+		arg.CommentLines,
+		arg.Functions,
+		arg.DocumentedFunctions,
+		arg.Identifiers,
+		arg.LexicalDiversity,
+		arg.TestLines,
+		arg.MessageLength,
+		arg.MessageBullets,
+		arg.MessageConventional,
 		arg.RepoID,
 		arg.SHA,
 	)
@@ -121,6 +170,9 @@ func (q *Queries) ListAgentConfigContexts(ctx context.Context, repoID interface{
 const listCommitSignalViews = `-- name: ListCommitSignalViews :many
 SELECT cs.repo_id, cs.sha, c.author_id, cs.authored_at, cs.files_kept, cs.files_excluded,
        cs.additions_kept, cs.deletions_kept, cs.tool_ids, cs.agent_config, cs.bot_author, cs.computed_at,
+       cs.form_known, cs.source_lines, cs.comment_lines, cs.functions, cs.documented_functions,
+       cs.identifiers, cs.lexical_diversity, cs.test_lines, cs.message_length, cs.message_bullets,
+       cs.message_conventional,
        c.url,
        r.owner AS repo_owner, r.name AS repo_name, r.label AS repo_label,
        CAST(COALESCE(a.name, '') AS TEXT) AS author_name,
@@ -134,24 +186,35 @@ ORDER BY cs.authored_at, cs.sha
 `
 
 type ListCommitSignalViewsRow struct {
-	RepoID        int64
-	SHA           string
-	AuthorID      sql.NullInt64
-	AuthoredAt    string
-	FilesKept     int64
-	FilesExcluded int64
-	AdditionsKept int64
-	DeletionsKept int64
-	ToolIds       string
-	AgentConfig   bool
-	BotAuthor     bool
-	ComputedAt    string
-	URL           string
-	RepoOwner     string
-	RepoName      string
-	RepoLabel     string
-	AuthorName    string
-	AuthorLogin   string
+	RepoID              int64
+	SHA                 string
+	AuthorID            sql.NullInt64
+	AuthoredAt          string
+	FilesKept           int64
+	FilesExcluded       int64
+	AdditionsKept       int64
+	DeletionsKept       int64
+	ToolIds             string
+	AgentConfig         bool
+	BotAuthor           bool
+	ComputedAt          string
+	FormKnown           bool
+	SourceLines         int64
+	CommentLines        int64
+	Functions           int64
+	DocumentedFunctions int64
+	Identifiers         int64
+	LexicalDiversity    sql.NullFloat64
+	TestLines           int64
+	MessageLength       int64
+	MessageBullets      int64
+	MessageConventional bool
+	URL                 string
+	RepoOwner           string
+	RepoName            string
+	RepoLabel           string
+	AuthorName          string
+	AuthorLogin         string
 }
 
 // Signaux de tous les commits mesures (repo_id NULL = tous les depots), avec de quoi les afficher, du
@@ -179,6 +242,17 @@ func (q *Queries) ListCommitSignalViews(ctx context.Context, repoID interface{})
 			&i.AgentConfig,
 			&i.BotAuthor,
 			&i.ComputedAt,
+			&i.FormKnown,
+			&i.SourceLines,
+			&i.CommentLines,
+			&i.Functions,
+			&i.DocumentedFunctions,
+			&i.Identifiers,
+			&i.LexicalDiversity,
+			&i.TestLines,
+			&i.MessageLength,
+			&i.MessageBullets,
+			&i.MessageConventional,
 			&i.URL,
 			&i.RepoOwner,
 			&i.RepoName,
@@ -201,7 +275,10 @@ func (q *Queries) ListCommitSignalViews(ctx context.Context, repoID interface{})
 
 const listCommitSignals = `-- name: ListCommitSignals :many
 SELECT cs.repo_id, cs.sha, c.author_id, cs.authored_at, cs.files_kept, cs.files_excluded, cs.additions_kept,
-    cs.deletions_kept, cs.tool_ids, cs.agent_config, cs.bot_author, cs.computed_at
+    cs.deletions_kept, cs.tool_ids, cs.agent_config, cs.bot_author, cs.computed_at,
+    cs.form_known, cs.source_lines, cs.comment_lines, cs.functions, cs.documented_functions,
+    cs.identifiers, cs.lexical_diversity, cs.test_lines, cs.message_length, cs.message_bullets,
+    cs.message_conventional
 FROM commit_signals cs
 JOIN commits c ON c.repo_id = cs.repo_id AND c.sha = cs.sha
 WHERE cs.repo_id = ?1
@@ -209,18 +286,29 @@ ORDER BY cs.authored_at DESC, cs.sha
 `
 
 type ListCommitSignalsRow struct {
-	RepoID        int64
-	SHA           string
-	AuthorID      sql.NullInt64
-	AuthoredAt    string
-	FilesKept     int64
-	FilesExcluded int64
-	AdditionsKept int64
-	DeletionsKept int64
-	ToolIds       string
-	AgentConfig   bool
-	BotAuthor     bool
-	ComputedAt    string
+	RepoID              int64
+	SHA                 string
+	AuthorID            sql.NullInt64
+	AuthoredAt          string
+	FilesKept           int64
+	FilesExcluded       int64
+	AdditionsKept       int64
+	DeletionsKept       int64
+	ToolIds             string
+	AgentConfig         bool
+	BotAuthor           bool
+	ComputedAt          string
+	FormKnown           bool
+	SourceLines         int64
+	CommentLines        int64
+	Functions           int64
+	DocumentedFunctions int64
+	Identifiers         int64
+	LexicalDiversity    sql.NullFloat64
+	TestLines           int64
+	MessageLength       int64
+	MessageBullets      int64
+	MessageConventional bool
 }
 
 // Signaux des commits du depot, du plus recent au plus ancien (date d'ecriture, puis SHA) ; auteur du commit.
@@ -246,6 +334,17 @@ func (q *Queries) ListCommitSignals(ctx context.Context, repoID int64) ([]ListCo
 			&i.AgentConfig,
 			&i.BotAuthor,
 			&i.ComputedAt,
+			&i.FormKnown,
+			&i.SourceLines,
+			&i.CommentLines,
+			&i.Functions,
+			&i.DocumentedFunctions,
+			&i.Identifiers,
+			&i.LexicalDiversity,
+			&i.TestLines,
+			&i.MessageLength,
+			&i.MessageBullets,
+			&i.MessageConventional,
 		); err != nil {
 			return nil, err
 		}
@@ -269,7 +368,8 @@ LEFT JOIN contributors a ON a.id = c.author_id
 WHERE c.repo_id = ?1
   AND c.authored_at >= ?2
   AND c.sha > ?3
-  AND NOT EXISTS (SELECT 1 FROM commit_signals cs WHERE cs.repo_id = c.repo_id AND cs.sha = c.sha)
+  AND NOT EXISTS (SELECT 1 FROM commit_signals cs
+                  WHERE cs.repo_id = c.repo_id AND cs.sha = c.sha AND cs.form_known = 1)
 ORDER BY c.sha
 LIMIT ?4
 `
@@ -288,7 +388,7 @@ type ListCommitsWithoutSignalsRow struct {
 	AuthorLogin string
 }
 
-// Commits du depot sans signaux, ecrits a partir de since, par SHA croissant apres after_sha (pagination ;
+// Commits du depot sans signaux, ou dont la forme n'est pas mesuree (form_known = 0), ecrits a partir de since, par SHA croissant apres after_sha (pagination ;
 // chaine vide = depuis le debut), au plus row_limit : reprise de l'historique.
 func (q *Queries) ListCommitsWithoutSignals(ctx context.Context, arg ListCommitsWithoutSignalsParams) ([]ListCommitsWithoutSignalsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listCommitsWithoutSignals,

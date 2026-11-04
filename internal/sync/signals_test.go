@@ -103,6 +103,14 @@ func TestSignalsComputedAtSync(t *testing.T) {
 	if s := bySHA[shas["agents"]]; !s.AgentConfig || s.FilesKept != 1 {
 		t.Errorf("agent configuration file: %+v", s)
 	}
+	// Form (phase 7.5): measured on the added lines, nothing but numbers kept.
+	if f := bySHA[shas["ai"]].Form; !f.Known || f.SourceLines != 2 || f.Functions != 1 || f.CommentLines != 0 ||
+		f.MessageLength == 0 {
+		t.Errorf("form of the AI commit: %+v", f)
+	}
+	if f := bySHA[shas["bot"]].Form; !f.Known || f.SourceLines != 0 { // go.sum excluded, not a source file
+		t.Errorf("form of the bot commit: %+v", f)
+	}
 
 	// Incremental: a new commit gets its signals, the others are not rewritten.
 	next := r.Commit("main", "app/next.go", "package main\n// x\n", secretMessage, secretAuthor, epoch.Add(6*time.Hour))
@@ -276,6 +284,11 @@ func TestBackfillSignals(t *testing.T) {
 		t.Fatal(err)
 	}
 	e.cfg.Diagnostic.RetentionDays = 3650
+	// A row written before phase 7.5 (form not measured): completed by the backfill.
+	if n, err := e.st.WriteCommitSignals(ctx, repo.ID, []store.CommitSignalWrite{{SHA: shas["ai"], FilesKept: 1}},
+		e.clock.Now()); err != nil || n != 1 {
+		t.Fatalf("row without form: %d, %v", n, err)
+	}
 	eng := e.newEngine(e.st)
 	res, err = eng.BackfillSignals(ctx, repo.ID)
 	if err != nil || len(res) != 1 || res[0].Measured != 5 || res[0].Merges != 1 || res[0].Missing != 0 || res[0].Error != "" {
@@ -286,6 +299,9 @@ func TestBackfillSignals(t *testing.T) {
 		t.Fatalf("signals after the backfill: %d, %v", len(got), err)
 	}
 	for _, s := range got {
+		if !s.Form.Known {
+			t.Errorf("form of %s not measured by the backfill", s.SHA)
+		}
 		if s.SHA == shas["merge"] {
 			t.Error("the merge commit was measured")
 		}

@@ -120,6 +120,16 @@ func (e *Engine) backfillRepo(ctx context.Context, cs CloneStats, repo model.Rep
 			rep.Error = errorMessage(err)
 			return rep, nil
 		}
+		measured := make([]string, 0, len(page))
+		for _, c := range page {
+			if st, ok := got[c.SHA]; ok && !st.Merge && st.Files != nil {
+				measured = append(measured, c.SHA)
+			}
+		}
+		forms := e.measureForms(ctx, cs, repo.Owner, repo.Name, full, measured)
+		if err := ctx.Err(); err != nil {
+			return rep, err
+		}
 		rows := make([]store.CommitSignalWrite, 0, len(page))
 		for _, c := range page {
 			st, ok := got[c.SHA]
@@ -136,6 +146,9 @@ func (e *Engine) backfillRepo(ctx context.Context, cs CloneStats, repo model.Rep
 			if !ok {
 				rep.Missing++
 				continue
+			}
+			if f, ok := forms[c.SHA]; ok {
+				sig.SetForm(f)
 			}
 			rows = append(rows, signalWrite(c.SHA, sig))
 		}

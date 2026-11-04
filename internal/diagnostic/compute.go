@@ -28,7 +28,15 @@ type Signals struct {
 	Tools       []string
 	AgentConfig bool // D4 : le commit modifie un fichier de configuration d'agent
 	BotAuthor   bool // D3 : l'auteur est un compte bot connu
+	// Message est le style du message (F4), mesuré avec le reste ; FormKnown dit si Form (F1 à F3, F5) et
+	// Message sont mesurés : la forme demande les lignes ajoutées, lues sur le clone (voir SetForm).
+	Message   MessageStyle
+	Form      Form
+	FormKnown bool
 }
+
+// SetForm renseigne les mesures de forme du commit (lignes ajoutées lues sur le clone).
+func (s *Signals) SetForm(f Form) { s.Form, s.FormKnown = f, true }
 
 // Compute calcule les signaux d'un commit. ok est faux quand le détail des fichiers est inconnu
 // (in.Files nil) : aucune valeur n'est alors inventée, le commit n'a pas de ligne commit_signals.
@@ -50,6 +58,7 @@ func Compute(in Input, ex *Excluder) (s Signals, ok bool) {
 	}
 	s.Tools = EncodeDeclarations(MessageDeclarations(in.Message))
 	s.BotAuthor = isBot(in.AuthorName) || isBot(in.AuthorLogin)
+	s.Message = MeasureMessage(in.Message)
 	return s, true
 }
 

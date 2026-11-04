@@ -293,6 +293,23 @@ type CommitSignal struct {
 	AgentConfig   bool      // signal D4 : le commit modifie un fichier de configuration d'agent
 	BotAuthor     bool      // signal D3 : auteur bot connu
 	ComputedAt    time.Time // date du calcul, UTC
+	Form          CommitForm
+}
+
+// CommitForm sont les mesures de forme d'un commit (signaux F1 à F5, phase 7.5), sans aucun contenu.
+type CommitForm struct {
+	Known               bool    // mesures présentes (sinon toutes nulles)
+	SourceLines         int     // lignes ajoutées non vides des fichiers source (tests compris)
+	CommentLines        int     // lignes de commentaire ou de docstring parmi elles
+	Functions           int     // définitions de fonctions ajoutées
+	DocumentedFunctions int     // définitions documentées
+	Identifiers         int     // identifiants du code ajouté
+	LexicalDiversity    float64 // MATTR des identifiants ; voir HasDiversity
+	HasDiversity        bool    // au moins 50 identifiants
+	TestLines           int     // lignes ajoutées non vides des fichiers de test
+	MessageLength       int     // caractères du message, hors trailers et signatures
+	MessageBullets      int     // lignes en liste du message
+	MessageConventional bool    // sujet au format Conventional Commits
 }
 
 // DiagnosticReview est la revue humaine d'une piste de diagnostic (table diagnostic_reviews, phase 7.4).

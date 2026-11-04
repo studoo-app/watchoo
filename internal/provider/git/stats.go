@@ -120,38 +120,11 @@ func (p *Provider) statsOn(ctx context.Context, owner, name, path string, shas [
 func (p *Provider) statsBatch(ctx context.Context, owner, name, path string, shas []string,
 	out map[string]provider.CommitStats) error {
 	op := i18n.T("provider.git.op.commits_stats", owner, name)
-	input := []byte(strings.Join(shas, "\n") + "\n")
-	res, err := p.runInput(ctx, p.localTimeout, gitDir(path), "rev-list", input,
-		"rev-list", "--no-walk=unsorted", "--parents", "--ignore-missing", "--stdin")
-	if err != nil {
-		return &provider.APIError{Op: op, Err: err}
+	input, merges, err := p.firstParents(ctx, op, path, shas)
+	if err != nil || input == nil {
+		return err
 	}
-	if res.exitCode != 0 {
-		return localError(op, res)
-	}
-	// Une ligne « commit premier-parent » (ou « commit » pour une racine) par commit présent.
-	var lines bytes.Buffer
-	n := 0
-	var merges []string
-	for line := range strings.SplitSeq(string(res.stdout), "\n") {
-		fields := strings.Fields(line)
-		if len(fields) == 0 || provider.ValidateSHA(fields[0]) != nil {
-			continue
-		}
-		if len(fields) > 2 {
-			merges = append(merges, fields[0])
-		}
-		lines.WriteString(fields[0])
-		if len(fields) > 1 {
-			lines.WriteString(" " + fields[1])
-		}
-		lines.WriteByte('\n')
-		n++
-	}
-	if n == 0 {
-		return nil
-	}
-	res, err = p.runInput(ctx, p.localTimeout, gitDir(path), "diff-tree", lines.Bytes(),
+	res, err := p.runInput(ctx, p.localTimeout, gitDir(path), "diff-tree", input,
 		"diff-tree", "--stdin", "--always", "--root", "-r", "-z", "--numstat", "-M", "--no-ext-diff")
 	if err != nil {
 		return &provider.APIError{Op: op, Err: err}
@@ -167,6 +140,41 @@ func (p *Provider) statsBatch(ctx context.Context, owner, name, path string, sha
 		}
 	}
 	return nil
+}
+
+// firstParents renvoie l'entrée de « diff-tree --stdin » pour les commits shas (validés) présents dans le
+// clone path : une ligne « commit premier-parent » (« commit » pour une racine) par commit, nil si aucun ;
+// et les commits de fusion parmi eux.
+func (p *Provider) firstParents(ctx context.Context, op, path string, shas []string) ([]byte, []string, error) {
+	input := []byte(strings.Join(shas, "\n") + "\n")
+	res, err := p.runInput(ctx, p.localTimeout, gitDir(path), "rev-list", input,
+		"rev-list", "--no-walk=unsorted", "--parents", "--ignore-missing", "--stdin")
+	if err != nil {
+		return nil, nil, &provider.APIError{Op: op, Err: err}
+	}
+	if res.exitCode != 0 {
+		return nil, nil, localError(op, res)
+	}
+	var lines bytes.Buffer
+	var merges []string
+	for line := range strings.SplitSeq(string(res.stdout), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) == 0 || provider.ValidateSHA(fields[0]) != nil {
+			continue
+		}
+		if len(fields) > 2 {
+			merges = append(merges, fields[0])
+		}
+		lines.WriteString(fields[0])
+		if len(fields) > 1 {
+			lines.WriteString(" " + fields[1])
+		}
+		lines.WriteByte('\n')
+	}
+	if lines.Len() == 0 {
+		return nil, merges, nil
+	}
+	return lines.Bytes(), merges, nil
 }
 
 // parseBatchNumstat lit la sortie de « diff-tree --stdin --always -z --numstat -M » : pour chaque

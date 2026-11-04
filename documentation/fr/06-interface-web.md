@@ -387,7 +387,8 @@ diagnostic est activé (`diagnostic.enabled`). Détail : [Supervision et diagnos
   plus ancienne (date, dépôt, auteur, élément, niveau, signaux, état de la revue), filtre par dépôt, nombre
   de pistes revues, historiques insuffisants, contexte D4, bouton « Mesurer l'historique » (reprise lancée
   en arrière-plan, une à la fois ; le résultat s'affiche au rechargement). Aucun message de commit.
-- **Fiche de revue** (`/diagnostic/lead`) : niveau ; signaux avec leur description, valeur brute, médiane
+- **Niveaux** : badge « déclaré » (bleu), « probable » (rouge, phase 7.5), « à regarder » (orange).
+- **Fiche de revue** (`/diagnostic/lead`) : niveau ; signaux (D, R et, depuis la phase 7.5, F) avec leur description, valeur brute, médiane
   personnelle et score z ; graphique du débit de l'auteur sur 90 jours (lignes ajoutées par jour, jour de
   la piste en évidence) ; pour un commit, les commits mesurés voisins (± 3) et le diff lu sur le clone local
   à l'affichage (jamais gardé, coupé au-delà de 200 Ko ; « indisponible » sans clone) ; contexte D4 ; lien

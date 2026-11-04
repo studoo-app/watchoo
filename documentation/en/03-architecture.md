@@ -70,8 +70,9 @@ watchoo/
                        coordinator of a long-lived process's syncs (Coordinator, "watchoo serve")
   internal/activity/   activity rules (Active / Slacking / Dead, gray states), short formats
   internal/diagnostic/ diagnosis (phase 7): per-commit signals (file exclusions, declared tools, bot
-                       author, agent configuration file) and reflection leads ("declared" level);
-                       keeps neither message, PR description nor path
+                       author, agent configuration file), rhythm signals R1 to R6, form measures and
+                       signals F1 to F5 (in memory) and reflection leads ("declared", "probable", "to
+                       review" levels); keeps neither message, PR description, path nor line of code
   internal/repoimport/ parsing of repository references, of --branch and of import files
   internal/configshare/ sharing of a workspace's configuration (JSON export, validation, preview and
                        application of an import; "watchoo config", Settings page)

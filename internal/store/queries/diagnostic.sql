@@ -1,16 +1,43 @@
 -- name: InsertCommitSignals :execrows
 -- Enregistre les signaux d'un commit deja en base ; author_id et authored_at sont recopies du commit.
--- Une ligne deja presente n'est jamais modifiee (0 ligne inseree), un SHA absent de la base est ignore.
+-- Une ligne deja presente n'est remplacee que si sa forme n'etait pas mesuree (form_known = 0, ligne
+-- d'avant la phase 7.5) ; sinon 0 ligne. Un SHA absent de la base est ignore.
 INSERT INTO commit_signals (
     repo_id, sha, author_id, authored_at, files_kept, files_excluded, additions_kept, deletions_kept,
-    tool_ids, agent_config, bot_author, computed_at
+    tool_ids, agent_config, bot_author, computed_at, form_known, source_lines, comment_lines, functions,
+    documented_functions, identifiers, lexical_diversity, test_lines, message_length, message_bullets,
+    message_conventional
 )
 SELECT c.repo_id, c.sha, c.author_id, c.authored_at,
     sqlc.arg(files_kept), sqlc.arg(files_excluded), sqlc.arg(additions_kept), sqlc.arg(deletions_kept),
-    sqlc.arg(tool_ids), sqlc.arg(agent_config), sqlc.arg(bot_author), sqlc.arg(computed_at)
+    sqlc.arg(tool_ids), sqlc.arg(agent_config), sqlc.arg(bot_author), sqlc.arg(computed_at),
+    sqlc.arg(form_known), sqlc.arg(source_lines), sqlc.arg(comment_lines), sqlc.arg(functions),
+    sqlc.arg(documented_functions), sqlc.arg(identifiers), sqlc.narg(lexical_diversity),
+    sqlc.arg(test_lines), sqlc.arg(message_length), sqlc.arg(message_bullets),
+    sqlc.arg(message_conventional)
 FROM commits c
 WHERE c.repo_id = sqlc.arg(repo_id) AND c.sha = sqlc.arg(sha)
-ON CONFLICT (repo_id, sha) DO NOTHING;
+ON CONFLICT (repo_id, sha) DO UPDATE SET
+    files_kept = excluded.files_kept,
+    files_excluded = excluded.files_excluded,
+    additions_kept = excluded.additions_kept,
+    deletions_kept = excluded.deletions_kept,
+    tool_ids = excluded.tool_ids,
+    agent_config = excluded.agent_config,
+    bot_author = excluded.bot_author,
+    computed_at = excluded.computed_at,
+    form_known = excluded.form_known,
+    source_lines = excluded.source_lines,
+    comment_lines = excluded.comment_lines,
+    functions = excluded.functions,
+    documented_functions = excluded.documented_functions,
+    identifiers = excluded.identifiers,
+    lexical_diversity = excluded.lexical_diversity,
+    test_lines = excluded.test_lines,
+    message_length = excluded.message_length,
+    message_bullets = excluded.message_bullets,
+    message_conventional = excluded.message_conventional
+WHERE commit_signals.form_known = 0 AND excluded.form_known = 1;
 
 -- name: PurgeCommitSignals :execrows
 -- Supprime les signaux des commits ecrits avant before (tous les depots de l'espace).
@@ -20,7 +47,10 @@ WHERE authored_at < sqlc.arg(before);
 -- name: ListCommitSignals :many
 -- Signaux des commits du depot, du plus recent au plus ancien (date d'ecriture, puis SHA) ; auteur du commit.
 SELECT cs.repo_id, cs.sha, c.author_id, cs.authored_at, cs.files_kept, cs.files_excluded, cs.additions_kept,
-    cs.deletions_kept, cs.tool_ids, cs.agent_config, cs.bot_author, cs.computed_at
+    cs.deletions_kept, cs.tool_ids, cs.agent_config, cs.bot_author, cs.computed_at,
+    cs.form_known, cs.source_lines, cs.comment_lines, cs.functions, cs.documented_functions,
+    cs.identifiers, cs.lexical_diversity, cs.test_lines, cs.message_length, cs.message_bullets,
+    cs.message_conventional
 FROM commit_signals cs
 JOIN commits c ON c.repo_id = cs.repo_id AND c.sha = cs.sha
 WHERE cs.repo_id = sqlc.arg(repo_id)
@@ -66,6 +96,9 @@ WHERE tool_ids <> '' AND created_at < sqlc.arg(before);
 -- celui du commit (a jour apres une fusion de contributeurs).
 SELECT cs.repo_id, cs.sha, c.author_id, cs.authored_at, cs.files_kept, cs.files_excluded,
        cs.additions_kept, cs.deletions_kept, cs.tool_ids, cs.agent_config, cs.bot_author, cs.computed_at,
+       cs.form_known, cs.source_lines, cs.comment_lines, cs.functions, cs.documented_functions,
+       cs.identifiers, cs.lexical_diversity, cs.test_lines, cs.message_length, cs.message_bullets,
+       cs.message_conventional,
        c.url,
        r.owner AS repo_owner, r.name AS repo_name, r.label AS repo_label,
        CAST(COALESCE(a.name, '') AS TEXT) AS author_name,
@@ -88,7 +121,7 @@ WHERE a.provider_login = sqlc.arg(author) COLLATE NOCASE
 ORDER BY a.id;
 
 -- name: ListCommitsWithoutSignals :many
--- Commits du depot sans signaux, ecrits a partir de since, par SHA croissant apres after_sha (pagination ;
+-- Commits du depot sans signaux, ou dont la forme n'est pas mesuree (form_known = 0), ecrits a partir de since, par SHA croissant apres after_sha (pagination ;
 -- chaine vide = depuis le debut), au plus row_limit : reprise de l'historique.
 SELECT c.sha, c.message,
        CAST(COALESCE(a.name, '') AS TEXT) AS author_name,
@@ -98,7 +131,8 @@ LEFT JOIN contributors a ON a.id = c.author_id
 WHERE c.repo_id = sqlc.arg(repo_id)
   AND c.authored_at >= sqlc.arg(since)
   AND c.sha > sqlc.arg(after_sha)
-  AND NOT EXISTS (SELECT 1 FROM commit_signals cs WHERE cs.repo_id = c.repo_id AND cs.sha = c.sha)
+  AND NOT EXISTS (SELECT 1 FROM commit_signals cs
+                  WHERE cs.repo_id = c.repo_id AND cs.sha = c.sha AND cs.form_known = 1)
 ORDER BY c.sha
 LIMIT sqlc.arg(row_limit);
 

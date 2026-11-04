@@ -52,6 +52,14 @@ PATCH (see [Skills](documentation/en/11-skills.md#versions-and-changelogmd)).
   review form (decision, cause, confidence, note). Reviews go into the new `diagnostic_reviews` table
   (migration `00009`) and follow `diagnostic.retention_days`. New routes: `GET /diagnostic`,
   `GET /diagnostic/lead`, `POST /diagnostic/review`, `POST /diagnostic/backfill`.
+- **Diagnosis, phase 7.5 (form signals)**: the added lines of each measured commit are read from the local
+  clone and analysed in memory; only numbers are kept (11 new columns of `commit_signals`, migration
+  `00010`), never code, identifiers, paths or messages. Five form signals, each learner being compared with
+  their own history: comment density (F1), systematically documented functions (F2), lexical diversity of
+  the identifiers, MATTR (F3), message style break (F4), tests delivered with the code when unusual (F5). New
+  level `probable` (at least two rhythm signals and one form signal); two form signals give `to review`,
+  one alone raises nothing. `watchoo diagnostic backfill` also completes the form of the commits measured
+  before. The content classifier (F6) is postponed.
 
 ## [1.0.0] - 2026-11-01
 

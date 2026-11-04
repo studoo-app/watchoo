@@ -22,14 +22,22 @@ Level "declared": at least one of
   D5  pull request branch named by a coding agent (codex/, copilot/, claude/, cursor/)
 D4 (agent configuration file in the repository) is shown as context only.
 
-Level "to review": no declared signal, but at least one rhythm signal, each learner being compared
-with their own history in the repository over 90 days (modified z-score above 3.5):
+Rhythm signals compare each learner with their own history in the repository over 90 days (modified
+z-score above 3.5):
   R1  net lines of a day        R2  lines added by a commit (over 150)
   R3  addition ratio (over 0.95) R4  apparent speed (diagnostic.speed_signal, off by default)
   R5  files of a commit (8 or more)
   R6  regime break (14-day median of R1 over 3 times the previous 90 days)
-Each rhythm signal needs at least 20 observations in the 90 days before: measured commits for R2, R3 and
-R5, worked days for R1 and R6; below that, it does not trigger for the learner.
+Form signals (weak, never enough alone) are measured on the added lines, only numbers being kept:
+  F1  comment density (z above 3.5)   F2  documented functions (over 90%, usually under 30%)
+  F3  lexical diversity of the identifiers (z below -3.5)
+  F4  message style (long message with an unusual list or Conventional Commits subject)
+  F5  tests delivered with the code (usually in fewer than 10% of the commits)
+Each of them needs at least 20 observations in the 90 days before (F4: the 20 previous messages);
+below that, it does not trigger for the learner.
+
+Level "probable": no declared signal, at least two rhythm signals and one form signal.
+Level "to review": one rhythm signal, or at least two form signals.
 
 The diagnosis must be enabled in the workspace (diagnostic.enabled) and is measured at sync on the
 local clones, for the commits synced after it was enabled.
@@ -50,14 +58,24 @@ Niveau « déclaré » : au moins un signal parmi
   D5  branche de pull request nommée par un agent de codage (codex/, copilot/, claude/, cursor/)
 D4 (fichier de configuration d'agent dans le dépôt) n'est affiché qu'en contexte.
 
-Niveau « à regarder » : aucun signal déclaré, mais au moins un signal de rythme, chaque apprenant
-étant comparé à son propre historique dans le dépôt sur 90 jours (score z modifié au-delà de 3,5) :
+Les signaux de rythme comparent chaque apprenant à son propre historique dans le dépôt sur 90 jours
+(score z modifié au-delà de 3,5) :
   R1  lignes nettes d'un jour      R2  lignes ajoutées par un commit (plus de 150)
   R3  ratio d'ajout (plus de 0,95) R4  vitesse apparente (diagnostic.speed_signal, désactivé par défaut)
   R5  fichiers d'un commit (8 ou plus)
   R6  rupture de régime (médiane R1 sur 14 jours plus de 3 fois celle des 90 jours précédents)
-Chaque signal de rythme demande au moins 20 observations dans les 90 jours qui précèdent : commits
-mesurés pour R2, R3 et R5, jours travaillés pour R1 et R6 ; en deçà, il ne se déclenche pas.
+Les signaux de forme (faibles, jamais suffisants seuls) sont mesurés sur les lignes ajoutées, dont
+seuls des nombres sont gardés :
+  F1  densité de commentaires (z au-delà de 3,5)
+  F2  fonctions documentées (plus de 90 %, d'habitude moins de 30 %)
+  F3  diversité lexicale des identifiants (z en deçà de -3,5)
+  F4  style du message (message long avec une liste ou un sujet Conventional Commits inhabituels)
+  F5  tests livrés avec le code (d'habitude dans moins de 10 % des commits)
+Chacun demande au moins 20 observations dans les 90 jours qui précèdent (F4 : les 20 messages
+précédents) ; en deçà, il ne se déclenche pas.
+
+Niveau « probable » : aucun signal déclaré, au moins deux signaux de rythme et un signal de forme.
+Niveau « à regarder » : un signal de rythme, ou au moins deux signaux de forme.
 
 Le diagnostic doit être activé dans l'espace (diagnostic.enabled) ; il est mesuré à la synchro sur
 les clones locaux, pour les commits synchronisés après son activation.
@@ -84,6 +102,7 @@ Filtres :
 	"cli.diag.header_level":      {"Level", "Niveau"},
 	"cli.diag.header_signals":    {"Signals", "Signaux"},
 	"cli.diag.level.to_review":   {"to review", "à regarder"},
+	"cli.diag.level.probable":    {"probable", "probable"},
 	"cli.diag.item_day":          {"day", "jour"},
 	"cli.diag.hit_median_z":      {"(median %s, z %s)", "(médiane %s, z %s)"},
 	"cli.diag.hit_median":        {"(median %s)", "(médiane %s)"},
@@ -99,14 +118,16 @@ Filtres :
 		`Measures, on the local Git clones, the commits already stored that have no diagnosis signals yet
 (commits synced before the diagnosis was enabled), within the retention period
 (diagnostic.retention_days), merge commits excluded. Useful right after enabling the diagnosis: the
-rhythm signals need at least 20 measured commits in 90 days per author. Commits already measured are
+rhythm and form signals need at least 20 measured commits in 90 days per author. It also completes
+the form (signals F1 to F5) of the commits measured before it existed. Commits already measured are
 never measured again.
 
   --repo   one tracked repository (owner/repo or URL); all by default`,
 		`Mesure, sur les clones Git locaux, les commits déjà en base qui n'ont pas encore de signaux de
 diagnostic (commits synchronisés avant l'activation du diagnostic), dans la durée de conservation
 (diagnostic.retention_days), hors commits de fusion. Utile juste après l'activation : les signaux de
-rythme demandent au moins 20 commits mesurés en 90 jours par auteur. Un commit déjà mesuré ne l'est
+rythme et de forme demandent au moins 20 commits mesurés en 90 jours par auteur. Elle complète aussi
+la forme (signaux F1 à F5) des commits mesurés avant son apparition. Un commit déjà mesuré ne l'est
 jamais deux fois.
 
   --repo   un dépôt suivi (owner/repo ou URL) ; tous par défaut`,

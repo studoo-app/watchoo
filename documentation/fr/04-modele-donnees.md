@@ -8,7 +8,8 @@ Sept tables suffisent pour le MVP ; `commits` est la table centrale, reliée aux
 facultatif (dépôts suivis par clones Git locaux) ; la migration `00005` (0.5.0) ajoute
 `contributors.profile_url` et la migration `00006` (0.5.0) `commits.stats_known`. La migration `00007`
 (phase 7.1) ajoute `commit_signals`, et la migration `00008` (phase 7.2) `pull_requests.tool_ids` et
-`repository_signals`, et la migration `00009` (phase 7.4) `diagnostic_reviews`, soit **treize tables** (voir
+`repository_signals`, et la migration `00009` (phase 7.4) `diagnostic_reviews`, soit **treize tables** ; la
+migration `00010` (phase 7.5) ajoute les colonnes de forme de `commit_signals` (voir
 [Supervision et diagnostic](12-supervision-diagnostic.md)). Le stockage est un fichier SQLite versionné par des migrations
 `goose`, avec **une base par espace de supervision** (`.watchoo/watchoo.db`, voir
 [Espaces de supervision](10-espaces-de-supervision.md)). Les tables ne connaissent donc pas la notion
@@ -251,8 +252,9 @@ non suivie).
 Clé primaire : **`(repo_id, sha)`**, clé étrangère vers `commits (repo_id, sha)` avec `ON DELETE CASCADE`
 (supprimer un commit ou un dépôt supprime ses signaux). Une ligne par commit mesuré quand le réglage
 `diagnostic.enabled` est actif : nouveaux commits synchronisés après l'activation, hors commits de
-fusion, dont le clone Git local donne le détail des fichiers. Une ligne n'est jamais réécrite.
-**Minimisation** : ni message, ni e-mail, ni chemin de fichier.
+fusion, dont le clone Git local donne le détail des fichiers. Une ligne n'est jamais réécrite, sauf pour
+compléter une forme non mesurée (`form_known = 0`) par une forme mesurée (phase 7.5).
+**Minimisation** : ni message, ni e-mail, ni chemin de fichier, ni ligne de code.
 
 | Colonne | Description |
 | --- | --- |
@@ -266,6 +268,12 @@ fusion, dont le clone Git local donne le détail des fichiers. Une ligne n'est j
 | agent_config | Signal D4 : le commit modifie un fichier de configuration d'agent (`AGENTS.md`, `CLAUDE.md`…) |
 | bot_author | Signal D3 : l'auteur est un compte bot connu (`*[bot]`, `copilot-swe-agent`) |
 | computed_at | Date du calcul |
+| form_known | Forme mesurée (phase 7.5) ; 0 pour une ligne d'avant la phase 7.5 ou une lecture en échec (toutes les colonnes suivantes valent alors 0) |
+| source_lines, comment_lines | Lignes ajoutées non vides des fichiers source reconnus (tests compris), et parmi elles les lignes de commentaire ou de docstring (F1) |
+| functions, documented_functions | Définitions de fonctions ajoutées, et parmi elles les documentées (F2) |
+| identifiers, lexical_diversity | Identifiants du code ajouté (hors mots-clés et chaînes) et leur diversité lexicale MATTR, fenêtre de 50 ; `NULL` avec moins de 50 identifiants (F3) |
+| test_lines | Lignes ajoutées non vides des fichiers de test (F5) |
+| message_length, message_bullets, message_conventional | Longueur du message hors trailers et signatures, lignes en liste, sujet Conventional Commits (F4) ; le message n'est pas recopié |
 
 Purge : en fin de chaque synchro, les lignes dont `authored_at` dépasse `diagnostic.retention_days`
 (365 jours par défaut) sont supprimées.

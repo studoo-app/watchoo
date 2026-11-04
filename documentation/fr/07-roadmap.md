@@ -143,8 +143,10 @@ L'import d'une organisation entière et les alertes passent en V3 (voir
   défaut) et **7.2 réalisée** (signaux déclaratifs D1, D2, D3, D5, contexte D4, commande
   `watchoo diagnostic` réservée au formateur) et **7.3 réalisée** (signaux de rythme R1 à R6, niveau
   « à regarder », `watchoo diagnostic backfill`) et **7.4 réalisée** (revue humaine sur le web : page
-  « Diagnostic », fiche de revue, décisions enregistrées, bouton de reprise de l'historique) ; non publiées.
-  Les phases 7.5 et 7.6 suivent, chacune après validation de son plan. Contexte pédagogique tranché (apprenants, résultats réservés au formateur) ;
+  « Diagnostic », fiche de revue, décisions enregistrées, bouton de reprise de l'historique) et **7.5
+  réalisée** (signaux de forme F1 à F5 mesurés en mémoire, seuls des nombres gardés, niveau « probable ») ;
+  non publiées. La phase 7.6 (calibration) suit, puis F6 (classifieur de contenu, reporté), chacune après
+  validation de son plan. Contexte pédagogique tranché (apprenants, résultats réservés au formateur) ;
   l'information des apprenants (existence du diagnostic, finalité, critères) se fait avant de l'activer.
 
 ## Définition de « terminé » pour chaque phase

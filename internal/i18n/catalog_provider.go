@@ -317,6 +317,10 @@ var providerTexts = map[string]entry{
 		"statistics of commit %s in %s/%s",
 		"statistiques du commit %s de %s/%s",
 	},
+	"provider.git.op.added_lines": {
+		"added lines of the commits of %s/%s",
+		"lignes ajoutées des commits de %s/%s",
+	},
 	"provider.git.op.commit_patch": {
 		"diff of commit %s of %s/%s",
 		"diff du commit %s de %s/%s",
