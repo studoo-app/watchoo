@@ -209,19 +209,22 @@ type Account struct {
 
 // PullRequest est une pull request (merge request) d'un dépôt.
 type PullRequest struct {
-	Number     int       // numéro dans le dépôt (> 0)
-	Title      string    // titre (donnée venue du dépôt : jamais dans les logs)
-	State      string    // PullRequestOpen ou PullRequestClosed
-	Merged     bool      // mergée (MergedAt non nul) ; une PR mergée est fermée
-	Draft      bool      // brouillon
-	Author     Account   // auteur
-	URL        string    // page web de la PR (html_url sur GitHub)
-	BaseBranch string    // branche visée
-	HeadBranch string    // branche proposée
-	CreatedAt  time.Time // ouverture, UTC
-	UpdatedAt  time.Time // dernière modification, UTC
-	ClosedAt   time.Time // fermeture, UTC ; zéro si ouverte
-	MergedAt   time.Time // merge, UTC ; zéro si non mergée
+	Number     int     // numéro dans le dépôt (> 0)
+	Title      string  // titre (donnée venue du dépôt : jamais dans les logs)
+	State      string  // PullRequestOpen ou PullRequestClosed
+	Merged     bool    // mergée (MergedAt non nul) ; une PR mergée est fermée
+	Draft      bool    // brouillon
+	Author     Account // auteur
+	URL        string  // page web de la PR (html_url sur GitHub)
+	BaseBranch string  // branche visée
+	HeadBranch string  // branche proposée
+	// Body est la description de la PR (texte venu du dépôt : jamais dans les logs ni en base). Seul le
+	// diagnostic la lit, en mémoire, pour y reconnaître des outils déclarés (signal D2).
+	Body      string
+	CreatedAt time.Time // ouverture, UTC
+	UpdatedAt time.Time // dernière modification, UTC
+	ClosedAt  time.Time // fermeture, UTC ; zéro si ouverte
+	MergedAt  time.Time // merge, UTC ; zéro si non mergée
 }
 
 // Release est une release d'un dépôt.
@@ -311,6 +314,28 @@ type CommitStats struct {
 	// nil pour un commit analysé sans ligne dans un langage reconnu (commit de fusion, Markdown seul…),
 	// nil si inconnues (API).
 	Languages map[string]int
+	// Files détaille les fichiers modifiés (chemins : donnée du dépôt privé, jamais dans les logs), pour
+	// les signaux de diagnostic (internal/diagnostic). Renseigné par les clones Git locaux seulement ;
+	// nil = détail inconnu (API GitHub : la réponse n'est lue qu'avec per_page=1, voir son CommitStats).
+	Files []CommitFile
+	// Merge indique un commit de fusion (au moins deux parents). Renseigné par les clones Git locaux
+	// (CommitStatsBatch) seulement.
+	Merge bool
+}
+
+// Add ajoute le fichier f aux statistiques (lignes comptées ; 0 pour un fichier binaire).
+func (s *CommitStats) Add(f CommitFile) {
+	s.Additions += f.Additions
+	s.Deletions += f.Deletions
+	s.Files = append(s.Files, f)
+}
+
+// CommitFile est un fichier modifié par un commit, par rapport à son premier parent.
+type CommitFile struct {
+	Path      string // chemin dans le dépôt, séparé par « / »
+	Additions int    // lignes ajoutées (0 pour un fichier binaire)
+	Deletions int    // lignes supprimées (0 pour un fichier binaire)
+	Binary    bool   // fichier binaire (« - » dans --numstat) : lignes non comptées
 }
 
 // RateLimit est l'état du quota de l'API (ressource « core » sur GitHub : 5 000 requêtes par heure).

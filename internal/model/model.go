@@ -289,6 +289,8 @@ const (
 	WarnLanguagesNotComputed SyncWarningKind = "languages_not_computed" // langages non lus dans le clone
 	WarnListsNotSynced       SyncWarningKind = "lists_not_synced"       // pull requests, releases ou tags non lus
 	WarnAINotScanned         SyncWarningKind = "ai_not_scanned"         // signatures d'IA non analysées
+	// WarnDiagnosticNotRecorded : signaux de diagnostic non enregistrés (phase 7.1, diagnostic activé).
+	WarnDiagnosticNotRecorded SyncWarningKind = "diagnostic_not_recorded"
 )
 
 // SyncWarning est un avertissement de synchro : un dépôt réussi, avec une donnée manquante ou limitée.
@@ -337,6 +339,9 @@ type PullRequest struct {
 	UpdatedAt        time.Time // dernière modification, UTC
 	ClosedAt         time.Time // fermeture, UTC ; zéro si ouverte
 	MergedAt         time.Time // merge, UTC ; zéro si non mergée
+	// ToolIDs sont les outils déclarés dans la description (signal D2 du diagnostic, phase 7.2),
+	// encodés « D2:claude », triés ; vide si aucun ou non mesuré. La description n'est jamais gardée.
+	ToolIDs []string
 }
 
 // Status renvoie l'état affiché : mergée, fermée sans merge ou ouverte.
@@ -378,6 +383,56 @@ type Tag struct {
 	RepoID int64  // dépôt
 	Name   string // nom du tag
 	SHA    string // SHA du commit visé
+}
+
+// CommitSignal sont les signaux de diagnostic d'un commit (table commit_signals, phase 7.1), mesurés
+// à la synchro par internal/diagnostic. Ni message, ni e-mail, ni chemin de fichier. Clé : (RepoID, SHA).
+type CommitSignal struct {
+	RepoID        int64     // dépôt
+	SHA           string    // commit
+	AuthorID      int64     // auteur (contributeur) ; 0 = inconnu
+	AuthoredAt    time.Time // date d'écriture du commit, UTC
+	FilesKept     int       // fichiers retenus (ni binaires ni exclus)
+	FilesExcluded int       // fichiers binaires ou exclus par diagnostic.exclude
+	AdditionsKept int       // lignes ajoutées dans les fichiers retenus
+	DeletionsKept int       // lignes supprimées dans les fichiers retenus
+	Tools         []string  // outils déclarés (signaux D1 et D2), triés ; vide si aucun
+	AgentConfig   bool      // signal D4 : le commit modifie un fichier de configuration d'agent
+	BotAuthor     bool      // signal D3 : auteur bot connu
+	ComputedAt    time.Time // date du calcul, UTC
+	Form          CommitForm
+}
+
+// CommitForm sont les mesures de forme d'un commit (signaux F1 à F5, phase 7.5), sans aucun contenu.
+type CommitForm struct {
+	Known               bool    // mesures présentes (sinon toutes nulles)
+	SourceLines         int     // lignes ajoutées non vides des fichiers source (tests compris)
+	CommentLines        int     // lignes de commentaire ou de docstring parmi elles
+	Functions           int     // définitions de fonctions ajoutées
+	DocumentedFunctions int     // définitions documentées
+	Identifiers         int     // identifiants du code ajouté
+	LexicalDiversity    float64 // MATTR des identifiants ; voir HasDiversity
+	HasDiversity        bool    // au moins 50 identifiants
+	TestLines           int     // lignes ajoutées non vides des fichiers de test
+	MessageLength       int     // caractères du message, hors trailers et signatures
+	MessageBullets      int     // lignes en liste du message
+	MessageConventional bool    // sujet au format Conventional Commits
+}
+
+// DiagnosticReview est la revue humaine d'une piste de diagnostic (table diagnostic_reviews, phase 7.4).
+// Clé : (RepoID, LeadKey). Note est une donnée personnelle (jamais dans les logs).
+type DiagnosticReview struct {
+	RepoID     int64
+	LeadKey    string    // clé stable de la piste (internal/diagnostic, Lead.Key)
+	Kind       string    // commit, pull_request ou day
+	LeadDate   time.Time // date de la piste (conservation), UTC
+	Signals    []string  // identifiants des signaux présents lors de la revue, triés
+	Decision   string    // assisted, not_assisted ou undetermined
+	Cause      string    // cause si non assisté ; vide sinon
+	Confidence string    // low, medium ou high
+	Note       string    // note libre du relecteur
+	Reviewer   string    // relecteur (compte de l'interface web, sinon nom de l'espace)
+	ReviewedAt time.Time // date de la revue, UTC
 }
 
 // RepositoryLanguage est un langage d'un dépôt, sur sa branche par défaut (1.1.0).

@@ -189,7 +189,7 @@ func TestTemplateKeysInCatalog(t *testing.T) {
 func sameInBothLanguages(s string) bool {
 	switch s {
 	case "Commits", "Branches", "Pull requests", "Releases", "Tags", "Total", "Dead", "Action", "inaccessible",
-		"%d commit", "%d commits", "%d min", "%d h", "{n} commit", "{n} commits":
+		"%d commit", "%d commits", "%d min", "%d h", "{n} commit", "{n} commits", "Signal", "Commit", "Pull request":
 		return true
 	}
 	return false

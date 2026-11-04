@@ -34,6 +34,7 @@ forces the language everywhere.
 | Contributors | `/contributors` | `/fragments/contributors` |
 | Contributor page (0.5.0) | `/contributors/{id}` (`?page=`) | `/contributors/{id}/commits` |
 | Settings | `/settings` | `/fragments/quota` |
+| Diagnosis (7.4, diagnosis enabled) | `/diagnostic` (`?repo=`), `/diagnostic/lead` (`?repo=`, `?key=`) | — |
 
 ### Routes
 
@@ -63,6 +64,10 @@ changes anything; every `POST` goes through the CSRF check.
 | `POST` | `/settings/import`, `/settings/import/apply` | Configuration import: preview, then apply |
 | `POST` | `/sync` | Sync all the repositories |
 | `GET` | `/fragments/sync` | Sync status (navigation bar) |
+| `GET` | `/diagnostic` | Reflection leads of the diagnosis (7.4; content only if the diagnosis is enabled) |
+| `GET` | `/diagnostic/lead` | Review sheet of a lead (404 if the diagnosis is disabled or the lead unknown) |
+| `POST` | `/diagnostic/review` | Saves the review of a lead |
+| `POST` | `/diagnostic/backfill` | Starts the history backfill in the background (one at a time) |
 | `GET` | `/static/*`, `/favicon.ico`, `/apple-touch-icon.png`, `/manifest.webmanifest` | Embedded static files |
 
 `{id}` is a number of 1 to 18 digits (otherwise 404).
@@ -411,6 +416,24 @@ check is disabled (`WATCHOO_NO_UPDATE_CHECK`, set in the Docker image), fails, o
 date. The banner makes no request: the known version is kept in memory by the process
 (`selfupdate.Monitor`).
 
+### 6. Diagnosis (phase 7.4)
+
+For the trainer who supervises the workspace only; "Diagnosis" navigation entry only when the diagnosis is
+enabled (`diagnostic.enabled`). Details: [Supervision and diagnosis](12-supervision-diagnostic.md#94-phase-74-human-review-on-the-web).
+
+- **List** (`/diagnostic`): reminder "a lead is never a verdict", leads from newest to oldest (date,
+  repository, author, item, level, signals, review status), filter by repository, number of reviewed leads,
+  insufficient histories, D4 context, "Measure the history" button (backfill started in the background, one
+  at a time; the result shows on reload). No commit message.
+- **Levels**: "declared" badge (blue), "probable" (red, phase 7.5), "to review" (orange).
+- **Review sheet** (`/diagnostic/lead`): level; signals (D, R and, since phase 7.5, F) with their description, raw value, personal median
+  and z-score; the author's throughput chart over 90 days (lines added per day, day of the lead
+  highlighted); for a commit, the neighbouring measured commits (± 3) and the diff read from the local clone
+  when shown (never stored, cut beyond 200 KB; "unavailable" without a clone); D4 context; link to the
+  forge; review form (decision, cause if not assisted, confidence, note of at most 2,000 characters). A
+  refused input is shown again with the error (400); a saved review returns to the sheet (303) with "Review
+  saved" and the reviewer (web interface account, otherwise workspace name).
+
 ## Navigation
 
 ```mermaid
@@ -424,6 +447,8 @@ flowchart LR
     REPO --> PERSON
     DASH --> PERSON
     PERSON --> REPO
+    DASH --> DIAG["Diagnosis (if enabled)"]
+    DIAG --> LEAD["Review sheet"]
 ```
 
 ## Logo and icons

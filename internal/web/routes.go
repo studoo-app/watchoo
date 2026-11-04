@@ -41,6 +41,10 @@ package web
 //	POST /sync                          handleSyncAll          syncview.go      socle
 //	POST /repos/{id}/sync               handleSyncRepo         syncview.go      socle
 //	GET  /fragments/sync                handleSyncStatus       syncview.go      socle
+//	GET  /diagnostic                    handleDiagnostic       diagnostic.go    diagnostic (7.4)
+//	GET  /diagnostic/lead               handleDiagnosticLead   diagnostic.go    diagnostic (7.4)
+//	POST /diagnostic/review             handleDiagnosticReview diagnostic.go    diagnostic (7.4)
+//	POST /diagnostic/backfill           handleDiagnosticBackfill diagnostic.go  diagnostic (7.4)
 //	GET  /static/*                      handleStatic           assets.go        socle
 //	GET  /favicon.ico, /manifest.webmanifest, /apple-touch-icon.png             socle
 //
@@ -87,6 +91,8 @@ func (s *server) routes() http.Handler {
 	get("/fragments/quota", s.handleQuota)
 	get("/settings/export", s.handleSettingsExport)
 	get("/fragments/sync", s.handleSyncStatus)
+	get("/diagnostic", s.handleDiagnostic)
+	get("/diagnostic/lead", s.handleDiagnosticLead)
 
 	// Actions (POST seulement, protégées par le CSRF).
 	r.Post("/sync", s.handleSyncAll)
@@ -98,6 +104,8 @@ func (s *server) routes() http.Handler {
 	r.Post("/settings/interval", s.handleIntervalUpdate)
 	r.Post("/settings/import", s.handleSettingsImport)
 	r.Post("/settings/import/apply", s.handleSettingsImportApply)
+	r.Post("/diagnostic/review", s.handleDiagnosticReview)
+	r.Post("/diagnostic/backfill", s.handleDiagnosticBackfill)
 
 	// Fichiers statiques.
 	get("/static/*", s.handleStatic)

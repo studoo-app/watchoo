@@ -79,6 +79,7 @@ func (s *repoSync) lineStats(ctx context.Context, h *halt, repoID int64, firstIm
 	if cl.stats != nil {
 		n, writes, err := s.cloneStats(ctx, repoID, defaultBranch, cl.stats)
 		if err == nil {
+			s.clone = cl.stats
 			return n, writes, model.SyncWarning{}, nil
 		}
 		if ctxErr := ctx.Err(); ctxErr != nil {
@@ -168,6 +169,9 @@ func (s *repoSync) cloneStats(ctx context.Context, repoID int64, defaultBranch s
 				c.Additions, c.Deletions, c.StatsKnown = st.Additions, st.Deletions, true
 				c.Languages = st.Languages
 				computed++
+				if s.e.diag != nil && st.Files != nil {
+					s.files[c.SHA] = st.Files
+				}
 			}
 		}
 	}

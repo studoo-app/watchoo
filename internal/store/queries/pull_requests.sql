@@ -1,8 +1,8 @@
 -- name: UpsertPullRequest :exec
 -- Cree la pull request (repo_id, number) ou la met a jour en entier.
 INSERT INTO pull_requests (repo_id, number, title, state, merged, draft, author_login, author_provider_id,
-                           url, base_branch, head_branch, created_at, updated_at, closed_at, merged_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                           url, base_branch, head_branch, created_at, updated_at, closed_at, merged_at, tool_ids)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT (repo_id, number) DO UPDATE SET
     title = excluded.title,
     state = excluded.state,
@@ -16,7 +16,8 @@ ON CONFLICT (repo_id, number) DO UPDATE SET
     created_at = excluded.created_at,
     updated_at = excluded.updated_at,
     closed_at = excluded.closed_at,
-    merged_at = excluded.merged_at;
+    merged_at = excluded.merged_at,
+    tool_ids = excluded.tool_ids;
 
 -- name: MaxPullRequestUpdatedAt :one
 -- Date de modification la plus recente des pull requests du depot (chaine vide si aucune).
@@ -28,7 +29,7 @@ WHERE repo_id = ?;
 -- Pull requests filtrees (depot, etat, merge, compte de l'auteur), de la plus recemment modifiee a la plus ancienne.
 -- row_limit negatif = pas de limite.
 SELECT p.repo_id, p.number, p.title, p.state, p.merged, p.draft, p.author_login, p.author_provider_id,
-       p.url, p.base_branch, p.head_branch, p.created_at, p.updated_at, p.closed_at, p.merged_at,
+       p.url, p.base_branch, p.head_branch, p.created_at, p.updated_at, p.closed_at, p.merged_at, p.tool_ids,
        r.owner AS repo_owner, r.name AS repo_name, r.label AS repo_label
 FROM pull_requests p
 JOIN repositories r ON r.id = p.repo_id

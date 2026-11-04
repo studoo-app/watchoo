@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/studoo-app/watchoo/internal/diagnostic"
 	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/provider"
@@ -63,6 +64,10 @@ func (s *repoSync) fetchExtras(ctx context.Context, h *halt, repoID int64) (extr
 	if err == nil {
 		for _, p := range pulls {
 			if m, ok := pullRequestModel(p); ok {
+				if s.e.diag != nil {
+					// Signal D2 : la description n'est lue qu'ici, en mémoire ; seuls les outils sont gardés.
+					m.ToolIDs = diagnostic.EncodeDeclarations(diagnostic.PullRequestDeclarations(p.Body))
+				}
 				x.pulls = append(x.pulls, m)
 			} else {
 				x.skipped++

@@ -69,3 +69,11 @@ name: "licence-projet"
 # (repos/ at the workspace root), with this machine's SSH key or Git credentials.
 # git:
 #   protocol: "ssh"          # "ssh" (git@github.com:…) or "https" (https://github.com/…)
+
+# Diagnosis: per-commit signals to review by a human, never a verdict. Disabled by default:
+# inform the people concerned before enabling it. Needs the local clones (repos/).
+# diagnostic:
+#   enabled: false           # true: signals measured at each sync
+#   exclude: ["package-lock.json", "yarn.lock", "pnpm-lock.yaml", "go.sum", "poetry.lock", "Cargo.lock", "composer.lock", "Gemfile.lock", "vendor/", "node_modules/", "third_party/", "*.pb.go", "*_generated.*", "*.min.js", "dist/", "build/", "__snapshots__/", "*.snap"] # files left out of the measures ("vendor/": a directory; binaries always left out)
+#   retention_days: 365      # days the signals are kept, from the commit date (1 to 3650)
+#   speed_signal: false      # true: also the apparent speed signal (R4), fragile (legitimate copy-paste)

@@ -148,7 +148,9 @@ outil est-il signé sur ce commit ? », jamais à « ce code a-t-il été écrit
 
 - **Non lus** : le contenu du code, le style des messages, le rythme des commits. Ces indices ont des
   explications innocentes (push groupé, rebase, étudiant qui vient d'apprendre Conventional Commits) et
-  aucune fiabilité mesurée ; ils ne sont pas implémentés.
+  aucune fiabilité mesurée ; cette fonction ne les lit pas. Le [diagnostic](12-supervision-diagnostic.md)
+  (phase 7), désactivé par défaut et réservé au formateur, en fait des pistes de réflexion, jamais des
+  verdicts, chaque apprenant comparé à son propre historique.
 - **Objectif** : être en mesure de savoir quels outils sont déclarés, par qui et où, pas sanctionner. Pour
   en savoir plus, demander aux contributeurs de laisser activée l'attribution de leurs outils : Watchoo
   ne voit que ce que les commits déclarent.

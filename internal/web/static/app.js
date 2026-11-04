@@ -120,6 +120,18 @@
     return out;
   }
 
+  // parseDailyLines lit et valide le débit du diagnostic : tableau d'objets {date, count, highlight}.
+  function parseDailyLines(raw) {
+    var days = parseDaily(raw);
+    if (!days) {
+      return null;
+    }
+    for (var i = 0; i < days.length; i++) {
+      days[i].highlight = raw[i].highlight === true;
+    }
+    return days;
+  }
+
   // parseWeekly lit et valide les séries par semaine : {weeks: [...], series: [{name, counts}]}.
   function parseWeekly(raw) {
     if (!raw || !Array.isArray(raw.weeks) || !Array.isArray(raw.series)) {
@@ -141,7 +153,7 @@
     return { weeks: raw.weeks.slice(), series: series };
   }
 
-  var PARSERS = { "daily": parseDaily, "weekly-stacked": parseWeekly };
+  var PARSERS = { "daily": parseDaily, "weekly-stacked": parseWeekly, "daily-lines": parseDailyLines };
 
   // parse lit le JSON text pour la forme kind ; null s'il est invalide.
   function parse(kind, text) {
@@ -161,7 +173,8 @@
   var TEXTS = (function () {
     var t = {
       locale: "en-US", commit: "{n} commit", commits: "{n} commits",
-      week: "Week of {start} to {end}", total: "Total: {n}", sep: ": "
+      week: "Week of {start} to {end}", total: "Total: {n}", sep: ": ",
+      line: "{n} line added", lines: "{n} lines added"
     };
     var el = document.getElementById("watchoo-texts");
     if (!el) {
@@ -223,6 +236,12 @@
   function commits(n) {
     var one = FRENCH ? n <= 1 : n === 1;
     return fill(one ? TEXTS.commit : TEXTS.commits, { n: n });
+  }
+
+  // lines écrit « n lignes ajoutées » : singulier pour 0 et 1 en français, pour 1 seulement sinon.
+  function lines(n) {
+    var one = FRENCH ? n <= 1 : n === 1;
+    return fill(one ? TEXTS.line : TEXTS.lines, { n: n });
   }
 
   function reducedMotion() {
@@ -325,7 +344,19 @@
     };
   }
 
-  var CONFIGS = { "daily": dailyConfig, "weekly-stacked": weeklyConfig };
+  // dailyLinesConfig dessine le débit d'un auteur (lignes ajoutées par jour), le jour de la piste mis
+  // en évidence (couleur pleine, les autres atténués).
+  function dailyLinesConfig(series, colors) {
+    var config = dailyConfig(series, colors);
+    var ds = config.data.datasets[0];
+    ds.label = "Lines";
+    ds.backgroundColor = series.map(function (d) { return d.highlight ? colors.hover : colors.grid; });
+    ds.hoverBackgroundColor = colors.hover;
+    config.options.plugins.tooltip.callbacks.label = function (item) { return lines(item.parsed.y); };
+    return config;
+  }
+
+  var CONFIGS = { "daily": dailyConfig, "weekly-stacked": weeklyConfig, "daily-lines": dailyLinesConfig };
 
   // draw (re)dessine le graphique du canvas à partir de ses données.
   function draw(canvas) {

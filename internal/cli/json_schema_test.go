@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/studoo-app/watchoo/internal/model"
+	"github.com/studoo-app/watchoo/internal/provider/git/gittest"
 	"github.com/studoo-app/watchoo/internal/selfupdate"
 	"github.com/studoo-app/watchoo/internal/selfupdate/selfupdatetest"
 )
@@ -39,9 +40,11 @@ var jsonTopLevelKeys = map[string][]string{
 	"languages":    {"languages"},
 	"status": {"workspace", "github", "source", "rate_limit", "rate_limit_error", "quota_low", "repositories", "errors",
 		"last_synced_at", "tracked_branches"},
-	"config export": {"format", "version", "exported_at", "watchoo_version", "workspace", "settings", "repositories"},
-	"config import": {"file", "dry_run", "applied", "source", "settings", "repositories", "summary", "warnings"},
-	"update":        {"current", "latest", "update_available", "release_url"},
+	"config export":       {"format", "version", "exported_at", "watchoo_version", "workspace", "settings", "repositories"},
+	"config import":       {"file", "dry_run", "applied", "source", "settings", "repositories", "summary", "warnings"},
+	"update":              {"current", "latest", "update_available", "release_url"},
+	"diagnostic":          {"enabled", "leads", "contexts", "histories", "notice", "filters"},
+	"diagnostic backfill": {"repositories", "measured"},
 }
 
 // pendingJSONCommands are documented in 05-cli.md but not implemented yet (none today): a command
@@ -90,6 +93,17 @@ func TestJSONSchemaAllCommands(t *testing.T) {
 	outputs["releases"] = h.run("releases", "--json").mustSucceed(t).stdout
 	outputs["languages"] = h.run("languages", "--json").mustSucceed(t).stdout
 	outputs["status"] = h.run("status", "--json").mustSucceed(t).stdout
+	outputs["diagnostic"] = h.run("diagnostic", "--json").mustSucceed(t).stdout
+	// Diagnosis enabled, on local clones of the tracked repositories (phase 7.3).
+	clones := gittest.NewServer(t)
+	for _, owner := range []string{"alice", "bob", "dave"} {
+		clones.Create(owner, "projet", "main").Commit("main", "a.txt", "a\n", "init", gittest.Author{Name: "X", Email: "x@example.test"}, testNow)
+	}
+	h.GitURL = clones.URL
+	t.Setenv("WATCHOO_DIAGNOSTIC_ENABLED", "true")
+	outputs["diagnostic backfill"] = h.run("diagnostic", "backfill", "--json").mustSucceed(t).stdout
+	assertJSONKeys(t, outputs["diagnostic backfill"], "repositories.0", "repository", "measured", "merges", "missing", "error")
+	t.Setenv("WATCHOO_DIAGNOSTIC_ENABLED", "")
 	outputs["repo remove"] = h.run("repo", "remove", "dave/projet", "--yes", "--json").mustSucceed(t).stdout
 	outputs["config export"] = h.run("config", "export", "--json").mustSucceed(t).stdout
 	writeFile(t, filepath.Join(h.cwd, "partage.json"), outputs["config export"])

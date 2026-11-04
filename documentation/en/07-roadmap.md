@@ -148,7 +148,7 @@ Importing a whole organization and the alerts move to V3 (see
 ### 1.2.0: AI signatures and languages of the contributors
 - Signatures of AI tools declared in the commits, per commit and per contributor (CLI, TUI, web, `--json`),
   analyzed without any request to the forge: **released in v1.2.0**. See
-  [AI signatures](02-features.md#ai-signatures). Clues based on style or pace are deliberately left out.
+  [AI signatures](02-features.md#ai-signatures). Clues based on style or pace are deliberately left out of this feature; they belong to the diagnosis (phase 7, off by default).
 - Languages of a contributor: lines added per language in their commits, read from the clone (contributor
   page, `watchoo contributors`, TUI, migration `00009`): **released in v1.2.0**. See
   [Languages of a contributor](03-architecture.md#languages-of-a-contributor-120).
@@ -157,6 +157,22 @@ Importing a whole organization and the alerts move to V3 (see
 - Warnings of the last sync recorded per repository (`sync_runs.warnings`, migration `00010`): badge on the
   dashboard card, alert with the full message on the repository's page, menu of the repositories concerned
   in the sync indicator: **released in v1.3.0**. See [Web interface](06-web-interface.md#1-dashboard).
+### After 1.0.0 — 7: supervision and diagnosis (proposal)
+- Watchoo becomes a **supervision and diagnosis** tool (maintainer decision). First component: detection of
+  signals suggesting AI-assisted production, with its guardrails (a flag is never a verdict, explainability,
+  human review, transparency, data minimisation).
+- Sub-phases 7.1 to 7.6 (foundations, declarative, rhythm, review, form, calibration): see
+  [Supervision and diagnosis](12-supervision-diagnostic.md#9-phase-plan-proposal).
+- **Status**: **7.1 done** (foundations: `commit_signals` table, `diagnostic.*` settings, disabled by
+  default) and **7.2 done** (declarative signals D1, D2, D3, D5, D4 context, `watchoo diagnostic` command for
+  the trainer) and **7.3 done** (rhythm signals R1 to R6, "to review" level, `watchoo diagnostic backfill`);
+  and **7.4 done** (human review on the web: "Diagnosis" page, review sheet, recorded decisions, history
+  backfill button) and **7.5 done** (form signals F1 to F5 measured in memory, numbers only kept, "probable"
+  level); unreleased; phases 7.1 to 7.5 make up one release. Phase 7.6 (calibration) will come in a
+  **later release** (maintainer decision, November 4, 2026), once real reviews exist, then F6 (content
+  classifier, postponed), each after its plan is approved. Educational context
+  settled (learners, results reserved to the trainer); learners are informed (existence of the diagnosis,
+  purpose, criteria) before it is enabled.
 
 ## Definition of "done" for each phase
 

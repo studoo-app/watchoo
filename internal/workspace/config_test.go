@@ -16,6 +16,7 @@ import (
 
 	"github.com/spf13/viper"
 
+	"github.com/studoo-app/watchoo/internal/diagnostic"
 	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/logo"
 )
@@ -34,10 +35,17 @@ func TestDefaultConfig(t *testing.T) {
 		Lang:     "en",
 		GitHub:   GitHubConfig{User: "", GHPath: "gh"},
 		Git:      GitConfig{Protocol: "ssh"},
+		Diagnostic: DiagnosticConfig{Enabled: false, Exclude: diagnostic.DefaultExclude,
+			RetentionDays: 365, SpeedSignal: false},
 	}
 	if !reflect.DeepEqual(cfg, want) {
 		t.Errorf("DefaultConfig = %+v\nwant %+v", cfg, want)
 	}
+	cfg.Diagnostic.Exclude[0] = "changed"
+	if diagnostic.DefaultExclude[0] == "changed" {
+		t.Error("DefaultConfig shares diagnostic.DefaultExclude instead of a copy")
+	}
+	cfg = DefaultConfig("licence-projet")
 	if cfg.Branches.Exclude == nil {
 		t.Error("Branches.Exclude must be an empty non-nil slice")
 	}
@@ -57,7 +65,8 @@ func TestSettingKeys(t *testing.T) {
 		"name", "sync.auto", "sync.interval", "sync.parallelism",
 		"activity.flemme_after_days", "activity.dead_after_days", "branches.exclude",
 		"web.addr", "web.auth.username", "web.trusted_proxy", "web.allowed_hosts", "timezone", "lang", "github.user", "github.gh_path",
-		"git.protocol",
+		"git.protocol", "diagnostic.enabled", "diagnostic.exclude", "diagnostic.retention_days",
+		"diagnostic.speed_signal",
 	}
 	if !slices.Equal(keys, wantKeys) {
 		t.Errorf("keys = %v\nwant %v", keys, wantKeys)
@@ -66,7 +75,8 @@ func TestSettingKeys(t *testing.T) {
 		"WATCHOO_NAME", "WATCHOO_SYNC_AUTO", "WATCHOO_SYNC_INTERVAL", "WATCHOO_SYNC_PARALLELISM",
 		"WATCHOO_ACTIVITY_FLEMME_AFTER_DAYS", "WATCHOO_ACTIVITY_DEAD_AFTER_DAYS", "WATCHOO_BRANCHES_EXCLUDE",
 		"WATCHOO_WEB_ADDR", "WATCHOO_WEB_AUTH_USERNAME", "WATCHOO_WEB_TRUSTED_PROXY", "WATCHOO_WEB_ALLOWED_HOSTS", "WATCHOO_TIMEZONE", "WATCHOO_LANG", "WATCHOO_GITHUB_USER", "WATCHOO_GITHUB_GH_PATH",
-		"WATCHOO_GIT_PROTOCOL",
+		"WATCHOO_GIT_PROTOCOL", "WATCHOO_DIAGNOSTIC_ENABLED", "WATCHOO_DIAGNOSTIC_EXCLUDE",
+		"WATCHOO_DIAGNOSTIC_RETENTION_DAYS", "WATCHOO_DIAGNOSTIC_SPEED_SIGNAL",
 	}
 	if !slices.Equal(envs, wantEnvs) {
 		t.Errorf("variables = %v\nwant %v", envs, wantEnvs)
@@ -92,6 +102,13 @@ func TestValidateAcceptsBoundaries(t *testing.T) {
 		"french":                    func(c *Config) { c.Lang = "fr" },
 		"gh account":                func(c *Config) { c.GitHub.User = "prof-dupont" },
 		"gh path":                   func(c *Config) { c.GitHub.GHPath = "/opt/homebrew/bin/gh" },
+		"diagnostic enabled":        func(c *Config) { c.Diagnostic.Enabled = true },
+		"no diagnostic exclusion":   func(c *Config) { c.Diagnostic.Exclude = []string{} },
+		"diagnostic patterns": func(c *Config) {
+			c.Diagnostic.Exclude = []string{"vendor/", "*.pb.go", "web/static/*.js", "a/b/"}
+		},
+		"retention 1 day":    func(c *Config) { c.Diagnostic.RetentionDays = 1 },
+		"retention 10 years": func(c *Config) { c.Diagnostic.RetentionDays = 3650 },
 	}
 	for name, mutate := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -129,6 +146,14 @@ func TestValidateRejectsInvalidValues(t *testing.T) {
 			[]string{"branches.exclude", "#2", "empty"}},
 		{"invalid pattern", func(c *Config) { c.Branches.Exclude = []string{"release/[a"} },
 			[]string{"branches.exclude", `"release/[a"`, "invalid"}},
+		{"empty diagnostic pattern", func(c *Config) { c.Diagnostic.Exclude = []string{"vendor/", ""} },
+			[]string{"diagnostic.exclude", "#2", "empty"}},
+		{"invalid diagnostic pattern", func(c *Config) { c.Diagnostic.Exclude = []string{"gen/[a"} },
+			[]string{"diagnostic.exclude", `"gen/[a"`, "invalid"}},
+		{"zero retention", func(c *Config) { c.Diagnostic.RetentionDays = 0 },
+			[]string{"diagnostic.retention_days: 0", "1 to 3650"}},
+		{"retention too long", func(c *Config) { c.Diagnostic.RetentionDays = 3651 },
+			[]string{"diagnostic.retention_days: 3651"}},
 		{"public name with port", func(c *Config) { c.Web.AllowedHosts = []string{"watchoo.example.org:443"} },
 			[]string{"web.allowed_hosts", "#1", "invalid"}},
 		{"wildcard public name", func(c *Config) { c.Web.AllowedHosts = []string{"ok.example.org", "*"} },
@@ -392,6 +417,10 @@ func TestLoadEnvironmentVariables(t *testing.T) {
 		"WATCHOO_GITHUB_USER":                "prof",
 		"WATCHOO_GITHUB_GH_PATH":             "/usr/local/bin/gh",
 		"WATCHOO_GIT_PROTOCOL":               "https",
+		"WATCHOO_DIAGNOSTIC_ENABLED":         "true",
+		"WATCHOO_DIAGNOSTIC_EXCLUDE":         "vendor/, *.lock",
+		"WATCHOO_DIAGNOSTIC_RETENTION_DAYS":  "30",
+		"WATCHOO_DIAGNOSTIC_SPEED_SIGNAL":    "true",
 	}
 	for k, v := range env {
 		t.Setenv(k, v)
@@ -409,6 +438,8 @@ func TestLoadEnvironmentVariables(t *testing.T) {
 		Lang:     "fr",
 		GitHub:   GitHubConfig{User: "prof", GHPath: "/usr/local/bin/gh"},
 		Git:      GitConfig{Protocol: "https"},
+		Diagnostic: DiagnosticConfig{Enabled: true, Exclude: []string{"vendor/", "*.lock"},
+			RetentionDays: 30, SpeedSignal: true},
 	}
 	if !reflect.DeepEqual(ws.Config, want) {
 		t.Errorf("Config = %+v\nwant  %+v", ws.Config, want)

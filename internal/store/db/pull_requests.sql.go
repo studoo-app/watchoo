@@ -172,7 +172,7 @@ func (q *Queries) LatestReleaseByRepo(ctx context.Context, repoID interface{}) (
 
 const listPullRequests = `-- name: ListPullRequests :many
 SELECT p.repo_id, p.number, p.title, p.state, p.merged, p.draft, p.author_login, p.author_provider_id,
-       p.url, p.base_branch, p.head_branch, p.created_at, p.updated_at, p.closed_at, p.merged_at,
+       p.url, p.base_branch, p.head_branch, p.created_at, p.updated_at, p.closed_at, p.merged_at, p.tool_ids,
        r.owner AS repo_owner, r.name AS repo_name, r.label AS repo_label
 FROM pull_requests p
 JOIN repositories r ON r.id = p.repo_id
@@ -208,6 +208,7 @@ type ListPullRequestsRow struct {
 	UpdatedAt        string
 	ClosedAt         sql.NullString
 	MergedAt         sql.NullString
+	ToolIds          string
 	RepoOwner        string
 	RepoName         string
 	RepoLabel        string
@@ -246,6 +247,7 @@ func (q *Queries) ListPullRequests(ctx context.Context, arg ListPullRequestsPara
 			&i.UpdatedAt,
 			&i.ClosedAt,
 			&i.MergedAt,
+			&i.ToolIds,
 			&i.RepoOwner,
 			&i.RepoName,
 			&i.RepoLabel,
@@ -436,8 +438,8 @@ func (q *Queries) PullRequestCounts(ctx context.Context, repoID int64) (PullRequ
 
 const upsertPullRequest = `-- name: UpsertPullRequest :exec
 INSERT INTO pull_requests (repo_id, number, title, state, merged, draft, author_login, author_provider_id,
-                           url, base_branch, head_branch, created_at, updated_at, closed_at, merged_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                           url, base_branch, head_branch, created_at, updated_at, closed_at, merged_at, tool_ids)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT (repo_id, number) DO UPDATE SET
     title = excluded.title,
     state = excluded.state,
@@ -451,7 +453,8 @@ ON CONFLICT (repo_id, number) DO UPDATE SET
     created_at = excluded.created_at,
     updated_at = excluded.updated_at,
     closed_at = excluded.closed_at,
-    merged_at = excluded.merged_at
+    merged_at = excluded.merged_at,
+    tool_ids = excluded.tool_ids
 `
 
 type UpsertPullRequestParams struct {
@@ -470,6 +473,7 @@ type UpsertPullRequestParams struct {
 	UpdatedAt        string
 	ClosedAt         sql.NullString
 	MergedAt         sql.NullString
+	ToolIds          string
 }
 
 // Cree la pull request (repo_id, number) ou la met a jour en entier.
@@ -490,6 +494,7 @@ func (q *Queries) UpsertPullRequest(ctx context.Context, arg UpsertPullRequestPa
 		arg.UpdatedAt,
 		arg.ClosedAt,
 		arg.MergedAt,
+		arg.ToolIds,
 	)
 	return err
 }

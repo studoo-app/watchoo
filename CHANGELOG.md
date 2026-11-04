@@ -9,6 +9,63 @@ PATCH (see [Skills](documentation/en/11-skills.md#versions-and-changelogmd)).
 
 ## [Unreleased]
 
+### Changed
+
+- **Line statistics from local clones detect renames** (`git diff-tree -M`), like GitHub's: a moved file
+  counts only its changed lines, for the `+/-` lines as for the languages of a contributor. Statistics
+  already stored are not recomputed.
+
+### Fixed
+
+- **Web header**: on medium-width screens, a long workspace name no longer runs under the navigation menu;
+  it is cut with an ellipsis.
+
+### Added
+
+- **Diagnosis, phase 7.1 (foundations)**: with the new `diagnostic.enabled` setting (disabled by
+  default), each sync measures, for the new commits read from the local clones, the data of the
+  diagnosis signals: lines and files after exclusion (`diagnostic.exclude`, lock files, vendored and
+  generated files by default; binaries always left out), AI tools declared in the commit message
+  (`Co-authored-by:` trailers and signatures), bot author, agent configuration file. Merge commits
+  are left out. The values go into the new `commit_signals` table (migration `00011`), without message,
+  e-mail address or file path, and are purged after `diagnostic.retention_days` (365 by default). Nothing
+  is displayed yet: a signal is never a verdict, and the review comes in the next phases. Settings:
+  `WATCHOO_DIAGNOSTIC_ENABLED`, `WATCHOO_DIAGNOSTIC_EXCLUDE`, `WATCHOO_DIAGNOSTIC_RETENTION_DAYS`; never
+  shared by `watchoo config`. See
+  [Supervision and diagnosis](documentation/en/12-supervision-diagnostic.md).
+- **Diagnosis, phase 7.2 (declarative signals)**: new `watchoo diagnostic [--repo X] [--author Y]
+  [--since 30d]` command (text and `--json`), for the trainer who supervises the workspace: the reflection
+  leads of level "declared", commits and pull requests that declare the use of an AI tool, newest first,
+  with their signals and raw values (D1 co-author trailer, D2 signature in the commit message or the PR
+  description, D3 bot author, D5 PR branch named by an agent), and the date an agent configuration file was
+  first added to each repository (D4, context only). A lead is never a verdict. Each declared tool is kept
+  with the signal that found it (`D1:claude`); for pull requests, only the tools found in the description
+  are kept, never the description (`pull_requests.tool_ids`, new `repository_signals` table, migration
+  `00012`). With the diagnosis disabled, the command says so.
+- **Diagnosis, phase 7.3 (rhythm signals)**: `watchoo diagnostic` also shows leads of level "to review":
+  commits or days whose rhythm is unusual for the learner, compared with their own history in the
+  repository over 90 days (modified z-score above 3.5): net lines of a day (R1), commit size (R2),
+  addition ratio (R3), files per commit (R5), regime break (R6), and apparent speed (R4) with the new
+  `diagnostic.speed_signal` setting (off by default). Each signal shows its raw value, the personal median
+  and the z-score (`raw`, `median`, `z` in `--json`); authors with fewer than 20 measured commits in 90
+  days are reported as "not enough history". New `watchoo diagnostic backfill [--repo X]` command: measures
+  on the local clones the commits synced before the diagnosis was enabled, within the retention period.
+- **Diagnosis, phase 7.4 (human review on the web)**: a "Diagnosis" page in `watchoo serve` (navigation
+  entry only with the diagnosis enabled), for the trainer: the reflection leads with their review status,
+  a filter by repository and a "Measure the history" button (backfill in the background). Each lead has a
+  review sheet: signals with raw value, personal median and z-score, the author's throughput over 90 days
+  with the flagged day, neighbouring commits and the diff read from the local clone (never stored), and a
+  review form (decision, cause, confidence, note). Reviews go into the new `diagnostic_reviews` table
+  (migration `00013`) and follow `diagnostic.retention_days`. New routes: `GET /diagnostic`,
+  `GET /diagnostic/lead`, `POST /diagnostic/review`, `POST /diagnostic/backfill`.
+- **Diagnosis, phase 7.5 (form signals)**: the added lines of each measured commit are read from the local
+  clone and analysed in memory; only numbers are kept (11 new columns of `commit_signals`, migration
+  `00014`), never code, identifiers, paths or messages. Five form signals, each learner being compared with
+  their own history: comment density (F1), systematically documented functions (F2), lexical diversity of
+  the identifiers, MATTR (F3), message style break (F4), tests delivered with the code when unusual (F5). New
+  level `probable` (at least two rhythm signals and one form signal); two form signals give `to review`,
+  one alone raises nothing. `watchoo diagnostic backfill` also completes the form of the commits measured
+  before. The content classifier (F6) is postponed.
 ## [1.3.1] - 2026-11-03
 
 Dedicated message for an unknown SSH host key with local Git clones. No incompatible change.

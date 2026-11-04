@@ -63,6 +63,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"log/slog"
 	"os"
@@ -329,6 +330,16 @@ func (p *Provider) run(ctx context.Context, timeout time.Duration, gitDir, name 
 // « --stdin » (rev-list, diff-tree).
 func (p *Provider) runInput(ctx context.Context, timeout time.Duration, gitDir, name string, stdin []byte,
 	args ...string) (result, error) {
+	var stdout bytes.Buffer
+	res, err := p.runTo(ctx, timeout, gitDir, name, stdin, &stdout, args...)
+	res.stdout = stdout.Bytes()
+	return res, err
+}
+
+// runTo est runInput avec la sortie standard écrite dans stdout au fil de l'eau (result.stdout reste
+// vide) : sorties volumineuses lues sans les garder (lignes ajoutées du diagnostic).
+func (p *Provider) runTo(ctx context.Context, timeout time.Duration, gitDir, name string, stdin []byte,
+	stdout io.Writer, args ...string) (result, error) {
 	full := make([]string, 0, len(args)+8)
 	// Lecture seule et sortie stable, quelle que soit la configuration de l'utilisateur.
 	full = append(full, "-c", "log.showSignature=false", "-c", "color.ui=false", "-c", "core.quotePath=false",
@@ -346,7 +357,6 @@ func (p *Provider) runInput(ctx context.Context, timeout time.Duration, gitDir, 
 
 	runCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	var stdout bytes.Buffer
 	stderr := &cappedBuffer{max: maxStderr}
 	cmd := exec.CommandContext(runCtx, p.gitPath, full...)
 	cmd.Env = p.gitEnv(ctx)
@@ -357,13 +367,13 @@ func (p *Provider) runInput(ctx context.Context, timeout time.Duration, gitDir, 
 	if stdin != nil {
 		cmd.Stdin = bytes.NewReader(stdin)
 	}
-	cmd.Stdout = &stdout
+	cmd.Stdout = stdout
 	cmd.Stderr = stderr
 	cmd.WaitDelay = waitDelay
 
 	start := time.Now()
 	err := cmd.Run()
-	res := result{stdout: stdout.Bytes(), stderr: stderr.String()}
+	res := result{stderr: stderr.String()}
 	if err != nil {
 		var exitErr *exec.ExitError
 		switch {

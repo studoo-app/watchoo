@@ -32,6 +32,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/studoo-app/watchoo/internal/auth"
+	"github.com/studoo-app/watchoo/internal/diagnostic"
 	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/provider"
@@ -125,9 +126,12 @@ type Options struct {
 // le TUI peut lancer une synchro manuelle pendant une synchro automatique (le verrou en base évite de
 // synchroniser deux fois le même dépôt en même temps).
 type Engine struct {
-	store       *store.Store
-	auth        auth.Client
-	cfg         workspace.Config
+	store *store.Store
+	auth  auth.Client
+	cfg   workspace.Config
+	// diag applique diagnostic.exclude quand le diagnostic est activé (diagnostic.enabled) ; nil sinon :
+	// aucun signal n'est alors calculé ni purgé.
+	diag        *diagnostic.Excluder
 	newProvider ProviderFactory
 	newGit      GitProviderFactory
 	now         func() time.Time
@@ -168,10 +172,19 @@ func New(opts Options) (*Engine, error) {
 			return gitprov.New(gitprov.Options{Dir: dir, Repos: repos, Protocol: protocol, Logger: logger})
 		}
 	}
+	var diag *diagnostic.Excluder
+	if opts.Config.Diagnostic.Enabled {
+		ex, err := diagnostic.NewExcluder(opts.Config.Diagnostic.Exclude)
+		if err != nil {
+			return nil, errWrapped(i18n.T("sync.engine.diagnostic_exclude"), err)
+		}
+		diag = ex
+	}
 	return &Engine{
 		store:       opts.Store,
 		auth:        opts.Auth,
 		cfg:         opts.Config,
+		diag:        diag,
 		newProvider: newProvider,
 		newGit:      newGit,
 		now:         now,

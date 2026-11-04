@@ -39,15 +39,20 @@ const (
 	pageContributor  = "contributor"
 	pageSettings     = "settings"
 	pageErrors       = "errors"
+	// Diagnostic (phase 7.4).
+	pageDiagnostic     = "diagnostic"
+	pageDiagnosticLead = "diagnostic_lead"
 )
 
-var pageNames = []string{pageDashboard, pageRepo, pageContributors, pageContributor, pageSettings, pageSettingsImport, pageErrors}
+var pageNames = []string{pageDashboard, pageRepo, pageContributors, pageContributor, pageSettings, pageSettingsImport,
+	pageDiagnostic, pageDiagnosticLead, pageErrors}
 
 // Entrées de la barre de navigation (PageData.Nav).
 const (
 	navDashboard    = "dashboard"
 	navContributors = "contributors"
 	navSettings     = "settings"
+	navDiagnostic   = "diagnostic"
 )
 
 // PageData est la donnée de TOUS les templates (pages complètes et fragments). Construire avec s.page.
@@ -65,6 +70,8 @@ type PageData struct {
 	// Public : page d'erreur montrée avant authentification ou sur un Host refusé : ni navigation, ni
 	// nom d'espace, ni état de synchro.
 	Public bool
+	// Diagnostic : le diagnostic est activé (diagnostic.enabled) ; entrée « Diagnostic » de la navigation.
+	Diagnostic bool
 }
 
 // UpdateView est le bandeau de nouvelle version du layout (0.6.0).
@@ -106,6 +113,8 @@ func (s *server) page(r *http.Request, title, nav string, content any) PageData 
 		CSRFToken: csrfToken(r),
 		Sync:      s.syncView(s.tr(r), ""),
 		Update:    s.updateView(),
+		// Diagnostic : entrée de navigation réservée au formateur, seulement si le diagnostic est activé.
+		Diagnostic: s.cfg.Diagnostic.Enabled,
 	}
 }
 

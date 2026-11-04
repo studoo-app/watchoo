@@ -122,6 +122,7 @@ func toPullRequest(pr *gogithub.PullRequest) (provider.PullRequest, bool) {
 		URL:        pr.GetHTMLURL(),
 		BaseBranch: pr.GetBase().GetRef(),
 		HeadBranch: pr.GetHead().GetRef(),
+		Body:       pr.GetBody(),
 		CreatedAt:  utc(pr.GetCreatedAt()),
 		UpdatedAt:  utc(pr.GetUpdatedAt()),
 		ClosedAt:   utc(pr.GetClosedAt()),

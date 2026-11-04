@@ -23,7 +23,7 @@ import (
 var expectedTables = []string{
 	"repositories", "branches", "contributors", "contributor_emails", "commits", "commit_branches",
 	"sync_runs", "pull_requests", "releases", "tags", "repository_languages", "commit_ai_signatures",
-	"commit_languages",
+	"commit_languages", "commit_signals", "repository_signals", "diagnostic_reviews",
 }
 
 // expectedIndexes are the indexes created explicitly by the migrations.
@@ -34,6 +34,9 @@ var expectedIndexes = []string{
 	"commit_branches_branch_id",
 	"contributor_emails_contributor_id",
 	"sync_runs_repo_id_started_at",
+	"commit_signals_author_date",
+	"commit_signals_date",
+	"diagnostic_reviews_lead_date",
 }
 
 func TestDSN(t *testing.T) {

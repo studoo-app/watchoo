@@ -234,7 +234,7 @@ func (p *Provider) CommitStats(ctx context.Context, owner, name, sha string) (pr
 	}
 	// Comparaison au premier parent (un merge compte ce qu'il apporte à sa branche) ; un commit
 	// racine est comparé à l'arbre vide (--root).
-	args := []string{"diff-tree", "-r", "-z", "--numstat", "--no-renames", "--no-ext-diff", "--no-commit-id"}
+	args := []string{"diff-tree", "-r", "-z", "--numstat", "-M", "--no-ext-diff", "--no-commit-id"}
 	if parent, ok, err := p.resolve(ctx, op, path, sha+"^1"); err != nil {
 		return provider.CommitStats{}, err
 	} else if ok {
@@ -252,24 +252,64 @@ func (p *Provider) CommitStats(ctx context.Context, owner, name, sha string) (pr
 	return parseNumstat(res.stdout), nil
 }
 
-// parseNumstat additionne la sortie de « diff-tree -z --numstat » : « ajoutées<TAB>supprimées<TAB>
-// chemin<NUL> » par fichier (« - » pour un fichier binaire, ignoré).
+// parseNumstat additionne la sortie de « diff-tree -z --numstat -M » d'un commit : « ajoutées<TAB>
+// supprimées<TAB>chemin<NUL> » par fichier, ou, pour un fichier renommé, « ajoutées<TAB>supprimées<TAB>
+// <NUL>ancien<NUL>nouveau<NUL> » (le nouveau chemin est gardé) ; « -<TAB>- » pour un fichier binaire
+// (listé dans Files, lignes non comptées). Files est toujours non nil.
 func parseNumstat(out []byte) provider.CommitStats {
-	var st provider.CommitStats
+	st := provider.CommitStats{Files: []provider.CommitFile{}}
+	var p numstatParser
 	for rec := range bytes.SplitSeq(out, []byte{0}) {
-		fields := strings.SplitN(string(rec), "\t", 3)
-		if len(fields) < 3 {
-			continue
+		if f, ok := p.feed(string(rec)); ok {
+			st.Add(f)
 		}
-		add, err1 := strconv.Atoi(strings.TrimSpace(fields[0]))
-		del, err2 := strconv.Atoi(strings.TrimSpace(fields[1]))
-		if err1 != nil || err2 != nil {
-			continue
-		}
-		st.Additions += add
-		st.Deletions += del
 	}
 	return st
+}
+
+// numstatParser lit les enregistrements de « --numstat -z -M », un à un : il suit les deux chemins
+// qui suivent l'enregistrement d'un fichier renommé.
+type numstatParser struct {
+	pending provider.CommitFile // lignes d'un fichier renommé, en attente de ses chemins
+	paths   int                 // chemins encore attendus (2 après un renommage : ancien, nouveau)
+}
+
+// expectingPath indique que l'enregistrement suivant est un chemin de fichier renommé.
+func (p *numstatParser) expectingPath() bool { return p.paths > 0 }
+
+// feed lit un enregistrement ; ok vrai quand un fichier est complet.
+func (p *numstatParser) feed(rec string) (provider.CommitFile, bool) {
+	if p.paths > 0 {
+		p.paths--
+		if p.paths > 0 {
+			return provider.CommitFile{}, false // ancien chemin
+		}
+		f := p.pending
+		f.Path = rec
+		return f, rec != ""
+	}
+	fields := strings.SplitN(strings.TrimLeft(rec, "\n"), "\t", 3)
+	if len(fields) < 3 {
+		return provider.CommitFile{}, false
+	}
+	var f provider.CommitFile
+	a, d := strings.TrimSpace(fields[0]), strings.TrimSpace(fields[1])
+	if a == "-" && d == "-" {
+		f.Binary = true
+	} else {
+		add, err1 := strconv.Atoi(a)
+		del, err2 := strconv.Atoi(d)
+		if err1 != nil || err2 != nil {
+			return provider.CommitFile{}, false
+		}
+		f.Additions, f.Deletions = add, del
+	}
+	if fields[2] == "" { // renommage : les deux chemins suivent
+		p.pending, p.paths = f, 2
+		return provider.CommitFile{}, false
+	}
+	f.Path = fields[2]
+	return f, true
 }
 
 // resolve renvoie le SHA du commit désigné par rev dans le clone path ; found faux s'il n'existe pas.

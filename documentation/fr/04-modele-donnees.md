@@ -9,7 +9,7 @@ facultatif (dépôts suivis par clones Git locaux) ; la migration `00005` (0.5.0
 `contributors.profile_url` et la migration `00006` (0.5.0) `commits.stats_known` ; la migration `00007` (1.1.0) ajoute `repository_languages` ; la migration `00008` (1.2.0)
 ajoute `commits.ai_rules_version` et la table `commit_ai_signatures` ; la migration `00009` (1.2.0) ajoute
 `commits.languages_version` et la table `commit_languages`, soit **treize tables** ; la migration `00010` (1.3.0)
-ajoute `sync_runs.warnings`. Le stockage est un fichier SQLite versionné par des migrations
+ajoute `sync_runs.warnings`. La migration `00011` (phase 7.1) ajoute `commit_signals`, la migration `00012` (phase 7.2) `pull_requests.tool_ids` et `repository_signals`, la migration `00013` (phase 7.4) `diagnostic_reviews`, soit **seize tables**, et la migration `00014` (phase 7.5) les colonnes de forme de `commit_signals` (voir [Supervision et diagnostic](12-supervision-diagnostic.md)). Le stockage est un fichier SQLite versionné par des migrations
 `goose`, avec **une base par espace de supervision** (`.watchoo/watchoo.db`, voir
 [Espaces de supervision](10-espaces-de-supervision.md)). Les tables ne connaissent donc pas la notion
 d'espace : deux espaces ne partagent jamais de données.
@@ -28,6 +28,9 @@ erDiagram
     commits ||--o{ commit_branches : "vu sur"
     commits ||--o{ commit_ai_signatures : "déclare"
     commits ||--o{ commit_languages : "modifie"
+    commits ||--o| commit_signals : "mesuré par"
+    repositories ||--o| repository_signals : "contexte"
+    repositories ||--o{ diagnostic_reviews : "revues"
     branches ||--o{ commit_branches : "contient"
     contributors ||--o{ contributor_emails : "utilise"
     contributors ||--o{ commits : "auteur"
@@ -198,7 +201,7 @@ message et de l'auteur déjà en base. Ni la ligne du message ni une adresse n'y
 | new_commits | Nombre de nouveaux commits récupérés |
 | status | `running`, `success` ou `error` |
 | error | Message d'erreur éventuel, dans la langue active lors de la synchro (anglais ou français), sans donnée personnelle |
-| warnings | Avertissements d'une synchro réussie (1.3.0, migration `00010`) : tableau JSON de `{"kind": …, "message": …}`, `[]` si aucun. `kind` est un code stable (`stats_not_computed`, `clone_unavailable`, `languages_not_computed`, `lists_not_synced`, `ai_not_scanned`), traduit à l'affichage ; `message` est le texte complet, dans la langue active lors de la synchro, sans donnée personnelle |
+| warnings | Avertissements d'une synchro réussie (1.3.0, migration `00010`) : tableau JSON de `{"kind": …, "message": …}`, `[]` si aucun. `kind` est un code stable (`stats_not_computed`, `clone_unavailable`, `languages_not_computed`, `lists_not_synced`, `ai_not_scanned`, `diagnostic_not_recorded` depuis la phase 7.1), traduit à l'affichage ; `message` est le texte complet, dans la langue active lors de la synchro, sans donnée personnelle |
 
 Le dernier `sync_run` d'un dépôt donne l'état « en erreur », et ses avertissements sont ceux affichés
 sur la carte et la page du dépôt (voir [Interface web](06-interface-web.md#1-tableau-de-bord)) : ils
@@ -229,6 +232,7 @@ supprimée, sauf avec son dépôt.
 | updated_at | Dernière modification (sert de point de reprise de la synchro suivante) |
 | closed_at | Date de fermeture ; vide si ouverte |
 | merged_at | Date de merge ; vide si non mergée. Une PR mergée a `state = closed` et `merged_at` renseigné |
+| tool_ids | Diagnostic (phase 7.2, migration `00012`) : outils déclarés dans la description, encodés `D2:claude`, triés, séparés par des virgules ; vide si aucun ou non mesuré. La description n'est jamais gardée ; valeur effacée par la purge (`diagnostic.retention_days`, date d'ouverture) |
 
 - **Auteur** : gardé tel quel (login et identifiant de compte), **sans lien** vers `contributors` : un
   contributeur est l'auteur d'au moins un commit, et un auteur de PR sans commit ne doit pas apparaître
@@ -304,6 +308,68 @@ Donnée dérivée : réécrite à chaque analyse du commit. Les totaux d'un cont
 `commits.author_id` : une fusion de contributeurs les suit sans rien réécrire. Retour arrière (`Down`) :
 table, index et colonne supprimés ; les commits restent.
 
+### `commit_signals` — signaux de diagnostic (phase 7.1)
+
+Clé primaire : **`(repo_id, sha)`**, clé étrangère vers `commits (repo_id, sha)` avec `ON DELETE CASCADE`
+(supprimer un commit ou un dépôt supprime ses signaux). Une ligne par commit mesuré quand le réglage
+`diagnostic.enabled` est actif : nouveaux commits synchronisés après l'activation, hors commits de
+fusion, dont le clone Git local donne le détail des fichiers. Une ligne n'est jamais réécrite, sauf pour
+compléter une forme non mesurée (`form_known = 0`) par une forme mesurée (phase 7.5).
+**Minimisation** : ni message, ni e-mail, ni chemin de fichier, ni ligne de code.
+
+| Colonne | Description |
+| --- | --- |
+| repo_id, sha | Commit mesuré |
+| author_id | Auteur, recopié de `commits` (`NULL` si le contributeur est supprimé) |
+| authored_at | Date d'écriture, recopiée de `commits` : fenêtres par auteur (phase 7.3) et purge |
+| files_kept | Fichiers retenus (ni binaires ni exclus par `diagnostic.exclude`) |
+| files_excluded | Fichiers binaires ou exclus par un motif |
+| additions_kept, deletions_kept | Lignes ajoutées et supprimées dans les fichiers retenus |
+| tool_ids | Outils déclarés, chacun avec son signal (phase 7.2) : `D1:<outil>` pour un trailer, `D2:<outil>` pour une signature ; outils : `claude`, `copilot`, `codex`, `cursor`, `unnamed`. Triés, séparés par des virgules ; vide si aucun |
+| agent_config | Signal D4 : le commit modifie un fichier de configuration d'agent (`AGENTS.md`, `CLAUDE.md`…) |
+| bot_author | Signal D3 : l'auteur est un compte bot connu (`*[bot]`, `copilot-swe-agent`) |
+| computed_at | Date du calcul |
+| form_known | Forme mesurée (phase 7.5) ; 0 pour une ligne d'avant la phase 7.5 ou une lecture en échec (toutes les colonnes suivantes valent alors 0) |
+| source_lines, comment_lines | Lignes ajoutées non vides des fichiers source reconnus (tests compris), et parmi elles les lignes de commentaire ou de docstring (F1) |
+| functions, documented_functions | Définitions de fonctions ajoutées, et parmi elles les documentées (F2) |
+| identifiers, lexical_diversity | Identifiants du code ajouté (hors mots-clés et chaînes) et leur diversité lexicale MATTR, fenêtre de 50 ; `NULL` avec moins de 50 identifiants (F3) |
+| test_lines | Lignes ajoutées non vides des fichiers de test (F5) |
+| message_length, message_bullets, message_conventional | Longueur du message hors trailers et signatures, lignes en liste, sujet Conventional Commits (F4) ; le message n'est pas recopié |
+
+Purge : en fin de chaque synchro, les lignes dont `authored_at` dépasse `diagnostic.retention_days`
+(365 jours par défaut) sont supprimées.
+
+### `repository_signals` — contexte de diagnostic d'un dépôt (phase 7.2)
+
+Clé primaire : **`repo_id`**, supprimée avec le dépôt. Mise à jour à chaque synchro par le clone Git local,
+diagnostic activé.
+
+| Colonne | Description |
+| --- | --- |
+| repo_id | Dépôt |
+| agent_config_since | Signal D4 (contexte) : date d'écriture du premier commit qui ajoute un fichier de configuration d'agent sur la branche par défaut ; `NULL` si aucun |
+| computed_at | Date du calcul |
+
+### `diagnostic_reviews` — revues humaines des pistes (phase 7.4)
+
+Clé primaire : **`(repo_id, lead_key)`** ; une revue par piste, remplacée si elle est refaite ; supprimée
+avec le dépôt. La note est une donnée personnelle : la revue suit `diagnostic.retention_days` à partir de
+`lead_date`.
+
+| Colonne | Description |
+| --- | --- |
+| repo_id | Dépôt |
+| lead_key | Clé stable de la piste : `commit/<sha>`, `pull_request/<numéro>` ou `day/<auteur>/<début du jour UTC>` |
+| kind | `commit`, `pull_request` ou `day` |
+| lead_date | Date de la piste (conservation) |
+| signals | Identifiants des signaux présents lors de la revue (`D1,R2`…), pour la calibration (phase 7.6) |
+| decision | `assisted`, `not_assisted` ou `undetermined` |
+| cause | Si non assisté : `internal_copy`, `tool_generated`, `existing_import`, `refactoring` ou `other` ; vide sinon |
+| confidence | `low`, `medium` ou `high` |
+| note | Note libre du relecteur (2 000 caractères au plus) |
+| reviewer | Relecteur : compte de l'interface web, sinon nom de l'espace |
+| reviewed_at | Date de la revue |
+
 ## Index
 
 | Index | Usage |
@@ -317,6 +383,9 @@ table, index et colonne supprimés ; les commits restent.
 | `commits(repo_id, sha) WHERE stats_known = 0` | Index partiel : commits dont les lignes `+/-` restent à lire (migration `00006`) |
 | `commits(repo_id, ai_rules_version)` | Commits restant à analyser pour les signatures d'IA (migration `00008`) |
 | `commits(repo_id, languages_version)` | Commits dont les langages restent à lire dans le clone (migration `00009`) |
+| `commit_signals(repo_id, author_id, authored_at)` | Fenêtres glissantes par auteur des signaux de rythme (phase 7.3) |
+| `commit_signals(authored_at)` | Purge par durée de conservation |
+| `diagnostic_reviews(lead_date)` | Purge des revues par durée de conservation |
 
 ## Fusion des identités
 

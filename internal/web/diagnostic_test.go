@@ -1,0 +1,149 @@
+package web
+
+// Diagnostic pages (phase 7.4): list, review sheet, review form, history backfill button, disabled
+// diagnosis, privacy of the note and of the diff.
+
+import (
+	"net/http"
+	"net/url"
+	"strconv"
+	"strings"
+	"testing"
+
+	"github.com/studoo-app/watchoo/internal/diagnostic"
+	"github.com/studoo-app/watchoo/internal/i18n"
+	"github.com/studoo-app/watchoo/internal/provider/providertest"
+	"github.com/studoo-app/watchoo/internal/store"
+)
+
+// withDiagnostic enables diagnostic.enabled.
+func withDiagnostic() envOption { return func(e *testEnv) { e.cfg.Diagnostic.Enabled = true } }
+
+// diagnosticEnv returns an environment with the diagnosis enabled, the seeded repositories and a
+// measured commit of Alice that declares an AI co-author.
+func diagnosticEnv(t *testing.T, opts ...envOption) (*testEnv, seededRepos, string) {
+	t.Helper()
+	e := newTestEnv(t, append([]envOption{withDiagnostic()}, opts...)...)
+	ids := e.seed()
+	sha := providertest.SHA("commit-" + string(rune('a'+3)))
+	if _, err := e.store.WriteCommitSignals(t.Context(), ids.Alice, []store.CommitSignalWrite{
+		{SHA: sha, FilesKept: 2, AdditionsKept: 40, Tools: []string{"D1:claude"}},
+		{SHA: providertest.SHA("commit-" + string(rune('a'+1))), FilesKept: 1, AdditionsKept: 3},
+	}, e.now); err != nil {
+		t.Fatal(err)
+	}
+	return e, ids, sha
+}
+
+func leadURL(repoID int64, sha string) string {
+	return "/diagnostic/lead?" + url.Values{"repo": {strconv.FormatInt(repoID, 10)}, "key": {"commit/" + sha}}.Encode()
+}
+
+func TestDiagnosticDisabled(t *testing.T) {
+	e := newTestEnv(t)
+	ids := e.seed()
+	w := e.get("/diagnostic")
+	assertStatus(t, w, http.StatusOK)
+	assertContains(t, w, "The diagnosis is disabled in this workspace")
+	assertNotContains(t, w, `href="/diagnostic"`, "Measure the history")
+	if w := e.get("/"); strings.Contains(w.Body.String(), `href="/diagnostic"`) {
+		t.Error("navigation shows the diagnosis while it is disabled")
+	}
+	assertStatus(t, e.get(leadURL(ids.Alice, providertest.SHA("x"))), http.StatusNotFound)
+	assertStatus(t, e.post("/diagnostic/review", url.Values{"repo": {"1"}, "key": {"commit/x"}}, false), http.StatusNotFound)
+	assertStatus(t, e.post("/diagnostic/backfill", nil, false), http.StatusNotFound)
+}
+
+func TestDiagnosticList(t *testing.T) {
+	e, ids, sha := diagnosticEnv(t)
+	w := e.get("/diagnostic")
+	assertStatus(t, w, http.StatusOK)
+	assertContains(t, w, `href="/diagnostic"`, "A lead is never a verdict", "Measure the history",
+		shortSHA(sha), "declared", "D1 claude", "not reviewed", "Reviewed leads: 0 of 1",
+		"do not have enough history yet")
+	assertNotContains(t, w, xssMessage, "corrige le bug")
+
+	// Filter by repository: Bob has no lead.
+	w = e.get("/diagnostic?repo=" + strconv.FormatInt(ids.Bob, 10))
+	assertContains(t, w, "No reflection lead.")
+
+	// French.
+	f, _, _ := diagnosticEnv(t, withLang("fr"))
+	assertContains(t, f.get("/diagnostic"), "Diagnostic", "Une piste n&#39;est jamais un verdict", "déclaré", "non revue")
+}
+
+func TestDiagnosticLeadAndReview(t *testing.T) {
+	e, ids, sha := diagnosticEnv(t)
+	w := e.get(leadURL(ids.Alice, sha))
+	assertStatus(t, w, http.StatusOK)
+	assertContains(t, w, "AI co-author trailer", "claude", `id="diag-throughput-data"`, `data-chart="daily-lines"`,
+		"Neighbouring commits of the author", "Diff unavailable", `name="key" value="commit/`+sha+`"`)
+	assertNotContains(t, w, "Reviewed by")
+	assertStatus(t, e.get("/diagnostic/lead?repo=1&key=commit/absent"), http.StatusNotFound)
+	assertStatus(t, e.get("/diagnostic/lead?repo=abc&key=x"), http.StatusNotFound)
+
+	// Refused: no cause for "not assisted"; the input is kept.
+	note := "<b>a vu</b> le commit en séance"
+	form := url.Values{"repo": {strconv.FormatInt(ids.Alice, 10)}, "key": {"commit/" + sha},
+		"decision": {"not_assisted"}, "confidence": {"high"}, "note": {note}}
+	w = e.post("/diagnostic/review", form, false)
+	assertStatus(t, w, http.StatusBadRequest)
+	assertContains(t, w, "Review not saved", "choose the cause", "&lt;b&gt;a vu&lt;/b&gt;")
+
+	form.Set("cause", "refactoring")
+	w = e.post("/diagnostic/review", form, false)
+	assertStatus(t, w, http.StatusSeeOther)
+	loc := w.Header().Get("Location")
+	if !strings.HasPrefix(loc, "/diagnostic/lead?") || !strings.Contains(loc, "msg=saved") {
+		t.Fatalf("redirect to %q", loc)
+	}
+	page, _, _ := strings.Cut(loc, "#") // a browser never sends the fragment
+	w = e.get(page)
+	assertContains(t, w, "Review saved.", "Reviewed by "+testWorkspace, "&lt;b&gt;a vu&lt;/b&gt;")
+	assertContains(t, e.get("/diagnostic"), "not assisted", "Reviewed leads: 1 of 1")
+	reviews, err := e.store.DiagnosticReviews(t.Context(), ids.Alice)
+	if r := reviews[store.ReviewKey(ids.Alice, "commit/"+sha)]; err != nil || r.Cause != "refactoring" ||
+		r.Confidence != "high" || r.Reviewer != testWorkspace || r.Signals[0] != "D1" {
+		t.Errorf("stored review: %+v, %v", r, err)
+	}
+	if strings.Contains(e.logs.String(), "a vu") {
+		t.Error("the note is in the logs")
+	}
+	// Unknown lead.
+	form.Set("key", "commit/absent")
+	assertStatus(t, e.post("/diagnostic/review", form, false), http.StatusNotFound)
+	form.Del("repo")
+	assertStatus(t, e.post("/diagnostic/review", form, false), http.StatusBadRequest)
+}
+
+func TestDiagnosticBackfillButton(t *testing.T) {
+	e, _, _ := diagnosticEnv(t)
+	w := e.post("/diagnostic/backfill", nil, false)
+	assertStatus(t, w, http.StatusSeeOther)
+	if loc := w.Header().Get("Location"); loc != "/diagnostic?msg=backfill_started" {
+		t.Fatalf("redirect to %q", loc)
+	}
+	e.server.backfill.wg.Wait()
+	// The clones of the test environment are unreachable: every repository fails, the page says so.
+	w = e.get("/diagnostic")
+	assertContains(t, w, "Last history measurement", "Repositories not measured")
+}
+
+// Every signal and every level has its label, in both languages.
+func TestDiagnosticLabels(t *testing.T) {
+	for _, lang := range []i18n.Lang{i18n.English, i18n.French} {
+		tr := i18n.For(lang)
+		for _, id := range []string{"D1", "D2", "D3", "D5", "R1", "R2", "R3", "R4", "R5", "R6", "F1", "F2", "F3", "F4", "F5"} {
+			if key := "web.diag.signal." + id; tr.T(key) == key {
+				t.Errorf("%s: no label for %s", lang, key)
+			}
+		}
+		for _, l := range []string{diagnostic.LevelDeclared, diagnostic.LevelProbable, diagnostic.LevelToReview} {
+			for _, key := range []string{"web.diag.level." + l, "cli.diag.level." + l} {
+				if tr.T(key) == key {
+					t.Errorf("%s: no label for %s", lang, key)
+				}
+			}
+		}
+	}
+}

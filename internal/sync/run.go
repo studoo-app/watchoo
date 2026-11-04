@@ -176,6 +176,7 @@ func (e *Engine) run(ctx context.Context, repos []model.Repository, opts SyncOpt
 		prog.send(EventRepoFinished, rep, true)
 	})
 	e.backfillProfiles(ctx, prov)
+	e.purgeSignals(ctx)
 	report.RateLimit, report.RateLimitKnown = prov.LastRateLimit()
 	finish()
 	e.logger.Info("synchro terminée",

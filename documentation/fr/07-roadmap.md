@@ -148,7 +148,7 @@ L'import d'une organisation entière et les alertes passent en V3 (voir
 - Signatures d'outils d'IA déclarées dans les commits, par commit et par contributeur (CLI, TUI, web,
   `--json`), analysées sans aucune requête à la forge : **publié en v1.2.0**. Voir
   [Signatures d'IA](02-fonctionnalites.md#signatures-dia). Les indices de style ou de rythme sont
-  volontairement écartés.
+  volontairement écartés de cette fonction ; ils relèvent du diagnostic (phase 7, désactivé par défaut).
 - Langages d'un contributeur : lignes ajoutées par langage dans ses commits, lues dans le clone (page d'un
   contributeur, `watchoo contributors`, TUI, migration `00009`) : **publié en v1.2.0**. Voir
   [Langages d'un contributeur](03-architecture.md#langages-dun-contributeur-120).
@@ -158,6 +158,22 @@ L'import d'une organisation entière et les alertes passent en V3 (voir
   pastille sur la carte du tableau de bord, alerte avec le message complet sur la page du dépôt, menu des
   dépôts concernés dans l'indicateur de synchro : **publié en v1.3.0**. Voir
   [Interface web](06-interface-web.md#1-tableau-de-bord).
+### Après 1.0.0 — 7 : supervision et diagnostic (proposition)
+- Watchoo devient un outil de **supervision et de diagnostic** (décision du mainteneur). Première brique : la
+  détection de signaux suggérant une production assistée par IA, avec ses garde-fous (flag jamais verdict,
+  explicabilité, revue humaine, transparence, minimisation des données).
+- Sous-phases 7.1 à 7.6 (fondations, déclaratif, rythme, revue, forme, calibration) : voir
+  [Supervision et diagnostic](12-supervision-diagnostic.md#9-plan-par-phases-proposition).
+- **Statut** : **7.1 réalisée** (fondations : table `commit_signals`, réglages `diagnostic.*`, désactivé par
+  défaut) et **7.2 réalisée** (signaux déclaratifs D1, D2, D3, D5, contexte D4, commande
+  `watchoo diagnostic` réservée au formateur) et **7.3 réalisée** (signaux de rythme R1 à R6, niveau
+  « à regarder », `watchoo diagnostic backfill`) et **7.4 réalisée** (revue humaine sur le web : page
+  « Diagnostic », fiche de revue, décisions enregistrées, bouton de reprise de l'historique) et **7.5
+  réalisée** (signaux de forme F1 à F5 mesurés en mémoire, seuls des nombres gardés, niveau « probable ») ;
+  non publiées ; les phases 7.1 à 7.5 forment une même version. La phase 7.6 (calibration) viendra dans une
+  **version ultérieure** (décision du mainteneur, 4 novembre 2026), quand des revues réelles existeront,
+  puis F6 (classifieur de contenu, reporté), chacune après validation de son plan. Contexte pédagogique tranché (apprenants, résultats réservés au formateur) ;
+  l'information des apprenants (existence du diagnostic, finalité, critères) se fait avant de l'activer.
 
 ## Définition de « terminé » pour chaque phase
 

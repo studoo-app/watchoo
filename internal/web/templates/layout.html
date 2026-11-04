@@ -33,7 +33,7 @@
         <img src="/static/watchoo-logo-final-nom.svg" alt="" width="177" height="36" class="h-9 w-auto dark:hidden">
         <img src="/static/watchoo-logo-final-nom-dark.svg" alt="" width="177" height="36" class="h-9 w-auto hidden dark:block">
       </a>
-      {{if not .Public}}<span class="badge badge-ghost truncate max-w-48 sm:max-w-xs" title="{{t "web.layout.workspace_title"}}">{{.Workspace}}</span>{{end}}
+      {{if not .Public}}<span class="badge badge-ghost shrink min-w-0 max-w-48 sm:max-w-xs" title="{{t "web.layout.workspace_title"}}"><span class="truncate">{{.Workspace}}</span></span>{{end}}
     </div>
     <button id="theme-toggle" type="button" class="btn btn-ghost btn-sm btn-square order-2 lg:order-5" aria-label="{{t "web.layout.theme_aria"}}" title="{{t "web.layout.theme_title"}}">
       <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor"/></svg>
@@ -43,6 +43,7 @@
       <ul class="menu menu-horizontal menu-sm sm:menu-md flex-nowrap px-0 lg:px-1 gap-1">
         <li><a href="/" class="whitespace-nowrap {{if eq .Nav "dashboard"}}menu-active{{end}}"{{if eq .Nav "dashboard"}} aria-current="page"{{end}}>{{t "web.nav.dashboard"}}</a></li>
         <li><a href="/contributors" class="whitespace-nowrap {{if eq .Nav "contributors"}}menu-active{{end}}"{{if eq .Nav "contributors"}} aria-current="page"{{end}}>{{t "web.nav.contributors"}}</a></li>
+        {{if .Diagnostic}}<li><a href="/diagnostic" class="whitespace-nowrap {{if eq .Nav "diagnostic"}}menu-active{{end}}"{{if eq .Nav "diagnostic"}} aria-current="page"{{end}}>{{t "web.nav.diagnostic"}}</a></li>{{end}}
         <li><a href="/settings" class="whitespace-nowrap {{if eq .Nav "settings"}}menu-active{{end}}"{{if eq .Nav "settings"}} aria-current="page"{{end}}>{{t "web.nav.settings"}}</a></li>
       </ul>
     </nav>

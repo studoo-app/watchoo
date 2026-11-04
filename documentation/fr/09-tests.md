@@ -471,6 +471,55 @@ L'interface (CLI, TUI, web) est bilingue : **anglais par défaut**, français pa
   système, puis anglais), retour anglais puis clé pour une clé absente, formatage des arguments, et
   **exhaustivité du catalogue** : chaque clé existe dans les deux langues.
 
+## Supervision et diagnostic (phase 7)
+
+Voir [Supervision et diagnostic](12-supervision-diagnostic.md). Aucun service extérieur : données
+fictives, dépôts `gittest`, base SQLite temporaire.
+
+- `internal/diagnostic` : motifs d'exclusion (répertoire n'importe où, nom de fichier, chemin complet,
+  motifs invalides), trailers et signatures reconnus (D1, D2 : casse, CRLF, doublons, co-auteur humain
+  ignoré), comptes bot (D3), fichiers de configuration d'agent (D4), commit sans détail de fichiers
+  (aucune valeur inventée).
+- Provider Git : détail des fichiers par commit (`CommitStats.Files`), fichier binaire listé sans lignes,
+  commit vide avec une liste vide ; l'API GitHub ne donne pas de détail (`Files` nil).
+- `internal/store` : écriture unique, commit absent ignoré, purge par date, contraintes `CHECK`, cascade à
+  la suppression du commit, migration `00011` montée puis descendue sur une base existante.
+- `internal/workspace` : valeurs par défaut (désactivé, 365 jours), validation des motifs et de la durée,
+  variables `WATCHOO_DIAGNOSTIC_*`, réglages `diagnostic.*` gardés par la réécriture de `config.import`
+  et jamais ajoutés par elle.
+- `internal/sync`, sur un dépôt `gittest` réel : signaux des nouveaux commits (trailer, bot, fichier exclu,
+  binaire, `AGENTS.md`), commit de fusion sans signal, synchro incrémentale sans recalcul, rien sans
+  `diagnostic.enabled`, purge en fin de synchro ; aucun message, nom ni e-mail dans les logs.
+- Phase 7.2 : déclarations avec leur signal (`D1:claude`, `D2:unnamed`, forme sans signal relue en D1),
+  descriptions de PR (D2) et branches d'agents (D5) ; dans le store, pistes déclarées filtrées (dépôt, login,
+  e-mail, période), contexte D4 remplacé à chaque calcul, outils des PR relus puis purgés, migration `00012`
+  montée et descendue ; à la synchro, outils des PR gardés seulement avec le diagnostic activé (description
+  jamais dans les logs), contexte D4 sur un dépôt `gittest` (avec et sans `AGENTS.md`), pistes assemblées
+  par `diagnostic.Declared` ; `watchoo diagnostic` en texte (anglais et français), en `--json` (clés vérifiées,
+  description de PR jamais écrite), filtres et diagnostic désactivé.
+- Phase 7.3 : médiane, MAD et score z modifié (valeurs connues, MAD nul, moins de 20 observations) ;
+  signaux R1, R2, R3, R5 sur un historique construit, R4 seulement avec `diagnostic.speed_signal` (et pas
+  à la même minute), R6 au premier jour d'une rupture seulement, fenêtre de 90 jours, commits sans auteur
+  ignorés, niveaux ; reprise de l'historique sur un dépôt `gittest` (refusée sans diagnostic, hors
+  conservation, fusions écartées, une seule fois, contexte D4) ; sortie texte des signaux (médiane, z) et
+  clés `--json` de `histories` et de `diagnostic backfill`.
+- Phase 7.4 : clé stable d'une piste et recherche par dépôt, règles d'une revue (décision, cause seulement
+  pour « non assisté », confiance, note limitée), débit quotidien et commits voisins ; revues dans le store
+  (remplacement, valeurs inconnues refusées, purge, cascade, migration `00013`) ; diff lu sur un clone
+  `gittest` existant seulement (rien n'est cloné), commit racine, coupe ; pages web : diagnostic désactivé
+  (pas d'entrée de navigation, 404 sur la fiche et les `POST`), liste et filtre, français, fiche de revue,
+  saisie refusée réaffichée et échappée, revue enregistrée (relecteur, liste), note jamais dans les logs,
+  bouton de reprise en arrière-plan.
+- Phase 7.5 : mesure de forme sur des lignes construites (commentaires de ligne et blocs, docstrings et
+  chaînes triples Python, définitions documentées ou non en Go, Python, TypeScript, PHP et Java, fichiers
+  ignorés ou exclus, fichiers de test, ligne trop longue, MATTR sur des identifiants distincts puis
+  répétés, style des messages) ; signaux F1 à F5 sur un historique construit, historique trop court, formes
+  non mesurées écartées, F4 sans nouveauté, niveaux « probable » et « à regarder » ; lignes ajoutées lues en
+  flux sur un clone `gittest` existant seulement (commit racine, blocs, chemin avec espace et accent,
+  suppressions) ; forme mesurée à la synchro et complétée par la reprise de l'historique ; colonnes de forme
+  dans le store (ligne complétée une seule fois, migration `00014`) ; libellés des signaux et des niveaux
+  dans les deux langues.
+
 ## En CI
 
 À chaque push et chaque pull request :

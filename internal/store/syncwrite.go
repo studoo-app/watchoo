@@ -368,6 +368,7 @@ func writeExtras(ctx context.Context, q *db.Queries, w RepoSyncWrite) error {
 			UpdatedAt:        FormatTime(pr.UpdatedAt),
 			ClosedAt:         nullTime(pr.ClosedAt),
 			MergedAt:         nullTime(pr.MergedAt),
+			ToolIds:          strings.Join(pr.ToolIDs, ","),
 		}); err != nil {
 			return wrapErr(i18n.T("store.sync.pr_record", pr.Number), err)
 		}
@@ -688,7 +689,7 @@ func (r *identityResolver) updateProfile(ctx context.Context, row db.Contributor
 }
 
 // merge fusionne le contributeur sans compte from dans le contributeur avec compte into : commits
-// réattribués (auteur et committer), adresses déplacées, from supprimé. into reprend le nom de from
+// réattribués (auteur et committer), signaux de diagnostic aussi, adresses déplacées, from supprimé. into reprend le nom de from
 // s'il n'en a pas.
 func (r *identityResolver) merge(ctx context.Context, from, into db.Contributor) error {
 	toID := sql.NullInt64{Int64: into.ID, Valid: true}
@@ -698,6 +699,9 @@ func (r *identityResolver) merge(ctx context.Context, from, into db.Contributor)
 	}
 	if err := r.q.ReassignCommitCommitters(ctx, db.ReassignCommitCommittersParams{ToID: toID, FromID: fromID}); err != nil {
 		return wrapErr(i18n.T("store.contrib.merge_committers"), err)
+	}
+	if err := r.q.ReassignSignalAuthors(ctx, db.ReassignSignalAuthorsParams{ToID: toID, FromID: fromID}); err != nil {
+		return wrapErr(i18n.T("store.contrib.merge_authors"), err)
 	}
 	if err := r.q.MoveContributorEmails(ctx, db.MoveContributorEmailsParams{ToID: into.ID, FromID: from.ID}); err != nil {
 		return wrapErr(i18n.T("store.contrib.merge_emails"), err)

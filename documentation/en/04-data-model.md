@@ -10,7 +10,7 @@ migration `00005` (0.5.0) adds `contributors.profile_url` and the migration `000
 `commits.stats_known`; the migration `00007` (1.1.0) adds `repository_languages`; the migration `00008` (1.2.0)
 adds `commits.ai_rules_version` and the `commit_ai_signatures` table; the migration `00009` (1.2.0) adds
 `commits.languages_version` and the `commit_languages` table, i.e. **thirteen tables**; the migration `00010` (1.3.0)
-adds `sync_runs.warnings`. The storage is a SQLite file versioned by `goose` migrations, with **one
+adds `sync_runs.warnings`. The migration `00011` (phase 7.1) adds `commit_signals`, the migration `00012` (phase 7.2) `pull_requests.tool_ids` and `repository_signals`, the migration `00013` (phase 7.4) `diagnostic_reviews`, i.e. **sixteen tables**, and the migration `00014` (phase 7.5) the form columns of `commit_signals` (see [Supervision and diagnosis](12-supervision-diagnostic.md)). The storage is a SQLite file versioned by `goose` migrations, with **one
 database per workspace** (`.watchoo/watchoo.db`, see [Workspaces](10-workspaces.md)). The tables
 therefore do not know the notion of workspace: two workspaces never share data.
 
@@ -28,6 +28,9 @@ erDiagram
     commits ||--o{ commit_branches : "seen on"
     commits ||--o{ commit_ai_signatures : "declares"
     commits ||--o{ commit_languages : "changes"
+    commits ||--o| commit_signals : "measured by"
+    repositories ||--o| repository_signals : "context"
+    repositories ||--o{ diagnostic_reviews : "reviews"
     branches ||--o{ commit_branches : "contains"
     contributors ||--o{ contributor_emails : "uses"
     contributors ||--o{ commits : "author"
@@ -198,7 +201,7 @@ the author already in the database. Neither the message line nor an address is c
 | new_commits | Number of new commits fetched |
 | status | `running`, `success` or `error` |
 | error | Optional error message, in the language active at sync time (English or French), with no personal data |
-| warnings | Warnings of a successful sync (1.3.0, migration `00010`): JSON array of `{"kind": …, "message": …}`, `[]` if none. `kind` is a stable code (`stats_not_computed`, `clone_unavailable`, `languages_not_computed`, `lists_not_synced`, `ai_not_scanned`), translated at display; `message` is the full text, in the language active at sync time, with no personal data |
+| warnings | Warnings of a successful sync (1.3.0, migration `00010`): JSON array of `{"kind": …, "message": …}`, `[]` if none. `kind` is a stable code (`stats_not_computed`, `clone_unavailable`, `languages_not_computed`, `lists_not_synced`, `ai_not_scanned`, `diagnostic_not_recorded` since phase 7.1), translated at display; `message` is the full text, in the language active at sync time, with no personal data |
 
 The last `sync_run` of a repository gives the Error state, and its warnings are those shown on the
 repository's card and page (see [Web interface](06-web-interface.md#1-dashboard)): they survive a
@@ -229,6 +232,7 @@ removed, except with its repository.
 | updated_at | Last update (serves as the resume point of the next sync) |
 | closed_at | Date of closing; empty if open |
 | merged_at | Date of merge; empty if not merged. A merged PR has `state = closed` and `merged_at` filled |
+| tool_ids | Diagnosis (phase 7.2, migration `00012`): tools declared in the description, encoded `D2:claude`, sorted, comma-separated; empty if none or not measured. The description is never kept; value cleared by the purge (`diagnostic.retention_days`, opening date) |
 
 - **Author**: kept as is (login and account ID), **without a link** to `contributors`: a
   contributor is the author of at least one commit, and an author of PRs without a commit must not
@@ -304,6 +308,67 @@ Derived data: rewritten at each analysis of the commit. The totals of a contribu
 `commits.author_id`: a merge of contributors follows them without rewriting anything. Rolling back
 (`Down`): table, index and column removed; the commits remain.
 
+### `commit_signals` — diagnosis signals (phase 7.1)
+
+Primary key: **`(repo_id, sha)`**, foreign key to `commits (repo_id, sha)` with `ON DELETE CASCADE`
+(deleting a commit or a repository deletes its signals). One row per commit measured while the
+`diagnostic.enabled` setting is on: new commits synced after it was enabled, merge commits excluded,
+whose local Git clone gives the file detail. A row is never rewritten, except to complete a form not
+measured (`form_known = 0`) with a measured one (phase 7.5). **Data minimisation**: no message, no e-mail
+address, no file path, no line of code.
+
+| Column | Description |
+| --- | --- |
+| repo_id, sha | Measured commit |
+| author_id | Author, copied from `commits` (`NULL` if the contributor is deleted) |
+| authored_at | Author date, copied from `commits`: per-author windows (phase 7.3) and purge |
+| files_kept | Files kept (neither binary nor excluded by `diagnostic.exclude`) |
+| files_excluded | Binary files or files excluded by a pattern |
+| additions_kept, deletions_kept | Lines added and deleted in the kept files |
+| tool_ids | Declared tools, each with its signal (phase 7.2): `D1:<tool>` for a trailer, `D2:<tool>` for a signature; tools: `claude`, `copilot`, `codex`, `cursor`, `unnamed`. Sorted, comma-separated; empty if none |
+| agent_config | Signal D4: the commit changes an agent configuration file (`AGENTS.md`, `CLAUDE.md`…) |
+| bot_author | Signal D3: the author is a known bot account (`*[bot]`, `copilot-swe-agent`) |
+| computed_at | Date of the computation |
+| form_known | Form measured (phase 7.5); 0 for a row written before phase 7.5 or a failed read (all the following columns are then 0) |
+| source_lines, comment_lines | Non-blank added lines of the recognised source files (tests included), and among them the comment or docstring lines (F1) |
+| functions, documented_functions | Function definitions added, and among them the documented ones (F2) |
+| identifiers, lexical_diversity | Identifiers of the added code (keywords and strings left out) and their MATTR lexical diversity, window of 50; `NULL` with fewer than 50 identifiers (F3) |
+| test_lines | Non-blank added lines of the test files (F5) |
+| message_length, message_bullets, message_conventional | Message length without trailers and signatures, list lines, Conventional Commits subject (F4); the message is not copied |
+
+Purge: at the end of each sync, rows whose `authored_at` is older than `diagnostic.retention_days`
+(365 days by default) are deleted.
+
+### `repository_signals` — diagnosis context of a repository (phase 7.2)
+
+Primary key: **`repo_id`**, deleted with the repository. Updated at each sync from the local Git clone,
+with the diagnosis enabled.
+
+| Column | Description |
+| --- | --- |
+| repo_id | Repository |
+| agent_config_since | Signal D4 (context): author date of the first commit adding an agent configuration file on the default branch; `NULL` if none |
+| computed_at | Date of the computation |
+
+### `diagnostic_reviews` — human reviews of the leads (phase 7.4)
+
+Primary key: **`(repo_id, lead_key)`**; one review per lead, replaced if done again; deleted with the
+repository. The note is personal data: the review follows `diagnostic.retention_days` from `lead_date`.
+
+| Column | Description |
+| --- | --- |
+| repo_id | Repository |
+| lead_key | Stable key of the lead: `commit/<sha>`, `pull_request/<number>` or `day/<author>/<start of the day UTC>` |
+| kind | `commit`, `pull_request` or `day` |
+| lead_date | Date of the lead (retention) |
+| signals | Identifiers of the signals present at review time (`D1,R2`…), for calibration (phase 7.6) |
+| decision | `assisted`, `not_assisted` or `undetermined` |
+| cause | If not assisted: `internal_copy`, `tool_generated`, `existing_import`, `refactoring` or `other`; empty otherwise |
+| confidence | `low`, `medium` or `high` |
+| note | Free note of the reviewer (2,000 characters at most) |
+| reviewer | Reviewer: web interface account, otherwise workspace name |
+| reviewed_at | Date of the review |
+
 ## Index
 
 | Index | Usage |
@@ -317,6 +382,9 @@ Derived data: rewritten at each analysis of the commit. The totals of a contribu
 | `commits(repo_id, sha) WHERE stats_known = 0` | Partial index: commits whose `+/-` lines are still to be read (migration `00006`) |
 | `commits(repo_id, ai_rules_version)` | Commits still to analyze for the AI signatures (migration `00008`) |
 | `commits(repo_id, languages_version)` | Commits whose languages are still to read from the clone (migration `00009`) |
+| `commit_signals(repo_id, author_id, authored_at)` | Per-author sliding windows of the rhythm signals (phase 7.3) |
+| `commit_signals(authored_at)` | Purge by retention period |
+| `diagnostic_reviews(lead_date)` | Purge of the reviews by retention period |
 
 ## Identity merging
 

@@ -474,7 +474,7 @@ func TestScenarioIncrementalSync(t *testing.T) {
 
 	// Statistics of a new commit.
 	stats, err := p.CommitStats(ctx, scOwner, name, merge)
-	if err != nil || (stats.Additions != 10 || stats.Deletions != 2) {
+	if err != nil || stats.Additions != 10 || stats.Deletions != 2 {
 		t.Errorf("CommitStats: %+v, %v", stats, err)
 	}
 }
@@ -1309,7 +1309,7 @@ func TestScenarioConcurrentRepositories(t *testing.T) {
 	for i, r := range first {
 		s := specs[i]
 		if len(r.Commits["main"]) != 150 || len(r.Commits["dev"]) != 30 || len(r.Compare) != 50 ||
-			r.Repo.ID != s.id || (r.Stats.Additions != 0 || r.Stats.Deletions != 0) {
+			r.Repo.ID != s.id || r.Stats.Additions != 0 || r.Stats.Deletions != 0 {
 			t.Errorf("%s: main %d, dev %d, compare %d commits, repository %d, stats %+v",
 				s.name, len(r.Commits["main"]), len(r.Commits["dev"]), len(r.Compare), r.Repo.ID, r.Stats)
 		}

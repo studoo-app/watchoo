@@ -18,7 +18,7 @@ import (
 func warnLabel(tr *i18n.Translator, kind model.SyncWarningKind) string {
 	switch kind {
 	case model.WarnStatsNotComputed, model.WarnCloneUnavailable, model.WarnLanguagesNotComputed,
-		model.WarnListsNotSynced, model.WarnAINotScanned:
+		model.WarnListsNotSynced, model.WarnAINotScanned, model.WarnDiagnosticNotRecorded:
 		return tr.T("web.warn.label." + string(kind))
 	default:
 		return tr.T("web.warn.label.other")
@@ -30,7 +30,7 @@ func warnLabel(tr *i18n.Translator, kind model.SyncWarningKind) string {
 func warnEffect(tr *i18n.Translator, kind model.SyncWarningKind) string {
 	switch kind {
 	case model.WarnStatsNotComputed, model.WarnCloneUnavailable, model.WarnLanguagesNotComputed,
-		model.WarnListsNotSynced, model.WarnAINotScanned:
+		model.WarnListsNotSynced, model.WarnAINotScanned, model.WarnDiagnosticNotRecorded:
 		return tr.T("web.warn.effect." + string(kind))
 	default:
 		return tr.T("web.warn.label.other")

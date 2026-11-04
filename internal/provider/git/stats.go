@@ -65,6 +65,46 @@ func (p *Provider) CommitStatsBatch(ctx context.Context, owner, name string, sha
 	if err != nil {
 		return nil, err
 	}
+	return p.statsOn(ctx, owner, name, path, shas)
+}
+
+// HasClone indique si le clone de owner/name existe déjà (créé par Watchoo), sans y toucher.
+func (p *Provider) HasClone(owner, name string) bool {
+	if provider.ValidateRepo(owner, name) != nil {
+		return false
+	}
+	path, err := p.layout.Path(owner, name)
+	if err != nil {
+		return false
+	}
+	state, err := inspect(path, owner, name)
+	return err == nil && state == stateOwned
+}
+
+// CommitStatsBatchLocal est CommitStatsBatch sur le clone EXISTANT de owner/name, sans le mettre à jour
+// (aucun accès réseau, aucune écriture dans le clone) : reprise de l'historique du diagnostic, qui peut
+// tourner pendant une synchro d'un autre processus. Erreur provider.ErrNotFound sans clone.
+func (p *Provider) CommitStatsBatchLocal(ctx context.Context, owner, name string, shas []string) (map[string]provider.CommitStats, error) {
+	if err := provider.ValidateRepo(owner, name); err != nil {
+		return nil, err
+	}
+	for _, sha := range shas {
+		if err := provider.ValidateSHA(sha); err != nil {
+			return nil, err
+		}
+	}
+	if !p.HasClone(owner, name) {
+		return nil, &provider.APIError{Op: i18n.T("provider.git.op.commits_stats", owner, name), Err: provider.ErrNotFound}
+	}
+	path, err := p.layout.Path(owner, name)
+	if err != nil {
+		return nil, err
+	}
+	return p.statsOn(ctx, owner, name, path, shas)
+}
+
+// statsOn calcule les statistiques de shas (validés) sur le clone path, par paquets de StatsBatchSize.
+func (p *Provider) statsOn(ctx context.Context, owner, name, path string, shas []string) (map[string]provider.CommitStats, error) {
 	out := make(map[string]provider.CommitStats, len(shas))
 	unique := slices.Compact(slices.Sorted(slices.Values(shas)))
 	for batch := range slices.Chunk(unique, StatsBatchSize) {
@@ -82,91 +122,99 @@ func (p *Provider) CommitStatsBatch(ctx context.Context, owner, name string, sha
 func (p *Provider) statsBatch(ctx context.Context, owner, name, path string, shas []string,
 	out map[string]provider.CommitStats) error {
 	op := i18n.T("provider.git.op.commits_stats", owner, name)
-	input := []byte(strings.Join(shas, "\n") + "\n")
-	res, err := p.runInput(ctx, p.localTimeout, gitDir(path), "rev-list", input,
-		"rev-list", "--no-walk=unsorted", "--parents", "--ignore-missing", "--stdin")
+	input, merges, err := p.firstParents(ctx, op, path, shas)
+	if err != nil || input == nil {
+		return err
+	}
+	res, err := p.runInput(ctx, p.localTimeout, gitDir(path), "diff-tree", input,
+		"diff-tree", "--stdin", "--always", "--root", "-r", "-z", "--numstat", "-M", "--no-ext-diff")
 	if err != nil {
 		return &provider.APIError{Op: op, Err: err}
 	}
 	if res.exitCode != 0 {
 		return localError(op, res)
 	}
-	// Une ligne « commit premier-parent » (ou « commit » pour une racine) par commit présent.
+	isMerge := make(map[string]bool, len(merges))
+	for _, sha := range merges {
+		isMerge[sha] = true
+	}
+	parseBatchNumstat(res.stdout, isMerge, out)
+	return nil
+}
+
+// firstParents renvoie l'entrée de « diff-tree --stdin » pour les commits shas (validés) présents dans le
+// clone path : une ligne « commit premier-parent » (« commit » pour une racine) par commit, nil si aucun ;
+// et les commits de fusion parmi eux.
+func (p *Provider) firstParents(ctx context.Context, op, path string, shas []string) ([]byte, []string, error) {
+	input := []byte(strings.Join(shas, "\n") + "\n")
+	res, err := p.runInput(ctx, p.localTimeout, gitDir(path), "rev-list", input,
+		"rev-list", "--no-walk=unsorted", "--parents", "--ignore-missing", "--stdin")
+	if err != nil {
+		return nil, nil, &provider.APIError{Op: op, Err: err}
+	}
+	if res.exitCode != 0 {
+		return nil, nil, localError(op, res)
+	}
 	var lines bytes.Buffer
-	n := 0
-	merges := make(map[string]bool)
+	var merges []string
 	for line := range strings.SplitSeq(string(res.stdout), "\n") {
 		fields := strings.Fields(line)
 		if len(fields) == 0 || provider.ValidateSHA(fields[0]) != nil {
 			continue
 		}
 		if len(fields) > 2 {
-			merges[fields[0]] = true
+			merges = append(merges, fields[0])
 		}
 		lines.WriteString(fields[0])
 		if len(fields) > 1 {
 			lines.WriteString(" " + fields[1])
 		}
 		lines.WriteByte('\n')
-		n++
 	}
-	if n == 0 {
-		return nil
+	if lines.Len() == 0 {
+		return nil, merges, nil
 	}
-	res, err = p.runInput(ctx, p.localTimeout, gitDir(path), "diff-tree", lines.Bytes(),
-		"diff-tree", "--stdin", "--always", "--root", "-r", "-z", "--numstat", "--no-renames", "--no-ext-diff")
-	if err != nil {
-		return &provider.APIError{Op: op, Err: err}
-	}
-	if res.exitCode != 0 {
-		return localError(op, res)
-	}
-	parseBatchNumstat(res.stdout, merges, out)
-	return nil
+	return lines.Bytes(), merges, nil
 }
 
-// parseBatchNumstat lit la sortie de « diff-tree --stdin --always -z --numstat » : pour chaque commit,
-// son SHA (« <sha><NUL> »), puis un enregistrement « ajoutées<TAB>supprimées<TAB>chemin<NUL> » par
-// fichier modifié (« - » pour un fichier binaire, ignoré). Un SHA sans fichier donne 0/0. Les lignes
-// ajoutées sont aussi comptées par langage du chemin (classifyLanguage), sauf pour les commits de
-// fusion (merges) : leur différence avec le premier parent contient toute la branche fusionnée.
+// parseBatchNumstat lit la sortie de « diff-tree --stdin --always -z --numstat -M » : pour chaque
+// commit, son SHA (« <sha><NUL> »), puis un enregistrement par fichier modifié (voir parseNumstat :
+// renommages et fichiers binaires compris). Un SHA sans fichier donne 0/0 et des listes vides. Les
+// lignes ajoutées sont aussi comptées par langage du chemin (classifyLanguage), sauf pour les commits de
+// fusion (merges, marqués Merge) : leur différence avec le premier parent contient toute la branche
+// fusionnée.
 func parseBatchNumstat(raw []byte, merges map[string]bool, out map[string]provider.CommitStats) {
 	current := ""
+	var p numstatParser
 	for rec := range bytes.SplitSeq(raw, []byte{0}) {
-		s := strings.TrimLeft(string(rec), "\n")
-		if s == "" {
-			continue
-		}
-		if !strings.Contains(s, "\t") {
-			if provider.ValidateSHA(s) == nil {
-				current = s
-				if _, ok := out[current]; !ok {
-					out[current] = provider.CommitStats{Languages: map[string]int{}}
-				}
+		s := string(rec)
+		if !p.expectingPath() {
+			trimmed := strings.TrimLeft(s, "\n")
+			if trimmed == "" {
+				continue
 			}
-			continue
-		}
-		if current == "" {
-			continue
-		}
-		st := parseNumstat(append(rec, 0))
-		total := out[current]
-		total.Additions += st.Additions
-		total.Deletions += st.Deletions
-		if st.Additions > 0 && !merges[current] {
-			if file, ok := numstatPath(s); ok {
-				if lang := classifyLanguage(file); lang != "" {
-					total.Languages[lang] += st.Additions
+			if !strings.Contains(trimmed, "\t") {
+				if provider.ValidateSHA(trimmed) == nil {
+					current = trimmed
+					if _, ok := out[current]; !ok {
+						out[current] = provider.CommitStats{Files: []provider.CommitFile{},
+							Languages: map[string]int{}, Merge: merges[current]}
+					}
 				}
+				continue
 			}
 		}
-		out[current] = total
+		f, ok := p.feed(s)
+		if !ok || current == "" {
+			continue
+		}
+		st := out[current]
+		st.Add(f)
+		if f.Additions > 0 && !merges[current] {
+			if lang := classifyLanguage(f.Path); lang != "" {
+				st.Languages[lang] += f.Additions
+			}
+		}
+		out[current] = st
 	}
-}
-
-// numstatPath renvoie le chemin d'un enregistrement « ajoutées<TAB>supprimées<TAB>chemin » (sans le NUL).
-func numstatPath(rec string) (string, bool) {
-	_, rest, ok1 := strings.Cut(rec, "\t")
-	_, file, ok2 := strings.Cut(rest, "\t")
-	return file, ok1 && ok2 && file != ""
 }

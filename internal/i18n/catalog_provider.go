@@ -321,6 +321,18 @@ var providerTexts = map[string]entry{
 		"statistics of commit %s in %s/%s",
 		"statistiques du commit %s de %s/%s",
 	},
+	"provider.git.op.added_lines": {
+		"added lines of the commits of %s/%s",
+		"lignes ajoutées des commits de %s/%s",
+	},
+	"provider.git.op.commit_patch": {
+		"diff of commit %s of %s/%s",
+		"diff du commit %s de %s/%s",
+	},
+	"provider.git.op.first_added": {
+		"date of the first agent configuration file of %s/%s",
+		"date du premier fichier de configuration d'agent de %s/%s",
+	},
 	"provider.git.op.languages": {
 		"languages of %s/%s",
 		"langages de %s/%s",

@@ -474,6 +474,52 @@ The interface (CLI, TUI, web) is bilingual: **English by default**, French via `
   locale, then English), English then key fallback for a missing key, argument formatting, and
   **catalog completeness**: every key exists in both languages.
 
+## Supervision and diagnosis (phase 7)
+
+See [Supervision and diagnosis](12-supervision-diagnostic.md). No external service: dummy data,
+`gittest` repositories, temporary SQLite database.
+
+- `internal/diagnostic`: exclusion patterns (directory anywhere, file name, full path, invalid
+  patterns), recognised trailers and signatures (D1, D2: case, CRLF, duplicates, human co-author ignored),
+  bot accounts (D3), agent configuration files (D4), commit without file detail (no value invented).
+- Git provider: per-commit file detail (`CommitStats.Files`), binary file listed without lines, empty
+  commit with an empty list; the GitHub API gives no detail (`Files` nil).
+- `internal/store`: written once, missing commit ignored, purge by date, `CHECK` constraints, cascade when
+  the commit is deleted, migration `00011` up then down on an existing database.
+- `internal/workspace`: defaults (disabled, 365 days), validation of patterns and retention,
+  `WATCHOO_DIAGNOSTIC_*` variables, `diagnostic.*` settings kept by the rewrite of `config import` and never
+  added by it.
+- `internal/sync`, on a real `gittest` repository: signals of new commits (trailer, bot, excluded file,
+  binary, `AGENTS.md`), merge commit without signals, incremental sync without recomputation, nothing
+  without `diagnostic.enabled`, purge at the end of the sync; no message, name or e-mail in the logs.
+- Phase 7.2: declarations with their signal (`D1:claude`, `D2:unnamed`, form without signal read as D1), PR
+  descriptions (D2) and agent branches (D5); in the store, declared leads filtered (repository, login,
+  e-mail, period), D4 context replaced at each computation, PR tools read back then purged, migration
+  `00012` up and down; at sync, PR tools kept only with the diagnosis enabled (description never in the
+  logs), D4 context on a `gittest` repository (with and without `AGENTS.md`), leads assembled by
+  `diagnostic.Declared`; `watchoo diagnostic` in text (English and French), in `--json` (keys checked, PR
+  description never written), filters and disabled diagnosis.
+- Phase 7.3: median, MAD and modified z-score (known values, zero MAD, fewer than 20 observations); signals
+  R1, R2, R3, R5 on a built history, R4 only with `diagnostic.speed_signal` (and not at the same minute), R6
+  on the first day of a break only, 90-day window, commits without author ignored, levels; history backfill
+  on a `gittest` repository (refused without diagnosis, outside retention, merges set aside, once only, D4
+  context); text output of the signals (median, z) and `--json` keys of `histories` and of `diagnostic
+  backfill`.
+- Phase 7.4: stable key of a lead and lookup per repository, review rules (decision, cause only for "not
+  assisted", confidence, limited note), daily throughput and neighbouring commits; reviews in the store
+  (replacement, unknown values refused, purge, cascade, migration `00013`); diff read only from an existing
+  `gittest` clone (nothing is cloned), root commit, truncation; web pages: disabled diagnosis (no navigation
+  entry, 404 on the sheet and the `POST`s), list and filter, French, review sheet, refused input shown again
+  and escaped, saved review (reviewer, list), note never in the logs, background backfill button.
+- Phase 7.5: form measurement on built lines (line and block comments, Python docstrings and triple-quoted
+  strings, documented or undocumented definitions in Go, Python, TypeScript, PHP and Java, ignored or
+  excluded files, test files, overlong line, MATTR on distinct then repeated identifiers, message style); F1
+  to F5 signals on a built history, too short a history, unmeasured forms left out, F4 without novelty,
+  "probable" and "to review" levels; added lines streamed from an existing `gittest` clone only (root commit,
+  hunks, path with a space and an accent, deletions); form measured at sync and completed by the history
+  backfill; form columns in the store (row completed once only, migration `00014`); signal and level labels
+  in both languages.
+
 ## In CI
 
 On every push and every pull request:

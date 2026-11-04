@@ -151,7 +151,9 @@ signed on this commit?", never "was this code written by AI?".
 
 - **Not read**: the content of the code, the style of the messages, the pace of the commits. These
   clues have innocent explanations (grouped push, rebase, a student who has just learned Conventional
-  Commits) and no measured reliability; they are not implemented.
+  Commits) and no measured reliability; this feature does not read them. The
+  [diagnosis](12-supervision-diagnostic.md) (phase 7), off by default and for the trainer only, turns them
+  into reflection leads, never verdicts, each learner being compared with their own history.
 - **Purpose**: being able to know which tools are declared, by whom and where, not sanctioning. To know
   more, ask the contributors to keep the attribution of their tools enabled: Watchoo only sees what the
   commits declare.

@@ -32,6 +32,9 @@ github:
   gh_path: "/opt/gh/bin/gh"
 git:
   protocol: "https"
+diagnostic:
+  enabled: true
+  retention_days: 90
 `
 
 // newCustomWorkspace creates a workspace whose config.yaml is customConfig.
@@ -204,6 +207,9 @@ func TestWriteSharedSettingsKeepsMachineKeys(t *testing.T) {
 		c.GitHub.User != "prof-gh" || c.GitHub.GHPath != "/opt/gh/bin/gh" || c.Git.Protocol != "https" {
 		t.Errorf("machine keys lost: %+v", c)
 	}
+	if !c.Diagnostic.Enabled || c.Diagnostic.RetentionDays != 90 {
+		t.Errorf("diagnostic.* settings (never shared) lost: %+v", c.Diagnostic)
+	}
 	if c.Sync.Parallelism != 2 {
 		t.Errorf("sync.parallelism not imported lost: %d", c.Sync.Parallelism)
 	}
@@ -282,7 +288,8 @@ func TestWriteSharedSettingsNoYAMLInjection(t *testing.T) {
 	}
 	for key := range values {
 		if !slices.Contains([]string{"name", "sync.parallelism", "branches.exclude", "web.addr", "web.allowed_hosts",
-			"web.auth.username", "github.user", "github.gh_path", "git.protocol"}, key) {
+			"web.auth.username", "github.user", "github.gh_path", "git.protocol", "diagnostic.enabled",
+			"diagnostic.retention_days"}, key) {
 			t.Errorf("unexpected key %s in the rewritten file", key)
 		}
 	}

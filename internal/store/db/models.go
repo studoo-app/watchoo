@@ -52,6 +52,32 @@ type CommitLanguage struct {
 	Additions int64
 }
 
+type CommitSignal struct {
+	RepoID              int64
+	SHA                 string
+	AuthorID            sql.NullInt64
+	AuthoredAt          string
+	FilesKept           int64
+	FilesExcluded       int64
+	AdditionsKept       int64
+	DeletionsKept       int64
+	ToolIds             string
+	AgentConfig         bool
+	BotAuthor           bool
+	ComputedAt          string
+	FormKnown           bool
+	SourceLines         int64
+	CommentLines        int64
+	Functions           int64
+	DocumentedFunctions int64
+	Identifiers         int64
+	LexicalDiversity    sql.NullFloat64
+	TestLines           int64
+	MessageLength       int64
+	MessageBullets      int64
+	MessageConventional bool
+}
+
 type Contributor struct {
 	ID             int64
 	Provider       sql.NullString
@@ -65,6 +91,20 @@ type Contributor struct {
 type ContributorEmail struct {
 	Email         string
 	ContributorID int64
+}
+
+type DiagnosticReview struct {
+	RepoID     int64
+	LeadKey    string
+	Kind       string
+	LeadDate   string
+	Signals    string
+	Decision   string
+	Cause      string
+	Confidence string
+	Note       string
+	Reviewer   string
+	ReviewedAt string
 }
 
 type PullRequest struct {
@@ -83,6 +123,7 @@ type PullRequest struct {
 	UpdatedAt        string
 	ClosedAt         sql.NullString
 	MergedAt         sql.NullString
+	ToolIds          string
 }
 
 type Release struct {
@@ -122,6 +163,12 @@ type RepositoryLanguage struct {
 	RepoID   int64
 	Language string
 	Bytes    int64
+}
+
+type RepositorySignal struct {
+	RepoID           int64
+	AgentConfigSince sql.NullString
+	ComputedAt       string
 }
 
 type SyncRun struct {
