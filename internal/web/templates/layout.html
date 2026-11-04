@@ -69,7 +69,7 @@
     {{template "content" .}}
   </main>
   <footer class="footer footer-center p-4 text-sm text-base-content/60">
-    <p>{{t "web.footer" .Version}}</p>
+    <p>{{t "web.footer" .Version}} · <a class="link" href="{{docsURL}}" hreflang="{{.Lang}}" target="_blank" rel="noopener noreferrer">{{t "web.footer.docs"}}</a></p>
   </footer>
   <script type="application/json" id="watchoo-texts">{{jsTexts}}</script>
   {{block "scripts" .}}{{end}}

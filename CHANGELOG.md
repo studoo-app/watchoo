@@ -9,6 +9,11 @@ PATCH (see [Skills](documentation/en/11-skills.md#versions-and-changelogmd)).
 
 ## [Unreleased]
 
+### Added
+
+- Web interface: a **Documentation** link in the footer of every page, to the contents of the online
+  documentation in the page's language (`documentation/en/` in English, `documentation/fr/` in French).
+
 ## [1.6.0] - 2026-11-04
 
 EN / FR language selector in the web interface; in the diagnosis, the lines behind each signal on the

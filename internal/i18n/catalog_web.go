@@ -119,6 +119,7 @@ var webTexts = map[string]entry{
 		"Watchoo %s · read-only: nothing is ever written to GitHub · data kept on this machine",
 		"Watchoo %s · lecture seule : rien n'est jamais écrit sur GitHub · données gardées sur cette machine",
 	},
+	"web.footer.docs": {"Documentation", "Documentation"},
 
 	// Pastille d'état, lignes, liens communs (partials.html).
 	"web.state.title":     {"State: %s", "État : %s"},
