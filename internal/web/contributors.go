@@ -19,8 +19,10 @@ import (
 	"cmp"
 	"net/http"
 	"slices"
+	"strings"
 
 	"github.com/studoo-app/watchoo/internal/activity"
+	"github.com/studoo-app/watchoo/internal/diagnostic"
 	"github.com/studoo-app/watchoo/internal/store"
 )
 
@@ -31,6 +33,8 @@ type contributorsView struct {
 	Repos        int // nombre de dépôts distincts où au moins un auteur est connu
 	// Chart : graphique d'activité par contributeur (page complète seulement, pas le fragment).
 	Chart contributorChart
+	// Diagnostic : le diagnostic est activé ; chaque ligne porte alors son score IA (1.6.0).
+	Diagnostic bool
 }
 
 // contributorRow est une ligne du classement : statistiques globales et détail par dépôt.
@@ -38,6 +42,8 @@ type contributorRow struct {
 	store.ContributorStats
 	Rank  int                          // rang (1 = le plus de commits)
 	Repos []store.ContributorRepoStats // ses commits par dépôt, du plus grand nombre au plus petit
+	// Diag : score IA et pistes par niveau (1.6.0, diagnostic activé ; zéro sans piste).
+	Diag diagnostic.Summary
 }
 
 // ShowLogin indique s'il faut afficher le login GitHub à côté du nom (il existe et n'est pas déjà le
@@ -92,6 +98,9 @@ func (s *server) contributorsData(r *http.Request, withChart bool) (contributors
 		}
 	}
 	v.Repos = len(repos)
+	if err := s.contributorScores(r, &v); err != nil {
+		return contributorsView{}, err
+	}
 	if withChart {
 		now := s.now()
 		times, err := s.store.AuthorCommitTimes(ctx, 0, activity.WeeksStart(now, activity.ContributorWeeks, s.loc))
@@ -101,6 +110,29 @@ func (s *server) contributorsData(r *http.Request, withChart bool) (contributors
 		v.Chart = buildContributorChart(s.tr(r), ranking, times, now, activity.ContributorWeeks, contributorChartTop, s.loc)
 	}
 	return v, nil
+}
+
+// contributorScores renseigne le score IA de chaque ligne (1.6.0) si le diagnostic est activé : pistes
+// de tous les dépôts, regroupées par contributeur auteur (diagnostic.SummarizeByContributor).
+func (s *server) contributorScores(r *http.Request, v *contributorsView) error {
+	if v.Diagnostic = s.cfg.Diagnostic.Enabled; !v.Diagnostic {
+		return nil
+	}
+	rep, err := diagnostic.Build(r.Context(), s.store, store.DiagnosticFilter{}, s.rhythmOptions())
+	if err != nil {
+		return err
+	}
+	logins := make(map[string]int64, len(v.Rows))
+	for _, row := range v.Rows {
+		if row.ProviderLogin != "" {
+			logins[strings.ToLower(row.ProviderLogin)] = row.ID
+		}
+	}
+	scores := diagnostic.SummarizeByContributor(rep.Leads, logins)
+	for i := range v.Rows {
+		v.Rows[i].Diag = scores[v.Rows[i].ID]
+	}
+	return nil
 }
 
 // handleContributors sert GET /contributors (page complète, Nav navContributors, titre

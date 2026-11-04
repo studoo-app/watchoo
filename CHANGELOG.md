@@ -9,6 +9,21 @@ PATCH (see [Skills](documentation/en/11-skills.md#versions-and-changelogmd)).
 
 ## [Unreleased]
 
+### Added
+
+- **Diagnosis on the repository page** (`/repos/{id}`, only when the diagnosis is enabled): a "Diagnosis"
+  card with the score of the repository (sum of the points of the signals of its leads: D = 10, R and
+  A1-A4 = 3, F and A5-A7 = 1, H = 0), always next to the number of leads per level and the table of the
+  triggered signals (leads, weight, points), the 10 latest leads linked to their review sheet and a link
+  to all the leads of the repository. Refreshed at the end of a sync (`repo-diagnostic` fragment).
+
+### Changed
+
+- **Contributors list**: the "AI signatures" column is replaced by the **AI score** of each contributor (same
+  points, on the leads they authored across all repositories), with their number of leads per level below
+  it; "—" when the diagnosis is disabled. The list stays sorted by commits. The AI signatures stay on a
+  contributor's page and on the commits.
+
 ## [1.5.0] - 2026-11-04
 
 Absolute signals and traces of human work in the diagnosis, for projects delivered in few commits. No

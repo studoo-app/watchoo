@@ -14,6 +14,8 @@ package web
 //     quand la requête vise #repo-languages ;
 //   - « repo-pulls » (id repo-pulls, V2) : pull requests ouvertes et dernières mergées, releases et
 //     tags, servi de même quand la requête vise #repo-pulls ;
+//   - « repo-diagnostic » (id repo-diagnostic, 1.6.0, diagnostic activé) : score et signaux du dépôt,
+//     dernières pistes (repo_diagnostic.go), servi de même quand la requête vise #repo-diagnostic ;
 //   - « repo-commits » (id repo-commits) : filtres branche et auteur, historique paginé
 //     (repoCommitsPerPage par page), liens précédent / suivant. Il est servi par GET
 //     /repos/{id}/commits.
@@ -101,6 +103,9 @@ type RepoView struct {
 	Thresholds thresholdsForm
 	// Pulls : pull requests, releases et tags du dépôt (V2, fragment « repo-pulls »).
 	Pulls RepoPullsView
+	// Diagnostic : score et signaux du dépôt (1.6.0, fragment « repo-diagnostic », repo_diagnostic.go) ;
+	// nil si le diagnostic est désactivé.
+	Diagnostic *RepoDiagnosticView
 }
 
 // RepoPullsView est la partie « pull requests, releases et tags » de la page (fragment « repo-pulls »).
@@ -156,7 +161,7 @@ func (s *server) handleRepo(w http.ResponseWriter, r *http.Request) {
 	data := s.page(r, view.Repo.DisplayName(), "", view)
 	if isHTMX(r) && !isHistoryRestore(r) {
 		switch target := r.Header.Get("HX-Target"); target {
-		case repoOverviewID, repoContributorsID, repoLanguagesID, repoPullsID:
+		case repoOverviewID, repoContributorsID, repoLanguagesID, repoPullsID, repoDiagnosticID:
 			s.renderFragment(w, r, http.StatusOK, pageRepo, target, data)
 			return
 		}
@@ -248,6 +253,9 @@ func (s *server) repoView(r *http.Request, id int64, overview bool) (RepoView, e
 		view.ContributorsChart = buildContributorChart(s.tr(r), contributors, authors, now, activity.ContributorWeeks,
 			contributorChartTop, s.loc)
 		if view.Pulls, err = s.repoPulls(r, id); err != nil {
+			return RepoView{}, err
+		}
+		if view.Diagnostic, err = s.repoDiagnostic(r, id); err != nil {
 			return RepoView{}, err
 		}
 	}
