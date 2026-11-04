@@ -191,7 +191,7 @@ func TestTemplateKeysInCatalog(t *testing.T) {
 func sameInBothLanguages(s string) bool {
 	switch s {
 	case "Commits", "Branches", "Pull requests", "Releases", "Tags", "Total", "Dead", "Action", "inaccessible",
-		"%d commit", "%d commits", "%d min", "%d h", "{n} commit", "{n} commits", "Signal", "Commit", "Pull request":
+		"%d commit", "%d commits", "%d min", "%d h", "{n} commit", "{n} commits", "Signal", "Commit", "Pull request", "Documentation", "GitHub":
 		return true
 	}
 	return false
@@ -299,5 +299,27 @@ func TestLangCookieName(t *testing.T) {
 	}
 	if got := langCookieName("bad"); got != "watchoo_lang" {
 		t.Errorf("got %q", got)
+	}
+}
+
+// TestDocsLinkFollowsLanguage checks the links of the footer: the repository on GitHub (with its icon),
+// and the documentation, in the tree of the page's language: the workspace's lang setting, then the browser's choice (EN / FR selector).
+func TestDocsLinkFollowsLanguage(t *testing.T) {
+	const en = `href="https://github.com/studoo-app/watchoo/blob/main/documentation/en/README.md" hreflang="en"`
+	const fr = `href="https://github.com/studoo-app/watchoo/blob/main/documentation/fr/README.md" hreflang="fr"`
+
+	w := newTestEnv(t).get("/")
+	assertStatus(t, w, http.StatusOK)
+	assertContains(t, w, en, ">Documentation</a>",
+		`href="https://github.com/studoo-app/watchoo" target="_blank" rel="noopener noreferrer" aria-label="Watchoo&#39;s repository on GitHub"`,
+		`<svg class="size-4" viewBox="0 0 16 16"`, ">GitHub</a>")
+	assertNotContains(t, w, fr)
+
+	w = newTestEnv(t, withLang("fr")).get("/page-inconnue")
+	assertContains(t, w, fr, `aria-label="Dépôt de Watchoo sur GitHub"`)
+	assertNotContains(t, w, en)
+
+	if got := docsURLFor(i18n.Lang("de")); !strings.HasSuffix(got, "/documentation/en/README.md") {
+		t.Errorf("docsURLFor(de) = %q, want the English documentation", got)
 	}
 }
