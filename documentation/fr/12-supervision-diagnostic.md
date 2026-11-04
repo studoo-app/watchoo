@@ -4,7 +4,7 @@
 
 **Statut** : décision du mainteneur. Phases **7.1 à 7.5 réalisées** (fondations, signaux déclaratifs,
 commande `watchoo diagnostic`, signaux de rythme, reprise de l'historique, revue humaine sur le web, signaux
-de forme F1 à F5 ; non publiées, sections 9.1 à 9.5) ; phase 7.6 à venir, puis F6 (classifieur de contenu,
+de forme F1 à F5 ; non publiées, sections 9.1 à 9.5) ; phase 7.6 à venir dans une version ultérieure, puis F6 (classifieur de contenu,
 reporté), chacune après validation de son plan (voir [Roadmap](07-roadmap.md)). Source de la partie
 signaux : la spécification « Détection des signaux de production de code assistée par IA », **version 0.2**
 (3 novembre 2026, références vérifiées).
@@ -218,7 +218,8 @@ résumé de ce qui marche. Le plan et l'arborescence de chaque phase sont propos
 - **7.5 Forme** (réalisée) : signaux F1 à F5, niveau « Probable ». Livrable : indices d'appoint, jamais seuls.
   Détaillée en section 9.5.
 - **7.6 Calibration** : précision par signal, recalibrage, κ. Livrable : rapport de calibration, seuils
-  documentés. Démarre quand un volume de revues suffisant existe.
+  documentés. Démarre quand un volume de revues suffisant existe ; **version ultérieure** (décision du
+  mainteneur, 4 novembre 2026) : les phases 7.1 à 7.5 sortent sans elle, seuils de la spécification.
 - **Étape ultérieure — F6, classifieur de contenu** (reporté par le mainteneur le 4 novembre 2026) : optionnel,
   désactivé par défaut, poids faible (0,5). Il demande un modèle de détection (type GPTSniffer ou
   DetectCodeGPT, références 17 à 19), donc une dépendance hors de la pile documentée, soumise à l'accord du

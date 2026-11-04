@@ -4,7 +4,7 @@
 
 **Status**: maintainer decision. Phases **7.1 to 7.5 done** (foundations, declarative signals, the
 `watchoo diagnostic` command, rhythm signals, history backfill, human review on the web, form signals F1 to
-F5; unreleased, sections 9.1 to 9.5); phase 7.6 to come, then F6 (content classifier, postponed), each after
+F5; unreleased, sections 9.1 to 9.5); phase 7.6 to come in a later release, then F6 (content classifier, postponed), each after
 its plan is approved (see [Roadmap](07-roadmap.md)). Source of the signal part: the specification
 "Detection of AI-assisted code production signals", **version 0.2** (November 3, 2026, references verified),
 written in French.
@@ -211,7 +211,8 @@ summary of what works. The plan and tree of each phase are proposed before the c
 - **7.5 Form** (done): signals F1 to F5, "Probable" level. Deliverable: supporting hints, never alone.
   Detailed in section 9.5.
 - **7.6 Calibration**: precision per signal, recalibration, κ. Deliverable: calibration report, documented
-  thresholds. Starts once enough reviews exist.
+  thresholds. Starts once enough reviews exist; **later release** (maintainer decision, November 4, 2026):
+  phases 7.1 to 7.5 ship without it, with the specification's thresholds.
 - **Later step: F6, content classifier** (postponed by the maintainer on November 4, 2026): optional, off by
   default, low weight (0.5). It needs a detection model (GPTSniffer or DetectCodeGPT style, references 17 to
   19), hence a dependency outside the documented stack, subject to the maintainer's approval; it would run

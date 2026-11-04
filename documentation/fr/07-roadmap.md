@@ -145,8 +145,9 @@ L'import d'une organisation entière et les alertes passent en V3 (voir
   « à regarder », `watchoo diagnostic backfill`) et **7.4 réalisée** (revue humaine sur le web : page
   « Diagnostic », fiche de revue, décisions enregistrées, bouton de reprise de l'historique) et **7.5
   réalisée** (signaux de forme F1 à F5 mesurés en mémoire, seuls des nombres gardés, niveau « probable ») ;
-  non publiées. La phase 7.6 (calibration) suit, puis F6 (classifieur de contenu, reporté), chacune après
-  validation de son plan. Contexte pédagogique tranché (apprenants, résultats réservés au formateur) ;
+  non publiées ; les phases 7.1 à 7.5 forment une même version. La phase 7.6 (calibration) viendra dans une
+  **version ultérieure** (décision du mainteneur, 4 novembre 2026), quand des revues réelles existeront,
+  puis F6 (classifieur de contenu, reporté), chacune après validation de son plan. Contexte pédagogique tranché (apprenants, résultats réservés au formateur) ;
   l'information des apprenants (existence du diagnostic, finalité, critères) se fait avant de l'activer.
 
 ## Définition de « terminé » pour chaque phase

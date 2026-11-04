@@ -145,8 +145,9 @@ Importing a whole organization and the alerts move to V3 (see
   the trainer) and **7.3 done** (rhythm signals R1 to R6, "to review" level, `watchoo diagnostic backfill`);
   and **7.4 done** (human review on the web: "Diagnosis" page, review sheet, recorded decisions, history
   backfill button) and **7.5 done** (form signals F1 to F5 measured in memory, numbers only kept, "probable"
-  level); unreleased. Phase 7.6 (calibration) follows, then F6 (content classifier, postponed), each after
-  its plan is approved. Educational context
+  level); unreleased; phases 7.1 to 7.5 make up one release. Phase 7.6 (calibration) will come in a
+  **later release** (maintainer decision, November 4, 2026), once real reviews exist, then F6 (content
+  classifier, postponed), each after its plan is approved. Educational context
   settled (learners, results reserved to the trainer); learners are informed (existence of the diagnosis,
   purpose, criteria) before it is enabled.
 
