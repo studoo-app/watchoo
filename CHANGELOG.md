@@ -9,12 +9,21 @@ PATCH (see [Skills](documentation/en/11-skills.md#versions-and-changelogmd)).
 
 ## [Unreleased]
 
+### Added
+
+- **Contributor's page, commits with a lead**: when the diagnosis is enabled, a commit of the contributor's
+  history that carries a reflection lead shows a "Lead: declared" badge ("probable", "to review"), colored by
+  level, linking to its review sheet.
+
 ### Changed
 
 - **Contributors list, AI score**: the column now shows the icon of the score's tier, with the score in
   the center of the image: `score-not-ia` at 0 (the icon alone, no number), `score-ia` from 1 to 29,
   `score-ia-max` from 30. The number of leads per level moves to the tooltip; the alternative text gives the
   score and the tier. Icons in `assets/icon/`, copied into the web interface by `make logo`.
+- **Contributor's page, AI score**: the "AI signatures" card (signed / analyzed commits) is replaced by the
+  contributor's AI score, the same as in the list (icon of the tier, score in the center, leads per level
+  below; "—" when the diagnosis is disabled). The "AI: Claude" badges on the commits stay.
 
 ## [1.6.1] - 2026-11-04
 

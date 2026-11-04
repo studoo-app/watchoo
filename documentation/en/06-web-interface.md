@@ -100,10 +100,9 @@ template.
 
 Everywhere a commit is listed (dashboard feed, history of a repository, commits of a contributor), a badge
 "AI: Claude" names each tool declared on it; **nothing** without a signature (shared `commit-ai` template).
-A contributor's page (and, before 1.6.0, the contributors ranking) gives "signed / analyzed" ("1 / 2") and the tools, "—" if
-no commit is analyzed yet (shared `ai-totals` template), with the sentence "An AI signature says a tool was
-declared on the commit, not who wrote the code; its absence proves nothing." No percentage, no ranking on
-this figure, no address displayed. Rules: [AI signatures](02-features.md#ai-signatures).
+Up to 1.6.0 (contributors ranking) and 1.6.1 (a contributor's page), a "signed / analyzed" total ("1 / 2")
+was also shown; it is replaced by the [AI score](#3-contributors). No percentage, no ranking on the
+signatures, no address displayed. Rules: [AI signatures](02-features.md#ai-signatures).
 
 ### 1. Dashboard
 - One **card per repository**: display label (`label`, e.g. "Alice Martin") or `owner/repo` (repeated
@@ -252,8 +251,9 @@ nor the templates: the profile link is the address stored in the database (see
   ("2 known Git identities": the **number** of email addresses, **never
   the addresses**). Totals: commits, lines added / removed ("—" if unknown, like the ranking; the
   lines are read from the local Git clone of each repository, for all the commits, which a note
-  recalls: "—" remains only if the clone is unavailable), repositories, first and last commit
-  (relative dates). **Choice**: no Active / Slacking / Dead state for a person: these states are
+  recalls: "—" remains only if the clone is unavailable), repositories, **AI score** (the same as in the [contributors list](#3-contributors), shared `ai-score`
+  template: icon of the tier, score in the center, leads per level below; "—" if the diagnosis is disabled;
+  it replaces the "AI signatures" card), first and last commit (relative dates). **Choice**: no Active / Slacking / Dead state for a person: these states are
   repository rules (per-repository thresholds); the page gives the age of the last commit, and the
   state of each of their repositories in the list below.
 - **Activity over 90 days**: commits per day of the contributor, across all repositories (`daily`
@@ -276,7 +276,10 @@ nor the templates: the profile link is the address stored in the database (see
   repository; previous / next HTMX links, `?page=` pushed into the address), each commit with the
   first line of the message (cleaned), the repository (link), the date, the `+/-` lines ("—" if they
   are unknown) and the short SHA linked to the commit on the forge. Same list as the history of a
-  repository (shared `commit-item` template).
+  repository (shared `commit-item` template). Diagnosis enabled: a commit that carries a [reflection
+  lead](12-supervision-diagnostic.md#6-levels-score-and-output) has a "Lead: declared" badge ("probable",
+  "to review": color of the level, small AI score icon) that leads to its review sheet
+  (`/diagnostic/lead`); nothing on the other commits, nothing if the diagnosis is disabled.
 - **Their pull requests** (`contributor-pulls` fragment, V2): the 20 most recently updated, across all
   repositories (number, title linked to the PR, repository, state: open, draft, merged, closed).
   Matching by the **forge account**: `pull_requests.author_provider_id` =

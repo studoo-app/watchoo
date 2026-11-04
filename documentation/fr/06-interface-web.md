@@ -99,10 +99,9 @@ partie des commits n'en a pas encore ; « — » si aucun n'en a. Template parta
 
 Partout où un commit est listé (fil du tableau de bord, historique d'un dépôt, commits d'un contributeur), un
 badge « IA : Claude » nomme chaque outil déclaré dessus ; **rien** sans signature (template partagé
-`commit-ai`). La page d'un contributeur (et, jusqu'à 1.6.0, le classement des contributeurs) donne « signés / analysés »
-(« 1 / 2 ») et les outils, « — » si aucun commit n'est encore analysé (template partagé `ai-totals`), avec la
-phrase « Une signature d'IA dit qu'un outil est déclaré sur le commit, pas qui a écrit le code ; son absence
-ne prouve rien. » Pas de pourcentage, pas de classement sur ce chiffre, aucune adresse affichée. Règles :
+`commit-ai`). Jusqu'à 1.6.0 (classement des contributeurs) et 1.6.1 (page d'un contributeur), un total « signés / analysés »
+(« 1 / 2 ») était aussi affiché ; il est remplacé par le [score IA](#3-contributeurs). Pas de pourcentage, pas de
+classement sur les signatures, aucune adresse affichée. Règles :
 [Signatures d'IA](02-fonctionnalites.md#signatures-dia).
 
 ### 1. Tableau de bord
@@ -247,7 +246,9 @@ lien de profil est l'adresse enregistrée en base (voir [Liens vers les profils]
   rattachées (« 2 identités Git connues » : le **nombre** d'adresses e-mail, **jamais les adresses**).
   Totaux : commits, lignes ajoutées / retirées (« — » si inconnues, comme le classement ; les lignes
   sont lues dans le clone Git local de chaque dépôt, pour tous les commits, ce que rappelle une note :
-  « — » ne reste que si le clone est indisponible), dépôts, premier et dernier commit (dates relatives). **Choix** : aucun état Actif / Flemme /
+  « — » ne reste que si le clone est indisponible), dépôts, **score IA** (le même que dans la [liste des contributeurs](#3-contributeurs), template partagé
+  `ai-score` : icône du palier, score au centre, pistes par niveau en dessous ; « — » si le diagnostic est
+  désactivé ; il remplace la carte « Signatures d'IA »), premier et dernier commit (dates relatives). **Choix** : aucun état Actif / Flemme /
   Dead pour une personne : ces états sont des règles de dépôt (seuils par dépôt) ; la page donne
   l'ancienneté du dernier commit, et l'état de chacun de ses dépôts dans la liste ci-dessous.
 - **Activité sur 90 jours** : commits par jour du contributeur, tous dépôts confondus (graphique
@@ -272,7 +273,10 @@ lien de profil est l'adresse enregistrée en base (voir [Liens vers les profils]
   première ligne du message (nettoyée), le dépôt (lien), la date, les lignes `+/-` (« — » si elles
   sont inconnues) et le SHA
   court lié au commit sur la forge. Même liste que l'historique d'un dépôt (template partagé
-  `commit-item`).
+  `commit-item`). Diagnostic activé : un commit qui porte une [piste de
+  réflexion](12-supervision-diagnostic.md#6-niveaux-score-et-sortie) a un badge « Piste : déclaré »
+  (« probable », « à regarder » : couleur du niveau, petite icône du score IA) qui mène à sa fiche de revue
+  (`/diagnostic/lead`) ; rien sur les autres commits, rien si le diagnostic est désactivé.
 - **Ses pull requests** (fragment `contributor-pulls`, V2) : les 20 plus récemment modifiées, tous
   dépôts confondus (numéro, titre lié à la PR, dépôt, état : ouverte, brouillon, mergée, fermée).
   Rapprochement par le **compte de forge** : `pull_requests.author_provider_id` =

@@ -167,8 +167,8 @@ d'export, pas d'usage dans une évaluation (section 2).
 
 **Score IA d'un contributeur** (1.6.0, liste des contributeurs, décision du mainteneur) : même calcul sur les
 pistes dont il est l'auteur, tous dépôts confondus (commit et jour : le contributeur auteur ; pull request : son
-login de forge). Il remplace la colonne « Signatures d'IA » de la liste quand le diagnostic est activé (« — »
-sinon). Il est présenté par l'icône de son palier (`diagnostic.Tier`) : **rien** à 0 (aucune piste), **moyen**
+login de forge). Il remplace la colonne « Signatures d'IA » de la liste, et la carte « Signatures d'IA » de la page du
+contributeur (même score), quand le diagnostic est activé (« — » sinon). Il est présenté par l'icône de son palier (`diagnostic.Tier`) : **rien** à 0 (aucune piste), **moyen**
 de 1 à 29, **élevé** dès 30 (3 signaux déclarés, ou 10 signaux de rythme) ; pour moyen et élevé, le score est
 écrit au centre de l'icône, à 0 l'icône est affichée seule ; le nombre de pistes par niveau est dans l'infobulle (et le texte de remplacement nomme le palier). La liste reste triée par
 commits : jamais par ce score. Ce n'est pas une note : il invite à ouvrir les pistes, comme le score d'un dépôt.
