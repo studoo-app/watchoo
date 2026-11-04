@@ -113,12 +113,15 @@ func TestSignalsComputedAtSync(t *testing.T) {
 	}
 
 	// Incremental: a new commit gets its signals, the others are not rewritten.
-	next := r.Commit("main", "app/next.go", "package main\n// x\n", secretMessage, secretAuthor, epoch.Add(6*time.Hour))
+	next := r.Commit("main", "app/next.go", "package main\n// TODO: x\n", secretMessage, secretAuthor, epoch.Add(6*time.Hour))
 	e.clock.Set(e.clock.Now().Add(time.Hour))
 	e.syncAll()
 	again, err := e.st.CommitSignals(t.Context(), repo.ID)
 	if err != nil || len(again) != 6 || again[0].SHA != next || !again[0].ComputedAt.Equal(e.clock.Now()) {
 		t.Fatalf("after the incremental sync: %+v, %v", again, err)
+	}
+	if f := again[0].Form; !f.Known || f.WIPMarkers != 1 || f.CommentLines != 1 {
+		t.Errorf("phase 7.7 measures of the new commit: %+v", f)
 	}
 	for _, s := range again[1:] {
 		if !s.ComputedAt.Equal(e.clock.Now().Add(-time.Hour)) {

@@ -62,6 +62,14 @@ func (s *Store) WriteCommitSignals(ctx context.Context, repoID int64, rows []Com
 				MessageLength:       int64(max(r.Form.MessageLength, 0)),
 				MessageBullets:      int64(max(r.Form.MessageBullets, 0)),
 				MessageConventional: r.Form.MessageConventional,
+				DecorativeLines:     int64(max(r.Form.DecorativeLines, 0)),
+				FrWords:             int64(max(r.Form.FrWords, 0)),
+				FrWordsUnaccented:   int64(max(r.Form.FrWordsUnaccented, 0)),
+				WipMarkers:          int64(max(r.Form.WIPMarkers, 0)),
+				ShortIdentifiers:    int64(max(r.Form.ShortIdentifiers, 0)),
+				PrivateDefs:         int64(max(r.Form.PrivateDefs, 0)),
+				MessageRevert:       r.Form.MessageRevert,
+				MessageFix:          r.Form.MessageFix,
 			})
 			if err != nil {
 				return wrapErr(i18n.T("store.diagnostic.write", shortSHA(r.SHA)), err)
@@ -118,16 +126,28 @@ func (s *Store) CommitSignals(ctx context.Context, repoID int64) ([]model.Commit
 			ComputedAt:    computed,
 			Form: formOf(r.FormKnown, r.SourceLines, r.CommentLines, r.Functions, r.DocumentedFunctions,
 				r.Identifiers, r.LexicalDiversity, r.TestLines, r.MessageLength, r.MessageBullets,
-				r.MessageConventional),
+				r.MessageConventional).with77(r.DecorativeLines, r.FrWords, r.FrWordsUnaccented, r.WipMarkers,
+				r.ShortIdentifiers, r.PrivateDefs, r.MessageRevert, r.MessageFix),
 		})
 	}
 	return out, nil
 }
 
+// form77 complète une forme convertie par formOf avec les mesures de la phase 7.7.
+type form77 model.CommitForm
+
+func (f form77) with77(decorative, fr, frUnaccented, wip, short, private int64, revert, fix bool) model.CommitForm {
+	g := model.CommitForm(f)
+	g.DecorativeLines, g.FrWords, g.FrWordsUnaccented = int(decorative), int(fr), int(frUnaccented)
+	g.WIPMarkers, g.ShortIdentifiers, g.PrivateDefs = int(wip), int(short), int(private)
+	g.MessageRevert, g.MessageFix = revert, fix
+	return g
+}
+
 // formOf convertit les colonnes de forme d'une ligne de commit_signals.
 func formOf(known bool, source, comment, functions, documented, identifiers int64, diversity sql.NullFloat64,
-	tests, msgLength, msgBullets int64, conventional bool) model.CommitForm {
-	return model.CommitForm{
+	tests, msgLength, msgBullets int64, conventional bool) form77 {
+	return form77{
 		Known: known, SourceLines: int(source), CommentLines: int(comment), Functions: int(functions),
 		DocumentedFunctions: int(documented), Identifiers: int(identifiers),
 		LexicalDiversity: diversity.Float64, HasDiversity: diversity.Valid, TestLines: int(tests),
@@ -215,7 +235,8 @@ func commitSignalView(r db.ListCommitSignalViewsRow) (CommitSignalView, error) {
 			ComputedAt: computed,
 			Form: formOf(r.FormKnown, r.SourceLines, r.CommentLines, r.Functions, r.DocumentedFunctions,
 				r.Identifiers, r.LexicalDiversity, r.TestLines, r.MessageLength, r.MessageBullets,
-				r.MessageConventional),
+				r.MessageConventional).with77(r.DecorativeLines, r.FrWords, r.FrWordsUnaccented, r.WipMarkers,
+				r.ShortIdentifiers, r.PrivateDefs, r.MessageRevert, r.MessageFix),
 		},
 		RepoRef:     RepoRef{RepoOwner: r.RepoOwner, RepoName: r.RepoName, RepoLabel: r.RepoLabel},
 		URL:         r.URL,

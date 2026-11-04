@@ -519,6 +519,12 @@ See [Supervision and diagnosis](12-supervision-diagnostic.md). No external servi
   hunks, path with a space and an accent, deletions); form measured at sync and completed by the history
   backfill; form columns in the store (row completed once only, migration `00014`); signal and level labels
   in both languages.
+- Phase 7.7: measures (decorative lines, French words with and without accents, work-in-progress markers in
+  Python, PHP and JavaScript, one-letter variables, private definitions, revert and fix messages); signals A1
+  to A7 (repository delivered in one go, silence, revert then replacement, unmeasured form ignored) and
+  counter-indicators H1 to H4; levels (A counted as R or F, "probable" lowered, never removed, "declared"
+  untouched); migration `00015` (form to measure again, rollback); `TODO` marker measured at sync on a
+  `gittest` repository; labels of the A and H signals in both languages.
 
 ## In CI
 

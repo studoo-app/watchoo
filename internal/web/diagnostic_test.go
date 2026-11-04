@@ -133,7 +133,8 @@ func TestDiagnosticBackfillButton(t *testing.T) {
 func TestDiagnosticLabels(t *testing.T) {
 	for _, lang := range []i18n.Lang{i18n.English, i18n.French} {
 		tr := i18n.For(lang)
-		for _, id := range []string{"D1", "D2", "D3", "D5", "R1", "R2", "R3", "R4", "R5", "R6", "F1", "F2", "F3", "F4", "F5"} {
+		for _, id := range []string{"D1", "D2", "D3", "D5", "R1", "R2", "R3", "R4", "R5", "R6", "F1", "F2", "F3", "F4", "F5",
+			"A1", "A2", "A3", "A4", "A5", "A6", "A7", "H1", "H2", "H3", "H4"} {
 			if key := "web.diag.signal." + id; tr.T(key) == key {
 				t.Errorf("%s: no label for %s", lang, key)
 			}

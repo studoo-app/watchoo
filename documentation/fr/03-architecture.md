@@ -71,7 +71,8 @@ watchoo/
   internal/activity/   règles d'activité (Actif / Flemme / Dead, états gris), formats courts
   internal/diagnostic/ diagnostic (phase 7) : signaux par commit (exclusions de fichiers, outils déclarés,
                        auteur bot, fichier de configuration d'agent), signaux de rythme R1 à R6, mesures
-                       et signaux de forme F1 à F5 (en mémoire) et pistes de réflexion (niveaux
+                       et signaux de forme F1 à F5 (en mémoire), signaux absolus A1 à A7 et
+                       contre-indicateurs H1 à H4 (phase 7.7) et pistes de réflexion (niveaux
                        « déclaré », « probable », « à regarder ») ; ne garde ni message, ni description
                        de PR, ni chemin, ni ligne de code
   internal/repoimport/ analyse des références de dépôts, de --branch et des fichiers d'import

@@ -10,7 +10,7 @@ migration `00005` (0.5.0) adds `contributors.profile_url` and the migration `000
 `commits.stats_known`; the migration `00007` (1.1.0) adds `repository_languages`; the migration `00008` (1.2.0)
 adds `commits.ai_rules_version` and the `commit_ai_signatures` table; the migration `00009` (1.2.0) adds
 `commits.languages_version` and the `commit_languages` table, i.e. **thirteen tables**; the migration `00010` (1.3.0)
-adds `sync_runs.warnings`. The migration `00011` (phase 7.1) adds `commit_signals`, the migration `00012` (phase 7.2) `pull_requests.tool_ids` and `repository_signals`, the migration `00013` (phase 7.4) `diagnostic_reviews`, i.e. **sixteen tables**, and the migration `00014` (phase 7.5) the form columns of `commit_signals` (see [Supervision and diagnosis](12-supervision-diagnostic.md)). The storage is a SQLite file versioned by `goose` migrations, with **one
+adds `sync_runs.warnings`. The migration `00011` (phase 7.1) adds `commit_signals`, the migration `00012` (phase 7.2) `pull_requests.tool_ids` and `repository_signals`, the migration `00013` (phase 7.4) `diagnostic_reviews`, i.e. **sixteen tables**, the migration `00014` (phase 7.5) the form columns of `commit_signals`, and the migration `00015` (phase 7.7) its measures of the absolute signals and counter-indicators (see [Supervision and diagnosis](12-supervision-diagnostic.md)). The storage is a SQLite file versioned by `goose` migrations, with **one
 database per workspace** (`.watchoo/watchoo.db`, see [Workspaces](10-workspaces.md)). The tables
 therefore do not know the notion of workspace: two workspaces never share data.
 
@@ -335,6 +335,12 @@ address, no file path, no line of code.
 | identifiers, lexical_diversity | Identifiers of the added code (keywords and strings left out) and their MATTR lexical diversity, window of 50; `NULL` with fewer than 50 identifiers (F3) |
 | test_lines | Non-blank added lines of the test files (F5) |
 | message_length, message_bullets, message_conventional | Message length without trailers and signatures, list lines, Conventional Commits subject (F4); the message is not copied |
+| decorative_lines | Decorative comment lines (phase 7.7, migration `00015`, signal A5) |
+| fr_words, fr_words_unaccented | Common accented French words found in the comments, and among them those written without accents (A6); the words are not kept |
+| wip_markers | Work-in-progress markers: `TODO`, `FIXME`, `XXX`, `HACK`, debug calls (A7, H1) |
+| short_identifiers | One-letter identifiers (A7, H2) |
+| private_defs | Private definitions among `functions` |
+| message_revert, message_fix | `git revert` message (A4); fix subject (H4) |
 
 Purge: at the end of each sync, rows whose `authored_at` is older than `diagnostic.retention_days`
 (365 days by default) are deleted.

@@ -4,7 +4,8 @@
 
 **Status**: maintainer decision. Phases **7.1 to 7.5 done** (foundations, declarative signals, the
 `watchoo diagnostic` command, rhythm signals, history backfill, human review on the web, form signals F1 to
-F5; released in v1.4.0, sections 9.1 to 9.5); phase 7.6 to come in a later release, then F6 (content classifier, postponed), each after
+F5; released in v1.4.0, sections 9.1 to 9.5); phase **7.7 done** (absolute signals and counter-indicators,
+section 9.6; unreleased); phase 7.6 to come in a later release, then F6 (content classifier, postponed), each after
 its plan is approved (see [Roadmap](07-roadmap.md)). Source of the signal part: the specification
 "Detection of AI-assisted code production signals", **version 0.2** (November 3, 2026, references verified),
 written in French.
@@ -144,7 +145,7 @@ are done in phase 7.5 (exact rules in section 9.5).
 | Level | Default rule | Reading |
 | --- | --- | --- |
 | **Declared** | At least one signal D1, D2, D3 or D5 on the commit | Use attested by tool traces |
-| **Probable** | ≥ 2 R signals **and** ≥ 1 F signal | Converging indicators |
+| **Probable** | ≥ 2 R signals **and** ≥ 1 F signal, with no H counter-indicator (A1 to A4 count as R, A5 to A7 as F; phase 7.7) | Converging indicators |
 | **To review** | 1 R signal, or ≥ 2 F signals | Isolated anomaly, often explainable |
 
 D4 triggers no level on its own: it is shown as context. The weighted score (D = 10, R = 3, F = 1,
@@ -213,6 +214,9 @@ summary of what works. The plan and tree of each phase are proposed before the c
 - **7.6 Calibration**: precision per signal, recalibration, κ. Deliverable: calibration report, documented
   thresholds. Starts once enough reviews exist; **later release** (maintainer decision, November 4, 2026):
   phases 7.1 to 7.5 ship without it, with the specification's thresholds.
+- **7.7 Absolute signals, work-in-progress markers and counter-indicators** (done; plan approved on November
+  4, 2026, section 9.6): cover projects delivered in few commits, which the R and F
+  signals (comparison with oneself, 20 observations) do not see. Independent of 7.6: can ship before it.
 - **Later step: F6, content classifier** (postponed by the maintainer on November 4, 2026): optional, off by
   default, low weight (0.5). It needs a detection model (GPTSniffer or DetectCodeGPT style, references 17 to
   19), hence a dependency outside the documented stack, subject to the maintainer's approval; it would run
@@ -386,6 +390,94 @@ revisited only if calibration shows the need); F6 postponed (section 9).
 - **Display**: each F signal gives its raw value, the personal median (F5: the usual share of commits with
   tests) and, for F1, F3 and F4, the z-score; labels in English and French.
 
+## 9.6 Phase 7.7: absolute signals, work-in-progress markers and counter-indicators (done)
+
+**Origin**: the reference "Signaux de détection d'usage IA dans les repos étudiants" (signals of AI usage
+in student repositories; agent AGENT_DETECTION_IA, 5 pages, 8 categories, sent by the maintainer on
+November 4, 2026; internal document, reference 34). Its thresholds come from teachers' experience,
+**without empirical validation**: they are taken as starting values, to be calibrated (7.6). Same
+guardrails as the rest of the diagnosis (section 2).
+
+**Finding** (comparison with 1.4.0): the reference judges a project with **absolute thresholds** (over 500
+lines in a commit, no TODO over 800 lines…); Watchoo compares the learner with **their own history** (at
+least 20 observations in 90 days). A project delivered in 1 to 5 commits, the typical case of the
+reference, therefore raises no R or F lead. The reference also tempers with **counter-indicators**
+(traces of human work), which 1.4.0 lacks.
+
+### New measures (in memory, numbers only)
+
+Added to the `FormMeter` (same reading of the added lines as F1 to F5) and to the message style, kept in
+`commit_signals` (migration `00015`). No line, word or path is kept.
+
+| Measure | Definition |
+| --- | --- |
+| `decorative_lines` | Decorative comment lines: at least 8 consecutive filler characters (`─ ━ ═ = - * ~ #`), alone or framing a title (`// ── Section ──`) |
+| `fr_words`, `fr_words_unaccented` | In comments, words from a fixed list of common accented French words ("données", "accès", "méthode", "élément", "requête", "paramètre"…), counted with and without their accents ("donnees") |
+| `wip_markers` | Work-in-progress markers: `TODO`, `FIXME`, `XXX`, `HACK` in comments; debug lines (`print(` in Python, `var_dump(`, `dd(`, `dump(`, `console.log(`, `fmt.Println(` outside `main`… list per language) |
+| `short_identifiers` | One-letter identifiers (`$i`, `j`, `k`, `x`…) among the identifiers already counted for F3 |
+| `private_defs` | Private definitions among the definitions (`private function`, `private` in Java/C#/Kotlin, `def _name` in Python, `#name` in JS) |
+| `message_revert`, `message_fix` | Message of the form `Revert "…"` (git revert); fix subject (`fix`, `corrige`, `correction`, `oups`…) |
+
+### Family A: absolute signals (no personal history)
+
+| ID | Signal | Default trigger (reference) | Counts as |
+| --- | --- | --- | --- |
+| A1 | Massive commit | ≥ 500 source lines added (kept files) | R |
+| A2 | Repository delivered "in one go" | The author has at most 3 measured commits in the repository, and one of them brings ≥ 80% of their added source lines (and at least 200) | R |
+| A3 | Push after a silence | ≥ 300 source lines added after at least 14 days without a commit of the author in the repository | R |
+| A4 | Revert then replacement | A `Revert "…"` commit followed, within the hour, by a commit of the author of at least 100 added source lines (files not checked: paths are not kept) | R |
+| A5 | Decorative comments | ≥ 3 decorative lines in the commit | F |
+| A6 | French comments without accents | ≥ 10 words found in the commit, ≥ 90% without accents | F |
+| A7 | Code "in its final state" | Over the whole of the author in the repository: ≥ 800 source lines added, no work-in-progress marker and no one-letter identifier | F |
+
+A1 to A4 count as rhythm signals and A5 to A7 as form signals for the levels (section 6): a repository
+delivered in one 600-line commit (A1, A2) with decorative separators (A5) gives "Probable". A2 and A7 are
+about the whole of the author in the repository; they are **attached to the author's biggest commit**
+(added source lines), so that the same lead gathers the clues of a repository delivered in one go.
+
+**Implementation**: the measures are computed at sync and by the history backfill; the A and H signals when
+read, like R and F. Migration `00015` sets `form_known` back to 0: the commits measured before phase 7.7 do
+not have these measures yet, and the history backfill completes them. A1 to A7 only count the commits whose
+form is measured; A3 needs a previous commit of the author in the repository; H3 (skeleton) tempers all the
+leads of the author in the repository; H4 counts the fixes of the 14 days before the commit.
+
+### Family H: counter-indicators (traces of human work)
+
+| ID | Hint | Marker |
+| --- | --- | --- |
+| H1 | Work-in-progress markers | At least one marker in the commit (or the project, for a `project` lead) |
+| H2 | Short variables | At least 3 one-letter identifiers |
+| H3 | Initial skeleton | First commit of the author: at least 5 files and at most 2 added lines per file on average |
+| H4 | Iterative fixes | At least 3 fix commits (`message_fix`) of the author in the previous 14 days |
+
+A counter-indicator **never removes a lead**: it **lowers it by one level** ("Probable" → "To review";
+"To review" stays "To review") and is shown next to the signals, labelled "trace of human work". It never
+affects "Declared".
+
+### Out of scope of 7.7 (with the reason)
+
+- **Documentation** (flawless README, doc/code mismatch) and **CSS** (palettes, fonts, Bootstrap class
+  chains): would require keeping or comparing contents, not just numbers.
+- **Stylistic homogeneity, convention break** (French → English, MySQLi → PDO), **near-identical pages**,
+  **overly mature architecture**: need parsing or keeping file fingerprints; to be reconsidered after
+  calibration.
+- **Good practices outside the curriculum**: depend on the course curriculum (a per-workspace list is
+  possible later).
+- **Consistency across a learner's projects** (identical palette, level jump, same flaw): needs to cross
+  repositories; crossing between people stays out of scope (section 2).
+
+### Decisions (approved by the maintainer on November 4, 2026)
+
+1. Thresholds of the reference taken as is (500, 80%, 14 days, 90%, 800), uncalibrated until 7.6.
+2. Lead kind `project`: approved, then **dropped during implementation**. A `project` lead carrying only A7
+   (a form signal) would never have been shown; A2 and A7 are attached to the author's biggest commit, with no
+   new kind and no migration of `diagnostic_reviews`.
+3. Counter-indicators: lower by one level, never remove a lead.
+4. A4 without file overlap (paths are not kept).
+5. List of accented French words and of debug calls: fixed, in the code, documented; no setting.
+6. Order: 7.7 before 7.6 (it does not depend on reviews), in a MINOR release (new signals and columns; no
+   `--json` key removed).
+
 ## 10. Open questions (for the maintainer to decide)
 
 1. **Informing learners**: text and timing (before the first analysis: course introduction, course charter…).
@@ -500,3 +592,10 @@ from the other sections. Secondary sources are flagged.
 31. French Labour Code, art. L1222-4 (prior information of employees).
 32. French Labour Code, art. L2312-37 and L2312-38 (works council consultation). https://code.travail.gouv.fr/code-du-travail/l2312-38
 33. French Court of Cassation, social chamber, December 11, 2019, no. 18-11.792.
+
+### 11.8 Teachers' reference: family A and counter-indicators H
+
+34. "Signaux de détection d'usage IA dans les repos étudiants": reference of the indirect signals of the agent
+    AGENT_DETECTION_IA (5 pages, 8 categories: Git history, style, quality, structure, documentation, cross-project
+    consistency, human signals, quantitative measures). Internal document sent by the maintainer on November 4, 2026,
+    unpublished; thresholds from experience, without empirical validation. *(Source of phase 7.7.)*

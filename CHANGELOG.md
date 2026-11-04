@@ -9,6 +9,19 @@ PATCH (see [Skills](documentation/en/11-skills.md#versions-and-changelogmd)).
 
 ## [Unreleased]
 
+### Added
+
+- **Diagnosis, phase 7.7 (absolute signals and counter-indicators)**: leads for projects delivered in few
+  commits, which the rhythm and form signals (compared with the learner's own history) could not see.
+  Absolute signals: massive commit (A1, 500 source lines or more), repository delivered in one go (A2), push
+  after 14 days of silence (A3), revert then replacement within the hour (A4), decorative comments (A5),
+  French comments without accents (A6), code in its final state with no work-in-progress marker nor
+  one-letter variable (A7). A1 to A4 count as rhythm signals, A5 to A7 as form signals. Traces of human work
+  (H1 TODO/FIXME/debug, H2 one-letter variables, H3 initial skeleton of files, H4 iterative fixes) lower a
+  "probable" lead to "to review" and never remove it. New measures in `commit_signals` (migration `00015`),
+  numbers only; the forms measured before are measured again by `watchoo diagnostic backfill`. Thresholds
+  from a teachers' reference, not calibrated yet.
+
 ## [1.4.0] - 2026-11-04
 
 Supervision and diagnosis: reflection leads on AI-assisted code production, for the trainer only, off by

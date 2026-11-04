@@ -65,24 +65,29 @@ type Report struct {
 	Histories []*AuthorHistory
 }
 
-// Level renvoie le niveau d'un ensemble de signaux (spécification, section 6) : LevelDeclared s'il
-// contient un signal déclaratif (D1, D2, D3, D5) ; sinon LevelProbable avec au moins 2 signaux de rythme
-// (R1 à R6) et 1 signal de forme (F1 à F5) ; sinon LevelToReview avec 1 signal de rythme ou au moins 2
-// signaux de forme ; vide sinon (un signal de forme seul ne lève pas de piste). D4 n'est que du contexte.
+// Level renvoie le niveau d'un ensemble de signaux (spécification, section 6, et phase 7.7) :
+// LevelDeclared s'il contient un signal déclaratif (D1, D2, D3, D5) ; sinon LevelProbable avec au moins 2
+// signaux de rythme (R1 à R6, A1 à A4) et 1 signal de forme (F1 à F5, A5 à A7) ; sinon LevelToReview avec
+// 1 signal de rythme ou au moins 2 signaux de forme ; vide sinon (un signal de forme seul ne lève pas de
+// piste). Un contre-indicateur (H1 à H4) abaisse « Probable » à « À regarder », sans jamais supprimer une
+// piste ni toucher « Déclaré ». D4 n'est que du contexte.
 func Level(hits []Hit) string {
-	rhythm, form := 0, 0
+	rhythm, form, counter := 0, 0, false
 	for _, h := range hits {
-		switch h.Signal {
-		case SignalCoAuthor, SignalSignature, SignalBot, SignalAgentBranch:
+		switch {
+		case h.Signal == SignalCoAuthor || h.Signal == SignalSignature || h.Signal == SignalBot ||
+			h.Signal == SignalAgentBranch:
 			return LevelDeclared
-		case SignalDailyLines, SignalCommitSize, SignalAddRatio, SignalSpeed, SignalFiles, SignalRegimeBreak:
+		case isRhythmLike(h.Signal):
 			rhythm++
-		case SignalCommentDensity, SignalDocstrings, SignalLexicon, SignalMessageStyle, SignalTests:
+		case isFormLike(h.Signal):
 			form++
+		case isCounter(h.Signal):
+			counter = true
 		}
 	}
 	switch {
-	case rhythm >= 2 && form >= 1:
+	case rhythm >= 2 && form >= 1 && !counter:
 		return LevelProbable
 	case rhythm >= 1 || form >= 2:
 		return LevelToReview

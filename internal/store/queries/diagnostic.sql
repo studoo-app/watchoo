@@ -6,7 +6,8 @@ INSERT INTO commit_signals (
     repo_id, sha, author_id, authored_at, files_kept, files_excluded, additions_kept, deletions_kept,
     tool_ids, agent_config, bot_author, computed_at, form_known, source_lines, comment_lines, functions,
     documented_functions, identifiers, lexical_diversity, test_lines, message_length, message_bullets,
-    message_conventional
+    message_conventional, decorative_lines, fr_words, fr_words_unaccented, wip_markers, short_identifiers,
+    private_defs, message_revert, message_fix
 )
 SELECT c.repo_id, c.sha, c.author_id, c.authored_at,
     sqlc.arg(files_kept), sqlc.arg(files_excluded), sqlc.arg(additions_kept), sqlc.arg(deletions_kept),
@@ -14,7 +15,9 @@ SELECT c.repo_id, c.sha, c.author_id, c.authored_at,
     sqlc.arg(form_known), sqlc.arg(source_lines), sqlc.arg(comment_lines), sqlc.arg(functions),
     sqlc.arg(documented_functions), sqlc.arg(identifiers), sqlc.narg(lexical_diversity),
     sqlc.arg(test_lines), sqlc.arg(message_length), sqlc.arg(message_bullets),
-    sqlc.arg(message_conventional)
+    sqlc.arg(message_conventional), sqlc.arg(decorative_lines), sqlc.arg(fr_words),
+    sqlc.arg(fr_words_unaccented), sqlc.arg(wip_markers), sqlc.arg(short_identifiers),
+    sqlc.arg(private_defs), sqlc.arg(message_revert), sqlc.arg(message_fix)
 FROM commits c
 WHERE c.repo_id = sqlc.arg(repo_id) AND c.sha = sqlc.arg(sha)
 ON CONFLICT (repo_id, sha) DO UPDATE SET
@@ -36,7 +39,15 @@ ON CONFLICT (repo_id, sha) DO UPDATE SET
     test_lines = excluded.test_lines,
     message_length = excluded.message_length,
     message_bullets = excluded.message_bullets,
-    message_conventional = excluded.message_conventional
+    message_conventional = excluded.message_conventional,
+    decorative_lines = excluded.decorative_lines,
+    fr_words = excluded.fr_words,
+    fr_words_unaccented = excluded.fr_words_unaccented,
+    wip_markers = excluded.wip_markers,
+    short_identifiers = excluded.short_identifiers,
+    private_defs = excluded.private_defs,
+    message_revert = excluded.message_revert,
+    message_fix = excluded.message_fix
 WHERE commit_signals.form_known = 0 AND excluded.form_known = 1;
 
 -- name: PurgeCommitSignals :execrows
@@ -50,7 +61,8 @@ SELECT cs.repo_id, cs.sha, c.author_id, cs.authored_at, cs.files_kept, cs.files_
     cs.deletions_kept, cs.tool_ids, cs.agent_config, cs.bot_author, cs.computed_at,
     cs.form_known, cs.source_lines, cs.comment_lines, cs.functions, cs.documented_functions,
     cs.identifiers, cs.lexical_diversity, cs.test_lines, cs.message_length, cs.message_bullets,
-    cs.message_conventional
+    cs.message_conventional, cs.decorative_lines, cs.fr_words, cs.fr_words_unaccented, cs.wip_markers,
+    cs.short_identifiers, cs.private_defs, cs.message_revert, cs.message_fix
 FROM commit_signals cs
 JOIN commits c ON c.repo_id = cs.repo_id AND c.sha = cs.sha
 WHERE cs.repo_id = sqlc.arg(repo_id)
@@ -98,7 +110,8 @@ SELECT cs.repo_id, cs.sha, c.author_id, cs.authored_at, cs.files_kept, cs.files_
        cs.additions_kept, cs.deletions_kept, cs.tool_ids, cs.agent_config, cs.bot_author, cs.computed_at,
        cs.form_known, cs.source_lines, cs.comment_lines, cs.functions, cs.documented_functions,
        cs.identifiers, cs.lexical_diversity, cs.test_lines, cs.message_length, cs.message_bullets,
-       cs.message_conventional,
+       cs.message_conventional, cs.decorative_lines, cs.fr_words, cs.fr_words_unaccented, cs.wip_markers,
+       cs.short_identifiers, cs.private_defs, cs.message_revert, cs.message_fix,
        c.url,
        r.owner AS repo_owner, r.name AS repo_name, r.label AS repo_label,
        CAST(COALESCE(a.name, '') AS TEXT) AS author_name,

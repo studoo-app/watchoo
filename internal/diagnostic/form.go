@@ -10,6 +10,7 @@ import (
 	"path"
 	"regexp"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 )
 
@@ -32,6 +33,14 @@ type Form struct {
 	LexicalDiversity    float64 // MATTR des identifiants (F3) ; voir HasDiversity
 	HasDiversity        bool    // au moins MATTRWindow identifiants
 	TestLines           int     // lignes ajoutées non vides des fichiers source de test (F5)
+
+	// Mesures de la phase 7.7 (signaux absolus A, contre-indicateurs H).
+	DecorativeLines   int // lignes de commentaire décoratives (« // ── Section ── », « # ════ ») (A5)
+	FrWords           int // mots français accentués courants repérés dans les commentaires (A6)
+	FrWordsUnaccented int // parmi eux, écrits sans leurs accents (« donnees ») (A6)
+	WIPMarkers        int // marqueurs de travail en cours : TODO, FIXME, XXX, HACK, appels de debug (A7, H1)
+	ShortIdentifiers  int // identifiants d'une lettre (« $i », « j ») (A7, H2)
+	PrivateDefs       int // définitions privées parmi Functions
 }
 
 // FormMeter mesure la forme d'un commit, ligne ajoutée par ligne ajoutée (Line), puis Result. Les lignes
@@ -97,10 +106,12 @@ func (m *FormMeter) Line(p, text string, hunk bool) {
 	switch kind := m.classify(line); kind {
 	case lineComment:
 		m.form.CommentLines++
+		m.commentText(line, true)
 		m.afterComment = true
 		m.pendingDef = false
 	case lineDocstring:
 		m.form.CommentLines++
+		m.commentText(line, false)
 		if m.pendingDef {
 			m.form.DocumentedFunctions++
 		}
@@ -111,8 +122,17 @@ func (m *FormMeter) Line(p, text string, hunk bool) {
 		// Décorateur ou attribut entre le commentaire et la définition : l'état est gardé.
 	default:
 		code := m.lang.stripComment(line)
+		if trailing := line[len(code):]; trailing != "" {
+			m.commentText(trailing, false)
+		}
+		if m.lang.debug != nil && m.lang.debug.MatchString(code) {
+			m.form.WIPMarkers++
+		}
 		if m.lang.isDef(code) {
 			m.form.Functions++
+			if m.lang.private != nil && m.lang.private.MatchString(code) {
+				m.form.PrivateDefs++
+			}
 			switch {
 			case m.afterComment:
 				m.form.DocumentedFunctions++
@@ -235,9 +255,86 @@ func tripleInside(line string) string {
 func (m *FormMeter) identifiers(code string) {
 	for _, id := range identifierTokens(code) {
 		m.form.Identifiers++
+		if len(strings.TrimLeft(id, "$")) == 1 {
+			m.form.ShortIdentifiers++
+		}
 		m.push(id)
 	}
 }
+
+// commentText mesure le texte d'un commentaire (ligne entière, docstring ou fin de ligne) : marqueurs
+// de travail, mots français accentués avec ou sans accents, et, pour une ligne de commentaire entière
+// (whole), décoration. Le texte n'est pas gardé.
+func (m *FormMeter) commentText(text string, whole bool) {
+	if wipComment.MatchString(text) {
+		m.form.WIPMarkers++
+	}
+	if whole && isDecorative(text) {
+		m.form.DecorativeLines++
+	}
+	for _, w := range strings.FieldsFunc(strings.ToLower(text), func(r rune) bool {
+		return !unicode.IsLetter(r)
+	}) {
+		switch {
+		case frAccented[w]:
+			m.form.FrWords++
+		case frUnaccented[w]:
+			m.form.FrWords++
+			m.form.FrWordsUnaccented++
+		}
+	}
+}
+
+// decorativeRun : au moins 8 caractères de remplissage identiques à la suite.
+const decorativeRun = 8
+
+// isDecorative indique si une ligne de commentaire est décorative : elle contient au moins decorativeRun
+// caractères de remplissage identiques consécutifs (« ── », « ══ », « == », « -- », « ** », « ~~ », « ## »).
+func isDecorative(line string) bool {
+	run, prev := 0, rune(0)
+	for _, r := range line {
+		if strings.ContainsRune("─━═=-*~#", r) && r == prev {
+			run++
+		} else if strings.ContainsRune("─━═=-*~#", r) {
+			run = 1
+		} else {
+			run = 0
+		}
+		prev = r
+		if run >= decorativeRun {
+			return true
+		}
+	}
+	return false
+}
+
+// wipComment reconnaît un marqueur de travail en cours dans un commentaire.
+var wipComment = regexp.MustCompile(`\b(TODO|FIXME|XXX|HACK)\b`)
+
+// frWords sont des mots français courants qui portent un accent et dont la forme sans accent n'est pas un
+// mot anglais courant (« élément » écarté : « element ») : liste fixe (phase 7.7, décision 5).
+var frWords = strings.Fields(`
+	données donnée accès méthode méthodes requête requêtes paramètre paramètres résultat résultats
+	créé créée créés réponse réponses numéro sécurité vérifier vérifie récupère récupérer récupération
+	première premier déjà été également très après problème système catégorie catégories période année
+	répertoire fenêtre entrée entrées réseau génère générer modèle contrôleur évènement événement état
+	étape propriété durée intégré sélectionné sélectionner supprimé supprimer affiché afficher connecté
+	déconnexion mémoire écran écrit écrire réussi préférences fichier détruit liée lié liés reçu reçue
+	envoyé envoyée enregistré enregistrer modifié modifier créer utilisé utilisée utilisateur utilisateurs
+	connexion`)
+
+// frAccented et frUnaccented sont les mots de frWords qui ont un accent, avec et sans leurs accents.
+var frAccented, frUnaccented = func() (map[string]bool, map[string]bool) {
+	acc, un := map[string]bool{}, map[string]bool{}
+	strip := strings.NewReplacer("é", "e", "è", "e", "ê", "e", "ë", "e", "à", "a", "â", "a", "î", "i", "ï", "i",
+		"ô", "o", "û", "u", "ù", "u", "ç", "c")
+	for _, w := range frWords {
+		if plain := strip.Replace(w); plain != w {
+			acc[w], un[plain] = true, true
+		}
+	}
+	return acc, un
+}()
 
 // push ajoute un identifiant à la fenêtre glissante de MATTRWindow identifiants ; chaque fenêtre pleine
 // ajoute son rapport « identifiants distincts / MATTRWindow » à la moyenne (MATTR).
@@ -319,6 +416,8 @@ type language struct {
 	annotations bool           // « @… » en début de ligne : décorateur ou annotation
 	docstring   bool           // Python : docstrings et chaînes triples
 	def         *regexp.Regexp // définition de fonction ou de méthode ; nil : non reconnue
+	private     *regexp.Regexp // définition privée (parmi def) ; nil : non reconnue
+	debug       *regexp.Regexp // appel de debug laissé dans le code ; nil : non reconnu
 }
 
 // block est un commentaire bloc.
@@ -372,18 +471,27 @@ var (
 	defPython = regexp.MustCompile(`^(async\s+)?def\s+\w+`)
 	defJS     = regexp.MustCompile(`^(export\s+)?(default\s+)?(async\s+)?function\b|` +
 		`^(export\s+)?(const|let|var)\s+[\w$]+\s*=\s*(async\s+)?(\([^)]*\)|[\w$]+)\s*=>|` +
-		`^((public|private|protected|static|async|readonly|override)\s+)*[\w$]+\s*\([^)]*\)\s*(:\s*[^{]+)?\{\s*$`)
+		`^((public|private|protected|static|async|readonly|override)\s+)*#?[\w$]+\s*\([^)]*\)\s*(:\s*[^{]+)?\{\s*$`)
 	defPHP  = regexp.MustCompile(`^((public|private|protected|static|abstract|final)\s+)*function\s+&?\w+`)
 	defJava = regexp.MustCompile(`^((public|private|protected|internal|static|final|abstract|override|virtual|async|synchronized|open|suspend)\s+)+` +
 		`[\w<>\[\],.?\s]*\b\w+\s*\([^;]*$|^(fun|fn|func|def)\s+[\w<>]+`)
 	defRuby = regexp.MustCompile(`^def\s+[\w.?!]+`)
 
+	privJS     = regexp.MustCompile(`^(static\s+)?(async\s+)?#[\w$]+\s*\(`)
+	privPHP    = regexp.MustCompile(`^((static|abstract|final)\s+)*private\b`)
+	privJava   = regexp.MustCompile(`^((static|final|abstract|override|open|suspend|async)\s+)*private\b`)
+	privPython = regexp.MustCompile(`^(async\s+)?def\s+_\w*`)
+	dbgJS      = regexp.MustCompile(`\bconsole\.(log|debug|dir|table)\s*\(|^debugger\b`)
+	dbgPHP     = regexp.MustCompile(`\b(var_dump|print_r|dd|dump|var_export)\s*\(`)
+	dbgJava    = regexp.MustCompile(`\bSystem\.(out|err)\.print(ln)?\s*\(|\bprintStackTrace\s*\(`)
+	dbgPython  = regexp.MustCompile(`^print\s*\(|\bbreakpoint\s*\(|\bpdb\.set_trace\s*\(`)
+
 	langC      = &language{line: []string{"//"}, blocks: []block{cBlock}, star: true, annotations: true}
 	langGo     = &language{line: []string{"//"}, blocks: []block{cBlock}, star: true, def: defGo}
-	langJS     = &language{line: []string{"//"}, blocks: []block{cBlock, htmlBlock}, star: true, annotations: true, def: defJS}
-	langPHP    = &language{line: []string{"//", "#"}, blocks: []block{cBlock}, star: true, def: defPHP}
-	langJava   = &language{line: []string{"//"}, blocks: []block{cBlock}, star: true, annotations: true, def: defJava}
-	langPython = &language{line: []string{"#"}, annotations: true, docstring: true, def: defPython}
+	langJS     = &language{line: []string{"//"}, blocks: []block{cBlock, htmlBlock}, star: true, annotations: true, def: defJS, private: privJS, debug: dbgJS}
+	langPHP    = &language{line: []string{"//", "#"}, blocks: []block{cBlock}, star: true, def: defPHP, private: privPHP, debug: dbgPHP}
+	langJava   = &language{line: []string{"//"}, blocks: []block{cBlock}, star: true, annotations: true, def: defJava, private: privJava, debug: dbgJava}
+	langPython = &language{line: []string{"#"}, annotations: true, docstring: true, def: defPython, private: privPython, debug: dbgPython}
 	langRuby   = &language{line: []string{"#"}, def: defRuby}
 	langHash   = &language{line: []string{"#"}}
 	langDash   = &language{line: []string{"--"}, blocks: []block{cBlock}}
@@ -458,12 +566,15 @@ type MessageStyle struct {
 	Length       int  // caractères du message, hors trailers et signatures d'outils
 	Bullets      int  // lignes en liste à puces ou numérotée
 	Conventional bool // sujet au format Conventional Commits (« feat: … », « fix(x): … »)
+	Revert       bool // message de « git revert » (« Revert "…" ») (A4)
+	Fix          bool // sujet de correction (« fix … », « corrige … », « oups ») (H4)
 }
 
 var (
 	bulletLine   = regexp.MustCompile(`^([-*•+]|\d+[.)])\s+\S`)
 	conventional = regexp.MustCompile(`(?i)^(feat|fix|docs|style|refactor|perf|test|tests|build|ci|chore|revert)(\([^)]*\))?!?: \S`)
 	trailerLine  = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9-]*: \S`)
+	fixSubject   = regexp.MustCompile(`(?i)^(fix|fixe[sd]?|fixing|hotfix|bugfix|corrige[rs]?|corrigé|correction|correctif|oups|oops)\b`)
 )
 
 // MeasureMessage mesure le style d'un message de commit ; le message n'est lu qu'en mémoire.
@@ -507,7 +618,10 @@ func MeasureMessage(message string) MessageStyle {
 	}
 	s.Length = utf8.RuneCountInString(strings.TrimSpace(strings.Join(kept, "\n")))
 	if len(lines) > 0 {
-		s.Conventional = conventional.MatchString(strings.TrimSpace(lines[0]))
+		subject := strings.TrimSpace(lines[0])
+		s.Conventional = conventional.MatchString(subject)
+		s.Revert = strings.HasPrefix(subject, `Revert "`)
+		s.Fix = fixSubject.MatchString(subject)
 	}
 	return s
 }

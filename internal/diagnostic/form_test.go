@@ -37,7 +37,7 @@ func sub(a, b int) int {
 // Doc
 // on two lines
 func (r *Repo) Name() string { return r.name }`})
-	want := Form{SourceLines: 14, CommentLines: 5, Functions: 3, DocumentedFunctions: 2}
+	want := Form{SourceLines: 14, CommentLines: 5, Functions: 3, DocumentedFunctions: 2, ShortIdentifiers: 11}
 	got := f
 	got.Identifiers, got.LexicalDiversity, got.HasDiversity = 0, 0, false
 	if got != want {
@@ -175,7 +175,10 @@ func TestMeasureMessage(t *testing.T) {
 		msg  string
 		want MessageStyle
 	}{
-		{"fix typo", MessageStyle{Length: 8}},
+		{"fix typo", MessageStyle{Length: 8, Fix: true}},
+		{`Revert "Ajout du menu"`, MessageStyle{Length: 22, Revert: true}},
+		{"Corrige le bug du panier", MessageStyle{Length: 24, Fix: true}},
+		{"Fixture des tests", MessageStyle{Length: 17}},
 		{"feat(api): add users\n\n- list\n- create\n* delete\n\nCo-authored-by: Claude <noreply@anthropic.com>",
 			MessageStyle{Length: 46, Bullets: 3, Conventional: true}},
 		{"Ajout du menu\n\n1. accueil\n2) contact\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)",
@@ -185,6 +188,54 @@ func TestMeasureMessage(t *testing.T) {
 	} {
 		if got := MeasureMessage(tc.msg); got != tc.want {
 			t.Errorf("MeasureMessage(%q) = %+v, want %+v", tc.msg, got, tc.want)
+		}
+	}
+}
+
+// Phase 7.7 measures: decorative comments, French words with and without accents, work-in-progress
+// markers, one-letter identifiers, private definitions.
+func TestFormPhase77Measures(t *testing.T) {
+	f := measure(t, nil,
+		[2]string{"app/service.py", `# ════════════════════════
+# Acces aux donnees et methode de calcul
+# ════════════════════════
+class Service:
+    def _charger(self):
+        """Récupère les données."""
+        # TODO: gérer les erreurs
+        print(self)
+
+    def public(self):
+        return 1`},
+		[2]string{"src/Repo.php", `<?php
+// ── Requête ─────────────
+private function find($i) { var_dump($i); }
+public function all() { return []; } // FIXME
+// élément, catégorie`},
+		[2]string{"web/app.js", `class A {
+  #secret() {
+    console.log("x");
+  }
+}`},
+	)
+	want := Form{DecorativeLines: 3, WIPMarkers: 5, PrivateDefs: 3}
+	got := Form{DecorativeLines: f.DecorativeLines, WIPMarkers: f.WIPMarkers, PrivateDefs: f.PrivateDefs}
+	if got != want {
+		t.Errorf("measures = %+v, want %+v", got, want)
+	}
+	// « Acces », « donnees », « methode » without accents; « Récupère », « données », « Requête »,
+	// « catégorie » with (« gérer », « élément » are not in the list).
+	if f.FrWords != 7 || f.FrWordsUnaccented != 3 {
+		t.Errorf("French words = %d, unaccented = %d; want 7, 3", f.FrWords, f.FrWordsUnaccented)
+	}
+	if f.ShortIdentifiers != 3 { // $i twice, class A
+		t.Errorf("short identifiers = %d, want 3", f.ShortIdentifiers)
+	}
+	for line, want := range map[string]bool{
+		"// ── Section ──────────": true, "# ========": true, "/********": true, "// a -- b": false, "# ====": false,
+	} {
+		if got := isDecorative(line); got != want {
+			t.Errorf("isDecorative(%q) = %v, want %v", line, got, want)
 		}
 	}
 }
