@@ -80,9 +80,14 @@
         <div class="stat-desc">{{t "web.contributor.added_deleted"}}</div>
       </div>
       <div class="stat">
-        <div class="stat-title">{{t "web.ai.col"}}</div>
-        <div class="stat-value text-2xl tabular-nums">{{template "ai-totals" $p.AI}}</div>
-        <div class="stat-desc">{{range $i, $tool := $p.AI.Tools}}{{if $i}}, {{end}}{{aiTool $tool.Tool}} {{$tool.Commits}}{{else}}{{t "web.ai.signed_scanned"}}{{end}}</div>
+        <div class="stat-title">{{t "web.contributors.ai_score"}}</div>
+        {{- if $v.Diagnostic}}
+        <div class="stat-value">{{template "ai-score" $v.Diag}}</div>
+        <div class="stat-desc">{{t "web.contributor.ai_score_desc" $v.Diag.Declared $v.Diag.Probable $v.Diag.ToReview}}</div>
+        {{- else}}
+        <div class="stat-value text-2xl text-base-content/40" title="{{t "web.contributors.ai_score_off"}}">—</div>
+        <div class="stat-desc">{{t "web.contributor.ai_score_disabled"}}</div>
+        {{- end}}
       </div>
       <div class="stat">
         <div class="stat-title">{{t "web.contributor.first_commit"}}</div>
@@ -94,7 +99,7 @@
       </div>
     </div>
     <p class="text-xs text-base-content/60">{{t "web.contributor.overview_note"}}</p>
-    <p class="text-xs text-base-content/60">{{t "web.ai.note"}}</p>
+    <p class="text-xs text-base-content/60">{{if $v.Diagnostic}}{{t "web.contributors.ai_score_note"}}{{else}}{{t "web.contributors.ai_score_off"}}{{end}}</p>
   </div>
 </section>
 {{end}}
@@ -228,7 +233,7 @@
     </div>
     {{if $p.Commits}}
     <ul class="divide-y divide-base-200" role="list">
-      {{range $p.Commits}}{{template "commit-item" (dict "Commit" . "ShowRepo" true)}}{{end}}
+      {{range $p.Commits}}{{template "commit-item" (dict "Commit" . "ShowRepo" true "Lead" ($c.Lead .))}}{{end}}
     </ul>
     {{else}}
     <p class="text-sm text-base-content/70 py-4">{{t "web.contributor.no_commit"}}</p>

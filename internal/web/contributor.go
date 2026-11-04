@@ -23,9 +23,12 @@ package web
 
 import (
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/studoo-app/watchoo/internal/activity"
+	"github.com/studoo-app/watchoo/internal/diagnostic"
 	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/store"
 )
@@ -67,6 +70,10 @@ type ContributorView struct {
 	// pull_requests.author_provider_id).
 	HasAccount bool
 	Pulls      []store.PullRequestView
+	// Diagnostic : le diagnostic est activé ; Diag porte alors son score IA, le même que dans la
+	// liste des contributeurs : pistes de ses commits (auteur) et de ses pull requests (login).
+	Diagnostic bool
+	Diag       diagnostic.Summary
 }
 
 // contributorLanguages est la carte « Langages » d'un contributeur : les contributorLanguagesShown
@@ -112,6 +119,28 @@ type contributorRepoRow struct {
 type ContributorCommitsView struct {
 	ContributorID int64
 	Page          store.CommitPage
+	// Leads : pistes de réflexion des commits de la page (diagnostic activé), par clé commitLeadKey.
+	Leads map[string]commitLead
+}
+
+// commitLead signale un commit qui porte une piste de réflexion : son niveau et la fiche de revue.
+type commitLead struct {
+	Level string // diagnostic.LevelDeclared, LevelProbable ou LevelToReview
+	Path  string // fiche de revue (/diagnostic/lead)
+}
+
+// commitLeadKey est la clé d'un commit dans Leads : dépôt et SHA (deux dépôts issus d'un même modèle
+// peuvent partager des SHA).
+func commitLeadKey(repoID int64, sha string) string {
+	return strconv.FormatInt(repoID, 10) + "/" + sha
+}
+
+// Lead renvoie la piste du commit c, nil s'il n'en porte pas (ou si le diagnostic est désactivé).
+func (v ContributorCommitsView) Lead(c store.CommitView) *commitLead {
+	if l, ok := v.Leads[commitLeadKey(c.RepoID, c.SHA)]; ok {
+		return &l
+	}
+	return nil
 }
 
 // ShowLogin indique s'il faut afficher le login à côté du nom (il existe et n'est pas déjà le nom).
@@ -179,6 +208,9 @@ func (s *server) contributorView(r *http.Request, id int64, full bool) (Contribu
 		contributorCommitsPerPage); err != nil {
 		return ContributorView{}, err
 	}
+	if err := s.contributorDiagnostic(r, &view); err != nil {
+		return ContributorView{}, err
+	}
 	if !full {
 		return view, nil
 	}
@@ -217,6 +249,36 @@ func (s *server) contributorView(r *http.Request, id int64, full bool) (Contribu
 		}
 	}
 	return view, nil
+}
+
+// contributorDiagnostic renseigne, si le diagnostic est activé, le score IA du contributeur (même
+// calcul que la liste, contributorScores, pour la seule personne de la page) et les pistes des commits
+// de la page courante de son historique (une seule lecture du diagnostic).
+func (s *server) contributorDiagnostic(r *http.Request, v *ContributorView) error {
+	if v.Diagnostic = s.cfg.Diagnostic.Enabled; !v.Diagnostic {
+		return nil
+	}
+	rep, err := diagnostic.Build(r.Context(), s.store, store.DiagnosticFilter{}, s.rhythmOptions())
+	if err != nil {
+		return err
+	}
+	logins := map[string]int64{}
+	if login := v.Profile.ProviderLogin; login != "" {
+		logins[strings.ToLower(login)] = v.Profile.ID
+	}
+	v.Diag = diagnostic.SummarizeByContributor(rep.Leads, logins)[v.Profile.ID]
+
+	shown := make(map[string]bool, len(v.Commits.Page.Commits))
+	for _, c := range v.Commits.Page.Commits {
+		shown[commitLeadKey(c.RepoID, c.SHA)] = true
+	}
+	v.Commits.Leads = map[string]commitLead{}
+	for _, l := range rep.Leads {
+		if key := commitLeadKey(l.RepoID, l.SHA); l.Kind == diagnostic.KindCommit && shown[key] {
+			v.Commits.Leads[key] = commitLead{Level: l.Level, Path: leadPath(l.RepoID, l.Key())}
+		}
+	}
+	return nil
 }
 
 // contributorRepoRows associe à chaque dépôt du contributeur l'état du dépôt (activity.Evaluate, avec

@@ -21,7 +21,8 @@ message for an unknown SSH host key (local Git clones) in **v1.3.1**; supervisio
 counter-indicators of the diagnosis (phase 7.7) as **v1.5.0**; the EN / FR language selector of the web
 interface and the lines behind the signals on the review sheet of the diagnosis (phase 7.8) and the diagnosis score per
 repository and per contributor as **v1.6.0**; the link to the documentation in the language of the web
-interface as **v1.6.1**.
+interface, the icons of the AI score and the AI score and the leads of the commits on a contributor's page as
+**v1.6.1**.
 
 ```mermaid
 flowchart LR

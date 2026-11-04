@@ -160,8 +160,8 @@ export, no use in an evaluation (section 2).
 
 **AI score of a contributor** (1.6.0, contributors list, maintainer's decision): the same computation on the
 leads they authored, across all repositories (commit and day: the author contributor; pull request: their
-forge login). It replaces the "AI signatures" column of the list when the diagnosis is enabled ("—"
-otherwise). It is shown by an icon of its tier (`diagnostic.Tier`): **none** at 0 (no lead), **medium** from 1
+forge login). It replaces the "AI signatures" column of the list, and the "AI signatures" card of the
+contributor's page (same score), when the diagnosis is enabled ("—" otherwise). It is shown by an icon of its tier (`diagnostic.Tier`): **none** at 0 (no lead), **medium** from 1
 to 29, **high** from 30 (3 declared signals, or 10 rhythm signals); for medium and high, the score is written in
 the center of the icon, at 0 the icon is shown alone; the number of leads per level is in the tooltip (and the alternative text names the tier). The list stays sorted by commits:
 never by this score. It is not a grade: it invites to open the leads, like the score of a repository.

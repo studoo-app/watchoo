@@ -4,6 +4,7 @@ package web
 // diagnosis, privacy of the note and of the diff.
 
 import (
+	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -216,6 +217,64 @@ func TestContributorsAIScore(t *testing.T) {
 
 	f, _, _ := diagnosticEnv(t, withLang("fr"))
 	assertContains(t, f.get("/contributors"), "Score IA", `alt="Score IA 10, moyen"`, "Score IA 10 (moyen) : 1 déclaré · 0 probable · 0 à regarder")
+}
+
+// Contributor page: the "AI score" card replaces the AI signatures, with the same score as the
+// list (leads of the contributor's commits).
+func TestContributorPageAIScore(t *testing.T) {
+	e, ids, sha := diagnosticEnv(t)
+	scored := 0
+	for _, id := range e.contributorIDs() {
+		w := e.get(fmt.Sprintf("/contributors/%d", id))
+		assertStatus(t, w, http.StatusOK)
+		assertContains(t, w, "AI score", "the score is not a grade")
+		assertNotContains(t, w, "AI signatures", "the diagnosis is disabled")
+		if strings.Contains(w.Body.String(), `alt="AI score 10, medium"`) {
+			scored++
+			assertContains(t, w, `title="AI score 10 (medium): 1 declared · 0 probable · 0 to review"`,
+				"1 declared · 0 probable · 0 to review")
+		} else {
+			assertContains(t, w, `alt="AI score 0, no lead"`)
+		}
+	}
+	if scored != 1 {
+		t.Errorf("%d contributor pages with the score 10, want 1", scored)
+	}
+
+	// Commits of the contributor: the commit with a lead carries the badge of its level and the link to
+	// its review sheet, the others nothing; the HTMX fragment of the history too.
+	lead := leadURLHTML(ids.Alice, sha)
+	marked := 0
+	for _, id := range e.contributorIDs() {
+		page := fmt.Sprintf("/contributors/%d", id)
+		body := e.get(page).Body.String()
+		if n := strings.Count(body, `href="`+lead+`"`); n > 0 {
+			marked++
+			if n != 1 {
+				t.Errorf("%s: %d links to the lead, want 1", page, n)
+			}
+			assertContains(t, e.get(page), "Lead: declared")
+			assertContains(t, e.htmx(page+"/commits"), `href="`+lead+`"`)
+		} else if strings.Contains(body, "/diagnostic/lead?") {
+			t.Errorf("%s: a lead link on a commit without lead", page)
+		}
+	}
+	if marked != 1 {
+		t.Errorf("%d contributor pages mark the commit, want 1", marked)
+	}
+	assertStatus(t, e.get(leadURL(ids.Alice, sha)), http.StatusOK)
+
+	f, _, _ := diagnosticEnv(t, withLang("fr"))
+	for _, id := range f.contributorIDs() {
+		assertContains(t, f.get(fmt.Sprintf("/contributors/%d", id)), "Score IA", "à regarder")
+	}
+
+	// Diagnosis disabled: no badge on the commits.
+	off := newTestEnv(t)
+	off.seed()
+	for _, id := range off.contributorIDs() {
+		assertNotContains(t, off.get(fmt.Sprintf("/contributors/%d", id)), "/diagnostic/lead?", "Lead: ")
+	}
 }
 
 func TestAIScoreIcon(t *testing.T) {

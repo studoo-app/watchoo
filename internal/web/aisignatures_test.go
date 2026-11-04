@@ -49,11 +49,11 @@ func TestAISignaturesPages(t *testing.T) {
 	}
 	assertContains(t, e.get("/"), "AI: Claude")
 
-	// Contributor page: signed / analyzed, the tool and the warning.
-	note := "its absence proves nothing"
+	// Contributor page: the badge on the commit; the totals card shows the AI score
+	// (diagnosis), not the signatures.
 	contributor := e.contributorIDs()["Alice Martin"]
 	w = e.get(fmt.Sprintf("/contributors/%d", contributor))
 	assertStatus(t, w, http.StatusOK)
-	assertContains(t, w, "AI signatures", "1 / 2", "Claude 1", note, "AI: Claude")
-	assertNotContains(t, w, "noreply@anthropic.com")
+	assertContains(t, w, "AI: Claude", "AI score", "the diagnosis is disabled")
+	assertNotContains(t, w, "AI signatures", "1 / 2", "noreply@anthropic.com")
 }

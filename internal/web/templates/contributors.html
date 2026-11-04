@@ -83,13 +83,7 @@
             {{- template "line-totals" .Lines}}
           </td>
           <td class="hidden md:table-cell text-right tabular-nums whitespace-nowrap">
-            {{- if $c.Diagnostic}}{{$tier := aiScoreTier .Diag.Score}}
-            {{- /* Icône et score empilés dans la même case de grille : le score au centre de l'image. */}}
-            <span class="inline-grid place-items-center size-11" title="{{t "web.contributors.ai_score_title" .Diag.Score $tier .Diag.Declared .Diag.Probable .Diag.ToReview}}">
-              <img src="{{aiScoreIcon .Diag.Score}}" alt="{{t "web.contributors.ai_score_label" .Diag.Score $tier}}" width="44" height="44" class="col-start-1 row-start-1 size-11">
-              {{- if .Diag.Score}}<span class="col-start-1 row-start-1 text-xs font-bold tabular-nums leading-none" aria-hidden="true">{{.Diag.Score}}</span>{{end}}
-            </span>
-            {{- else}}<span class="text-base-content/40" title="{{t "web.contributors.ai_score_off"}}">—</span>{{end}}
+            {{- if $c.Diagnostic}}{{template "ai-score" .Diag}}{{else}}<span class="text-base-content/40" title="{{t "web.contributors.ai_score_off"}}">—</span>{{end}}
           </td>
           <td>
             <ul class="flex flex-wrap gap-1" aria-label="{{t "web.contributors.per_repo"}}">

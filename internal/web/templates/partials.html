@@ -160,13 +160,18 @@
      prouve rien. */}}
 {{define "commit-ai"}}{{range .AITools}} <span class="badge badge-outline badge-sm" title="{{t "web.ai.commit_title"}}">{{t "web.ai.badge" (aiTool .)}}</span>{{end}}{{end}}
 
-{{/* Signatures d'IA d'un contributeur : « 3 / 120 », outils en infobulle ; « — » si aucun commit n'est
-     encore analysé. Donnée : model.AITotals. */}}
-{{define "ai-totals"}}{{if .Known}}<span title="{{t "web.ai.totals_title"}}">{{.Signed}} / {{.Scanned}}</span>{{else}}<span class="text-base-content/40" title="{{t "web.ai.unscanned_title"}}">—</span>{{end}}{{end}}
+{{/* Score IA d'un contributeur (1.6.0) : icône du palier, score posé au centre (même case de grille) ;
+pistes par niveau dans l'infobulle. Donnée : diagnostic.Summary. Liste et page d'un contributeur. */}}
+{{define "ai-score"}}{{$tier := aiScoreTier .Score -}}
+<span class="inline-grid place-items-center size-11" title="{{t "web.contributors.ai_score_title" .Score $tier .Declared .Probable .ToReview}}">
+  <img src="{{aiScoreIcon .Score}}" alt="{{t "web.contributors.ai_score_label" .Score $tier}}" width="44" height="44" class="col-start-1 row-start-1 size-11">
+  {{- if .Score}}<span class="col-start-1 row-start-1 text-xs font-bold tabular-nums leading-none" aria-hidden="true">{{.Score}}</span>{{end}}
+</span>{{end}}
 
 {{/* Un commit d'un historique (page d'un dépôt, page d'un contributeur). Donnée : dict "Commit"
      store.CommitView ["ShowRepo" true : dépôt du commit, lien vers sa page] ["ShowAuthor" true : auteur,
-     lien vers sa page et vers son profil]. Message nettoyé (firstLine), jamais d'e-mail. */}}
+     lien vers sa page et vers son profil] ["Lead" *commitLead : piste du diagnostic, badge du niveau et lien
+     vers la fiche de revue]. Message nettoyé (firstLine), jamais d'e-mail. */}}
 {{define "commit-item"}}{{$c := .Commit}}
 <li class="py-3 flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-4 min-w-0">
   <div class="min-w-0 flex-1">
@@ -178,7 +183,10 @@
       · {{template "commit-lines" $c.Commit}}{{template "commit-ai" $c}}
     </p>
   </div>
-  <div class="shrink-0">
+  <div class="shrink-0 flex flex-wrap items-center gap-2">
+    {{- /* Piste de réflexion du diagnostic (page d'un contributeur) : niveau, lien vers la fiche de revue. */}}
+    {{- with .Lead}}<a href="{{.Path}}" class="badge badge-sm {{diagLevelClass .Level}} gap-1 link-hover" title="{{t "web.commit.lead_title" (diagLevel .Level)}}">
+      <img src="/static/score-ia.svg" alt="" width="16" height="16" class="size-4" aria-hidden="true">{{t "web.commit.lead" (diagLevel .Level)}}</a>{{end}}
     {{if $c.URL}}<a href="{{$c.URL}}" class="badge badge-ghost font-mono link-hover" target="_blank" rel="noopener noreferrer" title="{{t "web.commit.view_github"}}">{{shortSHA $c.SHA}}</a>
     {{- else}}<span class="badge badge-ghost font-mono">{{shortSHA $c.SHA}}</span>{{end}}
   </div>
