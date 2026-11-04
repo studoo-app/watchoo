@@ -18,7 +18,7 @@ synchro par dépôt sont publiés en **v1.3.0** ([1.3.0](#130--avertissements-de
 dédié pour une empreinte de serveur SSH inconnue (clones Git locaux) en **v1.3.1** ; la supervision et le
 diagnostic (phases 7.1 à 7.5) sont publiés en **v1.4.0** ([7](#après-100--7--supervision-et-diagnostic)) ; les signaux
 absolus et les contre-indicateurs du diagnostic (phase 7.7) en **v1.5.0** ; le sélecteur de langue EN / FR de
-l'interface web en **v1.6.0**.
+l'interface web et les lignes en cause sur la fiche de revue du diagnostic (phase 7.8) en **v1.6.0**.
 
 ```mermaid
 flowchart LR
@@ -177,7 +177,7 @@ L'import d'une organisation entière et les alertes passent en V3 (voir
   **version ultérieure** (décision du mainteneur, 4 novembre 2026), quand des revues réelles existeront,
   puis F6 (classifieur de contenu, reporté), chacune après validation de son plan. La phase
   **7.7** (signaux absolus, marqueurs de travail, contre-indicateurs) est **publiée en v1.5.0** ; la phase **7.8** (lignes en cause
-  sur la fiche de revue, extraites à l'affichage) est **réalisée**, non publiée (voir
+  sur la fiche de revue, extraites à l'affichage) est **publiée en v1.6.0** (voir
   [Supervision et diagnostic](12-supervision-diagnostic.md#96-phase-77--signaux-absolus-marqueurs-de-travail-et-contre-indicateurs-réalisée)). Contexte pédagogique tranché (apprenants, résultats réservés au formateur) ;
   l'information des apprenants (existence du diagnostic, finalité, critères) se fait avant de l'activer.
 

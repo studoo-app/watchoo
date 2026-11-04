@@ -493,7 +493,7 @@ Un contre-indicateur **ne supprime jamais une piste** : il l'**abaisse d'un nive
 6. Ordre : 7.7 avant 7.6 (elle ne dépend pas des revues), dans une version MINEURE (ajouts de signaux et de
    colonnes ; aucune clé `--json` retirée).
 
-## 9.7 Phase 7.8 — lignes en cause à l'affichage (réalisée)
+## 9.7 Phase 7.8 — lignes en cause à l'affichage (réalisée, publiée en v1.6.0)
 
 Décision du mainteneur (4 novembre 2026), entre deux options : **A. extraire à l'affichage, sans rien
 garder** (retenue) ou B. garder des extraits en base. La minimisation (section 2) est inchangée : aucune ligne
