@@ -113,6 +113,23 @@ func TestLogoCopies(t *testing.T) {
 	}
 }
 
+// TestIconCopies checks that the embedded icons of the AI score are identical to assets/icon (make logo).
+func TestIconCopies(t *testing.T) {
+	for _, name := range []string{"score-ia-max.svg", "score-ia.svg", "score-not-ia.svg"} {
+		want, err := os.ReadFile(filepath.Join("..", "..", "assets", "icon", name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, err := os.ReadFile(filepath.Join("static", name))
+		if err != nil {
+			t.Fatalf("static/%s missing (make logo): %v", name, err)
+		}
+		if !bytes.Equal(got, want) {
+			t.Errorf("static/%s differs from assets/icon/%s: run make logo again", name, name)
+		}
+	}
+}
+
 // TestVendoredChecksums checks the checksums recorded in tailwind/VERSIONS.
 func TestVendoredChecksums(t *testing.T) {
 	f, err := os.Open("tailwind/VERSIONS")

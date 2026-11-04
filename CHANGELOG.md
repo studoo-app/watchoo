@@ -9,6 +9,13 @@ PATCH (see [Skills](documentation/en/11-skills.md#versions-and-changelogmd)).
 
 ## [Unreleased]
 
+### Changed
+
+- **Contributors list, AI score**: the column now shows the icon of the score's tier, with the score in
+  the center of the image: `score-not-ia` at 0 (the icon alone, no number), `score-ia` from 1 to 29,
+  `score-ia-max` from 30. The number of leads per level moves to the tooltip; the alternative text gives the
+  score and the tier. Icons in `assets/icon/`, copied into the web interface by `make logo`.
+
 ### Fixed
 
 - Web interface, diagnosis: once a lead is reviewed, its level ("to review", "probable", "declared") no

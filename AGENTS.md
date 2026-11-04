@@ -121,7 +121,7 @@ make docker           # local Docker image (IMAGE=watchoo:dev), never pushed
 - `sqlc generate` after any change to `internal/store/queries/` or the migrations; the generated code
   (`internal/store/db/`) is committed and **never edited by hand**.
 - `make css` after any change to the templates; `internal/web/static/app.css` is committed.
-- `make logo` after any change to `assets/logo/`; tests verify that the copies are up to date.
+- `make logo` after any change to `assets/logo/` or `assets/icon/`; tests verify that the copies are up to date.
 - The `-ldflags` (`internal/cli.Version`, `Commit`, `Date`) are written in the `Makefile`, the
   `.goreleaser.yaml` and the `Dockerfile`: keep them identical.
 - Any visible change goes into the `[Unreleased]` section of `CHANGELOG.md` (skills `semver` and

@@ -99,7 +99,7 @@ partie des commits n'en a pas encore ; « — » si aucun n'en a. Template parta
 
 Partout où un commit est listé (fil du tableau de bord, historique d'un dépôt, commits d'un contributeur), un
 badge « IA : Claude » nomme chaque outil déclaré dessus ; **rien** sans signature (template partagé
-`commit-ai`). La page d'un contributeur (et, jusqu'à 1.7.0, le classement des contributeurs) donne « signés / analysés »
+`commit-ai`). La page d'un contributeur (et, jusqu'à 1.6.0, le classement des contributeurs) donne « signés / analysés »
 (« 1 / 2 ») et les outils, « — » si aucun commit n'est encore analysé (template partagé `ai-totals`), avec la
 phrase « Une signature d'IA dit qu'un outil est déclaré sur le commit, pas qui a écrit le code ; son absence
 ne prouve rien. » Pas de pourcentage, pas de classement sur ce chiffre, aucune adresse affichée. Règles :
@@ -200,7 +200,7 @@ ne prouve rien. » Pas de pourcentage, pas de classement sur ce chiffre, aucune 
     `git`) et précise que les releases ne le sont pas ; dans l'en-tête, « Sur GitHub » remplace les
     étoiles et les issues par « non disponibles ». Un dépôt déjà lu par l'API garde ses dernières
     valeurs.
-- **Diagnostic** (1.7.0, fragment `repo-diagnostic`, seulement si le diagnostic est activé) : rappel « une
+- **Diagnostic** (1.6.0, fragment `repo-diagnostic`, seulement si le diagnostic est activé) : rappel « une
   piste n'est jamais un verdict » ; le [score du dépôt](12-supervision-diagnostic.md#6-niveaux-score-et-sortie)
   à côté du nombre de pistes par niveau (déclaré, probable, à regarder) ; le tableau des signaux déclenchés
   (identifiant, description, nombre de pistes qui le portent, points) ; les 10 dernières pistes (date, auteur,
@@ -215,9 +215,12 @@ ne prouve rien. » Pas de pourcentage, pas de classement sur ce chiffre, aucune 
 - Classement global (commits, part du total, lignes ajoutées / retirées ; « — » si aucun de ses commits
   n'a encore de statistiques connues, voir `commits.stats_known`), avec trois compteurs (contributeurs, commits, dépôts). Le nom de chaque
   contributeur mène à sa page (0.5.0).
-- **Score IA** (1.7.0, à la place de la colonne « Signatures d'IA ») : le [score IA du
-  contributeur](12-supervision-diagnostic.md#6-niveaux-score-et-sortie) et, en dessous, son nombre de pistes
-  par niveau (déclaré, probable, à regarder) ; « — » si le diagnostic est désactivé. Pas de tri sur cette
+- **Score IA** (1.6.0, à la place de la colonne « Signatures d'IA ») : le [score IA du
+  contributeur](12-supervision-diagnostic.md#6-niveaux-score-et-sortie) : l'icône de son palier
+  (`static/score-not-ia.svg` à 0, `score-ia.svg` de 1 à 29, `score-ia-max.svg` dès 30, copiées de
+  `assets/icon/` par `make logo`). À 0, l'icône seule ; sinon le score est posé au centre de l'icône (même case
+  de grille, couleur du thème) ; le texte de remplacement donne le score et le palier ; le nombre de pistes par niveau (déclaré, probable, à
+  regarder) est dans l'infobulle ; « — » si le diagnostic est désactivé. Pas de tri sur cette
   colonne. Note sous le tableau : comment le score est calculé, et qu'une piste n'est jamais un verdict.
 - Nombre de commits par dépôt (liens vers le détail).
 - Dernière activité.

@@ -47,6 +47,8 @@ CSS_OUT := internal/web/static/app.css
 # hors du package).
 WEB_LOGOS := watchoo-icone.svg watchoo-logo-final-nom.svg watchoo-logo-final-nom-dark.svg favicon.ico \
 	apple-touch-icon.png icon-192.png icon-512.png
+# Icônes du score IA : copiées de assets/icon dans internal/web/static/ par « make logo ».
+WEB_ICONS := score-ia-max.svg score-ia.svg score-not-ia.svg
 
 .DEFAULT_GOAL := help
 .PHONY: help build test vet fmt-check sqlc sqlc-check css css-check css-check-if-available logo check \
@@ -116,10 +118,11 @@ css-check-if-available:
 # go:embed ne remonte pas hors du package : internal/logo/art/ garde une copie des versions texte du
 # logo, identique à assets/logo/*.txt, et internal/web/static/ une copie des logos et icônes de
 # l'interface web (des tests de « make test » vérifient les deux).
-logo: ## Recopie le logo de assets/logo dans internal/logo/art/ (texte) et internal/web/static/ (web)
+logo: ## Recopie le logo de assets/logo (et les icônes de assets/icon) dans internal/logo/art/ et internal/web/static/
 	rm -f internal/logo/art/*.txt
 	cp assets/logo/*.txt internal/logo/art/
 	cd assets/logo && cp $(WEB_LOGOS) ../../internal/web/static/
+	cd assets/icon && cp $(WEB_ICONS) ../../internal/web/static/
 
 check: fmt-check vet test sqlc-check css-check-if-available build ## Lance tous les contrôles (comme la CI)
 

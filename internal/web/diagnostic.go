@@ -439,6 +439,18 @@ func diagnosticFuncs(tr *i18n.Translator) template.FuncMap {
 			return strings.Join(parts, ", ")
 		},
 		"leadPath": leadPath,
+		// Score IA d'un contributeur : icône et libellé du palier (le score est posé au centre de
+		// l'icône par le template, sauf à 0).
+		"aiScoreIcon": func(score int) string {
+			switch diagnostic.Tier(score) {
+			case diagnostic.TierHigh:
+				return "/static/score-ia-max.svg"
+			case diagnostic.TierMedium:
+				return "/static/score-ia.svg"
+			}
+			return "/static/score-not-ia.svg"
+		},
+		"aiScoreTier": func(score int) string { return tr.T("web.diag.tier." + diagnostic.Tier(score)) },
 	}
 }
 

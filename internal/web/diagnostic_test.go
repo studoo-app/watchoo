@@ -197,16 +197,37 @@ func TestContributorsAIScore(t *testing.T) {
 	e, _, _ := diagnosticEnv(t)
 	w := e.get("/contributors")
 	assertStatus(t, w, http.StatusOK)
-	assertContains(t, w, "AI score", "1 declared · 0 probable · 0 to review", "0 declared · 0 probable · 0 to review",
-		"the score is not a grade")
-	assertNotContains(t, w, "AI signatures", "the diagnosis is disabled")
-	if !strings.Contains(w.Body.String(), `<div class="font-semibold">10</div>`) {
-		t.Error("score 10 (one D1 lead) not shown")
+	// Score 10: the "medium" icon written in the page, the score in its center; score 0: the icon alone.
+	// The levels are only in the tooltip.
+	assertContains(t, w, "AI score", `<img src="/static/score-ia.svg" alt="AI score 10, medium"`,
+		`<span class="col-start-1 row-start-1 text-xs font-bold tabular-nums leading-none" aria-hidden="true">10</span>`,
+		`<img src="/static/score-not-ia.svg" alt="AI score 0, no lead"`,
+		`title="AI score 10 (medium): 1 declared · 0 probable · 0 to review"`, "the score is not a grade")
+	assertNotContains(t, w, "AI signatures", "the diagnosis is disabled", `aria-hidden="true">0</span>`,
+		`<div class="text-xs text-base-content/60">1 declared`)
+	assertContains(t, e.get("/fragments/contributors"), `alt="AI score 10, medium"`)
+	for _, icon := range []string{"score-ia-max.svg", "score-ia.svg", "score-not-ia.svg"} {
+		w := e.get("/static/" + icon)
+		assertStatus(t, w, http.StatusOK)
+		if ct := w.Header().Get("Content-Type"); ct != "image/svg+xml" {
+			t.Errorf("%s: Content-Type %q", icon, ct)
+		}
 	}
-	assertContains(t, e.get("/fragments/contributors"), "1 declared · 0 probable · 0 to review")
 
 	f, _, _ := diagnosticEnv(t, withLang("fr"))
-	assertContains(t, f.get("/contributors"), "Score IA", "1 déclaré · 0 probable · 0 à regarder")
+	assertContains(t, f.get("/contributors"), "Score IA", `alt="Score IA 10, moyen"`, "Score IA 10 (moyen) : 1 déclaré · 0 probable · 0 à regarder")
+}
+
+func TestAIScoreIcon(t *testing.T) {
+	funcs := diagnosticFuncs(i18n.For(i18n.English))
+	icon := funcs["aiScoreIcon"].(func(int) string)
+	tier := funcs["aiScoreTier"].(func(int) string)
+	for score, want := range map[int][2]string{0: {"/static/score-not-ia.svg", "no lead"}, 1: {"/static/score-ia.svg", "medium"},
+		29: {"/static/score-ia.svg", "medium"}, 30: {"/static/score-ia-max.svg", "high"}} {
+		if got := [2]string{icon(score), tier(score)}; got != want {
+			t.Errorf("score %d: %v, want %v", score, got, want)
+		}
+	}
 }
 
 // The evidence rows follow the signals of the lead, once each, and leave out the signals without lines.
