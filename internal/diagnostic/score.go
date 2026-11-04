@@ -1,6 +1,6 @@
 package diagnostic
 
-// Score d'un dépôt (1.6.0, documentation/fr/12-supervision-diagnostic.md section 6) : somme des poids des
+// Score d'un dépôt (1.7.0, documentation/fr/12-supervision-diagnostic.md section 6) : somme des poids des
 // signaux de ses pistes, jamais affichée seule (nombre de pistes par niveau, décompte et points de chaque
 // signal). Il ne classe pas les dépôts entre eux et ne sert à aucune évaluation.
 
@@ -50,7 +50,7 @@ type Summary struct {
 }
 
 // SummarizeByContributor résume les pistes de chaque contributeur auteur (score IA d'un contributeur,
-// 1.6.0) : commit et jour par AuthorID, pull request par login de forge (logins : login en minuscules →
+// 1.7.0) : commit et jour par AuthorID, pull request par login de forge (logins : login en minuscules →
 // contributeur). Une piste sans auteur connu est ignorée.
 func SummarizeByContributor(leads []Lead, logins map[string]int64) map[int64]Summary {
 	by := map[int64][]Lead{}

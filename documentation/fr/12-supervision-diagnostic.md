@@ -158,14 +158,14 @@ documentée. F1 à F5 sont réalisés en phase 7.5 (règles précises en section
 D4 ne déclenche aucun niveau seul : il est affiché en contexte. Le score pondéré (D = 10, R = 3, F = 1,
 F6 = 0,5) sert seulement au tri, et sera recalibré à partir des revues humaines.
 
-**Score d'un dépôt** (1.6.0, page de détail du dépôt seulement) : la somme des poids des signaux de toutes
+**Score d'un dépôt** (1.7.0, page de détail du dépôt seulement) : la somme des poids des signaux de toutes
 les pistes du dépôt, chaque signal déclenché compté une fois par piste : D1, D2, D3, D5 = 10 ; R1 à R6 et A1
 à A4 = 3 ; F1 à F5 et A5 à A7 = 1 ; H1 à H4 et D4 = 0 (contexte ou contre-indicateur). Il n'est jamais affiché
 seul : toujours à côté du nombre de pistes par niveau et du décompte de chaque signal avec ses points, et du
 rappel qu'une piste n'est jamais un verdict. Il ne classe rien : pas de colonne de scores entre dépôts, pas
 d'export, pas d'usage dans une évaluation (section 2).
 
-**Score IA d'un contributeur** (1.6.0, liste des contributeurs, décision du mainteneur) : même calcul sur les
+**Score IA d'un contributeur** (1.7.0, liste des contributeurs, décision du mainteneur) : même calcul sur les
 pistes dont il est l'auteur, tous dépôts confondus (commit et jour : le contributeur auteur ; pull request : son
 login de forge). Il remplace la colonne « Signatures d'IA » de la liste quand le diagnostic est activé (« — »
 sinon), toujours avec le nombre de pistes par niveau à côté. La liste reste triée par commits : jamais par ce

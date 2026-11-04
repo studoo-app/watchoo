@@ -1,11 +1,13 @@
 package web
 
-// Language of the pages: the lang setting of the workspace (English by default, French), read at
-// each request, and the completeness of the texts of the templates in the i18n catalog.
+// Language of the pages: the choice of the browser (EN / FR selector, cookie), else the lang setting
+// of the workspace (English by default, French), read at each request, and the completeness of the texts of the templates in the i18n catalog.
 
 import (
 	"io/fs"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"regexp"
 	"strings"
@@ -193,4 +195,109 @@ func sameInBothLanguages(s string) bool {
 		return true
 	}
 	return false
+}
+
+// langCookieOf returns the language cookie set by w, or nil.
+func langCookieOf(w *httptest.ResponseRecorder) *http.Cookie {
+	for _, c := range w.Result().Cookies() {
+		if strings.HasPrefix(c.Name, "watchoo_lang") {
+			return c
+		}
+	}
+	return nil
+}
+
+// TestLangSelector checks the EN / FR selector of the header: English by default, the choice is kept
+// in a cookie of the browser (config.yaml untouched) and wins over the workspace setting.
+func TestLangSelector(t *testing.T) {
+	e := newTestEnv(t)
+	e.seed()
+
+	w := e.get("/contributors")
+	assertStatus(t, w, http.StatusOK)
+	assertContains(t, w, `<html lang="en">`, `action="/lang"`, `name="return" value="/contributors"`,
+		`value="en" class="btn btn-ghost btn-xs join-item btn-active"`, `>FR</button>`)
+
+	w = e.post("/lang", url.Values{"lang": {"fr"}, "return": {"/contributors"}}, false)
+	assertStatus(t, w, http.StatusSeeOther)
+	if loc := w.Header().Get("Location"); loc != "/contributors" {
+		t.Errorf("Location = %q, want /contributors", loc)
+	}
+	ck := langCookieOf(w)
+	if ck == nil || ck.Value != "fr" || !ck.HttpOnly || ck.Path != "/" || ck.MaxAge <= 0 {
+		t.Fatalf("language cookie = %+v", ck)
+	}
+
+	r := e.request(http.MethodGet, "/contributors", nil)
+	r.AddCookie(&http.Cookie{Name: ck.Name, Value: ck.Value})
+	w = e.do(r)
+	assertContains(t, w, `<html lang="fr">`, "Contributeurs",
+		`value="fr" class="btn btn-ghost btn-xs join-item btn-active"`)
+
+	// An invalid cookie falls back to the workspace language.
+	r = e.request(http.MethodGet, "/", nil)
+	r.AddCookie(&http.Cookie{Name: ck.Name, Value: "de"})
+	assertContains(t, e.do(r), `<html lang="en">`)
+
+	// Unknown language: 400, no cookie.
+	w = e.post("/lang", url.Values{"lang": {"de"}}, false)
+	assertStatus(t, w, http.StatusBadRequest)
+	if langCookieOf(w) != nil {
+		t.Error("cookie set for an unknown language")
+	}
+
+	// HTMX: HX-Redirect.
+	w = e.post("/lang", url.Values{"lang": {"en"}, "return": {"/settings"}}, true)
+	if got := w.Header().Get("HX-Redirect"); got != "/settings" {
+		t.Errorf("HX-Redirect = %q", got)
+	}
+}
+
+// TestLangSelectorWinsOverWorkspace: with lang: fr in the workspace, choosing EN shows English.
+func TestLangSelectorWinsOverWorkspace(t *testing.T) {
+	e := newTestEnv(t, withLang("fr"))
+	assertContains(t, e.get("/"), `<html lang="fr">`)
+	r := e.request(http.MethodGet, "/", nil)
+	r.AddCookie(&http.Cookie{Name: langCookieName(e.listenAddr), Value: "en"})
+	assertContains(t, e.do(r), `<html lang="en">`, "Dashboard")
+}
+
+// TestLangSelectorCSRF: the selector is a POST protected by the CSRF token.
+func TestLangSelectorCSRF(t *testing.T) {
+	e := newTestEnv(t)
+	r := e.request(http.MethodPost, "/lang", strings.NewReader("lang=fr"))
+	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	w := e.do(r)
+	assertStatus(t, w, http.StatusForbidden)
+	if langCookieOf(w) != nil {
+		t.Error("cookie set without a CSRF token")
+	}
+}
+
+func TestLocalReturnPath(t *testing.T) {
+	for raw, want := range map[string]string{
+		"":                      "/",
+		"/":                     "/",
+		"/repos/3":              "/repos/3",
+		"/repos/3?author=x#top": "/repos/3",
+		"//evil.example/x":      "/",
+		"/\\evil.example":       "/",
+		"https://evil.example/": "/",
+		"settings":              "/",
+		"/a\nb":                 "/",
+		"/contributors/%2e%2e":  "/contributors/%2e%2e",
+	} {
+		if got := localReturnPath(raw); got != want {
+			t.Errorf("localReturnPath(%q) = %q, want %q", raw, got, want)
+		}
+	}
+}
+
+func TestLangCookieName(t *testing.T) {
+	if got := langCookieName("127.0.0.1:8421"); got != "watchoo_lang_8421" {
+		t.Errorf("got %q", got)
+	}
+	if got := langCookieName("bad"); got != "watchoo_lang" {
+		t.Errorf("got %q", got)
+	}
 }

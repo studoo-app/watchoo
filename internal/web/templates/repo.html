@@ -7,7 +7,7 @@
     « repo-contributors » : contributeurs du dépôt (GET /repos/{id}, HX-Target: repo-contributors) ;
     « repo-languages »    : langages du dépôt (1.1.0 ; GET /repos/{id}, HX-Target: repo-languages) ;
     « repo-pulls »        : pull requests, releases et tags (V2 ; GET /repos/{id}, HX-Target: repo-pulls) ;
-    « repo-diagnostic »   : score et signaux du diagnostic (1.6.0, diagnostic activé ; GET /repos/{id},
+    « repo-diagnostic »   : score et signaux du diagnostic (1.7.0, diagnostic activé ; GET /repos/{id},
                             HX-Target: repo-diagnostic) ;
     « repo-commits »      : filtres, historique paginé (GET /repos/{id}/commits).
   Les graphiques (activité par jour ; activité par contributeur, template « contributors-chart » de
@@ -229,7 +229,7 @@
 </section>
 {{end}}
 
-{{/* Diagnostic du dépôt (1.6.0). Donnée : PageData (Content.Diagnostic, de type RepoDiagnosticView,
+{{/* Diagnostic du dépôt (1.7.0). Donnée : PageData (Content.Diagnostic, de type RepoDiagnosticView,
      repo_diagnostic.go). Le score n'est jamais affiché seul : niveaux et décompte des signaux à côté. */}}
 {{define "repo-diagnostic"}}{{$d := .Content.Diagnostic}}{{$s := $d.Summary}}
 <section id="repo-diagnostic" class="card bg-base-100 shadow-sm min-w-0" aria-labelledby="repo-diagnostic-title"

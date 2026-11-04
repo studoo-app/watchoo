@@ -14,7 +14,10 @@ plusieurs espaces en même temps, on lance un `serve` par espace, chacun sur son
 ## Langue de l'interface
 
 La langue des pages vient du **réglage `lang` de l'espace de supervision** (`config.yaml`) : `en` par
-défaut, `fr` pour le français. Tout ce qui est affiché — titres, tableaux, libellés, boutons,
+défaut, `fr` pour le français. Le **sélecteur EN / FR** de l'en-tête (1.6.0) la change pour le seul
+navigateur en cours : le choix est gardé dans un cookie (`watchoo_lang`, suffixé par le port comme le
+cookie CSRF, `HttpOnly`, un an), l'emporte sur `lang` et `WATCHOO_LANG`, et n'écrit jamais dans
+`config.yaml`. Sans choix, ou avec une valeur inconnue, la langue de l'espace s'applique. Tout ce qui est affiché — titres, tableaux, libellés, boutons,
 messages d'erreur, dates relatives (« il y a 2 h » → "2 h ago") — existe dans les deux langues, servis
 par le paquet `internal/i18n`, sans dépendance (voir
 [Architecture](03-architecture.md#langues-et-traductions)). `lang` est un réglage commun : il est
@@ -22,7 +25,7 @@ partagé avec les autres superviseurs comme `timezone`. Les données saisies (no
 de commit, logins) ne sont pas traduites. Le réglage se change dans `config.yaml` (ou par l'import d'une
 configuration partagée) ; il est relu à chaque requête : un changement s'applique sans redémarrer
 `watchoo serve`. Sa variable d'environnement est `WATCHOO_LANG`, la même que celle de la CLI : la
-définir impose la langue partout.
+définir impose la langue partout, sauf dans un navigateur qui a choisi une langue avec le sélecteur.
 
 ## Pages
 
@@ -67,6 +70,7 @@ ne modifie quoi que ce soit ; tout `POST` passe par le contrôle CSRF.
 | `GET` | `/diagnostic/lead` | Fiche de revue d'une piste (404 si le diagnostic est désactivé ou la piste inconnue) |
 | `POST` | `/diagnostic/review` | Enregistre la revue d'une piste |
 | `POST` | `/diagnostic/backfill` | Lance la reprise de l'historique en arrière-plan (une à la fois) |
+| `POST` | `/lang` | Langue du navigateur (`lang` : `en` ou `fr` ; retour au chemin local `return`, sans query, sinon `/` ; 400 si inconnue) |
 | `GET` | `/static/*`, `/favicon.ico`, `/apple-touch-icon.png`, `/manifest.webmanifest` | Fichiers statiques embarqués |
 
 `{id}` est un nombre de 1 à 18 chiffres (sinon 404).
@@ -95,7 +99,7 @@ partie des commits n'en a pas encore ; « — » si aucun n'en a. Template parta
 
 Partout où un commit est listé (fil du tableau de bord, historique d'un dépôt, commits d'un contributeur), un
 badge « IA : Claude » nomme chaque outil déclaré dessus ; **rien** sans signature (template partagé
-`commit-ai`). La page d'un contributeur (et, jusqu'à 1.6.0, le classement des contributeurs) donne « signés / analysés »
+`commit-ai`). La page d'un contributeur (et, jusqu'à 1.7.0, le classement des contributeurs) donne « signés / analysés »
 (« 1 / 2 ») et les outils, « — » si aucun commit n'est encore analysé (template partagé `ai-totals`), avec la
 phrase « Une signature d'IA dit qu'un outil est déclaré sur le commit, pas qui a écrit le code ; son absence
 ne prouve rien. » Pas de pourcentage, pas de classement sur ce chiffre, aucune adresse affichée. Règles :
@@ -196,7 +200,7 @@ ne prouve rien. » Pas de pourcentage, pas de classement sur ce chiffre, aucune 
     `git`) et précise que les releases ne le sont pas ; dans l'en-tête, « Sur GitHub » remplace les
     étoiles et les issues par « non disponibles ». Un dépôt déjà lu par l'API garde ses dernières
     valeurs.
-- **Diagnostic** (1.6.0, fragment `repo-diagnostic`, seulement si le diagnostic est activé) : rappel « une
+- **Diagnostic** (1.7.0, fragment `repo-diagnostic`, seulement si le diagnostic est activé) : rappel « une
   piste n'est jamais un verdict » ; le [score du dépôt](12-supervision-diagnostic.md#6-niveaux-score-et-sortie)
   à côté du nombre de pistes par niveau (déclaré, probable, à regarder) ; le tableau des signaux déclenchés
   (identifiant, description, nombre de pistes qui le portent, points) ; les 10 dernières pistes (date, auteur,
@@ -211,7 +215,7 @@ ne prouve rien. » Pas de pourcentage, pas de classement sur ce chiffre, aucune 
 - Classement global (commits, part du total, lignes ajoutées / retirées ; « — » si aucun de ses commits
   n'a encore de statistiques connues, voir `commits.stats_known`), avec trois compteurs (contributeurs, commits, dépôts). Le nom de chaque
   contributeur mène à sa page (0.5.0).
-- **Score IA** (1.6.0, à la place de la colonne « Signatures d'IA ») : le [score IA du
+- **Score IA** (1.7.0, à la place de la colonne « Signatures d'IA ») : le [score IA du
   contributeur](12-supervision-diagnostic.md#6-niveaux-score-et-sortie) et, en dessous, son nombre de pistes
   par niveau (déclaré, probable, à regarder) ; « — » si le diagnostic est désactivé. Pas de tri sur cette
   colonne. Note sous le tableau : comment le score est calculé, et qu'une piste n'est jamais un verdict.

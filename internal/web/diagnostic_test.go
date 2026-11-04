@@ -149,7 +149,7 @@ func TestDiagnosticLabels(t *testing.T) {
 	}
 }
 
-// Repository page (1.6.0): the diagnosis card shows the score next to the levels and the signals, only when
+// Repository page (1.7.0): the diagnosis card shows the score next to the levels and the signals, only when
 // the diagnosis is enabled.
 func TestRepoDiagnostic(t *testing.T) {
 	e, ids, sha := diagnosticEnv(t)
@@ -186,7 +186,7 @@ func leadURLHTML(repoID int64, sha string) string {
 	return strings.ReplaceAll(leadURL(repoID, sha), "&", "&amp;")
 }
 
-// Contributors list (1.6.0): the "AI score" column replaces the AI signatures, with the levels next to it.
+// Contributors list (1.7.0): the "AI score" column replaces the AI signatures, with the levels next to it.
 func TestContributorsAIScore(t *testing.T) {
 	e, _, _ := diagnosticEnv(t)
 	w := e.get("/contributors")

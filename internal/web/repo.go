@@ -14,7 +14,7 @@ package web
 //     quand la requête vise #repo-languages ;
 //   - « repo-pulls » (id repo-pulls, V2) : pull requests ouvertes et dernières mergées, releases et
 //     tags, servi de même quand la requête vise #repo-pulls ;
-//   - « repo-diagnostic » (id repo-diagnostic, 1.6.0, diagnostic activé) : score et signaux du dépôt,
+//   - « repo-diagnostic » (id repo-diagnostic, 1.7.0, diagnostic activé) : score et signaux du dépôt,
 //     dernières pistes (repo_diagnostic.go), servi de même quand la requête vise #repo-diagnostic ;
 //   - « repo-commits » (id repo-commits) : filtres branche et auteur, historique paginé
 //     (repoCommitsPerPage par page), liens précédent / suivant. Il est servi par GET
@@ -103,7 +103,7 @@ type RepoView struct {
 	Thresholds thresholdsForm
 	// Pulls : pull requests, releases et tags du dépôt (V2, fragment « repo-pulls »).
 	Pulls RepoPullsView
-	// Diagnostic : score et signaux du dépôt (1.6.0, fragment « repo-diagnostic », repo_diagnostic.go) ;
+	// Diagnostic : score et signaux du dépôt (1.7.0, fragment « repo-diagnostic », repo_diagnostic.go) ;
 	// nil si le diagnostic est désactivé.
 	Diagnostic *RepoDiagnosticView
 }
