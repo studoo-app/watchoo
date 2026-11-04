@@ -69,6 +69,8 @@ watchoo/
   internal/sync/       synchronization engine (Engine: SyncAll, SyncRepo, AddRepositories) and
                        coordinator of a long-lived process's syncs (Coordinator, "watchoo serve")
   internal/activity/   activity rules (Active / Slacking / Dead, gray states), short formats
+  internal/diagnostic/ per-commit diagnosis signals (phase 7): file exclusions, declared tools, bot
+                       author, agent configuration file; keeps neither message nor path
   internal/repoimport/ parsing of repository references, of --branch and of import files
   internal/configshare/ sharing of a workspace's configuration (JSON export, validation, preview and
                        application of an import; "watchoo config", Settings page)
@@ -163,10 +165,12 @@ Fakes for the tests: `providertest` (in-memory Provider), `githubtest` (simulate
 - Expected settings: workspace name, sync interval, web listen address, activity thresholds, excluded
   branches, sync parallelism, display time zone (the system's by default), `gh` account (`github.user`),
   path to `gh` (`github.gh_path`), protocol of the local Git clones (`git.protocol`: `ssh` by default, or
-  `https`; V2).
+  `https`; V2), diagnosis (`diagnostic.enabled`, disabled by default; `diagnostic.exclude`;
+  `diagnostic.retention_days`, 365 by default; phase 7.1, see
+  [Supervision and diagnosis](12-supervision-diagnostic.md)).
 - Sharing between supervisors: `watchoo config export` / `import` (and the Settings page) exchange a
   versioned JSON file (`format: watchoo-config`, `version: 1`) with the tracked repositories and the common
-  settings, never `github.*`, `git.*` nor `web.*`. The core is `internal/configshare`; the rewrite of
+  settings, never `github.*`, `git.*`, `web.*` nor `diagnostic.*`. The core is `internal/configshare`; the rewrite of
   `config.yaml` is done by `internal/workspace` (`WriteSharedSettings`). See
   [Configuration sharing](05-cli.md#configuration-sharing-watchoo-config).
 

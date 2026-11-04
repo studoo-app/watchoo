@@ -9,6 +9,20 @@ PATCH (see [Skills](documentation/en/11-skills.md#versions-and-changelogmd)).
 
 ## [Unreleased]
 
+### Added
+
+- **Diagnosis, phase 7.1 (foundations)**: with the new `diagnostic.enabled` setting (disabled by
+  default), each sync measures, for the new commits read from the local clones, the data of the
+  diagnosis signals: lines and files after exclusion (`diagnostic.exclude`, lock files, vendored and
+  generated files by default; binaries always left out), AI tools declared in the commit message
+  (`Co-authored-by:` trailers and signatures), bot author, agent configuration file. Merge commits
+  are left out. The values go into the new `commit_signals` table (migration `00007`), without message,
+  e-mail address or file path, and are purged after `diagnostic.retention_days` (365 by default). Nothing
+  is displayed yet: a signal is never a verdict, and the review comes in the next phases. Settings:
+  `WATCHOO_DIAGNOSTIC_ENABLED`, `WATCHOO_DIAGNOSTIC_EXCLUDE`, `WATCHOO_DIAGNOSTIC_RETENTION_DAYS`; never
+  shared by `watchoo config`. See
+  [Supervision and diagnosis](documentation/en/12-supervision-diagnostic.md).
+
 ## [1.0.0] - 2026-11-01
 
 First stable release: after one more week of real usage, the public surface (commands, options,

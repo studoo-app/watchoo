@@ -204,13 +204,14 @@ tracked repositories and the **common settings** of a workspace: `sync.auto`, `s
 `timezone` and `lang` (English by default, see
 [Web interface](06-web-interface.md#interface-language)). Settings specific to the machine or the person are **never** shared: `name`, `github.*`
 (`gh` account, path to `gh`: a file coming from elsewhere must never choose the program being run),
-`git.*` (clone protocol, tied to the machine's credentials) and `web.*`.
+`git.*` (clone protocol, tied to the machine's credentials), `web.*` and `diagnostic.*` (enabling the
+diagnosis requires informing the people of this workspace: it never comes from an imported file).
 Details: [Configuration sharing](05-cli.md#configuration-sharing-watchoo-config).
 
 When an import changes at least one common setting, `.watchoo/config.yaml` is **rewritten** from the
 `watchoo init` template (same comments), with the imported settings uncommented:
 
-- `name`, `github.*`, `git.*` and `web.*` already present in the file are kept as is, as well as the common
+- `name`, `github.*`, `git.*`, `web.*` and `diagnostic.*` already present in the file are kept as is, as well as the common
   settings the import does not provide;
 - personal comments are lost; the old file is copied to `.watchoo/config.yaml.bak` (`0600`, replaced
   at each import);

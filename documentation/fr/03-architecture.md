@@ -69,6 +69,8 @@ watchoo/
   internal/sync/       moteur de synchronisation (Engine : SyncAll, SyncRepo, AddRepositories) et
                        coordinateur des synchros d'un processus long (Coordinator, « watchoo serve »)
   internal/activity/   règles d'activité (Actif / Flemme / Dead, états gris), formats courts
+  internal/diagnostic/ signaux de diagnostic par commit (phase 7) : exclusions de fichiers, outils déclarés,
+                       auteur bot, fichier de configuration d'agent ; ne garde ni message ni chemin
   internal/repoimport/ analyse des références de dépôts, de --branch et des fichiers d'import
   internal/configshare/ partage de la configuration d'un espace (export JSON, validation, aperçu et
                        application d'un import ; « watchoo config », page Réglages)
@@ -161,10 +163,12 @@ Faux pour les tests : `providertest` (Provider en mémoire), `githubtest` (serve
 - Paramètres attendus : nom de l'espace, intervalle de synchro, adresse d'écoute web, seuils d'activité,
   branches exclues, parallélisme de synchro, fuseau horaire d'affichage (par défaut celui du système),
   compte `gh` (`github.user`), chemin de `gh` (`github.gh_path`), protocole des clones Git locaux
-  (`git.protocol` : `ssh` par défaut, ou `https` ; V2).
+  (`git.protocol` : `ssh` par défaut, ou `https` ; V2), diagnostic (`diagnostic.enabled`, désactivé par
+  défaut ; `diagnostic.exclude` ; `diagnostic.retention_days`, 365 par défaut ; phase 7.1, voir
+  [Supervision et diagnostic](12-supervision-diagnostic.md)).
 - Partage entre superviseurs : `watchoo config export` / `import` (et la page Réglages) échangent un
   fichier JSON versionné (`format: watchoo-config`, `version: 1`) avec les dépôts suivis et les réglages
-  communs, jamais `github.*`, `git.*` ni `web.*`. Le cœur est `internal/configshare` ; la réécriture de
+  communs, jamais `github.*`, `git.*`, `web.*` ni `diagnostic.*`. Le cœur est `internal/configshare` ; la réécriture de
   `config.yaml` est faite par `internal/workspace` (`WriteSharedSettings`). Voir
   [Partage de la configuration](05-cli.md#partage-de-la-configuration--watchoo-config).
 

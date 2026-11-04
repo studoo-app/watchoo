@@ -274,3 +274,20 @@ type Tag struct {
 	Name   string // nom du tag
 	SHA    string // SHA du commit visé
 }
+
+// CommitSignal sont les signaux de diagnostic d'un commit (table commit_signals, phase 7.1), mesurés
+// à la synchro par internal/diagnostic. Ni message, ni e-mail, ni chemin de fichier. Clé : (RepoID, SHA).
+type CommitSignal struct {
+	RepoID        int64     // dépôt
+	SHA           string    // commit
+	AuthorID      int64     // auteur (contributeur) ; 0 = inconnu
+	AuthoredAt    time.Time // date d'écriture du commit, UTC
+	FilesKept     int       // fichiers retenus (ni binaires ni exclus)
+	FilesExcluded int       // fichiers binaires ou exclus par diagnostic.exclude
+	AdditionsKept int       // lignes ajoutées dans les fichiers retenus
+	DeletionsKept int       // lignes supprimées dans les fichiers retenus
+	Tools         []string  // outils déclarés (signaux D1 et D2), triés ; vide si aucun
+	AgentConfig   bool      // signal D4 : le commit modifie un fichier de configuration d'agent
+	BotAuthor     bool      // signal D3 : auteur bot connu
+	ComputedAt    time.Time // date du calcul, UTC
+}

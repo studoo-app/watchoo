@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -35,22 +36,22 @@ func TestCommitStatsBatch(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := map[string]provider.CommitStats{
-		m0:    {Additions: 2},
-		f1:    {Additions: 1},
-		m1:    {Additions: 1, Deletions: 1},
-		x:     {Additions: 1}, // the merge brings b.txt to main
-		empty: {},
-		bin:   {},
+		m0:    {Additions: 2, Files: []provider.CommitFile{{Path: "a.txt", Additions: 2}}},
+		f1:    {Additions: 1, Files: []provider.CommitFile{{Path: "b.txt", Additions: 1}}},
+		m1:    {Additions: 1, Deletions: 1, Files: []provider.CommitFile{{Path: "a.txt", Additions: 1, Deletions: 1}}},
+		x:     {Additions: 1, Files: []provider.CommitFile{{Path: "b.txt", Additions: 1}}}, // the merge brings b.txt to main
+		empty: {Files: []provider.CommitFile{}},
+		bin:   {Files: []provider.CommitFile{{Path: "img.bin", Binary: true}}},
 	}
 	if len(got) != len(want) {
 		t.Errorf("CommitStatsBatch: %d results, want %d (%v)", len(got), len(want), got)
 	}
 	for sha, w := range want {
 		st, ok := got[sha]
-		if !ok || st != w {
+		if !ok || !sameStats(st, w) {
 			t.Errorf("CommitStatsBatch[%s] = %+v (%v), want %+v", provider.ShortSHA(sha), st, ok, w)
 		}
-		if one, err := p.CommitStats(ctx, "alice", "projet", sha); err != nil || one != w {
+		if one, err := p.CommitStats(ctx, "alice", "projet", sha); err != nil || !sameStats(one, w) {
 			t.Errorf("CommitStats(%s) = %+v, %v; want %+v (same rule)", provider.ShortSHA(sha), one, err, w)
 		}
 	}
@@ -93,7 +94,7 @@ func TestCommitStatsBatchManyCommits(t *testing.T) {
 		t.Errorf("%d statistics, want %d", len(got), n+1)
 	}
 	for _, c := range commits[:n] { // every commit replaces one line
-		if st := got[c.SHA]; st != (provider.CommitStats{Additions: 1, Deletions: 1}) {
+		if st := got[c.SHA]; st.Additions != 1 || st.Deletions != 1 || len(st.Files) != 1 {
 			t.Fatalf("commit %s: %+v", provider.ShortSHA(c.SHA), st)
 		}
 	}
@@ -134,4 +135,11 @@ func TestPrepareUsesGivenDefaultBranch(t *testing.T) {
 	if err := fresh(t, srv, dir).Prepare(t.Context(), "alice", "absent", "main"); !errors.Is(err, provider.ErrAccessDenied) {
 		t.Errorf("missing repository: %v", err)
 	}
+}
+
+// sameStats compares two statistics, file list included (nil and empty lists differ: a clone always
+// gives a non-nil list).
+func sameStats(a, b provider.CommitStats) bool {
+	return a.Additions == b.Additions && a.Deletions == b.Deletions && (a.Files == nil) == (b.Files == nil) &&
+		slices.Equal(a.Files, b.Files)
 }

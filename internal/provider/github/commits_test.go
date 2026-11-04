@@ -696,8 +696,8 @@ func TestCommitStats(t *testing.T) {
 		if err != nil {
 			t.Fatalf("CommitStats: %v", err)
 		}
-		if stats != (provider.CommitStats{Additions: 30, Deletions: 12}) {
-			t.Errorf("CommitStats = %+v, want 30 / 12", stats)
+		if stats.Additions != 30 || stats.Deletions != 12 || stats.Files != nil {
+			t.Errorf("CommitStats = %+v, want 30 / 12 and no file detail", stats)
 		}
 	}
 	reqs := s.requests()
@@ -739,7 +739,7 @@ func TestCommitStatsUnexpected(t *testing.T) {
 	s := apiNewServer(t)
 	s.handle(apiCommitsPath+"/"+apiC3, apiStatic(http.StatusOK, []byte(`{"sha":"`+apiC3+`","stats":{"total":0,"additions":0,"deletions":0}}`)))
 	p := apiProvider(t, s, Options{})
-	if stats, err := p.CommitStats(context.Background(), apiOwner, apiName, apiC3); err != nil || stats != (provider.CommitStats{}) {
+	if stats, err := p.CommitStats(context.Background(), apiOwner, apiName, apiC3); err != nil || stats.Additions != 0 || stats.Deletions != 0 || stats.Files != nil {
 		t.Errorf("empty commit: %+v, %v", stats, err)
 	}
 }

@@ -199,6 +199,7 @@ Every setting of `config.yaml` can be overridden by a `WATCHOO_<SECTION>_<KEY>` 
 | `WATCHOO_LANG` | Language of the CLI and the TUI, and `lang` setting of the web interface (`en` or `fr`) |
 | `WATCHOO_GITHUB_USER`, `WATCHOO_GITHUB_GH_PATH` | `github.*` settings |
 | `WATCHOO_GIT_PROTOCOL` | `git.protocol` setting |
+| `WATCHOO_DIAGNOSTIC_ENABLED`, `WATCHOO_DIAGNOSTIC_EXCLUDE`, `WATCHOO_DIAGNOSTIC_RETENTION_DAYS` | `diagnostic.*` settings (`exclude`: list; see [Supervision and diagnosis](12-supervision-diagnostic.md)) |
 | `WATCHOO_DIR` | Workspace to use (like `-C`) |
 | `WATCHOO_WEB_PASSWORD` | Password of the web interface (never in a file) |
 | `WATCHOO_LOG_LEVEL` | Log level (`debug`, `info`, `warn` by default, `error`) |

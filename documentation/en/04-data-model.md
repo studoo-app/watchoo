@@ -7,7 +7,8 @@ branches (via `commit_branches`) and the contributors. V2 adds three of them (mi
 `pull_requests`, `releases` and `tags`, i.e. **ten tables**; the migration `00004` makes
 `repositories.provider_id` optional (repositories tracked through local Git repositories); the
 migration `00005` (0.5.0) adds `contributors.profile_url` and the migration `00006` (0.5.0)
-`commits.stats_known`. The storage is a SQLite file versioned by `goose` migrations, with **one
+`commits.stats_known`. The migration `00007` (phase 7.1) adds `commit_signals`, i.e. **eleven tables**
+(see [Supervision and diagnosis](12-supervision-diagnostic.md)). The storage is a SQLite file versioned by `goose` migrations, with **one
 database per workspace** (`.watchoo/watchoo.db`, see [Workspaces](10-workspaces.md)). The tables
 therefore do not know the notion of workspace: two workspaces never share data.
 
@@ -22,6 +23,7 @@ erDiagram
     repositories ||--o{ releases : "publishes"
     repositories ||--o{ tags : "marks"
     commits ||--o{ commit_branches : "seen on"
+    commits ||--o| commit_signals : "measured by"
     branches ||--o{ commit_branches : "contains"
     contributors ||--o{ contributor_emails : "uses"
     contributors ||--o{ commits : "author"
@@ -240,6 +242,30 @@ The forge gives no date for a tag: the display takes the date of the targeted co
 database (join on `commits (repo_id, sha)`, without a foreign key: the commit can be on an untracked
 branch).
 
+### `commit_signals` — diagnosis signals (phase 7.1)
+
+Primary key: **`(repo_id, sha)`**, foreign key to `commits (repo_id, sha)` with `ON DELETE CASCADE`
+(deleting a commit or a repository deletes its signals). One row per commit measured while the
+`diagnostic.enabled` setting is on: new commits synced after it was enabled, merge commits excluded,
+whose local Git clone gives the file detail. A row is never rewritten. **Data minimisation**: no
+message, no e-mail address, no file path.
+
+| Column | Description |
+| --- | --- |
+| repo_id, sha | Measured commit |
+| author_id | Author, copied from `commits` (`NULL` if the contributor is deleted) |
+| authored_at | Author date, copied from `commits`: per-author windows (phase 7.3) and purge |
+| files_kept | Files kept (neither binary nor excluded by `diagnostic.exclude`) |
+| files_excluded | Binary files or files excluded by a pattern |
+| additions_kept, deletions_kept | Lines added and deleted in the kept files |
+| tool_ids | Declared tool identifiers (signals D1 and D2: `claude`, `copilot`, `codex`, `cursor`, `unnamed`), sorted, comma-separated; empty if none |
+| agent_config | Signal D4: the commit changes an agent configuration file (`AGENTS.md`, `CLAUDE.md`…) |
+| bot_author | Signal D3: the author is a known bot account (`*[bot]`, `copilot-swe-agent`) |
+| computed_at | Date of the computation |
+
+Purge: at the end of each sync, rows whose `authored_at` is older than `diagnostic.retention_days`
+(365 days by default) are deleted.
+
 ## Index
 
 | Index | Usage |
@@ -251,6 +277,8 @@ branch).
 | `contributor_emails(contributor_id)` | Technical: foreign key often walked (e-mails of a contributor) |
 | `sync_runs(repo_id, started_at DESC)` | Technical: last sync of a repository |
 | `commits(repo_id, sha) WHERE stats_known = 0` | Partial index: commits whose `+/-` lines are still to be read (migration `00006`) |
+| `commit_signals(repo_id, author_id, authored_at)` | Per-author sliding windows of the rhythm signals (phase 7.3) |
+| `commit_signals(authored_at)` | Purge by retention period |
 
 ## Identity merging
 

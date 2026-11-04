@@ -27,10 +27,11 @@ var syncTexts = map[string]entry{
 	"sync.source.git": {"local Git clones", "clones Git locaux"},
 
 	// Erreurs du moteur (engine.go).
-	"sync.engine.no_store": {"sync engine: database not set", "moteur de synchro : base non renseignée"},
-	"sync.engine.no_auth":  {"sync engine: gh access not set", "moteur de synchro : accès à gh non renseigné"},
-	"sync.engine.sync":     {"sync", "synchronisation"},
-	"sync.engine.sync_id":  {"sync of repository %d", "synchronisation du dépôt %d"},
+	"sync.engine.no_store":           {"sync engine: database not set", "moteur de synchro : base non renseignée"},
+	"sync.engine.diagnostic_exclude": {"sync engine: diagnostic.exclude", "moteur de synchro : diagnostic.exclude"},
+	"sync.engine.no_auth":            {"sync engine: gh access not set", "moteur de synchro : accès à gh non renseigné"},
+	"sync.engine.sync":               {"sync", "synchronisation"},
+	"sync.engine.sync_id":            {"sync of repository %d", "synchronisation du dépôt %d"},
 	"sync.engine.sync_repo": {
 		"sync of repository %s",
 		"synchronisation du dépôt %s",
@@ -89,6 +90,10 @@ var syncTexts = map[string]entry{
 	"sync.thresholds.error": {"activity thresholds of the repository", "seuils d'activité du dépôt"},
 
 	// Statistiques de lignes (clonestats.go, repo.go).
+	"sync.diagnostic.not_recorded": {
+		"diagnostic signals not recorded: %s",
+		"signaux de diagnostic non enregistrés : %s",
+	},
 	"sync.stats.error": {"commit statistics", "statistiques des commits"},
 	"sync.stats.not_computed": {
 		"line statistics not computed: %s",

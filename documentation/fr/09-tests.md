@@ -442,6 +442,26 @@ L'interface (CLI, TUI, web) est bilingue : **anglais par défaut**, français pa
   système, puis anglais), retour anglais puis clé pour une clé absente, formatage des arguments, et
   **exhaustivité du catalogue** : chaque clé existe dans les deux langues.
 
+## Supervision et diagnostic (phase 7.1)
+
+Voir [Supervision et diagnostic](12-supervision-diagnostic.md). Aucun service extérieur : données
+fictives, dépôts `gittest`, base SQLite temporaire.
+
+- `internal/diagnostic` : motifs d'exclusion (répertoire n'importe où, nom de fichier, chemin complet,
+  motifs invalides), trailers et signatures reconnus (D1, D2 : casse, CRLF, doublons, co-auteur humain
+  ignoré), comptes bot (D3), fichiers de configuration d'agent (D4), commit sans détail de fichiers
+  (aucune valeur inventée).
+- Provider Git : détail des fichiers par commit (`CommitStats.Files`), fichier binaire listé sans lignes,
+  commit vide avec une liste vide ; l'API GitHub ne donne pas de détail (`Files` nil).
+- `internal/store` : écriture unique, commit absent ignoré, purge par date, contraintes `CHECK`, cascade à
+  la suppression du commit, migration `00007` montée puis descendue sur une base existante.
+- `internal/workspace` : valeurs par défaut (désactivé, 365 jours), validation des motifs et de la durée,
+  variables `WATCHOO_DIAGNOSTIC_*`, réglages `diagnostic.*` gardés par la réécriture de `config.import`
+  et jamais ajoutés par elle.
+- `internal/sync`, sur un dépôt `gittest` réel : signaux des nouveaux commits (trailer, bot, fichier exclu,
+  binaire, `AGENTS.md`), commit de fusion sans signal, synchro incrémentale sans recalcul, rien sans
+  `diagnostic.enabled`, purge en fin de synchro ; aucun message, nom ni e-mail dans les logs.
+
 ## En CI
 
 À chaque push et chaque pull request :

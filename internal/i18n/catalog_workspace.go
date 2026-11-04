@@ -185,6 +185,18 @@ var workspaceTexts = map[string]entry{
 		`branches.exclude: invalid pattern %q (path.Match syntax, e.g. "dependabot/*")`,
 		"branches.exclude : motif %q invalide (syntaxe de path.Match, ex. « dependabot/* »)",
 	},
+	"workspace.validate.diag_pattern_empty": {
+		"diagnostic.exclude: pattern #%d is empty",
+		"diagnostic.exclude : le motif n° %d est vide",
+	},
+	"workspace.validate.diag_pattern_invalid": {
+		`diagnostic.exclude: invalid pattern %q (path.Match syntax, a trailing "/" for a directory, e.g. "vendor/")`,
+		"diagnostic.exclude : motif %q invalide (syntaxe de path.Match, « / » final pour un répertoire, ex. « vendor/ »)",
+	},
+	"workspace.validate.retention_range": {
+		"diagnostic.retention_days: %d is out of range (1 to %d days)",
+		"diagnostic.retention_days : %d hors limites (de 1 à %d jours)",
+	},
 	"workspace.validate.addr_form": {
 		`web.addr: %q is not of the form host:port (e.g. "127.0.0.1:8080")`,
 		"web.addr : %q n'est pas de la forme hôte:port (ex. « 127.0.0.1:8080 »)",
@@ -487,6 +499,26 @@ var workspaceTexts = map[string]entry{
 	"workspace.cfg.git_protocol": {
 		`"ssh" (git@github.com:…) or "https" (https://github.com/…)`,
 		`"ssh" (git@github.com:…) ou "https" (https://github.com/…)`,
+	},
+	"workspace.cfg.diagnostic_l1": {
+		"Diagnosis: per-commit signals to review by a human, never a verdict. Disabled by default:",
+		"Diagnostic : signaux par commit à revoir par un humain, jamais un verdict. Désactivé par défaut :",
+	},
+	"workspace.cfg.diagnostic_l2": {
+		"inform the people concerned before enabling it. Needs the local clones (repos/).",
+		"informer les personnes concernées avant de l'activer. Utilise les clones locaux (repos/).",
+	},
+	"workspace.cfg.diagnostic_enabled": {
+		"true: signals measured at each sync",
+		"true : signaux mesurés à chaque synchro",
+	},
+	"workspace.cfg.diagnostic_exclude": {
+		`files left out of the measures ("vendor/": a directory; binaries always left out)`,
+		`fichiers exclus des mesures (« vendor/ » : un répertoire ; binaires toujours exclus)`,
+	},
+	"workspace.cfg.diagnostic_retention": {
+		"days the signals are kept, from the commit date (1 to %d)",
+		"jours de conservation des signaux, depuis la date du commit (1 à %d)",
 	},
 
 	// Réécriture de config.yaml par les réglages communs (shared.go).

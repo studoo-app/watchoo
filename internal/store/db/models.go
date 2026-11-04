@@ -36,6 +36,21 @@ type CommitBranch struct {
 	BranchID int64
 }
 
+type CommitSignal struct {
+	RepoID        int64
+	SHA           string
+	AuthorID      sql.NullInt64
+	AuthoredAt    string
+	FilesKept     int64
+	FilesExcluded int64
+	AdditionsKept int64
+	DeletionsKept int64
+	ToolIds       string
+	AgentConfig   bool
+	BotAuthor     bool
+	ComputedAt    string
+}
+
 type Contributor struct {
 	ID             int64
 	Provider       sql.NullString

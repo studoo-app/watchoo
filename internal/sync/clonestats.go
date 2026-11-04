@@ -138,6 +138,9 @@ func (s *repoSync) cloneStats(ctx context.Context, repoID int64, defaultBranch s
 			if st, ok := got[c.SHA]; ok && !existing[c.SHA] {
 				c.Additions, c.Deletions, c.StatsKnown = st.Additions, st.Deletions, true
 				computed++
+				if s.e.diag != nil && st.Files != nil {
+					s.files[c.SHA] = st.Files
+				}
 			}
 		}
 	}

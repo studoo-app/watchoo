@@ -198,13 +198,14 @@ suivis et les **réglages communs** d'un espace : `sync.auto`, `sync.interval`, 
 (anglais par défaut, voir [Interface web](06-interface-web.md#langue-de-linterface)). Les réglages
 propres à la machine ou à la personne ne sont **jamais** partagés : `name`, `github.*` (compte `gh`,
 chemin de `gh` : un fichier venu d'ailleurs ne doit jamais choisir le programme lancé), `git.*`
-(protocole des clones, lié aux identifiants de la machine) et `web.*`.
+(protocole des clones, lié aux identifiants de la machine), `web.*` et `diagnostic.*` (l'activation du
+diagnostic suppose l'information des personnes de cet espace : elle ne vient jamais d'un fichier importé).
 Détail : [Partage de la configuration](05-cli.md#partage-de-la-configuration--watchoo-config).
 
 Quand un import change au moins un réglage commun, `.watchoo/config.yaml` est **réécrit** à partir du
 modèle de `watchoo init` (mêmes commentaires), les réglages importés décommentés :
 
-- `name`, `github.*`, `git.*` et `web.*` déjà présents dans le fichier sont gardés tels quels, ainsi que les
+- `name`, `github.*`, `git.*`, `web.*` et `diagnostic.*` déjà présents dans le fichier sont gardés tels quels, ainsi que les
   réglages communs que l'import ne donne pas ;
 - les commentaires personnels sont perdus ; l'ancien fichier est copié dans `.watchoo/config.yaml.bak`
   (`0600`, remplacé à chaque import) ;

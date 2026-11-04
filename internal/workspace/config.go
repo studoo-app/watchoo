@@ -18,6 +18,7 @@ import (
 
 	"github.com/spf13/viper"
 
+	"github.com/studoo-app/watchoo/internal/diagnostic"
 	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/logo"
 )
@@ -38,6 +39,10 @@ const (
 	GitProtocolHTTPS       = "https"          // git.protocol : https://github.com/owner/name.git
 	EnvPrefix              = "WATCHOO"        // préfixe des variables d'environnement (WATCHOO_SYNC_INTERVAL…)
 	UserConfigDirName      = "watchoo"        // sous-répertoire de $XDG_CONFIG_HOME (ou ~/.config)
+	// DefaultDiagnosticRetentionDays : diagnostic.retention_days (conservation des signaux, en jours).
+	DefaultDiagnosticRetentionDays = 365
+	// MaxDiagnosticRetentionDays : maximum de diagnostic.retention_days (10 ans).
+	MaxDiagnosticRetentionDays = 3650
 )
 
 // Config regroupe tous les réglages d'un espace, après fusion des trois niveaux (voir Load).
@@ -65,6 +70,22 @@ type Config struct {
 	Lang   string       `mapstructure:"lang"`
 	GitHub GitHubConfig `mapstructure:"github"`
 	Git    GitConfig    `mapstructure:"git"`
+	// Diagnostic regroupe les réglages du diagnostic (phase 7, voir
+	// documentation/fr/12-supervision-diagnostic.md). Propres à l'espace : jamais partagés.
+	Diagnostic DiagnosticConfig `mapstructure:"diagnostic"`
+}
+
+// DiagnosticConfig regroupe les réglages du diagnostic (clés diagnostic.*).
+type DiagnosticConfig struct {
+	// Enabled active le calcul des signaux de diagnostic à la synchro (défaut false). Les personnes
+	// concernées doivent en être informées avant l'activation.
+	Enabled bool `mapstructure:"enabled"`
+	// Exclude liste les motifs de fichiers exclus des mesures (syntaxe : diagnostic.Excluder) ;
+	// défaut : diagnostic.DefaultExclude. Les fichiers binaires sont toujours exclus.
+	Exclude []string `mapstructure:"exclude"`
+	// RetentionDays est la durée de conservation des signaux, en jours, comptée depuis la date
+	// d'écriture des commits : entre 1 et MaxDiagnosticRetentionDays (défaut 365).
+	RetentionDays int `mapstructure:"retention_days"`
 }
 
 // SyncConfig regroupe les réglages de synchronisation (clés sync.*).
@@ -163,6 +184,7 @@ type GitConfig struct {
 //	lang: "en"
 //	github: {user: "", gh_path: "gh"}
 //	git: {protocol: "ssh"}
+//	diagnostic: {enabled: false, exclude: diagnostic.DefaultExclude, retention_days: 365}
 func DefaultConfig(name string) Config {
 	return Config{
 		Name: name,
@@ -181,6 +203,11 @@ func DefaultConfig(name string) Config {
 		Lang:     DefaultLang,
 		GitHub:   GitHubConfig{User: "", GHPath: DefaultGHPath},
 		Git:      GitConfig{Protocol: GitProtocolSSH},
+		Diagnostic: DiagnosticConfig{
+			Enabled:       false,
+			Exclude:       slices.Clone(diagnostic.DefaultExclude),
+			RetentionDays: DefaultDiagnosticRetentionDays,
+		},
 	}
 }
 
@@ -275,6 +302,17 @@ func (c Config) Validate() error {
 
 	if p := c.Git.Protocol; p != GitProtocolSSH && p != GitProtocolHTTPS {
 		add("workspace.validate.protocol_unknown", p, GitProtocolSSH, GitProtocolHTTPS)
+	}
+
+	for i, pattern := range c.Diagnostic.Exclude {
+		if strings.TrimSpace(pattern) == "" {
+			add("workspace.validate.diag_pattern_empty", i+1)
+		} else if diagnostic.ValidatePattern(pattern) != nil {
+			add("workspace.validate.diag_pattern_invalid", pattern)
+		}
+	}
+	if d := c.Diagnostic.RetentionDays; d < 1 || d > MaxDiagnosticRetentionDays {
+		add("workspace.validate.retention_range", d, MaxDiagnosticRetentionDays)
 	}
 
 	return errors.Join(errs...)
@@ -1030,6 +1068,16 @@ func renderConfig(tr *i18n.Translator, defaultName string, active map[string]any
 	)
 	section("", "git")
 	setting("  ", "git.protocol", tr.T("workspace.cfg.git_protocol"))
+	text(
+		"",
+		"# "+tr.T("workspace.cfg.diagnostic_l1"),
+		"# "+tr.T("workspace.cfg.diagnostic_l2"),
+	)
+	section("", "diagnostic")
+	setting("  ", "diagnostic.enabled", tr.T("workspace.cfg.diagnostic_enabled"))
+	setting("  ", "diagnostic.exclude", tr.T("workspace.cfg.diagnostic_exclude"))
+	setting("  ", "diagnostic.retention_days",
+		tr.T("workspace.cfg.diagnostic_retention", MaxDiagnosticRetentionDays))
 	return b.String()
 }
 

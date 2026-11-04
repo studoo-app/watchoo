@@ -6,7 +6,9 @@ Sept tables suffisent pour le MVP ; `commits` est la table centrale, reliée aux
 `commit_branches`) et aux contributeurs. La V2 en ajoute trois (migration `00003`) : `pull_requests`,
 `releases` et `tags`, soit **dix tables** ; la migration `00004` rend `repositories.provider_id`
 facultatif (dépôts suivis par clones Git locaux) ; la migration `00005` (0.5.0) ajoute
-`contributors.profile_url` et la migration `00006` (0.5.0) `commits.stats_known`. Le stockage est un fichier SQLite versionné par des migrations
+`contributors.profile_url` et la migration `00006` (0.5.0) `commits.stats_known`. La migration `00007`
+(phase 7.1) ajoute `commit_signals`, soit **onze tables** (voir
+[Supervision et diagnostic](12-supervision-diagnostic.md)). Le stockage est un fichier SQLite versionné par des migrations
 `goose`, avec **une base par espace de supervision** (`.watchoo/watchoo.db`, voir
 [Espaces de supervision](10-espaces-de-supervision.md)). Les tables ne connaissent donc pas la notion
 d'espace : deux espaces ne partagent jamais de données.
@@ -22,6 +24,7 @@ erDiagram
     repositories ||--o{ releases : "publie"
     repositories ||--o{ tags : "marque"
     commits ||--o{ commit_branches : "vu sur"
+    commits ||--o| commit_signals : "mesuré par"
     branches ||--o{ commit_branches : "contient"
     contributors ||--o{ contributor_emails : "utilise"
     contributors ||--o{ commits : "auteur"
@@ -239,6 +242,30 @@ La forge ne donne pas de date pour un tag : l'affichage reprend la date du commi
 base (jointure sur `commits (repo_id, sha)`, sans clé étrangère : le commit peut être sur une branche
 non suivie).
 
+### `commit_signals` — signaux de diagnostic (phase 7.1)
+
+Clé primaire : **`(repo_id, sha)`**, clé étrangère vers `commits (repo_id, sha)` avec `ON DELETE CASCADE`
+(supprimer un commit ou un dépôt supprime ses signaux). Une ligne par commit mesuré quand le réglage
+`diagnostic.enabled` est actif : nouveaux commits synchronisés après l'activation, hors commits de
+fusion, dont le clone Git local donne le détail des fichiers. Une ligne n'est jamais réécrite.
+**Minimisation** : ni message, ni e-mail, ni chemin de fichier.
+
+| Colonne | Description |
+| --- | --- |
+| repo_id, sha | Commit mesuré |
+| author_id | Auteur, recopié de `commits` (`NULL` si le contributeur est supprimé) |
+| authored_at | Date d'écriture, recopiée de `commits` : fenêtres par auteur (phase 7.3) et purge |
+| files_kept | Fichiers retenus (ni binaires ni exclus par `diagnostic.exclude`) |
+| files_excluded | Fichiers binaires ou exclus par un motif |
+| additions_kept, deletions_kept | Lignes ajoutées et supprimées dans les fichiers retenus |
+| tool_ids | Identifiants d'outils déclarés (signaux D1 et D2 : `claude`, `copilot`, `codex`, `cursor`, `unnamed`), triés, séparés par des virgules ; vide si aucun |
+| agent_config | Signal D4 : le commit modifie un fichier de configuration d'agent (`AGENTS.md`, `CLAUDE.md`…) |
+| bot_author | Signal D3 : l'auteur est un compte bot connu (`*[bot]`, `copilot-swe-agent`) |
+| computed_at | Date du calcul |
+
+Purge : en fin de chaque synchro, les lignes dont `authored_at` dépasse `diagnostic.retention_days`
+(365 jours par défaut) sont supprimées.
+
 ## Index
 
 | Index | Usage |
@@ -250,6 +277,8 @@ non suivie).
 | `contributor_emails(contributor_id)` | Technique : clé étrangère souvent parcourue (e-mails d'un contributeur) |
 | `sync_runs(repo_id, started_at DESC)` | Technique : dernière synchro d'un dépôt |
 | `commits(repo_id, sha) WHERE stats_known = 0` | Index partiel : commits dont les lignes `+/-` restent à lire (migration `00006`) |
+| `commit_signals(repo_id, author_id, authored_at)` | Fenêtres glissantes par auteur des signaux de rythme (phase 7.3) |
+| `commit_signals(authored_at)` | Purge par durée de conservation |
 
 ## Fusion des identités
 

@@ -446,6 +446,25 @@ The interface (CLI, TUI, web) is bilingual: **English by default**, French via `
   locale, then English), English then key fallback for a missing key, argument formatting, and
   **catalog completeness**: every key exists in both languages.
 
+## Supervision and diagnosis (phase 7.1)
+
+See [Supervision and diagnosis](12-supervision-diagnostic.md). No external service: dummy data,
+`gittest` repositories, temporary SQLite database.
+
+- `internal/diagnostic`: exclusion patterns (directory anywhere, file name, full path, invalid
+  patterns), recognised trailers and signatures (D1, D2: case, CRLF, duplicates, human co-author ignored),
+  bot accounts (D3), agent configuration files (D4), commit without file detail (no value invented).
+- Git provider: per-commit file detail (`CommitStats.Files`), binary file listed without lines, empty
+  commit with an empty list; the GitHub API gives no detail (`Files` nil).
+- `internal/store`: written once, missing commit ignored, purge by date, `CHECK` constraints, cascade when
+  the commit is deleted, migration `00007` up then down on an existing database.
+- `internal/workspace`: defaults (disabled, 365 days), validation of patterns and retention,
+  `WATCHOO_DIAGNOSTIC_*` variables, `diagnostic.*` settings kept by the rewrite of `config import` and never
+  added by it.
+- `internal/sync`, on a real `gittest` repository: signals of new commits (trailer, bot, excluded file,
+  binary, `AGENTS.md`), merge commit without signals, incremental sync without recomputation, nothing
+  without `diagnostic.enabled`, purge at the end of the sync; no message, name or e-mail in the logs.
+
 ## In CI
 
 On every push and every pull request:

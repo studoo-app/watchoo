@@ -253,21 +253,28 @@ func (p *Provider) CommitStats(ctx context.Context, owner, name, sha string) (pr
 }
 
 // parseNumstat additionne la sortie de « diff-tree -z --numstat » : « ajoutées<TAB>supprimées<TAB>
-// chemin<NUL> » par fichier (« - » pour un fichier binaire, ignoré).
+// chemin<NUL> » par fichier (« -<TAB>- » pour un fichier binaire : listé dans Files, lignes non
+// comptées). Files est toujours non nil (liste vide pour un commit sans changement).
 func parseNumstat(out []byte) provider.CommitStats {
-	var st provider.CommitStats
+	st := provider.CommitStats{Files: []provider.CommitFile{}}
 	for rec := range bytes.SplitSeq(out, []byte{0}) {
 		fields := strings.SplitN(string(rec), "\t", 3)
-		if len(fields) < 3 {
+		if len(fields) < 3 || fields[2] == "" {
 			continue
 		}
-		add, err1 := strconv.Atoi(strings.TrimSpace(fields[0]))
-		del, err2 := strconv.Atoi(strings.TrimSpace(fields[1]))
+		a, d := strings.TrimSpace(fields[0]), strings.TrimSpace(fields[1])
+		if a == "-" && d == "-" {
+			st.Files = append(st.Files, provider.CommitFile{Path: fields[2], Binary: true})
+			continue
+		}
+		add, err1 := strconv.Atoi(a)
+		del, err2 := strconv.Atoi(d)
 		if err1 != nil || err2 != nil {
 			continue
 		}
 		st.Additions += add
 		st.Deletions += del
+		st.Files = append(st.Files, provider.CommitFile{Path: fields[2], Additions: add, Deletions: del})
 	}
 	return st
 }

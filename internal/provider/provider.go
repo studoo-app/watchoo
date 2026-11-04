@@ -301,6 +301,18 @@ type Commit struct {
 type CommitStats struct {
 	Additions int // lignes ajoutées
 	Deletions int // lignes supprimées
+	// Files détaille les fichiers modifiés (chemins : donnée du dépôt privé, jamais dans les logs), pour
+	// les signaux de diagnostic (internal/diagnostic). Renseigné par les clones Git locaux seulement ;
+	// nil = détail inconnu (API GitHub : la réponse n'est lue qu'avec per_page=1, voir son CommitStats).
+	Files []CommitFile
+}
+
+// CommitFile est un fichier modifié par un commit, par rapport à son premier parent.
+type CommitFile struct {
+	Path      string // chemin dans le dépôt, séparé par « / »
+	Additions int    // lignes ajoutées (0 pour un fichier binaire)
+	Deletions int    // lignes supprimées (0 pour un fichier binaire)
+	Binary    bool   // fichier binaire (« - » dans --numstat) : lignes non comptées
 }
 
 // RateLimit est l'état du quota de l'API (ressource « core » sur GitHub : 5 000 requêtes par heure).

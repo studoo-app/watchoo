@@ -43,13 +43,14 @@ the same numbering; the index is [INDEX.md](documentation/INDEX.md).
 | Vision, scope | [01-vision.md](documentation/en/01-vision.md) |
 | Features and rules (Actif / Flemme / Dead states…) | [02-features.md](documentation/en/02-features.md) |
 | Architecture, stack, technical decisions | [03-architecture.md](documentation/en/03-architecture.md) |
-| Data model (10 tables) | [04-data-model.md](documentation/en/04-data-model.md) |
+| Data model (11 tables) | [04-data-model.md](documentation/en/04-data-model.md) |
 | CLI, TUI, bulk import | [05-cli.md](documentation/en/05-cli.md) |
 | Web interface | [06-web-interface.md](documentation/en/06-web-interface.md) |
 | Roadmap by phases | [07-roadmap.md](documentation/en/07-roadmap.md) |
 | Testing | [09-testing.md](documentation/en/09-testing.md) |
 | Workspaces (`watchoo init`) | [10-workspaces.md](documentation/en/10-workspaces.md) |
 | Skills | [11-skills.md](documentation/en/11-skills.md) |
+| Supervision and diagnosis (signals, guardrails, phase 7) | [12-supervision-diagnostic.md](documentation/en/12-supervision-diagnostic.md) |
 
 A decision that changes what is documented is made **in the documentation first**, with the
 maintainer's approval, then in the code.
@@ -84,6 +85,8 @@ internal/provider/    Provider interface, types, errors; providertest/ (fake Pro
                       git/: local Git repositories (git binary); git/gittest/ (test repositories over file://)
 internal/sync/        sync engine (business core)
 internal/activity/    activity rules (Actif / Flemme / Dead, gray states), series, short formats
+internal/diagnostic/  diagnosis signals per commit (phase 7): file exclusions, declared AI tools, bot
+                      author, agent configuration file; keeps neither message nor path
 internal/repoimport/  repository refs, --branch patterns, import files
 internal/configshare/ configuration sharing (JSON export, validation, preview, import)
 internal/textclean/   cleaning of displayed texts (escape sequences), CLI and TUI

@@ -36,6 +36,11 @@ type repoSync struct {
 	commits []store.CommitWrite
 	index   map[string]int // SHA → indice dans commits
 	skipped int            // commits ignorés faute de date
+	// merges sont les SHA des commits de fusion (au moins deux parents), sans signaux de diagnostic.
+	merges map[string]bool
+	// files est le détail des fichiers des nouveaux commits, donné par le clone, gardé seulement quand
+	// le diagnostic est activé (Engine.diag) : la synchro en calcule les signaux (signals.go).
+	files map[string][]provider.CommitFile
 }
 
 // syncRepository synchronise repo avec le sync_run run déjà ouvert (verrou pris) ; en cas de succès,
@@ -49,7 +54,8 @@ func (e *Engine) syncRepository(ctx context.Context, prov provider.Provider, cl 
 	s := &repoSync{
 		e: e, prov: prov,
 		owner: meta.Owner, name: meta.Name, full: meta.FullName(),
-		index: make(map[string]int),
+		index: make(map[string]int), merges: make(map[string]bool),
+		files: make(map[string][]provider.CommitFile),
 	}
 	if s.full != repo.FullName() {
 		e.logger.Info("dépôt renommé ou transféré", "repo", repo.FullName(), "nouveau_nom", s.full)
@@ -144,6 +150,9 @@ func (e *Engine) syncRepository(ctx context.Context, prov provider.Provider, cl 
 	})
 	if err != nil {
 		return repoOutcome{}, err
+	}
+	if w := e.writeSignals(ctx, s, repo.ID); w != "" {
+		x.warnings = append(x.warnings, w)
 	}
 	display := repo.Label
 	if display == "" {
@@ -256,6 +265,9 @@ func (s *repoSync) add(commits []provider.Commit, branch string) {
 			continue
 		}
 		w.Branches = []string{branch}
+		if len(c.Parents) > 1 {
+			s.merges[c.SHA] = true
+		}
 		s.index[c.SHA] = len(s.commits)
 		s.commits = append(s.commits, w)
 	}

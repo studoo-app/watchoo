@@ -121,7 +121,8 @@ func (p *Provider) statsBatch(ctx context.Context, owner, name, path string, sha
 
 // parseBatchNumstat lit la sortie de « diff-tree --stdin --always -z --numstat » : pour chaque commit,
 // son SHA (« <sha><NUL> »), puis un enregistrement « ajoutées<TAB>supprimées<TAB>chemin<NUL> » par
-// fichier modifié (« - » pour un fichier binaire, ignoré). Un SHA sans fichier donne 0/0.
+// fichier modifié (« -<TAB>- » pour un fichier binaire : listé dans Files, lignes non comptées). Un SHA
+// sans fichier donne 0/0 et une liste Files vide.
 func parseBatchNumstat(raw []byte, out map[string]provider.CommitStats) {
 	current := ""
 	for rec := range bytes.SplitSeq(raw, []byte{0}) {
@@ -133,7 +134,7 @@ func parseBatchNumstat(raw []byte, out map[string]provider.CommitStats) {
 			if provider.ValidateSHA(s) == nil {
 				current = s
 				if _, ok := out[current]; !ok {
-					out[current] = provider.CommitStats{}
+					out[current] = provider.CommitStats{Files: []provider.CommitFile{}}
 				}
 			}
 			continue
@@ -141,10 +142,11 @@ func parseBatchNumstat(raw []byte, out map[string]provider.CommitStats) {
 		if current == "" {
 			continue
 		}
-		st := parseNumstat(append(rec, 0))
+		st := parseNumstat([]byte(s))
 		total := out[current]
 		total.Additions += st.Additions
 		total.Deletions += st.Deletions
+		total.Files = append(total.Files, st.Files...)
 		out[current] = total
 	}
 }

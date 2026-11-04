@@ -194,6 +194,7 @@ Chaque réglage de `config.yaml` peut être remplacé par une variable `WATCHOO_
 | `WATCHOO_LANG` | Langue de la CLI et du TUI, et réglage `lang` de l'interface web (`en` ou `fr`) |
 | `WATCHOO_GITHUB_USER`, `WATCHOO_GITHUB_GH_PATH` | Réglages `github.*` |
 | `WATCHOO_GIT_PROTOCOL` | Réglage `git.protocol` |
+| `WATCHOO_DIAGNOSTIC_ENABLED`, `WATCHOO_DIAGNOSTIC_EXCLUDE`, `WATCHOO_DIAGNOSTIC_RETENTION_DAYS` | Réglages `diagnostic.*` (`exclude` : liste ; voir [Supervision et diagnostic](12-supervision-diagnostic.md)) |
 | `WATCHOO_DIR` | Espace à utiliser (comme `-C`) |
 | `WATCHOO_WEB_PASSWORD` | Mot de passe de l'interface web (jamais dans un fichier) |
 | `WATCHOO_LOG_LEVEL` | Niveau de log (`debug`, `info`, `warn` par défaut, `error`) |
