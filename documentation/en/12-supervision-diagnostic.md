@@ -481,7 +481,7 @@ affects "Declared".
 6. Order: 7.7 before 7.6 (it does not depend on reviews), in a MINOR release (new signals and columns; no
    `--json` key removed).
 
-## 9.7 Phase 7.8: lines behind the signals when shown (done)
+## 9.7 Phase 7.8: lines behind the signals when shown (done, released in v1.6.0)
 
 Maintainer decision (November 4, 2026), between two options: **A. extract when shown, keep nothing**
 (chosen) or B. keep excerpts in the database. Data minimisation (section 2) is unchanged: no line of code is
