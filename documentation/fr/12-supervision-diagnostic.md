@@ -5,7 +5,7 @@
 **Statut** : décision du mainteneur. Phases **7.1 à 7.5 réalisées** (fondations, signaux déclaratifs,
 commande `watchoo diagnostic`, signaux de rythme, reprise de l'historique, revue humaine sur le web, signaux
 de forme F1 à F5 ; publiées en v1.4.0, sections 9.1 à 9.5) ; phase **7.7 réalisée** (signaux absolus et
-contre-indicateurs, section 9.6 ; non publiée) ; phase 7.6 à venir dans une version ultérieure, puis F6 (classifieur de contenu,
+contre-indicateurs, section 9.6 ; publiée en v1.5.0) ; phase 7.6 à venir dans une version ultérieure, puis F6 (classifieur de contenu,
 reporté), chacune après validation de son plan (voir [Roadmap](07-roadmap.md)). Source de la partie
 signaux : la spécification « Détection des signaux de production de code assistée par IA », **version 0.2**
 (3 novembre 2026, références vérifiées).
