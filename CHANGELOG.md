@@ -9,6 +9,14 @@ PATCH (see [Skills](documentation/en/11-skills.md#versions-and-changelogmd)).
 
 ## [Unreleased]
 
+### Added
+
+- **Diagnosis, phase 7.8 (lines behind the signals)**: the review sheet of a commit lead quotes, under each
+  signal, the added lines that triggered it, with their file and line number (comments for F1, documented
+  functions for F2, test files for F5, decorative lines for A5, comments without accents for A6, TODO and
+  debug calls for H1, one-letter variables for H2; 20 per signal at most). They are read from the local clone
+  when the sheet is shown, like the diff, and never stored or logged.
+
 ## [1.6.0] - 2026-11-04
 
 EN / FR language selector in the web interface. No incompatible change: no migration, no setting changed;

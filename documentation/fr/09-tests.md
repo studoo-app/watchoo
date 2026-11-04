@@ -525,6 +525,10 @@ fictives, dépôts `gittest`, base SQLite temporaire.
   contre-indicateurs H1 à H4 ; niveaux (A comptés comme R ou F, « probable » abaissé, jamais supprimé,
   « déclaré » intact) ; migration `00015` (forme remise à mesurer, retour arrière) ; marqueur `TODO` mesuré
   à la synchro sur un dépôt `gittest` ; libellés des signaux A et H dans les deux langues.
+- Phase 7.8 : numéros de ligne des lignes ajoutées (blocs, nouveau fichier) ; lignes en cause par signal,
+  plafond par signal, mesures identiques avec ou sans collecte ; lecture sur un clone `gittest` existant
+  seulement (numéros de ligne, rien cloné sans clone, aucune ligne dans les logs) ; ordre des blocs de la
+  fiche et section « Lignes en cause ».
 
 ## En CI
 

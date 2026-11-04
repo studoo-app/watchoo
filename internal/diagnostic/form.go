@@ -65,6 +65,29 @@ type FormMeter struct {
 	distinct int
 	ttrSum   float64
 	ttrN     int
+
+	// Lignes en cause (CollectEvidence) : lues à l'affichage seulement, jamais gardées ni journalisées.
+	evidence map[string]*Evidence
+	maxLines int
+	lineNo   int    // numéro de la ligne en cours dans le fichier après le commit
+	text     string // ligne en cours, sans espaces aux bords
+	defNo    int    // Python : ligne de la définition qui attend sa docstring
+	defText  string
+	seenTest map[string]bool // fichiers de test déjà cités (F5)
+}
+
+// EvidenceLine est une ligne ajoutée qui a déclenché une mesure : chemin, numéro dans le fichier après le
+// commit, texte (sans espaces aux bords).
+type EvidenceLine struct {
+	Path string
+	Line int
+	Text string
+}
+
+// Evidence sont les lignes en cause d'un signal : au plus le maximum demandé, et le nombre d'autres lignes.
+type Evidence struct {
+	Lines []EvidenceLine
+	More  int
 }
 
 // NewFormMeter renvoie un compteur pour un commit ; ex applique diagnostic.exclude (nil : rien d'exclu).
@@ -75,7 +98,47 @@ func NewFormMeter(ex *Excluder) *FormMeter {
 // Line ajoute une ligne ajoutée (sans le « + » du diff ni la fin de ligne) du fichier p ; hunk est vrai
 // pour la première ligne d'un bloc de changement (les blocs ne sont pas contigus : l'état est remis à
 // zéro).
-func (m *FormMeter) Line(p, text string, hunk bool) {
+func (m *FormMeter) Line(p, text string, hunk bool) { m.LineAt(p, 0, text, hunk) }
+
+// CollectEvidence demande au compteur de noter, en plus des mesures, les lignes qui les déclenchent (au plus
+// max par signal) : F1 (commentaires), F2 (définitions documentées), F5 (fichiers de test), A5 (lignes
+// décoratives), A6 (commentaires sans accents), H1 (marqueurs de travail), H2 (variables d'une lettre).
+// Sert à la fiche de revue ; les lignes restent en mémoire.
+func (m *FormMeter) CollectEvidence(max int) {
+	m.evidence, m.maxLines, m.seenTest = map[string]*Evidence{}, max, map[string]bool{}
+}
+
+// Evidence renvoie les lignes en cause par signal (vide sans CollectEvidence).
+func (m *FormMeter) Evidence() map[string]Evidence {
+	out := make(map[string]Evidence, len(m.evidence))
+	for k, v := range m.evidence {
+		out[k] = *v
+	}
+	return out
+}
+
+// note retient la ligne en cours comme cause du signal (avec CollectEvidence).
+func (m *FormMeter) note(signal string) { m.noteLine(signal, m.lineNo, m.text) }
+
+func (m *FormMeter) noteLine(signal string, n int, text string) {
+	if m.evidence == nil {
+		return
+	}
+	e := m.evidence[signal]
+	if e == nil {
+		e = &Evidence{}
+		m.evidence[signal] = e
+	}
+	if len(e.Lines) < m.maxLines {
+		e.Lines = append(e.Lines, EvidenceLine{Path: m.path, Line: n, Text: text})
+	} else {
+		e.More++
+	}
+}
+
+// LineAt est Line avec le numéro n de la ligne dans le fichier après le commit (0 : inconnu), cité par les
+// lignes en cause.
+func (m *FormMeter) LineAt(p string, n int, text string, hunk bool) {
 	if p != m.path {
 		m.path = p
 		m.lang, m.test = nil, false
@@ -99,21 +162,29 @@ func (m *FormMeter) Line(p, text string, hunk bool) {
 	if line == "" {
 		return
 	}
+	m.lineNo, m.text = n, line
 	m.form.SourceLines++
 	if m.test {
 		m.form.TestLines++
+		if m.seenTest != nil && !m.seenTest[p] {
+			m.seenTest[p] = true
+			m.note(SignalTests)
+		}
 	}
 	switch kind := m.classify(line); kind {
 	case lineComment:
 		m.form.CommentLines++
+		m.note(SignalCommentDensity)
 		m.commentText(line, true)
 		m.afterComment = true
 		m.pendingDef = false
 	case lineDocstring:
 		m.form.CommentLines++
+		m.note(SignalCommentDensity)
 		m.commentText(line, false)
 		if m.pendingDef {
 			m.form.DocumentedFunctions++
+			m.noteLine(SignalDocstrings, m.defNo, m.defText)
 		}
 		m.afterComment, m.pendingDef = false, false
 	case lineString:
@@ -127,6 +198,7 @@ func (m *FormMeter) Line(p, text string, hunk bool) {
 		}
 		if m.lang.debug != nil && m.lang.debug.MatchString(code) {
 			m.form.WIPMarkers++
+			m.note(SignalWIP)
 		}
 		if m.lang.isDef(code) {
 			m.form.Functions++
@@ -136,8 +208,10 @@ func (m *FormMeter) Line(p, text string, hunk bool) {
 			switch {
 			case m.afterComment:
 				m.form.DocumentedFunctions++
+				m.note(SignalDocstrings)
 			case m.lang.docstring:
 				m.pendingDef = true
+				m.defNo, m.defText = m.lineNo, m.text
 				m.afterComment = false
 				m.identifiers(code)
 				return
@@ -253,12 +327,17 @@ func tripleInside(line string) string {
 // identifiers ajoute les identifiants d'une ligne de code (sans chaînes ni commentaire de fin de ligne,
 // hors mots-clés) à la fenêtre de la diversité lexicale.
 func (m *FormMeter) identifiers(code string) {
+	short := false
 	for _, id := range identifierTokens(code) {
 		m.form.Identifiers++
 		if len(strings.TrimLeft(id, "$")) == 1 {
 			m.form.ShortIdentifiers++
+			short = true
 		}
 		m.push(id)
+	}
+	if short {
+		m.note(SignalShortVars)
 	}
 }
 
@@ -268,10 +347,13 @@ func (m *FormMeter) identifiers(code string) {
 func (m *FormMeter) commentText(text string, whole bool) {
 	if wipComment.MatchString(text) {
 		m.form.WIPMarkers++
+		m.note(SignalWIP)
 	}
 	if whole && isDecorative(text) {
 		m.form.DecorativeLines++
+		m.note(SignalDecorative)
 	}
+	unaccented := false
 	for _, w := range strings.FieldsFunc(strings.ToLower(text), func(r rune) bool {
 		return !unicode.IsLetter(r)
 	}) {
@@ -281,7 +363,11 @@ func (m *FormMeter) commentText(text string, whole bool) {
 		case frUnaccented[w]:
 			m.form.FrWords++
 			m.form.FrWordsUnaccented++
+			unaccented = true
 		}
+	}
+	if unaccented {
+		m.note(SignalNoAccents)
 	}
 }
 

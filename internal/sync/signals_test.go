@@ -320,3 +320,39 @@ func TestBackfillSignals(t *testing.T) {
 		t.Errorf("second backfill: %+v, %v", res, err)
 	}
 }
+
+// CommitEvidence reads the lines behind the signals of a commit on the existing clone only, with their line
+// numbers; nothing without a clone.
+func TestCommitEvidence(t *testing.T) {
+	srv := gittest.NewServer(t)
+	r, _ := signalRepo(t, srv, epoch)
+	sha := r.Commit("main", "app/util.go", "package main\n\n// ════════════════\nfunc util() {} // TODO\n",
+		secretMessage, secretAuthor, epoch.Add(6*time.Hour))
+	e := newEnv(t, withGit(srv.URL), withDiagnostic(3650))
+	repo, _ := addAndSync(t, e)
+	ctx := t.Context()
+
+	ev, found, err := e.eng.CommitEvidence(ctx, repo, sha)
+	if err != nil || !found {
+		t.Fatalf("CommitEvidence = %v, %v", found, err)
+	}
+	if got := ev[diagnostic.SignalWIP].Lines; len(got) != 1 || got[0].Path != "app/util.go" || got[0].Line != 4 {
+		t.Errorf("H1 evidence: %+v", got)
+	}
+	if got := ev[diagnostic.SignalDecorative].Lines; len(got) != 1 || got[0].Line != 3 {
+		t.Errorf("A5 evidence: %+v", got)
+	}
+	// Without a clone: not found, and nothing is cloned.
+	if err := os.RemoveAll(e.reposDir); err != nil {
+		t.Fatal(err)
+	}
+	if _, found, err := e.newEngine(e.st).CommitEvidence(ctx, repo, sha); err != nil || found {
+		t.Errorf("without clone: %v, %v", found, err)
+	}
+	if entries, _ := os.ReadDir(e.reposDir); len(entries) != 0 {
+		t.Errorf("CommitEvidence created a clone")
+	}
+	if strings.Contains(e.logs.String(), "════") {
+		t.Error("an evidence line is in the logs")
+	}
+}

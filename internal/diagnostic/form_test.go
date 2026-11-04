@@ -3,6 +3,7 @@ package diagnostic
 import (
 	"fmt"
 	"math"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -237,5 +238,54 @@ public function all() { return []; } // FIXME
 		if got := isDecorative(line); got != want {
 			t.Errorf("isDecorative(%q) = %v, want %v", line, got, want)
 		}
+	}
+}
+
+// With CollectEvidence, the meter notes the lines behind each measure, with their path and line number,
+// capped per signal; without it, nothing is noted.
+func TestFormEvidence(t *testing.T) {
+	lines := []string{
+		"# ══════════ Acces aux donnees ══════════",
+		"def _charger(i):",
+		`    """Charge."""`,
+		"    print(i)  # TODO",
+		"x = 1",
+	}
+	m := NewFormMeter(nil)
+	m.CollectEvidence(2)
+	for i, l := range lines {
+		m.LineAt("app/a.py", 10+i, l, i == 0)
+	}
+	m.LineAt("tests/test_a.py", 1, "def test_a():", true)
+	m.LineAt("tests/test_a.py", 2, "    assert True", false)
+	ev := m.Evidence()
+	want := map[string][]EvidenceLine{
+		SignalDecorative: {{"app/a.py", 10, lines[0]}},
+		SignalNoAccents:  {{"app/a.py", 10, lines[0]}},
+		SignalDocstrings: {{"app/a.py", 11, "def _charger(i):"}},
+		SignalWIP:        {{"app/a.py", 13, `print(i)  # TODO`}, {"app/a.py", 13, `print(i)  # TODO`}}, // comment + debug
+		SignalTests:      {{"tests/test_a.py", 1, "def test_a():"}},
+	}
+	for sig, w := range want {
+		if got := ev[sig].Lines; !slices.Equal(got, w) {
+			t.Errorf("evidence %s = %+v, want %+v", sig, got, w)
+		}
+	}
+	// F1: decorative line and docstring (2 kept), cap reached; H2: i, i, x, then « a » in tests: 2 kept.
+	if e := ev[SignalCommentDensity]; len(e.Lines) != 2 || e.More != 0 {
+		t.Errorf("F1 evidence: %+v", e)
+	}
+	if e := ev[SignalShortVars]; len(e.Lines) != 2 || e.More != 1 {
+		t.Errorf("H2 evidence capped at 2: %+v", e)
+	}
+	// The measures are the same with or without evidence.
+	plain := NewFormMeter(nil)
+	for i, l := range lines {
+		plain.Line("app/a.py", l, i == 0)
+	}
+	plain.Line("tests/test_a.py", "def test_a():", true)
+	plain.Line("tests/test_a.py", "    assert True", false)
+	if plain.Result() != m.Result() || len(plain.Evidence()) != 0 {
+		t.Errorf("measures differ with evidence: %+v / %+v", plain.Result(), m.Result())
 	}
 }

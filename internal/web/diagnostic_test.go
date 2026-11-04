@@ -77,7 +77,7 @@ func TestDiagnosticLeadAndReview(t *testing.T) {
 	w := e.get(leadURL(ids.Alice, sha))
 	assertStatus(t, w, http.StatusOK)
 	assertContains(t, w, "AI co-author trailer", "claude", `id="diag-throughput-data"`, `data-chart="daily-lines"`,
-		"Neighbouring commits of the author", "Diff unavailable", `name="key" value="commit/`+sha+`"`)
+		"Neighbouring commits of the author", "Diff unavailable", "Lines behind the signals", `name="key" value="commit/`+sha+`"`)
 	assertNotContains(t, w, "Reviewed by")
 	assertStatus(t, e.get("/diagnostic/lead?repo=1&key=commit/absent"), http.StatusNotFound)
 	assertStatus(t, e.get("/diagnostic/lead?repo=abc&key=x"), http.StatusNotFound)
@@ -146,5 +146,21 @@ func TestDiagnosticLabels(t *testing.T) {
 				}
 			}
 		}
+	}
+}
+
+// The evidence rows follow the signals of the lead, once each, and leave out the signals without lines.
+func TestEvidenceRows(t *testing.T) {
+	tr := i18n.For(i18n.French)
+	hits := []diagnostic.Hit{{Signal: "A1"}, {Signal: "A5"}, {Signal: "H1"}, {Signal: "H1", Value: "x"}}
+	ev := map[string]diagnostic.Evidence{
+		"A5": {Lines: []diagnostic.EvidenceLine{{Path: "a.go", Line: 3, Text: "// ════"}}},
+		"H1": {Lines: []diagnostic.EvidenceLine{{Path: "a.go", Line: 4, Text: "// TODO"}}, More: 2},
+		"F1": {Lines: []diagnostic.EvidenceLine{{Path: "a.go", Line: 3}}}, // not a signal of the lead
+	}
+	rows := evidenceRows(tr, hits, ev)
+	if len(rows) != 2 || rows[0].Signal != "A5" || rows[1].Signal != "H1" || rows[1].More != 2 ||
+		rows[0].Description != "lignes de commentaire décoratives" {
+		t.Errorf("evidence rows: %+v", rows)
 	}
 }

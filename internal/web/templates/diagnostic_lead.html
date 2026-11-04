@@ -1,6 +1,7 @@
 {{/*
   Fiche de revue d'une piste « /diagnostic/lead » (phase 7.4). Donnée : PageData, Content de type
-  diagnosticLeadView (diagnostic.go). Le diff est lu sur le clone local à l'affichage (jamais gardé) ;
+  diagnosticLeadView (diagnostic.go). Le diff et les lignes en cause des signaux sont lus sur le clone local à
+  l'affichage (jamais gardés) ;
   le graphique du débit (lignes ajoutées par jour, jour de la piste en évidence) est dessiné par
   static/app.js à partir de « diag-throughput-data ».
 */}}
@@ -82,6 +83,25 @@
 {{end}}
 
 {{if eq $l.Kind "commit"}}
+<section class="card bg-base-100 shadow-sm mt-4" aria-labelledby="evidence-title">
+  <div class="card-body p-4 md:p-6">
+    <h2 id="evidence-title" class="card-title text-lg">{{t "web.diag.evidence_title"}}</h2>
+    <p class="text-xs text-base-content/60">{{t "web.diag.evidence_legend"}}</p>
+    {{if not $c.EvidenceShown}}<p class="text-sm text-base-content/70">{{t "web.diag.diff_unavailable"}}</p>
+    {{else if not $c.Evidence}}<p class="text-sm text-base-content/70">{{t "web.diag.evidence_none"}}</p>
+    {{else}}
+    {{range $c.Evidence}}
+    <div class="mt-2">
+      <h3 class="text-sm font-semibold"><strong>{{.Signal}}</strong> <span class="font-normal text-base-content/70">{{.Description}}</span></h3>
+      <pre class="text-xs overflow-x-auto bg-base-200 rounded-box p-3 mt-1"><code>{{range .Lines}}{{truncate 120 .Path}}{{if .Line}}:{{.Line}}{{end}}  {{truncate 200 .Text}}
+{{end}}</code></pre>
+      {{if .More}}<p class="text-xs text-base-content/60">{{t "web.diag.evidence_more" .More}}</p>{{end}}
+    </div>
+    {{end}}
+    {{end}}
+  </div>
+</section>
+
 <details class="collapse collapse-arrow bg-base-100 shadow-sm mt-4">
   <summary class="collapse-title text-sm font-medium min-h-0 py-3">{{t "web.diag.diff_title"}}</summary>
   <div class="collapse-content">
