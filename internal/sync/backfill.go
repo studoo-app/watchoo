@@ -193,3 +193,40 @@ func (e *Engine) CommitPatch(ctx context.Context, repo model.Repository, sha str
 	}
 	return p.CommitPatch(ctx, repo.Owner, repo.Name, sha, maxBytes)
 }
+
+// MaxEvidenceLines est le nombre de lignes en cause gardées par signal sur la fiche de revue.
+const MaxEvidenceLines = 20
+
+// CommitEvidence relit, sur le clone Git local existant du dépôt repo (aucun accès réseau), les lignes
+// ajoutées du commit sha et renvoie, par signal, celles qui déclenchent ses mesures de forme (voir
+// diagnostic.FormMeter.CollectEvidence). found est faux sans clone, ou si le clone ne lit pas les lignes.
+// Sert à la fiche de revue du diagnostic : les lignes ne sont ni gardées ni journalisées.
+func (e *Engine) CommitEvidence(ctx context.Context, repo model.Repository, sha string) (map[string]diagnostic.Evidence, bool, error) {
+	if e.diag == nil {
+		return nil, false, nil
+	}
+	all, err := e.store.ListRepositories(ctx)
+	if err != nil {
+		return nil, false, err
+	}
+	gp, err := e.newGit(CloneRefs(all))
+	if err != nil || gp == nil {
+		return nil, false, err
+	}
+	lr, ok := gp.(lineReader)
+	if !ok {
+		return nil, false, nil
+	}
+	if local, ok := gp.(localClone); ok && !local.HasClone(repo.Owner, repo.Name) {
+		return nil, false, nil
+	}
+	m := diagnostic.NewFormMeter(e.diag)
+	m.CollectEvidence(MaxEvidenceLines)
+	err = lr.AddedLines(ctx, repo.Owner, repo.Name, []string{sha}, func(_, path string, n int, line string, hunk bool) {
+		m.LineAt(path, n, line, hunk)
+	})
+	if err != nil {
+		return nil, false, err
+	}
+	return m.Evidence(), true, nil
+}

@@ -425,8 +425,9 @@ diagnostic est activé (`diagnostic.enabled`). Détail : [Supervision et diagnos
 - **Niveaux** : badge « déclaré » (bleu), « probable » (rouge, phase 7.5), « à regarder » (orange).
 - **Fiche de revue** (`/diagnostic/lead`) : niveau ; signaux (D, R et, depuis la phase 7.5, F) avec leur description, valeur brute, médiane
   personnelle et score z ; graphique du débit de l'auteur sur 90 jours (lignes ajoutées par jour, jour de
-  la piste en évidence) ; pour un commit, les commits mesurés voisins (± 3) et le diff lu sur le clone local
-  à l'affichage (jamais gardé, coupé au-delà de 200 Ko ; « indisponible » sans clone) ; contexte D4 ; lien
+  la piste en évidence) ; pour un commit, les commits mesurés voisins (± 3), les **lignes en cause** de chaque
+  signal (fichier, numéro de ligne, 20 par signal au plus ; phase 7.8) et le diff, lus sur le clone local
+  à l'affichage (jamais gardés ; diff coupé au-delà de 200 Ko ; « indisponible » sans clone) ; contexte D4 ; lien
   vers la forge ; formulaire de revue (décision, cause si non assisté, confiance, note de 2 000 caractères
   au plus). Une saisie refusée est réaffichée avec l'erreur (400) ; une revue enregistrée renvoie sur la
   fiche (303) avec « Revue enregistrée » et le relecteur (compte de l'interface web, sinon nom de l'espace).

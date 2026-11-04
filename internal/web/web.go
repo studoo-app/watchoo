@@ -53,6 +53,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/studoo-app/watchoo/internal/diagnostic"
 	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/provider"
@@ -85,6 +86,9 @@ type RepoManager interface {
 	// CommitPatch lit le diff d'un commit sur le clone local existant, coupé au-delà de maxBytes
 	// (fiche de revue du diagnostic) ; found faux sans clone ni commit.
 	CommitPatch(ctx context.Context, repo model.Repository, sha string, maxBytes int) (patch string, truncated, found bool, err error)
+	// CommitEvidence relit un commit sur le clone local existant et renvoie, par signal, les lignes qui
+	// déclenchent ses mesures de forme (jamais gardées ni journalisées) ; found faux sans clone.
+	CommitEvidence(ctx context.Context, repo model.Repository, sha string) (map[string]diagnostic.Evidence, bool, error)
 }
 
 // UpdateSource donne la nouvelle version de Watchoo connue du processus (bandeau de toutes les pages) ;

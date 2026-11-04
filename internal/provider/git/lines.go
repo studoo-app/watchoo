@@ -24,12 +24,13 @@ const maxDiffLine = 4096
 // AddedLines appelle fn pour chaque ligne AJOUTÉE des commits shas (SHA complets) du clone EXISTANT de
 // owner/name (sans le créer ni le mettre à jour : aucun accès réseau), au premier parent (arbre vide pour
 // un commit racine), renommages détectés, sans contexte (-U0), fichiers binaires ignorés. fn reçoit le
-// commit, le chemin du fichier, la ligne (sans le « + » ni la fin de ligne ; au plus maxDiffLine octets)
-// et hunk, vrai à la première ligne de chaque bloc de changement. Les commits de fusion sont lus au
-// premier parent comme les autres ; un SHA absent du clone est ignoré. Erreur provider.ErrNotFound sans
+// commit, le chemin du fichier, le numéro de la ligne dans le fichier après le commit, la ligne (sans le
+// « + » ni la fin de ligne ; au plus maxDiffLine octets) et hunk, vrai à la première ligne de chaque bloc
+// de changement. Les commits de fusion sont lus au premier parent comme les autres ; un SHA absent du clone
+// est ignoré. Erreur provider.ErrNotFound sans
 // clone. Les lignes ne sont ni gardées ni journalisées.
 func (p *Provider) AddedLines(ctx context.Context, owner, name string, shas []string,
-	fn func(sha, path, line string, hunk bool)) error {
+	fn func(sha, path string, lineNo int, line string, hunk bool)) error {
 	if err := provider.ValidateRepo(owner, name); err != nil {
 		return err
 	}
@@ -77,13 +78,14 @@ func (p *Provider) AddedLines(ctx context.Context, owner, name string, shas []st
 // commit commence par son SHA seul sur une ligne, puis un diff par fichier (en-têtes « diff --git »,
 // « +++ b/chemin », blocs « @@ »).
 type patchWriter struct {
-	fn  func(sha, path, line string, hunk bool)
+	fn  func(sha, path string, lineNo int, line string, hunk bool)
 	buf []byte // début de la ligne en cours (au plus maxDiffLine octets)
 
 	sha    string
 	path   string // fichier en cours ; vide : supprimé, ou en-têtes pas encore lus
 	inHunk bool
 	first  bool // prochaine ligne ajoutée : première de son bloc
+	next   int  // numéro, dans le fichier après le commit, de la prochaine ligne ajoutée
 }
 
 func (w *patchWriter) Write(b []byte) (int, error) {
@@ -121,14 +123,15 @@ func (w *patchWriter) line(l []byte) {
 		switch {
 		case len(l) > 0 && l[0] == '+':
 			if w.path != "" {
-				w.fn(w.sha, w.path, strings.TrimSuffix(string(l[1:]), "\r"), w.first)
+				w.fn(w.sha, w.path, w.next, strings.TrimSuffix(string(l[1:]), "\r"), w.first)
 				w.first = false
+				w.next++
 			}
 			return
 		case len(l) > 0 && (l[0] == '-' || l[0] == '\\' || l[0] == ' '):
 			return
 		case bytes.HasPrefix(l, []byte("@@")):
-			w.first = true
+			w.first, w.next = true, hunkStart(l)
 			return
 		}
 		w.inHunk = false
@@ -136,7 +139,7 @@ func (w *patchWriter) line(l []byte) {
 	s := string(l)
 	switch {
 	case bytes.HasPrefix(l, []byte("@@")):
-		w.inHunk, w.first = true, true
+		w.inHunk, w.first, w.next = true, true, hunkStart(l)
 	case strings.HasPrefix(s, "diff --git "):
 		w.path = ""
 	case strings.HasPrefix(s, "+++ "):
@@ -144,6 +147,24 @@ func (w *patchWriter) line(l []byte) {
 	case provider.ValidateSHA(s) == nil:
 		w.sha, w.path = s, ""
 	}
+}
+
+// hunkStart renvoie le numéro de la première ligne du bloc dans le fichier après le commit, lu dans l'en-tête
+// « @@ -a,b +c,d @@ » (c) ; 0 s'il est illisible.
+func hunkStart(h []byte) int {
+	_, rest, ok := strings.Cut(string(h), " +")
+	if !ok {
+		return 0
+	}
+	end := strings.IndexAny(rest, ", ")
+	if end < 0 {
+		return 0
+	}
+	n, err := strconv.Atoi(rest[:end])
+	if err != nil {
+		return 0
+	}
+	return n
 }
 
 // diffPath renvoie le chemin d'un en-tête « +++ b/chemin » (guillemets à la manière du C si le chemin

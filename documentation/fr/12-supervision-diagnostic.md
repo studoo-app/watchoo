@@ -224,6 +224,9 @@ résumé de ce qui marche. Le plan et l'arborescence de chaque phase sont propos
 - **7.7 Signaux absolus, marqueurs de travail et contre-indicateurs** (réalisée ; plan validé le 4 novembre
   2026, section 9.6) : couvrir les projets rendus en peu de commits, que les signaux R et F
   (comparaison à soi-même, 20 observations) ne voient pas. Indépendante de 7.6 : peut sortir avant elle.
+- **7.8 Lignes en cause à l'affichage** (réalisée ; option « extraire à l'affichage, sans rien garder »
+  choisie par le mainteneur le 4 novembre 2026) : la fiche de revue cite, sous chaque signal, les lignes
+  ajoutées qui l'ont déclenché. Détaillée en section 9.7.
 - **Étape ultérieure — F6, classifieur de contenu** (reporté par le mainteneur le 4 novembre 2026) : optionnel,
   désactivé par défaut, poids faible (0,5). Il demande un modèle de détection (type GPTSniffer ou
   DetectCodeGPT, références 17 à 19), donc une dépendance hors de la pile documentée, soumise à l'accord du
@@ -490,6 +493,23 @@ Un contre-indicateur **ne supprime jamais une piste** : il l'**abaisse d'un nive
 6. Ordre : 7.7 avant 7.6 (elle ne dépend pas des revues), dans une version MINEURE (ajouts de signaux et de
    colonnes ; aucune clé `--json` retirée).
 
+## 9.7 Phase 7.8 — lignes en cause à l'affichage (réalisée)
+
+Décision du mainteneur (4 novembre 2026), entre deux options : **A. extraire à l'affichage, sans rien
+garder** (retenue) ou B. garder des extraits en base. La minimisation (section 2) est inchangée : aucune ligne
+de code n'est écrite en base ni dans les logs.
+
+- **Lecture** : à l'ouverture de la fiche d'une piste de commit, Watchoo relit les lignes ajoutées du commit
+  sur le clone local existant (sans `fetch`, comme le diff), refait la mesure de forme et note, par signal, les
+  lignes qui la déclenchent, avec leur fichier et leur numéro dans le fichier après le commit.
+- **Signaux qui citent des lignes** : F1 (commentaires), F2 (définitions documentées), F5 (premier ajout de
+  chaque fichier de test), A5 (lignes décoratives), A6 (commentaires français sans accents), H1 (marqueurs de
+  travail), H2 (variables d'une lettre). Les autres (rythme, message, signaux sur le commit entier comme A1, A2,
+  A7) renvoient au diff.
+- **Affichage** : section « Lignes en cause » de la fiche, un bloc par signal de la piste, 20 lignes au plus par
+  signal, puis « et N autres lignes ». Sans clone : « indisponible », comme le diff.
+- **Limite** : un commit absent du clone (historique réécrit, branche non suivie) n'a pas de lignes en cause.
+
 ## 10. Points ouverts (à trancher par le mainteneur)
 
 1. **Information des apprenants** : texte et moment (avant la première analyse : présentation du module,
@@ -504,8 +524,9 @@ Un contre-indicateur **ne supprime jamais une piste** : il l'**abaisse d'un nive
    commit »), pas détecteur de triche.
 5. **Références** : celles de la spécification v0.2, section 8, toutes vérifiées le 3 novembre 2026. Les sources
    secondaires y sont signalées ; McConnell (2006) reste à vérifier dans le livre.
-6. **Contenu du code** : la phase 7.5 ne garde que des mesures. Garder des extraits (pour revoir F1 à F3
-   sans clone) n'est pas prévu ; à reconsidérer seulement si la calibration (7.6) le demande.
+6. **Contenu du code** : **tranché** le 4 novembre 2026. Les lignes en cause sont extraites à l'affichage, sans
+   rien garder (phase 7.8, section 9.7). Garder des extraits en base (consultables sans clone) reste écarté ;
+   à reconsidérer seulement si la calibration (7.6) le demande.
 
 ## 11. Références
 
