@@ -18,12 +18,19 @@ DELETE FROM commit_signals
 WHERE authored_at < sqlc.arg(before);
 
 -- name: ListCommitSignals :many
--- Signaux des commits du depot, du plus recent au plus ancien (date d'ecriture, puis SHA).
-SELECT repo_id, sha, author_id, authored_at, files_kept, files_excluded, additions_kept, deletions_kept,
-    tool_ids, agent_config, bot_author, computed_at
-FROM commit_signals
-WHERE repo_id = sqlc.arg(repo_id)
-ORDER BY authored_at DESC, sha;
+-- Signaux des commits du depot, du plus recent au plus ancien (date d'ecriture, puis SHA) ; auteur du commit.
+SELECT cs.repo_id, cs.sha, c.author_id, cs.authored_at, cs.files_kept, cs.files_excluded, cs.additions_kept,
+    cs.deletions_kept, cs.tool_ids, cs.agent_config, cs.bot_author, cs.computed_at
+FROM commit_signals cs
+JOIN commits c ON c.repo_id = cs.repo_id AND c.sha = cs.sha
+WHERE cs.repo_id = sqlc.arg(repo_id)
+ORDER BY cs.authored_at DESC, cs.sha;
+
+-- name: ReassignSignalAuthors :exec
+-- Reattribue a to_id les signaux dont from_id est l'auteur (fusion de contributeurs, comme les commits).
+UPDATE commit_signals
+SET author_id = sqlc.arg(to_id)
+WHERE author_id = sqlc.arg(from_id);
 
 -- name: CountCommitSignals :one
 -- Nombre de commits du depot qui ont des signaux.
@@ -55,8 +62,9 @@ WHERE tool_ids <> '' AND created_at < sqlc.arg(before);
 
 -- name: ListCommitSignalViews :many
 -- Signaux de tous les commits mesures (repo_id NULL = tous les depots), avec de quoi les afficher, du
--- plus ancien au plus recent (date d'ecriture, puis SHA) : historique des signaux de rythme.
-SELECT cs.repo_id, cs.sha, cs.author_id, cs.authored_at, cs.files_kept, cs.files_excluded,
+-- plus ancien au plus recent (date d'ecriture, puis SHA) : historique des signaux de rythme. L'auteur est
+-- celui du commit (a jour apres une fusion de contributeurs).
+SELECT cs.repo_id, cs.sha, c.author_id, cs.authored_at, cs.files_kept, cs.files_excluded,
        cs.additions_kept, cs.deletions_kept, cs.tool_ids, cs.agent_config, cs.bot_author, cs.computed_at,
        c.url,
        r.owner AS repo_owner, r.name AS repo_name, r.label AS repo_label,
@@ -65,7 +73,7 @@ SELECT cs.repo_id, cs.sha, cs.author_id, cs.authored_at, cs.files_kept, cs.files
 FROM commit_signals cs
 JOIN commits c ON c.repo_id = cs.repo_id AND c.sha = cs.sha
 JOIN repositories r ON r.id = cs.repo_id
-LEFT JOIN contributors a ON a.id = cs.author_id
+LEFT JOIN contributors a ON a.id = c.author_id
 WHERE (sqlc.narg(repo_id) IS NULL OR cs.repo_id = sqlc.narg(repo_id))
 ORDER BY cs.authored_at, cs.sha;
 

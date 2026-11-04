@@ -119,7 +119,7 @@ func (q *Queries) ListAgentConfigContexts(ctx context.Context, repoID interface{
 }
 
 const listCommitSignalViews = `-- name: ListCommitSignalViews :many
-SELECT cs.repo_id, cs.sha, cs.author_id, cs.authored_at, cs.files_kept, cs.files_excluded,
+SELECT cs.repo_id, cs.sha, c.author_id, cs.authored_at, cs.files_kept, cs.files_excluded,
        cs.additions_kept, cs.deletions_kept, cs.tool_ids, cs.agent_config, cs.bot_author, cs.computed_at,
        c.url,
        r.owner AS repo_owner, r.name AS repo_name, r.label AS repo_label,
@@ -128,7 +128,7 @@ SELECT cs.repo_id, cs.sha, cs.author_id, cs.authored_at, cs.files_kept, cs.files
 FROM commit_signals cs
 JOIN commits c ON c.repo_id = cs.repo_id AND c.sha = cs.sha
 JOIN repositories r ON r.id = cs.repo_id
-LEFT JOIN contributors a ON a.id = cs.author_id
+LEFT JOIN contributors a ON a.id = c.author_id
 WHERE (?1 IS NULL OR cs.repo_id = ?1)
 ORDER BY cs.authored_at, cs.sha
 `
@@ -155,7 +155,8 @@ type ListCommitSignalViewsRow struct {
 }
 
 // Signaux de tous les commits mesures (repo_id NULL = tous les depots), avec de quoi les afficher, du
-// plus ancien au plus recent (date d'ecriture, puis SHA) : historique des signaux de rythme.
+// plus ancien au plus recent (date d'ecriture, puis SHA) : historique des signaux de rythme. L'auteur est
+// celui du commit (a jour apres une fusion de contributeurs).
 func (q *Queries) ListCommitSignalViews(ctx context.Context, repoID interface{}) ([]ListCommitSignalViewsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listCommitSignalViews, repoID)
 	if err != nil {
@@ -199,23 +200,39 @@ func (q *Queries) ListCommitSignalViews(ctx context.Context, repoID interface{})
 }
 
 const listCommitSignals = `-- name: ListCommitSignals :many
-SELECT repo_id, sha, author_id, authored_at, files_kept, files_excluded, additions_kept, deletions_kept,
-    tool_ids, agent_config, bot_author, computed_at
-FROM commit_signals
-WHERE repo_id = ?1
-ORDER BY authored_at DESC, sha
+SELECT cs.repo_id, cs.sha, c.author_id, cs.authored_at, cs.files_kept, cs.files_excluded, cs.additions_kept,
+    cs.deletions_kept, cs.tool_ids, cs.agent_config, cs.bot_author, cs.computed_at
+FROM commit_signals cs
+JOIN commits c ON c.repo_id = cs.repo_id AND c.sha = cs.sha
+WHERE cs.repo_id = ?1
+ORDER BY cs.authored_at DESC, cs.sha
 `
 
-// Signaux des commits du depot, du plus recent au plus ancien (date d'ecriture, puis SHA).
-func (q *Queries) ListCommitSignals(ctx context.Context, repoID int64) ([]CommitSignal, error) {
+type ListCommitSignalsRow struct {
+	RepoID        int64
+	SHA           string
+	AuthorID      sql.NullInt64
+	AuthoredAt    string
+	FilesKept     int64
+	FilesExcluded int64
+	AdditionsKept int64
+	DeletionsKept int64
+	ToolIds       string
+	AgentConfig   bool
+	BotAuthor     bool
+	ComputedAt    string
+}
+
+// Signaux des commits du depot, du plus recent au plus ancien (date d'ecriture, puis SHA) ; auteur du commit.
+func (q *Queries) ListCommitSignals(ctx context.Context, repoID int64) ([]ListCommitSignalsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listCommitSignals, repoID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []CommitSignal{}
+	items := []ListCommitSignalsRow{}
 	for rows.Next() {
-		var i CommitSignal
+		var i ListCommitSignalsRow
 		if err := rows.Scan(
 			&i.RepoID,
 			&i.SHA,
@@ -371,6 +388,23 @@ func (q *Queries) PurgePullRequestTools(ctx context.Context, before string) (int
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+const reassignSignalAuthors = `-- name: ReassignSignalAuthors :exec
+UPDATE commit_signals
+SET author_id = ?1
+WHERE author_id = ?2
+`
+
+type ReassignSignalAuthorsParams struct {
+	ToID   sql.NullInt64
+	FromID sql.NullInt64
+}
+
+// Reattribue a to_id les signaux dont from_id est l'auteur (fusion de contributeurs, comme les commits).
+func (q *Queries) ReassignSignalAuthors(ctx context.Context, arg ReassignSignalAuthorsParams) error {
+	_, err := q.db.ExecContext(ctx, reassignSignalAuthors, arg.ToID, arg.FromID)
+	return err
 }
 
 const upsertRepositorySignals = `-- name: UpsertRepositorySignals :exec

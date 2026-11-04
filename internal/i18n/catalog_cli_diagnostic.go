@@ -28,7 +28,8 @@ with their own history in the repository over 90 days (modified z-score above 3.
   R3  addition ratio (over 0.95) R4  apparent speed (diagnostic.speed_signal, off by default)
   R5  files of a commit (8 or more)
   R6  regime break (14-day median of R1 over 3 times the previous 90 days)
-With fewer than 20 measured commits in 90 days, a learner's rhythm signals do not trigger.
+Each rhythm signal needs at least 20 observations in the 90 days before: measured commits for R2, R3 and
+R5, worked days for R1 and R6; below that, it does not trigger for the learner.
 
 The diagnosis must be enabled in the workspace (diagnostic.enabled) and is measured at sync on the
 local clones, for the commits synced after it was enabled.
@@ -55,7 +56,8 @@ Niveau « à regarder » : aucun signal déclaré, mais au moins un signal de ry
   R3  ratio d'ajout (plus de 0,95) R4  vitesse apparente (diagnostic.speed_signal, désactivé par défaut)
   R5  fichiers d'un commit (8 ou plus)
   R6  rupture de régime (médiane R1 sur 14 jours plus de 3 fois celle des 90 jours précédents)
-Avec moins de 20 commits mesurés en 90 jours, les signaux de rythme d'un apprenant ne se déclenchent pas.
+Chaque signal de rythme demande au moins 20 observations dans les 90 jours qui précèdent : commits
+mesurés pour R2, R3 et R5, jours travaillés pour R1 et R6 ; en deçà, il ne se déclenche pas.
 
 Le diagnostic doit être activé dans l'espace (diagnostic.enabled) ; il est mesuré à la synchro sur
 les clones locaux, pour les commits synchronisés après son activation.

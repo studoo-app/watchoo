@@ -39,6 +39,9 @@ const (
 type RhythmOptions struct {
 	Location    *time.Location // fuseau des jours (R1, R4, R6) ; nil = UTC
 	SpeedSignal bool           // calcule R4 (réglage diagnostic.speed_signal)
+	// RetentionCutoff : aucune piste datée d'avant (durée de conservation, diagnostic.retention_days) ;
+	// zéro = pas de borne. Vaut aussi pour les pistes de PR, dont la branche (D5) reste en base.
+	RetentionCutoff time.Time
 }
 
 // AuthorHistory résume l'historique d'un auteur dans un dépôt.

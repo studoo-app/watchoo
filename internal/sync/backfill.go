@@ -13,6 +13,7 @@ import (
 	"github.com/studoo-app/watchoo/internal/diagnostic"
 	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/model"
+	"github.com/studoo-app/watchoo/internal/provider"
 	"github.com/studoo-app/watchoo/internal/store"
 )
 
@@ -72,11 +73,25 @@ func (e *Engine) BackfillSignals(ctx context.Context, repoID int64) ([]BackfillR
 	return out, nil
 }
 
+// localClone est implémenté par le provider des clones Git locaux : lecture d'un clone existant sans
+// mise à jour.
+type localClone interface {
+	HasClone(owner, name string) bool
+	CommitStatsBatchLocal(ctx context.Context, owner, name string, shas []string) (map[string]provider.CommitStats, error)
+}
+
 // backfillRepo reprend un dépôt ; erreur seulement pour une base en échec ou un contexte terminé.
+//
+// Un clone qui existe déjà est lu tel quel, sans « git fetch » (la synchro le tient à jour) : la reprise
+// peut tourner pendant la synchro d'un autre processus (« watchoo serve ») sans toucher au clone. Sans
+// clone, il est créé d'abord (Prepare).
 func (e *Engine) backfillRepo(ctx context.Context, cs CloneStats, repo model.Repository, since time.Time) (BackfillRepo, error) {
 	rep := BackfillRepo{Repo: repo}
 	full := repo.FullName()
-	if err := cs.Prepare(ctx, repo.Owner, repo.Name, repo.DefaultBranch); err != nil {
+	stats := cs.CommitStatsBatch
+	if local, ok := cs.(localClone); ok && local.HasClone(repo.Owner, repo.Name) {
+		stats = local.CommitStatsBatchLocal
+	} else if err := cs.Prepare(ctx, repo.Owner, repo.Name, repo.DefaultBranch); err != nil {
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			return rep, ctxErr
 		}
@@ -97,7 +112,7 @@ func (e *Engine) backfillRepo(ctx context.Context, cs CloneStats, repo model.Rep
 		for i, c := range page {
 			shas[i] = c.SHA
 		}
-		got, err := cs.CommitStatsBatch(ctx, repo.Owner, repo.Name, shas)
+		got, err := stats(ctx, repo.Owner, repo.Name, shas)
 		if err != nil {
 			if ctxErr := ctx.Err(); ctxErr != nil {
 				return rep, ctxErr

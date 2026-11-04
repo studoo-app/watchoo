@@ -268,3 +268,28 @@ func TestMigrationDeclaredSignals(t *testing.T) {
 		t.Fatalf("UpTo(8) again: %v", err)
 	}
 }
+
+// After a merge of contributors (commits reassigned, old contributor deleted), the signals follow the
+// author of the commit: the rhythm history of the learner is kept.
+func TestCommitSignalsFollowCommitAuthor(t *testing.T) {
+	s := newTestStore(t)
+	ctx := t.Context()
+	repoID := mustCreateRepo(t, s, 1, "promo", "alice")
+	old := person("Alice", "alice@example.test", "", 0)
+	applySync(t, s, repoID, []BranchState{{Name: "main", HeadSHA: sha(1)}}, cw(1, old, "main"))
+	if _, err := s.WriteCommitSignals(ctx, repoID, []CommitSignalWrite{{SHA: sha(1), FilesKept: 1}}, t0); err != nil {
+		t.Fatal(err)
+	}
+	oldID := int64(count(t, s, "SELECT author_id FROM commits WHERE sha = ?", sha(1)))
+	newID := mustExec(t, s, insertCtb, "github", 777, "alice-gh")
+	mustExec(t, s, "UPDATE commits SET author_id = ? WHERE author_id = ?", newID, oldID)
+	mustExec(t, s, "DELETE FROM contributors WHERE id = ?", oldID)
+
+	views, err := s.CommitSignalViews(ctx, repoID)
+	if err != nil || len(views) != 1 || views[0].AuthorID != newID || views[0].AuthorLogin != "alice-gh" {
+		t.Errorf("signals after the merge: %+v, %v (want author %d)", views, err, newID)
+	}
+	if got, err := s.CommitSignals(ctx, repoID); err != nil || len(got) != 1 || got[0].AuthorID != newID {
+		t.Errorf("CommitSignals after the merge: %+v, %v", got, err)
+	}
+}

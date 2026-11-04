@@ -313,6 +313,13 @@ type CommitStats struct {
 	Merge bool
 }
 
+// Add ajoute le fichier f aux statistiques (lignes comptées ; 0 pour un fichier binaire).
+func (s *CommitStats) Add(f CommitFile) {
+	s.Additions += f.Additions
+	s.Deletions += f.Deletions
+	s.Files = append(s.Files, f)
+}
+
 // CommitFile est un fichier modifié par un commit, par rapport à son premier parent.
 type CommitFile struct {
 	Path      string // chemin dans le dépôt, séparé par « / »

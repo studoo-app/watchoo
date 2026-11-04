@@ -16,8 +16,9 @@ import (
 //
 //	git log --diff-filter=A --no-renames --format=%aI HEAD -- <pathspecs>
 //
-// Les pathspecs viennent de Watchoo (internal/diagnostic), jamais d'un dépôt. Le clone est d'abord créé
-// ou mis à jour (voir CommitStatsBatch). Aucun chemin n'est écrit dans les logs.
+// Les pathspecs viennent de Watchoo (internal/diagnostic), jamais d'un dépôt. Le clone doit exister : il
+// est lu tel quel, sans mise à jour (aucun accès réseau) ; sans clone, ok est faux. Aucun chemin n'est
+// écrit dans les logs.
 func (p *Provider) FirstAdded(ctx context.Context, owner, name string, pathspecs []string) (time.Time, bool, error) {
 	if err := provider.ValidateRepo(owner, name); err != nil {
 		return time.Time{}, false, err
@@ -25,7 +26,10 @@ func (p *Provider) FirstAdded(ctx context.Context, owner, name string, pathspecs
 	if len(pathspecs) == 0 {
 		return time.Time{}, false, nil
 	}
-	path, err := p.ensure(ctx, owner, name)
+	if !p.HasClone(owner, name) {
+		return time.Time{}, false, nil
+	}
+	path, err := p.layout.Path(owner, name)
 	if err != nil {
 		return time.Time{}, false, err
 	}

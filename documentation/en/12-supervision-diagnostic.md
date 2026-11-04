@@ -240,7 +240,14 @@ internal/workspace/        settings diagnostic.enabled, diagnostic.exclude, diag
   detail. Earlier history is not measured; the API fallback without a clone gives no signal (the API
   response is read with `per_page=1` only, so as not to download the code of private repositories).
 - **Merge commits excluded** (`--no-merges` in the specification, section 3.2).
-- **Binary files always excluded**; default patterns: specification, section 3.2.
+- **Binary files always excluded**; default patterns: specification, section 3.2. Pattern syntax
+  (`path.Match`): `name/` a directory anywhere (wildcards accepted, e.g. `*.egg-info/`), `a/b/` a
+  subdirectory anywhere, `/name/` a directory at the root only, `pattern` a file name, `path/pattern` or
+  `/file` a path from the root.
+- **Renames detected** (`-M`, specification, section 3.2): a moved file counts only its changed lines (0 for a
+  plain move), as in GitHub's statistics.
+- **Claude D1 trailer**: recognised by the `noreply@anthropic.com` address only, never by the name (Claude is
+  also a first name).
 - **Measured signals**: D1 (`Co-authored-by:` trailers), D2 for the commit message part, D3 (bot author),
   D4 (the commit **changes** an agent configuration file; the addition date will come with the context
   display). D5 (PR branch name) and the PR description part of D2 come in 7.2.
@@ -301,7 +308,33 @@ pages, in 7.4); R4 disabled by default.
 - **Leads**: per commit (R2 to R5) or per day (R1, R6: `kind` `day`); each signal gives its raw value, the
   personal median and the z-score.
 - **History backfill**: `watchoo diagnostic backfill [--repo X]` measures, on the local clones, the commits
-  already stored without signals and more recent than the retention period, merges excluded.
+  already stored without signals and more recent than the retention period, merges excluded. An existing
+  clone is read as is, without `git fetch` (the backfill can run during a `watchoo serve` sync); a missing
+  clone is created first.
+- **Author**: the commit's, read again at each computation (a merge of contributors keeps the learner's
+  history).
+- **Retention**: no lead is shown beyond `diagnostic.retention_days`, PR leads included (their branch, D5,
+  stays stored with the PR). The `--since` filter keeps a day that straddles the boundary.
+
+## 9.4 Phase 7.4: human review on the web
+
+Plan approved by the maintainer on November 4, 2026: reviews in a `diagnostic_reviews` table that follows the
+signals' retention period; review on the web only (the CLI stays read-only); a single reviewer (single-user
+tool): the web interface account if any, otherwise the workspace name.
+
+- **"Diagnosis" page** (`/diagnostic`, in the navigation when the diagnosis is enabled): reminder "reflection
+  leads, not verdicts", leads from newest to oldest with their level, signals and review status, filter by
+  repository, insufficient histories, D4 context, and a **history backfill** button (run in the
+  background, one at a time).
+- **Review sheet** (`/diagnostic/lead?key=…`): level, signals with raw value, personal median and z-score;
+  for a commit, its **diff read from the local clone** (never stored or logged, truncated beyond 200 KB) and
+  the author's neighbouring measured commits (± 3); the author's **throughput chart** over 90 days (lines
+  added per day) with the flagged day; D4 context; link to the forge.
+- **Decision** (section 6.2): `assisted`, `not_assisted` or `undetermined`; cause if not assisted
+  (`internal_copy`, `tool_generated`, `existing_import`, `refactoring`, `other`); confidence (`low`, `medium`,
+  `high`); free note (2,000 characters at most); reviewer and date filled automatically. A lead has at most
+  one review, replaced if done again; the signals present at review time are kept (calibration in phase 7.6).
+- **Purge**: a review follows the retention period, from the date of its lead.
 
 ## 10. Open questions (for the maintainer to decide)
 

@@ -248,7 +248,14 @@ internal/workspace/        réglages diagnostic.enabled, diagnostic.exclude, dia
   ne donne pas de signal (la réponse de l'API n'est lue qu'avec `per_page=1`, pour ne pas télécharger le
   code des dépôts privés).
 - **Commits de fusion exclus** (`--no-merges` de la spécification, section 3.2).
-- **Fichiers binaires toujours exclus** ; motifs par défaut : spécification, section 3.2.
+- **Fichiers binaires toujours exclus** ; motifs par défaut : spécification, section 3.2. Syntaxe des motifs
+  (`path.Match`) : `nom/` un répertoire n'importe où (jokers acceptés, ex. `*.egg-info/`), `a/b/` un
+  sous-répertoire n'importe où, `/nom/` un répertoire à la racine seulement, `motif` un nom de fichier,
+  `chemin/motif` ou `/fichier` un chemin depuis la racine.
+- **Renommages détectés** (`-M`, spécification, section 3.2) : un fichier déplacé compte pour ses seules
+  lignes modifiées (0 pour un simple déplacement), comme dans les statistiques de GitHub.
+- **Trailer D1 de Claude** : reconnu à l'adresse `noreply@anthropic.com` seulement, jamais au nom (Claude est
+  aussi un prénom).
 - **Signaux mesurés** : D1 (trailers `Co-authored-by:`), D2 pour la partie message de commit, D3 (auteur
   bot), D4 (le commit **modifie** un fichier de configuration d'agent ; la date d'ajout viendra avec
   l'affichage du contexte). D5 (nom de branche de PR) et la partie description de PR de D2 viennent en 7.2.
@@ -311,7 +318,35 @@ diagnostic, en 7.4) ; R4 désactivé par défaut.
 - **Pistes** : par commit (R2 à R5) ou par jour (R1, R6 : `kind` `day`) ; chaque signal donne sa valeur
   brute, la médiane personnelle et le score z.
 - **Reprise de l'historique** : `watchoo diagnostic backfill [--repo X]` mesure, sur les clones locaux, les
-  commits déjà en base sans signaux et plus récents que la durée de conservation, hors fusions.
+  commits déjà en base sans signaux et plus récents que la durée de conservation, hors fusions. Un clone
+  existant est lu tel quel, sans `git fetch` (la reprise peut tourner pendant la synchro de `watchoo serve`) ;
+  un clone absent est d'abord créé.
+- **Auteur** : celui du commit, relu à chaque calcul (une fusion de contributeurs garde l'historique de
+  l'apprenant).
+- **Conservation** : aucune piste n'est montrée au-delà de `diagnostic.retention_days`, pistes de PR
+  comprises (leur branche, D5, reste en base avec la PR). Le filtre `--since` garde un jour à cheval sur la
+  borne.
+
+## 9.4 Phase 7.4 — revue humaine sur le web
+
+Plan validé par le mainteneur le 4 novembre 2026 : revues dans une table `diagnostic_reviews` soumise à la
+durée de conservation des signaux ; revue sur le web seulement (la CLI reste en lecture) ; un seul
+relecteur (outil mono-utilisateur) : le compte de l'interface web s'il existe, sinon le nom de l'espace.
+
+- **Page « Diagnostic »** (`/diagnostic`, dans la navigation quand le diagnostic est activé) : rappel
+  « pistes de réflexion, pas des verdicts », pistes de la plus récente à la plus ancienne avec leur niveau,
+  leurs signaux et l'état de leur revue, filtre par dépôt, historiques insuffisants, contexte D4, et bouton
+  de **reprise de l'historique** (lancée en arrière-plan, une à la fois).
+- **Fiche de revue** (`/diagnostic/lead?key=…`) : niveau, signaux avec valeur brute, médiane personnelle
+  et score z ; pour un commit, son **diff lu sur le clone local** (jamais gardé ni journalisé, tronqué au-delà
+  de 200 Ko) et les commits mesurés voisins de l'auteur (± 3) ; **graphique du débit** de l'auteur sur 90
+  jours (lignes ajoutées par jour) avec le jour signalé ; contexte D4 ; lien vers la forge.
+- **Décision** (section 6.2) : `assisted`, `not_assisted` ou `undetermined` ; cause si non assisté
+  (`internal_copy`, `tool_generated`, `existing_import`, `refactoring`, `other`) ; confiance (`low`,
+  `medium`, `high`) ; note libre (2 000 caractères au plus) ; relecteur et date automatiques. Une piste a
+  au plus une revue, remplacée si elle est refaite ; les signaux présents lors de la revue sont gardés
+  (calibration de la phase 7.6).
+- **Purge** : une revue suit la durée de conservation, à partir de la date de sa piste.
 
 ## 10. Points ouverts (à trancher par le mainteneur)
 

@@ -140,7 +140,7 @@ func runDiagnostic(ctx context.Context, deps Deps, opts *options, f diagnosticFl
 	}
 
 	res, err := diagnostic.Build(ctx, s.store, filter, diagnostic.RhythmOptions{Location: s.loc,
-		SpeedSignal: s.ws.Config.Diagnostic.SpeedSignal})
+		SpeedSignal: s.ws.Config.Diagnostic.SpeedSignal, RetentionCutoff: retentionCutoff(s.now(), s.ws.Config.Diagnostic.RetentionDays)})
 	if err != nil {
 		return err
 	}
@@ -280,4 +280,13 @@ func floatJSON(x float64, ok bool) *float64 {
 	}
 	r := math.Round(x*1000) / 1000
 	return &r
+}
+
+// retentionCutoff renvoie la date d'avant laquelle une piste est hors de la durée de conservation ;
+// zéro si days <= 0.
+func retentionCutoff(now time.Time, days int) time.Time {
+	if days <= 0 {
+		return time.Time{}
+	}
+	return now.UTC().Add(-time.Duration(days) * 24 * time.Hour)
 }

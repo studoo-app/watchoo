@@ -50,7 +50,8 @@ type toolPattern struct {
 //	Co-authored-by: Codex.*<noreply@openai.com>
 //	Co-authored-by: Cursor.*
 var coAuthorPatterns = []toolPattern{
-	{ToolClaude, regexp.MustCompile(`(?i)^claude\b|<noreply@anthropic\.com>`)},
+	// Claude est aussi un prénom : seule l'adresse d'Anthropic compte, jamais le nom seul.
+	{ToolClaude, regexp.MustCompile(`(?i)<noreply@anthropic\.com>`)},
 	{ToolCopilot, regexp.MustCompile(`(?i)^copilot\b|<copilot@github\.com>`)},
 	{ToolCodex, regexp.MustCompile(`(?i)^codex\b|<noreply@openai\.com>`)},
 	{ToolCursor, regexp.MustCompile(`(?i)^cursor\b|@cursor\.com>`)},

@@ -123,8 +123,13 @@ func Build(ctx context.Context, st *store.Store, f store.DiagnosticFilter, opts 
 			return Report{}, err
 		}
 	}
-	keep := func(authorID int64, date time.Time) bool {
-		if !f.Since.IsZero() && date.Before(f.Since) {
+	// keep garde une piste de l'auteur authorID couvrant [start, end) : elle doit finir après f.Since
+	// (un jour à cheval sur la borne est gardé) et après la durée de conservation.
+	keep := func(authorID int64, start, end time.Time) bool {
+		if !f.Since.IsZero() && !end.After(f.Since) {
+			return false
+		}
+		if !opts.RetentionCutoff.IsZero() && !end.After(opts.RetentionCutoff) {
 			return false
 		}
 		return author == "" || slices.Contains(authorIDs, authorID)
@@ -140,7 +145,7 @@ func Build(ctx context.Context, st *store.Store, f store.DiagnosticFilter, opts 
 		hits := append(CommitHits(v), extra[leadKey(v.RepoID, v.SHA)]...)
 		sortHits(hits)
 		level := Level(hits)
-		if level == "" || !keep(v.AuthorID, v.AuthoredAt) {
+		if level == "" || !keep(v.AuthorID, v.AuthoredAt, v.AuthoredAt.Add(time.Second)) {
 			continue
 		}
 		leads = append(leads, Lead{
@@ -150,7 +155,7 @@ func Build(ctx context.Context, st *store.Store, f store.DiagnosticFilter, opts 
 		})
 	}
 	for _, d := range days {
-		if !keep(d.group.AuthorID, d.day) {
+		if !keep(d.group.AuthorID, d.day, d.day.AddDate(0, 0, 1)) {
 			continue
 		}
 		sortHits(d.hits)
@@ -166,7 +171,8 @@ func Build(ctx context.Context, st *store.Store, f store.DiagnosticFilter, opts 
 		return Report{}, err
 	}
 	for _, p := range pulls {
-		if !f.Since.IsZero() && p.CreatedAt.Before(f.Since) {
+		if (!f.Since.IsZero() && p.CreatedAt.Before(f.Since)) ||
+			(!opts.RetentionCutoff.IsZero() && p.CreatedAt.Before(opts.RetentionCutoff)) {
 			continue
 		}
 		if author != "" && !strings.EqualFold(p.AuthorLogin, author) {

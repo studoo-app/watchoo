@@ -5,6 +5,7 @@ package sync_test
 
 import (
 	"errors"
+	"os"
 	"slices"
 	"strings"
 	"testing"
@@ -203,6 +204,11 @@ func TestPullRequestDeclarationsAtSync(t *testing.T) {
 				t.Errorf("filter %+v: %+v, %v", f, r.Leads, err)
 			}
 		}
+		// Retention: a PR opened before the cutoff is no longer a lead, even if its branch (D5) is still stored.
+		if r, err := diagnostic.Build(t.Context(), e.st, store.DiagnosticFilter{},
+			diagnostic.RhythmOptions{RetentionCutoff: epoch.Add(time.Minute)}); err != nil || len(r.Leads) != 0 {
+			t.Errorf("PR outside the retention: %+v, %v", r.Leads, err)
+		}
 		if r, _ := diagnostic.Build(t.Context(), e.st, store.DiagnosticFilter{Author: strings.ToUpper(secretLogin)},
 			diagnostic.RhythmOptions{}); len(r.Leads) != 1 {
 			t.Errorf("author login, other case: %+v", r.Leads)
@@ -265,6 +271,10 @@ func TestBackfillSignals(t *testing.T) {
 		t.Fatalf("backfill outside the retention: %+v, %v", res, err)
 	}
 
+	// Without clone, the backfill creates it first (otherwise it reads the existing clone, without fetch).
+	if err := os.RemoveAll(e.reposDir); err != nil {
+		t.Fatal(err)
+	}
 	e.cfg.Diagnostic.RetentionDays = 3650
 	eng := e.newEngine(e.st)
 	res, err = eng.BackfillSignals(ctx, repo.ID)

@@ -63,6 +63,46 @@ func (p *Provider) CommitStatsBatch(ctx context.Context, owner, name string, sha
 	if err != nil {
 		return nil, err
 	}
+	return p.statsOn(ctx, owner, name, path, shas)
+}
+
+// HasClone indique si le clone de owner/name existe déjà (créé par Watchoo), sans y toucher.
+func (p *Provider) HasClone(owner, name string) bool {
+	if provider.ValidateRepo(owner, name) != nil {
+		return false
+	}
+	path, err := p.layout.Path(owner, name)
+	if err != nil {
+		return false
+	}
+	state, err := inspect(path, owner, name)
+	return err == nil && state == stateOwned
+}
+
+// CommitStatsBatchLocal est CommitStatsBatch sur le clone EXISTANT de owner/name, sans le mettre à jour
+// (aucun accès réseau, aucune écriture dans le clone) : reprise de l'historique du diagnostic, qui peut
+// tourner pendant une synchro d'un autre processus. Erreur provider.ErrNotFound sans clone.
+func (p *Provider) CommitStatsBatchLocal(ctx context.Context, owner, name string, shas []string) (map[string]provider.CommitStats, error) {
+	if err := provider.ValidateRepo(owner, name); err != nil {
+		return nil, err
+	}
+	for _, sha := range shas {
+		if err := provider.ValidateSHA(sha); err != nil {
+			return nil, err
+		}
+	}
+	if !p.HasClone(owner, name) {
+		return nil, &provider.APIError{Op: i18n.T("provider.git.op.commits_stats", owner, name), Err: provider.ErrNotFound}
+	}
+	path, err := p.layout.Path(owner, name)
+	if err != nil {
+		return nil, err
+	}
+	return p.statsOn(ctx, owner, name, path, shas)
+}
+
+// statsOn calcule les statistiques de shas (validés) sur le clone path, par paquets de StatsBatchSize.
+func (p *Provider) statsOn(ctx context.Context, owner, name, path string, shas []string) (map[string]provider.CommitStats, error) {
 	out := make(map[string]provider.CommitStats, len(shas))
 	unique := slices.Compact(slices.Sorted(slices.Values(shas)))
 	for batch := range slices.Chunk(unique, StatsBatchSize) {
@@ -112,7 +152,7 @@ func (p *Provider) statsBatch(ctx context.Context, owner, name, path string, sha
 		return nil
 	}
 	res, err = p.runInput(ctx, p.localTimeout, gitDir(path), "diff-tree", lines.Bytes(),
-		"diff-tree", "--stdin", "--always", "--root", "-r", "-z", "--numstat", "--no-renames", "--no-ext-diff")
+		"diff-tree", "--stdin", "--always", "--root", "-r", "-z", "--numstat", "-M", "--no-ext-diff")
 	if err != nil {
 		return &provider.APIError{Op: op, Err: err}
 	}
@@ -129,34 +169,35 @@ func (p *Provider) statsBatch(ctx context.Context, owner, name, path string, sha
 	return nil
 }
 
-// parseBatchNumstat lit la sortie de « diff-tree --stdin --always -z --numstat » : pour chaque commit,
-// son SHA (« <sha><NUL> »), puis un enregistrement « ajoutées<TAB>supprimées<TAB>chemin<NUL> » par
-// fichier modifié (« -<TAB>- » pour un fichier binaire : listé dans Files, lignes non comptées). Un SHA
-// sans fichier donne 0/0 et une liste Files vide.
+// parseBatchNumstat lit la sortie de « diff-tree --stdin --always -z --numstat -M » : pour chaque
+// commit, son SHA (« <sha><NUL> »), puis un enregistrement par fichier modifié (voir parseNumstat :
+// renommages et fichiers binaires compris). Un SHA sans fichier donne 0/0 et une liste Files vide.
 func parseBatchNumstat(raw []byte, out map[string]provider.CommitStats) {
 	current := ""
+	var p numstatParser
 	for rec := range bytes.SplitSeq(raw, []byte{0}) {
-		s := strings.TrimLeft(string(rec), "\n")
-		if s == "" {
-			continue
-		}
-		if !strings.Contains(s, "\t") {
-			if provider.ValidateSHA(s) == nil {
-				current = s
-				if _, ok := out[current]; !ok {
-					out[current] = provider.CommitStats{Files: []provider.CommitFile{}}
-				}
+		s := string(rec)
+		if !p.expectingPath() {
+			trimmed := strings.TrimLeft(s, "\n")
+			if trimmed == "" {
+				continue
 			}
+			if !strings.Contains(trimmed, "\t") {
+				if provider.ValidateSHA(trimmed) == nil {
+					current = trimmed
+					if _, ok := out[current]; !ok {
+						out[current] = provider.CommitStats{Files: []provider.CommitFile{}}
+					}
+				}
+				continue
+			}
+		}
+		f, ok := p.feed(s)
+		if !ok || current == "" {
 			continue
 		}
-		if current == "" {
-			continue
-		}
-		st := parseNumstat([]byte(s))
-		total := out[current]
-		total.Additions += st.Additions
-		total.Deletions += st.Deletions
-		total.Files = append(total.Files, st.Files...)
-		out[current] = total
+		st := out[current]
+		st.Add(f)
+		out[current] = st
 	}
 }
