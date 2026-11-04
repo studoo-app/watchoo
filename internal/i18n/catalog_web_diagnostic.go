@@ -1,0 +1,103 @@
+// Textes de l'interface web du diagnostic (phase 7.4, internal/web/diagnostic.go et templates
+// diagnostic*.html). Préfixe des clés : « web.diag. » (et « web.nav.diagnostic », « web.js.line(s) »).
+package i18n
+
+// webDiagnosticTexts regroupe les textes des pages du diagnostic, enregistrés par init() ci-dessous.
+var webDiagnosticTexts = map[string]entry{
+	"web.nav.diagnostic": {"Diagnosis", "Diagnostic"},
+	"web.js.line":        {"{n} line added", "{n} ligne ajoutée"},
+	"web.js.lines":       {"{n} lines added", "{n} lignes ajoutées"},
+
+	"web.diag.intro": {
+		"Reflection leads on the learners' projects, for the trainer only.",
+		"Pistes de réflexion sur les projets des apprenants, réservées au formateur.",
+	},
+	"web.diag.notice": {
+		"A lead is never a verdict: it is a starting point for a conversation with the learner (\"explain this commit to me\").",
+		"Une piste n'est jamais un verdict : c'est un point de départ pour un échange avec l'apprenant (« explique-moi ce commit »).",
+	},
+	"web.diag.disabled": {
+		"The diagnosis is disabled in this workspace (diagnostic.enabled: false in .watchoo/config.yaml). Inform the learners before enabling it.",
+		"Le diagnostic est désactivé dans cet espace (diagnostic.enabled: false dans .watchoo/config.yaml). Informez les apprenants avant de l'activer.",
+	},
+	"web.diag.backfill_button":  {"Measure the history", "Mesurer l'historique"},
+	"web.diag.backfill_started": {"History measurement started in the background.", "Mesure de l'historique lancée en arrière-plan."},
+	"web.diag.backfill_busy":    {"A history measurement is already running.", "Une mesure de l'historique est déjà en cours."},
+	"web.diag.backfill_running": {"History measurement in progress… reload the page to see the result.", "Mesure de l'historique en cours… rechargez la page pour voir le résultat."},
+	"web.diag.backfill_done":    {"Last history measurement: %s, %d commits measured.", "Dernière mesure de l'historique : %s, %d commits mesurés."},
+	"web.diag.backfill_failed":  {"Repositories not measured: %d.", "Dépôts non mesurés : %d."},
+	"web.diag.backfill_error":   {"It stopped on an error (see the logs).", "Elle s'est arrêtée sur une erreur (voir les logs)."},
+	"web.diag.all_repos":        {"All repositories", "Tous les dépôts"},
+	"web.diag.filter":           {"Filter", "Filtrer"},
+	"web.diag.history_short": {
+		"%d of %d authors do not have enough history yet (fewer than %d measured commits in 90 days): rhythm signals do not trigger for them.",
+		"%d auteurs sur %d n'ont pas encore assez d'historique (moins de %d commits mesurés en 90 jours) : les signaux de rythme ne se déclenchent pas pour eux.",
+	},
+	"web.diag.context_line": {"%s: agent configured since %s", "%s : agent configuré depuis le %s"},
+	"web.diag.none":         {"No reflection lead.", "Aucune piste de réflexion."},
+	"web.diag.reviewed":     {"Reviewed leads: %d of %d.", "Pistes revues : %d sur %d."},
+	"web.diag.caption":      {"Reflection leads, newest first", "Pistes de réflexion, de la plus récente à la plus ancienne"},
+	"web.diag.col_item":     {"Item", "Élément"},
+	"web.diag.col_level":    {"Level", "Niveau"},
+	"web.diag.col_signals":  {"Signals", "Signaux"},
+	"web.diag.col_review":   {"Review", "Revue"},
+	"web.diag.col_signal":   {"Signal", "Signal"},
+	"web.diag.col_value":    {"Value", "Valeur"},
+	"web.diag.col_median":   {"Personal median", "Médiane personnelle"},
+	"web.diag.col_files":    {"Files", "Fichiers"},
+	"web.diag.not_reviewed": {"not reviewed", "non revue"},
+
+	"web.diag.level.declared":    {"declared", "déclaré"},
+	"web.diag.level.to_review":   {"to review", "à regarder"},
+	"web.diag.kind.commit":       {"Commit", "Commit"},
+	"web.diag.kind.pull_request": {"Pull request", "Pull request"},
+	"web.diag.kind.day":          {"Day", "Jour"},
+
+	"web.diag.signal.D1": {"AI co-author trailer", "trailer de co-auteur IA"},
+	"web.diag.signal.D2": {"AI signature (message or PR description)", "signature d'IA (message ou description de PR)"},
+	"web.diag.signal.D3": {"bot author", "auteur bot"},
+	"web.diag.signal.D5": {"branch named by a coding agent", "branche nommée par un agent de codage"},
+	"web.diag.signal.R1": {"net lines of the day", "lignes nettes du jour"},
+	"web.diag.signal.R2": {"lines added by the commit", "lignes ajoutées par le commit"},
+	"web.diag.signal.R3": {"addition ratio", "ratio d'ajout"},
+	"web.diag.signal.R4": {"apparent speed (lines per minute)", "vitesse apparente (lignes par minute)"},
+	"web.diag.signal.R5": {"files changed by the commit", "fichiers modifiés par le commit"},
+	"web.diag.signal.R6": {"regime break (14-day median over the previous 90 days)", "rupture de régime (médiane sur 14 jours rapportée aux 90 jours précédents)"},
+
+	"web.diag.lead_title":        {"Lead review", "Revue d'une piste"},
+	"web.diag.open_forge":        {"open on the forge", "ouvrir sur la forge"},
+	"web.diag.signals_title":     {"Signals", "Signaux"},
+	"web.diag.throughput_title":  {"Throughput of the author over %d days", "Débit de l'auteur sur %d jours"},
+	"web.diag.throughput_aria":   {"Lines added per day by the author over %d days", "Lignes ajoutées par jour par l'auteur sur %d jours"},
+	"web.diag.throughput_legend": {"Lines added per day (kept files); the day of the lead is highlighted.", "Lignes ajoutées par jour (fichiers retenus) ; le jour de la piste est mis en évidence."},
+	"web.diag.neighbors_title":   {"Neighbouring commits of the author", "Commits voisins de l'auteur"},
+	"web.diag.diff_title":        {"Diff of the commit (read from the local clone)", "Diff du commit (lu sur le clone local)"},
+	"web.diag.diff_truncated":    {"The diff is cut beyond 200 KB.", "Le diff est coupé au-delà de 200 Ko."},
+	"web.diag.diff_unavailable":  {"Diff unavailable: no local clone of this repository, or the commit is not in it.", "Diff indisponible : pas de clone local de ce dépôt, ou le commit n'y est pas."},
+	"web.diag.review_title":      {"Review", "Revue"},
+	"web.diag.review_by":         {"Reviewed by %s on %s.", "Revue par %s le %s."},
+	"web.diag.review_saved":      {"Review saved.", "Revue enregistrée."},
+	"web.diag.review_refused":    {"Review not saved: %v.", "Revue non enregistrée : %v."},
+	"web.diag.bad_lead":          {"Unknown lead.", "Piste inconnue."},
+	"web.diag.decision":          {"Decision", "Décision"},
+	"web.diag.cause":             {"Cause, if not assisted", "Cause, si non assisté"},
+	"web.diag.confidence":        {"Confidence", "Confiance"},
+	"web.diag.note":              {"Note (%d characters at most)", "Note (%d caractères au plus)"},
+	"web.diag.save_review":       {"Save the review", "Enregistrer la revue"},
+
+	"web.diag.decision.assisted":     {"assisted", "assisté"},
+	"web.diag.decision.not_assisted": {"not assisted", "non assisté"},
+	"web.diag.decision.undetermined": {"undetermined", "indéterminé"},
+	"web.diag.cause.internal_copy":   {"internal copy-paste", "copier-coller interne"},
+	"web.diag.cause.tool_generated":  {"code generated by a tool", "code généré par un outil"},
+	"web.diag.cause.existing_import": {"import of existing code", "import de code existant"},
+	"web.diag.cause.refactoring":     {"refactoring", "refactoring"},
+	"web.diag.cause.other":           {"other", "autre"},
+	"web.diag.confidence.low":        {"low", "faible"},
+	"web.diag.confidence.medium":     {"medium", "moyenne"},
+	"web.diag.confidence.high":       {"high", "élevée"},
+}
+
+func init() {
+	register(webDiagnosticTexts)
+}

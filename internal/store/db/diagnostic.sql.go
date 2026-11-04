@@ -323,6 +323,49 @@ func (q *Queries) ListCommitsWithoutSignals(ctx context.Context, arg ListCommits
 	return items, nil
 }
 
+const listDiagnosticReviews = `-- name: ListDiagnosticReviews :many
+SELECT repo_id, lead_key, kind, lead_date, signals, decision, cause, confidence, note, reviewer, reviewed_at
+FROM diagnostic_reviews
+WHERE (?1 IS NULL OR repo_id = ?1)
+ORDER BY reviewed_at DESC, repo_id, lead_key
+`
+
+// Revues des pistes (repo_id NULL = tous les depots).
+func (q *Queries) ListDiagnosticReviews(ctx context.Context, repoID interface{}) ([]DiagnosticReview, error) {
+	rows, err := q.db.QueryContext(ctx, listDiagnosticReviews, repoID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []DiagnosticReview{}
+	for rows.Next() {
+		var i DiagnosticReview
+		if err := rows.Scan(
+			&i.RepoID,
+			&i.LeadKey,
+			&i.Kind,
+			&i.LeadDate,
+			&i.Signals,
+			&i.Decision,
+			&i.Cause,
+			&i.Confidence,
+			&i.Note,
+			&i.Reviewer,
+			&i.ReviewedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const matchingContributorIDs = `-- name: MatchingContributorIDs :many
 SELECT DISTINCT a.id
 FROM contributors a
@@ -376,6 +419,20 @@ func (q *Queries) PurgeCommitSignals(ctx context.Context, before string) (int64,
 	return result.RowsAffected()
 }
 
+const purgeDiagnosticReviews = `-- name: PurgeDiagnosticReviews :execrows
+DELETE FROM diagnostic_reviews
+WHERE lead_date < ?1
+`
+
+// Supprime les revues des pistes datees d'avant before (tous les depots).
+func (q *Queries) PurgeDiagnosticReviews(ctx context.Context, before string) (int64, error) {
+	result, err := q.db.ExecContext(ctx, purgeDiagnosticReviews, before)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const purgePullRequestTools = `-- name: PurgePullRequestTools :execrows
 UPDATE pull_requests SET tool_ids = ''
 WHERE tool_ids <> '' AND created_at < ?1
@@ -404,6 +461,54 @@ type ReassignSignalAuthorsParams struct {
 // Reattribue a to_id les signaux dont from_id est l'auteur (fusion de contributeurs, comme les commits).
 func (q *Queries) ReassignSignalAuthors(ctx context.Context, arg ReassignSignalAuthorsParams) error {
 	_, err := q.db.ExecContext(ctx, reassignSignalAuthors, arg.ToID, arg.FromID)
+	return err
+}
+
+const upsertDiagnosticReview = `-- name: UpsertDiagnosticReview :exec
+INSERT INTO diagnostic_reviews (repo_id, lead_key, kind, lead_date, signals, decision, cause, confidence,
+                                note, reviewer, reviewed_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT (repo_id, lead_key) DO UPDATE SET
+    kind = excluded.kind,
+    lead_date = excluded.lead_date,
+    signals = excluded.signals,
+    decision = excluded.decision,
+    cause = excluded.cause,
+    confidence = excluded.confidence,
+    note = excluded.note,
+    reviewer = excluded.reviewer,
+    reviewed_at = excluded.reviewed_at
+`
+
+type UpsertDiagnosticReviewParams struct {
+	RepoID     int64
+	LeadKey    string
+	Kind       string
+	LeadDate   string
+	Signals    string
+	Decision   string
+	Cause      string
+	Confidence string
+	Note       string
+	Reviewer   string
+	ReviewedAt string
+}
+
+// Enregistre la revue d'une piste (remplace la precedente).
+func (q *Queries) UpsertDiagnosticReview(ctx context.Context, arg UpsertDiagnosticReviewParams) error {
+	_, err := q.db.ExecContext(ctx, upsertDiagnosticReview,
+		arg.RepoID,
+		arg.LeadKey,
+		arg.Kind,
+		arg.LeadDate,
+		arg.Signals,
+		arg.Decision,
+		arg.Cause,
+		arg.Confidence,
+		arg.Note,
+		arg.Reviewer,
+		arg.ReviewedAt,
+	)
 	return err
 }
 

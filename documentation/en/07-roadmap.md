@@ -143,7 +143,8 @@ Importing a whole organization and the alerts move to V3 (see
 - **Status**: **7.1 done** (foundations: `commit_signals` table, `diagnostic.*` settings, disabled by
   default) and **7.2 done** (declarative signals D1, D2, D3, D5, D4 context, `watchoo diagnostic` command for
   the trainer) and **7.3 done** (rhythm signals R1 to R6, "to review" level, `watchoo diagnostic backfill`);
-  unreleased. Phases 7.4 to 7.6 follow, each after its plan is approved. Educational context
+  and **7.4 done** (human review on the web: "Diagnosis" page, review sheet, recorded decisions, history
+  backfill button); unreleased. Phases 7.5 and 7.6 follow, each after its plan is approved. Educational context
   settled (learners, results reserved to the trainer); learners are informed (existence of the diagnosis,
   purpose, criteria) before it is enabled.
 

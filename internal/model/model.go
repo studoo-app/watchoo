@@ -294,3 +294,19 @@ type CommitSignal struct {
 	BotAuthor     bool      // signal D3 : auteur bot connu
 	ComputedAt    time.Time // date du calcul, UTC
 }
+
+// DiagnosticReview est la revue humaine d'une piste de diagnostic (table diagnostic_reviews, phase 7.4).
+// Clé : (RepoID, LeadKey). Note est une donnée personnelle (jamais dans les logs).
+type DiagnosticReview struct {
+	RepoID     int64
+	LeadKey    string    // clé stable de la piste (internal/diagnostic, Lead.Key)
+	Kind       string    // commit, pull_request ou day
+	LeadDate   time.Time // date de la piste (conservation), UTC
+	Signals    []string  // identifiants des signaux présents lors de la revue, triés
+	Decision   string    // assisted, not_assisted ou undetermined
+	Cause      string    // cause si non assisté ; vide sinon
+	Confidence string    // low, medium ou high
+	Note       string    // note libre du relecteur
+	Reviewer   string    // relecteur (compte de l'interface web, sinon nom de l'espace)
+	ReviewedAt time.Time // date de la revue, UTC
+}

@@ -474,6 +474,13 @@ fictives, dépôts `gittest`, base SQLite temporaire.
   ignorés, niveaux ; reprise de l'historique sur un dépôt `gittest` (refusée sans diagnostic, hors
   conservation, fusions écartées, une seule fois, contexte D4) ; sortie texte des signaux (médiane, z) et
   clés `--json` de `histories` et de `diagnostic backfill`.
+- Phase 7.4 : clé stable d'une piste et recherche par dépôt, règles d'une revue (décision, cause seulement
+  pour « non assisté », confiance, note limitée), débit quotidien et commits voisins ; revues dans le store
+  (remplacement, valeurs inconnues refusées, purge, cascade, migration `00009`) ; diff lu sur un clone
+  `gittest` existant seulement (rien n'est cloné), commit racine, coupe ; pages web : diagnostic désactivé
+  (pas d'entrée de navigation, 404 sur la fiche et les `POST`), liste et filtre, français, fiche de revue,
+  saisie refusée réaffichée et échappée, revue enregistrée (relecteur, liste), note jamais dans les logs,
+  bouton de reprise en arrière-plan.
 
 ## En CI
 

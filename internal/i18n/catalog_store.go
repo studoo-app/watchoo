@@ -47,6 +47,7 @@ var storeTexts = map[string]entry{
 	"store.diagnostic.context":       {"diagnostic context of repository %d", "contexte de diagnostic du dépôt %d"},
 	"store.diagnostic.list_all":      {"diagnostic signals", "signaux de diagnostic"},
 	"store.diagnostic.list":          {"diagnostic signals of repository %d", "signaux de diagnostic du dépôt %d"},
+	"store.diagnostic.review":        {"diagnostic review", "revue de diagnostic"},
 	"store.diagnostic.purge":         {"purging old diagnostic signals", "purge des anciens signaux de diagnostic"},
 	"store.diagnostic.write":         {"diagnostic signals of commit %s", "signaux de diagnostic du commit %s"},
 	"store.pulls.latest":             {"latest pull request of repository %d", "dernière pull request du dépôt %d"},

@@ -1,0 +1,76 @@
+{{/*
+  Diagnostic « /diagnostic » (phase 7.4). Donnée : PageData, Content de type diagnosticView
+  (diagnostic.go). Réservé au formateur : pistes de réflexion, jamais des verdicts. Aucun message de
+  commit ni e-mail n'est affiché ; le titre d'une PR est un texte du dépôt, nettoyé.
+*/}}
+{{define "content"}}{{$c := .Content}}
+<div class="flex flex-wrap items-end justify-between gap-2 mb-4">
+  <div>
+    <h1 class="text-2xl font-bold">{{t "web.nav.diagnostic"}}</h1>
+    <p class="text-sm text-base-content/70">{{t "web.diag.intro"}}</p>
+  </div>
+  {{if $c.Enabled}}
+  <form method="post" action="/diagnostic/backfill">
+    {{template "csrf-field" .}}
+    <button type="submit" class="btn btn-sm"{{if $c.Backfill.Running}} disabled{{end}}>{{t "web.diag.backfill_button"}}</button>
+  </form>
+  {{end}}
+</div>
+{{if not $c.Enabled}}
+<div role="status" class="alert alert-info alert-soft text-sm"><span>{{t "web.diag.disabled"}}</span></div>
+{{else}}
+<div role="note" class="alert alert-soft text-sm mb-4"><span>{{t "web.diag.notice"}}</span></div>
+{{if $c.Message}}{{template "flash" (dict "Message" $c.Message "Error" false)}}{{end}}
+{{if $c.Backfill.Running}}<p class="text-sm mb-2" role="status">{{t "web.diag.backfill_running"}}</p>
+{{else if not $c.Backfill.Finished.IsZero}}<p class="text-sm text-base-content/70 mb-2">{{t "web.diag.backfill_done" (localTime $c.Backfill.Finished) $c.Backfill.Measured}}{{if $c.Backfill.Failed}} {{t "web.diag.backfill_failed" $c.Backfill.Failed}}{{end}}{{if $c.Backfill.Error}} {{t "web.diag.backfill_error"}}{{end}}</p>{{end}}
+
+<form method="get" action="/diagnostic" class="flex flex-wrap items-end gap-2 mb-4">
+  <label class="form-control block">
+    <span class="label text-sm mb-1">{{t "web.col.repo"}}</span>
+    <select name="repo" class="select select-sm w-56">
+      <option value="">{{t "web.diag.all_repos"}}</option>
+      {{range $c.Repos}}<option value="{{.ID}}"{{if eq .ID $c.RepoID}} selected{{end}}>{{truncate 50 .DisplayName}}</option>{{end}}
+    </select>
+  </label>
+  <button type="submit" class="btn btn-sm">{{t "web.diag.filter"}}</button>
+</form>
+
+{{if $c.Short}}<p class="text-sm text-base-content/70 mb-2">{{t "web.diag.history_short" $c.Short $c.Histories $c.MinHist}}</p>{{end}}
+{{if $c.Contexts}}<ul class="text-sm text-base-content/70 mb-4">{{range $c.Contexts}}<li>{{t "web.diag.context_line" .RepoDisplayName (localDate .Since)}}</li>{{end}}</ul>{{end}}
+
+{{if not $c.Leads}}
+<div class="card bg-base-100 shadow-sm"><div class="card-body"><p>{{t "web.diag.none"}}</p></div></div>
+{{else}}
+<p class="text-sm mb-2">{{t "web.diag.reviewed" $c.Reviewed (len $c.Leads)}}</p>
+<div class="overflow-x-auto rounded-box bg-base-100 shadow-sm">
+  <table class="table">
+    <caption class="sr-only">{{t "web.diag.caption"}}</caption>
+    <thead>
+      <tr>
+        <th scope="col">Date</th>
+        <th scope="col">{{t "web.col.repo"}}</th>
+        <th scope="col">{{t "web.col.contributor"}}</th>
+        <th scope="col">{{t "web.diag.col_item"}}</th>
+        <th scope="col">{{t "web.diag.col_level"}}</th>
+        <th scope="col">{{t "web.diag.col_signals"}}</th>
+        <th scope="col">{{t "web.diag.col_review"}}</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range $c.Leads}}
+      <tr>
+        <td class="whitespace-nowrap"><time datetime="{{isoTime .Date}}">{{localDate .Date}}</time></td>
+        <td>{{truncate 40 .RepoDisplayName}}</td>
+        <td>{{if .AuthorName}}{{truncate 30 .AuthorName}}{{else if .AuthorLogin}}{{truncate 30 .AuthorLogin}}{{else}}-{{end}}</td>
+        <td><a class="link" href="{{.Path}}">{{diagKind .Kind}}{{if .SHA}} {{shortSHA .SHA}}{{else if .Number}} #{{.Number}}{{end}}</a></td>
+        <td><span class="badge badge-sm {{diagLevelClass .Level}}">{{diagLevel .Level}}</span></td>
+        <td class="text-sm">{{diagHits .Hits}}</td>
+        <td class="text-sm">{{if .Review}}{{diagDecision .Review.Decision}}{{else}}<span class="text-base-content/60">{{t "web.diag.not_reviewed"}}</span>{{end}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{end}}
+{{end}}
+{{end}}

@@ -8,7 +8,8 @@ branches (via `commit_branches`) and the contributors. V2 adds three of them (mi
 `repositories.provider_id` optional (repositories tracked through local Git repositories); the
 migration `00005` (0.5.0) adds `contributors.profile_url` and the migration `00006` (0.5.0)
 `commits.stats_known`. The migration `00007` (phase 7.1) adds `commit_signals`, and the migration `00008` (phase 7.2)
-`pull_requests.tool_ids` and `repository_signals`, i.e. **twelve tables**
+`pull_requests.tool_ids` and `repository_signals`, and the migration `00009` (phase 7.4) `diagnostic_reviews`,
+i.e. **thirteen tables**
 (see [Supervision and diagnosis](12-supervision-diagnostic.md)). The storage is a SQLite file versioned by `goose` migrations, with **one
 database per workspace** (`.watchoo/watchoo.db`, see [Workspaces](10-workspaces.md)). The tables
 therefore do not know the notion of workspace: two workspaces never share data.
@@ -26,6 +27,7 @@ erDiagram
     commits ||--o{ commit_branches : "seen on"
     commits ||--o| commit_signals : "measured by"
     repositories ||--o| repository_signals : "context"
+    repositories ||--o{ diagnostic_reviews : "reviews"
     branches ||--o{ commit_branches : "contains"
     contributors ||--o{ contributor_emails : "uses"
     contributors ||--o{ commits : "author"
@@ -280,6 +282,25 @@ with the diagnosis enabled.
 | agent_config_since | Signal D4 (context): author date of the first commit adding an agent configuration file on the default branch; `NULL` if none |
 | computed_at | Date of the computation |
 
+### `diagnostic_reviews` — human reviews of the leads (phase 7.4)
+
+Primary key: **`(repo_id, lead_key)`**; one review per lead, replaced if done again; deleted with the
+repository. The note is personal data: the review follows `diagnostic.retention_days` from `lead_date`.
+
+| Column | Description |
+| --- | --- |
+| repo_id | Repository |
+| lead_key | Stable key of the lead: `commit/<sha>`, `pull_request/<number>` or `day/<author>/<start of the day UTC>` |
+| kind | `commit`, `pull_request` or `day` |
+| lead_date | Date of the lead (retention) |
+| signals | Identifiers of the signals present at review time (`D1,R2`…), for calibration (phase 7.6) |
+| decision | `assisted`, `not_assisted` or `undetermined` |
+| cause | If not assisted: `internal_copy`, `tool_generated`, `existing_import`, `refactoring` or `other`; empty otherwise |
+| confidence | `low`, `medium` or `high` |
+| note | Free note of the reviewer (2,000 characters at most) |
+| reviewer | Reviewer: web interface account, otherwise workspace name |
+| reviewed_at | Date of the review |
+
 ## Index
 
 | Index | Usage |
@@ -293,6 +314,7 @@ with the diagnosis enabled.
 | `commits(repo_id, sha) WHERE stats_known = 0` | Partial index: commits whose `+/-` lines are still to be read (migration `00006`) |
 | `commit_signals(repo_id, author_id, authored_at)` | Per-author sliding windows of the rhythm signals (phase 7.3) |
 | `commit_signals(authored_at)` | Purge by retention period |
+| `diagnostic_reviews(lead_date)` | Purge of the reviews by retention period |
 
 ## Identity merging
 

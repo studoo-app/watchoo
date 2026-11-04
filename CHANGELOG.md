@@ -44,6 +44,14 @@ PATCH (see [Skills](documentation/en/11-skills.md#versions-and-changelogmd)).
   and the z-score (`raw`, `median`, `z` in `--json`); authors with fewer than 20 measured commits in 90
   days are reported as "not enough history". New `watchoo diagnostic backfill [--repo X]` command: measures
   on the local clones the commits synced before the diagnosis was enabled, within the retention period.
+- **Diagnosis, phase 7.4 (human review on the web)**: a "Diagnosis" page in `watchoo serve` (navigation
+  entry only with the diagnosis enabled), for the trainer: the reflection leads with their review status,
+  a filter by repository and a "Measure the history" button (backfill in the background). Each lead has a
+  review sheet: signals with raw value, personal median and z-score, the author's throughput over 90 days
+  with the flagged day, neighbouring commits and the diff read from the local clone (never stored), and a
+  review form (decision, cause, confidence, note). Reviews go into the new `diagnostic_reviews` table
+  (migration `00009`) and follow `diagnostic.retention_days`. New routes: `GET /diagnostic`,
+  `GET /diagnostic/lead`, `POST /diagnostic/review`, `POST /diagnostic/backfill`.
 
 ## [1.0.0] - 2026-11-01
 

@@ -155,3 +155,28 @@ func (e *Engine) backfillRepo(ctx context.Context, cs CloneStats, repo model.Rep
 		"absents", rep.Missing)
 	return rep, nil
 }
+
+// patcher est implémenté par le provider des clones Git locaux (*git.Provider) : diff d'un commit lu
+// sur le clone existant, sans le mettre à jour.
+type patcher interface {
+	CommitPatch(ctx context.Context, owner, name, sha string, maxBytes int) (string, bool, bool, error)
+}
+
+// CommitPatch renvoie le diff du commit sha du dépôt repo, lu sur son clone Git local existant (aucun
+// accès réseau), coupé au-delà de maxBytes ; found faux si le clone ou le commit est absent. Sert à la
+// fiche de revue du diagnostic ; le diff n'est jamais gardé ni journalisé.
+func (e *Engine) CommitPatch(ctx context.Context, repo model.Repository, sha string, maxBytes int) (patch string, truncated, found bool, err error) {
+	all, err := e.store.ListRepositories(ctx)
+	if err != nil {
+		return "", false, false, err
+	}
+	gp, err := e.newGit(CloneRefs(all))
+	if err != nil || gp == nil {
+		return "", false, false, err
+	}
+	p, ok := gp.(patcher)
+	if !ok {
+		return "", false, false, nil
+	}
+	return p.CommitPatch(ctx, repo.Owner, repo.Name, sha, maxBytes)
+}

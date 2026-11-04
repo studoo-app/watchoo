@@ -2,9 +2,9 @@
 
 [← Sommaire](README.md)
 
-**Statut** : décision du mainteneur. Phases **7.1 à 7.3 réalisées** (fondations, signaux déclaratifs,
-commande `watchoo diagnostic`, signaux de rythme et reprise de l'historique ; non publiées, sections 9.1 à
-9.3) ; phases 7.4 à 7.6 à venir, chacune après validation de son plan (voir [Roadmap](07-roadmap.md)). Source de la partie
+**Statut** : décision du mainteneur. Phases **7.1 à 7.4 réalisées** (fondations, signaux déclaratifs,
+commande `watchoo diagnostic`, signaux de rythme, reprise de l'historique, revue humaine sur le web ; non
+publiées, sections 9.1 à 9.4) ; phases 7.5 et 7.6 à venir, chacune après validation de son plan (voir [Roadmap](07-roadmap.md)). Source de la partie
 signaux : la spécification « Détection des signaux de production de code assistée par IA », **version 0.2**
 (3 novembre 2026, références vérifiées).
 
@@ -210,7 +210,7 @@ résumé de ce qui marche. Le plan et l'arborescence de chaque phase sont propos
 - **7.3 Rythme** (réalisée) : signaux R1 à R6, fenêtre de 90 jours, z modifié, niveau « À regarder »
   (« Probable » attend la phase 7.5), reprise de l'historique. Livrable : pistes statistiques, historique
   insuffisant signalé.
-- **7.4 Revue** : fiche de revue en CLI et sur le web, enregistrement des décisions, graphique de débit.
+- **7.4 Revue** (réalisée) : fiche de revue en CLI et sur le web, enregistrement des décisions, graphique de débit.
   Livrable : chaque flag peut être étiqueté.
 - **7.5 Forme** : signaux F1 à F5, F6 optionnel et désactivé. Livrable : indices d'appoint, jamais seuls.
 - **7.6 Calibration** : précision par signal, recalibrage, κ. Livrable : rapport de calibration, seuils
@@ -327,7 +327,7 @@ diagnostic, en 7.4) ; R4 désactivé par défaut.
   comprises (leur branche, D5, reste en base avec la PR). Le filtre `--since` garde un jour à cheval sur la
   borne.
 
-## 9.4 Phase 7.4 — revue humaine sur le web
+## 9.4 Phase 7.4 — revue humaine sur le web (réalisée)
 
 Plan validé par le mainteneur le 4 novembre 2026 : revues dans une table `diagnostic_reviews` soumise à la
 durée de conservation des signaux ; revue sur le web seulement (la CLI reste en lecture) ; un seul

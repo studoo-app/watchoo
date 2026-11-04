@@ -65,6 +65,15 @@ const maxFirstLine = 120
 //	                 données, y compris dans hx-get / hx-push-url, que html/template n'encode pas (ce
 //	                 sont pour lui des attributs de texte)
 func (s *server) funcs(tr *i18n.Translator) template.FuncMap {
+	fm := s.baseFuncs(tr)
+	for k, v := range diagnosticFuncs(tr) {
+		fm[k] = v
+	}
+	return fm
+}
+
+// baseFuncs renvoie les fonctions communes à toutes les pages (voir funcs).
+func (s *server) baseFuncs(tr *i18n.Translator) template.FuncMap {
 	return template.FuncMap{
 		"t":            tr.T,
 		"tn":           func(key string, n int) string { return pluralText(tr, key, n) },

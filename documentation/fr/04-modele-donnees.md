@@ -8,7 +8,7 @@ Sept tables suffisent pour le MVP ; `commits` est la table centrale, reliée aux
 facultatif (dépôts suivis par clones Git locaux) ; la migration `00005` (0.5.0) ajoute
 `contributors.profile_url` et la migration `00006` (0.5.0) `commits.stats_known`. La migration `00007`
 (phase 7.1) ajoute `commit_signals`, et la migration `00008` (phase 7.2) `pull_requests.tool_ids` et
-`repository_signals`, soit **douze tables** (voir
+`repository_signals`, et la migration `00009` (phase 7.4) `diagnostic_reviews`, soit **treize tables** (voir
 [Supervision et diagnostic](12-supervision-diagnostic.md)). Le stockage est un fichier SQLite versionné par des migrations
 `goose`, avec **une base par espace de supervision** (`.watchoo/watchoo.db`, voir
 [Espaces de supervision](10-espaces-de-supervision.md)). Les tables ne connaissent donc pas la notion
@@ -27,6 +27,7 @@ erDiagram
     commits ||--o{ commit_branches : "vu sur"
     commits ||--o| commit_signals : "mesuré par"
     repositories ||--o| repository_signals : "contexte"
+    repositories ||--o{ diagnostic_reviews : "revues"
     branches ||--o{ commit_branches : "contient"
     contributors ||--o{ contributor_emails : "utilise"
     contributors ||--o{ commits : "auteur"
@@ -280,6 +281,26 @@ diagnostic activé.
 | agent_config_since | Signal D4 (contexte) : date d'écriture du premier commit qui ajoute un fichier de configuration d'agent sur la branche par défaut ; `NULL` si aucun |
 | computed_at | Date du calcul |
 
+### `diagnostic_reviews` — revues humaines des pistes (phase 7.4)
+
+Clé primaire : **`(repo_id, lead_key)`** ; une revue par piste, remplacée si elle est refaite ; supprimée
+avec le dépôt. La note est une donnée personnelle : la revue suit `diagnostic.retention_days` à partir de
+`lead_date`.
+
+| Colonne | Description |
+| --- | --- |
+| repo_id | Dépôt |
+| lead_key | Clé stable de la piste : `commit/<sha>`, `pull_request/<numéro>` ou `day/<auteur>/<début du jour UTC>` |
+| kind | `commit`, `pull_request` ou `day` |
+| lead_date | Date de la piste (conservation) |
+| signals | Identifiants des signaux présents lors de la revue (`D1,R2`…), pour la calibration (phase 7.6) |
+| decision | `assisted`, `not_assisted` ou `undetermined` |
+| cause | Si non assisté : `internal_copy`, `tool_generated`, `existing_import`, `refactoring` ou `other` ; vide sinon |
+| confidence | `low`, `medium` ou `high` |
+| note | Note libre du relecteur (2 000 caractères au plus) |
+| reviewer | Relecteur : compte de l'interface web, sinon nom de l'espace |
+| reviewed_at | Date de la revue |
+
 ## Index
 
 | Index | Usage |
@@ -293,6 +314,7 @@ diagnostic activé.
 | `commits(repo_id, sha) WHERE stats_known = 0` | Index partiel : commits dont les lignes `+/-` restent à lire (migration `00006`) |
 | `commit_signals(repo_id, author_id, authored_at)` | Fenêtres glissantes par auteur des signaux de rythme (phase 7.3) |
 | `commit_signals(authored_at)` | Purge par durée de conservation |
+| `diagnostic_reviews(lead_date)` | Purge des revues par durée de conservation |
 
 ## Fusion des identités
 

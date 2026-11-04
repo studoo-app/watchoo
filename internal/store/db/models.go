@@ -66,6 +66,20 @@ type ContributorEmail struct {
 	ContributorID int64
 }
 
+type DiagnosticReview struct {
+	RepoID     int64
+	LeadKey    string
+	Kind       string
+	LeadDate   string
+	Signals    string
+	Decision   string
+	Cause      string
+	Confidence string
+	Note       string
+	Reviewer   string
+	ReviewedAt string
+}
+
 type PullRequest struct {
 	RepoID           int64
 	Number           int64

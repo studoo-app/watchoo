@@ -101,3 +101,31 @@ WHERE c.repo_id = sqlc.arg(repo_id)
   AND NOT EXISTS (SELECT 1 FROM commit_signals cs WHERE cs.repo_id = c.repo_id AND cs.sha = c.sha)
 ORDER BY c.sha
 LIMIT sqlc.arg(row_limit);
+
+-- name: UpsertDiagnosticReview :exec
+-- Enregistre la revue d'une piste (remplace la precedente).
+INSERT INTO diagnostic_reviews (repo_id, lead_key, kind, lead_date, signals, decision, cause, confidence,
+                                note, reviewer, reviewed_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT (repo_id, lead_key) DO UPDATE SET
+    kind = excluded.kind,
+    lead_date = excluded.lead_date,
+    signals = excluded.signals,
+    decision = excluded.decision,
+    cause = excluded.cause,
+    confidence = excluded.confidence,
+    note = excluded.note,
+    reviewer = excluded.reviewer,
+    reviewed_at = excluded.reviewed_at;
+
+-- name: ListDiagnosticReviews :many
+-- Revues des pistes (repo_id NULL = tous les depots).
+SELECT repo_id, lead_key, kind, lead_date, signals, decision, cause, confidence, note, reviewer, reviewed_at
+FROM diagnostic_reviews
+WHERE (sqlc.narg(repo_id) IS NULL OR repo_id = sqlc.narg(repo_id))
+ORDER BY reviewed_at DESC, repo_id, lead_key;
+
+-- name: PurgeDiagnosticReviews :execrows
+-- Supprime les revues des pistes datees d'avant before (tous les depots).
+DELETE FROM diagnostic_reviews
+WHERE lead_date < sqlc.arg(before);

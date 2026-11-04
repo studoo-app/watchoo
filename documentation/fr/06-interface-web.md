@@ -33,6 +33,7 @@ définir impose la langue partout.
 | Contributeurs | `/contributors` | `/fragments/contributors` |
 | Page d'un contributeur (0.5.0) | `/contributors/{id}` (`?page=`) | `/contributors/{id}/commits` |
 | Réglages | `/settings` | `/fragments/quota` |
+| Diagnostic (7.4, diagnostic activé) | `/diagnostic` (`?repo=`), `/diagnostic/lead` (`?repo=`, `?key=`) | — |
 
 ### Routes
 
@@ -62,6 +63,10 @@ ne modifie quoi que ce soit ; tout `POST` passe par le contrôle CSRF.
 | `POST` | `/settings/import`, `/settings/import/apply` | Import de la configuration : aperçu, puis application |
 | `POST` | `/sync` | Synchro de tous les dépôts |
 | `GET` | `/fragments/sync` | État de la synchro (barre de navigation) |
+| `GET` | `/diagnostic` | Pistes de réflexion du diagnostic (7.4 ; contenu seulement si le diagnostic est activé) |
+| `GET` | `/diagnostic/lead` | Fiche de revue d'une piste (404 si le diagnostic est désactivé ou la piste inconnue) |
+| `POST` | `/diagnostic/review` | Enregistre la revue d'une piste |
+| `POST` | `/diagnostic/backfill` | Lance la reprise de l'historique en arrière-plan (une à la fois) |
 | `GET` | `/static/*`, `/favicon.ico`, `/apple-touch-icon.png`, `/manifest.webmanifest` | Fichiers statiques embarqués |
 
 `{id}` est un nombre de 1 à 18 chiffres (sinon 404).
@@ -373,6 +378,23 @@ dans l'image Docker, changer le tag de l'image. Pas de bandeau quand la vérific
 (`WATCHOO_NO_UPDATE_CHECK`, posée dans l'image Docker), échoue, ou que la version est à jour. Le bandeau
 ne fait aucune requête : la version connue est gardée en mémoire par le processus (`selfupdate.Monitor`).
 
+### 6. Diagnostic (phase 7.4)
+
+Réservé au formateur qui supervise l'espace ; entrée « Diagnostic » de la navigation seulement quand le
+diagnostic est activé (`diagnostic.enabled`). Détail : [Supervision et diagnostic](12-supervision-diagnostic.md#94-phase-74--revue-humaine-sur-le-web).
+
+- **Liste** (`/diagnostic`) : rappel « une piste n'est jamais un verdict », pistes de la plus récente à la
+  plus ancienne (date, dépôt, auteur, élément, niveau, signaux, état de la revue), filtre par dépôt, nombre
+  de pistes revues, historiques insuffisants, contexte D4, bouton « Mesurer l'historique » (reprise lancée
+  en arrière-plan, une à la fois ; le résultat s'affiche au rechargement). Aucun message de commit.
+- **Fiche de revue** (`/diagnostic/lead`) : niveau ; signaux avec leur description, valeur brute, médiane
+  personnelle et score z ; graphique du débit de l'auteur sur 90 jours (lignes ajoutées par jour, jour de
+  la piste en évidence) ; pour un commit, les commits mesurés voisins (± 3) et le diff lu sur le clone local
+  à l'affichage (jamais gardé, coupé au-delà de 200 Ko ; « indisponible » sans clone) ; contexte D4 ; lien
+  vers la forge ; formulaire de revue (décision, cause si non assisté, confiance, note de 2 000 caractères
+  au plus). Une saisie refusée est réaffichée avec l'erreur (400) ; une revue enregistrée renvoie sur la
+  fiche (303) avec « Revue enregistrée » et le relecteur (compte de l'interface web, sinon nom de l'espace).
+
 ## Navigation
 
 ```mermaid
@@ -386,6 +408,8 @@ flowchart LR
     REPO --> PERSON
     DASH --> PERSON
     PERSON --> REPO
+    DASH --> DIAG["Diagnostic (si activé)"]
+    DIAG --> LEAD["Fiche de revue"]
 ```
 
 ## Logo et icônes

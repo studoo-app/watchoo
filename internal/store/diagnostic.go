@@ -4,6 +4,7 @@ package store
 
 import (
 	"context"
+	"strconv"
 	"strings"
 	"time"
 
@@ -266,6 +267,61 @@ func (s *Store) AgentConfigContexts(ctx context.Context, repoID int64) ([]AgentC
 // dépôts) et renvoie le nombre de PR concernées.
 func (s *Store) PurgePullRequestTools(ctx context.Context, before time.Time) (int, error) {
 	n, err := s.queries.PurgePullRequestTools(ctx, FormatTime(before))
+	if err != nil {
+		return 0, wrapErr(i18n.T("store.diagnostic.purge"), err)
+	}
+	return int(n), nil
+}
+
+// SaveDiagnosticReview enregistre la revue r (remplace la revue précédente de la même piste). Les
+// valeurs sont vérifiées par internal/diagnostic avant ; la base refuse une valeur inconnue.
+func (s *Store) SaveDiagnosticReview(ctx context.Context, r model.DiagnosticReview) error {
+	err := s.queries.UpsertDiagnosticReview(ctx, db.UpsertDiagnosticReviewParams{
+		RepoID: r.RepoID, LeadKey: r.LeadKey, Kind: r.Kind, LeadDate: FormatTime(r.LeadDate),
+		Signals: strings.Join(r.Signals, ","), Decision: r.Decision, Cause: r.Cause, Confidence: r.Confidence,
+		Note: r.Note, Reviewer: r.Reviewer, ReviewedAt: FormatTime(r.ReviewedAt),
+	})
+	if err != nil {
+		return wrapErr(i18n.T("store.diagnostic.review"), err)
+	}
+	return nil
+}
+
+// DiagnosticReviews renvoie les revues des pistes du dépôt repoID (0 = tous), par clé de piste
+// (« repoID/clé », voir ReviewKey).
+func (s *Store) DiagnosticReviews(ctx context.Context, repoID int64) (map[string]model.DiagnosticReview, error) {
+	rows, err := s.queries.ListDiagnosticReviews(ctx, optionalID(repoID))
+	if err != nil {
+		return nil, wrapErr(i18n.T("store.diagnostic.review"), err)
+	}
+	out := make(map[string]model.DiagnosticReview, len(rows))
+	for _, r := range rows {
+		leadDate, err := ParseTime(r.LeadDate)
+		if err != nil {
+			return nil, wrapErr(i18n.T("store.diagnostic.review"), err)
+		}
+		reviewed, err := ParseTime(r.ReviewedAt)
+		if err != nil {
+			return nil, wrapErr(i18n.T("store.diagnostic.review"), err)
+		}
+		out[ReviewKey(r.RepoID, r.LeadKey)] = model.DiagnosticReview{
+			RepoID: r.RepoID, LeadKey: r.LeadKey, Kind: r.Kind, LeadDate: leadDate, Signals: splitList(r.Signals),
+			Decision: r.Decision, Cause: r.Cause, Confidence: r.Confidence, Note: r.Note, Reviewer: r.Reviewer,
+			ReviewedAt: reviewed,
+		}
+	}
+	return out, nil
+}
+
+// ReviewKey est la clé d'une revue dans la carte de DiagnosticReviews : « repoID/clé de la piste ».
+func ReviewKey(repoID int64, leadKey string) string {
+	return strconv.FormatInt(repoID, 10) + "/" + leadKey
+}
+
+// PurgeDiagnosticReviews supprime les revues des pistes datées d'avant before (tous les dépôts) et
+// renvoie leur nombre.
+func (s *Store) PurgeDiagnosticReviews(ctx context.Context, before time.Time) (int, error) {
+	n, err := s.queries.PurgeDiagnosticReviews(ctx, FormatTime(before))
 	if err != nil {
 		return 0, wrapErr(i18n.T("store.diagnostic.purge"), err)
 	}

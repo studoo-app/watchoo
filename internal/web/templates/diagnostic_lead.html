@@ -1,0 +1,135 @@
+{{/*
+  Fiche de revue d'une piste « /diagnostic/lead » (phase 7.4). Donnée : PageData, Content de type
+  diagnosticLeadView (diagnostic.go). Le diff est lu sur le clone local à l'affichage (jamais gardé) ;
+  le graphique du débit (lignes ajoutées par jour, jour de la piste en évidence) est dessiné par
+  static/app.js à partir de « diag-throughput-data ».
+*/}}
+{{define "content"}}{{$c := .Content}}{{$l := $c.Lead}}
+<p class="text-sm mb-2"><a class="link" href="/diagnostic">← {{t "web.nav.diagnostic"}}</a></p>
+<div class="flex flex-wrap items-center gap-2 mb-2">
+  <h1 class="text-2xl font-bold">{{diagKind $l.Kind}}{{if $l.SHA}} {{shortSHA $l.SHA}}{{else if $l.Number}} #{{$l.Number}}{{end}}</h1>
+  <span class="badge {{diagLevelClass $l.Level}}">{{diagLevel $l.Level}}</span>
+</div>
+<p class="text-sm text-base-content/70 mb-4">
+  {{truncate 60 $l.RepoDisplayName}} ·
+  {{if $l.AuthorName}}{{truncate 40 $l.AuthorName}}{{else if $l.AuthorLogin}}{{truncate 40 $l.AuthorLogin}}{{else}}-{{end}} ·
+  <time datetime="{{isoTime $l.Date}}">{{localDate $l.Date}}</time>
+  {{if $l.Title}}· {{truncate 100 $l.Title}}{{end}}
+  {{if $l.URL}}· <a class="link" href="{{$l.URL}}" target="_blank" rel="noopener noreferrer">{{t "web.diag.open_forge"}}</a>{{end}}
+</p>
+<div role="note" class="alert alert-soft text-sm mb-4"><span>{{t "web.diag.notice"}}</span></div>
+
+<div class="grid gap-4 lg:grid-cols-2">
+  <section class="card bg-base-100 shadow-sm min-w-0" aria-labelledby="signals-title">
+    <div class="card-body p-4 md:p-6">
+      <h2 id="signals-title" class="card-title text-lg">{{t "web.diag.signals_title"}}</h2>
+      <div class="overflow-x-auto">
+        <table class="table table-sm">
+          <thead><tr><th scope="col">{{t "web.diag.col_signal"}}</th><th scope="col">{{t "web.diag.col_value"}}</th><th scope="col">{{t "web.diag.col_median"}}</th><th scope="col">z</th></tr></thead>
+          <tbody>
+            {{range $c.Signals}}
+            <tr>
+              <td><strong>{{.Signal}}</strong> <span class="text-sm text-base-content/70">{{.Description}}</span></td>
+              <td>{{truncate 60 .Value}}</td>
+              <td>{{if .HasMedian}}{{diagNum .Median}}{{else}}-{{end}}</td>
+              <td>{{if .HasZ}}{{diagNum .Z}}{{else}}-{{end}}</td>
+            </tr>
+            {{end}}
+          </tbody>
+        </table>
+      </div>
+      {{if not $c.AgentSince.IsZero}}<p class="text-sm text-base-content/70">{{t "web.diag.context_line" $l.RepoDisplayName (localDate $c.AgentSince)}}</p>{{end}}
+    </div>
+  </section>
+
+  {{if $c.Chart}}
+  <section class="card bg-base-100 shadow-sm min-w-0" aria-labelledby="throughput-title">
+    <div class="card-body p-4 md:p-6">
+      <h2 id="throughput-title" class="card-title text-lg">{{t "web.diag.throughput_title" $c.ChartDays}}</h2>
+      <div class="relative h-56 w-full">
+        <canvas id="diag-throughput" role="img" data-chart="daily-lines" data-source="diag-throughput-data"
+                aria-label="{{t "web.diag.throughput_aria" $c.ChartDays}}"></canvas>
+      </div>
+      <p class="text-xs text-base-content/60">{{t "web.diag.throughput_legend"}}</p>
+    </div>
+    <script type="application/json" id="diag-throughput-data">{{$c.Chart}}</script>
+  </section>
+  {{end}}
+</div>
+
+{{if $c.Neighbors}}
+<section class="card bg-base-100 shadow-sm mt-4" aria-labelledby="neighbors-title">
+  <div class="card-body p-4 md:p-6">
+    <h2 id="neighbors-title" class="card-title text-lg">{{t "web.diag.neighbors_title"}}</h2>
+    <div class="overflow-x-auto">
+      <table class="table table-sm">
+        <thead><tr><th scope="col">Date</th><th scope="col">Commit</th><th scope="col" class="text-right">+</th><th scope="col" class="text-right">−</th><th scope="col" class="text-right">{{t "web.diag.col_files"}}</th></tr></thead>
+        <tbody>
+          {{range $c.Neighbors}}
+          <tr{{if eq .SHA $l.SHA}} class="bg-base-200 font-semibold"{{end}}>
+            <td class="whitespace-nowrap">{{localTime .AuthoredAt}}</td>
+            <td>{{shortSHA .SHA}}</td>
+            <td class="text-right">{{.AdditionsKept}}</td>
+            <td class="text-right">{{.DeletionsKept}}</td>
+            <td class="text-right">{{.FilesKept}}</td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+{{end}}
+
+{{if eq $l.Kind "commit"}}
+<details class="collapse collapse-arrow bg-base-100 shadow-sm mt-4">
+  <summary class="collapse-title text-sm font-medium min-h-0 py-3">{{t "web.diag.diff_title"}}</summary>
+  <div class="collapse-content">
+    {{if $c.PatchShown}}
+    {{if $c.PatchTrunc}}<p class="text-sm text-warning mb-2">{{t "web.diag.diff_truncated"}}</p>{{end}}
+    <pre class="text-xs overflow-x-auto max-h-[32rem] bg-base-200 rounded-box p-3"><code>{{$c.Patch}}</code></pre>
+    {{else}}<p class="text-sm text-base-content/70">{{t "web.diag.diff_unavailable"}}</p>{{end}}
+  </div>
+</details>
+{{end}}
+
+<section id="review" class="card bg-base-100 shadow-sm mt-4" aria-labelledby="review-title">
+  <div class="card-body p-4 md:p-6 space-y-3">
+    <h2 id="review-title" class="card-title text-lg">{{t "web.diag.review_title"}}</h2>
+    {{if $c.Form.Error}}{{template "flash" (dict "Message" $c.Form.Error "Error" true)}}
+    {{else if $c.Form.Saved}}{{template "flash" (dict "Message" (t "web.diag.review_saved") "Error" false)}}{{end}}
+    {{if $c.Review}}<p class="text-sm text-base-content/70">{{t "web.diag.review_by" $c.Review.Reviewer (localTime $c.Review.ReviewedAt)}}</p>{{end}}
+    <form method="post" action="/diagnostic/review" class="space-y-3">
+      {{template "csrf-field" .}}
+      <input type="hidden" name="repo" value="{{$l.RepoID}}">
+      <input type="hidden" name="key" value="{{$l.Key}}">
+      <fieldset>
+        <legend class="text-sm font-medium mb-1">{{t "web.diag.decision"}}</legend>
+        <div class="flex flex-wrap gap-4">
+          {{range $c.Decisions}}<label class="flex items-center gap-2 text-sm"><input type="radio" class="radio radio-sm" name="decision" value="{{.}}"{{if eq . $c.Form.Decision}} checked{{end}} required> {{diagDecision .}}</label>{{end}}
+        </div>
+      </fieldset>
+      <label class="form-control block">
+        <span class="label text-sm mb-1">{{t "web.diag.cause"}}</span>
+        <select name="cause" class="select select-sm w-64">
+          <option value="">-</option>
+          {{range $c.Causes}}<option value="{{.}}"{{if eq . $c.Form.Cause}} selected{{end}}>{{diagCause .}}</option>{{end}}
+        </select>
+      </label>
+      <label class="form-control block">
+        <span class="label text-sm mb-1">{{t "web.diag.confidence"}}</span>
+        <select name="confidence" class="select select-sm w-40" required>
+          {{range $c.Confidences}}<option value="{{.}}"{{if eq . $c.Form.Confidence}} selected{{end}}>{{diagConfidence .}}</option>{{end}}
+        </select>
+      </label>
+      <label class="form-control block">
+        <span class="label text-sm mb-1">{{t "web.diag.note" $c.MaxNote}}</span>
+        <textarea name="note" rows="4" maxlength="{{$c.MaxNote}}" class="textarea textarea-sm w-full">{{$c.Form.Note}}</textarea>
+      </label>
+      <button type="submit" class="btn btn-sm btn-primary">{{t "web.diag.save_review"}}</button>
+    </form>
+  </div>
+</section>
+{{end}}
+
+{{define "scripts"}}{{if .Content.Chart}}<script src="/static/vendor/chart-4.6.1.umd.min.js" defer></script>{{end}}{{end}}

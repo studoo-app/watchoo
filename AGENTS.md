@@ -43,7 +43,7 @@ the same numbering; the index is [INDEX.md](documentation/INDEX.md).
 | Vision, scope | [01-vision.md](documentation/en/01-vision.md) |
 | Features and rules (Actif / Flemme / Dead states…) | [02-features.md](documentation/en/02-features.md) |
 | Architecture, stack, technical decisions | [03-architecture.md](documentation/en/03-architecture.md) |
-| Data model (12 tables) | [04-data-model.md](documentation/en/04-data-model.md) |
+| Data model (13 tables) | [04-data-model.md](documentation/en/04-data-model.md) |
 | CLI, TUI, bulk import | [05-cli.md](documentation/en/05-cli.md) |
 | Web interface | [06-web-interface.md](documentation/en/06-web-interface.md) |
 | Roadmap by phases | [07-roadmap.md](documentation/en/07-roadmap.md) |

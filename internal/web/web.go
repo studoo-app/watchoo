@@ -79,6 +79,12 @@ type RepoManager interface {
 	// SetThresholds remplace les seuils propres au dépôt id (nil ou 0 = seuil de l'espace).
 	SetThresholds(ctx context.Context, id int64, flemme, dead *int) (model.Repository, error)
 	RateLimit(ctx context.Context) (provider.RateLimit, error)
+	// BackfillSignals reprend l'historique du diagnostic (repoID, 0 = tous) : bouton de la page
+	// « Diagnostic » (phase 7.4).
+	BackfillSignals(ctx context.Context, repoID int64) ([]wsync.BackfillRepo, error)
+	// CommitPatch lit le diff d'un commit sur le clone local existant, coupé au-delà de maxBytes
+	// (fiche de revue du diagnostic) ; found faux sans clone ni commit.
+	CommitPatch(ctx context.Context, repo model.Repository, sha string, maxBytes int) (patch string, truncated, found bool, err error)
 }
 
 // UpdateSource donne la nouvelle version de Watchoo connue du processus (bandeau de toutes les pages) ;
@@ -158,8 +164,9 @@ type server struct {
 	auth     Auth
 	hosts    *hostPolicy // valeurs acceptées de l'en-tête Host ; nil = pas de contrôle
 	listenAt string
-	updates  UpdateSource // nouvelle version connue ; nil = aucun bandeau
-	docker   bool         // image Docker (texte du bandeau)
+	updates  UpdateSource  // nouvelle version connue ; nil = aucun bandeau
+	docker   bool          // image Docker (texte du bandeau)
+	backfill backfillState // reprise de l'historique du diagnostic lancée depuis le web
 }
 
 // New vérifie les options, analyse les templates embarqués (erreur claire si l'un est invalide) et

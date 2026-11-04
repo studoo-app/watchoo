@@ -477,6 +477,12 @@ See [Supervision and diagnosis](12-supervision-diagnostic.md). No external servi
   on a `gittest` repository (refused without diagnosis, outside retention, merges set aside, once only, D4
   context); text output of the signals (median, z) and `--json` keys of `histories` and of `diagnostic
   backfill`.
+- Phase 7.4: stable key of a lead and lookup per repository, review rules (decision, cause only for "not
+  assisted", confidence, limited note), daily throughput and neighbouring commits; reviews in the store
+  (replacement, unknown values refused, purge, cascade, migration `00009`); diff read only from an existing
+  `gittest` clone (nothing is cloned), root commit, truncation; web pages: disabled diagnosis (no navigation
+  entry, 404 on the sheet and the `POST`s), list and filter, French, review sheet, refused input shown again
+  and escaped, saved review (reviewer, list), note never in the logs, background backfill button.
 
 ## In CI
 

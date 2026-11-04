@@ -2,9 +2,9 @@
 
 [← Contents](README.md)
 
-**Status**: maintainer decision. Phases **7.1 to 7.3 done** (foundations, declarative signals, the
-`watchoo diagnostic` command, rhythm signals and history backfill; unreleased, sections 9.1 to 9.3); phases
-7.4 to 7.6 to come, each after its plan is approved (see [Roadmap](07-roadmap.md)). Source of the signal part: the specification
+**Status**: maintainer decision. Phases **7.1 to 7.4 done** (foundations, declarative signals, the
+`watchoo diagnostic` command, rhythm signals, history backfill, human review on the web; unreleased,
+sections 9.1 to 9.4); phases 7.5 and 7.6 to come, each after its plan is approved (see [Roadmap](07-roadmap.md)). Source of the signal part: the specification
 "Detection of AI-assisted code production signals", **version 0.2** (November 3, 2026, references verified),
 written in French.
 
@@ -203,7 +203,7 @@ summary of what works. The plan and tree of each phase are proposed before the c
   `watchoo diagnostic` output. Deliverable: declarative flags visible and explained in the CLI.
 - **7.3 Rhythm** (done): signals R1 to R6, 90-day window, modified z-score, "To review" level ("Probable"
   waits for phase 7.5), history backfill. Deliverable: statistical leads, insufficient history reported.
-- **7.4 Review**: review sheet in CLI and on the web, decision recording, throughput chart. Deliverable: every
+- **7.4 Review** (done): review sheet in CLI and on the web, decision recording, throughput chart. Deliverable: every
   flag can be labelled.
 - **7.5 Form**: signals F1 to F5, F6 optional and disabled. Deliverable: supporting hints, never alone.
 - **7.6 Calibration**: precision per signal, recalibration, κ. Deliverable: calibration report, documented
@@ -316,7 +316,7 @@ pages, in 7.4); R4 disabled by default.
 - **Retention**: no lead is shown beyond `diagnostic.retention_days`, PR leads included (their branch, D5,
   stays stored with the PR). The `--since` filter keeps a day that straddles the boundary.
 
-## 9.4 Phase 7.4: human review on the web
+## 9.4 Phase 7.4: human review on the web (done)
 
 Plan approved by the maintainer on November 4, 2026: reviews in a `diagnostic_reviews` table that follows the
 signals' retention period; review on the web only (the CLI stays read-only); a single reviewer (single-user

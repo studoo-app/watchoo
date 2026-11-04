@@ -127,6 +127,8 @@ type jsTexts struct {
 	Week    string `json:"week"`    // « Week of {start} to {end} »
 	Total   string `json:"total"`   // « Total: {n} »
 	Sep     string `json:"sep"`     // séparateur entre une série et son nombre (« : » / « : »)
+	Line    string `json:"line"`    // « {n} line added » (débit du diagnostic)
+	Lines   string `json:"lines"`   // « {n} lines added »
 }
 
 // newJSTexts renvoie les textes de app.js dans la langue de tr.
@@ -138,5 +140,7 @@ func newJSTexts(tr *i18n.Translator) jsTexts {
 		Week:    tr.T("web.js.week"),
 		Total:   tr.T("web.js.total"),
 		Sep:     tr.T("web.colon"),
+		Line:    tr.T("web.js.line"),
+		Lines:   tr.T("web.js.lines"),
 	}
 }

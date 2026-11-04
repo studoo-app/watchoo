@@ -94,7 +94,8 @@ func (e *Engine) updateAgentContext(ctx context.Context, s *repoSync, repoID int
 }
 
 // purgeSignals supprime, en fin de synchro, les signaux des commits écrits avant la durée de
-// conservation (diagnostic.retention_days). Rien quand le diagnostic est désactivé ; un échec est
+// conservation (diagnostic.retention_days), les outils des PR ouvertes avant elle, et les revues des
+// pistes datées d'avant elle. Rien quand le diagnostic est désactivé ; un échec est
 // seulement journalisé (la purge suivante reprendra).
 func (e *Engine) purgeSignals(ctx context.Context) {
 	if e.diag == nil || ctx.Err() != nil {
@@ -115,7 +116,13 @@ func (e *Engine) purgeSignals(ctx context.Context) {
 		e.logger.Warn("purge des signaux de diagnostic impossible", "erreur", errorMessage(err))
 		return
 	}
-	if n > 0 || prs > 0 {
-		e.logger.Info("signaux de diagnostic purgés", "commits", n, "pull_requests", prs, "conservation_jours", days)
+	reviews, err := e.store.PurgeDiagnosticReviews(ctx, before)
+	if err != nil {
+		e.logger.Warn("purge des signaux de diagnostic impossible", "erreur", errorMessage(err))
+		return
+	}
+	if n > 0 || prs > 0 || reviews > 0 {
+		e.logger.Info("signaux de diagnostic purgés", "commits", n, "pull_requests", prs, "revues", reviews,
+			"conservation_jours", days)
 	}
 }

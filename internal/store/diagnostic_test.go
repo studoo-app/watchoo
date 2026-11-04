@@ -293,3 +293,81 @@ func TestCommitSignalsFollowCommitAuthor(t *testing.T) {
 		t.Errorf("CommitSignals after the merge: %+v, %v", got, err)
 	}
 }
+
+func TestDiagnosticReviews(t *testing.T) {
+	s := newTestStore(t)
+	ctx := t.Context()
+	repoID := mustCreateRepo(t, s, 1, "promo", "alice")
+	other := mustCreateRepo(t, s, 2, "promo", "bob")
+	r := model.DiagnosticReview{RepoID: repoID, LeadKey: "commit/" + sha(1), Kind: "commit", LeadDate: t0,
+		Signals: []string{"D1", "R2"}, Decision: "not_assisted", Cause: "refactoring", Confidence: "high",
+		Note: "Explication donnée en séance", Reviewer: "promo", ReviewedAt: t0.Add(time.Hour)}
+	if err := s.SaveDiagnosticReview(ctx, r); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SaveDiagnosticReview(ctx, model.DiagnosticReview{RepoID: other, LeadKey: "pull_request/3",
+		Kind: "pull_request", LeadDate: t0.Add(48 * time.Hour), Signals: []string{}, Decision: "assisted",
+		Confidence: "low", ReviewedAt: t0}); err != nil {
+		t.Fatal(err)
+	}
+	all, err := s.DiagnosticReviews(ctx, 0)
+	if err != nil || len(all) != 2 {
+		t.Fatalf("DiagnosticReviews = %+v, %v", all, err)
+	}
+	got := all[ReviewKey(repoID, "commit/"+sha(1))]
+	if got.Decision != "not_assisted" || got.Cause != "refactoring" || !slices.Equal(got.Signals, []string{"D1", "R2"}) ||
+		got.Note != r.Note || !got.LeadDate.Equal(t0) || !got.ReviewedAt.Equal(t0.Add(time.Hour)) {
+		t.Errorf("review: %+v", got)
+	}
+	// Done again: replaced.
+	r.Decision, r.Cause, r.Note = "assisted", "", ""
+	if err := s.SaveDiagnosticReview(ctx, r); err != nil {
+		t.Fatal(err)
+	}
+	if mine, _ := s.DiagnosticReviews(ctx, repoID); len(mine) != 1 || mine[ReviewKey(repoID, r.LeadKey)].Decision != "assisted" {
+		t.Errorf("replaced review: %+v", mine)
+	}
+	// Unknown values refused by the database.
+	bad := r
+	bad.Decision = "guilty"
+	if err := s.SaveDiagnosticReview(ctx, bad); err == nil {
+		t.Error("unknown decision accepted")
+	}
+	// Purge by lead date, cascade with the repository.
+	if n, err := s.PurgeDiagnosticReviews(ctx, t0.Add(time.Hour)); err != nil || n != 1 {
+		t.Errorf("PurgeDiagnosticReviews = %d, %v; want 1", n, err)
+	}
+	mustExec(t, s, "DELETE FROM repositories WHERE id = ?", other)
+	if c := count(t, s, "SELECT count(*) FROM diagnostic_reviews"); c != 0 {
+		t.Errorf("%d reviews left", c)
+	}
+}
+
+func TestMigrationDiagnosticReviews(t *testing.T) {
+	ctx := t.Context()
+	s, err := Open(ctx, filepath.Join(t.TempDir(), "watchoo.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+	p, err := goose.NewProvider(MigrationDialect, s.DB(), migrations.FS, goose.WithDisableGlobalRegistry(true))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.UpTo(ctx, 9); err != nil {
+		t.Fatalf("UpTo(9): %v", err)
+	}
+	if err := execErr(t, s, `INSERT INTO diagnostic_reviews (repo_id, lead_key, kind, lead_date, decision, confidence, reviewed_at)
+		VALUES (1, 'x', 'week', ?, 'assisted', 'low', ?)`, testDate, testDate); err == nil {
+		t.Error("unknown kind accepted")
+	}
+	if _, err := p.DownTo(ctx, 8); err != nil {
+		t.Fatalf("DownTo(8): %v", err)
+	}
+	if c := count(t, s, `SELECT count(*) FROM sqlite_master WHERE name LIKE 'diagnostic_reviews%'`); c != 0 {
+		t.Errorf("%d schema objects left after the rollback", c)
+	}
+	if _, err := p.UpTo(ctx, 9); err != nil {
+		t.Fatalf("UpTo(9) again: %v", err)
+	}
+}
