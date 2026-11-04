@@ -151,6 +151,19 @@ are done in phase 7.5 (exact rules in section 9.5).
 D4 triggers no level on its own: it is shown as context. The weighted score (D = 10, R = 3, F = 1,
 F6 = 0.5) is only used for sorting, and will be recalibrated from human reviews.
 
+**Score of a repository** (1.7.0, repository detail page only): the sum of the weights of the signals of
+all the repository's leads, each triggered signal counted once per lead: D1, D2, D3, D5 = 10; R1 to R6 and A1
+to A4 = 3; F1 to F5 and A5 to A7 = 1; H1 to H4 and D4 = 0 (context or counter-indicator). It is never shown
+alone: always next to the number of leads per level and the count of each signal with its points, and the
+reminder that a lead is never a verdict. It ranks nothing: no column of scores across repositories, no
+export, no use in an evaluation (section 2).
+
+**AI score of a contributor** (1.7.0, contributors list, maintainer's decision): the same computation on the
+leads they authored, across all repositories (commit and day: the author contributor; pull request: their
+forge login). It replaces the "AI signatures" column of the list when the diagnosis is enabled ("—"
+otherwise), always next to the number of leads per level. The list stays sorted by commits: never by this
+score. It is not a grade: it invites to open the leads, like the score of a repository.
+
 Proposed JSON output (`watchoo diagnostic --json`, name to be validated):
 
 ```json

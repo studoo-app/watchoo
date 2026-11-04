@@ -7,6 +7,8 @@
     « repo-contributors » : contributeurs du dépôt (GET /repos/{id}, HX-Target: repo-contributors) ;
     « repo-languages »    : langages du dépôt (1.1.0 ; GET /repos/{id}, HX-Target: repo-languages) ;
     « repo-pulls »        : pull requests, releases et tags (V2 ; GET /repos/{id}, HX-Target: repo-pulls) ;
+    « repo-diagnostic »   : score et signaux du diagnostic (1.6.0, diagnostic activé ; GET /repos/{id},
+                            HX-Target: repo-diagnostic) ;
     « repo-commits »      : filtres, historique paginé (GET /repos/{id}/commits).
   Les graphiques (activité par jour ; activité par contributeur, template « contributors-chart » de
   partials.html) ne sont pas des fragments : HTMX retire les <script> des contenus échangés, données
@@ -45,6 +47,7 @@
   {{template "contributors-chart" (dict "Chart" .Content.ContributorsChart "ID" "repo-contributors-chart" "RefreshURL" (repoPath $r.ID) "Title" (t "web.repo.contributors_chart_title" .Content.ContributorsChart.Weeks) "Scope" (t "web.repo.chart_scope") "Note" (t "web.repo.chart_note"))}}
   {{template "repo-languages" .}}
   {{template "repo-pulls" .}}
+  {{if .Content.Diagnostic}}{{template "repo-diagnostic" .}}{{end}}
   {{template "repo-commits" .}}
 </div>
 {{end}}
@@ -221,6 +224,91 @@
     <p class="text-xs text-base-content/60">{{t "web.repo.languages_note"}}</p>
     {{else}}
     <p class="text-sm text-base-content/70">{{t "web.repo.languages_none"}}</p>
+    {{end}}
+  </div>
+</section>
+{{end}}
+
+{{/* Diagnostic du dépôt (1.6.0). Donnée : PageData (Content.Diagnostic, de type RepoDiagnosticView,
+     repo_diagnostic.go). Le score n'est jamais affiché seul : niveaux et décompte des signaux à côté. */}}
+{{define "repo-diagnostic"}}{{$d := .Content.Diagnostic}}{{$s := $d.Summary}}
+<section id="repo-diagnostic" class="card bg-base-100 shadow-sm min-w-0" aria-labelledby="repo-diagnostic-title"
+         hx-get="{{repoPath .Content.Repo.ID}}" hx-trigger="sync-finished from:body" hx-swap="outerHTML">
+  <div class="card-body p-4 md:p-6 space-y-4">
+    <div class="flex flex-wrap items-baseline justify-between gap-2">
+      <h2 id="repo-diagnostic-title" class="card-title text-lg">{{t "web.nav.diagnostic"}}</h2>
+      <a class="link text-sm" href="{{$d.ListPath}}">{{t "web.repo.diag_all_leads"}}</a>
+    </div>
+    <div role="note" class="alert alert-soft text-sm"><span>{{t "web.diag.notice"}}</span></div>
+    {{if not $s.Leads}}
+    <p class="text-sm text-base-content/70">{{t "web.diag.none"}}</p>
+    {{else}}
+    <div class="stats stats-vertical sm:stats-horizontal bg-base-200 w-full">
+      <div class="stat">
+        <div class="stat-title">{{t "web.repo.diag_score"}}</div>
+        <div class="stat-value tabular-nums">{{$s.Score}}</div>
+        <div class="stat-desc">{{t "web.repo.diag_score_desc"}}</div>
+      </div>
+      <div class="stat">
+        <div class="stat-title">{{t "web.repo.diag_leads"}}</div>
+        <div class="stat-value tabular-nums">{{$s.Leads}}</div>
+        <div class="stat-desc">{{t "web.diag.reviewed" $d.Reviewed $s.Leads}}</div>
+      </div>
+      <div class="stat">
+        <div class="stat-title">{{t "web.diag.col_level"}}</div>
+        <div class="flex flex-wrap gap-2 mt-2">
+          <span class="badge {{diagLevelClass "declared"}}">{{diagLevel "declared"}} · {{$s.Declared}}</span>
+          <span class="badge {{diagLevelClass "probable"}}">{{diagLevel "probable"}} · {{$s.Probable}}</span>
+          <span class="badge {{diagLevelClass "to_review"}}">{{diagLevel "to_review"}} · {{$s.ToReview}}</span>
+        </div>
+      </div>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="table table-sm">
+        <caption class="text-left text-sm font-medium pb-2">{{t "web.repo.diag_signals_caption"}}</caption>
+        <thead><tr>
+          <th scope="col">{{t "web.diag.col_signal"}}</th>
+          <th scope="col" class="text-right">{{t "web.repo.diag_col_leads"}}</th>
+          <th scope="col" class="text-right">{{t "web.repo.diag_col_weight"}}</th>
+          <th scope="col" class="text-right">{{t "web.repo.diag_col_points"}}</th>
+        </tr></thead>
+        <tbody>
+          {{range $d.Signals}}
+          <tr>
+            <td><strong>{{.Signal}}</strong> <span class="text-sm text-base-content/70">{{.Description}}</span></td>
+            <td class="text-right tabular-nums">{{.Leads}}</td>
+            <td class="text-right tabular-nums">{{.Weight}}</td>
+            <td class="text-right tabular-nums">{{.Points}}</td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="table table-sm">
+        <caption class="text-left text-sm font-medium pb-2">{{t "web.repo.diag_latest" (len $d.Leads)}}</caption>
+        <thead><tr>
+          <th scope="col">Date</th>
+          <th scope="col">{{t "web.col.contributor"}}</th>
+          <th scope="col">{{t "web.diag.col_item"}}</th>
+          <th scope="col">{{t "web.diag.col_level"}}</th>
+          <th scope="col">{{t "web.diag.col_signals"}}</th>
+          <th scope="col">{{t "web.diag.col_review"}}</th>
+        </tr></thead>
+        <tbody>
+          {{range $d.Leads}}
+          <tr>
+            <td class="whitespace-nowrap"><time datetime="{{isoTime .Date}}">{{localDate .Date}}</time></td>
+            <td>{{if .AuthorName}}{{truncate 30 .AuthorName}}{{else if .AuthorLogin}}{{truncate 30 .AuthorLogin}}{{else}}-{{end}}</td>
+            <td><a class="link" href="{{.Path}}">{{diagKind .Kind}}{{if .SHA}} {{shortSHA .SHA}}{{else if .Number}} #{{.Number}}{{end}}</a></td>
+            <td><span class="badge badge-sm {{diagLevelClass .Level}}">{{diagLevel .Level}}</span></td>
+            <td class="text-sm">{{diagHits .Hits}}</td>
+            <td class="text-sm">{{if .Review}}{{diagDecision .Review.Decision}}{{else}}<span class="text-base-content/60">{{t "web.diag.not_reviewed"}}</span>{{end}}</td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
     {{end}}
   </div>
 </section>

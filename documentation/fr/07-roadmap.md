@@ -18,7 +18,8 @@ synchro par dépôt sont publiés en **v1.3.0** ([1.3.0](#130--avertissements-de
 dédié pour une empreinte de serveur SSH inconnue (clones Git locaux) en **v1.3.1** ; la supervision et le
 diagnostic (phases 7.1 à 7.5) sont publiés en **v1.4.0** ([7](#après-100--7--supervision-et-diagnostic)) ; les signaux
 absolus et les contre-indicateurs du diagnostic (phase 7.7) en **v1.5.0** ; le sélecteur de langue EN / FR de
-l'interface web et les lignes en cause sur la fiche de revue du diagnostic (phase 7.8) en **v1.6.0**.
+l'interface web et les lignes en cause sur la fiche de revue du diagnostic (phase 7.8) et le score du diagnostic par dépôt et
+par contributeur en **v1.6.0**.
 
 ```mermaid
 flowchart LR

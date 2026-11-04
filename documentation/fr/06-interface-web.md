@@ -99,7 +99,7 @@ partie des commits n'en a pas encore ; « — » si aucun n'en a. Template parta
 
 Partout où un commit est listé (fil du tableau de bord, historique d'un dépôt, commits d'un contributeur), un
 badge « IA : Claude » nomme chaque outil déclaré dessus ; **rien** sans signature (template partagé
-`commit-ai`). Le classement des contributeurs et la page d'un contributeur donnent « signés / analysés »
+`commit-ai`). La page d'un contributeur (et, jusqu'à 1.7.0, le classement des contributeurs) donne « signés / analysés »
 (« 1 / 2 ») et les outils, « — » si aucun commit n'est encore analysé (template partagé `ai-totals`), avec la
 phrase « Une signature d'IA dit qu'un outil est déclaré sur le commit, pas qui a écrit le code ; son absence
 ne prouve rien. » Pas de pourcentage, pas de classement sur ce chiffre, aucune adresse affichée. Règles :
@@ -200,15 +200,25 @@ ne prouve rien. » Pas de pourcentage, pas de classement sur ce chiffre, aucune 
     `git`) et précise que les releases ne le sont pas ; dans l'en-tête, « Sur GitHub » remplace les
     étoiles et les issues par « non disponibles ». Un dépôt déjà lu par l'API garde ses dernières
     valeurs.
+- **Diagnostic** (1.7.0, fragment `repo-diagnostic`, seulement si le diagnostic est activé) : rappel « une
+  piste n'est jamais un verdict » ; le [score du dépôt](12-supervision-diagnostic.md#6-niveaux-score-et-sortie)
+  à côté du nombre de pistes par niveau (déclaré, probable, à regarder) ; le tableau des signaux déclenchés
+  (identifiant, description, nombre de pistes qui le portent, points) ; les 10 dernières pistes (date, auteur,
+  élément lié à sa fiche de revue, niveau, signaux, état de la revue) et un lien vers toutes les pistes du
+  dépôt (`/diagnostic?repo=`). Sans piste : « Aucune piste de réflexion. » Aucun message de commit.
 - Bouton **« Synchroniser ce dépôt »** (absent si le suivi est arrêté).
 - Fragments : `/repos/{id}/commits` (historique) ; `/repos/{id}` avec l'en-tête `HX-Target`
-  `repo-overview`, `repo-contributors`, `repo-languages` ou `repo-pulls` renvoie l'en-tête, les
-  contributeurs, les langages ou les pull requests et releases seuls. Tous se rechargent à la fin d'une synchro.
+  `repo-overview`, `repo-contributors`, `repo-languages`, `repo-pulls` ou `repo-diagnostic` renvoie l'en-tête,
+  les contributeurs, les langages, les pull requests et releases ou le diagnostic seuls. Tous se rechargent à la fin d'une synchro.
 
 ### 3. Contributeurs
 - Classement global (commits, part du total, lignes ajoutées / retirées ; « — » si aucun de ses commits
   n'a encore de statistiques connues, voir `commits.stats_known`), avec trois compteurs (contributeurs, commits, dépôts). Le nom de chaque
   contributeur mène à sa page (0.5.0).
+- **Score IA** (1.7.0, à la place de la colonne « Signatures d'IA ») : le [score IA du
+  contributeur](12-supervision-diagnostic.md#6-niveaux-score-et-sortie) et, en dessous, son nombre de pistes
+  par niveau (déclaré, probable, à regarder) ; « — » si le diagnostic est désactivé. Pas de tri sur cette
+  colonne. Note sous le tableau : comment le score est calculé, et qu'une piste n'est jamais un verdict.
 - Nombre de commits par dépôt (liens vers le détail).
 - Dernière activité.
 - **Graphique d'activité par contributeur sur 12 semaines** : barres empilées des commits par semaine

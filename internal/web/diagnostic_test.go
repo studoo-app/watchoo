@@ -149,6 +149,60 @@ func TestDiagnosticLabels(t *testing.T) {
 	}
 }
 
+// Repository page (1.6.0): the diagnosis card shows the score next to the levels and the signals, only when
+// the diagnosis is enabled.
+func TestRepoDiagnostic(t *testing.T) {
+	e, ids, sha := diagnosticEnv(t)
+	path := "/repos/" + strconv.FormatInt(ids.Alice, 10)
+	w := e.get(path)
+	assertStatus(t, w, http.StatusOK)
+	assertContains(t, w, `id="repo-diagnostic"`, "Score of the repository", "A lead is never a verdict",
+		"AI co-author trailer", leadURLHTML(ids.Alice, sha), `href="/diagnostic?repo=`+strconv.FormatInt(ids.Alice, 10)+`"`,
+		"Reviewed leads: 0 of 1", "Latest leads (1)")
+	if !strings.Contains(w.Body.String(), `<div class="stat-value tabular-nums">10</div>`) {
+		t.Error("score 10 (one D1 lead) not shown")
+	}
+
+	// HTMX fragment after a sync.
+	w = e.htmxWith(path, map[string]string{"HX-Target": "repo-diagnostic"})
+	assertStatus(t, w, http.StatusOK)
+	assertContains(t, w, `id="repo-diagnostic"`, "Score of the repository")
+	assertNotContains(t, w, `id="repo-commits"`)
+
+	// A repository without lead.
+	assertContains(t, e.get("/repos/"+strconv.FormatInt(ids.Bob, 10)), `id="repo-diagnostic"`, "No reflection lead.")
+
+	f, ids2, _ := diagnosticEnv(t, withLang("fr"))
+	assertContains(t, f.get("/repos/"+strconv.FormatInt(ids2.Alice, 10)), "Score du dépôt", "trailer de co-auteur IA")
+}
+
+func TestRepoDiagnosticDisabled(t *testing.T) {
+	e := newTestEnv(t)
+	ids := e.seed()
+	assertNotContains(t, e.get("/repos/"+strconv.FormatInt(ids.Alice, 10)), `id="repo-diagnostic"`, "Score of the repository")
+}
+
+func leadURLHTML(repoID int64, sha string) string {
+	return strings.ReplaceAll(leadURL(repoID, sha), "&", "&amp;")
+}
+
+// Contributors list (1.6.0): the "AI score" column replaces the AI signatures, with the levels next to it.
+func TestContributorsAIScore(t *testing.T) {
+	e, _, _ := diagnosticEnv(t)
+	w := e.get("/contributors")
+	assertStatus(t, w, http.StatusOK)
+	assertContains(t, w, "AI score", "1 declared · 0 probable · 0 to review", "0 declared · 0 probable · 0 to review",
+		"the score is not a grade")
+	assertNotContains(t, w, "AI signatures", "the diagnosis is disabled")
+	if !strings.Contains(w.Body.String(), `<div class="font-semibold">10</div>`) {
+		t.Error("score 10 (one D1 lead) not shown")
+	}
+	assertContains(t, e.get("/fragments/contributors"), "1 declared · 0 probable · 0 to review")
+
+	f, _, _ := diagnosticEnv(t, withLang("fr"))
+	assertContains(t, f.get("/contributors"), "Score IA", "1 déclaré · 0 probable · 0 à regarder")
+}
+
 // The evidence rows follow the signals of the lead, once each, and leave out the signals without lines.
 func TestEvidenceRows(t *testing.T) {
 	tr := i18n.For(i18n.French)

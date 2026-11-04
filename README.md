@@ -9,7 +9,7 @@
 Watchoo watches a list of GitHub repositories and shows you
 their activity at a glance: new commits, contributors, and the repositories that stopped moving.
 
-> **Status: v1.6.0, stable release: MVP and V2, the per-contributor page, the one-command update (`watchoo update`), a bilingual interface (English by default, French), the languages of the repositories and of the contributors, the AI signatures declared in the commits, the sync warnings of each repository in the web interface, the diagnosis for the trainer (reflection leads on AI-assisted production: declared, rhythm, form and absolute signals, traces of human work, human review with the lines behind each signal; off by default), and an EN / FR language selector in the web interface.** Phases 1 to 5 of the
+> **Status: v1.6.0, stable release: MVP and V2, the per-contributor page, the one-command update (`watchoo update`), a bilingual interface (English by default, French), the languages of the repositories and of the contributors, the AI signatures declared in the commits, the sync warnings of each repository in the web interface, the diagnosis for the trainer (reflection leads on AI-assisted production: declared, rhythm, form and absolute signals, traces of human work, human review with the lines behind each signal, a score per repository and per contributor; off by default), and an EN / FR language selector in the web interface.** Phases 1 to 5 of the
 > [roadmap](documentation/en/07-roadmap.md) are in place: command line, interactive mode
 > (`watchoo tui`), local web interface (`watchoo serve`), `--json` output, binaries and Docker image. The
 > V2 (phase 6) adds per-repository thresholds, per-contributor activity within a repository, pull requests,

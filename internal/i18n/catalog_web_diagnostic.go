@@ -117,6 +117,23 @@ var webDiagnosticTexts = map[string]entry{
 	"web.diag.confidence.low":        {"low", "faible"},
 	"web.diag.confidence.medium":     {"medium", "moyenne"},
 	"web.diag.confidence.high":       {"high", "élevée"},
+
+	"web.contributors.ai_score":        {"AI score", "Score IA"},
+	"web.contributors.ai_score_levels": {"%d declared · %d probable · %d to review", "%d déclaré · %d probable · %d à regarder"},
+	"web.contributors.ai_score_off":    {"AI score: the diagnosis is disabled in this workspace.", "Score IA : le diagnostic est désactivé dans cet espace."},
+	"web.contributors.ai_score_note": {
+		"AI score: sum of the points of the signals of the contributor's reflection leads (D = 10, R and A1-A4 = 3, F and A5-A7 = 1, H = 0). A lead is never a verdict; the score is not a grade.",
+		"Score IA : somme des points des signaux des pistes de réflexion du contributeur (D = 10, R et A1-A4 = 3, F et A5-A7 = 1, H = 0). Une piste n'est jamais un verdict ; le score n'est pas une note.",
+	},
+	"web.repo.diag_all_leads":       {"All the leads of this repository", "Toutes les pistes de ce dépôt"},
+	"web.repo.diag_score":           {"Score of the repository", "Score du dépôt"},
+	"web.repo.diag_score_desc":      {"Sum of the points of the signals below (D = 10, R and A1-A4 = 3, F and A5-A7 = 1, H = 0).", "Somme des points des signaux ci-dessous (D = 10, R et A1-A4 = 3, F et A5-A7 = 1, H = 0)."},
+	"web.repo.diag_leads":           {"Reflection leads", "Pistes de réflexion"},
+	"web.repo.diag_signals_caption": {"Triggered signals", "Signaux déclenchés"},
+	"web.repo.diag_col_leads":       {"Leads", "Pistes"},
+	"web.repo.diag_col_weight":      {"Weight", "Poids"},
+	"web.repo.diag_col_points":      {"Points", "Points cumulés"},
+	"web.repo.diag_latest":          {"Latest leads (%d)", "Dernières pistes (%d)"},
 }
 
 func init() {

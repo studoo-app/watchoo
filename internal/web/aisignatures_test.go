@@ -23,7 +23,9 @@ func TestAISignaturesPages(t *testing.T) {
 	e.applySync(id, "alice", signed, plain)
 
 	// Before the analysis: no badge, "—" for the totals.
-	assertContains(t, e.get("/contributors"), "AI signatures", "Not analyzed yet")
+	// Since 1.6.0 the ranking shows the AI score (diagnosis) instead of the signatures.
+	assertContains(t, e.get("/contributors"), "AI score", "the diagnosis is disabled")
+	assertNotContains(t, e.get("/contributors"), "AI signatures")
 	assertNotContains(t, e.get(repoPath(id)), "AI: Claude")
 
 	ctx := t.Context()
@@ -47,10 +49,8 @@ func TestAISignaturesPages(t *testing.T) {
 	}
 	assertContains(t, e.get("/"), "AI: Claude")
 
-	// Ranking and contributor page: signed / analyzed, the tool and the warning.
+	// Contributor page: signed / analyzed, the tool and the warning.
 	note := "its absence proves nothing"
-	w = e.get("/contributors")
-	assertContains(t, w, "1 / 2", "Claude 1", note)
 	contributor := e.contributorIDs()["Alice Martin"]
 	w = e.get(fmt.Sprintf("/contributors/%d", contributor))
 	assertStatus(t, w, http.StatusOK)
