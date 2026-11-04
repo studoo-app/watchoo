@@ -39,6 +39,12 @@
       <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor"/></svg>
     </button>
     {{if not .Public}}
+    <form method="post" action="/lang" class="join order-2 lg:order-5" aria-label="{{t "web.layout.lang_aria"}}">
+      {{template "csrf-field" .}}
+      <input type="hidden" name="return" value="{{.Path}}">
+      <button type="submit" name="lang" value="en" class="btn btn-ghost btn-xs join-item {{if eq .Lang "en"}}btn-active{{end}}" title="{{t "web.layout.lang_en"}}"{{if eq .Lang "en"}} aria-pressed="true"{{else}} aria-pressed="false"{{end}}>EN</button>
+      <button type="submit" name="lang" value="fr" class="btn btn-ghost btn-xs join-item {{if eq .Lang "fr"}}btn-active{{end}}" title="{{t "web.layout.lang_fr"}}"{{if eq .Lang "fr"}} aria-pressed="true"{{else}} aria-pressed="false"{{end}}>FR</button>
+    </form>
     <nav aria-label="{{t "web.layout.nav_aria"}}" class="order-3 w-full overflow-x-auto lg:w-auto">
       <ul class="menu menu-horizontal menu-sm sm:menu-md flex-nowrap px-0 lg:px-1 gap-1">
         <li><a href="/" class="whitespace-nowrap {{if eq .Nav "dashboard"}}menu-active{{end}}"{{if eq .Nav "dashboard"}} aria-current="page"{{end}}>{{t "web.nav.dashboard"}}</a></li>

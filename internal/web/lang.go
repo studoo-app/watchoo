@@ -1,8 +1,9 @@
 package web
 
-// Langue des pages (documentation/fr/06-interface-web.md, « Langue de l'interface ») : réglage lang de
-// l'espace (« en » par défaut, ou « fr »), relu à chaque requête pour qu'un import de configuration
-// qui le change s'applique sans redémarrer « watchoo serve ».
+// Langue des pages (documentation/fr/06-interface-web.md, « Langue de l'interface ») : le choix du
+// navigateur (sélecteur EN / FR de l'en-tête, cookie watchoo_lang, 1.6.0) s'il en a fait un, sinon le
+// réglage lang de l'espace (« en » par défaut, ou « fr »), relu à chaque requête pour qu'un import de
+// configuration qui le change s'applique sans redémarrer « watchoo serve ».
 //
 // La langue est lue une fois par requête (middleware withLang) et portée par son contexte : la page,
 // ses fragments et ses messages d'erreur sont tous dans la même langue. config.yaml n'est relu
@@ -11,8 +12,11 @@ package web
 
 import (
 	"context"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -83,12 +87,72 @@ func (l *langSource) invalidate() {
 	l.mu.Unlock()
 }
 
-// withLang place le traducteur de la langue en vigueur dans le contexte de la requête.
+// langCookieMaxAge est la durée de vie du cookie de langue : un an.
+const langCookieMaxAge = 365 * 24 * 60 * 60
+
+// langCookieName renvoie le nom du cookie de langue pour l'adresse écoutée listenAddr : suffixé par le
+// port comme le cookie CSRF (les cookies ne distinguent pas les ports : un serve par espace).
+func langCookieName(listenAddr string) string {
+	name := "watchoo_lang"
+	if _, port, err := net.SplitHostPort(listenAddr); err == nil && port != "" && port != "0" {
+		name += "_" + port
+	}
+	return name
+}
+
+// requestLang renvoie la langue de la requête : celle du cookie de langue s'il est valide, sinon la
+// langue en vigueur de l'espace.
+func (s *server) requestLang(r *http.Request) i18n.Lang {
+	if ck, err := r.Cookie(s.langCookie); err == nil {
+		if lang := i18n.Lang(ck.Value); i18n.Valid(lang) {
+			return lang
+		}
+	}
+	return s.lang.current()
+}
+
+// withLang place le traducteur de la langue de la requête dans son contexte.
 func (s *server) withLang(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		tr := i18n.For(s.lang.current())
+		tr := i18n.For(s.requestLang(r))
 		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), langKey{}, tr)))
 	})
+}
+
+// handleLang (POST /lang) enregistre la langue choisie dans le navigateur (champ lang : « en » ou
+// « fr ») et renvoie vers la page d'où vient le choix (champ return, chemin local sans query : les
+// filtres d'une page peuvent contenir un e-mail ; sinon « / »).
+// Rien n'est écrit dans config.yaml : le choix ne vaut que pour ce navigateur. Langue inconnue → 400.
+func (s *server) handleLang(w http.ResponseWriter, r *http.Request) {
+	lang := i18n.Lang(formValue(r, "lang"))
+	if !i18n.Valid(lang) {
+		s.renderError(w, r, http.StatusBadRequest, s.t(r, "web.error.bad_request"), s.t(r, "web.lang.invalid"))
+		return
+	}
+	http.SetCookie(w, &http.Cookie{
+		Name:     s.langCookie,
+		Value:    string(lang),
+		Path:     "/",
+		MaxAge:   langCookieMaxAge,
+		HttpOnly: true,
+		Secure:   r.TLS != nil,
+		SameSite: http.SameSiteLaxMode,
+	})
+	redirect(w, r, localReturnPath(formValue(r, "return")))
+}
+
+// localReturnPath renvoie le chemin de raw s'il désigne un chemin local de l'interface (« /repos/3 »,
+// query et fragment retirés), sinon « / » : jamais d'adresse d'un autre site (pas de redirection
+// ouverte). Fonction pure.
+func localReturnPath(raw string) string {
+	if raw == "" || !strings.HasPrefix(raw, "/") || strings.HasPrefix(raw, "//") || strings.ContainsAny(raw, "\\\r\n\t") {
+		return "/"
+	}
+	u, err := url.Parse(raw)
+	if err != nil || u.Scheme != "" || u.Host != "" || u.User != nil || !strings.HasPrefix(u.Path, "/") {
+		return "/"
+	}
+	return u.EscapedPath()
 }
 
 // tr renvoie le traducteur de la requête (langue de l'espace) ; hors middleware, celui de la langue
