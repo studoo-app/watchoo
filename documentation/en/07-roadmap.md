@@ -18,7 +18,8 @@ contributors were released as **v1.2.0** ([1.2.0](#120-ai-signatures-and-languag
 warnings per repository were released as **v1.3.0** ([1.3.0](#130-sync-warnings-per-repository)); a dedicated
 message for an unknown SSH host key (local Git clones) in **v1.3.1**; supervision and diagnosis (phases
 7.1 to 7.5) were released as **v1.4.0** ([7](#after-100--7-supervision-and-diagnosis)); the absolute signals and
-counter-indicators of the diagnosis (phase 7.7) as **v1.5.0**.
+counter-indicators of the diagnosis (phase 7.7) as **v1.5.0**; the EN / FR language selector of the web
+interface as **v1.6.0**.
 
 ```mermaid
 flowchart LR

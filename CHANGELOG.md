@@ -9,6 +9,11 @@ PATCH (see [Skills](documentation/en/11-skills.md#versions-and-changelogmd)).
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-11-04
+
+EN / FR language selector in the web interface. No incompatible change: no migration, no setting changed;
+the new `POST /lang` route and the `watchoo_lang` cookie are additions.
+
 ### Added
 
 - Web interface: EN / FR language selector in the header. The choice applies to the current browser
@@ -492,7 +497,8 @@ First published release: the MVP (phases 1 to 5 of the [roadmap](documentation/e
   `gh` is the official binary verified by SHA-256; base images and GitHub actions pinned by
   digest.
 
-[Unreleased]: https://github.com/studoo-app/watchoo/compare/v1.5.0...HEAD
+[Unreleased]: https://github.com/studoo-app/watchoo/compare/v1.6.0...HEAD
+[1.6.0]: https://github.com/studoo-app/watchoo/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/studoo-app/watchoo/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/studoo-app/watchoo/compare/v1.3.1...v1.4.0
 [1.3.1]: https://github.com/studoo-app/watchoo/compare/v1.3.0...v1.3.1
