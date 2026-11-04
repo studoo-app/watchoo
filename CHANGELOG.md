@@ -9,6 +9,12 @@ PATCH (see [Skills](documentation/en/11-skills.md#versions-and-changelogmd)).
 
 ## [Unreleased]
 
+### Added
+
+- Web interface: EN / FR language selector in the header. The choice applies to the current browser
+  only (cookie `watchoo_lang`, `POST /lang`), takes precedence over the workspace's `lang` setting and
+  never changes `config.yaml`; without a choice, the workspace's language applies (English by default).
+
 ## [1.5.0] - 2026-11-04
 
 Absolute signals and traces of human work in the diagnosis, for projects delivered in few commits. No

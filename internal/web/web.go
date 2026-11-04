@@ -148,25 +148,26 @@ type Options struct {
 // server porte l'état partagé des handlers. Il est en lecture seule après New (sûr pour un usage
 // concurrent) ; tout ce qui change vit dans le store et le coordinateur.
 type server struct {
-	store    *store.Store
-	sync     SyncController
-	repos    RepoManager
-	cfg      workspace.Config
-	ws       *workspace.Workspace // espace servi (partage de la configuration) ; nil = indisponible
-	loc      *time.Location
-	now      func() time.Time
-	logger   *slog.Logger
-	version  string
-	pages    map[i18n.Lang]map[string]*template.Template // par langue, un ensemble de templates par page (render.go)
-	lang     *langSource                                 // langue des pages (lang.go)
-	assets   *assetStore                                 // fichiers statiques embarqués (assets.go)
-	csrf     *csrfProtector
-	auth     Auth
-	hosts    *hostPolicy // valeurs acceptées de l'en-tête Host ; nil = pas de contrôle
-	listenAt string
-	updates  UpdateSource  // nouvelle version connue ; nil = aucun bandeau
-	docker   bool          // image Docker (texte du bandeau)
-	backfill backfillState // reprise de l'historique du diagnostic lancée depuis le web
+	store      *store.Store
+	sync       SyncController
+	repos      RepoManager
+	cfg        workspace.Config
+	ws         *workspace.Workspace // espace servi (partage de la configuration) ; nil = indisponible
+	loc        *time.Location
+	now        func() time.Time
+	logger     *slog.Logger
+	version    string
+	pages      map[i18n.Lang]map[string]*template.Template // par langue, un ensemble de templates par page (render.go)
+	lang       *langSource                                 // langue des pages (lang.go)
+	langCookie string                                      // nom du cookie de langue du navigateur (lang.go)
+	assets     *assetStore                                 // fichiers statiques embarqués (assets.go)
+	csrf       *csrfProtector
+	auth       Auth
+	hosts      *hostPolicy // valeurs acceptées de l'en-tête Host ; nil = pas de contrôle
+	listenAt   string
+	updates    UpdateSource  // nouvelle version connue ; nil = aucun bandeau
+	docker     bool          // image Docker (texte du bandeau)
+	backfill   backfillState // reprise de l'historique du diagnostic lancée depuis le web
 }
 
 // New vérifie les options, analyse les templates embarqués (erreur claire si l'un est invalide) et
@@ -227,6 +228,7 @@ func newServer(opts Options) (*server, error) {
 	}
 	s.hosts = hosts
 	s.csrf = newCSRFProtector(s.listenAt)
+	s.langCookie = langCookieName(s.listenAt)
 	if s.assets, err = loadAssets(); err != nil {
 		return nil, err
 	}

@@ -106,6 +106,7 @@ func (s *server) routes() http.Handler {
 	r.Post("/settings/import/apply", s.handleSettingsImportApply)
 	r.Post("/diagnostic/review", s.handleDiagnosticReview)
 	r.Post("/diagnostic/backfill", s.handleDiagnosticBackfill)
+	r.Post("/lang", s.handleLang)
 
 	// Fichiers statiques.
 	get("/static/*", s.handleStatic)
