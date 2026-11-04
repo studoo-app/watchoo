@@ -9,8 +9,18 @@ PATCH (see [Skills](documentation/en/11-skills.md#versions-and-changelogmd)).
 
 ## [Unreleased]
 
+## [1.6.1] - 2026-11-04
+
+A link to the documentation, in the language of the web interface, and a link to the GitHub repository; in the
+diagnosis, the icon of the AI score in the contributors list, the AI score and the leads of the commits on a
+contributor's page, and the decision badge of the reviewed leads. No incompatible change: no migration, no
+setting, no route changed.
+
 ### Added
 
+- Web interface: a **Documentation** link in the footer of every page, to the contents of the online
+  documentation in the page's language (`documentation/en/` in English, `documentation/fr/` in French).
+- Web interface: a **GitHub** link, with the GitHub icon, to Watchoo's repository in the footer of every page.
 - **Contributor's page, commits with a lead**: when the diagnosis is enabled, a commit of the contributor's
   history that carries a reflection lead shows a "Lead: declared" badge ("probable", "to review"), colored by
   level, linking to its review sheet.
@@ -31,17 +41,6 @@ PATCH (see [Skills](documentation/en/11-skills.md#versions-and-changelogmd)).
   longer looks like a pending status. It is shown in grey text without a badge, and the "Review" column
   carries a colored badge with the decision (assisted, not assisted, undetermined), on the "Diagnosis" page
   and in the leads of a repository page.
-
-## [1.6.1] - 2026-11-04
-
-A link to the documentation, in the language of the web interface, and a link to the GitHub repository. No incompatible change: no migration,
-no setting, no route changed.
-
-### Added
-
-- Web interface: a **Documentation** link in the footer of every page, to the contents of the online
-  documentation in the page's language (`documentation/en/` in English, `documentation/fr/` in French).
-- Web interface: a **GitHub** link, with the GitHub icon, to Watchoo's repository in the footer of every page.
 
 ## [1.6.0] - 2026-11-04
 
