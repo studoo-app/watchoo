@@ -466,7 +466,7 @@ flowchart LR
     DIAG --> LEAD["Review sheet"]
 ```
 
-The footer of every page carries a **Documentation** link to the contents of the online documentation
+The footer of every page carries a **Documentation** link (1.6.1) to the contents of the online documentation
 in the page's language: `documentation/en/README.md` in English, `documentation/fr/README.md` in French
 (the language chosen with the EN / FR selector, else the workspace's). It opens in a new tab, without a
 `Referer` header.

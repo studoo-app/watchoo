@@ -463,7 +463,7 @@ flowchart LR
     DIAG --> LEAD["Fiche de revue"]
 ```
 
-Le pied de chaque page porte un lien **Documentation** vers le sommaire de la documentation en
+Le pied de chaque page porte un lien **Documentation** (1.6.1) vers le sommaire de la documentation en
 ligne dans la langue de la page : `documentation/fr/README.md` en français, `documentation/en/README.md`
 en anglais (la langue choisie avec le sélecteur EN / FR, sinon celle de l'espace). Il s'ouvre dans un
 nouvel onglet, sans en-tête `Referer`.
