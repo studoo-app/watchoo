@@ -217,9 +217,13 @@ func TestCloneUnavailableFallsBackToAPI(t *testing.T) {
 
 	r0 := e.syncAll().Repos[0]
 	if r0.Status != wsync.StatusSuccess || len(r0.Warnings) != 1 ||
-		!strings.Contains(r0.Warnings[0], "local Git clone unavailable, line statistics read through the API") ||
-		!strings.Contains(r0.Warnings[0], "clone location occupied") {
+		!strings.Contains(r0.Warnings[0].Message, "local Git clone unavailable, line statistics read through the API") ||
+		!strings.Contains(r0.Warnings[0].Message, "clone location occupied") {
 		t.Fatalf("clone occupied: %+v", r0)
+	}
+	// Recorded on the sync_run, with its code, for the web interface.
+	if w := e.lastRun(repo.ID).Warnings; len(w) != 1 || w[0] != r0.Warnings[0] || w[0].Kind != model.WarnCloneUnavailable {
+		t.Errorf("recorded warnings: %+v", w)
 	}
 	if _, _, known := e.stats(repo.ID, m0); known || e.fake.Calls(providertest.MethodCommitStats) != 0 {
 		t.Errorf("first import without clone: statistics known=%v, %d calls", known,
@@ -239,13 +243,16 @@ func TestCloneUnavailableFallsBackToAPI(t *testing.T) {
 	}
 
 	// Location freed: the clone is created and catches up the commit that stayed unknown; the one read
-	// through the API is not computed again.
+	// through the API keeps its lines, only its languages are read (two commits read in the clone).
 	if err := os.RemoveAll(occupied); err != nil {
 		t.Fatal(err)
 	}
 	r0 = e.syncAll().Repos[0]
-	if r0.Status != wsync.StatusSuccess || len(r0.Warnings) != 0 || r0.StatsFetched != 1 {
+	if r0.Status != wsync.StatusSuccess || len(r0.Warnings) != 0 || r0.StatsFetched != 2 {
 		t.Fatalf("clone back: %+v", r0)
+	}
+	if w := e.lastRun(repo.ID).Warnings; len(w) != 0 {
+		t.Errorf("warnings of the previous sync still shown: %+v", w)
 	}
 	if add, _, known := e.stats(repo.ID, m0); !known || add != 1 {
 		t.Errorf("catch-up: +%d known=%v", add, known)
@@ -276,7 +283,7 @@ func TestCloneProviderErrorWithGH(t *testing.T) {
 		t.Fatal(err)
 	}
 	if r0 := rep.Repos[0]; r0.Status != wsync.StatusSuccess || len(r0.Warnings) != 1 ||
-		!strings.Contains(r0.Warnings[0], "git not found") {
+		!strings.Contains(r0.Warnings[0].Message, "git not found") {
 		t.Errorf("git missing with gh: %+v", r0)
 	}
 }

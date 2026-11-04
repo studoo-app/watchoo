@@ -17,23 +17,39 @@ type Branch struct {
 }
 
 type Commit struct {
-	RepoID      int64
-	SHA         string
-	AuthorID    sql.NullInt64
-	CommitterID sql.NullInt64
-	Message     string
-	AuthoredAt  string
-	CommittedAt string
-	Additions   int64
-	Deletions   int64
-	URL         string
-	StatsKnown  bool
+	RepoID           int64
+	SHA              string
+	AuthorID         sql.NullInt64
+	CommitterID      sql.NullInt64
+	Message          string
+	AuthoredAt       string
+	CommittedAt      string
+	Additions        int64
+	Deletions        int64
+	URL              string
+	StatsKnown       bool
+	AiRulesVersion   int64
+	LanguagesVersion int64
+}
+
+type CommitAiSignature struct {
+	RepoID int64
+	SHA    string
+	Tool   string
+	Kind   string
 }
 
 type CommitBranch struct {
 	RepoID   int64
 	SHA      string
 	BranchID int64
+}
+
+type CommitLanguage struct {
+	RepoID    int64
+	SHA       string
+	Language  string
+	Additions int64
 }
 
 type CommitSignal struct {
@@ -143,6 +159,12 @@ type Repository struct {
 	BranchPatterns  string
 }
 
+type RepositoryLanguage struct {
+	RepoID   int64
+	Language string
+	Bytes    int64
+}
+
 type RepositorySignal struct {
 	RepoID           int64
 	AgentConfigSince sql.NullString
@@ -157,6 +179,7 @@ type SyncRun struct {
 	NewCommits int64
 	Status     string
 	Error      string
+	Warnings   string
 }
 
 type Tag struct {

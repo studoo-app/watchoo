@@ -6,11 +6,10 @@ Sept tables suffisent pour le MVP ; `commits` est la table centrale, reliée aux
 `commit_branches`) et aux contributeurs. La V2 en ajoute trois (migration `00003`) : `pull_requests`,
 `releases` et `tags`, soit **dix tables** ; la migration `00004` rend `repositories.provider_id`
 facultatif (dépôts suivis par clones Git locaux) ; la migration `00005` (0.5.0) ajoute
-`contributors.profile_url` et la migration `00006` (0.5.0) `commits.stats_known`. La migration `00007`
-(phase 7.1) ajoute `commit_signals`, et la migration `00008` (phase 7.2) `pull_requests.tool_ids` et
-`repository_signals`, et la migration `00009` (phase 7.4) `diagnostic_reviews`, soit **treize tables** ; la
-migration `00010` (phase 7.5) ajoute les colonnes de forme de `commit_signals` (voir
-[Supervision et diagnostic](12-supervision-diagnostic.md)). Le stockage est un fichier SQLite versionné par des migrations
+`contributors.profile_url` et la migration `00006` (0.5.0) `commits.stats_known` ; la migration `00007` (1.1.0) ajoute `repository_languages` ; la migration `00008` (1.2.0)
+ajoute `commits.ai_rules_version` et la table `commit_ai_signatures` ; la migration `00009` (1.2.0) ajoute
+`commits.languages_version` et la table `commit_languages`, soit **treize tables** ; la migration `00010` (1.3.0)
+ajoute `sync_runs.warnings`. La migration `00011` (phase 7.1) ajoute `commit_signals`, la migration `00012` (phase 7.2) `pull_requests.tool_ids` et `repository_signals`, la migration `00013` (phase 7.4) `diagnostic_reviews`, soit **seize tables**, et la migration `00014` (phase 7.5) les colonnes de forme de `commit_signals` (voir [Supervision et diagnostic](12-supervision-diagnostic.md)). Le stockage est un fichier SQLite versionné par des migrations
 `goose`, avec **une base par espace de supervision** (`.watchoo/watchoo.db`, voir
 [Espaces de supervision](10-espaces-de-supervision.md)). Les tables ne connaissent donc pas la notion
 d'espace : deux espaces ne partagent jamais de données.
@@ -24,8 +23,11 @@ erDiagram
     repositories ||--o{ sync_runs : "journalise"
     repositories ||--o{ pull_requests : "reçoit"
     repositories ||--o{ releases : "publie"
+    repositories ||--o{ repository_languages : "est écrit en"
     repositories ||--o{ tags : "marque"
     commits ||--o{ commit_branches : "vu sur"
+    commits ||--o{ commit_ai_signatures : "déclare"
+    commits ||--o{ commit_languages : "modifie"
     commits ||--o| commit_signals : "mesuré par"
     repositories ||--o| repository_signals : "contexte"
     repositories ||--o{ diagnostic_reviews : "revues"
@@ -130,6 +132,8 @@ soit le nombre de branches qui le contiennent.
 | deletions | Lignes supprimées (0 si inconnu) |
 | stats_known | `1` si `additions` et `deletions` ont été calculées (même à 0), `0` si elles sont encore inconnues. Ajoutée par la migration `00006` (0.5.0) |
 | url | Lien vers le commit sur la forge |
+| ai_rules_version | Version des règles de signatures d'IA avec laquelle le commit a été analysé ; `0` = pas encore analysé. Ajoutée par la migration `00008` (1.2.0) |
+| languages_version | Version des règles de langages avec laquelle les langages du commit ont été lus dans le clone ; `0` = pas encore. Ajoutée par la migration `00009` (1.2.0) |
 
 - **Statistiques** (`additions`, `deletions`) : calculées dans le **clone Git local** du dépôt
   (`git diff-tree --numstat`, sans quota), avec ou sans `gh`, pour **tous** les commits, premier import
@@ -166,6 +170,26 @@ Clé primaire : **`(repo_id, sha, branch_id)`**. Clé étrangère `(repo_id, sha
 - Comptages et statistiques (contributeurs, graphiques) : sur `commits` seule, donc sans doublon.
 - Filtre par branche : jointure avec `commit_branches`.
 
+### `commit_ai_signatures` — signatures d'IA des commits (1.2.0)
+
+Une ligne par outil et par type de signature trouvés dans un commit (voir
+[Signatures d'IA](02-fonctionnalites.md#signatures-dia)). **L'absence de ligne n'est pas la preuve d'un
+travail sans IA.**
+
+Clé primaire : **`(repo_id, sha, tool, kind)`**. Clé étrangère `(repo_id, sha)` vers `commits`, en cascade : les
+signatures disparaissent avec le commit.
+
+| Colonne | Description |
+| --- | --- |
+| repo_id | Dépôt |
+| sha | Commit |
+| tool | Identifiant de l'outil (`aider`, `claude`, `codex`, `copilot`, `cursor`) |
+| kind | Type de signature (`agent_account`, `coauthor_trailer`, `footer`) |
+
+Les signatures sont des données dérivées : elles sont réécrites à chaque analyse du commit, à partir du
+message et de l'auteur déjà en base. Ni la ligne du message ni une adresse n'y sont copiées. Retour arrière
+(`Down`) : table, index et colonne supprimés ; les commits restent.
+
 ### `sync_runs` — journal des synchronisations
 
 | Colonne | Description |
@@ -177,8 +201,11 @@ Clé primaire : **`(repo_id, sha, branch_id)`**. Clé étrangère `(repo_id, sha
 | new_commits | Nombre de nouveaux commits récupérés |
 | status | `running`, `success` ou `error` |
 | error | Message d'erreur éventuel, dans la langue active lors de la synchro (anglais ou français), sans donnée personnelle |
+| warnings | Avertissements d'une synchro réussie (1.3.0, migration `00010`) : tableau JSON de `{"kind": …, "message": …}`, `[]` si aucun. `kind` est un code stable (`stats_not_computed`, `clone_unavailable`, `languages_not_computed`, `lists_not_synced`, `ai_not_scanned`, `diagnostic_not_recorded` depuis la phase 7.1), traduit à l'affichage ; `message` est le texte complet, dans la langue active lors de la synchro, sans donnée personnelle |
 
-Le dernier `sync_run` d'un dépôt donne l'état « en erreur ». Un `sync_run` `running` sert aussi de
+Le dernier `sync_run` d'un dépôt donne l'état « en erreur », et ses avertissements sont ceux affichés
+sur la carte et la page du dépôt (voir [Interface web](06-interface-web.md#1-tableau-de-bord)) : ils
+survivent à un redémarrage de `watchoo serve` et disparaissent à la synchro suivante sans avertissement. Un `sync_run` `running` sert aussi de
 **verrou** : voir [Architecture](03-architecture.md#fréquence-de-synchronisation).
 
 ### `pull_requests` — pull requests (V2)
@@ -205,7 +232,7 @@ supprimée, sauf avec son dépôt.
 | updated_at | Dernière modification (sert de point de reprise de la synchro suivante) |
 | closed_at | Date de fermeture ; vide si ouverte |
 | merged_at | Date de merge ; vide si non mergée. Une PR mergée a `state = closed` et `merged_at` renseigné |
-| tool_ids | Diagnostic (phase 7.2, migration `00008`) : outils déclarés dans la description, encodés `D2:claude`, triés, séparés par des virgules ; vide si aucun ou non mesuré. La description n'est jamais gardée ; valeur effacée par la purge (`diagnostic.retention_days`, date d'ouverture) |
+| tool_ids | Diagnostic (phase 7.2, migration `00012`) : outils déclarés dans la description, encodés `D2:claude`, triés, séparés par des virgules ; vide si aucun ou non mesuré. La description n'est jamais gardée ; valeur effacée par la purge (`diagnostic.retention_days`, date d'ouverture) |
 
 - **Auteur** : gardé tel quel (login et identifiant de compte), **sans lien** vers `contributors` : un
   contributeur est l'auteur d'au moins un commit, et un auteur de PR sans commit ne doit pas apparaître
@@ -246,6 +273,40 @@ synchro réussie de cette liste.
 La forge ne donne pas de date pour un tag : l'affichage reprend la date du commit visé quand il est en
 base (jointure sur `commits (repo_id, sha)`, sans clé étrangère : le commit peut être sur une branche
 non suivie).
+
+### `repository_languages` — langages d'un dépôt (1.1.0)
+
+Clé primaire : **`(repo_id, language)`**. La liste d'un dépôt est **remplacée** à chaque synchro qui a pu
+lire son clone Git local ; sinon, ce qui est en base est gardé.
+
+| Colonne | Description |
+| --- | --- |
+| repo_id | Dépôt |
+| language | Nom du langage (`Go`, `TypeScript`…), le même dans toutes les langues de l'interface |
+| bytes | Taille de ses fichiers sur la branche par défaut, en octets (au moins 1) |
+
+Les pourcentages ne sont pas stockés : ils sont calculés à l'affichage, à partir du total du dépôt. Voir
+[Langages d'un dépôt](03-architecture.md#langages-dun-dépôt-110).
+
+### `commit_languages` — lignes ajoutées par langage dans un commit (1.2.0)
+
+Une ligne par langage dans lequel le commit ajoute au moins une ligne, lue dans le clone Git local (voir
+[Langages d'un contributeur](03-architecture.md#langages-dun-contributeur-120)). Un commit analysé
+(`languages_version` > 0) sans ligne ici n'ajoute rien dans un langage reconnu (commit de fusion, Markdown
+seul…).
+
+Clé primaire : **`(repo_id, sha, language)`**. Clé étrangère `(repo_id, sha)` vers `commits`, en cascade.
+
+| Colonne | Description |
+| --- | --- |
+| repo_id | Dépôt |
+| sha | Commit |
+| language | Nom du langage, comme dans `repository_languages` |
+| additions | Lignes ajoutées dans ce langage (au moins 1) |
+
+Donnée dérivée : réécrite à chaque analyse du commit. Les totaux d'un contributeur passent par
+`commits.author_id` : une fusion de contributeurs les suit sans rien réécrire. Retour arrière (`Down`) :
+table, index et colonne supprimés ; les commits restent.
 
 ### `commit_signals` — signaux de diagnostic (phase 7.1)
 
@@ -320,6 +381,8 @@ avec le dépôt. La note est une donnée personnelle : la revue suit `diagnostic
 | `contributor_emails(contributor_id)` | Technique : clé étrangère souvent parcourue (e-mails d'un contributeur) |
 | `sync_runs(repo_id, started_at DESC)` | Technique : dernière synchro d'un dépôt |
 | `commits(repo_id, sha) WHERE stats_known = 0` | Index partiel : commits dont les lignes `+/-` restent à lire (migration `00006`) |
+| `commits(repo_id, ai_rules_version)` | Commits restant à analyser pour les signatures d'IA (migration `00008`) |
+| `commits(repo_id, languages_version)` | Commits dont les langages restent à lire dans le clone (migration `00009`) |
 | `commit_signals(repo_id, author_id, authored_at)` | Fenêtres glissantes par auteur des signaux de rythme (phase 7.3) |
 | `commit_signals(authored_at)` | Purge par durée de conservation |
 | `diagnostic_reviews(lead_date)` | Purge des revues par durée de conservation |

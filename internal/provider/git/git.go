@@ -418,21 +418,23 @@ var (
 	}
 	accessPatterns = []string{
 		"permission denied", "repository not found", "could not read username", "could not read password",
-		"authentication failed", "terminal prompts disabled", "host key verification failed",
+		"authentication failed", "terminal prompts disabled",
 		"does not appear to be a git repository", "could not read from remote repository", "access denied",
 		"returned error: 4", "not found", "no such file or directory",
 	}
 )
 
 // remoteError traduit l'échec d'une commande qui contacte le dépôt distant : provider.ErrUnavailable
-// (réseau), provider.ErrAccessDenied (accès refusé, dépôt introuvable) ou provider.ErrUnexpected. La
-// sortie de git n'est jamais recopiée.
+// (réseau), provider.ErrHostKeyUnknown (empreinte du serveur SSH inconnue), provider.ErrAccessDenied
+// (accès refusé, dépôt introuvable) ou provider.ErrUnexpected. La sortie de git n'est jamais recopiée.
 func remoteError(op string, res result) error {
 	stderr := strings.ToLower(res.stderr)
-	cause := provider.ErrUnexpected
+	var cause error = provider.ErrUnexpected
 	switch {
 	case containsAny(stderr, unavailablePatterns):
 		cause = provider.ErrUnavailable
+	case strings.Contains(stderr, "host key verification failed"):
+		cause = provider.ErrHostKeyUnknown
 	case containsAny(stderr, accessPatterns):
 		cause = provider.ErrAccessDenied
 	}

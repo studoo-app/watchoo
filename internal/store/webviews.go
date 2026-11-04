@@ -105,6 +105,8 @@ func commitViewsFromRows(rows []db.ListRecentCommitsRow) ([]CommitView, error) {
 			AuthorName:       row.AuthorName,
 			AuthorLogin:      row.AuthorLogin,
 			AuthorProfileURL: row.AuthorProfileURL,
+			AISignatures:     parseAISignatures(row.AiSignatures),
+			AIScanned:        row.AiRulesVersion > 0,
 		})
 	}
 	return views, nil
@@ -168,6 +170,8 @@ type ContributorRepoStats struct {
 	Deletions     int       // lignes supprimées par ces commits
 	KnownCommits  int       // commits dont les statistiques sont connues
 	LastCommitAt  time.Time // son commit le plus récent dans ce dépôt (committed_at)
+	// MainLanguage est le langage où il a ajouté le plus de lignes dans ce dépôt (1.2.0) ; vide si aucun.
+	MainLanguage string
 }
 
 // Lines renvoie les totaux de lignes de ces commits.
@@ -213,6 +217,10 @@ func (s *Store) contributorRepoBreakdown(ctx context.Context, id int64) ([]Contr
 	if err != nil {
 		return nil, err
 	}
+	langs, err := contributorLanguages(ctx, s.queries, id, 0, time.Time{})
+	if err != nil {
+		return nil, err
+	}
 	out := make([]ContributorRepoStats, 0, len(rows))
 	for _, row := range rows {
 		last, err := ParseTime(row.LastCommitAt)
@@ -230,6 +238,7 @@ func (s *Store) contributorRepoBreakdown(ctx context.Context, id int64) ([]Contr
 			Deletions:     int(row.Deletions),
 			KnownCommits:  int(row.KnownCommits),
 			LastCommitAt:  last,
+			MainLanguage:  langs.main[[2]int64{row.ContributorID.Int64, row.RepoID}],
 		})
 	}
 	return out, nil
@@ -276,6 +285,16 @@ func (s *Store) ContributorProfile(ctx context.Context, id int64) (ContributorPr
 		KnownCommits: int(row.KnownCommits),
 		Repos:        int(row.Repos),
 	}
+	tools, err := contributorAITools(ctx, s.queries, id, 0, time.Time{})
+	if err != nil {
+		return ContributorProfile{}, wrapErr(i18n.T("store.web.contrib", id), err)
+	}
+	p.AI = aiTotals(row.Commits, row.AiScannedCommits, row.AiSignedCommits, tools[id])
+	langs, err := contributorLanguages(ctx, s.queries, id, 0, time.Time{})
+	if err != nil {
+		return ContributorProfile{}, wrapErr(i18n.T("store.web.contrib", id), err)
+	}
+	p.Languages = langs.totals(id, row.Commits, row.LanguagesScannedCommits)
 	for _, d := range []struct {
 		raw string
 		dst *time.Time

@@ -151,6 +151,9 @@ Deux faux, écrits en phase 2 et réutilisés par les phases suivantes :
   adresses vides des contributeurs de la forge avec login sont complétées, adresses connues gardées,
   second passage sans effet) ; synchro (adresse vidée comme avant la 0.5.0, complétée sans nouveau
   commit par l'API puis par les clones Git locaux, aucun login dans les logs).
+- **Langages** (1.1.0) : classement et exclusions, `Languages` contre des dépôts `gittest` (dépôt vide, lien
+  symbolique, annulation) ; store (remplacement, conservation sans nouvelle lecture, pourcentages) ; moteur
+  (avec et sans `gh`, clone illisible) ; CLI, page web et détail du TUI.
 - **Pull requests, releases et tags** (V2) : provider GitHub contre `githubtest` (conversion, ordre,
   pagination et plafonds de 1 000, arrêt anticipé `UpdatedSince` sur une seule page, `Limit`, `304`
   gratuits, dépôt vide, `409`, réponse inexploitable, `5xx`, `404`, arguments invalides sans requête ;
@@ -426,6 +429,32 @@ Aucun test ne joint GitHub : la racine des releases est celle d'un faux serveur 
   coupe sur un terminal très étroit, séquences d'échappement nettoyées) ; rien quand Watchoo est à jour,
   en cas d'erreur, si l'on quitte avant la réponse ou sans fonction (vérification coupée).
 
+## Signatures d'IA (1.2.0)
+
+- `internal/aisignature` : chaque signature du catalogue, sans casse, plusieurs outils, une signature par type ;
+  **faux positifs qui restent muets** : une personne appelée Claude, noms d'outils dans un texte libre,
+  signature dans le sujet, lignes en retrait, pied de message dans une phrase, Dependabot, autre compte sans
+  réponse.
+- Store : migration `00008` (commit d'avant la migration en attente, contraintes, retour arrière), analyse et
+  réécriture, nouvelle version des règles qui analyse de nouveau, cascade à la suppression, totaux (un commit à
+  deux outils compte une fois, filtres appliqués).
+- Moteur : signatures après une synchro (co-auteur, compte d'agent, aucune), nouvelle analyse par une synchro sans
+  nouveau commit, rien dans les journaux.
+- CLI (texte et `--json`, `json_schema_test.go`), web (badge, totaux, « — » avant l'analyse, phrase), TUI (ligne
+  du détail), dans les deux langues.
+
+## Langages d'un contributeur (1.2.0)
+
+- Provider Git : lignes ajoutées par langage dans `CommitStatsBatch` (exclusions, binaires, commit racine,
+  commit de fusion analysé sans ligne) contre des dépôts `gittest`.
+- Store : migration `00009` (commit d'avant la migration en attente, contraintes, retour arrière), écriture
+  avec les nouveaux commits et en rattrapage, cascade, totaux par contributeur et par dépôt (filtres, fusion
+  de contributeurs).
+- Moteur : langages au premier import, rattrapage unique d'une base d'avant la 1.2.0, nouvelle version des
+  règles, repli sur l'API sans langages.
+- CLI (colonne, `--json`, `json_schema_test.go`), web (carte, « Aucun langage connu », commits pas encore
+  analysés, langage principal par dépôt), TUI (ligne du détail), dans les deux langues.
+
 ## Langues dans les tests
 
 L'interface (CLI, TUI, web) est bilingue : **anglais par défaut**, français par `WATCHOO_LANG=fr`
@@ -454,7 +483,7 @@ fictives, dépôts `gittest`, base SQLite temporaire.
 - Provider Git : détail des fichiers par commit (`CommitStats.Files`), fichier binaire listé sans lignes,
   commit vide avec une liste vide ; l'API GitHub ne donne pas de détail (`Files` nil).
 - `internal/store` : écriture unique, commit absent ignoré, purge par date, contraintes `CHECK`, cascade à
-  la suppression du commit, migration `00007` montée puis descendue sur une base existante.
+  la suppression du commit, migration `00011` montée puis descendue sur une base existante.
 - `internal/workspace` : valeurs par défaut (désactivé, 365 jours), validation des motifs et de la durée,
   variables `WATCHOO_DIAGNOSTIC_*`, réglages `diagnostic.*` gardés par la réécriture de `config.import`
   et jamais ajoutés par elle.
@@ -463,7 +492,7 @@ fictives, dépôts `gittest`, base SQLite temporaire.
   `diagnostic.enabled`, purge en fin de synchro ; aucun message, nom ni e-mail dans les logs.
 - Phase 7.2 : déclarations avec leur signal (`D1:claude`, `D2:unnamed`, forme sans signal relue en D1),
   descriptions de PR (D2) et branches d'agents (D5) ; dans le store, pistes déclarées filtrées (dépôt, login,
-  e-mail, période), contexte D4 remplacé à chaque calcul, outils des PR relus puis purgés, migration `00008`
+  e-mail, période), contexte D4 remplacé à chaque calcul, outils des PR relus puis purgés, migration `00012`
   montée et descendue ; à la synchro, outils des PR gardés seulement avec le diagnostic activé (description
   jamais dans les logs), contexte D4 sur un dépôt `gittest` (avec et sans `AGENTS.md`), pistes assemblées
   par `diagnostic.Declared` ; `watchoo diagnostic` en texte (anglais et français), en `--json` (clés vérifiées,
@@ -476,7 +505,7 @@ fictives, dépôts `gittest`, base SQLite temporaire.
   clés `--json` de `histories` et de `diagnostic backfill`.
 - Phase 7.4 : clé stable d'une piste et recherche par dépôt, règles d'une revue (décision, cause seulement
   pour « non assisté », confiance, note limitée), débit quotidien et commits voisins ; revues dans le store
-  (remplacement, valeurs inconnues refusées, purge, cascade, migration `00009`) ; diff lu sur un clone
+  (remplacement, valeurs inconnues refusées, purge, cascade, migration `00013`) ; diff lu sur un clone
   `gittest` existant seulement (rien n'est cloné), commit racine, coupe ; pages web : diagnostic désactivé
   (pas d'entrée de navigation, 404 sur la fiche et les `POST`), liste et filtre, français, fiche de revue,
   saisie refusée réaffichée et échappée, revue enregistrée (relecteur, liste), note jamais dans les logs,
@@ -488,7 +517,7 @@ fictives, dépôts `gittest`, base SQLite temporaire.
   non mesurées écartées, F4 sans nouveauté, niveaux « probable » et « à regarder » ; lignes ajoutées lues en
   flux sur un clone `gittest` existant seulement (commit racine, blocs, chemin avec espace et accent,
   suppressions) ; forme mesurée à la synchro et complétée par la reprise de l'historique ; colonnes de forme
-  dans le store (ligne complétée une seule fois, migration `00010`) ; libellés des signaux et des niveaux
+  dans le store (ligne complétée une seule fois, migration `00014`) ; libellés des signaux et des niveaux
   dans les deux langues.
 
 ## En CI

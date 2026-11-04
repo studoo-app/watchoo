@@ -12,7 +12,11 @@ phase 6 (V2) was completed and released as **v0.4.0**; the per-contributor page 
 from the TUI and a fixed profile link in **v0.6.1**; the new-version notice fixed (`watchoo` only,
 TUI) in **v0.6.2**; the bilingual interface was released as **v0.7.0** ([0.7.0](#070-bilingual-interface)); after one
 more week of real usage, the public surface was stabilized and released as **v1.0.0**
-([1.0.0](#100-stabilization)).
+([1.0.0](#100-stabilization)); languages and share of the contributors were released as **v1.1.0**
+([1.1.0](#110-languages-and-share-of-the-contributors)); the AI signatures and the languages of the
+contributors were released as **v1.2.0** ([1.2.0](#120-ai-signatures-and-languages-of-the-contributors)); the sync
+warnings per repository were released as **v1.3.0** ([1.3.0](#130-sync-warnings-per-repository)); a dedicated
+message for an unknown SSH host key (local Git clones) in **v1.3.1**.
 
 ```mermaid
 flowchart LR
@@ -134,6 +138,25 @@ Importing a whole organization and the alerts move to V3 (see
   [Skills](11-skills.md#versions-and-changelogmd)). The V3 ([Features](02-features.md#v3)) comes in
   MINOR releases.
 
+### 1.1.0: Languages and share of the contributors
+- Languages of each repository with their percentage (`repository_languages` table, migration `00007`,
+  `git ls-tree` in the local clone, `watchoo languages`, card of a repository's page, TUI detail): **in
+  place**.
+- Share of the commits of each contributor in `watchoo contributors`, on a repository's page and in the
+  TUI detail: **in place**.
+
+### 1.2.0: AI signatures and languages of the contributors
+- Signatures of AI tools declared in the commits, per commit and per contributor (CLI, TUI, web, `--json`),
+  analyzed without any request to the forge: **released in v1.2.0**. See
+  [AI signatures](02-features.md#ai-signatures). Clues based on style or pace are deliberately left out of this feature; they belong to the diagnosis (phase 7, off by default).
+- Languages of a contributor: lines added per language in their commits, read from the clone (contributor
+  page, `watchoo contributors`, TUI, migration `00009`): **released in v1.2.0**. See
+  [Languages of a contributor](03-architecture.md#languages-of-a-contributor-120).
+
+### 1.3.0: sync warnings per repository
+- Warnings of the last sync recorded per repository (`sync_runs.warnings`, migration `00010`): badge on the
+  dashboard card, alert with the full message on the repository's page, menu of the repositories concerned
+  in the sync indicator: **released in v1.3.0**. See [Web interface](06-web-interface.md#1-dashboard).
 ### After 1.0.0 — 7: supervision and diagnosis (proposal)
 - Watchoo becomes a **supervision and diagnosis** tool (maintainer decision). First component: detection of
   signals suggesting AI-assisted production, with its guardrails (a flag is never a verdict, explainability,

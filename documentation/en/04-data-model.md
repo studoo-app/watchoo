@@ -7,10 +7,10 @@ branches (via `commit_branches`) and the contributors. V2 adds three of them (mi
 `pull_requests`, `releases` and `tags`, i.e. **ten tables**; the migration `00004` makes
 `repositories.provider_id` optional (repositories tracked through local Git repositories); the
 migration `00005` (0.5.0) adds `contributors.profile_url` and the migration `00006` (0.5.0)
-`commits.stats_known`. The migration `00007` (phase 7.1) adds `commit_signals`, and the migration `00008` (phase 7.2)
-`pull_requests.tool_ids` and `repository_signals`, and the migration `00009` (phase 7.4) `diagnostic_reviews`,
-i.e. **thirteen tables**; the migration `00010` (phase 7.5) adds the form columns of `commit_signals`
-(see [Supervision and diagnosis](12-supervision-diagnostic.md)). The storage is a SQLite file versioned by `goose` migrations, with **one
+`commits.stats_known`; the migration `00007` (1.1.0) adds `repository_languages`; the migration `00008` (1.2.0)
+adds `commits.ai_rules_version` and the `commit_ai_signatures` table; the migration `00009` (1.2.0) adds
+`commits.languages_version` and the `commit_languages` table, i.e. **thirteen tables**; the migration `00010` (1.3.0)
+adds `sync_runs.warnings`. The migration `00011` (phase 7.1) adds `commit_signals`, the migration `00012` (phase 7.2) `pull_requests.tool_ids` and `repository_signals`, the migration `00013` (phase 7.4) `diagnostic_reviews`, i.e. **sixteen tables**, and the migration `00014` (phase 7.5) the form columns of `commit_signals` (see [Supervision and diagnosis](12-supervision-diagnostic.md)). The storage is a SQLite file versioned by `goose` migrations, with **one
 database per workspace** (`.watchoo/watchoo.db`, see [Workspaces](10-workspaces.md)). The tables
 therefore do not know the notion of workspace: two workspaces never share data.
 
@@ -24,7 +24,10 @@ erDiagram
     repositories ||--o{ pull_requests : "receives"
     repositories ||--o{ releases : "publishes"
     repositories ||--o{ tags : "marks"
+    repositories ||--o{ repository_languages : "written in"
     commits ||--o{ commit_branches : "seen on"
+    commits ||--o{ commit_ai_signatures : "declares"
+    commits ||--o{ commit_languages : "changes"
     commits ||--o| commit_signals : "measured by"
     repositories ||--o| repository_signals : "context"
     repositories ||--o{ diagnostic_reviews : "reviews"
@@ -130,6 +133,8 @@ number of branches that contain it.
 | deletions | Lines deleted (0 if unknown) |
 | stats_known | `1` if `additions` and `deletions` have been computed (even at 0), `0` if they are still unknown. Added by the migration `00006` (0.5.0) |
 | url | Link to the commit on the forge |
+| ai_rules_version | Version of the AI signature rules the commit was analyzed with; `0` = not analyzed yet. Added by the migration `00008` (1.2.0) |
+| languages_version | Version of the language rules the languages of the commit were read with in the clone; `0` = not yet. Added by the migration `00009` (1.2.0) |
 
 - **Stats** (`additions`, `deletions`): computed in the **local Git clone** of the repository
   (`git diff-tree --numstat`, without quota), with or without `gh`, for **all** the commits, the first
@@ -166,6 +171,25 @@ Primary key: **`(repo_id, sha, branch_id)`**. Foreign key `(repo_id, sha)` to `c
 - Counts and stats (contributors, charts): on `commits` only, therefore without duplicates.
 - Filter by branch: join with `commit_branches`.
 
+### `commit_ai_signatures` — AI signatures of the commits (1.2.0)
+
+One row per tool and per kind of signature found in a commit (see
+[AI signatures](02-features.md#ai-signatures)). **No row is not evidence of work done without AI.**
+
+Primary key: **`(repo_id, sha, tool, kind)`**. Foreign key `(repo_id, sha)` to `commits`, with cascade: the
+signatures disappear with the commit.
+
+| Column | Description |
+| --- | --- |
+| repo_id | Repository |
+| sha | Commit |
+| tool | Identifier of the tool (`aider`, `claude`, `codex`, `copilot`, `cursor`) |
+| kind | Kind of signature (`agent_account`, `coauthor_trailer`, `footer`) |
+
+The signatures are derived data: they are rewritten at each analysis of the commit, from the message and
+the author already in the database. Neither the message line nor an address is copied here. Rolling back
+(`Down`): table, index and column removed; the commits remain.
+
 ### `sync_runs` — sync log
 
 | Column | Description |
@@ -177,8 +201,11 @@ Primary key: **`(repo_id, sha, branch_id)`**. Foreign key `(repo_id, sha)` to `c
 | new_commits | Number of new commits fetched |
 | status | `running`, `success` or `error` |
 | error | Optional error message, in the language active at sync time (English or French), with no personal data |
+| warnings | Warnings of a successful sync (1.3.0, migration `00010`): JSON array of `{"kind": …, "message": …}`, `[]` if none. `kind` is a stable code (`stats_not_computed`, `clone_unavailable`, `languages_not_computed`, `lists_not_synced`, `ai_not_scanned`, `diagnostic_not_recorded` since phase 7.1), translated at display; `message` is the full text, in the language active at sync time, with no personal data |
 
-The last `sync_run` of a repository gives the Error state. A `running` `sync_run` also serves as a
+The last `sync_run` of a repository gives the Error state, and its warnings are those shown on the
+repository's card and page (see [Web interface](06-web-interface.md#1-dashboard)): they survive a
+restart of `watchoo serve` and disappear at the next sync without warning. A `running` `sync_run` also serves as a
 **lock**: see [Architecture](03-architecture.md#sync-frequency).
 
 ### `pull_requests` — pull requests (V2)
@@ -205,7 +232,7 @@ removed, except with its repository.
 | updated_at | Last update (serves as the resume point of the next sync) |
 | closed_at | Date of closing; empty if open |
 | merged_at | Date of merge; empty if not merged. A merged PR has `state = closed` and `merged_at` filled |
-| tool_ids | Diagnosis (phase 7.2, migration `00008`): tools declared in the description, encoded `D2:claude`, sorted, comma-separated; empty if none or not measured. The description is never kept; value cleared by the purge (`diagnostic.retention_days`, opening date) |
+| tool_ids | Diagnosis (phase 7.2, migration `00012`): tools declared in the description, encoded `D2:claude`, sorted, comma-separated; empty if none or not measured. The description is never kept; value cleared by the purge (`diagnostic.retention_days`, opening date) |
 
 - **Author**: kept as is (login and account ID), **without a link** to `contributors`: a
   contributor is the author of at least one commit, and an author of PRs without a commit must not
@@ -246,6 +273,40 @@ successful sync of that list.
 The forge gives no date for a tag: the display takes the date of the targeted commit when it is in the
 database (join on `commits (repo_id, sha)`, without a foreign key: the commit can be on an untracked
 branch).
+
+### `repository_languages` — languages of a repository (1.1.0)
+
+Primary key: **`(repo_id, language)`**. The list of a repository is **replaced** at each sync that could
+read its local Git clone; otherwise, what is in the database is kept.
+
+| Column | Description |
+| --- | --- |
+| repo_id | Repository |
+| language | Name of the language (`Go`, `TypeScript`…), same in every interface language |
+| bytes | Size of its files on the default branch, in bytes (at least 1) |
+
+Percentages are not stored: they are computed at display time, from the total of the repository. See
+[Languages of a repository](03-architecture.md#languages-of-a-repository-110).
+
+### `commit_languages` — lines added per language in a commit (1.2.0)
+
+One row per language in which the commit adds at least one line, read from the local Git clone (see
+[Languages of a contributor](03-architecture.md#languages-of-a-contributor-120)). An analyzed commit
+(`languages_version` > 0) with no row here adds nothing in a recognized language (merge commit, Markdown
+only…).
+
+Primary key: **`(repo_id, sha, language)`**. Foreign key `(repo_id, sha)` to `commits`, with cascade.
+
+| Column | Description |
+| --- | --- |
+| repo_id | Repository |
+| sha | Commit |
+| language | Name of the language, as in `repository_languages` |
+| additions | Lines added in this language (at least 1) |
+
+Derived data: rewritten at each analysis of the commit. The totals of a contributor go through
+`commits.author_id`: a merge of contributors follows them without rewriting anything. Rolling back
+(`Down`): table, index and column removed; the commits remain.
 
 ### `commit_signals` — diagnosis signals (phase 7.1)
 
@@ -319,6 +380,8 @@ repository. The note is personal data: the review follows `diagnostic.retention_
 | `contributor_emails(contributor_id)` | Technical: foreign key often walked (e-mails of a contributor) |
 | `sync_runs(repo_id, started_at DESC)` | Technical: last sync of a repository |
 | `commits(repo_id, sha) WHERE stats_known = 0` | Partial index: commits whose `+/-` lines are still to be read (migration `00006`) |
+| `commits(repo_id, ai_rules_version)` | Commits still to analyze for the AI signatures (migration `00008`) |
+| `commits(repo_id, languages_version)` | Commits whose languages are still to read from the clone (migration `00009`) |
 | `commit_signals(repo_id, author_id, authored_at)` | Per-author sliding windows of the rhythm signals (phase 7.3) |
 | `commit_signals(authored_at)` | Purge by retention period |
 | `diagnostic_reviews(lead_date)` | Purge of the reviews by retention period |

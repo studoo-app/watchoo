@@ -42,9 +42,11 @@ func (p *Provider) Prepare(ctx context.Context, owner, name, defaultBranch strin
 
 // CommitStatsBatch renvoie les statistiques des commits shas (SHA complets) du clone de owner/name,
 // avec les règles de CommitStats (premier parent, arbre vide pour un commit racine, fichiers binaires
-// non comptés ; un commit sans changement donne 0/0). Le clone est d'abord créé ou mis à jour (voir
-// Prepare). Un SHA absent du clone, ou qui n'est pas un commit, est omis du résultat ; les doublons
-// sont permis. Les SHA sont traités par paquets de StatsBatchSize, chacun par deux processus git :
+// non comptés ; un commit sans changement donne 0/0), et les lignes ajoutées par langage (1.2.0,
+// Languages jamais nil ; vide pour un commit de fusion, voir LanguageRulesVersion). Le clone est
+// d'abord créé ou mis à jour (voir Prepare). Un SHA absent du clone, ou qui n'est pas un commit, est
+// omis du résultat ; les doublons sont permis. Les SHA sont traités par paquets de StatsBatchSize,
+// chacun par deux processus git :
 //
 //	git rev-list --no-walk=unsorted --parents --ignore-missing --stdin   (parents des commits présents)
 //	git diff-tree --stdin --always -r -z --numstat --root …              (« commit premier-parent »)
@@ -132,13 +134,11 @@ func (p *Provider) statsBatch(ctx context.Context, owner, name, path string, sha
 	if res.exitCode != 0 {
 		return localError(op, res)
 	}
-	parseBatchNumstat(res.stdout, out)
+	isMerge := make(map[string]bool, len(merges))
 	for _, sha := range merges {
-		if st, ok := out[sha]; ok {
-			st.Merge = true
-			out[sha] = st
-		}
+		isMerge[sha] = true
 	}
+	parseBatchNumstat(res.stdout, isMerge, out)
 	return nil
 }
 
@@ -179,8 +179,11 @@ func (p *Provider) firstParents(ctx context.Context, op, path string, shas []str
 
 // parseBatchNumstat lit la sortie de « diff-tree --stdin --always -z --numstat -M » : pour chaque
 // commit, son SHA (« <sha><NUL> »), puis un enregistrement par fichier modifié (voir parseNumstat :
-// renommages et fichiers binaires compris). Un SHA sans fichier donne 0/0 et une liste Files vide.
-func parseBatchNumstat(raw []byte, out map[string]provider.CommitStats) {
+// renommages et fichiers binaires compris). Un SHA sans fichier donne 0/0 et des listes vides. Les
+// lignes ajoutées sont aussi comptées par langage du chemin (classifyLanguage), sauf pour les commits de
+// fusion (merges, marqués Merge) : leur différence avec le premier parent contient toute la branche
+// fusionnée.
+func parseBatchNumstat(raw []byte, merges map[string]bool, out map[string]provider.CommitStats) {
 	current := ""
 	var p numstatParser
 	for rec := range bytes.SplitSeq(raw, []byte{0}) {
@@ -194,7 +197,8 @@ func parseBatchNumstat(raw []byte, out map[string]provider.CommitStats) {
 				if provider.ValidateSHA(trimmed) == nil {
 					current = trimmed
 					if _, ok := out[current]; !ok {
-						out[current] = provider.CommitStats{Files: []provider.CommitFile{}}
+						out[current] = provider.CommitStats{Files: []provider.CommitFile{},
+							Languages: map[string]int{}, Merge: merges[current]}
 					}
 				}
 				continue
@@ -206,6 +210,11 @@ func parseBatchNumstat(raw []byte, out map[string]provider.CommitStats) {
 		}
 		st := out[current]
 		st.Add(f)
+		if f.Additions > 0 && !merges[current] {
+			if lang := classifyLanguage(f.Path); lang != "" {
+				st.Languages[lang] += f.Additions
+			}
+		}
 		out[current] = st
 	}
 }

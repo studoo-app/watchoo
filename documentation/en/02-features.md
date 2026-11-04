@@ -58,6 +58,20 @@ No new feature: the public surface (commands, flags, exit codes, `--json` keys, 
 `WATCHOO_*` variables, database schema, web routes) is reviewed and declared **stable**; from now on,
 an incompatible change requires a major version. **Released in v1.0.0**.
 
+## 1.1.0
+
+| Feature | Detail |
+| --- | --- |
+| Languages of a repository | Languages of the default branch with their percentage (share of the bytes), computed at each sync from the local Git clone, with or without `gh` and without any quota: `watchoo languages`, "Languages" card of a repository's page, repository detail in the TUI. The figures are close to those of GitHub, not identical (see [Architecture](03-architecture.md#languages-of-a-repository-110)). **Released in v1.1.0** |
+| Share of the contributors | Share of the commits of each contributor as a percentage, in `watchoo contributors` (`share` key in JSON), on a repository's page and in the repository detail of the TUI. **Released in v1.1.0** |
+
+## 1.2.0
+
+| Feature | Detail |
+| --- | --- |
+| Languages of a contributor | Lines added per language by the commits they authored, with their percentage, read from the local Git clone: "Languages" card on a contributor's page (and main language of each of their repositories), `watchoo contributors` (LANGUAGE column, `languages` key in JSON), contributor detail of the TUI. See [Architecture](03-architecture.md#languages-of-a-contributor-120). **Released in v1.2.0** |
+| AI signatures | Tools declared in the commits (co-author, footer, agent account), per commit and per contributor, in `log`, `contributors`, the TUI and the web interface. See [AI signatures](#ai-signatures). **Released in v1.2.0** |
+
 ## V3
 
 | Feature | Detail |
@@ -108,3 +122,38 @@ an incompatible change requires a major version. **Released in v1.0.0**.
 - **Identity**: a contributor may use several e-mail addresses; they are attached to their GitHub
   login when it is known.
 - **Read-only**: Watchoo never writes to GitHub.
+
+## AI signatures
+
+Since 1.2.0, Watchoo shows which AI tools are **declared** in the commits. It answers "is a tool
+signed on this commit?", never "was this code written by AI?".
+
+- **What a signature says**: a tool is declared on the commit. It may have written only the message, it
+  can be added or removed by hand, and a squash may attach it to the person who merged. **Its absence
+  proves nothing**: most tools let you turn it off. So the interface never says "human", gives no
+  score nor percentage, and a commit without a signature shows nothing.
+- **Three kinds of signature** (`kind`): `coauthor_trailer` (a `Co-authored-by` line of the message whose
+  address belongs to a tool), `footer` (a whole line written by a tool), `agent_account` (the author of
+  the commit is the account or the address of an agent).
+- **Avoiding false positives**: addresses and accounts are compared exactly, **never Git names** (a
+  person can be called Claude); the subject and indented lines are not read (quotes, examples); free text
+  mentioning a tool does not count; automation without AI (Dependabot, Renovate) is not in the catalog.
+- **Catalog**: only signatures observed on real public commits. Tools without a verified signature are
+  left out rather than guessed.
+
+| Tool (`tool`) | Recognized signatures |
+| --- | --- |
+| `aider` | Co-author `aider@aider.chat` or `noreply@aider.chat` |
+| `claude` | Co-author `noreply@anthropic.com`; footer `Generated with [Claude Code]` |
+| `codex` | Co-author `noreply@openai.com` or `codex@openai.com` |
+| `copilot` | Co-author `copilot@github.com`; co-author or author: the `Copilot` or `copilot-swe-agent[bot]` account |
+| `cursor` | Co-author or author `cursoragent@cursor.com` |
+
+- **Not read**: the content of the code, the style of the messages, the pace of the commits. These
+  clues have innocent explanations (grouped push, rebase, a student who has just learned Conventional
+  Commits) and no measured reliability; this feature does not read them. The
+  [diagnosis](12-supervision-diagnostic.md) (phase 7), off by default and for the trainer only, turns them
+  into reflection leads, never verdicts, each learner being compared with their own history.
+- **Purpose**: being able to know which tools are declared, by whom and where, not sanctioning. To know
+  more, ask the contributors to keep the attribution of their tools enabled: Watchoo only sees what the
+  commits declare.

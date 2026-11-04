@@ -50,8 +50,11 @@ mélangent jamais. Voir [Espaces de supervision](10-espaces-de-supervision.md).
 ## Hors périmètre (pour l'instant)
 
 - Outil multi-utilisateurs ou SaaS : Watchoo est un outil **personnel et local**.
-- Analyse de la qualité ou de la sécurité du code. Les signaux de forme et de rythme (usage d'IA) relèvent
-  désormais de la [supervision et diagnostic](12-supervision-diagnostic.md), avec ses garde-fous.
+- Analyse du contenu du code (qualité, sécurité, diff détaillé), y compris deviner d'après le code ou
+  le style des messages si l'IA a été utilisée : hors diagnostic, Watchoo lit seulement les
+  [signatures déclarées dans les commits](02-fonctionnalites.md#signatures-dia). Les signaux de forme et de
+  rythme (usage d'IA) relèvent de la [supervision et diagnostic](12-supervision-diagnostic.md), désactivée
+  par défaut, réservée au formateur et soumise à ses garde-fous.
 - Écriture sur GitHub : Watchoo est **en lecture seule**.
 
 ## Utilisateurs cibles

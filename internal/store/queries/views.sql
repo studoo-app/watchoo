@@ -3,7 +3,9 @@
 -- author_email doit etre deja en minuscules ; author est compare sans casse (ASCII) au login et au nom.
 -- row_limit negatif = pas de limite.
 SELECT c.repo_id, c.sha, c.author_id, c.committer_id, c.message, c.authored_at, c.committed_at,
-       c.additions, c.deletions, c.stats_known, c.url,
+       c.additions, c.deletions, c.stats_known, c.url, c.ai_rules_version,
+       CAST(COALESCE((SELECT group_concat(s.tool || ':' || s.kind, ',') FROM commit_ai_signatures s
+                      WHERE s.repo_id = c.repo_id AND s.sha = c.sha), '') AS TEXT) AS ai_signatures,
        r.owner AS repo_owner, r.name AS repo_name, r.label AS repo_label,
        CAST(COALESCE(a.name, '') AS TEXT) AS author_name,
        CAST(COALESCE(a.provider_login, '') AS TEXT) AS author_login,
@@ -54,6 +56,10 @@ SELECT ct.id, ct.provider, ct.provider_user_id, ct.provider_login, ct.name, ct.a
        CAST(COALESCE(sum(c.additions), 0) AS INTEGER) AS additions,
        CAST(COALESCE(sum(c.deletions), 0) AS INTEGER) AS deletions,
        CAST(COALESCE(sum(c.stats_known), 0) AS INTEGER) AS known_commits,
+       CAST(COALESCE(sum(c.ai_rules_version > 0), 0) AS INTEGER) AS ai_scanned_commits,
+       CAST(COALESCE(sum(c.languages_version > 0), 0) AS INTEGER) AS languages_scanned_commits,
+       CAST(COALESCE(sum(EXISTS (SELECT 1 FROM commit_ai_signatures s
+                                 WHERE s.repo_id = c.repo_id AND s.sha = c.sha)), 0) AS INTEGER) AS ai_signed_commits,
        count(DISTINCT c.repo_id) AS repos,
        CAST(max(c.committed_at) AS TEXT) AS last_commit_at
 FROM commits c
@@ -85,7 +91,9 @@ GROUP BY repo_id;
 -- name: LastCommitByRepo :many
 -- Commit le plus recent de chaque depot sur ses branches suivies (egalite : SHA croissant), avec son auteur.
 SELECT c.repo_id, c.sha, c.author_id, c.committer_id, c.message, c.authored_at, c.committed_at,
-       c.additions, c.deletions, c.stats_known, c.url,
+       c.additions, c.deletions, c.stats_known, c.url, c.ai_rules_version,
+       CAST(COALESCE((SELECT group_concat(s.tool || ':' || s.kind, ',') FROM commit_ai_signatures s
+                      WHERE s.repo_id = c.repo_id AND s.sha = c.sha), '') AS TEXT) AS ai_signatures,
        CAST(COALESCE(a.name, '') AS TEXT) AS author_name,
        CAST(COALESCE(a.provider_login, '') AS TEXT) AS author_login,
        CAST(COALESCE(a.profile_url, '') AS TEXT) AS author_profile_url
@@ -103,7 +111,7 @@ WHERE (sqlc.narg(repo_id) IS NULL OR r.id = sqlc.narg(repo_id));
 
 -- name: LastSyncRunByRepo :many
 -- Derniere synchro de chaque depot (started_at le plus recent, puis id le plus grand).
-SELECT s.id, s.repo_id, s.started_at, s.finished_at, s.new_commits, s.status, s.error
+SELECT s.id, s.repo_id, s.started_at, s.finished_at, s.new_commits, s.status, s.error, s.warnings
 FROM repositories r
 JOIN sync_runs s ON s.id = (
     SELECT s2.id FROM sync_runs s2
@@ -158,3 +166,30 @@ ORDER BY c.author_id, commits DESC, c.repo_id;
 SELECT CAST(COALESCE(max(finished_at), '') AS TEXT) AS last_finished_at
 FROM sync_runs
 WHERE finished_at IS NOT NULL;
+
+-- name: ContributorAITools :many
+-- Outils d'IA signes dans les commits de chaque auteur (contributor_id NULL = tous), avec les memes filtres
+-- que ContributorRanking : nombre de commits par outil, du plus grand au plus petit, puis outil.
+SELECT c.author_id AS contributor_id, s.tool, count(DISTINCT c.repo_id || ':' || c.sha) AS commits
+FROM commit_ai_signatures s
+JOIN commits c ON c.repo_id = s.repo_id AND c.sha = s.sha
+WHERE c.author_id IS NOT NULL
+  AND (sqlc.narg(contributor_id) IS NULL OR c.author_id = sqlc.narg(contributor_id))
+  AND (sqlc.narg(repo_id) IS NULL OR c.repo_id = sqlc.narg(repo_id))
+  AND (sqlc.narg(since) IS NULL OR c.committed_at >= sqlc.narg(since))
+GROUP BY c.author_id, s.tool
+ORDER BY c.author_id, commits DESC, s.tool;
+
+-- name: ContributorLanguages :many
+-- Lignes ajoutees par langage dans les commits de chaque auteur (contributor_id NULL = tous), par depot,
+-- avec les memes filtres que ContributorRanking ; tri par auteur, depot, lignes decroissantes, langage.
+SELECT c.author_id AS contributor_id, c.repo_id, l.language,
+       CAST(sum(l.additions) AS INTEGER) AS additions
+FROM commit_languages l
+JOIN commits c ON c.repo_id = l.repo_id AND c.sha = l.sha
+WHERE c.author_id IS NOT NULL
+  AND (sqlc.narg(contributor_id) IS NULL OR c.author_id = sqlc.narg(contributor_id))
+  AND (sqlc.narg(repo_id) IS NULL OR c.repo_id = sqlc.narg(repo_id))
+  AND (sqlc.narg(since) IS NULL OR c.committed_at >= sqlc.narg(since))
+GROUP BY c.author_id, c.repo_id, l.language
+ORDER BY c.author_id, c.repo_id, additions DESC, l.language;

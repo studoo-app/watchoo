@@ -129,8 +129,8 @@ func TestPullRequestsFailureIsolated(t *testing.T) {
 	if r.NewCommits != 1 {
 		t.Errorf("new commits: %d, want 1 (commits kept despite the failure of the PRs)", r.NewCommits)
 	}
-	if len(r.Warnings) != 2 || !strings.HasPrefix(r.Warnings[0], "pull requests not synced: ") ||
-		!strings.Contains(r.Warnings[0], "HTTP 502") || !strings.HasPrefix(r.Warnings[1], "tags not synced: ") {
+	if len(r.Warnings) != 2 || !strings.HasPrefix(r.Warnings[0].Message, "pull requests not synced: ") ||
+		!strings.Contains(r.Warnings[0].Message, "HTTP 502") || !strings.HasPrefix(r.Warnings[1].Message, "tags not synced: ") {
 		t.Errorf("warnings: %q", r.Warnings)
 	}
 	if got := e.pulls(repo.ID); len(got) != 1 || got[0].Number != 1 {
@@ -195,7 +195,7 @@ func TestPullRequestsQuota(t *testing.T) {
 	rep := e.syncAll()
 	first := rep.Repos[0]
 	if first.Status != wsync.StatusSuccess || len(first.Warnings) != 1 ||
-		!strings.HasPrefix(first.Warnings[0], "releases and tags not synced: ") {
+		!strings.HasPrefix(first.Warnings[0].Message, "releases and tags not synced: ") {
 		t.Errorf("first repository: %+v", first)
 	}
 	if n := e.fake.Calls(providertest.MethodTags); n != 0 {
@@ -215,7 +215,7 @@ func TestPullRequestsQuota(t *testing.T) {
 		e2.fake.Calls(providertest.MethodTags); n != 0 {
 		t.Errorf("%d lists requested under the low quota", n)
 	}
-	if len(r.Warnings) != 1 || r.Warnings[0] != "pull requests, releases and tags not synced: low quota" {
+	if len(r.Warnings) != 1 || r.Warnings[0].Message != "pull requests, releases and tags not synced: low quota" {
 		t.Errorf("warnings: %q", r.Warnings)
 	}
 }

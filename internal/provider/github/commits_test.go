@@ -696,7 +696,7 @@ func TestCommitStats(t *testing.T) {
 		if err != nil {
 			t.Fatalf("CommitStats: %v", err)
 		}
-		if stats.Additions != 30 || stats.Deletions != 12 || stats.Files != nil {
+		if stats.Additions != 30 || stats.Deletions != 12 || stats.Files != nil || stats.Languages != nil {
 			t.Errorf("CommitStats = %+v, want 30 / 12 and no file detail", stats)
 		}
 	}

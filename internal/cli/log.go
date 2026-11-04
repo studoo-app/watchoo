@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/studoo-app/watchoo/internal/activity"
+	"github.com/studoo-app/watchoo/internal/aisignature"
 	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/provider"
@@ -112,19 +113,38 @@ func runLog(ctx context.Context, deps Deps, opts *options, f logFlags) (err erro
 	st := outputStyle(deps, opts)
 	now := s.now()
 	rows := make([][]string, len(commits))
+	signed := false
 	for i, c := range commits {
+		signed = signed || len(c.AISignatures) > 0
 		rows[i] = []string{
 			activity.Relative(c.CommittedAt, now, s.loc, st.unicode()),
 			c.RepoDisplayName(),
 			c.AuthorDisplayName(),
 			provider.ShortSHA(c.SHA),
 			commitLines(c.Commit),
+			commitAITools(c),
 			st.truncate(c.Message, 60),
 		}
 	}
 	headers := []string{"Date", st.pick(i18n.T("cli.sync.header_repo"), i18n.T("cli.sync.header_repo_ascii")),
-		i18n.T("cli.sync.header_author"), "Commit", "+/-", "Message"}
-	return writeText(deps.Stdout, renderTable(st, headers, rows, nil))
+		i18n.T("cli.sync.header_author"), "Commit", "+/-", i18n.T("cli.sync.header_ai"), "Message"}
+	out := renderTable(st, headers, rows, nil)
+	if signed {
+		out += i18n.T("cli.sync.ai_note")
+	}
+	return writeText(deps.Stdout, out)
+}
+
+// commitAITools écrit les outils d'IA signés sur un commit, « - » si aucun (ce qui ne prouve rien).
+func commitAITools(c store.CommitView) string {
+	tools := c.AITools()
+	if len(tools) == 0 {
+		return "-"
+	}
+	for i, tool := range tools {
+		tools[i] = aisignature.ToolName(tool)
+	}
+	return strings.Join(tools, ", ")
 }
 
 // commitLines écrit les lignes ajoutées et supprimées d'un commit : « +12/-3 » (« +0/-0 » compris)

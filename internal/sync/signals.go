@@ -17,10 +17,10 @@ import (
 
 // writeSignals calcule et enregistre les signaux des nouveaux commits de s (déjà écrits par
 // ApplyRepoSync), sauf les commits de fusion. Un échec n'annule pas la synchro du dépôt : il est
-// renvoyé comme avertissement (chaîne vide sinon).
-func (e *Engine) writeSignals(ctx context.Context, s *repoSync, repoID int64) string {
+// renvoyé comme avertissement (Kind vide sinon).
+func (e *Engine) writeSignals(ctx context.Context, s *repoSync, repoID int64) model.SyncWarning {
 	if e.diag == nil || len(s.files) == 0 {
-		return ""
+		return model.SyncWarning{}
 	}
 	shas := make([]string, 0, len(s.files))
 	for _, c := range s.commits {
@@ -52,12 +52,13 @@ func (e *Engine) writeSignals(ctx context.Context, s *repoSync, repoID int64) st
 	n, err := e.store.WriteCommitSignals(ctx, repoID, rows, e.now().UTC())
 	if err != nil {
 		e.logger.Warn("signaux de diagnostic non enregistrés", "repo", s.full, "erreur", errorMessage(err))
-		return i18n.T("sync.diagnostic.not_recorded", errorMessage(err))
+		return model.SyncWarning{Kind: model.WarnDiagnosticNotRecorded,
+			Message: i18n.T("sync.diagnostic.not_recorded", errorMessage(err))}
 	}
 	if n > 0 {
 		e.logger.Debug("signaux de diagnostic enregistrés", "repo", s.full, "commits", n)
 	}
-	return ""
+	return model.SyncWarning{}
 }
 
 // signalWrite convertit les signaux calculés d'un commit en ligne à écrire.

@@ -37,6 +37,7 @@ var jsonTopLevelKeys = map[string][]string{
 	"contributors": {"contributors"},
 	"prs":          {"pull_requests"},
 	"releases":     {"releases", "tags"},
+	"languages":    {"languages"},
 	"status": {"workspace", "github", "source", "rate_limit", "rate_limit_error", "quota_low", "repositories", "errors",
 		"last_synced_at", "tracked_branches"},
 	"config export":       {"format", "version", "exported_at", "watchoo_version", "workspace", "settings", "repositories"},
@@ -90,6 +91,7 @@ func TestJSONSchemaAllCommands(t *testing.T) {
 	outputs["contributors"] = h.run("contributors", "--json").mustSucceed(t).stdout
 	outputs["prs"] = h.run("prs", "--json").mustSucceed(t).stdout
 	outputs["releases"] = h.run("releases", "--json").mustSucceed(t).stdout
+	outputs["languages"] = h.run("languages", "--json").mustSucceed(t).stdout
 	outputs["status"] = h.run("status", "--json").mustSucceed(t).stdout
 	outputs["diagnostic"] = h.run("diagnostic", "--json").mustSucceed(t).stdout
 	// Diagnosis enabled, on local clones of the tracked repositories (phase 7.3).
@@ -130,7 +132,7 @@ func TestJSONSchemaAllCommands(t *testing.T) {
 	assertContains(t, "sync --json", outputs["sync"], `"warnings": []`)
 	// Items of "log" (stats_known: 0.5.0).
 	assertJSONKeys(t, outputs["log"], "commits.0", "repository", "sha", "short_sha", "message", "url", "author",
-		"authored_at", "committed_at", "additions", "deletions", "stats_known")
+		"authored_at", "committed_at", "additions", "deletions", "stats_known", "ai_signatures", "ai_scanned")
 	// Items of "contributors": weekly ([] without --weeks, week / count objects with it).
 	assertJSONKeys(t, outputs["contributors"], "contributors.0", contributorKeys...)
 	weekly := h.run("contributors", "--weeks", "2", "--json").mustSucceed(t).stdout
@@ -142,7 +144,8 @@ func TestJSONSchemaAllCommands(t *testing.T) {
 
 // contributorKeys are the keys of an item of "contributors" (05-cli.md, JSON output).
 var contributorKeys = []string{"id", "name", "login", "display_name", "avatar_url", "commits", "additions",
-	"deletions", "repositories", "last_commit_at", "weekly"}
+	"deletions", "repositories", "share", "last_commit_at", "ai_signed_commits", "ai_scanned_commits", "ai_tools",
+	"languages_scanned_commits", "languages", "weekly"}
 
 // The contract is documented: the "JSON output" table of documentation/en/05-cli.md and the "Sortie
 // JSON" table of its French mirror list, for each command, the same top-level keys as jsonTopLevelKeys.
@@ -262,6 +265,7 @@ func TestJSONSchemaEmptyWorkspace(t *testing.T) {
 		{[]string{"contributors"}, `"contributors": []`},
 		{[]string{"prs"}, `"pull_requests": []`},
 		{[]string{"releases"}, `"tags": []`},
+		{[]string{"languages"}, `"languages": []`},
 		{[]string{"sync"}, `"repositories": []`},
 		{[]string{"status"}, `"errors": []`},
 	} {

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/studoo-app/watchoo/internal/i18n"
+	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/provider"
 )
 
@@ -73,8 +74,8 @@ func TestMessagesFrench(t *testing.T) {
 	var x extras
 	x.warn(DeferLowQuota.Text(), listPulls, listReleases, listTags)
 	x.warn("HTTP 502", listReleases)
-	if len(x.warnings) != 2 || x.warnings[0] != "pull requests, releases et tags non synchronisés : quota bas" ||
-		x.warnings[1] != "releases non synchronisées : HTTP 502" {
+	if len(x.warnings) != 2 || x.warnings[0].Message != "pull requests, releases et tags non synchronisés : quota bas" ||
+		x.warnings[1].Message != "releases non synchronisées : HTTP 502" || x.warnings[0].Kind != model.WarnListsNotSynced {
 		t.Errorf("warnings = %q", x.warnings)
 	}
 	if got := (Source{Kind: SourceGit}).Label(); got != "clones Git locaux" {
@@ -110,5 +111,20 @@ func TestForEachBorne(t *testing.T) {
 		if !ok {
 			t.Errorf("index %d not processed", i)
 		}
+	}
+}
+
+// An unknown SSH host key makes the repository inaccessible at addition, with its own advice.
+func TestInaccessibleMessageHostKey(t *testing.T) {
+	err := &provider.APIError{Op: "ls-remote", Err: provider.ErrHostKeyUnknown}
+	if !isInaccessible(err) {
+		t.Fatal("unknown host key: repository not inaccessible")
+	}
+	if got := inaccessibleMessage(err); got != provider.ErrHostKeyUnknown.Error() {
+		t.Errorf("inaccessibleMessage = %q", got)
+	}
+	denied := &provider.APIError{Op: "ls-remote", Err: provider.ErrAccessDenied}
+	if got := inaccessibleMessage(denied); got != provider.ErrAccessDenied.Error() {
+		t.Errorf("inaccessibleMessage(access denied) = %q", got)
 	}
 }

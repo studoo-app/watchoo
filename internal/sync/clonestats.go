@@ -5,14 +5,18 @@ package sync
 // ou sans gh, chaque dépôt suivi a son clone dans repos/, qui donne les lignes ajoutées et supprimées
 // de tous ses commits (premier import compris), sans plafond ni quota. Clone indisponible : repli sur
 // les statistiques de l'API (fetchStats : premier import exclu, MaxStatsPerRepo, garde-fou de quota)
-// et avertissement, sans faire échouer le dépôt.
+// et avertissement, sans faire échouer le dépôt. Le même passage lit les lignes ajoutées par langage
+// (1.2.0, documentation/fr/03-architecture.md, « Langages d'un contributeur ») : commits nouveaux, et
+// commits en base lus avec une version de règles inférieure à git.LanguageRulesVersion.
 
 import (
 	"context"
 	"errors"
 
 	"github.com/studoo-app/watchoo/internal/i18n"
+	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/provider"
+	gitprov "github.com/studoo-app/watchoo/internal/provider/git"
 	"github.com/studoo-app/watchoo/internal/store"
 )
 
@@ -21,11 +25,13 @@ const unknownStatsPage = 2000
 
 // CloneStats est ce que le moteur demande au provider des clones Git locaux pour les statistiques
 // de lignes (implémenté par *git.Provider) : créer ou mettre à jour le clone d'un dépôt en extrayant
-// sa branche par défaut, puis calculer les statistiques d'un paquet de commits (SHA absents du clone
-// omis du résultat).
+// sa branche par défaut, calculer les statistiques d'un paquet de commits (SHA absents du clone omis
+// du résultat ; lignes ajoutées par langage dans CommitStats.Languages, lues avec
+// git.LanguageRulesVersion), et lire les langages de la branche par défaut.
 type CloneStats interface {
 	Prepare(ctx context.Context, owner, name, defaultBranch string) error
 	CommitStatsBatch(ctx context.Context, owner, name string, shas []string) (map[string]provider.CommitStats, error)
+	Languages(ctx context.Context, owner, name string) ([]provider.Language, error)
 }
 
 // clones est l'accès aux clones Git locaux pendant une synchro, pour les statistiques.
@@ -65,33 +71,35 @@ func (e *Engine) openClones(ctx context.Context, prov provider.Provider, src Sou
 // lineStats renseigne les statistiques de lignes des commits du dépôt : par le clone si possible
 // (cloneStats), sinon par l'API (fetchStats, sauf au premier import). Renvoie le nombre de
 // statistiques calculées ou demandées, les statistiques des commits déjà en base à écrire, et un
-// avertissement (clone indisponible) ; erreur seulement si le contexte est terminé ou la base en
+// avertissement (clone indisponible ; Kind vide si aucun) ; erreur seulement si le contexte est terminé ou la base en
 // échec.
 func (s *repoSync) lineStats(ctx context.Context, h *halt, repoID int64, firstImport bool, defaultBranch string,
-	cl clones, src Source) (int, []store.CommitStatsWrite, string, error) {
+	cl clones, src Source) (int, []store.CommitStatsWrite, model.SyncWarning, error) {
 	cloneErr := cl.err
 	if cl.stats != nil {
 		n, writes, err := s.cloneStats(ctx, repoID, defaultBranch, cl.stats)
 		if err == nil {
 			s.clone = cl.stats
-			return n, writes, "", nil
+			return n, writes, model.SyncWarning{}, nil
 		}
 		if ctxErr := ctx.Err(); ctxErr != nil {
-			return 0, nil, "", errWrapped(i18n.T("sync.stats.error"), ctxErr)
+			return 0, nil, model.SyncWarning{}, errWrapped(i18n.T("sync.stats.error"), ctxErr)
 		}
 		var storeErr *storeError
 		if errors.As(err, &storeErr) {
-			return 0, nil, "", storeErr.err
+			return 0, nil, model.SyncWarning{}, storeErr.err
 		}
 		cloneErr = err
 	}
-	warning := ""
+	var warning model.SyncWarning
 	if cloneErr != nil {
 		s.e.logger.Info("clone Git local indisponible", "repo", s.full, "erreur", errorMessage(cloneErr))
 		if src.Kind == SourceGit {
-			return 0, nil, i18n.T("sync.stats.not_computed", errorMessage(cloneErr)), nil
+			return 0, nil, model.SyncWarning{Kind: model.WarnStatsNotComputed,
+				Message: i18n.T("sync.stats.not_computed", errorMessage(cloneErr))}, nil
 		}
-		warning = i18n.T("sync.stats.clone_unavailable", errorMessage(cloneErr))
+		warning = model.SyncWarning{Kind: model.WarnCloneUnavailable,
+			Message: i18n.T("sync.stats.clone_unavailable", errorMessage(cloneErr))}
 	}
 	if firstImport {
 		return 0, nil, warning, nil
@@ -100,14 +108,35 @@ func (s *repoSync) lineStats(ctx context.Context, h *halt, repoID int64, firstIm
 	return n, nil, warning, err
 }
 
+// languages lit les langages du dépôt dans son clone (cl.stats non nil). Clone illisible : avertissement
+// (Kind vide si aucun) et ok faux (ce qui est en base est gardé) ; erreur seulement si le contexte est
+// terminé.
+func (s *repoSync) languages(ctx context.Context, cl clones) (langs []model.RepositoryLanguage, ok bool, warning model.SyncWarning, err error) {
+	got, err := cl.stats.Languages(ctx, s.owner, s.name)
+	if err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return nil, false, model.SyncWarning{}, errWrapped(i18n.T("sync.languages.error"), ctxErr)
+		}
+		s.e.logger.Info("langages non lus", "repo", s.full, "erreur", errorMessage(err))
+		return nil, false, model.SyncWarning{Kind: model.WarnLanguagesNotComputed,
+			Message: i18n.T("sync.languages.not_computed", errorMessage(err))}, nil
+	}
+	langs = make([]model.RepositoryLanguage, len(got))
+	for i, l := range got {
+		langs[i] = model.RepositoryLanguage{Language: l.Name, Bytes: l.Bytes}
+	}
+	return langs, true, model.SyncWarning{}, nil
+}
+
 // storeError distingue un échec de la base (qui fait échouer le dépôt) d'un échec du clone (repli).
 type storeError struct{ err error }
 
 func (e *storeError) Error() string { return e.err.Error() }
 
 // cloneStats crée ou met à jour le clone (branche par défaut defaultBranch) puis calcule les
-// statistiques des nouveaux commits (renseignées dans s.commits) et de tous les commits du dépôt déjà
-// en base dont les statistiques sont inconnues (renvoyées pour ApplyRepoSync), page par page.
+// statistiques et les langages des nouveaux commits (renseignés dans s.commits) et de tous les commits
+// du dépôt déjà en base dont les statistiques sont inconnues ou les langages à relire (renvoyés pour
+// ApplyRepoSync), page par page.
 func (s *repoSync) cloneStats(ctx context.Context, repoID int64, defaultBranch string, cs CloneStats) (int, []store.CommitStatsWrite, error) {
 	if err := cs.Prepare(ctx, s.owner, s.name, defaultBranch); err != nil {
 		return 0, nil, err
@@ -138,6 +167,7 @@ func (s *repoSync) cloneStats(ctx context.Context, repoID int64, defaultBranch s
 			c := &s.commits[i]
 			if st, ok := got[c.SHA]; ok && !existing[c.SHA] {
 				c.Additions, c.Deletions, c.StatsKnown = st.Additions, st.Deletions, true
+				c.Languages = st.Languages
 				computed++
 				if s.e.diag != nil && st.Files != nil {
 					s.files[c.SHA] = st.Files
@@ -146,11 +176,12 @@ func (s *repoSync) cloneStats(ctx context.Context, repoID int64, defaultBranch s
 		}
 	}
 
-	// Commits déjà en base sans statistiques (base d'avant la 0.5.0, synchro sans clone…).
+	// Commits déjà en base sans statistiques ou sans langages à jour (base d'avant la 0.5.0 ou la 1.2.0,
+	// synchro sans clone, nouvelle version des règles de langages…).
 	var writes []store.CommitStatsWrite
 	after := ""
 	for {
-		page, err := s.e.store.UnknownStatsSHAs(ctx, repoID, after, unknownStatsPage)
+		page, err := s.e.store.UnknownStatsSHAs(ctx, repoID, gitprov.LanguageRulesVersion, after, unknownStatsPage)
 		if err != nil {
 			return 0, nil, &storeError{err}
 		}
@@ -163,7 +194,8 @@ func (s *repoSync) cloneStats(ctx context.Context, repoID int64, defaultBranch s
 		}
 		for _, sha := range page {
 			if st, ok := got[sha]; ok {
-				writes = append(writes, store.CommitStatsWrite{SHA: sha, Additions: st.Additions, Deletions: st.Deletions})
+				writes = append(writes, store.CommitStatsWrite{SHA: sha, Additions: st.Additions, Deletions: st.Deletions,
+					Languages: st.Languages})
 			}
 		}
 		if len(page) < unknownStatsPage {

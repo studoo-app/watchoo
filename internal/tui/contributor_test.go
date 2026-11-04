@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	tea "charm.land/bubbletea/v2"
+
 	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/store"
 	wsync "github.com/studoo-app/watchoo/internal/sync"
@@ -21,7 +23,9 @@ func withContributorDetail(data *fakeData) {
 	data.profiles = map[int64]store.ContributorProfile{
 		1: {Contributor: model.Contributor{ID: 1, Name: "Alice", ProviderLogin: "alice-gh", ProviderUserID: 10,
 			ProfileURL: "https://github.com/alice-gh"}, Identities: 2, Commits: 5, Additions: 40, Deletions: 7, KnownCommits: 3, Repos: 2,
-			FirstCommitAt: testNow.Add(-30 * 24 * time.Hour), LastCommitAt: testNow.Add(-2 * time.Hour)},
+			FirstCommitAt: testNow.Add(-30 * 24 * time.Hour), LastCommitAt: testNow.Add(-2 * time.Hour),
+			Languages: model.LanguageTotals{Commits: 5, Scanned: 3,
+				Lines: []model.LanguageLines{{Language: "PHP", Lines: 30}, {Language: "Go", Lines: 10}}}},
 		2: {Contributor: model.Contributor{ID: 2, Name: "Bob"}, Identities: 1},
 	}
 	data.contribRepos = map[int64][]store.ContributorRepoStats{
@@ -42,9 +46,13 @@ func TestContributorDetail(t *testing.T) {
 	data := newFakeData()
 	withContributorDetail(data)
 	l := newLoop(t, testDeps(data, &fakeSyncer{}))
+	l.send(tea.WindowSizeMsg{Width: 120, Height: 40})
 	l.press("3", "enter")
 	l.until(func(m Model) bool { return m.cdetail.open && !m.cdetail.loading })
 	screen := l.screen()
+	if line := lineWith(screen, "Languages"); !strings.Contains(line, "PHP 75.0%, Go 25.0%") {
+		t.Errorf("languages line = %q", line)
+	}
 	mustContain(t, screen, "Alice (@alice-gh)", "esc to go back", "@alice-gh",
 		"2 linked addresses (not shown)", "5 commits in 2 repositories, +40/-7 (2 uncounted)", "30 d ago", "2 h ago",
 		"12 weeks", "3 commits", "Repositories", "Alice Martin", "+40/-7", "promo/chloe",
@@ -161,5 +169,12 @@ func TestLineFormats(t *testing.T) {
 		if tc.got != tc.want {
 			t.Errorf("%q, want %q", tc.got, tc.want)
 		}
+	}
+}
+
+func TestAITotalsFormat(t *testing.T) {
+	got := aiTotals(model.AITotals{Scanned: 120, Signed: 3, Tools: []model.AIToolCount{{Tool: "claude", Commits: 2}, {Tool: "cursor", Commits: 1}}})
+	if want := "3/120 (Claude 2, Cursor 1)"; got != want {
+		t.Errorf("aiTotals = %q, want %q", got, want)
 	}
 }

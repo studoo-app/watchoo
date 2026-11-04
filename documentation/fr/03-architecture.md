@@ -77,6 +77,7 @@ watchoo/
   internal/repoimport/ analyse des références de dépôts, de --branch et des fichiers d'import
   internal/configshare/ partage de la configuration d'un espace (export JSON, validation, aperçu et
                        application d'un import ; « watchoo config », page Réglages)
+  internal/aisignature/ signatures d'IA déclarées dans les commits (1.2.0) : catalogue et détection, fonctions pures
   internal/textclean/  nettoyage des textes affichés (séquences d'échappement, contrôles), CLI et TUI
   internal/selfupdate/ mise à jour de Watchoo lui-même (0.6.0) : dernière version publiée, comparaison
                        SemVer, téléchargement vérifié et remplacement du binaire, vérification
@@ -351,10 +352,14 @@ Faux pour les tests : `providertest` (Provider en mémoire), `githubtest` (serve
   et l'adresse vide : `Provider.ProfileURL(login)`, écrit par `store.BackfillProfileURLs` en une
   transaction. Seules ces lignes sont lues (coût négligeable après le premier passage) ; une adresse
   connue n'est jamais remplacée. Un échec est journalisé (sans login) et n'échoue jamais la synchro.
+- **Langages** (1.1.0) : après les statistiques de lignes, voir
+  [Langages d'un dépôt](#langages-dun-dépôt-110).
+- **Langages des commits** (1.2.0) : dans le même passage que les statistiques de lignes, voir
+  [Langages d'un contributeur](#langages-dun-contributeur-120).
 - **Commit sans date** : un commit sans date d'écriture ni de commit est ignoré (compté dans un log) ; une
   seule date manquante est complétée par l'autre.
 - **Écriture** : tout ce qu'une synchro de dépôt écrit (métadonnées, branches, commits, statistiques des
-  commits, contributeurs, `commit_branches`, `last_commit_at`, pull requests, releases, tags, fin du
+  commits, contributeurs, `commit_branches`, `last_commit_at`, pull requests, releases, tags, langages, fin du
   `sync_run`) l'est dans
   **une transaction**.
 - **Dépôt vide** (dépôt d'étudiant tout juste créé, auquel GitHub répond `409`) : branches et commits
@@ -588,7 +593,10 @@ En place depuis la phase 6 ([Roadmap](07-roadmap.md#phase-6--v2)).
   rien demander. `git` est lancé avec `LC_ALL=C` pour classer ses échecs. Un échec d'accès (clé
   refusée, hôte inconnu, identifiants absents, dépôt introuvable ou privé sans accès) donne
   `ErrAccessDenied` : « en erreur : accès refusé : vérifiez la clé SSH ou les identifiants Git de cette
-  machine » ; un échec réseau donne `ErrUnavailable`. La sortie de `git` n'est jamais recopiée dans une
+  machine ». Une empreinte de serveur SSH inconnue ou changée (« Host key verification failed », par
+  exemple `known_hosts` connaît `github.com` mais la configuration SSH redirige vers `ssh.github.com`
+  port 443) donne `ErrHostKeyUnknown`, un cas de `ErrAccessDenied` avec son propre conseil : lancer une
+  fois `ssh -T git@github.com` pour vérifier et accepter l'empreinte de GitHub ; un échec réseau donne `ErrUnavailable`. La sortie de `git` n'est jamais recopiée dans une
   erreur ni dans les logs (niveau Debug : commande, durée et code de retour seulement).
 - **Ajout d'un dépôt** (`repo add`, `repo import`, web) : l'accès est vérifié par
   `git ls-remote --symref <url> HEAD`, sans rien cloner (`--dry-run` compris) ; il donne aussi la
@@ -639,6 +647,28 @@ En place depuis la phase 6 ([Roadmap](07-roadmap.md#phase-6--v2)).
 - Avec les clones Git locaux (V2, sans `gh`), le login n'est jamais connu : les commits ne sont
   rattachés que par e-mail (deux e-mails d'une même personne font deux contributeurs tant qu'une synchro
   par l'API ne les a pas reliés à un même compte).
+
+### Signatures d'IA (1.2.0)
+
+Règles dans la page [Fonctionnalités](02-fonctionnalites.md#signatures-dia). Tout est dans
+`internal/aisignature` (catalogue, `Detect`, fonctions pures) ; `internal/sync` le lance, `cli`, `tui` et
+`web` ne font qu'afficher.
+
+- **Quand** : à la fin de chaque synchro réussie d'un dépôt, une fois les commits et leurs auteurs écrits
+  (`ApplyRepoSync`), les commits dont `commits.ai_rules_version` est inférieure à
+  `aisignature.RulesVersion` sont analysés, 2 000 à la fois. Une base d'avant la 1.2.0 est donc analysée à la
+  synchro suivante.
+- **Coût** : **aucune requête à la forge**, avec ou sans `gh` : le message et l'auteur sont déjà en base.
+  La règle de l'incrémental est respectée : rien n'est re-téléchargé.
+- **Nouvelles règles** : ajouter une signature au catalogue augmente `RulesVersion`, ce qui fait analyser de
+  nouveau tous les commits à la synchro suivante.
+- **Échec** : une analyse qui échoue n'annule pas la synchro : avertissement sur le dépôt (`warnings`), et la
+  synchro suivante reprend.
+- **Exception documentée** à la règle « rien de spécifique à GitHub hors de `internal/provider/github` et
+  `internal/provider/git` » : le catalogue contient des noms de comptes et le format des adresses GitHub
+  sans réponse. Ce sont des valeurs comparées à des données déjà en base, sans aucun accès à la forge.
+- **Données personnelles** : seuls l'identifiant de l'outil et le type sont enregistrés ; message et adresses
+  restent en mémoire pendant l'analyse et ne vont jamais dans les journaux.
 
 ### Mise à jour de Watchoo (0.6.0)
 
@@ -732,6 +762,48 @@ font qu'afficher.
   nettoyés des séquences d'échappement avant affichage ; aucun e-mail n'est affiché. Pendant le TUI, les
   logs du moteur sont coupés (ils casseraient l'écran).
 - Code dans `internal/tui/`.
+
+### Langages d'un dépôt (1.1.0)
+
+- **Source** : le clone Git local seulement (`git ls-tree -r -l -z` sur la branche par défaut du distant),
+  avec ou sans `gh`, sans requête ni quota. L'API GitHub (`/languages`) n'est volontairement pas utilisée :
+  elle ne donne rien pour un dépôt suivi sans `gh`, et mélanger deux calculs ferait varier les
+  pourcentages selon la source de la synchro.
+- **Détection** : par nom de fichier et extension, avec une table dans
+  `internal/provider/git/languages.go` (aucune dépendance). Comme GitHub, elle compte les langages de
+  programmation et de balisage, en octets ; les données et la prose (JSON, YAML, Markdown…) et les
+  extensions inconnues sont ignorées. Le SQL est compté, contrairement à GitHub.
+- **Exclus** : liens symboliques et sous-modules ; les répertoires `node_modules`, `vendor`,
+  `bower_components`, `dist`, `build`, `target`, `__pycache__`, `.venv`, `venv`, `.idea`, `.vscode`,
+  `.gradle`, `.next`, `.nuxt`, où qu'ils soient ; les fichiers `*.min.js` et `*.min.css` ; les lockfiles.
+- **Limite** : les chiffres sont proches de ceux de GitHub, sans être identiques (pas d'analyse du
+  contenu, pas de `.gitattributes`).
+- **Échec** : un clone illisible donne un avertissement et ne fait pas échouer le dépôt ; les langages
+  déjà en base sont gardés. Un dépôt vide n'a aucun langage.
+
+### Langages d'un contributeur (1.2.0)
+
+- **Mesure** : les **lignes ajoutées** dans chaque langage par les commits dont il est l'auteur ; les lignes
+  retirées ne comptent pas. Le pourcentage est la part de ses lignes ajoutées dans les langages reconnus,
+  calculée à l'affichage. Tous ses dépôts sont confondus sur sa page ; `watchoo contributors` applique ses
+  filtres (`--repo`, `--since`, `--weeks`).
+- **Source** : le clone Git local, **dans le même passage** que les lignes `+/-` (`git diff-tree --numstat`
+  donne le chemin de chaque fichier modifié) : aucune commande git ni requête de plus. Sans clone (repli sur
+  l'API), les langages d'un commit restent inconnus jusqu'à une synchro qui peut lire le clone.
+- **Détection** : la table et les exclusions des [langages d'un dépôt](#langages-dun-dépôt-110), appliquées
+  au chemin du fichier modifié (`classifyLanguage`) ; fichiers binaires ignorés.
+- **Commits de fusion** (plusieurs parents) : analysés sans aucune ligne. Leur différence avec le premier
+  parent contient toute la branche fusionnée, qui serait sinon comptée à la personne qui fusionne.
+- **Version des règles** : `commits.languages_version` est la version (`git.LanguageRulesVersion`) avec
+  laquelle le commit a été analysé ; `0` = pas encore. Chaque synchro qui lit le clone reprend, 2 000 à la
+  fois, les commits dont les lignes sont inconnues **ou** la version inférieure (une seule boucle). Une base
+  d'avant la 1.2.0 est donc analysée une fois à la synchro suivante, en local, sans quota ; changer la table
+  des langages augmente la version et fait tout analyser de nouveau.
+- **Affichage** : « — » si aucun de ses commits n'est encore analysé ; sinon, ses commits pas encore
+  analysés sont signalés (« 3 commits pas encore analysés »).
+- **Limite** : des lignes ajoutées ne mesurent ni la qualité ni la compétence : un fichier copié ou généré
+  hors des répertoires exclus compte comme du code écrit.
+- **Échec** : celui des statistiques de lignes (avertissement, repli, dépôt non échoué).
 
 ### Langues et traductions
 - **Décision** : l'interface (CLI, TUI, web) est bilingue, en **anglais par défaut** et en **français**.

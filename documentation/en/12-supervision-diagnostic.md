@@ -283,12 +283,12 @@ the review sheet).
 - **Signal made explicit**: each recognised tool is kept with the signal that found it (`D1:claude` for a
   trailer, `D2:unnamed` for a signature), so that each lead says where it comes from.
 - **D2 on PRs**: a PR description is read in memory by the GitHub provider; only tool identifiers are kept
-  (`pull_requests.tool_ids`, migration `00008`). For PRs read after the update, with the diagnosis enabled;
+  (`pull_requests.tool_ids`, migration `00012`). For PRs read after the update, with the diagnosis enabled;
   local clones have no PRs.
 - **D5**: prefix of a PR's branch (`codex/`, `copilot/`, `claude/`, `cursor/`), read from
   `pull_requests.head_branch`, already stored.
 - **D4 as context**: date an agent configuration file was first added to the repository (`git log
-  --diff-filter=A` on the clone), kept in `repositories.agent_config_since` (migration `00008`) and shown
+  --diff-filter=A` on the clone), kept in `repositories.agent_config_since` (migration `00012`) and shown
   as context, without a level.
 - **"Declared" level** (`declared`): at least one D1, D2, D3 or D5 signal; computed by `internal/diagnostic`,
   with the list of signals and their values.
@@ -358,7 +358,7 @@ revisited only if calibration shows the need); F6 postponed (section 9).
   JavaScript/TypeScript (Vue, Svelte), PHP, Java, Kotlin, C#, Scala, Swift, Rust, Dart, C/C++, Python, Ruby,
   shell scripts, SQL, HTML/Twig/XML and CSS. A line over 1,000 characters (minified code) is ignored. The
   commit message is measured in memory too.
-- **Kept** (11 columns of `commit_signals`, migration `00010`): numbers only — source lines, comment lines,
+- **Kept** (11 columns of `commit_signals`, migration `00014`): numbers only — source lines, comment lines,
   definitions and documented definitions, identifiers and their lexical diversity, test lines, message
   length, list lines, Conventional Commits subject. No line of code, identifier, path or message.
   `form_known` tells a measured form from a row written before phase 7.5 or a failed read; the history

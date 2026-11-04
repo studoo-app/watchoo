@@ -10,6 +10,8 @@ package web
 //     par GET /repos/{id} quand la requête HTMX vise #repo-overview (en-tête HX-Target) ;
 //   - « repo-contributors » (id repo-contributors) : auteurs des commits du dépôt, servi de même
 //     quand la requête vise #repo-contributors ;
+//   - « repo-languages » (id repo-languages, 1.1.0) : langages de la branche par défaut, servi de même
+//     quand la requête vise #repo-languages ;
 //   - « repo-pulls » (id repo-pulls, V2) : pull requests ouvertes et dernières mergées, releases et
 //     tags, servi de même quand la requête vise #repo-pulls ;
 //   - « repo-commits » (id repo-commits) : filtres branche et auteur, historique paginé
@@ -63,6 +65,7 @@ const (
 const (
 	repoOverviewID     = "repo-overview"
 	repoContributorsID = "repo-contributors"
+	repoLanguagesID    = "repo-languages"
 	repoPullsID        = "repo-pulls"
 	repoFiltersID      = "repo-filters"
 )
@@ -76,6 +79,11 @@ type RepoView struct {
 	OtherBranches   []model.Branch
 	// Contributors : auteurs des commits du dépôt, du plus actif au moins actif.
 	Contributors []store.ContributorStats
+	// ContributorCommits : somme de leurs commits (part de chacun).
+	ContributorCommits int
+	// Languages : langages de la branche par défaut, du plus gros au plus petit (fragment
+	// « repo-languages »).
+	Languages []store.LanguageView
 	// Chart : commits par jour sur ChartDays jours (JSON lu par static/app.js) ; ChartTotal et
 	// ChartPeak en donnent le résumé textuel (accessibilité, absence de JavaScript).
 	Chart      []activity.DayCount
@@ -148,7 +156,7 @@ func (s *server) handleRepo(w http.ResponseWriter, r *http.Request) {
 	data := s.page(r, view.Repo.DisplayName(), "", view)
 	if isHTMX(r) && !isHistoryRestore(r) {
 		switch target := r.Header.Get("HX-Target"); target {
-		case repoOverviewID, repoContributorsID, repoPullsID:
+		case repoOverviewID, repoContributorsID, repoLanguagesID, repoPullsID:
 			s.renderFragment(w, r, http.StatusOK, pageRepo, target, data)
 			return
 		}
@@ -220,6 +228,12 @@ func (s *server) repoView(r *http.Request, id int64, overview bool) (RepoView, e
 	}
 	if overview {
 		view.Contributors = contributors
+		for _, c := range contributors {
+			view.ContributorCommits += c.Commits
+		}
+		if view.Languages, err = s.store.ListLanguages(ctx, id); err != nil {
+			return RepoView{}, err
+		}
 		view.ChartDays = activity.ChartDays
 		times, err := s.store.CommitTimes(ctx, id, activity.SeriesStart(now, activity.ChartDays, s.loc))
 		if err != nil {

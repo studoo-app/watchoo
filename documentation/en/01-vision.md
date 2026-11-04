@@ -52,8 +52,11 @@ students. Data is never mixed. See [Workspaces](10-workspaces.md).
 ## Out of scope (for now)
 
 - Multi-user tool or SaaS: Watchoo is a **personal and local** tool.
-- Code quality or security analysis. Form and rhythm signals (AI usage) now fall under
-  [supervision and diagnosis](12-supervision-diagnostic.md), with its guardrails.
+- Code content analysis (quality, security, detailed diff), including guessing from the code or the
+  style of the messages whether AI was used: outside the diagnosis, Watchoo only reads the
+  [signatures declared in the commits](02-features.md#ai-signatures). Form and rhythm signals (AI usage)
+  fall under [supervision and diagnosis](12-supervision-diagnostic.md), off by default, for the trainer
+  only and bound by its guardrails.
 - Writing to GitHub: Watchoo is **read-only**.
 
 ## Target users

@@ -20,7 +20,7 @@ func TestParseNumstatRenames(t *testing.T) {
 		"\n" + sha2 + "\x00" +
 		"1\t1\tx.go\x00"
 	out := map[string]provider.CommitStats{}
-	parseBatchNumstat([]byte(raw), out)
+	parseBatchNumstat([]byte(raw), nil, out)
 	want1 := []provider.CommitFile{{Path: "main.go", Additions: 3, Deletions: 1}, {Path: "lib/new.go"},
 		{Path: sha2 + ".txt", Additions: 2}, {Path: "img/b.png", Binary: true}}
 	if st := out[sha1]; st.Additions != 5 || st.Deletions != 1 || !slices.Equal(st.Files, want1) {

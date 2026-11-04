@@ -3,6 +3,7 @@ package git_test
 import (
 	"context"
 	"errors"
+	"maps"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -147,4 +148,44 @@ func TestPrepareUsesGivenDefaultBranch(t *testing.T) {
 func sameStats(a, b provider.CommitStats) bool {
 	return a.Additions == b.Additions && a.Deletions == b.Deletions && (a.Files == nil) == (b.Files == nil) &&
 		slices.Equal(a.Files, b.Files)
+}
+
+// CommitStatsBatch also gives the lines added per language: the path of each changed file is classified
+// like the languages of a repository (excluded directories, data and prose ignored), deleted lines do
+// not count, and a merge commit is analyzed with no line (its diff holds the whole merged branch).
+func TestCommitStatsBatchLanguages(t *testing.T) {
+	srv := gittest.NewServer(t)
+	r := srv.Create("alice", "langues", "main")
+	goFile := r.Commit("main", "cmd/main.go", "package main\n\nfunc main() {}\n", "go", alice, t0)
+	r.Branch("dev", goFile)
+	php := r.Commit("dev", "src/index.php", "<?php\necho 1;\n", "php", bob, t0.Add(time.Hour))
+	edit := r.Commit("main", "cmd/main.go", "package main\n", "raccourci", alice, t0.Add(2*time.Hour))
+	vendor := r.Commit("main", "vendor/lib/x.go", "package x\n", "vendor", alice, t0.Add(3*time.Hour))
+	readme := r.Commit("main", "README.md", "# Projet\n", "doc", alice, t0.Add(4*time.Hour))
+	merge := r.Merge("main", "dev", "merge", alice, t0.Add(5*time.Hour))
+
+	p, _, _ := newProvider(t, srv)
+	got, err := p.CommitStatsBatch(t.Context(), "alice", "langues", []string{goFile, php, edit, vendor, readme, merge})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		sha  string
+		want map[string]int
+	}{
+		{goFile, map[string]int{"Go": 3}},
+		{php, map[string]int{"PHP": 2}},
+		{edit, map[string]int{}}, // only deleted lines
+		{vendor, map[string]int{}},
+		{readme, map[string]int{}},
+		{merge, map[string]int{}}, // brings index.php, counted for bob's commit only
+	} {
+		st, ok := got[tc.sha]
+		if !ok || st.Languages == nil || !maps.Equal(st.Languages, tc.want) {
+			t.Errorf("Languages(%s) = %v (%v), want %v", provider.ShortSHA(tc.sha), st.Languages, ok, tc.want)
+		}
+	}
+	if st := got[merge]; st.Additions != 2 {
+		t.Errorf("merge: %d lines added, want 2 (line stats unchanged)", st.Additions)
+	}
 }

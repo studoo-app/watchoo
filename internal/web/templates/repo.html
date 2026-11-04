@@ -5,6 +5,7 @@
     « repo-overview »     : en-tête, état, métadonnées, bouton de synchro (GET /repos/{id},
                             HX-Target: repo-overview) ;
     « repo-contributors » : contributeurs du dépôt (GET /repos/{id}, HX-Target: repo-contributors) ;
+    « repo-languages »    : langages du dépôt (1.1.0 ; GET /repos/{id}, HX-Target: repo-languages) ;
     « repo-pulls »        : pull requests, releases et tags (V2 ; GET /repos/{id}, HX-Target: repo-pulls) ;
     « repo-commits »      : filtres, historique paginé (GET /repos/{id}/commits).
   Les graphiques (activité par jour ; activité par contributeur, template « contributors-chart » de
@@ -42,6 +43,7 @@
     {{template "repo-contributors" .}}
   </div>
   {{template "contributors-chart" (dict "Chart" .Content.ContributorsChart "ID" "repo-contributors-chart" "RefreshURL" (repoPath $r.ID) "Title" (t "web.repo.contributors_chart_title" .Content.ContributorsChart.Weeks) "Scope" (t "web.repo.chart_scope") "Note" (t "web.repo.chart_note"))}}
+  {{template "repo-languages" .}}
   {{template "repo-pulls" .}}
   {{template "repo-commits" .}}
 </div>
@@ -72,6 +74,7 @@
       </div>
       {{if $r.Enabled}}{{template "sync-repo-button" (dict "Page" . "RepoID" $r.ID)}}{{end}}
     </div>
+    {{template "repo-sync-alert" $r.LastRun}}
 
     <dl class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 text-sm">
       <div>
@@ -114,6 +117,31 @@
 </section>
 {{end}}
 
+{{/* Alerte de la dernière synchro (1.3.0) : avertissements d'une synchro réussie (message complet,
+     tel qu'enregistré) ou message d'une synchro échouée. Donnée : model.SyncRun. */}}
+{{define "repo-sync-alert"}}
+{{- if eq (print .Status) "error"}}
+<div id="repo-sync-alert" role="alert" class="alert alert-error alert-soft items-start scroll-mt-4">
+  <div class="min-w-0">
+    <p class="font-semibold">{{t "web.warn.alert_failed"}} · {{template "rel-time" .StartedAt}}</p>
+    <p class="text-sm break-words">{{truncate 500 .Error}}</p>
+  </div>
+</div>
+{{- else if .Warnings}}
+<div id="repo-sync-alert" role="alert" class="alert alert-warning alert-soft items-start scroll-mt-4">
+  <div class="min-w-0">
+    <p class="font-semibold">{{t "web.warn.alert_title" (tn "web.n.warning" (len .Warnings))}} · {{template "rel-time" .StartedAt}}</p>
+    <ul class="list-disc pl-5 text-sm space-y-1 mt-1">
+      {{- range .Warnings}}
+      <li class="break-words"><span class="font-medium">{{warnLabel .Kind}}</span><br><span class="text-xs">{{truncate 500 .Message}}</span></li>
+      {{- end}}
+    </ul>
+    {{- if warnCloneHint .Warnings}}<p class="text-sm mt-2">{{t "web.warn.clone_hint"}}</p>{{end}}
+  </div>
+</div>
+{{- end}}
+{{end}}
+
 {{/* Seuils d'activité propres au dépôt (repo_thresholds.go). Hors du fragment « repo-overview » :
      le rafraîchissement après une synchro n'efface pas une saisie en cours. Donnée : PageData
      (Content.Repo, Content.Thresholds). */}}
@@ -141,7 +169,7 @@
 {{end}}
 
 {{/* Contributeurs du dépôt. Donnée : PageData (Content.Contributors). */}}
-{{define "repo-contributors"}}
+{{define "repo-contributors"}}{{$total := .Content.ContributorCommits}}
 <section id="repo-contributors" class="card bg-base-100 shadow-sm min-w-0" aria-labelledby="repo-contributors-title"
          hx-get="{{repoPath .Content.Repo.ID}}" hx-trigger="sync-finished from:body" hx-swap="outerHTML">
   <div class="card-body p-4 md:p-6">
@@ -160,11 +188,39 @@
         </div>
         <span class="text-xs tabular-nums whitespace-nowrap">{{template "line-totals" .Lines}}</span>
         <span class="badge badge-ghost whitespace-nowrap">{{tn "web.n.commit" .Commits}}</span>
+        <span class="text-xs text-base-content/60 tabular-nums whitespace-nowrap" title="{{t "web.repo.contributor_share"}}">{{t "web.percent" (percent .Commits $total)}}</span>
       </li>
       {{end}}
     </ul>
     {{else}}
     <p class="text-sm text-base-content/70">{{t "web.repo.no_commit_db"}}</p>
+    {{end}}
+  </div>
+</section>
+{{end}}
+
+{{/* Langages du dépôt (1.1.0). Donnée : PageData (Content.Languages). Barres en <progress> : la CSP
+     interdit les styles en ligne. */}}
+{{define "repo-languages"}}
+<section id="repo-languages" class="card bg-base-100 shadow-sm min-w-0" aria-labelledby="repo-languages-title"
+         hx-get="{{repoPath .Content.Repo.ID}}" hx-trigger="sync-finished from:body" hx-swap="outerHTML">
+  <div class="card-body p-4 md:p-6">
+    <h2 id="repo-languages-title" class="card-title text-lg">{{t "web.repo.languages_title"}}</h2>
+    {{if .Content.Languages}}
+    <ul class="grid gap-x-6 gap-y-2 md:grid-cols-2" role="list">
+      {{range .Content.Languages}}{{$p := .Permille}}
+      <li class="min-w-0">
+        <div class="flex items-baseline justify-between gap-3 text-sm">
+          <span class="font-medium truncate">{{clean .Language}}</span>
+          <span class="tabular-nums whitespace-nowrap">{{t "activity.fmt.percent_tenths" (div $p 10) (mod $p 10)}}</span>
+        </div>
+        <progress class="progress progress-primary w-full" value="{{$p}}" max="1000" aria-hidden="true"></progress>
+      </li>
+      {{end}}
+    </ul>
+    <p class="text-xs text-base-content/60">{{t "web.repo.languages_note"}}</p>
+    {{else}}
+    <p class="text-sm text-base-content/70">{{t "web.repo.languages_none"}}</p>
     {{end}}
   </div>
 </section>

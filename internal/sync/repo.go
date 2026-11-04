@@ -11,6 +11,7 @@ import (
 	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/provider"
+	gitprov "github.com/studoo-app/watchoo/internal/provider/git"
 	"github.com/studoo-app/watchoo/internal/store"
 )
 
@@ -22,8 +23,8 @@ type repoOutcome struct {
 	stats       int // statistiques calculées par le clone, ou appels CommitStats faits (repli sur l'API)
 	pulls       int // pull requests lues (créées ou mises à jour)
 	// warnings : listes (pull requests, releases, tags) non synchronisées, clone Git local
-	// indisponible, en français.
-	warnings []string
+	// indisponible…, dans la langue du processus.
+	warnings []model.SyncWarning
 }
 
 // repoSync accumule les commits vus pendant la synchro d'un dépôt.
@@ -119,8 +120,22 @@ func (e *Engine) syncRepository(ctx context.Context, prov provider.Provider, cl 
 	if err != nil {
 		return repoOutcome{}, err
 	}
-	if statsWarning != "" {
-		x.warnings = append([]string{statsWarning}, x.warnings...)
+	if statsWarning.Kind != "" {
+		x.warnings = append([]model.SyncWarning{statsWarning}, x.warnings...)
+	}
+	// Clone déjà signalé indisponible : pas de seconde tentative ni de second avertissement.
+	var (
+		langs        []model.RepositoryLanguage
+		replaceLangs bool
+	)
+	if cl.stats != nil && statsWarning.Kind == "" {
+		var warning model.SyncWarning
+		if langs, replaceLangs, warning, err = s.languages(ctx, cl); err != nil {
+			return repoOutcome{}, err
+		}
+		if warning.Kind != "" {
+			x.warnings = append(x.warnings, warning)
+		}
 	}
 
 	states := make([]store.BranchState, len(tracked))
@@ -141,20 +156,30 @@ func (e *Engine) syncRepository(ctx context.Context, prov provider.Provider, cl 
 			OpenIssues:    meta.OpenIssues,
 			Archived:      meta.Archived,
 		},
-		Branches:        states,
-		Commits:         s.commits,
-		Stats:           statsWrites,
-		PullRequests:    x.pulls,
-		ReplaceReleases: x.replaceReleases,
-		Releases:        x.releases,
-		ReplaceTags:     x.replaceTags,
-		Tags:            x.tags,
-		SyncedAt:        e.now().UTC(),
+		Branches:         states,
+		Commits:          s.commits,
+		Stats:            statsWrites,
+		LanguagesVersion: gitprov.LanguageRulesVersion,
+		PullRequests:     x.pulls,
+		ReplaceReleases:  x.replaceReleases,
+		Releases:         x.releases,
+		ReplaceTags:      x.replaceTags,
+		Tags:             x.tags,
+		ReplaceLanguages: replaceLangs,
+		Languages:        langs,
+		SyncedAt:         e.now().UTC(),
 	})
 	if err != nil {
 		return repoOutcome{}, err
 	}
-	if w := e.writeSignals(ctx, s, repo.ID); w != "" {
+	// Après l'écriture : les commits et leurs auteurs sont en base. Un échec n'annule pas la synchro,
+	// la suivante reprend les commits restants.
+	if err := e.scanAISignatures(ctx, repo.ID); err != nil {
+		e.logger.Warn("signatures d'IA non analysées", "repo", s.full, "erreur", errorMessage(err))
+		x.warnings = append(x.warnings, model.SyncWarning{Kind: model.WarnAINotScanned,
+			Message: i18n.T("sync.ai.not_scanned")})
+	}
+	if w := e.writeSignals(ctx, s, repo.ID); w.Kind != "" {
 		x.warnings = append(x.warnings, w)
 	}
 	e.updateAgentContext(ctx, s, repo.ID)

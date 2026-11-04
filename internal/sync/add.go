@@ -277,6 +277,8 @@ func inaccessibleMessage(err error) string {
 		return sso.Error()
 	case errors.Is(err, provider.ErrNotFound):
 		return provider.ErrNotFound.Error()
+	case errors.Is(err, provider.ErrHostKeyUnknown):
+		return provider.ErrHostKeyUnknown.Error()
 	case errors.Is(err, provider.ErrAccessDenied):
 		return provider.ErrAccessDenied.Error()
 	default:

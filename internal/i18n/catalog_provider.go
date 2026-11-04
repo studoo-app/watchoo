@@ -64,6 +64,10 @@ var providerTexts = map[string]entry{
 		"access denied: check the SSH key or the Git credentials of this machine",
 		"accès refusé : vérifiez la clé SSH ou les identifiants Git de cette machine",
 	},
+	"provider.err.host_key_unknown": {
+		`access denied: SSH host key unknown or changed (not the SSH key): run "ssh -T git@github.com" once on this machine to check and accept GitHub's fingerprint`,
+		"accès refusé : empreinte du serveur SSH inconnue ou changée (pas la clé SSH) : lancez une fois « ssh -T git@github.com » sur cette machine pour vérifier et accepter celle de GitHub",
+	},
 
 	// RateLimitError (internal/provider/errors.go) : quota épuisé ou limite secondaire, avec le
 	// moment où réessayer. Le premier %s est le texte de ErrRateLimited (ou de la limite secondaire),
@@ -328,6 +332,10 @@ var providerTexts = map[string]entry{
 	"provider.git.op.first_added": {
 		"date of the first agent configuration file of %s/%s",
 		"date du premier fichier de configuration d'agent de %s/%s",
+	},
+	"provider.git.op.languages": {
+		"languages of %s/%s",
+		"langages de %s/%s",
 	},
 	"provider.git.op.commits_stats": {
 		"statistics of commits of %s/%s",

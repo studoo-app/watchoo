@@ -260,9 +260,16 @@ func (e *Engine) syncOne(ctx context.Context, prov provider.Provider, cl clones,
 	rep.TrackedBranches = res.result.TrackedBranches
 	rep.StatsFetched = res.stats
 	rep.PullRequests = res.pulls
-	rep.Warnings = make([]string, 0, len(res.warnings))
+	rep.Warnings = make([]model.SyncWarning, 0, len(res.warnings))
 	for _, w := range res.warnings {
-		rep.Warnings = append(rep.Warnings, redact(w))
+		rep.Warnings = append(rep.Warnings, model.SyncWarning{Kind: w.Kind, Message: redact(w.Message)})
+	}
+	// Enregistrés pour l'interface web (carte et page du dépôt) ; un échec n'annule pas la synchro.
+	if len(rep.Warnings) > 0 {
+		if err := e.store.SetSyncRunWarnings(context.WithoutCancel(ctx), run.ID, rep.Warnings); err != nil {
+			e.logger.Error("enregistrement des avertissements impossible", "repo", rep.FullName,
+				"erreur", redact(err.Error()))
+		}
 	}
 	e.logger.Info("dépôt synchronisé", "repo", rep.FullName, "nouveaux_commits", rep.NewCommits,
 		"branches", rep.TrackedBranches, "statistiques", rep.StatsFetched, "pull_requests", rep.PullRequests,

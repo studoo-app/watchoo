@@ -246,6 +246,12 @@ type Tag struct {
 	SHA  string // SHA complet du commit visé
 }
 
+// Language est un langage d'un dépôt et la taille de ses fichiers.
+type Language struct {
+	Name  string // nom du langage (« Go », « TypeScript »…)
+	Bytes int64  // taille en octets (> 0)
+}
+
 // Repository décrit un dépôt sur la forge.
 type Repository struct {
 	ID            int64     // identifiant numérique sur la forge, qui ne change jamais (model.Repository.ProviderID)
@@ -304,6 +310,10 @@ type Commit struct {
 type CommitStats struct {
 	Additions int // lignes ajoutées
 	Deletions int // lignes supprimées
+	// Languages : lignes ajoutées par langage (1.2.0), lues dans le clone Git local seulement ; vide non
+	// nil pour un commit analysé sans ligne dans un langage reconnu (commit de fusion, Markdown seul…),
+	// nil si inconnues (API).
+	Languages map[string]int
 	// Files détaille les fichiers modifiés (chemins : donnée du dépôt privé, jamais dans les logs), pour
 	// les signaux de diagnostic (internal/diagnostic). Renseigné par les clones Git locaux seulement ;
 	// nil = détail inconnu (API GitHub : la réponse n'est lue qu'avec per_page=1, voir son CommitStats).

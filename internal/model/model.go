@@ -9,6 +9,8 @@
 package model
 
 import (
+	"cmp"
+	"slices"
 	"time"
 
 	"github.com/studoo-app/watchoo/internal/i18n"
@@ -136,6 +138,85 @@ type Commit struct {
 	URL         string    // lien vers le commit sur la forge
 }
 
+// AISignature est une signature d'outil d'IA déclarée dans un commit (commit_ai_signatures) : elle dit
+// qu'un outil est déclaré sur le commit, pas qui a écrit le code ; son absence ne dit rien.
+type AISignature struct {
+	Tool string // identifiant de l'outil (aisignature.ToolName donne le nom affiché)
+	Kind string // type de signature (agent_account, coauthor_trailer, footer)
+}
+
+// AIToolCount donne le nombre de commits signés par un outil.
+type AIToolCount struct {
+	Tool    string // identifiant de l'outil
+	Commits int    // commits distincts qui portent sa signature
+}
+
+// AITotals résume les signatures d'IA d'un ensemble de commits (un contributeur).
+type AITotals struct {
+	Commits int           // commits de l'ensemble
+	Scanned int           // commits déjà analysés
+	Signed  int           // commits avec au moins une signature
+	Tools   []AIToolCount // outils, du plus de commits au moins ; vide non nil
+}
+
+// Known indique si au moins un commit a été analysé (sinon les totaux s'affichent « — »).
+func (a AITotals) Known() bool { return a.Scanned > 0 }
+
+// LanguageLines donne les lignes ajoutées dans un langage par un ensemble de commits (1.2.0).
+type LanguageLines struct {
+	Language string // nom du langage, comme dans RepositoryLanguage
+	Lines    int    // lignes ajoutées (au moins 1)
+}
+
+// LanguageTotals résume les langages d'un ensemble de commits (un contributeur, 1.2.0) : lignes ajoutées
+// par langage, lues dans le clone Git local.
+type LanguageTotals struct {
+	Commits int             // commits de l'ensemble
+	Scanned int             // commits dont les langages sont lus (commits.languages_version > 0)
+	Lines   []LanguageLines // du plus de lignes au moins, puis par nom ; vide non nil
+}
+
+// Known indique si au moins un commit a été analysé (sinon les langages s'affichent « — »).
+func (t LanguageTotals) Known() bool { return t.Scanned > 0 }
+
+// Pending renvoie le nombre de commits dont les langages ne sont pas encore lus.
+func (t LanguageTotals) Pending() int { return max(t.Commits-t.Scanned, 0) }
+
+// Total renvoie les lignes ajoutées dans tous les langages.
+func (t LanguageTotals) Total() int {
+	n := 0
+	for _, l := range t.Lines {
+		n += l.Lines
+	}
+	return n
+}
+
+// Main renvoie le langage qui a le plus de lignes ajoutées ; vide si aucun.
+func (t LanguageTotals) Main() string {
+	if len(t.Lines) == 0 {
+		return ""
+	}
+	return t.Lines[0].Language
+}
+
+// Share renvoie la part de l dans les lignes ajoutées de t, en pour mille (voir Permille).
+func (t LanguageTotals) Share(l LanguageLines) int { return Permille(int64(l.Lines), int64(t.Total())) }
+
+// SortedLanguageLines convertit des lignes ajoutées par langage, triées comme LanguageTotals.Lines (vide
+// non nil ; langages sans ligne ignorés).
+func SortedLanguageLines(lines map[string]int) []LanguageLines {
+	out := make([]LanguageLines, 0, len(lines))
+	for lang, n := range lines {
+		if n > 0 {
+			out = append(out, LanguageLines{Language: lang, Lines: n})
+		}
+	}
+	slices.SortFunc(out, func(a, b LanguageLines) int {
+		return cmp.Or(cmp.Compare(b.Lines, a.Lines), cmp.Compare(a.Language, b.Language))
+	})
+	return out
+}
+
 // LineTotals additionne les lignes ajoutées et supprimées d'un ensemble de commits (un dépôt, l'espace).
 // Seuls les commits dont les statistiques sont connues (commits.stats_known) sont additionnés.
 type LineTotals struct {
@@ -192,6 +273,32 @@ type SyncRun struct {
 	NewCommits int        // nombre de nouveaux commits récupérés
 	Status     SyncStatus // résultat
 	Error      string     // message d'erreur éventuel ; vide si aucun (jamais de token dedans)
+	// Warnings sont les avertissements d'une synchro réussie (1.3.0), dans l'ordre où ils sont apparus ;
+	// liste vide si aucun.
+	Warnings []SyncWarning
+}
+
+// SyncWarningKind est le code stable d'un avertissement de synchro (colonne sync_runs.warnings) : les
+// couches d'affichage le traduisent au lieu d'analyser le message.
+type SyncWarningKind string
+
+// Valeurs de SyncWarningKind.
+const (
+	WarnStatsNotComputed     SyncWarningKind = "stats_not_computed"     // dépôt Git local : clone illisible, lignes non calculées
+	WarnCloneUnavailable     SyncWarningKind = "clone_unavailable"      // clone illisible, lignes lues par l'API (limitées)
+	WarnLanguagesNotComputed SyncWarningKind = "languages_not_computed" // langages non lus dans le clone
+	WarnListsNotSynced       SyncWarningKind = "lists_not_synced"       // pull requests, releases ou tags non lus
+	WarnAINotScanned         SyncWarningKind = "ai_not_scanned"         // signatures d'IA non analysées
+	// WarnDiagnosticNotRecorded : signaux de diagnostic non enregistrés (phase 7.1, diagnostic activé).
+	WarnDiagnosticNotRecorded SyncWarningKind = "diagnostic_not_recorded"
+)
+
+// SyncWarning est un avertissement de synchro : un dépôt réussi, avec une donnée manquante ou limitée.
+type SyncWarning struct {
+	Kind SyncWarningKind `json:"kind"`
+	// Message est le texte complet, dans la langue du processus lors de la synchro, sans token ni
+	// donnée personnelle.
+	Message string `json:"message"`
 }
 
 // États d'une pull request (colonne pull_requests.state), comme sur la forge. Une PR mergée est fermée
@@ -326,4 +433,19 @@ type DiagnosticReview struct {
 	Note       string    // note libre du relecteur
 	Reviewer   string    // relecteur (compte de l'interface web, sinon nom de l'espace)
 	ReviewedAt time.Time // date de la revue, UTC
+}
+
+// RepositoryLanguage est un langage d'un dépôt, sur sa branche par défaut (1.1.0).
+type RepositoryLanguage struct {
+	RepoID   int64  // dépôt
+	Language string // nom du langage
+	Bytes    int64  // taille de ses fichiers, en octets (> 0)
+}
+
+// Permille renvoie part/total en pour mille, arrondi au plus proche (624 = 62,4 %) ; 0 si total <= 0.
+func Permille(part, total int64) int {
+	if total <= 0 {
+		return 0
+	}
+	return int((part*1000 + total/2) / total)
 }

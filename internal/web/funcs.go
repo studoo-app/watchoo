@@ -20,7 +20,9 @@ import (
 	"unicode/utf8"
 
 	"github.com/studoo-app/watchoo/internal/activity"
+	"github.com/studoo-app/watchoo/internal/aisignature"
 	"github.com/studoo-app/watchoo/internal/i18n"
+	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/textclean"
 )
 
@@ -43,6 +45,10 @@ const maxFirstLine = 120
 //	                 badge-error (Dead), badge-neutral (états gris)
 //	stateText res    libellé de l'état : "Active", "Slacking · 9 d" / « Flemme · 9 j », « Dead · 42 j »…
 //	stateLabel st    libellé seul de l'état (activity.State.LabelIn)
+//	warnLabel k      libellé court d'un avertissement de synchro (syncwarnings.go)
+//	warnEffect k     sa conséquence ("Line statistics read through the API (limited)")
+//	warnTitle ws     libellés courts des avertissements, un par ligne (infobulle)
+//	warnCloneHint ws l'un d'eux vient du clone Git local (conseil : clé SSH, identifiants Git)
 //	branchesText p   motifs de branches suivis, ou "all branches" / « toutes les branches »
 //	thresholdOrigin own  origine d'un seuil : "this repository's" / « propre à ce dépôt », sinon celui de l'espace
 //	importAction r   action d'un dépôt dans l'aperçu d'un import ("to add" / « à ajouter »…)
@@ -59,6 +65,7 @@ const maxFirstLine = 120
 //	profileURL s     s si c'est une adresse https:// (page de profil donnée par le provider), sinon « »
 //	interval d       « 30 min », « 1 h », "1 h 30 min" / « 1 h 30 », "manual only" / « manuelle seule » (0)
 //	percent a b      a*100/b arrondi, entre 0 et 100 (0 si b <= 0)
+//	div a b, mod a b quotient et reste entiers (b non nul)
 //	dict k1 v1 k2 v2…       map[string]any, pour passer plusieurs valeurs à un template
 //	withQuery path k1 v1…   path suivi de la query string encodée (url.Values) ; paires de valeur vide
 //	                 ou 0 omises : « /repos/3?author=a%26b&page=2 ». À utiliser pour TOUTE URL avec des
@@ -75,17 +82,21 @@ func (s *server) funcs(tr *i18n.Translator) template.FuncMap {
 // baseFuncs renvoie les fonctions communes à toutes les pages (voir funcs).
 func (s *server) baseFuncs(tr *i18n.Translator) template.FuncMap {
 	return template.FuncMap{
-		"t":            tr.T,
-		"tn":           func(key string, n int) string { return pluralText(tr, key, n) },
-		"relTime":      func(t time.Time) string { return activity.RelativeIn(tr, t, s.now(), s.loc, true) },
-		"localTime":    func(t time.Time) string { return s.formatLocal(t, tr.T("web.fmt.datetime")) },
-		"localDate":    func(t time.Time) string { return s.formatLocal(t, tr.T("web.fmt.date")) },
-		"localClock":   func(t time.Time) string { return s.formatLocal(t, "15:04") },
-		"isoTime":      isoTime,
-		"badgeClass":   badgeClass,
-		"stateText":    func(res activity.Result) string { return stateText(tr, res) },
-		"stateLabel":   func(st activity.State) string { return st.LabelIn(tr) },
-		"branchesText": func(patterns []string) string { return branchesText(tr, patterns) },
+		"t":             tr.T,
+		"tn":            func(key string, n int) string { return pluralText(tr, key, n) },
+		"relTime":       func(t time.Time) string { return activity.RelativeIn(tr, t, s.now(), s.loc, true) },
+		"localTime":     func(t time.Time) string { return s.formatLocal(t, tr.T("web.fmt.datetime")) },
+		"localDate":     func(t time.Time) string { return s.formatLocal(t, tr.T("web.fmt.date")) },
+		"localClock":    func(t time.Time) string { return s.formatLocal(t, "15:04") },
+		"isoTime":       isoTime,
+		"badgeClass":    badgeClass,
+		"stateText":     func(res activity.Result) string { return stateText(tr, res) },
+		"stateLabel":    func(st activity.State) string { return st.LabelIn(tr) },
+		"warnLabel":     func(k model.SyncWarningKind) string { return warnLabel(tr, k) },
+		"warnEffect":    func(k model.SyncWarningKind) string { return warnEffect(tr, k) },
+		"warnTitle":     func(ws []model.SyncWarning) string { return warnTitle(tr, ws) },
+		"warnCloneHint": warnCloneHint,
+		"branchesText":  func(patterns []string) string { return branchesText(tr, patterns) },
 		"thresholdOrigin": func(own bool) string {
 			if own {
 				return tr.T("web.repo.threshold_own")
@@ -98,6 +109,7 @@ func (s *server) baseFuncs(tr *i18n.Translator) template.FuncMap {
 		"firstLine":    firstLine,
 		"truncate":     truncate,
 		"shortSHA":     shortSHA,
+		"aiTool":       aisignature.ToolName,
 		"initial":      initial,
 		"avatarURL":    avatarURL,
 		"add":          func(a, b int) int { return a + b },
@@ -107,6 +119,8 @@ func (s *server) baseFuncs(tr *i18n.Translator) template.FuncMap {
 		"profileURL":   profileURL,
 		"interval":     func(d time.Duration) string { return formatInterval(tr, d) },
 		"percent":      percent,
+		"div":          func(a, b int) int { return a / b },
+		"mod":          func(a, b int) int { return a % b },
 		"dict":         dict,
 		"withQuery":    withQuery,
 	}

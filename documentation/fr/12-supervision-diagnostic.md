@@ -291,13 +291,13 @@ d'une description de PR), clés `--json` en anglais comme le reste de Watchoo, s
 - **Signal précisé** : chaque outil reconnu est gardé avec le signal qui l'a trouvé (`D1:claude` pour un
   trailer, `D2:unnamed` pour une signature), pour que chaque piste dise d'où elle vient.
 - **D2 sur les PR** : la description d'une PR est lue en mémoire par le provider GitHub ; seuls les
-  identifiants d'outils sont gardés (`pull_requests.tool_ids`, migration `00008`). Pour les PR lues après la
+  identifiants d'outils sont gardés (`pull_requests.tool_ids`, migration `00012`). Pour les PR lues après la
   mise à jour, diagnostic activé ; les clones locaux n'ont pas de PR.
 - **D5** : préfixe de la branche d'une PR (`codex/`, `copilot/`, `claude/`, `cursor/`), lu dans
   `pull_requests.head_branch`, déjà en base.
 - **D4 en contexte** : date du premier ajout d'un fichier de configuration d'agent dans le dépôt
   (`git log --diff-filter=A` sur le clone), gardée dans `repositories.agent_config_since` (migration
-  `00008`) et affichée comme contexte, sans niveau.
+  `00012`) et affichée comme contexte, sans niveau.
 - **Niveau « Déclaré »** (`declared`) : au moins un signal D1, D2, D3 ou D5 ; calculé par
   `internal/diagnostic`, avec la liste des signaux et de leurs valeurs.
 - **Commande `watchoo diagnostic [--repo X] [--author Y] [--since 30d]`** (texte et `--json`), réservée au
@@ -370,7 +370,7 @@ revoir seulement si la calibration en montre le besoin) ; F6 reporté (section 9
   fonctions et des identifiants, pour Go, JavaScript/TypeScript (Vue, Svelte), PHP, Java, Kotlin, C#, Scala,
   Swift, Rust, Dart, C/C++, Python, Ruby, scripts shell, SQL, HTML/Twig/XML et CSS. Une ligne de plus de
   1 000 caractères (code minifié) est ignorée. Le message du commit est mesuré en mémoire lui aussi.
-- **Gardé** (11 colonnes de `commit_signals`, migration `00010`) : nombres seulement — lignes source,
+- **Gardé** (11 colonnes de `commit_signals`, migration `00014`) : nombres seulement — lignes source,
   lignes de commentaire, définitions et définitions documentées, identifiants et leur diversité lexicale,
   lignes de test, longueur du message, lignes en liste, sujet Conventional Commits. Ni ligne de code, ni
   identifiant, ni chemin, ni message. `form_known` distingue une forme mesurée d'une ligne d'avant la phase

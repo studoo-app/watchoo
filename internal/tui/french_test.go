@@ -9,6 +9,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/studoo-app/watchoo/internal/i18n"
+	"github.com/studoo-app/watchoo/internal/model"
 	wsync "github.com/studoo-app/watchoo/internal/sync"
 )
 
@@ -44,7 +45,7 @@ func TestFrenchScreens(t *testing.T) {
 
 	// Sync summaries: French plural for zero, French typography before ":".
 	text, _ := l.m.summarize(wsync.Report{Repos: []wsync.RepoReport{
-		{DisplayName: "a", Status: wsync.StatusSuccess, Warnings: []string{"x"}},
+		{DisplayName: "a", Status: wsync.StatusSuccess, Warnings: []model.SyncWarning{{Kind: model.WarnListsNotSynced, Message: "x"}}},
 		{DisplayName: "b", Status: wsync.StatusSuccess}}})
 	if want := "synchro terminée : 2 dépôts, 0 nouveau commit, 1 avertissement (pull requests, releases ou tags)"; text != want {
 		t.Errorf("summarize = %q; want %q", text, want)
@@ -58,9 +59,10 @@ func TestFrenchScreens(t *testing.T) {
 	data := newFakeData()
 	withContributorDetail(data)
 	l = newLoop(t, testDeps(data, &fakeSyncer{}))
+	l.send(tea.WindowSizeMsg{Width: 120, Height: 40})
 	l.press("3", "enter")
 	l.until(func(m Model) bool { return m.cdetail.open && !m.cdetail.loading })
-	mustContain(t, l.screen(), "Identités Git", "2 adresses rattachées (non affichées)",
+	mustContain(t, l.screen(), "Langages          PHP 75,0 %, Go 25,0 %", "Identités Git", "2 adresses rattachées (non affichées)",
 		"5 commits dans 2 dépôts, +40/-7 (2 non comptés)", "12 semaines", "Lignes +/- : comptées dans le clone")
 }
 

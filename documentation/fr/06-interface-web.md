@@ -91,6 +91,16 @@ dépôt (carte du tableau de bord, en-tête et contributeurs de la page d'un dé
 agrégées) : ils additionnent les commits connus et ajoutent « (dont N commits non comptés) » quand une
 partie des commits n'en a pas encore ; « — » si aucun n'en a. Template partagé `line-totals`.
 
+### Signatures d'IA (1.2.0)
+
+Partout où un commit est listé (fil du tableau de bord, historique d'un dépôt, commits d'un contributeur), un
+badge « IA : Claude » nomme chaque outil déclaré dessus ; **rien** sans signature (template partagé
+`commit-ai`). Le classement des contributeurs et la page d'un contributeur donnent « signés / analysés »
+(« 1 / 2 ») et les outils, « — » si aucun commit n'est encore analysé (template partagé `ai-totals`), avec la
+phrase « Une signature d'IA dit qu'un outil est déclaré sur le commit, pas qui a écrit le code ; son absence
+ne prouve rien. » Pas de pourcentage, pas de classement sur ce chiffre, aucune adresse affichée. Règles :
+[Signatures d'IA](02-fonctionnalites.md#signatures-dia).
+
 ### 1. Tableau de bord
 - Une **carte par dépôt** : nom affiché (`label`, ex. « Alice Martin ») ou `owner/repo` (rappelé sous le
   label), première ligne du dernier commit, auteur, ancienneté, nombre de commits et leurs lignes
@@ -100,6 +110,13 @@ partie des commits n'en a pas encore ; « — » si aucun n'en a. Template parta
   (`badge-success`), Flemme en orange (`badge-warning`), Dead en rouge (`badge-error`) ; jamais
   synchronisé, en erreur, archivé, arrêté ou vide en gris (`badge-neutral`). Libellés identiques à la
   CLI (« Flemme · 9 j », « Dead · 40 j »). La bordure gauche de la carte reprend la couleur.
+- **Pastilles de synchro** (1.3.0), à côté de la pastille d'état, d'après la dernière synchro du dépôt
+  (`sync_runs`, elles survivent donc à un redémarrage) : une pastille orange en contour avec le nombre
+  d'**avertissements** (clone Git local indisponible, statistiques de lignes ou langages non calculés,
+  pull requests, releases ou tags non lus, signatures d'IA non analysées), leurs libellés courts en
+  infobulle et, sous le dernier commit, la conséquence du premier (« Statistiques de lignes lues par
+  l'API (limitées) »). La pastille mène à la page du dépôt. Un dépôt dont la dernière synchro a échoué
+  (état gris « en erreur ») affiche au même endroit, en rouge, la première ligne du message d'erreur.
 - **Tri** : Dead, puis Flemme, puis Actif, le dernier commit le plus ancien d'abord dans chaque groupe ;
   ensuite les dépôts en erreur (pour qu'ils se voient), puis les autres états gris ; égalités départagées
   par nom affiché.
@@ -117,6 +134,11 @@ partie des commits n'en a pas encore ; « — » si aucun n'en a. Template parta
   « Modifier » vers le formulaire des seuils), dernier commit, dernière synchro et son résultat, nombre
   de commits et leurs lignes ajoutées / supprimées (0.5.0), branche par défaut, branches suivies et
   motifs, étoiles et issues.
+- **Alerte de la dernière synchro** (1.3.0), sous l'en-tête, quand la dernière synchro du dépôt a des
+  avertissements : une alerte orange (`alert-warning`) avec la date de la synchro, le message complet de
+  chaque avertissement (tel qu'enregistré, dans la langue active lors de la synchro) et, pour le clone
+  Git local, le conseil « Corrigez la cause indiquée ci-dessus (accès SSH ou identifiants Git de cette
+  machine), puis relancez une synchro ». Une alerte rouge (`alert-error`) donne au même endroit le message d'une synchro échouée.
 - **Seuils d'activité de ce dépôt** (bloc repliable sous l'en-tête, hors des fragments HTMX : une saisie
   en cours n'est pas effacée par le rafraîchissement d'après synchro) : deux champs, « Flemme après » et
   « Dead après », en jours sans commit, préremplis avec les seuils propres du dépôt ; vide (ou `0`) =
@@ -143,7 +165,8 @@ partie des commits n'en a pas encore ; « — » si aucun n'en a. Template parta
   `app.js` relit la page (même origine), extrait les données avec `DOMParser` (qui n'exécute rien) et
   redessine.
 - Liste des contributeurs du dépôt (avatar ou initiale, nom lié à la page du contributeur, lien
-  secondaire vers son profil GitHub, dernier commit, ses lignes ajoutées / supprimées dans ce dépôt).
+  secondaire vers son profil GitHub, dernier commit, ses lignes ajoutées / supprimées dans ce dépôt, sa part des commits du dépôt en
+  pourcentage, 1.1.0).
 - **Activité par contributeur sur 12 semaines** (V2) : le graphique de la page des contributeurs
   (barres empilées des commits par semaine, 8 contributeurs les plus actifs de la période, les autres
   regroupés, table « Données du graphique » repliable), restreint aux commits du dépôt : toutes les
@@ -151,6 +174,11 @@ partie des commits n'en a pas encore ; « — » si aucun n'en a. Template parta
   avec le dépôt). Toujours affiché : sans commit d'auteur connu sur la période, le résumé le dit
   (« Aucun commit d'auteur connu depuis le … ») et la table aussi ; le graphique se remplit à la fin
   d'une synchro, sans recharger la page. Voir [Graphiques d'activité](#graphiques-dactivité).
+- **Langages** (1.1.0, fragment `repo-languages`) : langages de la branche par défaut, du plus gros au plus
+  petit, chacun avec une barre de progression et sa part des octets (une décimale). Calculés depuis le clone
+  Git local, donc les mêmes avec ou sans `gh` ; une note rappelle que les chiffres peuvent différer un peu de
+  ceux de GitHub. Sans donnée : la carte indique qu'ils apparaissent après la prochaine synchro. Voir
+  [Architecture](03-architecture.md#langages-dun-dépôt-110).
 - **Pull requests, releases et tags** (V2, fragment `repo-pulls`) : deux cartes côte à côte (l'une sous
   l'autre sur un écran étroit).
   - **Pull requests** : toutes les PR ouvertes (brouillons marqués), puis les 10 dernières mergées ;
@@ -170,8 +198,8 @@ partie des commits n'en a pas encore ; « — » si aucun n'en a. Template parta
     valeurs.
 - Bouton **« Synchroniser ce dépôt »** (absent si le suivi est arrêté).
 - Fragments : `/repos/{id}/commits` (historique) ; `/repos/{id}` avec l'en-tête `HX-Target`
-  `repo-overview`, `repo-contributors` ou `repo-pulls` renvoie l'en-tête, les contributeurs ou les pull
-  requests et releases seuls. Tous se rechargent à la fin d'une synchro.
+  `repo-overview`, `repo-contributors`, `repo-languages` ou `repo-pulls` renvoie l'en-tête, les
+  contributeurs, les langages ou les pull requests et releases seuls. Tous se rechargent à la fin d'une synchro.
 
 ### 3. Contributeurs
 - Classement global (commits, part du total, lignes ajoutées / retirées ; « — » si aucun de ses commits
@@ -211,9 +239,16 @@ lien de profil est l'adresse enregistrée en base (voir [Liens vers les profils]
   palette), une série par dépôt parmi les 8 où il a le plus de commits sur la période, les autres
   regroupés dans « Autres dépôts », avec la table « Données du graphique » repliable (nom du dépôt lié
   à sa page).
+- **Langages** (1.2.0, fragment `contributor-languages`) : lignes ajoutées dans chaque langage par ses
+  commits, tous dépôts confondus, du langage qui en a le plus au moins : nom, lignes, pourcentage et barre
+  (`<progress>`, comme la carte d'un dépôt) ; au-delà de 8, le reste est regroupé dans « Autres langages ».
+  « Aucun langage connu » si aucun de ses commits n'est encore analysé ; une note signale les commits pas
+  encore analysés et rappelle que ce sont des lignes ajoutées. Règles :
+  [Architecture](03-architecture.md#langages-dun-contributeur-120).
 - **Ses dépôts** (fragment `contributor-repos`) : pour chaque dépôt où il est auteur d'au moins un
   commit, nom lié à la page du dépôt, pastille d'état du dépôt (règles et seuils du dépôt), ses commits,
-  ses lignes `+/-` (« — » si inconnues), son dernier commit dans ce dépôt ; tri par commits
+  ses lignes `+/-` (« — » si inconnues), son langage principal dans ce dépôt (1.2.0, « — » si inconnu),
+  son dernier commit dans ce dépôt ; tri par commits
   décroissants, puis dernier commit le plus récent.
 - **Ses commits** (fragment `contributor-commits`) : historique paginé (50 par page, comme celui d'un
   dépôt ; liens précédent / suivant HTMX, `?page=` poussé dans l'adresse), chaque commit avec la
@@ -230,7 +265,7 @@ lien de profil est l'adresse enregistrée en base (voir [Liens vers les profils]
   gardé, et un login peut changer de titulaire.
 - Contributeur sans aucun commit d'auteur (il n'est que committer) : la page s'affiche, totaux à zéro,
   graphiques vides et messages « Aucun commit… ».
-- Fragments rechargés à la fin d'une synchro (`sync-finished`) : `contributor-overview`,
+- Fragments rechargés à la fin d'une synchro (`sync-finished`) : `contributor-overview`, `contributor-languages`,
   `contributor-repos` et `contributor-pulls` (`GET /contributors/{id}` avec l'en-tête `HX-Target`),
   `contributor-commits` (`GET /contributors/{id}/commits`, qui sert la page complète hors HTMX) ; les
   deux graphiques relisent la page, comme ailleurs.
@@ -500,8 +535,9 @@ Fonctionnement (`wsync.Coordinator`, un seul par processus, qui réutilise le mo
   constate la fin d'une synchro, sa réponse porte l'en-tête `HX-Trigger: sync-finished`, et les
   fragments des pages (cartes, fil, historique…) ainsi que les graphiques se rechargent. Hors synchro,
   il donne le bilan de la dernière : dépôts en erreur, reportés, et nombre d'**avertissements** (pull
-  requests, releases ou tags non lus, clone Git local indisponible ; le détail est dans l'infobulle) ;
-  Une synchro lancée depuis l'interface et déjà terminée quand la réponse est rendue (échec immédiat
+  requests, releases ou tags non lus, clone Git local indisponible…). Depuis la 1.3.0, cette pastille
+  ouvre un menu (`<details>`) qui liste les dépôts concernés, chacun lié à sa page avec le libellé court
+  de son avertissement (ou leur nombre) ; le sondage s'interrompt tant que le menu est ouvert. Une synchro lancée depuis l'interface et déjà terminée quand la réponse est rendue (échec immédiat
   du moteur, dépôt vite synchronisé) porte cet en-tête dès la réponse au `POST`. Les boutons de synchro
   (« Synchroniser maintenant », « Synchroniser ce dépôt ») et celui de la suppression d'un dépôt ne
   sont jamais désactivés au rendu : la plupart sont hors des fragments rechargés et resteraient

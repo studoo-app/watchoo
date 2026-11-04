@@ -152,6 +152,9 @@ Two fakes, written in phase 2 and reused by the following phases:
   empty addresses of the forge contributors with a login are completed, known addresses kept, second
   pass without effect); sync (address cleared as before 0.5.0, completed without a new commit by the
   API then by the local Git clones, no login in the logs).
+- **Languages** (1.1.0): classification and exclusions, `Languages` against `gittest` repositories (empty
+  repository, symbolic link, cancellation); store (replacement, keeping when not read again, percentages);
+  engine (with and without `gh`, unreadable clone); CLI, web page and TUI detail.
 - **Pull requests, releases and tags** (V2): GitHub provider against `githubtest` (conversion, order,
   pagination and caps of 1,000, early stop `UpdatedSince` on a single page, `Limit`, free `304`s,
   empty repository, `409`, unusable response, `5xx`, `404`, invalid arguments without a request;
@@ -430,6 +433,31 @@ No test reaches GitHub: the root of the releases is that of a fake `httptest` se
   a very narrow terminal, escape sequences cleaned); nothing when Watchoo is up to date, on error,
   when quitting before the answer or without a function (check disabled).
 
+## AI signatures (1.2.0)
+
+- `internal/aisignature`: each signature of the catalog, case ignored, several tools, one signature per
+  kind; **false positives that stay silent**: a person named Claude, tool names in free text, a signature in
+  the subject, indented lines, a footer inside a sentence, Dependabot, another no-reply account.
+- Store: migration `00008` (commit from before the migration waiting, constraints, rollback), scan and rewrite,
+  a new rules version analyzes again, cascade on deletion, totals (a commit with two tools counts once,
+  filters applied).
+- Engine: signatures after a sync (co-author, agent account, none), new analysis by a sync without any new
+  commit, nothing in the logs.
+- CLI (text and `--json`, `json_schema_test.go`), web (badge, totals, "—" before the analysis, sentence), TUI
+  (line of the detail), both languages.
+
+## Languages of a contributor (1.2.0)
+
+- Git provider: lines added per language in `CommitStatsBatch` (exclusions, binaries, root commit, merge
+  commit analyzed with no line) against `gittest` repositories.
+- Store: migration `00009` (commit from before the migration waiting, constraints, rollback), writing with
+  the new commits and as a catch-up, cascade, totals per contributor and per repository (filters, merge of
+  contributors).
+- Engine: languages at the first import, single catch-up of a database from before 1.2.0, new rules
+  version, fallback to the API without languages.
+- CLI (column, `--json`, `json_schema_test.go`), web (card, "No known language", commits not analyzed yet,
+  main language per repository), TUI (line of the detail), both languages.
+
 ## Languages in tests
 
 The interface (CLI, TUI, web) is bilingual: **English by default**, French via `WATCHOO_LANG=fr`
@@ -457,7 +485,7 @@ See [Supervision and diagnosis](12-supervision-diagnostic.md). No external servi
 - Git provider: per-commit file detail (`CommitStats.Files`), binary file listed without lines, empty
   commit with an empty list; the GitHub API gives no detail (`Files` nil).
 - `internal/store`: written once, missing commit ignored, purge by date, `CHECK` constraints, cascade when
-  the commit is deleted, migration `00007` up then down on an existing database.
+  the commit is deleted, migration `00011` up then down on an existing database.
 - `internal/workspace`: defaults (disabled, 365 days), validation of patterns and retention,
   `WATCHOO_DIAGNOSTIC_*` variables, `diagnostic.*` settings kept by the rewrite of `config import` and never
   added by it.
@@ -467,7 +495,7 @@ See [Supervision and diagnosis](12-supervision-diagnostic.md). No external servi
 - Phase 7.2: declarations with their signal (`D1:claude`, `D2:unnamed`, form without signal read as D1), PR
   descriptions (D2) and agent branches (D5); in the store, declared leads filtered (repository, login,
   e-mail, period), D4 context replaced at each computation, PR tools read back then purged, migration
-  `00008` up and down; at sync, PR tools kept only with the diagnosis enabled (description never in the
+  `00012` up and down; at sync, PR tools kept only with the diagnosis enabled (description never in the
   logs), D4 context on a `gittest` repository (with and without `AGENTS.md`), leads assembled by
   `diagnostic.Declared`; `watchoo diagnostic` in text (English and French), in `--json` (keys checked, PR
   description never written), filters and disabled diagnosis.
@@ -479,7 +507,7 @@ See [Supervision and diagnosis](12-supervision-diagnostic.md). No external servi
   backfill`.
 - Phase 7.4: stable key of a lead and lookup per repository, review rules (decision, cause only for "not
   assisted", confidence, limited note), daily throughput and neighbouring commits; reviews in the store
-  (replacement, unknown values refused, purge, cascade, migration `00009`); diff read only from an existing
+  (replacement, unknown values refused, purge, cascade, migration `00013`); diff read only from an existing
   `gittest` clone (nothing is cloned), root commit, truncation; web pages: disabled diagnosis (no navigation
   entry, 404 on the sheet and the `POST`s), list and filter, French, review sheet, refused input shown again
   and escaped, saved review (reviewer, list), note never in the logs, background backfill button.
@@ -489,7 +517,7 @@ See [Supervision and diagnosis](12-supervision-diagnostic.md). No external servi
   to F5 signals on a built history, too short a history, unmeasured forms left out, F4 without novelty,
   "probable" and "to review" levels; added lines streamed from an existing `gittest` clone only (root commit,
   hunks, path with a space and an accent, deletions); form measured at sync and completed by the history
-  backfill; form columns in the store (row completed once only, migration `00010`); signal and level labels
+  backfill; form columns in the store (row completed once only, migration `00014`); signal and level labels
   in both languages.
 
 ## In CI

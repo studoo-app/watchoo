@@ -1,6 +1,6 @@
 package store
 
-// Migration 00007 (phase 7.1): commit_signals, and its use (write once, purge, cascades).
+// Migration 00011 (phase 7.1): commit_signals, and its use (write once, purge, cascades).
 
 import (
 	"path/filepath"
@@ -91,9 +91,9 @@ func TestMigrationCommitSignals(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Existing database at 00006 with a commit: the migration adds an empty table.
-	if _, err := p.UpTo(ctx, 6); err != nil {
-		t.Fatalf("UpTo(6): %v", err)
+	// Existing database at 00010 with a commit: the migration adds an empty table.
+	if _, err := p.UpTo(ctx, 10); err != nil {
+		t.Fatalf("UpTo(10): %v", err)
 	}
 	repo := mustExec(t, s, `INSERT INTO repositories (provider, provider_id, owner, name) VALUES ('github', 1, 'promo', 'a')`)
 	mustExec(t, s, `INSERT INTO commits (repo_id, sha, authored_at, committed_at) VALUES (?, ?, ?, ?)`,
@@ -110,8 +110,8 @@ func TestMigrationCommitSignals(t *testing.T) {
 		}
 	}
 	// Rollback: table and indexes removed, commits kept; up again.
-	if _, err := p.DownTo(ctx, 6); err != nil {
-		t.Fatalf("DownTo(6): %v", err)
+	if _, err := p.DownTo(ctx, 10); err != nil {
+		t.Fatalf("DownTo(10): %v", err)
 	}
 	if c := count(t, s, `SELECT count(*) FROM sqlite_master WHERE name LIKE 'commit_signals%'`); c != 0 {
 		t.Errorf("%d schema objects left after the rollback", c)
@@ -119,8 +119,8 @@ func TestMigrationCommitSignals(t *testing.T) {
 	if c := count(t, s, "SELECT count(*) FROM commits"); c != 1 {
 		t.Errorf("%d commits after the rollback, want 1", c)
 	}
-	if _, err := p.UpTo(ctx, 7); err != nil {
-		t.Fatalf("UpTo(7) again: %v", err)
+	if _, err := p.UpTo(ctx, 11); err != nil {
+		t.Fatalf("UpTo(11) again: %v", err)
 	}
 }
 
@@ -264,8 +264,8 @@ func TestMigrationDeclaredSignals(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := p.UpTo(ctx, 7); err != nil {
-		t.Fatalf("UpTo(7): %v", err)
+	if _, err := p.UpTo(ctx, 11); err != nil {
+		t.Fatalf("UpTo(11): %v", err)
 	}
 	repo := mustExec(t, s, `INSERT INTO repositories (provider, provider_id, owner, name) VALUES ('github', 1, 'promo', 'a')`)
 	mustExec(t, s, `INSERT INTO pull_requests (repo_id, number, state, created_at, updated_at) VALUES (?, 1, 'open', ?, ?)`,
@@ -280,8 +280,8 @@ func TestMigrationDeclaredSignals(t *testing.T) {
 		repo, testDate); err == nil {
 		t.Error("badly formatted date accepted")
 	}
-	if _, err := p.DownTo(ctx, 7); err != nil {
-		t.Fatalf("DownTo(7): %v", err)
+	if _, err := p.DownTo(ctx, 11); err != nil {
+		t.Fatalf("DownTo(11): %v", err)
 	}
 	if err := execErr(t, s, "SELECT tool_ids FROM pull_requests"); err == nil {
 		t.Error("tool_ids still present after the rollback")
@@ -289,8 +289,8 @@ func TestMigrationDeclaredSignals(t *testing.T) {
 	if c := count(t, s, "SELECT count(*) FROM pull_requests"); c != 1 {
 		t.Errorf("%d PRs after the rollback, want 1", c)
 	}
-	if _, err := p.UpTo(ctx, 8); err != nil {
-		t.Fatalf("UpTo(8) again: %v", err)
+	if _, err := p.UpTo(ctx, 12); err != nil {
+		t.Fatalf("UpTo(12) again: %v", err)
 	}
 }
 
@@ -379,20 +379,20 @@ func TestMigrationDiagnosticReviews(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := p.UpTo(ctx, 9); err != nil {
-		t.Fatalf("UpTo(9): %v", err)
+	if _, err := p.UpTo(ctx, 13); err != nil {
+		t.Fatalf("UpTo(13): %v", err)
 	}
 	if err := execErr(t, s, `INSERT INTO diagnostic_reviews (repo_id, lead_key, kind, lead_date, decision, confidence, reviewed_at)
 		VALUES (1, 'x', 'week', ?, 'assisted', 'low', ?)`, testDate, testDate); err == nil {
 		t.Error("unknown kind accepted")
 	}
-	if _, err := p.DownTo(ctx, 8); err != nil {
-		t.Fatalf("DownTo(8): %v", err)
+	if _, err := p.DownTo(ctx, 12); err != nil {
+		t.Fatalf("DownTo(12): %v", err)
 	}
 	if c := count(t, s, `SELECT count(*) FROM sqlite_master WHERE name LIKE 'diagnostic_reviews%'`); c != 0 {
 		t.Errorf("%d schema objects left after the rollback", c)
 	}
-	if _, err := p.UpTo(ctx, 9); err != nil {
-		t.Fatalf("UpTo(9) again: %v", err)
+	if _, err := p.UpTo(ctx, 13); err != nil {
+		t.Fatalf("UpTo(13) again: %v", err)
 	}
 }

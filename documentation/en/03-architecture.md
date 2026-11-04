@@ -76,6 +76,7 @@ watchoo/
   internal/repoimport/ parsing of repository references, of --branch and of import files
   internal/configshare/ sharing of a workspace's configuration (JSON export, validation, preview and
                        application of an import; "watchoo config", Settings page)
+  internal/aisignature/ AI signatures declared in the commits (1.2.0): catalog and detection, pure functions
   internal/textclean/  cleaning of displayed texts (escape sequences, control characters), CLI and TUI
   internal/selfupdate/ Watchoo's own self-update (0.6.0): latest published release, SemVer
                        comparison, verified download and replacement of the binary, periodic
@@ -352,10 +353,14 @@ Fakes for the tests: `providertest` (in-memory Provider), `githubtest` (simulate
   `store.BackfillProfileURLs` in one transaction. Only these rows are read (negligible cost after the
   first pass); a known address is never replaced. A failure is logged (without login) and never fails the
   sync.
+- **Languages** (1.1.0): after the line statistics, see
+  [Languages of a repository](#languages-of-a-repository-110).
+- **Languages of the commits** (1.2.0): in the same pass as the line statistics, see
+  [Languages of a contributor](#languages-of-a-contributor-120).
 - **Commit without a date**: a commit with neither an author date nor a commit date is ignored (counted in
   a log); a single missing date is filled in with the other.
 - **Writes**: everything a repository sync writes (metadata, branches, commits, statistics of the commits,
-  contributors, `commit_branches`, `last_commit_at`, pull requests, releases, tags, end of the `sync_run`)
+  contributors, `commit_branches`, `last_commit_at`, pull requests, releases, tags, languages, end of the `sync_run`)
   is written in **one transaction**.
 - **Empty repository** (a student's repository just created, to which GitHub answers `409`): empty
   branches and commits, with no error.
@@ -586,7 +591,10 @@ In place since phase 6 ([Roadmap](07-roadmap.md#phase-6--v2)).
   must then itself ask for nothing. `git` is run with `LC_ALL=C` to classify its failures. An access
   failure (key refused, unknown host, missing credentials, repository not found or private without access)
   gives `ErrAccessDenied`: "access denied: check the SSH key or the Git credentials of this machine"
-  (the repository is then in error); a
+  (the repository is then in error). An unknown or changed SSH host key ("Host key verification
+  failed", for example `known_hosts` knows `github.com` but the SSH configuration redirects to
+  `ssh.github.com` port 443) gives `ErrHostKeyUnknown`, a case of `ErrAccessDenied` with its own
+  advice: run `ssh -T git@github.com` once to check and accept GitHub's fingerprint; a
   network failure gives `ErrUnavailable`. The output of `git` is never copied into an error nor into the
   logs (Debug level: command, duration and return code only).
 - **Adding a repository** (`repo add`, `repo import`, web): the access is checked by
@@ -638,6 +646,27 @@ In place since phase 6 ([Roadmap](07-roadmap.md#phase-6--v2)).
 - With the local Git clones (V2, without `gh`), the login is never known: the commits are attached by
   email only (two emails of the same person make two contributors as long as a sync through the API has
   not linked them to a same account).
+
+### AI signatures (1.2.0)
+
+Rules on the [Features](02-features.md#ai-signatures) page. Everything is in `internal/aisignature` (catalog,
+`Detect`, pure functions); `internal/sync` runs it, `cli`, `tui` and `web` only display.
+
+- **When**: at the end of each successful sync of a repository, after the commits and their authors are
+  written (`ApplyRepoSync`), the commits whose `commits.ai_rules_version` is below
+  `aisignature.RulesVersion` are analyzed, 2,000 at a time. A database from before 1.2.0 is therefore
+  analyzed at the next sync.
+- **Cost**: **no request to the forge**, with or without `gh`: the message and the author are already in the
+  database. Incremental rule respected: nothing is downloaded again.
+- **New rules**: adding a signature to the catalog bumps `RulesVersion`, which has all the commits analyzed
+  again at the next sync.
+- **Failure**: an analysis that fails does not undo the sync: warning on the repository (`warnings`), and the
+  next sync resumes.
+- **Documented exception** to the rule "nothing specific to GitHub outside `internal/provider/github` and
+  `internal/provider/git`": the catalog contains account names and the format of GitHub's no-reply
+  addresses. They are values compared with data already in the database, with no access to the forge.
+- **Personal data**: only the tool identifier and the kind are stored; message and addresses stay in
+  memory during the analysis and never go to the logs.
 
 ### Watchoo self-update (0.6.0)
 
@@ -727,6 +756,47 @@ display.
   cleaned of escape sequences before display; no email is displayed. During the TUI, the logs of the
   engine are muted (they would break the screen).
 - Code in `internal/tui/`.
+
+### Languages of a repository (1.1.0)
+
+- **Source**: the local Git clone only (`git ls-tree -r -l -z` on the default branch of the remote), with
+  or without `gh`, with no request and no quota. The GitHub API (`/languages`) is deliberately not used:
+  it gives nothing for a repository tracked without `gh`, and mixing two calculations would make the
+  percentages change depending on the source of the sync.
+- **Detection**: by file name and extension, with a table in `internal/provider/git/languages.go` (no
+  dependency). Like GitHub, it counts the languages of programming and markup, in bytes; data and prose
+  (JSON, YAML, Markdown…) and unknown extensions are ignored. SQL is counted, unlike GitHub.
+- **Excluded**: symbolic links and submodules; the directories `node_modules`, `vendor`,
+  `bower_components`, `dist`, `build`, `target`, `__pycache__`, `.venv`, `venv`, `.idea`, `.vscode`,
+  `.gradle`, `.next`, `.nuxt`, wherever they are; the `*.min.js` and `*.min.css` files; lockfiles.
+- **Limit**: the figures are close to those of GitHub, not identical (no analysis of the content, no
+  `.gitattributes`).
+- **Failure**: a clone that cannot be read gives a warning and does not fail the repository; the
+  languages already in the database are kept. An empty repository has no language.
+
+### Languages of a contributor (1.2.0)
+
+- **Measure**: the **lines added** in each language by the commits they authored; removed lines do not
+  count. The percentage is the share of their added lines in the recognized languages, computed at
+  display. Their page covers all their repositories; `watchoo contributors` applies its filters (`--repo`,
+  `--since`, `--weeks`).
+- **Source**: the local Git clone, **in the same pass** as the `+/-` lines (`git diff-tree --numstat` gives
+  the path of each changed file): no extra git command nor request. Without a clone (fallback to the API),
+  the languages of a commit stay unknown until a sync that can read the clone.
+- **Detection**: the table and the exclusions of the [languages of a repository](#languages-of-a-repository-110),
+  applied to the path of the changed file (`classifyLanguage`); binary files ignored.
+- **Merge commits** (several parents): analyzed with no line. Their difference with the first parent holds
+  the whole merged branch, which would otherwise be counted for the person who merges.
+- **Rules version**: `commits.languages_version` is the version (`git.LanguageRulesVersion`) the commit was
+  analyzed with; `0` = not yet. Each sync that reads the clone takes up, 2,000 at a time, the commits whose
+  lines are unknown **or** whose version is lower (a single loop). A database from before 1.2.0 is thus
+  analyzed once at the next sync, locally, with no quota; changing the language table increases the version
+  and has everything analyzed again.
+- **Display**: "—" if none of their commits is analyzed yet; otherwise, their commits not analyzed yet are
+  pointed out ("3 commits not analyzed yet").
+- **Limit**: added lines measure neither quality nor skill: a file copied or generated outside the excluded
+  directories counts as written code.
+- **Failure**: that of the line statistics (warning, fallback, repository not failed).
 
 ### Languages and translations
 - **Decision**: the interface (CLI, TUI, web) is bilingual, in **English by default** and in **French**.

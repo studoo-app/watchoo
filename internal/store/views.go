@@ -6,6 +6,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"slices"
 	"strings"
 	"time"
 
@@ -48,10 +49,26 @@ func (s *Store) ListRecentCommits(ctx context.Context, f CommitFilter) ([]Commit
 // commits décroissants, puis dernier commit le plus récent, puis id. Les commits sans auteur
 // (author_id NULL) ne sont pas comptés. Liste vide non nil si aucun.
 func (s *Store) ContributorRanking(ctx context.Context, f ContributorFilter) ([]ContributorStats, error) {
-	rows, err := s.queries.ContributorRanking(ctx, db.ContributorRankingParams{
-		RepoID:   optionalID(f.RepoID),
-		Since:    optionalTime(f.Since),
-		RowLimit: rowLimit(f.Limit),
+	var rows []db.ContributorRankingRow
+	var (
+		tools map[int64][]model.AIToolCount
+		langs contributorLanguageLines
+	)
+	err := s.readTx(ctx, func(q *db.Queries) error {
+		var err error
+		rows, err = q.ContributorRanking(ctx, db.ContributorRankingParams{
+			RepoID:   optionalID(f.RepoID),
+			Since:    optionalTime(f.Since),
+			RowLimit: rowLimit(f.Limit),
+		})
+		if err != nil {
+			return err
+		}
+		if tools, err = contributorAITools(ctx, q, 0, f.RepoID, f.Since); err != nil {
+			return err
+		}
+		langs, err = contributorLanguages(ctx, q, 0, f.RepoID, f.Since)
+		return err
 	})
 	if err != nil {
 		return nil, wrapErr(i18n.T("store.views.ranking"), err)
@@ -74,6 +91,8 @@ func (s *Store) ContributorRanking(ctx context.Context, f ContributorFilter) ([]
 			KnownCommits: int(row.KnownCommits),
 			Repos:        int(row.Repos),
 			LastCommitAt: last,
+			AI:           aiTotals(row.Commits, row.AiScannedCommits, row.AiSignedCommits, tools[row.ID]),
+			Languages:    langs.totals(row.ID, row.Commits, row.LanguagesScannedCommits),
 		})
 	}
 	return stats, nil
@@ -212,6 +231,8 @@ func (s *Store) repositorySummaries(ctx context.Context, id int64) ([]Repository
 					AuthorName:       c.AuthorName,
 					AuthorLogin:      c.AuthorLogin,
 					AuthorProfileURL: c.AuthorProfileURL,
+					AISignatures:     parseAISignatures(c.AiSignatures),
+					AIScanned:        c.AiRulesVersion > 0,
 				}
 			}
 			if r, ok := runs[repo.ID]; ok {
@@ -298,4 +319,133 @@ func rowLimit(n int) int64 {
 		return -1
 	}
 	return int64(n)
+}
+
+// aiTotals assemble les totaux de signatures d'IA d'un contributeur.
+func aiTotals(commits, scanned, signed int64, tools []model.AIToolCount) model.AITotals {
+	if tools == nil {
+		tools = []model.AIToolCount{}
+	}
+	return model.AITotals{Commits: int(commits), Scanned: int(scanned), Signed: int(signed), Tools: tools}
+}
+
+// contributorAITools renvoie les outils signés dans les commits de chaque auteur (contributorID 0 = tous).
+func contributorAITools(ctx context.Context, q *db.Queries, contributorID, repoID int64, since time.Time) (map[int64][]model.AIToolCount, error) {
+	rows, err := q.ContributorAITools(ctx, db.ContributorAIToolsParams{
+		ContributorID: optionalID(contributorID),
+		RepoID:        optionalID(repoID),
+		Since:         optionalTime(since),
+	})
+	if err != nil {
+		return nil, err
+	}
+	tools := make(map[int64][]model.AIToolCount)
+	for _, row := range rows {
+		id := row.ContributorID.Int64
+		tools[id] = append(tools[id], model.AIToolCount{Tool: row.Tool, Commits: int(row.Commits)})
+	}
+	return tools, nil
+}
+
+// contributorLanguageLines regroupe les lignes ajoutées par langage lues par ContributorLanguages : par
+// contributeur (tous dépôts du filtre), et le langage principal de chaque (contributeur, dépôt).
+type contributorLanguageLines struct {
+	lines map[int64]map[string]int
+	main  map[[2]int64]string
+}
+
+// totals renvoie les langages du contributeur id, qui a commits commits dont scanned analysés.
+func (c contributorLanguageLines) totals(id, commits, scanned int64) model.LanguageTotals {
+	return model.LanguageTotals{Commits: int(commits), Scanned: int(scanned), Lines: model.SortedLanguageLines(c.lines[id])}
+}
+
+// contributorLanguages lit les lignes ajoutées par langage dans les commits de chaque auteur
+// (contributorID 0 = tous), avec les filtres du classement (repoID 0 = tous les dépôts, since zéro =
+// sans borne).
+func contributorLanguages(ctx context.Context, q *db.Queries, contributorID, repoID int64, since time.Time) (contributorLanguageLines, error) {
+	rows, err := q.ContributorLanguages(ctx, db.ContributorLanguagesParams{
+		ContributorID: optionalID(contributorID),
+		RepoID:        optionalID(repoID),
+		Since:         optionalTime(since),
+	})
+	if err != nil {
+		return contributorLanguageLines{}, err
+	}
+	out := contributorLanguageLines{lines: make(map[int64]map[string]int), main: make(map[[2]int64]string)}
+	for _, row := range rows {
+		id := row.ContributorID.Int64
+		if out.lines[id] == nil {
+			out.lines[id] = make(map[string]int)
+		}
+		out.lines[id][row.Language] += int(row.Additions)
+		// Lignes triées par dépôt puis lignes décroissantes : la première est le langage principal.
+		if key := [2]int64{id, row.RepoID}; out.main[key] == "" {
+			out.main[key] = row.Language
+		}
+	}
+	return out, nil
+}
+
+// parseAISignatures lit la colonne agrégée « outil:type,outil:type » (valeurs du catalogue, sans
+// séparateur) ; triée par outil puis type, liste vide non nil si aucune.
+func parseAISignatures(raw string) []model.AISignature {
+	signatures := []model.AISignature{}
+	if raw == "" {
+		return signatures
+	}
+	parts := strings.Split(raw, ",")
+	slices.Sort(parts)
+	for _, part := range parts {
+		tool, kind, _ := strings.Cut(part, ":")
+		signatures = append(signatures, model.AISignature{Tool: tool, Kind: kind})
+	}
+	return signatures
+}
+
+// CommitsToScanForAI renvoie au plus limit commits du dépôt pas encore analysés avec la version de
+// règles version, par SHA croissant. Les messages et adresses lus ici ne vont jamais dans les journaux.
+func (s *Store) CommitsToScanForAI(ctx context.Context, repoID, version int64, limit int) ([]AIScanCommit, error) {
+	rows, err := s.queries.ListCommitsToScanForAI(ctx, db.ListCommitsToScanForAIParams{
+		RepoID: repoID, CurrentVersion: version, RowLimit: int64(limit),
+	})
+	if err != nil {
+		return nil, wrapErr(i18n.T("store.ai.read"), err)
+	}
+	commits := make([]AIScanCommit, len(rows))
+	for i, row := range rows {
+		commits[i] = AIScanCommit{SHA: row.SHA, Message: row.Message, AuthorLogin: row.AuthorLogin}
+		if row.AuthorEmails != "" {
+			commits[i].AuthorEmails = strings.Split(row.AuthorEmails, "\n")
+		}
+	}
+	return commits, nil
+}
+
+// WriteAIScans remplace, dans une même transaction, les signatures des commits analysés et note la
+// version de règles utilisée.
+func (s *Store) WriteAIScans(ctx context.Context, repoID, version int64, results []AIScanResult) error {
+	err := s.writeTx(ctx, func(q *db.Queries) error {
+		for _, r := range results {
+			if err := q.DeleteCommitAISignatures(ctx, db.DeleteCommitAISignaturesParams{RepoID: repoID, SHA: r.SHA}); err != nil {
+				return err
+			}
+			for _, sig := range r.Signatures {
+				if err := q.InsertCommitAISignature(ctx, db.InsertCommitAISignatureParams{
+					RepoID: repoID, SHA: r.SHA, Tool: sig.Tool, Kind: sig.Kind,
+				}); err != nil {
+					return err
+				}
+			}
+			if err := q.SetCommitAIRulesVersion(ctx, db.SetCommitAIRulesVersionParams{
+				RulesVersion: version, RepoID: repoID, SHA: r.SHA,
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return wrapErr(i18n.T("store.ai.write"), err)
+	}
+	return nil
 }

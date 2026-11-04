@@ -12,7 +12,8 @@ PATCH (see [Skills](documentation/en/11-skills.md#versions-and-changelogmd)).
 ### Changed
 
 - **Line statistics from local clones detect renames** (`git diff-tree -M`), like GitHub's: a moved file
-  counts only its changed lines. Statistics already stored are not recomputed.
+  counts only its changed lines, for the `+/-` lines as for the languages of a contributor. Statistics
+  already stored are not recomputed.
 
 ### Fixed
 
@@ -26,7 +27,7 @@ PATCH (see [Skills](documentation/en/11-skills.md#versions-and-changelogmd)).
   diagnosis signals: lines and files after exclusion (`diagnostic.exclude`, lock files, vendored and
   generated files by default; binaries always left out), AI tools declared in the commit message
   (`Co-authored-by:` trailers and signatures), bot author, agent configuration file. Merge commits
-  are left out. The values go into the new `commit_signals` table (migration `00007`), without message,
+  are left out. The values go into the new `commit_signals` table (migration `00011`), without message,
   e-mail address or file path, and are purged after `diagnostic.retention_days` (365 by default). Nothing
   is displayed yet: a signal is never a verdict, and the review comes in the next phases. Settings:
   `WATCHOO_DIAGNOSTIC_ENABLED`, `WATCHOO_DIAGNOSTIC_EXCLUDE`, `WATCHOO_DIAGNOSTIC_RETENTION_DAYS`; never
@@ -40,7 +41,7 @@ PATCH (see [Skills](documentation/en/11-skills.md#versions-and-changelogmd)).
   first added to each repository (D4, context only). A lead is never a verdict. Each declared tool is kept
   with the signal that found it (`D1:claude`); for pull requests, only the tools found in the description
   are kept, never the description (`pull_requests.tool_ids`, new `repository_signals` table, migration
-  `00008`). With the diagnosis disabled, the command says so.
+  `00012`). With the diagnosis disabled, the command says so.
 - **Diagnosis, phase 7.3 (rhythm signals)**: `watchoo diagnostic` also shows leads of level "to review":
   commits or days whose rhythm is unusual for the learner, compared with their own history in the
   repository over 90 days (modified z-score above 3.5): net lines of a day (R1), commit size (R2),
@@ -55,16 +56,93 @@ PATCH (see [Skills](documentation/en/11-skills.md#versions-and-changelogmd)).
   review sheet: signals with raw value, personal median and z-score, the author's throughput over 90 days
   with the flagged day, neighbouring commits and the diff read from the local clone (never stored), and a
   review form (decision, cause, confidence, note). Reviews go into the new `diagnostic_reviews` table
-  (migration `00009`) and follow `diagnostic.retention_days`. New routes: `GET /diagnostic`,
+  (migration `00013`) and follow `diagnostic.retention_days`. New routes: `GET /diagnostic`,
   `GET /diagnostic/lead`, `POST /diagnostic/review`, `POST /diagnostic/backfill`.
 - **Diagnosis, phase 7.5 (form signals)**: the added lines of each measured commit are read from the local
   clone and analysed in memory; only numbers are kept (11 new columns of `commit_signals`, migration
-  `00010`), never code, identifiers, paths or messages. Five form signals, each learner being compared with
+  `00014`), never code, identifiers, paths or messages. Five form signals, each learner being compared with
   their own history: comment density (F1), systematically documented functions (F2), lexical diversity of
   the identifiers, MATTR (F3), message style break (F4), tests delivered with the code when unusual (F5). New
   level `probable` (at least two rhythm signals and one form signal); two form signals give `to review`,
   one alone raises nothing. `watchoo diagnostic backfill` also completes the form of the commits measured
   before. The content classifier (F6) is postponed.
+## [1.3.1] - 2026-11-03
+
+Dedicated message for an unknown SSH host key with local Git clones. No incompatible change.
+
+### Fixed
+
+- **Unknown SSH host key** (local Git clones): "Host key verification failed" no longer gives the
+  misleading "check the SSH key" advice. The message now says that the server fingerprint is unknown or
+  changed and to run `ssh -T git@github.com` once to accept it (for example when the SSH configuration
+  sends `github.com` to `ssh.github.com` port 443). The repository is still treated as inaccessible, as
+  before. On a repository's page, the advice under a local Git clone warning now points to the cause
+  shown above.
+
+## [1.3.0] - 2026-11-03
+
+Sync warnings of each repository in the web interface. No incompatible change: the database is migrated
+at the first command; the warnings appear from the next sync.
+
+### Added
+
+- **Sync warnings per repository** (web): an orange badge with the number of warnings on the dashboard
+  card (local Git clone unavailable, line statistics or languages not computed, pull requests, releases
+  or tags not read, AI signatures not analyzed), with its consequence under the last commit; a repository
+  in error shows the first line of its error. On the repository's page, an alert gives the full message
+  of each warning of the last sync (or of the failed sync) and, for the local Git clone, what to check.
+  The warnings are recorded with the sync, so they survive a restart of `watchoo serve`.
+- **Database**: migration `00010` (`sync_runs.warnings`).
+
+### Changed
+
+- **Sync indicator** (web): the warnings badge opens a menu of the repositories concerned, each linked to
+  its page, instead of a truncated tooltip; its short labels follow the language of the interface.
+
+## [1.2.0] - 2026-11-03
+
+AI signatures declared in the commits, and languages of the contributors. No incompatible change: the
+database is migrated at the first command, and the existing commits are analyzed at the next sync, without
+any request to the forge.
+
+### Added
+
+- **AI signatures**: `watchoo log`, `watchoo contributors`, the TUI and the web interface show the AI
+  tools **declared** in the commits (co-author line, footer, agent account) for Aider, Claude, Codex,
+  GitHub Copilot and Cursor. A signature says a tool was declared, not who wrote the code, and its absence
+  proves nothing: no score, no percentage, never "human". Existing commits are analyzed at the next
+  sync, without any request to the forge.
+- **Languages of a contributor**: lines added in each language by the commits of a contributor, with their
+  percentage, read from the local Git clone in the same pass as the `+/-` lines (no extra request). New
+  "Languages" card on a contributor's page and main language of each of their repositories, LANGUAGE
+  column of `watchoo contributors`, "Languages" line in the contributor detail of the TUI. Merge commits,
+  dependencies and generated files do not count. Existing commits are read again from the clone at the
+  next sync; their `+/-` lines do not change.
+- **`--json`**: `ai_signatures` and `ai_scanned` on commits; `ai_signed_commits`, `ai_scanned_commits`,
+  `ai_tools`, `languages_scanned_commits` and `languages` on `contributors`.
+- **Database**: migration `00008` (`commits.ai_rules_version`, table `commit_ai_signatures`) and migration
+  `00009` (`commits.languages_version`, table `commit_languages`).
+
+### Fixed
+
+- **Release notes**: the footer of the GitHub release (changelog link, Docker image) is in English.
+
+## [1.1.0] - 2026-11-02
+
+Languages and share of the contributors for each tracked repository. No incompatible change: the
+database is migrated at the first command, and the languages of a repository appear at its next sync.
+
+### Added
+
+- **Languages of a repository**: languages of the default branch with their percentage (share of the
+  bytes), computed at each sync from the local Git clone, with or without `gh` and without any quota.
+  New `watchoo languages [--repo X]` command (text and `--json`), "Languages" card on a repository's
+  page, "Languages" line in the repository detail of the TUI. Dependencies, generated files, lockfiles,
+  data and prose are ignored; the figures are close to those of GitHub, not identical.
+- **Share of the contributors**: share of the commits of each contributor as a percentage, in
+  `watchoo contributors` (SHARE column, `share` key in JSON), on a repository's page and in the
+  repository detail of the TUI.
+- **Database**: `repository_languages` table (migration `00007`).
 
 ## [1.0.0] - 2026-11-01
 
@@ -381,7 +459,11 @@ First published release: the MVP (phases 1 to 5 of the [roadmap](documentation/e
   `gh` is the official binary verified by SHA-256; base images and GitHub actions pinned by
   digest.
 
-[Unreleased]: https://github.com/studoo-app/watchoo/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/studoo-app/watchoo/compare/v1.3.1...HEAD
+[1.3.1]: https://github.com/studoo-app/watchoo/compare/v1.3.0...v1.3.1
+[1.3.0]: https://github.com/studoo-app/watchoo/compare/v1.2.0...v1.3.0
+[1.2.0]: https://github.com/studoo-app/watchoo/compare/v1.1.0...v1.2.0
+[1.1.0]: https://github.com/studoo-app/watchoo/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/studoo-app/watchoo/compare/v0.7.0...v1.0.0
 [0.7.0]: https://github.com/studoo-app/watchoo/compare/v0.6.2...v0.7.0
 [0.6.2]: https://github.com/studoo-app/watchoo/compare/v0.6.1...v0.6.2

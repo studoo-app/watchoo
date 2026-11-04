@@ -252,6 +252,7 @@ func TestDetail(t *testing.T) {
 	l := newLoop(t, testDeps(data, &fakeSyncer{}))
 	l.press("enter")
 	l.until(func(m Model) bool { return m.detail.open && !m.detail.loading })
+	l.send(tea.WindowSizeMsg{Width: 120, Height: 60})
 	screen := l.screen()
 	mustContain(t, screen, "Alice Martin (promo/alice)", "https://github.com/promo/alice", "Active",
 		"thresholds: Slacking after 5 d, Dead after 15 d", "2 tracked branches, default: main, all branches",
@@ -667,7 +668,7 @@ func TestDetailPullsAndRelease(t *testing.T) {
 		t.Errorf("pullsText without anything = %q", got)
 	}
 	text, bad := l.m.summarize(wsync.Report{Repos: []wsync.RepoReport{
-		{DisplayName: "a", Status: wsync.StatusSuccess, Warnings: []string{"tags non synchronisés : x"}},
+		{DisplayName: "a", Status: wsync.StatusSuccess, Warnings: []model.SyncWarning{{Kind: model.WarnListsNotSynced, Message: "tags non synchronisés : x"}}},
 		{DisplayName: "b", Status: wsync.StatusSuccess}}})
 	if text != "sync finished: 2 repositories, 0 new commits, 1 warning (pull requests, releases or tags)" || bad {
 		t.Errorf("summarize with a warning = %q, %v", text, bad)
@@ -685,4 +686,33 @@ func TestDetailWithoutForgeDetails(t *testing.T) {
 	mustContain(t, l.screen(), "stars and issues not available (local Git clone)",
 		"not available (local Git clone, without gh)")
 	mustNotContain(t, l.screen(), "no release")
+}
+
+// Languages and share of the commits in the detail of a repository (1.1.0).
+func TestDetailLanguagesAndShare(t *testing.T) {
+	data := newFakeData()
+	for i, name := range []string{"Go", "HTML", "CSS", "SQL", "Shell", "Lua"} {
+		data.languages = append(data.languages, store.LanguageView{
+			RepositoryLanguage: model.RepositoryLanguage{RepoID: 1, Language: name, Bytes: int64(60 - 10*i)},
+			TotalBytes:         210,
+		})
+	}
+	l := newLoop(t, testDeps(data, &fakeSyncer{}))
+	l.press("enter")
+	l.until(func(m Model) bool { return m.detail.open && !m.detail.loading })
+	l.send(tea.WindowSizeMsg{Width: 120, Height: 60})
+	screen := l.screen()
+	mustContain(t, screen, "Languages", "Go 28.6%", "HTML 23.8%", "Shell 9.5%", "others 4.8%")
+	mustNotContain(t, screen, "Lua")
+	alice := lineWith(screen, "▁▁▁▁▁▁▁▁▁▅▁█")
+	if !strings.Contains(alice, "%") {
+		t.Errorf("no share in the contributors table: %q", alice)
+	}
+}
+
+func TestDetailWithoutLanguages(t *testing.T) {
+	l := newLoop(t, testDeps(newFakeData(), &fakeSyncer{}))
+	l.press("enter")
+	l.until(func(m Model) bool { return m.detail.open && !m.detail.loading })
+	mustContain(t, l.screen(), "none yet (computed at the next sync)")
 }

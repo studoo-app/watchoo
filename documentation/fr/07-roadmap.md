@@ -11,7 +11,11 @@ page par contributeur publiée en **v0.5.0** ; mise à jour de Watchoo (`watchoo
 **v0.6.0** ; ajout d'un dépôt depuis le TUI et lien de profil corrigé en **v0.6.1** ; avis de nouvelle version
 corrigé (`watchoo` seul, TUI) en **v0.6.2** ; l'interface bilingue est publiée en **v0.7.0** ([0.7.0](#070--interface-bilingue)) ; après une
 semaine de plus d'usage réel, la surface publique est stabilisée et publiée en **v1.0.0**
-([1.0.0](#100--stabilisation)).
+([1.0.0](#100--stabilisation)) ; les langages et la part des contributeurs sont publiés en **v1.1.0**
+([1.1.0](#110--langages-et-part-des-contributeurs)) ; les signatures d'IA et les langages des contributeurs
+sont publiés en **v1.2.0** ([1.2.0](#120--signatures-dia-et-langages-des-contributeurs)) ; les avertissements de
+synchro par dépôt sont publiés en **v1.3.0** ([1.3.0](#130--avertissements-de-synchro-par-dépôt)) ; un message
+dédié pour une empreinte de serveur SSH inconnue (clones Git locaux) en **v1.3.1**.
 
 ```mermaid
 flowchart LR
@@ -133,6 +137,27 @@ L'import d'une organisation entière et les alertes passent en V3 (voir
   [Skills](11-skills.md#versions-et-changelogmd)). La V3 ([Fonctionnalités](02-fonctionnalites.md#v3))
   arrive en versions MINOR.
 
+### 1.1.0 : langages et part des contributeurs
+- Langages de chaque dépôt avec leur pourcentage (table `repository_languages`, migration `00007`,
+  `git ls-tree` dans le clone local, `watchoo languages`, carte de la page d'un dépôt, détail du TUI) :
+  **en place**.
+- Part des commits de chaque contributeur dans `watchoo contributors`, sur la page d'un dépôt et dans le
+  détail du TUI : **en place**.
+
+### 1.2.0 : signatures d'IA et langages des contributeurs
+- Signatures d'outils d'IA déclarées dans les commits, par commit et par contributeur (CLI, TUI, web,
+  `--json`), analysées sans aucune requête à la forge : **publié en v1.2.0**. Voir
+  [Signatures d'IA](02-fonctionnalites.md#signatures-dia). Les indices de style ou de rythme sont
+  volontairement écartés de cette fonction ; ils relèvent du diagnostic (phase 7, désactivé par défaut).
+- Langages d'un contributeur : lignes ajoutées par langage dans ses commits, lues dans le clone (page d'un
+  contributeur, `watchoo contributors`, TUI, migration `00009`) : **publié en v1.2.0**. Voir
+  [Langages d'un contributeur](03-architecture.md#langages-dun-contributeur-120).
+
+### 1.3.0 : avertissements de synchro par dépôt
+- Avertissements de la dernière synchro enregistrés par dépôt (`sync_runs.warnings`, migration `00010`) :
+  pastille sur la carte du tableau de bord, alerte avec le message complet sur la page du dépôt, menu des
+  dépôts concernés dans l'indicateur de synchro : **publié en v1.3.0**. Voir
+  [Interface web](06-interface-web.md#1-tableau-de-bord).
 ### Après 1.0.0 — 7 : supervision et diagnostic (proposition)
 - Watchoo devient un outil de **supervision et de diagnostic** (décision du mainteneur). Première brique : la
   détection de signaux suggérant une production assistée par IA, avec ses garde-fous (flag jamais verdict,

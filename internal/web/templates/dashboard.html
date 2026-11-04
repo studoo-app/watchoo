@@ -63,7 +63,10 @@
           <h3 class="card-title text-base min-w-0">
             <a href="{{repoPath .ID}}" class="link link-hover truncate" title="{{clean .FullName}}">{{clean .DisplayName}}</a>
           </h3>
-          {{template "state-badge" .State}}
+          <div class="flex items-center gap-1 shrink-0">
+            {{- if .LastRun.Warnings}}<a href="{{repoPath .ID}}#repo-sync-alert" class="badge badge-warning badge-outline whitespace-nowrap" title="{{warnTitle .LastRun.Warnings}}" aria-label="{{t "web.warn.badge_aria" (warnTitle .LastRun.Warnings)}}">⚠ {{len .LastRun.Warnings}}</a>{{end}}
+            {{template "state-badge" .State}}
+          </div>
         </div>
         {{if .Label}}<p class="text-xs text-base-content/60 truncate">{{clean .FullName}}</p>{{end}}
         {{if .LastCommit.SHA}}
@@ -75,6 +78,11 @@
         {{else}}
         <p class="text-sm text-base-content/60">{{if .LastSyncedAt.IsZero}}{{t "web.dash.no_commit_unsynced"}}{{else}}{{t "web.dash.no_commit"}}{{end}}</p>
         {{end}}
+        {{- if eq (print .State.State) "error"}}
+        <p class="text-xs text-error truncate" title="{{truncate 200 .LastRun.Error}}">{{firstLine .LastRun.Error}}</p>
+        {{- else if .LastRun.Warnings}}
+        <p class="text-xs text-warning truncate">{{warnEffect (index .LastRun.Warnings 0).Kind}}</p>
+        {{- end}}
         <div class="card-actions justify-end text-xs text-base-content/60">
           <span>{{tn "web.n.commit" .Commits}}{{if .Commits}} · <span class="tabular-nums">{{template "line-totals" .Lines}}</span>{{end}} · {{tn "web.n.tracked_branch" .TrackedBranches}}{{if .OpenPullRequests}} · {{tn "web.n.open_pr" .OpenPullRequests}}{{end}}</span>
         </div>
@@ -109,7 +117,7 @@
           <p class="text-sm truncate" title="{{firstLine .Message}}">{{firstLine .Message}}</p>
           <p class="text-xs text-base-content/70 truncate">
             <a href="{{repoPath .RepoID}}" class="link link-hover font-medium">{{clean .RepoDisplayName}}</a>
-            · {{template "contributor-link" (dict "ID" .AuthorID "Name" .AuthorDisplayName)}}{{if .AuthorProfileURL}} {{template "profile-link" (dict "URL" .AuthorProfileURL "Login" .AuthorLogin)}}{{end}} · {{template "rel-time" .CommittedAt}} · {{template "commit-lines" .Commit}}
+            · {{template "contributor-link" (dict "ID" .AuthorID "Name" .AuthorDisplayName)}}{{if .AuthorProfileURL}} {{template "profile-link" (dict "URL" .AuthorProfileURL "Login" .AuthorLogin)}}{{end}} · {{template "rel-time" .CommittedAt}} · {{template "commit-lines" .Commit}}{{template "commit-ai" .}}
           </p>
         </div>
         {{if .URL}}<a href="{{.URL}}" class="font-mono text-xs link link-hover text-base-content/60" target="_blank" rel="noopener noreferrer" title="{{t "web.commit.view_forge"}}">{{shortSHA .SHA}}</a>

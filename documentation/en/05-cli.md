@@ -45,6 +45,7 @@ stars. The choice is made again at each sync (see
 | `watchoo contributors [--repo X] [--since 30d \| --weeks 12]` | Contributor ranking; with `--weeks`, their commits week by week | MVP (`--weeks`: V2) |
 | `watchoo prs [--repo X] [--state open\|merged\|closed\|all] [-n 20]` | Pull requests of the tracked repositories, from the most recently updated to the oldest | V2 |
 | `watchoo releases [--repo X] [-n 20]` | Releases of the tracked repositories, then their tags (`-n` or `--limit`) | V2 |
+| `watchoo languages [--repo X]` | Languages of the tracked repositories, with their percentage | 1.1.0 |
 | `watchoo diagnostic [--repo X] [--author Y] [--since 30d]` | Reflection leads of the diagnosis, **for the trainer only**: commits and pull requests that declare the use of an AI tool (level "declared": signals D1, D2, D3, D5), commits whose rhythm and form converge (level "probable": at least two R signals and one F signal), and commits or days with a rhythm or form unusual for the learner (level "to review": one signal R1 to R6, or two signals F1 to F5; an F signal alone raises nothing), with their signals, the D4 context of the repositories and the histories still too short. A lead is never a verdict. Diagnosis disabled: the command says so, without an error (see [Supervision and diagnosis](12-supervision-diagnostic.md)) | 7.2 (rhythm: 7.3; form: 7.5) |
 | `watchoo diagnostic backfill [--repo X]` | Measures on the local clones the history already stored without signals (commits synced before the diagnosis was enabled), and completes the form (F1 to F5) of the commits measured before phase 7.5, within the retention period, merges excluded | 7.3 |
 | `watchoo status` | Summary: up-to-date, inactive and in-error repositories, source of the syncs (GitHub API or local Git repositories), remaining API quota, the `gh` account in use and its scopes (without showing the token) | MVP (source: V2) |
@@ -99,7 +100,12 @@ stars. The choice is made again at each sync (see
   (minutes), for example `7d`, `30d`, `12h`.
 - **`log`** prints, for each commit, the date, the repository, the author, the short SHA, its lines
   (`+/-` column: "+12/-3", "+0/-0" for a commit really without any line, "-" if they are still
-  unknown; 0.5.0) and the first line of the message.
+  unknown; 0.5.0), the AI tools signed on it (AI column, "-" if none; 1.2.0, see
+  [AI signatures](02-features.md#ai-signatures)) and the first line of the message.
+- **AI signatures in the TUI** (1.2.0): one line in a contributor's detail, "3/120 (Claude 2, Cursor 1)",
+  only when a signature exists.
+- **Languages in the TUI** (1.2.0): one line in a contributor's detail, "PHP 52.0%, Twig 33.5%, others
+  14.5%" (five languages, then the rest grouped), "-" if no commit is analyzed yet.
 - **`+/-` lines in the TUI** (0.5.0): per commit, "+12/-3", "+0/-0" or "-" (unknown); the totals
   (contributor, repository) sum the known commits and add "(N uncounted)" when a
   part of the commits has none yet, "-" if none has.
@@ -110,6 +116,9 @@ stars. The choice is made again at each sync (see
 - **`log --branch`** shows the commits **seen on that branch** during the syncs: those it shares with the
   reference branch (often `main`) are attached to it only if they were seen while comparing it
   (see [Architecture](03-architecture.md#incremental-sync)).
+- **AI column of `contributors`** (1.2.0): signed commits / analyzed commits ("3/120"), "-" if none is
+  analyzed yet. A line under the table recalls, as soon as a signature is shown, that its absence proves
+  nothing.
 - **`contributors`** ranks the commit **authors** by number of commits. Lines added and deleted are read
   in the local Git clone of each repository, for all the commits (first import included); they sum the
   commits whose stats are known (see
@@ -133,6 +142,17 @@ stars. The choice is made again at each sync (see
   short SHA of the targeted commit and date of that commit if it is in the database, otherwise `-`),
   from the most recent commit to the oldest. `-n` limits each table (20 by default, `0` = all).
   Drafts are only visible if the `gh` account has write access to the repository (GitHub rule).
+- **`languages`** (1.1.0) prints, per repository, its languages from the largest to the smallest: name,
+  share of the bytes (one decimal) and size, on the default branch. They are computed at each sync from
+  the local Git clone (see [Architecture](03-architecture.md#languages-of-a-repository-110)): a repository
+  has none until its next sync. The TUI gives them in the detail of a repository.
+- **Languages of `contributors`** (1.2.0): LANGUAGE column, the language in which the contributor added the
+  most lines over the period and the repository of the ranking, "-" if none of their commits is analyzed
+  yet; in JSON, all their languages. Rules: [Architecture](03-architecture.md#languages-of-a-contributor-120).
+- **Share of the commits** (1.1.0): `contributors` gives the share of each contributor (SHARE column;
+  `share` in JSON), relative to the commits of the ranking: with `--repo`, those of the repository; with
+  `--since` or `--weeks`, those of the period. A commit without a known author does not count. The table
+  of `--weeks` has no such column, the JSON does. The TUI gives this share in the detail of a repository.
 - **`status`**: `gh` account and its scopes, **source** of the syncs (V2: "Source: GitHub API (gh signed
   in)" or "Source: local Git clones (repos/ in the workspace), …", with the `gh auth login` reminder),
   remaining quota (reading it is free; "not applicable: local Git clones, no quota" with the local Git
@@ -256,9 +276,10 @@ Top-level keys (the list is checked by a test, `internal/cli/json_schema_test.go
 | `watchoo repo remove` | `action`, `repository`, `deleted_commits` | `action`: `deleted`, `stopped` or `already_stopped` |
 | `watchoo sync` | `started_at`, `finished_at`, `summary`, `repositories`, `rate_limit`, `source` | `source`: `api`, `git` (local Git repositories, V2; `rate_limit` is then `null`) or `""` if the sync did not start; `summary`: `repositories`, `success`, `error`, `locked`, `deferred`, `new_commits`; each repository: `id`, `full_name`, `display_name`, `status` (`success`, `error`, `locked`: already being synced, `skipped` in text; `deferred`: low quota; `success` is `ok` in text), `new_commits`, `tracked_branches`, `stats_fetched`, `duration_ms`, `error`, `resume_at`, `warnings` (messages in the selected language: pull requests, releases or tags not synced, or local Git clone unavailable with `gh`, while the repository succeeded; `[]` otherwise); `stats_fetched`: commit stats computed in the clone, or requested from the API as a fallback |
 | `watchoo log` | `commits` | From newest to oldest; commit objects |
-| `watchoo contributors` | `contributors` | Each element: `id`, `name`, `login`, `display_name`, `avatar_url`, `commits`, `additions`, `deletions`, `repositories`, `last_commit_at`, `weekly` (with `--weeks N`: N `week` objects (Monday, `YYYY-MM-DD`, display time zone) and `count`, from the oldest to the newest; `[]` without `--weeks`) |
+| `watchoo contributors` | `contributors` | Each element: `id`, `name`, `login`, `display_name`, `avatar_url`, `commits`, `additions`, `deletions`, `repositories`, `share` (1.1.0: share of the commits of the ranking, as a percentage with one decimal), `last_commit_at`, `ai_signed_commits`, `ai_scanned_commits`, `ai_tools` (1.2.0: commits with a signature, commits analyzed, each tool with `tool` and `commits`; `0` is not evidence of work done without AI), `languages_scanned_commits`, `languages` (1.2.0: commits whose languages are read; each language with `name`, `lines` (lines added) and `percent` (share of their lines, one decimal), from the one with the most to the least; `[]` if none), `weekly` (with `--weeks N`: N `week` objects (Monday, `YYYY-MM-DD`, display time zone) and `count`, from the oldest to the newest; `[]` without `--weeks`) |
 | `watchoo prs` | `pull_requests` | From the most recently updated to the oldest; pull request objects |
 | `watchoo releases` | `releases`, `tags` | Release objects (from the newest to the oldest) and tag; `-n` limits each list |
+| `watchoo languages` | `languages` | From one repository to the next, largest language first. Each element: `repository`, `name`, `bytes`, `percent` (share of the repository, one decimal) |
 | `watchoo status` | `workspace`, `github`, `source`, `rate_limit`, `rate_limit_error`, `quota_low`, `repositories`, `errors`, `last_synced_at`, `tracked_branches` | `workspace`: `name`, `root`; `github`: `ok`, `host`, `login`, `token_source`, `scopes`, `error`; `source` (V2): `kind` (`api`, `git`, or `""` if `gh` is down) and `reason` (why the local Git repositories, or the `gh` error); `repositories`: `total`, `active`, `flemme`, `dead`, `error`, `never_synced`, `archived`, `empty`, `stopped`; each error: `repo`, `message` |
 | `watchoo diagnostic` | `enabled`, `leads`, `contexts`, `histories`, `notice`, `filters` | `enabled`: `diagnostic.enabled` setting (false: empty lists); each lead: `kind` (`commit`, `pull_request` or `day`), `level` (`declared`, `probable` or `to_review`), `repository`, `sha`, `short_sha` (empty except for a commit), `number` (0 except for a PR), `title` (PR title, empty otherwise), `url`, `author` (`name`, `login`, `display_name`), `date` (commit author date, PR opening, or start of the day), `signals` (each signal: `id` among `D1`, `D2`, `D3`, `D5`, `R1` to `R6`, `F1` to `F5`; `value`: tool, bot account, branch or measure; `raw`, `median`, `z`: measure, personal median (F5: usual share of commits with tests) and modified z-score of the rhythm and form signals, `null` when there is none); each context: `repository`, `agent_config_since`; each history: `repository`, `author`, `commits`, `worked_days`, `sufficient`; `notice`: translated reminder; `filters`: `repository`, `author`, `since` |
 | `watchoo diagnostic backfill` | `repositories`, `measured` | Each repository: `repository`, `measured` (commits measured), `merges` (merges set aside), `missing` (missing from the clone), `error` (empty on success); exit code `1` if a repository failed |
@@ -275,7 +296,9 @@ Shared objects:
 - **commit**: `repository` (`id`, `full_name`, `display_name`), `sha`, `short_sha`, `message`, `url`,
   `author` (`name`, `login`, `display_name`), `authored_at`, `committed_at`, `additions`, `deletions`,
   `stats_known` (0.5.0: `true` if `additions` and `deletions` have been computed, even at 0; `false` if
-  they are still unknown, `additions` and `deletions` being 0 then);
+  they are still unknown, `additions` and `deletions` being 0 then), `ai_signatures` (1.2.0: `tool` and
+  `kind` of each signature, `[]` if none) and `ai_scanned` (`false`: not analyzed yet, `ai_signatures` says
+  nothing yet);
 - **activity**: `state` (`active`, `flemme`, `dead`, `stopped`, `error`, `never_synced`, `archived`,
   `empty`), `state_label`, `gray`, `days_since_last_commit` (`null` without a commit), `flemme_after_days`,
   `dead_after_days`;

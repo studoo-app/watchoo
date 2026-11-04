@@ -92,6 +92,15 @@ repository (dashboard card, header and contributors of the repository page) and 
 queries): they sum the known commits and add "(including N commits not counted)" when part of the commits does not have them yet; "—" if none has them. Shared `line-totals`
 template.
 
+### AI signatures (1.2.0)
+
+Everywhere a commit is listed (dashboard feed, history of a repository, commits of a contributor), a badge
+"AI: Claude" names each tool declared on it; **nothing** without a signature (shared `commit-ai` template).
+The contributors ranking and a contributor's page give "signed / analyzed" ("1 / 2") and the tools, "—" if
+no commit is analyzed yet (shared `ai-totals` template), with the sentence "An AI signature says a tool was
+declared on the commit, not who wrote the code; its absence proves nothing." No percentage, no ranking on
+this figure, no address displayed. Rules: [AI signatures](02-features.md#ai-signatures).
+
 ### 1. Dashboard
 - One **card per repository**: display label (`label`, e.g. "Alice Martin") or `owner/repo` (repeated
   under the label), first line of the last commit, author, age, number of commits and their lines
@@ -102,6 +111,13 @@ template.
   synced, Error, Archived, Tracking stopped or Empty in gray (`badge-neutral`). Labels identical to the
   CLI ("Slacking · 9 d", "Dead · 40 d"). The left border of the card takes
   the color.
+- **Sync badges** (1.3.0), next to the status badge, from the repository's last sync
+  (`sync_runs`, so they survive a restart): an orange outlined badge with the number of **warnings**
+  (local Git clone unavailable, line statistics or languages not computed, pull requests, releases or
+  tags not read, AI signatures not analyzed), with their short labels in the tooltip and, under the
+  last commit, the consequence of the first one ("Line statistics read through the API (limited)").
+  The badge leads to the repository's page. A repository whose last sync failed (gray Error state)
+  shows, in the same place, the first line of the error message in red.
 - **Sorting**: Dead first, then Slacking, then Active, the oldest last commit first within each group;
   then the repositories in error (so that they get seen), then the other gray states; ties broken by
   display label.
@@ -121,6 +137,11 @@ template.
   workspace's", an "Edit" link to the thresholds form), last
   commit, last sync and its result, number of commits and their lines added / removed (0.5.0),
   default branch, tracked branches and patterns, stars and issues.
+- **Last sync alert** (1.3.0), under the header, when the repository's last sync has warnings: one
+  orange alert (`alert-warning`) with the date of the sync, the full message of each warning (as
+  recorded, in the language active at sync time) and, for the local Git clone, the advice "Fix
+  the cause shown above (SSH access or Git credentials of this machine), then sync again". A red alert (`alert-error`) gives in
+  the same place the message of a failed sync.
 - **Activity thresholds of this repository** (collapsible block under the header, outside the HTMX
   fragments: an input in progress is not cleared by the post-sync refresh): two fields, "Slacking
   after (days)" and "Dead after (days)", in days without a commit, pre-filled with
@@ -147,7 +168,7 @@ template.
   extracts the data with `DOMParser` (which executes nothing) and redraws.
 - List of the repository's contributors (avatar or initial, name linked to the contributor page,
   secondary link to their GitHub profile, last commit, their lines added / removed in this
-  repository).
+  repository, their share of the commits of the repository as a percentage, 1.1.0).
 - **Per-contributor activity over 12 weeks** (V2): the chart of the contributors page (stacked bars of
   commits per week, the 8 most active contributors of the period, the others grouped, collapsible
   "Chart data" table), restricted to the commits of the repository: all the
@@ -156,6 +177,11 @@ template.
   says so ("No commit by a known author since …") and so
   does the table; the chart fills in at the end of a sync, without reloading the page. See
   [Activity charts](#activity-charts).
+- **Languages** (1.1.0, `repo-languages` fragment): languages of the default branch, from the largest to
+  the smallest, each with a progress bar and its share of the bytes (one decimal). Computed from the local
+  Git clone, hence the same with or without `gh`; a note recalls that the figures can differ slightly from
+  those of GitHub. Without data: the card says that they appear after the next sync. See
+  [Architecture](03-architecture.md#languages-of-a-repository-110).
 - **Pull requests, releases and tags** (V2, `repo-pulls` fragment): two cards side by side (one below
   the other on a narrow screen).
   - **Pull requests**: all the open PRs (drafts marked), then the 10 last merged; for each, number and
@@ -176,8 +202,8 @@ template.
     keeps its latest values.
 - Button **"Sync this repository"** (absent if tracking is stopped).
 - Fragments: `/repos/{id}/commits` (history); `/repos/{id}` with the `HX-Target` header
-  `repo-overview`, `repo-contributors` or `repo-pulls` returns the header, the contributors or the
-  pull requests and releases alone. All of them reload at the end of a sync.
+  `repo-overview`, `repo-contributors`, `repo-languages` or `repo-pulls` returns the header, the
+  contributors, the languages or the pull requests and releases alone. All of them reload at the end of a sync.
 
 ### 3. Contributors
 - Global ranking (commits, share of the total, lines added / removed; "—" if none of their commits has
@@ -219,10 +245,16 @@ nor the templates: the profile link is the address stored in the database (see
   same palette), one series per repository among the 8 where they have the most commits over the
   period, the others grouped under "Other repositories", with the collapsible
   "Chart data" table (repository name linked to its page).
+- **Languages** (1.2.0, `contributor-languages` fragment): lines added in each language by their commits,
+  across all repositories, from the language with the most to the least: name, lines, percentage and bar
+  (`<progress>`, like the card of a repository); beyond 8, the rest is grouped under "Other languages".
+  "No known language" if none of their commits is analyzed yet; a note points out the commits not analyzed
+  yet and recalls that these are added lines. Rules:
+  [Architecture](03-architecture.md#languages-of-a-contributor-120).
 - **Their repositories** (`contributor-repos` fragment): for each repository where they are the author
   of at least one commit, name linked to the repository page, status badge of the repository (rules
-  and thresholds of the repository), their commits, their `+/-` lines ("—" if unknown), their last
-  commit in that repository; sorted by decreasing number of commits, then most recent last commit.
+  and thresholds of the repository), their commits, their `+/-` lines ("—" if unknown), their main
+  language in that repository (1.2.0, "—" if unknown), their last commit in that repository; sorted by decreasing number of commits, then most recent last commit.
 - **Their commits** (`contributor-commits` fragment): paginated history (50 per page, like that of a
   repository; previous / next HTMX links, `?page=` pushed into the address), each commit with the
   first line of the message (cleaned), the repository (link), the date, the `+/-` lines ("—" if they
@@ -237,7 +269,7 @@ nor the templates: the profile link is the address stored in the database (see
   kept, and a login can change owner.
 - Contributor without any author commit (they are only a committer): the page displays, totals at
   zero, empty charts and "No commit…" messages.
-- Fragments reloaded at the end of a sync (`sync-finished`): `contributor-overview`,
+- Fragments reloaded at the end of a sync (`sync-finished`): `contributor-overview`, `contributor-languages`,
   `contributor-repos` and `contributor-pulls` (`GET /contributors/{id}` with the `HX-Target` header),
   `contributor-commits` (`GET /contributors/{id}/commits`, which serves the full page outside HTMX);
   the two charts re-read the page, as elsewhere.
@@ -506,7 +538,9 @@ How it works (`wsync.Coordinator`, a single one per process, which reuses the en
   response carries the `HX-Trigger: sync-finished` header, and the fragments of the pages (cards, feed,
   history…) as well as the charts reload. Outside a sync, it gives the summary of the last one:
   repositories in error, postponed, and the number of **warnings** (pull requests, releases or tags
-  not read, local Git clone unavailable; the detail is in the tooltip); a sync launched from the
+  not read, local Git clone unavailable…). Since 1.3.0, this badge opens a menu (`<details>`) that lists
+  the repositories concerned, each linked to its page with the short label of its warning (or their
+  number); the polling pauses while the menu is open. A sync launched from the
   interface and already finished when the response is rendered (immediate failure of the engine,
   repository synced quickly) carries this header as early as the response to the `POST`. The sync
   buttons ("Sync now", "Sync this repository")
