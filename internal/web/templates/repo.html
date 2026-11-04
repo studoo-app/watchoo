@@ -301,9 +301,9 @@
             <td class="whitespace-nowrap"><time datetime="{{isoTime .Date}}">{{localDate .Date}}</time></td>
             <td>{{if .AuthorName}}{{truncate 30 .AuthorName}}{{else if .AuthorLogin}}{{truncate 30 .AuthorLogin}}{{else}}-{{end}}</td>
             <td><a class="link" href="{{.Path}}">{{diagKind .Kind}}{{if .SHA}} {{shortSHA .SHA}}{{else if .Number}} #{{.Number}}{{end}}</a></td>
-            <td><span class="badge badge-sm {{diagLevelClass .Level}}">{{diagLevel .Level}}</span></td>
+            <td>{{if .Review}}<span class="text-sm text-base-content/60">{{diagLevel .Level}}</span>{{else}}<span class="badge badge-sm {{diagLevelClass .Level}}">{{diagLevel .Level}}</span>{{end}}</td>
             <td class="text-sm">{{diagHits .Hits}}</td>
-            <td class="text-sm">{{if .Review}}{{diagDecision .Review.Decision}}{{else}}<span class="text-base-content/60">{{t "web.diag.not_reviewed"}}</span>{{end}}</td>
+            <td class="text-sm">{{if .Review}}<span class="badge badge-sm {{diagDecisionClass .Review.Decision}}">{{diagDecision .Review.Decision}}</span>{{else}}<span class="text-base-content/60">{{t "web.diag.not_reviewed"}}</span>{{end}}</td>
           </tr>
           {{end}}
         </tbody>

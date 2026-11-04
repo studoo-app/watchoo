@@ -61,7 +61,7 @@ func TestDiagnosticList(t *testing.T) {
 	assertStatus(t, w, http.StatusOK)
 	assertContains(t, w, `href="/diagnostic"`, "A lead is never a verdict", "Measure the history",
 		shortSHA(sha), "declared", "D1 claude", "not reviewed", "Reviewed leads: 0 of 1",
-		"do not have enough history yet")
+		"do not have enough history yet", `badge badge-sm badge-info">declared`)
 	assertNotContains(t, w, xssMessage, "corrige le bug")
 
 	// Filter by repository: Bob has no lead.
@@ -101,7 +101,13 @@ func TestDiagnosticLeadAndReview(t *testing.T) {
 	page, _, _ := strings.Cut(loc, "#") // a browser never sends the fragment
 	w = e.get(page)
 	assertContains(t, w, "Review saved.", "Reviewed by "+testWorkspace, "&lt;b&gt;a vu&lt;/b&gt;")
-	assertContains(t, e.get("/diagnostic"), "not assisted", "Reviewed leads: 1 of 1")
+	// Reviewed: the level loses its badge, the decision gets one (list and repository page).
+	for _, p := range []string{"/diagnostic", repoPath(ids.Alice)} {
+		w = e.get(p)
+		assertContains(t, w, `badge badge-sm badge-success">not assisted`, `text-base-content/60">declared`)
+		assertNotContains(t, w, `badge badge-sm badge-info">declared`)
+	}
+	assertContains(t, e.get("/diagnostic"), "Reviewed leads: 1 of 1")
 	reviews, err := e.store.DiagnosticReviews(t.Context(), ids.Alice)
 	if r := reviews[store.ReviewKey(ids.Alice, "commit/"+sha)]; err != nil || r.Cause != "refactoring" ||
 		r.Confidence != "high" || r.Reviewer != testWorkspace || r.Signals[0] != "D1" {
@@ -296,5 +302,17 @@ func TestEvidenceRows(t *testing.T) {
 	if len(rows) != 2 || rows[0].Signal != "A5" || rows[1].Signal != "H1" || rows[1].More != 2 ||
 		rows[0].Description != "lignes de commentaire décoratives" {
 		t.Errorf("evidence rows: %+v", rows)
+	}
+}
+
+// Every decision has its own badge color in the list of the leads.
+func TestDiagnosticDecisionClass(t *testing.T) {
+	class := diagnosticFuncs(i18n.For(i18n.English))["diagDecisionClass"].(func(string) string)
+	want := map[string]string{diagnostic.DecisionAssisted: "badge-primary", diagnostic.DecisionNotAssisted: "badge-success",
+		diagnostic.DecisionUndetermined: "badge-neutral"}
+	for d, c := range want {
+		if got := class(d); got != c {
+			t.Errorf("diagDecisionClass(%q) = %q, want %q", d, got, c)
+		}
 	}
 }
