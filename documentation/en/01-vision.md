@@ -30,6 +30,7 @@ SQLite database, and reports it:
 | **Attribute** | Identify the contributors (author, committer, GitHub account) and their activity | MVP |
 | **Visualize** | Dashboard: state of each repository, latest commits, evolution over time | MVP / V2 |
 | **Alert** | Notify when a repository is updated or stays inactive for too long | V3 |
+| **Diagnose** | Flag what deserves a human look, with the signals that justify it and human review ([details](12-supervision-diagnostic.md)) | After 1.0.0 |
 
 ## Scope
 
@@ -51,7 +52,8 @@ students. Data is never mixed. See [Workspaces](10-workspaces.md).
 ## Out of scope (for now)
 
 - Multi-user tool or SaaS: Watchoo is a **personal and local** tool.
-- Code content analysis (quality, security, detailed diff).
+- Code quality or security analysis. Form and rhythm signals (AI usage) now fall under
+  [supervision and diagnosis](12-supervision-diagnostic.md), with its guardrails.
 - Writing to GitHub: Watchoo is **read-only**.
 
 ## Target users

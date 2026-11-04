@@ -29,6 +29,7 @@ SQLite locale, et le restitue :
 | **Attribuer** | Identifier les contributeurs (auteur, committer, compte GitHub) et leur activité | MVP |
 | **Visualiser** | Tableau de bord : état de chaque dépôt, derniers commits, évolution dans le temps | MVP / V2 |
 | **Alerter** | Notifier quand un dépôt est mis à jour ou reste inactif trop longtemps | V3 |
+| **Diagnostiquer** | Signaler ce qui mérite une lecture humaine, avec les signaux qui le justifient et une revue par un humain ([détail](12-supervision-diagnostic.md)) | Après 1.0.0 |
 
 ## Périmètre
 
@@ -49,7 +50,8 @@ mélangent jamais. Voir [Espaces de supervision](10-espaces-de-supervision.md).
 ## Hors périmètre (pour l'instant)
 
 - Outil multi-utilisateurs ou SaaS : Watchoo est un outil **personnel et local**.
-- Analyse du contenu du code (qualité, sécurité, diff détaillé).
+- Analyse de la qualité ou de la sécurité du code. Les signaux de forme et de rythme (usage d'IA) relèvent
+  désormais de la [supervision et diagnostic](12-supervision-diagnostic.md), avec ses garde-fous.
 - Écriture sur GitHub : Watchoo est **en lecture seule**.
 
 ## Utilisateurs cibles

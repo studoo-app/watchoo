@@ -133,6 +133,17 @@ L'import d'une organisation entière et les alertes passent en V3 (voir
   [Skills](11-skills.md#versions-et-changelogmd)). La V3 ([Fonctionnalités](02-fonctionnalites.md#v3))
   arrive en versions MINOR.
 
+### Après 1.0.0 — 7 : supervision et diagnostic (proposition)
+- Watchoo devient un outil de **supervision et de diagnostic** (décision du mainteneur). Première brique : la
+  détection de signaux suggérant une production assistée par IA, avec ses garde-fous (flag jamais verdict,
+  explicabilité, revue humaine, transparence, minimisation des données).
+- Sous-phases 7.1 à 7.6 (fondations, déclaratif, rythme, revue, forme, calibration) : voir
+  [Supervision et diagnostic](12-supervision-diagnostic.md#9-plan-par-phases-proposition).
+- **Statut** : **7.1 réalisée** (fondations : table `commit_signals`, réglages `diagnostic.*`, désactivé par
+  défaut ; non publiée). Les phases 7.2 à 7.6 suivent, chacune après validation de son plan ; contexte
+  pédagogique tranché (apprenants, résultats réservés au formateur) ; l'information des apprenants reste à
+  préparer avant tout affichage des signaux.
+
 ## Définition de « terminé » pour chaque phase
 
 - Code écrit et relu.

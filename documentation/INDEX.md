@@ -36,4 +36,5 @@ Watchoo watches GitHub repositories, mostly private ones, and answers three ques
 | 9 | [Stratégie de tests](fr/09-tests.md) | [Testing strategy](en/09-testing.md) |
 | 10 | [Espaces de supervision](fr/10-espaces-de-supervision.md) | [Workspaces](en/10-workspaces.md) |
 | 11 | [Skills des agents de code](fr/11-skills.md) | [Coding agent skills](en/11-skills.md) |
+| 12 | [Supervision et diagnostic](fr/12-supervision-diagnostic.md) | [Supervision and diagnosis](en/12-supervision-diagnostic.md) |
 | — | [Glossaire](fr/glossaire.md) | [Glossary](en/glossary.md) |
