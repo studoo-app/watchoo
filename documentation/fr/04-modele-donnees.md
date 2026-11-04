@@ -9,7 +9,7 @@ facultatif (dépôts suivis par clones Git locaux) ; la migration `00005` (0.5.0
 `contributors.profile_url` et la migration `00006` (0.5.0) `commits.stats_known` ; la migration `00007` (1.1.0) ajoute `repository_languages` ; la migration `00008` (1.2.0)
 ajoute `commits.ai_rules_version` et la table `commit_ai_signatures` ; la migration `00009` (1.2.0) ajoute
 `commits.languages_version` et la table `commit_languages`, soit **treize tables** ; la migration `00010` (1.3.0)
-ajoute `sync_runs.warnings`. La migration `00011` (phase 7.1) ajoute `commit_signals`, la migration `00012` (phase 7.2) `pull_requests.tool_ids` et `repository_signals`, la migration `00013` (phase 7.4) `diagnostic_reviews`, soit **seize tables**, et la migration `00014` (phase 7.5) les colonnes de forme de `commit_signals` (voir [Supervision et diagnostic](12-supervision-diagnostic.md)). Le stockage est un fichier SQLite versionné par des migrations
+ajoute `sync_runs.warnings`. La migration `00011` (phase 7.1) ajoute `commit_signals`, la migration `00012` (phase 7.2) `pull_requests.tool_ids` et `repository_signals`, la migration `00013` (phase 7.4) `diagnostic_reviews`, soit **seize tables**, la migration `00014` (phase 7.5) les colonnes de forme de `commit_signals`, et la migration `00015` (phase 7.7) ses mesures des signaux absolus et des contre-indicateurs (voir [Supervision et diagnostic](12-supervision-diagnostic.md)). Le stockage est un fichier SQLite versionné par des migrations
 `goose`, avec **une base par espace de supervision** (`.watchoo/watchoo.db`, voir
 [Espaces de supervision](10-espaces-de-supervision.md)). Les tables ne connaissent donc pas la notion
 d'espace : deux espaces ne partagent jamais de données.
@@ -335,6 +335,12 @@ compléter une forme non mesurée (`form_known = 0`) par une forme mesurée (pha
 | identifiers, lexical_diversity | Identifiants du code ajouté (hors mots-clés et chaînes) et leur diversité lexicale MATTR, fenêtre de 50 ; `NULL` avec moins de 50 identifiants (F3) |
 | test_lines | Lignes ajoutées non vides des fichiers de test (F5) |
 | message_length, message_bullets, message_conventional | Longueur du message hors trailers et signatures, lignes en liste, sujet Conventional Commits (F4) ; le message n'est pas recopié |
+| decorative_lines | Lignes de commentaire décoratives (phase 7.7, migration `00015`, signal A5) |
+| fr_words, fr_words_unaccented | Mots français accentués courants repérés dans les commentaires, et parmi eux ceux écrits sans accents (A6) ; les mots ne sont pas gardés |
+| wip_markers | Marqueurs de travail en cours : `TODO`, `FIXME`, `XXX`, `HACK`, appels de debug (A7, H1) |
+| short_identifiers | Identifiants d'une lettre (A7, H2) |
+| private_defs | Définitions privées parmi `functions` |
+| message_revert, message_fix | Message de `git revert` (A4) ; sujet de correction (H4) |
 
 Purge : en fin de chaque synchro, les lignes dont `authored_at` dépasse `diagnostic.retention_days`
 (365 jours par défaut) sont supprimées.

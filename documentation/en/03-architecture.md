@@ -71,7 +71,8 @@ watchoo/
   internal/activity/   activity rules (Active / Slacking / Dead, gray states), short formats
   internal/diagnostic/ diagnosis (phase 7): per-commit signals (file exclusions, declared tools, bot
                        author, agent configuration file), rhythm signals R1 to R6, form measures and
-                       signals F1 to F5 (in memory) and reflection leads ("declared", "probable", "to
+                       signals F1 to F5 (in memory), absolute signals A1 to A7 and counter-indicators
+                       H1 to H4 (phase 7.7) and reflection leads ("declared", "probable", "to
                        review" levels); keeps neither message, PR description, path nor line of code
   internal/repoimport/ parsing of repository references, of --branch and of import files
   internal/configshare/ sharing of a workspace's configuration (JSON export, validation, preview and

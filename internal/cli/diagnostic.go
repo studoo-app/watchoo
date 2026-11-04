@@ -54,7 +54,7 @@ type diagnosticLeadJSON struct {
 
 // diagnosticHitJSON est un signal déclenché et sa valeur.
 type diagnosticHitJSON struct {
-	ID     string   `json:"id"`     // D1, D2, D3, D5, R1 à R6, F1 à F5
+	ID     string   `json:"id"`     // D1, D2, D3, D5, R1 à R6, F1 à F5, A1 à A7, H1 à H4
 	Value  string   `json:"value"`  // outil, compte bot, branche, ou mesure écrite
 	Raw    *float64 `json:"raw"`    // mesure d'un signal de rythme ; null pour un signal déclaratif
 	Median *float64 `json:"median"` // médiane personnelle ; null si sans objet

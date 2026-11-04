@@ -519,6 +519,12 @@ fictives, dépôts `gittest`, base SQLite temporaire.
   suppressions) ; forme mesurée à la synchro et complétée par la reprise de l'historique ; colonnes de forme
   dans le store (ligne complétée une seule fois, migration `00014`) ; libellés des signaux et des niveaux
   dans les deux langues.
+- Phase 7.7 : mesures (lignes décoratives, mots français avec et sans accents, marqueurs de travail en Python,
+  PHP et JavaScript, variables d'une lettre, définitions privées, messages de revert et de correction) ;
+  signaux A1 à A7 (dépôt rendu d'un coup, silence, revert puis remplacement, forme non mesurée ignorée) et
+  contre-indicateurs H1 à H4 ; niveaux (A comptés comme R ou F, « probable » abaissé, jamais supprimé,
+  « déclaré » intact) ; migration `00015` (forme remise à mesurer, retour arrière) ; marqueur `TODO` mesuré
+  à la synchro sur un dépôt `gittest` ; libellés des signaux A et H dans les deux langues.
 
 ## En CI
 

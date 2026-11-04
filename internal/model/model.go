@@ -417,6 +417,16 @@ type CommitForm struct {
 	MessageLength       int     // caractères du message, hors trailers et signatures
 	MessageBullets      int     // lignes en liste du message
 	MessageConventional bool    // sujet au format Conventional Commits
+
+	// Phase 7.7 : signaux absolus (A) et contre-indicateurs (H).
+	DecorativeLines   int  // lignes de commentaire décoratives
+	FrWords           int  // mots français accentués courants repérés dans les commentaires
+	FrWordsUnaccented int  // parmi eux, écrits sans accents
+	WIPMarkers        int  // marqueurs de travail en cours (TODO, FIXME, debug…)
+	ShortIdentifiers  int  // identifiants d'une lettre
+	PrivateDefs       int  // définitions privées
+	MessageRevert     bool // message de « git revert »
+	MessageFix        bool // sujet de correction
 }
 
 // DiagnosticReview est la revue humaine d'une piste de diagnostic (table diagnostic_reviews, phase 7.4).

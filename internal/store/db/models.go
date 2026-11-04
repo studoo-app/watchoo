@@ -76,6 +76,14 @@ type CommitSignal struct {
 	MessageLength       int64
 	MessageBullets      int64
 	MessageConventional bool
+	DecorativeLines     int64
+	FrWords             int64
+	FrWordsUnaccented   int64
+	WipMarkers          int64
+	ShortIdentifiers    int64
+	PrivateDefs         int64
+	MessageRevert       bool
+	MessageFix          bool
 }
 
 type Contributor struct {

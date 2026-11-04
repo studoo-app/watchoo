@@ -100,7 +100,7 @@ func TestFormSignalsProbable(t *testing.T) {
 	}
 	hits := commits[0].hits
 	sortHits(hits)
-	if ids := hitIDs(hits); !slices.Equal(ids, []string{"F1", "R2", "R3", "R5"}) || Level(hits) != LevelProbable {
+	if ids := hitIDs(hits); !slices.Equal(ids, []string{"A7", "F1", "R2", "R3", "R5"}) || Level(hits) != LevelProbable {
 		t.Errorf("signals %v, level %q", ids, Level(hits))
 	}
 }

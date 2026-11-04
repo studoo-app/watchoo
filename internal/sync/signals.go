@@ -88,6 +88,9 @@ func commitForm(sig diagnostic.Signals) model.CommitForm {
 		LexicalDiversity: f.LexicalDiversity, HasDiversity: f.HasDiversity, TestLines: f.TestLines,
 		MessageLength: sig.Message.Length, MessageBullets: sig.Message.Bullets,
 		MessageConventional: sig.Message.Conventional,
+		DecorativeLines:     f.DecorativeLines, FrWords: f.FrWords, FrWordsUnaccented: f.FrWordsUnaccented,
+		WIPMarkers: f.WIPMarkers, ShortIdentifiers: f.ShortIdentifiers, PrivateDefs: f.PrivateDefs,
+		MessageRevert: sig.Message.Revert, MessageFix: sig.Message.Fix,
 	}
 }
 

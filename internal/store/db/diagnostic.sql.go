@@ -28,7 +28,8 @@ INSERT INTO commit_signals (
     repo_id, sha, author_id, authored_at, files_kept, files_excluded, additions_kept, deletions_kept,
     tool_ids, agent_config, bot_author, computed_at, form_known, source_lines, comment_lines, functions,
     documented_functions, identifiers, lexical_diversity, test_lines, message_length, message_bullets,
-    message_conventional
+    message_conventional, decorative_lines, fr_words, fr_words_unaccented, wip_markers, short_identifiers,
+    private_defs, message_revert, message_fix
 )
 SELECT c.repo_id, c.sha, c.author_id, c.authored_at,
     ?1, ?2, ?3, ?4,
@@ -36,9 +37,11 @@ SELECT c.repo_id, c.sha, c.author_id, c.authored_at,
     ?9, ?10, ?11, ?12,
     ?13, ?14, ?15,
     ?16, ?17, ?18,
-    ?19
+    ?19, ?20, ?21,
+    ?22, ?23, ?24,
+    ?25, ?26, ?27
 FROM commits c
-WHERE c.repo_id = ?20 AND c.sha = ?21
+WHERE c.repo_id = ?28 AND c.sha = ?29
 ON CONFLICT (repo_id, sha) DO UPDATE SET
     files_kept = excluded.files_kept,
     files_excluded = excluded.files_excluded,
@@ -58,7 +61,15 @@ ON CONFLICT (repo_id, sha) DO UPDATE SET
     test_lines = excluded.test_lines,
     message_length = excluded.message_length,
     message_bullets = excluded.message_bullets,
-    message_conventional = excluded.message_conventional
+    message_conventional = excluded.message_conventional,
+    decorative_lines = excluded.decorative_lines,
+    fr_words = excluded.fr_words,
+    fr_words_unaccented = excluded.fr_words_unaccented,
+    wip_markers = excluded.wip_markers,
+    short_identifiers = excluded.short_identifiers,
+    private_defs = excluded.private_defs,
+    message_revert = excluded.message_revert,
+    message_fix = excluded.message_fix
 WHERE commit_signals.form_known = 0 AND excluded.form_known = 1
 `
 
@@ -82,6 +93,14 @@ type InsertCommitSignalsParams struct {
 	MessageLength       int64
 	MessageBullets      int64
 	MessageConventional bool
+	DecorativeLines     int64
+	FrWords             int64
+	FrWordsUnaccented   int64
+	WipMarkers          int64
+	ShortIdentifiers    int64
+	PrivateDefs         int64
+	MessageRevert       bool
+	MessageFix          bool
 	RepoID              int64
 	SHA                 string
 }
@@ -110,6 +129,14 @@ func (q *Queries) InsertCommitSignals(ctx context.Context, arg InsertCommitSigna
 		arg.MessageLength,
 		arg.MessageBullets,
 		arg.MessageConventional,
+		arg.DecorativeLines,
+		arg.FrWords,
+		arg.FrWordsUnaccented,
+		arg.WipMarkers,
+		arg.ShortIdentifiers,
+		arg.PrivateDefs,
+		arg.MessageRevert,
+		arg.MessageFix,
 		arg.RepoID,
 		arg.SHA,
 	)
@@ -172,7 +199,8 @@ SELECT cs.repo_id, cs.sha, c.author_id, cs.authored_at, cs.files_kept, cs.files_
        cs.additions_kept, cs.deletions_kept, cs.tool_ids, cs.agent_config, cs.bot_author, cs.computed_at,
        cs.form_known, cs.source_lines, cs.comment_lines, cs.functions, cs.documented_functions,
        cs.identifiers, cs.lexical_diversity, cs.test_lines, cs.message_length, cs.message_bullets,
-       cs.message_conventional,
+       cs.message_conventional, cs.decorative_lines, cs.fr_words, cs.fr_words_unaccented, cs.wip_markers,
+       cs.short_identifiers, cs.private_defs, cs.message_revert, cs.message_fix,
        c.url,
        r.owner AS repo_owner, r.name AS repo_name, r.label AS repo_label,
        CAST(COALESCE(a.name, '') AS TEXT) AS author_name,
@@ -209,6 +237,14 @@ type ListCommitSignalViewsRow struct {
 	MessageLength       int64
 	MessageBullets      int64
 	MessageConventional bool
+	DecorativeLines     int64
+	FrWords             int64
+	FrWordsUnaccented   int64
+	WipMarkers          int64
+	ShortIdentifiers    int64
+	PrivateDefs         int64
+	MessageRevert       bool
+	MessageFix          bool
 	URL                 string
 	RepoOwner           string
 	RepoName            string
@@ -253,6 +289,14 @@ func (q *Queries) ListCommitSignalViews(ctx context.Context, repoID interface{})
 			&i.MessageLength,
 			&i.MessageBullets,
 			&i.MessageConventional,
+			&i.DecorativeLines,
+			&i.FrWords,
+			&i.FrWordsUnaccented,
+			&i.WipMarkers,
+			&i.ShortIdentifiers,
+			&i.PrivateDefs,
+			&i.MessageRevert,
+			&i.MessageFix,
 			&i.URL,
 			&i.RepoOwner,
 			&i.RepoName,
@@ -278,7 +322,8 @@ SELECT cs.repo_id, cs.sha, c.author_id, cs.authored_at, cs.files_kept, cs.files_
     cs.deletions_kept, cs.tool_ids, cs.agent_config, cs.bot_author, cs.computed_at,
     cs.form_known, cs.source_lines, cs.comment_lines, cs.functions, cs.documented_functions,
     cs.identifiers, cs.lexical_diversity, cs.test_lines, cs.message_length, cs.message_bullets,
-    cs.message_conventional
+    cs.message_conventional, cs.decorative_lines, cs.fr_words, cs.fr_words_unaccented, cs.wip_markers,
+    cs.short_identifiers, cs.private_defs, cs.message_revert, cs.message_fix
 FROM commit_signals cs
 JOIN commits c ON c.repo_id = cs.repo_id AND c.sha = cs.sha
 WHERE cs.repo_id = ?1
@@ -309,6 +354,14 @@ type ListCommitSignalsRow struct {
 	MessageLength       int64
 	MessageBullets      int64
 	MessageConventional bool
+	DecorativeLines     int64
+	FrWords             int64
+	FrWordsUnaccented   int64
+	WipMarkers          int64
+	ShortIdentifiers    int64
+	PrivateDefs         int64
+	MessageRevert       bool
+	MessageFix          bool
 }
 
 // Signaux des commits du depot, du plus recent au plus ancien (date d'ecriture, puis SHA) ; auteur du commit.
@@ -345,6 +398,14 @@ func (q *Queries) ListCommitSignals(ctx context.Context, repoID int64) ([]ListCo
 			&i.MessageLength,
 			&i.MessageBullets,
 			&i.MessageConventional,
+			&i.DecorativeLines,
+			&i.FrWords,
+			&i.FrWordsUnaccented,
+			&i.WipMarkers,
+			&i.ShortIdentifiers,
+			&i.PrivateDefs,
+			&i.MessageRevert,
+			&i.MessageFix,
 		); err != nil {
 			return nil, err
 		}

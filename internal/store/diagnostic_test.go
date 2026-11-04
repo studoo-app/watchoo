@@ -183,7 +183,8 @@ func TestDeclaredSignalsStore(t *testing.T) {
 	}
 	form := model.CommitForm{Known: true, SourceLines: 40, CommentLines: 10, Functions: 3, DocumentedFunctions: 2,
 		Identifiers: 120, LexicalDiversity: 0.75, HasDiversity: true, TestLines: 5, MessageLength: 42,
-		MessageBullets: 2, MessageConventional: true}
+		MessageBullets: 2, MessageConventional: true, DecorativeLines: 3, FrWords: 12, FrWordsUnaccented: 11,
+		WIPMarkers: 1, ShortIdentifiers: 4, PrivateDefs: 2, MessageRevert: true, MessageFix: true}
 	for _, want := range []int{1, 0} { // completed, then never modified again
 		n, err := s.WriteCommitSignals(ctx, repoID, []CommitSignalWrite{{SHA: sha(4), FilesKept: 2, Form: form}}, computed)
 		if err != nil || n != want {
@@ -394,5 +395,46 @@ func TestMigrationDiagnosticReviews(t *testing.T) {
 	}
 	if _, err := p.UpTo(ctx, 13); err != nil {
 		t.Fatalf("UpTo(13) again: %v", err)
+	}
+}
+
+// Migration 00015 (phase 7.7): new form measures; the forms already measured are measured again (form_known
+// back to 0), and the rollback keeps the rows.
+func TestMigrationAbsoluteSignals(t *testing.T) {
+	ctx := t.Context()
+	s, err := Open(ctx, filepath.Join(t.TempDir(), "watchoo.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = s.Close() })
+	p, err := goose.NewProvider(MigrationDialect, s.DB(), migrations.FS, goose.WithDisableGlobalRegistry(true))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := p.UpTo(ctx, 14); err != nil {
+		t.Fatalf("UpTo(14): %v", err)
+	}
+	repo := mustExec(t, s, `INSERT INTO repositories (provider, provider_id, owner, name) VALUES ('github', 1, 'promo', 'a')`)
+	mustExec(t, s, `INSERT INTO commits (repo_id, sha, authored_at, committed_at) VALUES (?, ?, ?, ?)`,
+		repo, sha(1), testDate, testDate)
+	mustExec(t, s, `INSERT INTO commit_signals (repo_id, sha, authored_at, computed_at, form_known) VALUES (?, ?, ?, ?, 1)`,
+		repo, sha(1), testDate, testDate)
+	if err := s.Migrate(ctx); err != nil {
+		t.Fatalf("Migrate: %v", err)
+	}
+	if c := count(t, s, "SELECT count(*) FROM commit_signals WHERE form_known = 0 AND wip_markers = 0"); c != 1 {
+		t.Errorf("form not reset by the migration (%d)", c)
+	}
+	if err := execErr(t, s, "UPDATE commit_signals SET short_identifiers = -1"); err == nil {
+		t.Error("negative measure accepted")
+	}
+	if _, err := p.DownTo(ctx, 14); err != nil {
+		t.Fatalf("DownTo(14): %v", err)
+	}
+	if err := execErr(t, s, "SELECT wip_markers FROM commit_signals"); err == nil {
+		t.Error("wip_markers still present after the rollback")
+	}
+	if c := count(t, s, "SELECT count(*) FROM commit_signals"); c != 1 {
+		t.Errorf("%d rows after the rollback, want 1", c)
 	}
 }

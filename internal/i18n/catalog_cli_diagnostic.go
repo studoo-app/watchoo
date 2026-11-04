@@ -35,6 +35,14 @@ Form signals (weak, never enough alone) are measured on the added lines, only nu
   F5  tests delivered with the code (usually in fewer than 10% of the commits)
 Each of them needs at least 20 observations in the 90 days before (F4: the 20 previous messages);
 below that, it does not trigger for the learner.
+Absolute signals need no history (projects delivered in few commits):
+  A1  massive commit (500 source lines or more)  A2  repository delivered in one go
+  A3  push after 14 days of silence (300 lines)  A4  revert then replacement within the hour
+  A5  decorative comments                        A6  French comments without accents (90%)
+  A7  code in its final state (800 lines, no TODO nor one-letter variable)
+A1 to A4 count as rhythm signals, A5 to A7 as form signals. Traces of human work (H1 work-in-progress
+markers, H2 one-letter variables, H3 initial skeleton, H4 iterative fixes) lower "probable" to
+"to review" and never remove a lead.
 
 Level "probable": no declared signal, at least two rhythm signals and one form signal.
 Level "to review": one rhythm signal, or at least two form signals.
@@ -73,6 +81,14 @@ seuls des nombres sont gardés :
   F5  tests livrés avec le code (d'habitude dans moins de 10 % des commits)
 Chacun demande au moins 20 observations dans les 90 jours qui précèdent (F4 : les 20 messages
 précédents) ; en deçà, il ne se déclenche pas.
+Les signaux absolus ne demandent pas d'historique (projets rendus en peu de commits) :
+  A1  commit massif (500 lignes source ou plus)  A2  dépôt rendu en une fois
+  A3  poussée après 14 jours de silence (300 lignes)  A4  revert puis remplacement dans l'heure
+  A5  commentaires décoratifs                    A6  commentaires français sans accents (90 %)
+  A7  code dans son état final (800 lignes, ni TODO ni variable d'une lettre)
+A1 à A4 comptent comme des signaux de rythme, A5 à A7 comme des signaux de forme. Les traces de
+travail humain (H1 marqueurs de travail en cours, H2 variables d'une lettre, H3 squelette initial,
+H4 corrections successives) abaissent « probable » à « à regarder » et ne suppriment jamais une piste.
 
 Niveau « probable » : aucun signal déclaré, au moins deux signaux de rythme et un signal de forme.
 Niveau « à regarder » : un signal de rythme, ou au moins deux signaux de forme.
@@ -119,16 +135,16 @@ Filtres :
 (commits synced before the diagnosis was enabled), within the retention period
 (diagnostic.retention_days), merge commits excluded. Useful right after enabling the diagnosis: the
 rhythm and form signals need at least 20 measured commits in 90 days per author. It also completes
-the form (signals F1 to F5) of the commits measured before it existed. Commits already measured are
-never measured again.
+the form (signals F1 to F5, A5 to A7, H1 and H2) of the commits measured before 1.5.0. Commits
+already measured are never measured again.
 
   --repo   one tracked repository (owner/repo or URL); all by default`,
 		`Mesure, sur les clones Git locaux, les commits déjà en base qui n'ont pas encore de signaux de
 diagnostic (commits synchronisés avant l'activation du diagnostic), dans la durée de conservation
 (diagnostic.retention_days), hors commits de fusion. Utile juste après l'activation : les signaux de
 rythme et de forme demandent au moins 20 commits mesurés en 90 jours par auteur. Elle complète aussi
-la forme (signaux F1 à F5) des commits mesurés avant son apparition. Un commit déjà mesuré ne l'est
-jamais deux fois.
+la forme (signaux F1 à F5, A5 à A7, H1 et H2) des commits mesurés avant la 1.5.0. Un commit déjà
+mesuré ne l'est jamais deux fois.
 
   --repo   un dépôt suivi (owner/repo ou URL) ; tous par défaut`,
 	},

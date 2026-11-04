@@ -103,7 +103,10 @@ func rhythm(views []store.CommitSignalView, opts RhythmOptions) ([]commitRhythm,
 		})
 		h := &AuthorHistory{RepoID: k.repo, RepoRef: g[0].RepoRef, AuthorID: k.author,
 			AuthorName: g[0].AuthorName, AuthorLogin: g[0].AuthorLogin, Commits: len(g)}
-		commits = append(commits, withForm(commitSignals(g, loc, opts.SpeedSignal, h), g)...)
+		cs := commitSignals(g, loc, opts.SpeedSignal, h)
+		cs = withHits(cs, g, formSignals(g))
+		cs = withHits(cs, g, absoluteSignals(g))
+		commits = append(commits, cs...)
 		ds, worked := daySignals(g, loc, h)
 		days = append(days, ds...)
 		h.WorkedDays = worked
@@ -113,10 +116,10 @@ func rhythm(views []store.CommitSignalView, opts RhythmOptions) ([]commitRhythm,
 	return commits, days, histories
 }
 
-// withForm ajoute aux signaux de rythme des commits d'un auteur (g trié par date) leurs signaux de forme
-// (F1 à F5) ; un commit qui n'a que des signaux de forme est ajouté (son niveau dira s'il fait une piste).
-func withForm(cs []commitRhythm, g []store.CommitSignalView) []commitRhythm {
-	fs := formSignals(g)
+// withHits ajoute aux signaux des commits d'un auteur (g trié par date) d'autres signaux par commit (forme F1
+// à F5, signaux absolus et contre-indicateurs) ; un commit absent de cs est ajouté (son niveau dira s'il
+// fait une piste).
+func withHits(cs []commitRhythm, g []store.CommitSignalView, fs map[string][]Hit) []commitRhythm {
 	if len(fs) == 0 {
 		return cs
 	}

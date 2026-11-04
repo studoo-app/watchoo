@@ -4,7 +4,8 @@
 
 **Statut** : décision du mainteneur. Phases **7.1 à 7.5 réalisées** (fondations, signaux déclaratifs,
 commande `watchoo diagnostic`, signaux de rythme, reprise de l'historique, revue humaine sur le web, signaux
-de forme F1 à F5 ; publiées en v1.4.0, sections 9.1 à 9.5) ; phase 7.6 à venir dans une version ultérieure, puis F6 (classifieur de contenu,
+de forme F1 à F5 ; publiées en v1.4.0, sections 9.1 à 9.5) ; phase **7.7 réalisée** (signaux absolus et
+contre-indicateurs, section 9.6 ; non publiée) ; phase 7.6 à venir dans une version ultérieure, puis F6 (classifieur de contenu,
 reporté), chacune après validation de son plan (voir [Roadmap](07-roadmap.md)). Source de la partie
 signaux : la spécification « Détection des signaux de production de code assistée par IA », **version 0.2**
 (3 novembre 2026, références vérifiées).
@@ -151,7 +152,7 @@ documentée. F1 à F5 sont réalisés en phase 7.5 (règles précises en section
 | Niveau | Règle par défaut | Lecture |
 | --- | --- | --- |
 | **Déclaré** | Au moins un signal D1, D2, D3 ou D5 sur le commit | Usage attesté par les traces de l'outil |
-| **Probable** | ≥ 2 signaux R **et** ≥ 1 signal F | Faisceau d'indices convergents |
+| **Probable** | ≥ 2 signaux R **et** ≥ 1 signal F, sans contre-indicateur H (A1 à A4 comptent comme R, A5 à A7 comme F ; phase 7.7) | Faisceau d'indices convergents |
 | **À regarder** | 1 signal R, ou ≥ 2 signaux F | Anomalie isolée, souvent explicable |
 
 D4 ne déclenche aucun niveau seul : il est affiché en contexte. Le score pondéré (D = 10, R = 3, F = 1,
@@ -220,8 +221,8 @@ résumé de ce qui marche. Le plan et l'arborescence de chaque phase sont propos
 - **7.6 Calibration** : précision par signal, recalibrage, κ. Livrable : rapport de calibration, seuils
   documentés. Démarre quand un volume de revues suffisant existe ; **version ultérieure** (décision du
   mainteneur, 4 novembre 2026) : les phases 7.1 à 7.5 sortent sans elle, seuils de la spécification.
-- **7.7 Signaux absolus, marqueurs de travail et contre-indicateurs** (proposition du 4 novembre 2026, plan
-  en section 9.6, **à valider**) : couvrir les projets rendus en peu de commits, que les signaux R et F
+- **7.7 Signaux absolus, marqueurs de travail et contre-indicateurs** (réalisée ; plan validé le 4 novembre
+  2026, section 9.6) : couvrir les projets rendus en peu de commits, que les signaux R et F
   (comparaison à soi-même, 20 observations) ne voient pas. Indépendante de 7.6 : peut sortir avant elle.
 - **Étape ultérieure — F6, classifieur de contenu** (reporté par le mainteneur le 4 novembre 2026) : optionnel,
   désactivé par défaut, poids faible (0,5). Il demande un modèle de détection (type GPTSniffer ou
@@ -401,7 +402,7 @@ revoir seulement si la calibration en montre le besoin) ; F6 reporté (section 9
 - **Affichage** : chaque signal F donne sa valeur brute, la médiane personnelle (F5 : la part habituelle des
   commits avec tests) et, pour F1, F3 et F4, le score z ; libellés en anglais et en français.
 
-## 9.6 Phase 7.7 — signaux absolus, marqueurs de travail et contre-indicateurs (proposition, à valider)
+## 9.6 Phase 7.7 — signaux absolus, marqueurs de travail et contre-indicateurs (réalisée)
 
 **Origine** : le référentiel « Signaux de détection d'usage IA dans les repos étudiants » (agent
 AGENT_DETECTION_IA, 5 pages, 8 catégories, transmis par le mainteneur le 4 novembre 2026 ; document interne,
@@ -442,8 +443,15 @@ Ajoutées au `FormMeter` (même lecture des lignes ajoutées que F1 à F5) et au
 
 A1 à A4 comptent comme des signaux de rythme et A5 à A7 comme des signaux de forme pour les niveaux
 (section 6) : un dépôt rendu en un commit de 600 lignes (A1, A2) avec des séparateurs décoratifs (A5) donne
-« Probable ». A2 et A7 portent sur l'ensemble de l'auteur dans le dépôt : nouvelle nature de piste
-`project` (auteur × dépôt), à côté de `commit`, `day` et `pull_request`.
+« Probable ». A2 et A7 portent sur l'ensemble de l'auteur dans le dépôt ; ils sont **rattachés à son commit le
+plus gros** (lignes source ajoutées), pour que la même piste réunisse les indices d'un dépôt rendu d'un coup.
+
+**Mise en œuvre** : les mesures sont calculées à la synchro et par la reprise de l'historique ; les signaux A
+et H à la lecture, comme R et F. La migration `00015` remet `form_known` à 0 : les commits mesurés avant la
+phase 7.7 n'ont pas encore ces mesures, la reprise de l'historique les complète. A1 à A7 ne comptent que les
+commits dont la forme est mesurée ; A3 demande un commit précédent de l'auteur dans le dépôt ; H3 (squelette)
+tempère toutes les pistes de l'auteur dans le dépôt ; H4 compte les corrections des 14 jours qui précèdent le
+commit.
 
 ### Famille H — contre-indicateurs (traces de travail humain)
 
@@ -470,15 +478,17 @@ Un contre-indicateur **ne supprime jamais une piste** : il l'**abaisse d'un nive
 - **Cohérence entre projets d'un même apprenant** (palette identique, saut de niveau, même faille) : demande
   de croiser des dépôts ; le croisement entre personnes reste hors périmètre (section 2).
 
-### Décisions à valider par le mainteneur
+### Décisions (validées par le mainteneur le 4 novembre 2026)
 
 1. Seuils du référentiel repris tels quels (500, 80 %, 14 jours, 90 %, 800), non calibrés jusqu'à 7.6.
-2. Nouvelle nature de piste `project` (migration du `CHECK` de `diagnostic_reviews.kind`).
+2. Nature de piste `project` : validée, puis **abandonnée à la mise en œuvre**. Une piste `project` ne
+   portant que A7 (un signal de forme) n'aurait jamais été affichée ; A2 et A7 sont rattachés au commit le plus
+   gros de l'auteur, sans nouvelle nature ni migration de `diagnostic_reviews`.
 3. Contre-indicateurs : abaissent d'un niveau, ne suppriment jamais une piste.
 4. A4 sans recouvrement de fichiers (les chemins ne sont pas gardés).
 5. Liste des mots français accentués et des appels de debug : fixe, dans le code, documentée ; pas de réglage.
-6. Ordre : 7.7 avant 7.6 (elle ne dépend pas des revues), dans une version MINEURE (ajouts de signaux, de
-   colonnes, d'une valeur `project` pour `kind` ; aucune clé `--json` retirée).
+6. Ordre : 7.7 avant 7.6 (elle ne dépend pas des revues), dans une version MINEURE (ajouts de signaux et de
+   colonnes ; aucune clé `--json` retirée).
 
 ## 10. Points ouverts (à trancher par le mainteneur)
 
