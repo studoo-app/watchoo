@@ -11,13 +11,14 @@ PATCH (see [Skills](documentation/en/11-skills.md#versions-and-changelogmd)).
 
 ## [1.6.1] - 2026-11-04
 
-A link to the documentation, in the language of the web interface. No incompatible change: no migration,
+A link to the documentation, in the language of the web interface, and a link to the GitHub repository. No incompatible change: no migration,
 no setting, no route changed.
 
 ### Added
 
 - Web interface: a **Documentation** link in the footer of every page, to the contents of the online
   documentation in the page's language (`documentation/en/` in English, `documentation/fr/` in French).
+- Web interface: a **GitHub** link, with the GitHub icon, to Watchoo's repository in the footer of every page.
 
 ## [1.6.0] - 2026-11-04
 
