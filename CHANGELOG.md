@@ -14,6 +14,11 @@ PATCH (see [Skills](documentation/en/11-skills.md#versions-and-changelogmd)).
 - **Line statistics from local clones detect renames** (`git diff-tree -M`), like GitHub's: a moved file
   counts only its changed lines. Statistics already stored are not recomputed.
 
+### Fixed
+
+- **Web header**: on medium-width screens, a long workspace name no longer runs under the navigation menu;
+  it is cut with an ellipsis.
+
 ### Added
 
 - **Diagnosis, phase 7.1 (foundations)**: with the new `diagnostic.enabled` setting (disabled by

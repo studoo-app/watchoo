@@ -33,7 +33,7 @@
         <img src="/static/watchoo-logo-final-nom.svg" alt="" width="177" height="36" class="h-9 w-auto dark:hidden">
         <img src="/static/watchoo-logo-final-nom-dark.svg" alt="" width="177" height="36" class="h-9 w-auto hidden dark:block">
       </a>
-      {{if not .Public}}<span class="badge badge-ghost truncate max-w-48 sm:max-w-xs" title="{{t "web.layout.workspace_title"}}">{{.Workspace}}</span>{{end}}
+      {{if not .Public}}<span class="badge badge-ghost shrink min-w-0 max-w-48 sm:max-w-xs" title="{{t "web.layout.workspace_title"}}"><span class="truncate">{{.Workspace}}</span></span>{{end}}
     </div>
     <button id="theme-toggle" type="button" class="btn btn-ghost btn-sm btn-square order-2 lg:order-5" aria-label="{{t "web.layout.theme_aria"}}" title="{{t "web.layout.theme_title"}}">
       <svg class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor"/></svg>
