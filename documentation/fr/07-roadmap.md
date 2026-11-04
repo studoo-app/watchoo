@@ -19,7 +19,8 @@ dédié pour une empreinte de serveur SSH inconnue (clones Git locaux) en **v1.3
 diagnostic (phases 7.1 à 7.5) sont publiés en **v1.4.0** ([7](#après-100--7--supervision-et-diagnostic)) ; les signaux
 absolus et les contre-indicateurs du diagnostic (phase 7.7) en **v1.5.0** ; le sélecteur de langue EN / FR de
 l'interface web et les lignes en cause sur la fiche de revue du diagnostic (phase 7.8) et le score du diagnostic par dépôt et
-par contributeur en **v1.6.0**.
+par contributeur en **v1.6.0** ; le lien vers la documentation dans la langue de l'interface web en
+**v1.6.1**.
 
 ```mermaid
 flowchart LR

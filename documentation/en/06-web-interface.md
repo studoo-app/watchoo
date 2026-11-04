@@ -469,6 +469,11 @@ flowchart LR
     DIAG --> LEAD["Review sheet"]
 ```
 
+The footer of every page carries a **Documentation** link (1.6.1) to the contents of the online documentation
+in the page's language: `documentation/en/README.md` in English, `documentation/fr/README.md` in French
+(the language chosen with the EN / FR selector, else the workspace's), followed by a **GitHub** link, with the
+GitHub icon (inline SVG), to Watchoo's repository. Both open in a new tab, without a `Referer` header.
+
 ## Logo and icons
 
 The logo is a pixelated owl ("watch-hoo"), drawn like the text versions: a solid head with pointed

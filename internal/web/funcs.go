@@ -26,6 +26,13 @@ import (
 	"github.com/studoo-app/watchoo/internal/textclean"
 )
 
+// repoURL est le dépôt GitHub de Watchoo (lien du pied de page).
+const repoURL = "https://github.com/studoo-app/watchoo"
+
+// docsBase est la racine de la documentation en ligne ; docsURL y ajoute la langue de la page
+// (documentation/en/README.md ou documentation/fr/README.md).
+const docsBase = repoURL + "/blob/main/documentation/"
+
 // avatarPrefix est le seul hôte d'avatars accepté (CSP img-src).
 const avatarPrefix = "https://avatars.githubusercontent.com/"
 
@@ -53,6 +60,8 @@ const maxFirstLine = 120
 //	thresholdOrigin own  origine d'un seuil : "this repository's" / « propre à ce dépôt », sinon celui de l'espace
 //	importAction r   action d'un dépôt dans l'aperçu d'un import ("to add" / « à ajouter »…)
 //	jsTexts          textes de static/app.js (JSON du layout)
+//	repoURL          dépôt GitHub de Watchoo
+//	docsURL          sommaire de la documentation dans la langue de la page (docsURLFor)
 //	clean s          textclean.Clean (caractères de contrôle et séquences d'échappement retirés)
 //	firstLine s      première ligne nettoyée, coupée à 120 caractères (« … »)
 //	truncate n s     s nettoyé, coupé à n caractères (« … »)
@@ -83,6 +92,8 @@ func (s *server) funcs(tr *i18n.Translator) template.FuncMap {
 func (s *server) baseFuncs(tr *i18n.Translator) template.FuncMap {
 	return template.FuncMap{
 		"t":             tr.T,
+		"docsURL":       func() string { return docsURLFor(tr.Lang()) },
+		"repoURL":       func() string { return repoURL },
 		"tn":            func(key string, n int) string { return pluralText(tr, key, n) },
 		"relTime":       func(t time.Time) string { return activity.RelativeIn(tr, t, s.now(), s.loc, true) },
 		"localTime":     func(t time.Time) string { return s.formatLocal(t, tr.T("web.fmt.datetime")) },
@@ -296,4 +307,12 @@ func withQuery(path string, pairs ...any) (string, error) {
 		return path, nil
 	}
 	return path + "?" + q.Encode(), nil
+}
+
+// docsURLFor renvoie le sommaire de la documentation dans la langue lang (repli : anglais).
+func docsURLFor(lang i18n.Lang) string {
+	if lang == i18n.French {
+		return docsBase + "fr/README.md"
+	}
+	return docsBase + "en/README.md"
 }
