@@ -16,6 +16,13 @@ PATCH (see [Skills](documentation/en/11-skills.md#versions-and-changelogmd)).
   `score-ia-max` from 30. The number of leads per level moves to the tooltip; the alternative text gives the
   score and the tier. Icons in `assets/icon/`, copied into the web interface by `make logo`.
 
+### Fixed
+
+- Web interface, diagnosis: once a lead is reviewed, its level ("to review", "probable", "declared") no
+  longer looks like a pending status. It is shown in grey text without a badge, and the "Review" column
+  carries a colored badge with the decision (assisted, not assisted, undetermined), on the "Diagnosis" page
+  and in the leads of a repository page.
+
 ## [1.6.1] - 2026-11-04
 
 A link to the documentation, in the language of the web interface, and a link to the GitHub repository. No incompatible change: no migration,
