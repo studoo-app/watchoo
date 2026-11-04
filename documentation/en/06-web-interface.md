@@ -100,7 +100,7 @@ template.
 
 Everywhere a commit is listed (dashboard feed, history of a repository, commits of a contributor), a badge
 "AI: Claude" names each tool declared on it; **nothing** without a signature (shared `commit-ai` template).
-A contributor's page (and, before 1.7.0, the contributors ranking) gives "signed / analyzed" ("1 / 2") and the tools, "—" if
+A contributor's page (and, before 1.6.0, the contributors ranking) gives "signed / analyzed" ("1 / 2") and the tools, "—" if
 no commit is analyzed yet (shared `ai-totals` template), with the sentence "An AI signature says a tool was
 declared on the commit, not who wrote the code; its absence proves nothing." No percentage, no ranking on
 this figure, no address displayed. Rules: [AI signatures](02-features.md#ai-signatures).
@@ -204,7 +204,7 @@ this figure, no address displayed. Rules: [AI signatures](02-features.md#ai-sign
     specifies that the releases are not; in the header, "On GitHub" replaces the stars
     and the issues with "not available". A repository already read by the API
     keeps its latest values.
-- **Diagnosis** (1.7.0, `repo-diagnostic` fragment, only when the diagnosis is enabled): reminder "a lead is
+- **Diagnosis** (1.6.0, `repo-diagnostic` fragment, only when the diagnosis is enabled): reminder "a lead is
   never a verdict"; the [score of the repository](12-supervision-diagnostic.md#6-levels-score-and-output)
   next to the number of leads per level (declared, probable, to review); the table of the triggered signals
   (identifier, description, number of leads that carry it, points); the 10 latest leads (date, author,
@@ -219,9 +219,12 @@ this figure, no address displayed. Rules: [AI signatures](02-features.md#ai-sign
 - Global ranking (commits, share of the total, lines added / removed; "—" if none of their commits has
   known statistics yet, see `commits.stats_known`), with three counters (contributors, commits,
   repositories). The name of each contributor leads to their page (0.5.0).
-- **AI score** (1.7.0, in place of the "AI signatures" column): the [AI score of the
-  contributor](12-supervision-diagnostic.md#6-levels-score-and-output) and, below it, their number of leads per
-  level (declared, probable, to review); "—" if the diagnosis is disabled. No sorting on this column. Note
+- **AI score** (1.6.0, in place of the "AI signatures" column): the [AI score of the
+  contributor](12-supervision-diagnostic.md#6-levels-score-and-output): the icon of its tier
+  (`static/score-not-ia.svg` at 0, `score-ia.svg` from 1 to 29, `score-ia-max.svg` from 30, copied from
+  `assets/icon/` by `make logo`). At 0, the icon alone; otherwise the score is laid over the center of the
+  icon (same grid cell, theme color); the alternative text gives the score and the tier; the number of leads per level (declared, probable,
+  to review) is in the tooltip; "—" if the diagnosis is disabled. No sorting on this column. Note
   under the table: how the score is computed, and that a lead is never a verdict.
 - Number of commits per repository (links to the detail page).
 - Last activity.

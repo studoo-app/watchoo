@@ -61,3 +61,11 @@ func TestSummarizeByContributor(t *testing.T) {
 		t.Errorf("contributor 2 = %+v", b)
 	}
 }
+
+func TestTier(t *testing.T) {
+	for score, want := range map[int]string{0: TierNone, -1: TierNone, 1: TierMedium, 29: TierMedium, 30: TierHigh, 120: TierHigh} {
+		if got := Tier(score); got != want {
+			t.Errorf("Tier(%d) = %s, want %s", score, got, want)
+		}
+	}
+}
