@@ -437,6 +437,9 @@ diagnostic est activé (`diagnostic.enabled`). Détail : [Supervision et diagnos
   de pistes revues, historiques insuffisants, contexte D4, bouton « Mesurer l'historique » (reprise lancée
   en arrière-plan, une à la fois ; le résultat s'affiche au rechargement). Aucun message de commit.
 - **Niveaux** : badge « déclaré » (bleu), « probable » (rouge, phase 7.5), « à regarder » (orange).
+- **Revue** : une fois la piste revue, son niveau reste affiché en texte gris, sans badge, et la
+  colonne « Revue » porte un badge coloré avec la décision : « assisté » (violet), « non assisté » (vert),
+  « indéterminé » (gris). Sans revue : « non revue ». Même affichage dans les pistes de la page d'un dépôt.
 - **Fiche de revue** (`/diagnostic/lead`) : niveau ; signaux (D, R et, depuis la phase 7.5, F) avec leur description, valeur brute, médiane
   personnelle et score z ; graphique du débit de l'auteur sur 90 jours (lignes ajoutées par jour, jour de
   la piste en évidence) ; pour un commit, les commits mesurés voisins (± 3), les **lignes en cause** de chaque

@@ -440,6 +440,9 @@ enabled (`diagnostic.enabled`). Details: [Supervision and diagnosis](12-supervis
   insufficient histories, D4 context, "Measure the history" button (backfill started in the background, one
   at a time; the result shows on reload). No commit message.
 - **Levels**: "declared" badge (blue), "probable" (red, phase 7.5), "to review" (orange).
+- **Review**: once the lead is reviewed, its level stays shown in grey text, without a badge, and the
+  "Review" column carries a colored badge with the decision: "assisted" (purple), "not assisted" (green),
+  "undetermined" (grey). Without a review: "not reviewed". Same display in the leads of a repository page.
 - **Review sheet** (`/diagnostic/lead`): level; signals (D, R and, since phase 7.5, F) with their description, raw value, personal median
   and z-score; the author's throughput chart over 90 days (lines added per day, day of the lead
   highlighted); for a commit, the neighbouring measured commits (± 3), the **lines behind** each signal (file,

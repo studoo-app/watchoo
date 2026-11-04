@@ -411,6 +411,16 @@ func diagnosticFuncs(tr *i18n.Translator) template.FuncMap {
 			}
 			return "badge-warning"
 		},
+		// diagDecisionClass colore le badge de la décision d'une revue (liste des pistes).
+		"diagDecisionClass": func(d string) string {
+			switch d {
+			case diagnostic.DecisionAssisted:
+				return "badge-primary"
+			case diagnostic.DecisionNotAssisted:
+				return "badge-success"
+			}
+			return "badge-neutral"
+		},
 		"diagKind":       func(k string) string { return tr.T("web.diag.kind." + k) },
 		"diagDecision":   func(d string) string { return tr.T("web.diag.decision." + d) },
 		"diagCause":      func(c string) string { return tr.T("web.diag.cause." + c) },
