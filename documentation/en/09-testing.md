@@ -525,6 +525,10 @@ See [Supervision and diagnosis](12-supervision-diagnostic.md). No external servi
   counter-indicators H1 to H4; levels (A counted as R or F, "probable" lowered, never removed, "declared"
   untouched); migration `00015` (form to measure again, rollback); `TODO` marker measured at sync on a
   `gittest` repository; labels of the A and H signals in both languages.
+- Phase 7.8: line numbers of the added lines (hunks, new file); lines behind each signal, cap per
+  signal, same measures with or without collection; reading from an existing `gittest` clone only (line
+  numbers, nothing cloned without a clone, no line in the logs); order of the blocks of the sheet and "Lines
+  behind the signals" section.
 
 ## In CI
 

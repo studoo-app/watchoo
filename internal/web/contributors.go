@@ -33,7 +33,7 @@ type contributorsView struct {
 	Repos        int // nombre de dépôts distincts où au moins un auteur est connu
 	// Chart : graphique d'activité par contributeur (page complète seulement, pas le fragment).
 	Chart contributorChart
-	// Diagnostic : le diagnostic est activé ; chaque ligne porte alors son score IA (1.7.0).
+	// Diagnostic : le diagnostic est activé ; chaque ligne porte alors son score IA (1.6.0).
 	Diagnostic bool
 }
 
@@ -42,7 +42,7 @@ type contributorRow struct {
 	store.ContributorStats
 	Rank  int                          // rang (1 = le plus de commits)
 	Repos []store.ContributorRepoStats // ses commits par dépôt, du plus grand nombre au plus petit
-	// Diag : score IA et pistes par niveau (1.7.0, diagnostic activé ; zéro sans piste).
+	// Diag : score IA et pistes par niveau (1.6.0, diagnostic activé ; zéro sans piste).
 	Diag diagnostic.Summary
 }
 
@@ -112,7 +112,7 @@ func (s *server) contributorsData(r *http.Request, withChart bool) (contributors
 	return v, nil
 }
 
-// contributorScores renseigne le score IA de chaque ligne (1.7.0) si le diagnostic est activé : pistes
+// contributorScores renseigne le score IA de chaque ligne (1.6.0) si le diagnostic est activé : pistes
 // de tous les dépôts, regroupées par contributeur auteur (diagnostic.SummarizeByContributor).
 func (s *server) contributorScores(r *http.Request, v *contributorsView) error {
 	if v.Diagnostic = s.cfg.Diagnostic.Enabled; !v.Diagnostic {

@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"html/template"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -94,6 +95,13 @@ type signalRow struct {
 	Description string
 }
 
+// evidenceRow regroupe les lignes en cause d'un signal de la piste (fiche de revue).
+type evidenceRow struct {
+	Signal      string
+	Description string
+	diagnostic.Evidence
+}
+
 // reviewForm est le formulaire de revue (saisie, ou revue enregistrée).
 type reviewForm struct {
 	Decision, Cause, Confidence, Note string
@@ -103,21 +111,25 @@ type reviewForm struct {
 
 // diagnosticLeadView est le Content de la fiche de revue.
 type diagnosticLeadView struct {
-	Lead        diagnostic.Lead
-	Signals     []signalRow
-	Review      *model.DiagnosticReview
-	Form        reviewForm
-	Patch       string
-	PatchTrunc  bool
-	PatchShown  bool // un diff a été lu sur le clone
-	Neighbors   []store.CommitSignalView
-	Chart       template.JS // JSON du débit (diagnostic.Throughput)
-	ChartDays   int
-	AgentSince  time.Time // contexte D4 ; zéro si aucun
-	Decisions   []string
-	Causes      []string
-	Confidences []string
-	MaxNote     int
+	Lead       diagnostic.Lead
+	Signals    []signalRow
+	Review     *model.DiagnosticReview
+	Form       reviewForm
+	Patch      string
+	PatchTrunc bool
+	PatchShown bool // un diff a été lu sur le clone
+	// Evidence : lignes en cause par signal, relues sur le clone à l'affichage (jamais gardées) ;
+	// EvidenceShown : le clone a pu être lu.
+	Evidence      []evidenceRow
+	EvidenceShown bool
+	Neighbors     []store.CommitSignalView
+	Chart         template.JS // JSON du débit (diagnostic.Throughput)
+	ChartDays     int
+	AgentSince    time.Time // contexte D4 ; zéro si aucun
+	Decisions     []string
+	Causes        []string
+	Confidences   []string
+	MaxNote       int
 }
 
 // reviewer renvoie le nom du relecteur : compte de l'interface web, sinon nom de l'espace.
@@ -291,6 +303,12 @@ func (s *server) renderLead(w http.ResponseWriter, r *http.Request, status int, 
 					s.logger.Debug("diff du diagnostic non lu", "repo", repoID, "erreur", perr.Error())
 				}
 				view.Patch, view.PatchTrunc, view.PatchShown = patch, trunc, found && perr == nil
+				ev, found, eerr := s.repos.CommitEvidence(ctx, repo, lead.SHA)
+				if eerr != nil {
+					s.logger.Debug("lignes en cause du diagnostic non lues", "repo", repoID, "erreur", eerr.Error())
+				}
+				view.EvidenceShown = found && eerr == nil
+				view.Evidence = evidenceRows(tr, lead.Hits, ev)
 			}
 		}
 	}
@@ -412,4 +430,18 @@ func diagnosticFuncs(tr *i18n.Translator) template.FuncMap {
 		},
 		"leadPath": leadPath,
 	}
+}
+
+// evidenceRows renvoie les lignes en cause des signaux de la piste (hits), dans l'ordre des signaux ; un
+// signal sans ligne en cause (rythme, message, signal absolu sur l'ensemble du commit) n'y figure pas.
+func evidenceRows(tr *i18n.Translator, hits []diagnostic.Hit, ev map[string]diagnostic.Evidence) []evidenceRow {
+	var rows []evidenceRow
+	for _, h := range hits {
+		e, ok := ev[h.Signal]
+		if !ok || len(e.Lines) == 0 || slices.ContainsFunc(rows, func(r evidenceRow) bool { return r.Signal == h.Signal }) {
+			continue
+		}
+		rows = append(rows, evidenceRow{Signal: h.Signal, Description: tr.T("web.diag.signal." + h.Signal), Evidence: e})
+	}
+	return rows
 }

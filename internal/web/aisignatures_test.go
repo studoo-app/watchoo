@@ -23,7 +23,7 @@ func TestAISignaturesPages(t *testing.T) {
 	e.applySync(id, "alice", signed, plain)
 
 	// Before the analysis: no badge, "—" for the totals.
-	// Since 1.7.0 the ranking shows the AI score (diagnosis) instead of the signatures.
+	// Since 1.6.0 the ranking shows the AI score (diagnosis) instead of the signatures.
 	assertContains(t, e.get("/contributors"), "AI score", "the diagnosis is disabled")
 	assertNotContains(t, e.get("/contributors"), "AI signatures")
 	assertNotContains(t, e.get(repoPath(id)), "AI: Claude")

@@ -230,6 +230,9 @@ summary of what works. The plan and tree of each phase are proposed before the c
 - **7.7 Absolute signals, work-in-progress markers and counter-indicators** (done; plan approved on November
   4, 2026, section 9.6): cover projects delivered in few commits, which the R and F
   signals (comparison with oneself, 20 observations) do not see. Independent of 7.6: can ship before it.
+- **7.8 Lines behind the signals when shown** (done; option "extract when shown, keep nothing" chosen by
+  the maintainer on November 4, 2026): the review sheet quotes, under each signal, the added lines that
+  triggered it. Detailed in section 9.7.
 - **Later step: F6, content classifier** (postponed by the maintainer on November 4, 2026): optional, off by
   default, low weight (0.5). It needs a detection model (GPTSniffer or DetectCodeGPT style, references 17 to
   19), hence a dependency outside the documented stack, subject to the maintainer's approval; it would run
@@ -491,6 +494,24 @@ affects "Declared".
 6. Order: 7.7 before 7.6 (it does not depend on reviews), in a MINOR release (new signals and columns; no
    `--json` key removed).
 
+## 9.7 Phase 7.8: lines behind the signals when shown (done, released in v1.6.0)
+
+Maintainer decision (November 4, 2026), between two options: **A. extract when shown, keep nothing**
+(chosen) or B. keep excerpts in the database. Data minimisation (section 2) is unchanged: no line of code is
+written to the database or to the logs.
+
+- **Reading**: when the review sheet of a commit lead is opened, Watchoo reads again the added lines of the
+  commit from the existing local clone (no `fetch`, like the diff), measures the form again and notes, per
+  signal, the lines that trigger it, with their file and their number in the file after the commit.
+- **Signals that quote lines**: F1 (comments), F2 (documented definitions), F5 (first addition of each test
+  file), A5 (decorative lines), A6 (French comments without accents), H1 (work-in-progress markers), H2
+  (one-letter variables). The others (rhythm, message, signals on the whole commit such as A1, A2, A7) point to
+  the diff.
+- **Display**: "Lines behind the signals" section of the sheet, one block per signal of the lead, 20 lines
+  at most per signal, then "and N more lines". Without a clone: "unavailable", like the diff.
+- **Limit**: a commit missing from the clone (rewritten history, untracked branch) has no lines behind its
+  signals.
+
 ## 10. Open questions (for the maintainer to decide)
 
 1. **Informing learners**: text and timing (before the first analysis: course introduction, course charter…).
@@ -504,8 +525,9 @@ affects "Declared".
    cheating detector.
 5. **References**: those of specification v0.2, section 8, all verified on November 3, 2026. Secondary sources are
    flagged there; McConnell (2006) still has to be checked in the book.
-6. **Code content**: phase 7.5 keeps measures only. Keeping excerpts (to review F1 to F3 without a clone) is
-   not planned; to be reconsidered only if calibration (7.6) calls for it.
+6. **Code content**: **settled** on November 4, 2026. The lines behind the signals are extracted when shown,
+   keeping nothing (phase 7.8, section 9.7). Keeping excerpts in the database (readable without a clone) stays
+   ruled out; to be reconsidered only if calibration (7.6) calls for it.
 
 ## 11. References
 

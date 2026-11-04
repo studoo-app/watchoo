@@ -19,7 +19,8 @@ warnings per repository were released as **v1.3.0** ([1.3.0](#130-sync-warnings-
 message for an unknown SSH host key (local Git clones) in **v1.3.1**; supervision and diagnosis (phases
 7.1 to 7.5) were released as **v1.4.0** ([7](#after-100--7-supervision-and-diagnosis)); the absolute signals and
 counter-indicators of the diagnosis (phase 7.7) as **v1.5.0**; the EN / FR language selector of the web
-interface as **v1.6.0**.
+interface and the lines behind the signals on the review sheet of the diagnosis (phase 7.8) and the diagnosis score per
+repository and per contributor as **v1.6.0**.
 
 ```mermaid
 flowchart LR
@@ -174,7 +175,8 @@ Importing a whole organization and the alerts move to V3 (see
   level); **released in v1.4.0**. Phase 7.6 (calibration) will come in a
   **later release** (maintainer decision, November 4, 2026), once real reviews exist, then F6 (content
   classifier, postponed), each after its plan is approved. Phase **7.7** (absolute signals,
-  work-in-progress markers, counter-indicators) is **released in v1.5.0** (see
+  work-in-progress markers, counter-indicators) is **released in v1.5.0**; phase **7.8** (lines behind the signals on
+  the review sheet, extracted when shown) is **released in v1.6.0** (see
   [Supervision and diagnosis](12-supervision-diagnostic.md#96-phase-77-absolute-signals-work-in-progress-markers-and-counter-indicators-done)). Educational context
   settled (learners, results reserved to the trainer); learners are informed (existence of the diagnosis,
   purpose, criteria) before it is enabled.

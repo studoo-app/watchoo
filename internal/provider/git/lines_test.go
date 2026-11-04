@@ -11,8 +11,10 @@ import (
 )
 
 type addedLine struct {
-	sha, path, line string
-	hunk            bool
+	sha, path string
+	n         int
+	line      string
+	hunk      bool
 }
 
 // AddedLines reads the added lines on the existing clone only, per commit and per file, without context.
@@ -28,8 +30,8 @@ func TestAddedLines(t *testing.T) {
 
 	collect := func(shas ...string) ([]addedLine, error) {
 		var got []addedLine
-		err := p.AddedLines(ctx, "alice", "projet", shas, func(sha, path, line string, hunk bool) {
-			got = append(got, addedLine{sha, path, line, hunk})
+		err := p.AddedLines(ctx, "alice", "projet", shas, func(sha, path string, n int, line string, hunk bool) {
+			got = append(got, addedLine{sha, path, n, line, hunk})
 		})
 		return got, err
 	}
@@ -48,10 +50,10 @@ func TestAddedLines(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []addedLine{
-		{c0, "a.go", "package a", true}, {c0, "a.go", "", false}, {c0, "a.go", "func A() {}", false},
-		{c1, "a.go", "// B doc", true}, {c1, "a.go", "func B() {}", false}, {c1, "a.go", "", false},
-		{c1, "a.go", "+++ x", true},
-		{c2, "d d/é.py", "x = 1", true},
+		{c0, "a.go", 1, "package a", true}, {c0, "a.go", 2, "", false}, {c0, "a.go", 3, "func A() {}", false},
+		{c1, "a.go", 3, "// B doc", true}, {c1, "a.go", 4, "func B() {}", false}, {c1, "a.go", 5, "", false},
+		{c1, "a.go", 7, "+++ x", true},
+		{c2, "d d/é.py", 1, "x = 1", true},
 	}
 	// diff-tree lists the commits in input order (sorted SHAs): compare per commit.
 	for _, sha := range []string{c0, c1, c2, c3} {

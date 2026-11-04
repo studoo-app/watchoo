@@ -9,8 +9,22 @@ PATCH (see [Skills](documentation/en/11-skills.md#versions-and-changelogmd)).
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-11-04
+
+EN / FR language selector in the web interface; in the diagnosis, the lines behind each signal on the
+review sheet, and a score on the repository page and in the contributors list. No incompatible change: no
+migration, no setting changed; the new `POST /lang` route and the `watchoo_lang` cookie are additions.
+
 ### Added
 
+- Web interface: EN / FR language selector in the header. The choice applies to the current browser
+  only (cookie `watchoo_lang`, `POST /lang`), takes precedence over the workspace's `lang` setting and
+  never changes `config.yaml`; without a choice, the workspace's language applies (English by default).
+- **Diagnosis, phase 7.8 (lines behind the signals)**: the review sheet of a commit lead quotes, under each
+  signal, the added lines that triggered it, with their file and line number (comments for F1, documented
+  functions for F2, test files for F5, decorative lines for A5, comments without accents for A6, TODO and
+  debug calls for H1, one-letter variables for H2; 20 per signal at most). They are read from the local clone
+  when the sheet is shown, like the diff, and never stored or logged.
 - **Diagnosis on the repository page** (`/repos/{id}`, only when the diagnosis is enabled): a "Diagnosis"
   card with the score of the repository (sum of the points of the signals of its leads: D = 10, R and
   A1-A4 = 3, F and A5-A7 = 1, H = 0), always next to the number of leads per level and the table of the
@@ -23,17 +37,6 @@ PATCH (see [Skills](documentation/en/11-skills.md#versions-and-changelogmd)).
   points, on the leads they authored across all repositories), with their number of leads per level below
   it; "—" when the diagnosis is disabled. The list stays sorted by commits. The AI signatures stay on a
   contributor's page and on the commits.
-
-## [1.6.0] - 2026-11-04
-
-EN / FR language selector in the web interface. No incompatible change: no migration, no setting changed;
-the new `POST /lang` route and the `watchoo_lang` cookie are additions.
-
-### Added
-
-- Web interface: EN / FR language selector in the header. The choice applies to the current browser
-  only (cookie `watchoo_lang`, `POST /lang`), takes precedence over the workspace's `lang` setting and
-  never changes `config.yaml`; without a choice, the workspace's language applies (English by default).
 
 ## [1.5.0] - 2026-11-04
 

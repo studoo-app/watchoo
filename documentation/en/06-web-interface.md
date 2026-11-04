@@ -442,8 +442,9 @@ enabled (`diagnostic.enabled`). Details: [Supervision and diagnosis](12-supervis
 - **Levels**: "declared" badge (blue), "probable" (red, phase 7.5), "to review" (orange).
 - **Review sheet** (`/diagnostic/lead`): level; signals (D, R and, since phase 7.5, F) with their description, raw value, personal median
   and z-score; the author's throughput chart over 90 days (lines added per day, day of the lead
-  highlighted); for a commit, the neighbouring measured commits (± 3) and the diff read from the local clone
-  when shown (never stored, cut beyond 200 KB; "unavailable" without a clone); D4 context; link to the
+  highlighted); for a commit, the neighbouring measured commits (± 3), the **lines behind** each signal (file,
+  line number, 20 per signal at most; phase 7.8) and the diff, read from the local clone when shown (never
+  stored; diff cut beyond 200 KB; "unavailable" without a clone); D4 context; link to the
   forge; review form (decision, cause if not assisted, confidence, note of at most 2,000 characters). A
   refused input is shown again with the error (400); a saved review returns to the sheet (303) with "Review
   saved" and the reviewer (web interface account, otherwise workspace name).

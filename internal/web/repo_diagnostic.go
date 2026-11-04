@@ -1,6 +1,6 @@
 package web
 
-// Diagnostic d'un dépôt sur « /repos/{id} » (1.7.0, fragment « repo-diagnostic », seulement si le
+// Diagnostic d'un dépôt sur « /repos/{id} » (1.6.0, fragment « repo-diagnostic », seulement si le
 // diagnostic est activé) : score du dépôt avec le nombre de pistes par niveau et le décompte des
 // signaux, dernières pistes, lien vers la liste filtrée. Score, niveaux et décompte viennent de
 // internal/diagnostic (Summarize) ; aucun message de commit n'est affiché.

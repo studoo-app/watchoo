@@ -77,7 +77,7 @@ func TestDiagnosticLeadAndReview(t *testing.T) {
 	w := e.get(leadURL(ids.Alice, sha))
 	assertStatus(t, w, http.StatusOK)
 	assertContains(t, w, "AI co-author trailer", "claude", `id="diag-throughput-data"`, `data-chart="daily-lines"`,
-		"Neighbouring commits of the author", "Diff unavailable", `name="key" value="commit/`+sha+`"`)
+		"Neighbouring commits of the author", "Diff unavailable", "Lines behind the signals", `name="key" value="commit/`+sha+`"`)
 	assertNotContains(t, w, "Reviewed by")
 	assertStatus(t, e.get("/diagnostic/lead?repo=1&key=commit/absent"), http.StatusNotFound)
 	assertStatus(t, e.get("/diagnostic/lead?repo=abc&key=x"), http.StatusNotFound)
@@ -149,7 +149,7 @@ func TestDiagnosticLabels(t *testing.T) {
 	}
 }
 
-// Repository page (1.7.0): the diagnosis card shows the score next to the levels and the signals, only when
+// Repository page (1.6.0): the diagnosis card shows the score next to the levels and the signals, only when
 // the diagnosis is enabled.
 func TestRepoDiagnostic(t *testing.T) {
 	e, ids, sha := diagnosticEnv(t)
@@ -186,7 +186,7 @@ func leadURLHTML(repoID int64, sha string) string {
 	return strings.ReplaceAll(leadURL(repoID, sha), "&", "&amp;")
 }
 
-// Contributors list (1.7.0): the "AI score" column replaces the AI signatures, with the levels next to it.
+// Contributors list (1.6.0): the "AI score" column replaces the AI signatures, with the levels next to it.
 func TestContributorsAIScore(t *testing.T) {
 	e, _, _ := diagnosticEnv(t)
 	w := e.get("/contributors")
@@ -201,4 +201,20 @@ func TestContributorsAIScore(t *testing.T) {
 
 	f, _, _ := diagnosticEnv(t, withLang("fr"))
 	assertContains(t, f.get("/contributors"), "Score IA", "1 déclaré · 0 probable · 0 à regarder")
+}
+
+// The evidence rows follow the signals of the lead, once each, and leave out the signals without lines.
+func TestEvidenceRows(t *testing.T) {
+	tr := i18n.For(i18n.French)
+	hits := []diagnostic.Hit{{Signal: "A1"}, {Signal: "A5"}, {Signal: "H1"}, {Signal: "H1", Value: "x"}}
+	ev := map[string]diagnostic.Evidence{
+		"A5": {Lines: []diagnostic.EvidenceLine{{Path: "a.go", Line: 3, Text: "// ════"}}},
+		"H1": {Lines: []diagnostic.EvidenceLine{{Path: "a.go", Line: 4, Text: "// TODO"}}, More: 2},
+		"F1": {Lines: []diagnostic.EvidenceLine{{Path: "a.go", Line: 3}}}, // not a signal of the lead
+	}
+	rows := evidenceRows(tr, hits, ev)
+	if len(rows) != 2 || rows[0].Signal != "A5" || rows[1].Signal != "H1" || rows[1].More != 2 ||
+		rows[0].Description != "lignes de commentaire décoratives" {
+		t.Errorf("evidence rows: %+v", rows)
+	}
 }

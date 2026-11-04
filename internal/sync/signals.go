@@ -97,7 +97,7 @@ func commitForm(sig diagnostic.Signals) model.CommitForm {
 // lineReader est implémenté par le provider des clones Git locaux (*git.Provider) : lignes ajoutées des
 // commits, lues en flux sur le clone existant.
 type lineReader interface {
-	AddedLines(ctx context.Context, owner, name string, shas []string, fn func(sha, path, line string, hunk bool)) error
+	AddedLines(ctx context.Context, owner, name string, shas []string, fn func(sha, path string, n int, line string, hunk bool)) error
 }
 
 // measureForms mesure la forme (signaux F1 à F5) des commits shas sur le clone existant de owner/name.
@@ -114,9 +114,9 @@ func (e *Engine) measureForms(ctx context.Context, clone any, owner, name, full 
 	for _, sha := range shas {
 		meters[sha] = diagnostic.NewFormMeter(e.diag)
 	}
-	err := lr.AddedLines(ctx, owner, name, shas, func(sha, path, line string, hunk bool) {
+	err := lr.AddedLines(ctx, owner, name, shas, func(sha, path string, n int, line string, hunk bool) {
 		if m, ok := meters[sha]; ok {
-			m.Line(path, line, hunk)
+			m.LineAt(path, n, line, hunk)
 		}
 	})
 	if err != nil {
