@@ -14,7 +14,10 @@ plusieurs espaces en même temps, on lance un `serve` par espace, chacun sur son
 ## Langue de l'interface
 
 La langue des pages vient du **réglage `lang` de l'espace de supervision** (`config.yaml`) : `en` par
-défaut, `fr` pour le français. Tout ce qui est affiché — titres, tableaux, libellés, boutons,
+défaut, `fr` pour le français. Le **sélecteur EN / FR** de l'en-tête (1.6.0) la change pour le seul
+navigateur en cours : le choix est gardé dans un cookie (`watchoo_lang`, suffixé par le port comme le
+cookie CSRF, `HttpOnly`, un an), l'emporte sur `lang` et `WATCHOO_LANG`, et n'écrit jamais dans
+`config.yaml`. Sans choix, ou avec une valeur inconnue, la langue de l'espace s'applique. Tout ce qui est affiché — titres, tableaux, libellés, boutons,
 messages d'erreur, dates relatives (« il y a 2 h » → "2 h ago") — existe dans les deux langues, servis
 par le paquet `internal/i18n`, sans dépendance (voir
 [Architecture](03-architecture.md#langues-et-traductions)). `lang` est un réglage commun : il est
@@ -22,7 +25,7 @@ partagé avec les autres superviseurs comme `timezone`. Les données saisies (no
 de commit, logins) ne sont pas traduites. Le réglage se change dans `config.yaml` (ou par l'import d'une
 configuration partagée) ; il est relu à chaque requête : un changement s'applique sans redémarrer
 `watchoo serve`. Sa variable d'environnement est `WATCHOO_LANG`, la même que celle de la CLI : la
-définir impose la langue partout.
+définir impose la langue partout, sauf dans un navigateur qui a choisi une langue avec le sélecteur.
 
 ## Pages
 
@@ -67,6 +70,7 @@ ne modifie quoi que ce soit ; tout `POST` passe par le contrôle CSRF.
 | `GET` | `/diagnostic/lead` | Fiche de revue d'une piste (404 si le diagnostic est désactivé ou la piste inconnue) |
 | `POST` | `/diagnostic/review` | Enregistre la revue d'une piste |
 | `POST` | `/diagnostic/backfill` | Lance la reprise de l'historique en arrière-plan (une à la fois) |
+| `POST` | `/lang` | Langue du navigateur (`lang` : `en` ou `fr` ; retour au chemin local `return`, sans query, sinon `/` ; 400 si inconnue) |
 | `GET` | `/static/*`, `/favicon.ico`, `/apple-touch-icon.png`, `/manifest.webmanifest` | Fichiers statiques embarqués |
 
 `{id}` est un nombre de 1 à 18 chiffres (sinon 404).

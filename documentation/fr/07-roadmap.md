@@ -17,7 +17,8 @@ sont publiés en **v1.2.0** ([1.2.0](#120--signatures-dia-et-langages-des-contri
 synchro par dépôt sont publiés en **v1.3.0** ([1.3.0](#130--avertissements-de-synchro-par-dépôt)) ; un message
 dédié pour une empreinte de serveur SSH inconnue (clones Git locaux) en **v1.3.1** ; la supervision et le
 diagnostic (phases 7.1 à 7.5) sont publiés en **v1.4.0** ([7](#après-100--7--supervision-et-diagnostic)) ; les signaux
-absolus et les contre-indicateurs du diagnostic (phase 7.7) en **v1.5.0**.
+absolus et les contre-indicateurs du diagnostic (phase 7.7) en **v1.5.0** ; le sélecteur de langue EN / FR de
+l'interface web en **v1.6.0**.
 
 ```mermaid
 flowchart LR

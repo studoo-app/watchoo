@@ -15,7 +15,10 @@ To run several workspaces at the same time, launch one `serve` per workspace, ea
 ## Interface language
 
 The pages' language comes from the **workspace's `lang` setting** (`config.yaml`): `en` by
-default, `fr` for French. Everything displayed — titles, tables, labels, buttons,
+default, `fr` for French. The **EN / FR selector** of the header (1.6.0) changes it for the current
+browser only: the choice is kept in a cookie (`watchoo_lang`, suffixed by the port like the CSRF cookie,
+`HttpOnly`, one year), takes precedence over `lang` and `WATCHOO_LANG`, and never writes to
+`config.yaml`. Without a choice, or with an unknown value, the workspace's language applies. Everything displayed — titles, tables, labels, buttons,
 error messages, relative dates ("2 h ago", in French « il y a 2 h ») — exists in both languages, served
 by the `internal/i18n` package, with no dependency (see
 [Architecture](03-architecture.md#languages-and-translations)). `lang` is a shared setting: it is
@@ -23,7 +26,7 @@ shared with the other supervisors like `timezone`. Entered data (display labels,
 messages, logins) is not translated. The setting is changed in `config.yaml` (or by importing a
 shared configuration); it is read again at each request, so a change applies without restarting
 `watchoo serve`. Its environment variable is `WATCHOO_LANG`, the same one as the CLI's: setting it
-forces the language everywhere.
+forces the language everywhere, except in a browser that picked a language with the selector.
 
 ## Pages
 
@@ -68,6 +71,7 @@ changes anything; every `POST` goes through the CSRF check.
 | `GET` | `/diagnostic/lead` | Review sheet of a lead (404 if the diagnosis is disabled or the lead unknown) |
 | `POST` | `/diagnostic/review` | Saves the review of a lead |
 | `POST` | `/diagnostic/backfill` | Starts the history backfill in the background (one at a time) |
+| `POST` | `/lang` | Language of the browser (`lang`: `en` or `fr`; back to the local path `return`, without query, else `/`; 400 if unknown) |
 | `GET` | `/static/*`, `/favicon.ico`, `/apple-touch-icon.png`, `/manifest.webmanifest` | Embedded static files |
 
 `{id}` is a number of 1 to 18 digits (otherwise 404).

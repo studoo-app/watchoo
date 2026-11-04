@@ -59,6 +59,7 @@ const (
 type PageData struct {
 	Title     string   // titre propre à la page (traduit) ; le layout ajoute le nom de l'espace et « Watchoo »
 	Lang      string   // langue de la page (« en », « fr ») : jeu de templates et attribut <html lang>
+	Path      string   // chemin de la requête, sans la query (champ return du sélecteur de langue)
 	Nav       string   // entrée active de la navigation (navDashboard…) ; vide = aucune
 	Content   any      // données propres à la page (type défini par le fichier Go de la page)
 	Workspace string   // nom de l'espace (Config.Name)
@@ -106,6 +107,7 @@ func (s *server) page(r *http.Request, title, nav string, content any) PageData 
 	return PageData{
 		Title:     title,
 		Lang:      string(s.tr(r).Lang()),
+		Path:      r.URL.EscapedPath(),
 		Nav:       nav,
 		Content:   content,
 		Workspace: s.cfg.Name,
