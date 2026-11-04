@@ -4,7 +4,7 @@
 
 **Status**: maintainer decision. Phases **7.1 to 7.5 done** (foundations, declarative signals, the
 `watchoo diagnostic` command, rhythm signals, history backfill, human review on the web, form signals F1 to
-F5; unreleased, sections 9.1 to 9.5); phase 7.6 to come in a later release, then F6 (content classifier, postponed), each after
+F5; released in v1.4.0, sections 9.1 to 9.5); phase 7.6 to come in a later release, then F6 (content classifier, postponed), each after
 its plan is approved (see [Roadmap](07-roadmap.md)). Source of the signal part: the specification
 "Detection of AI-assisted code production signals", **version 0.2** (November 3, 2026, references verified),
 written in French.

@@ -16,7 +16,8 @@ more week of real usage, the public surface was stabilized and released as **v1.
 ([1.1.0](#110-languages-and-share-of-the-contributors)); the AI signatures and the languages of the
 contributors were released as **v1.2.0** ([1.2.0](#120-ai-signatures-and-languages-of-the-contributors)); the sync
 warnings per repository were released as **v1.3.0** ([1.3.0](#130-sync-warnings-per-repository)); a dedicated
-message for an unknown SSH host key (local Git clones) in **v1.3.1**.
+message for an unknown SSH host key (local Git clones) in **v1.3.1**; supervision and diagnosis (phases
+7.1 to 7.5) were released as **v1.4.0** ([7](#after-100--7-supervision-and-diagnosis)).
 
 ```mermaid
 flowchart LR
@@ -157,7 +158,7 @@ Importing a whole organization and the alerts move to V3 (see
 - Warnings of the last sync recorded per repository (`sync_runs.warnings`, migration `00010`): badge on the
   dashboard card, alert with the full message on the repository's page, menu of the repositories concerned
   in the sync indicator: **released in v1.3.0**. See [Web interface](06-web-interface.md#1-dashboard).
-### After 1.0.0 — 7: supervision and diagnosis (proposal)
+### After 1.0.0 — 7: supervision and diagnosis
 - Watchoo becomes a **supervision and diagnosis** tool (maintainer decision). First component: detection of
   signals suggesting AI-assisted production, with its guardrails (a flag is never a verdict, explainability,
   human review, transparency, data minimisation).
@@ -168,7 +169,7 @@ Importing a whole organization and the alerts move to V3 (see
   the trainer) and **7.3 done** (rhythm signals R1 to R6, "to review" level, `watchoo diagnostic backfill`);
   and **7.4 done** (human review on the web: "Diagnosis" page, review sheet, recorded decisions, history
   backfill button) and **7.5 done** (form signals F1 to F5 measured in memory, numbers only kept, "probable"
-  level); unreleased; phases 7.1 to 7.5 make up one release. Phase 7.6 (calibration) will come in a
+  level); **released in v1.4.0**. Phase 7.6 (calibration) will come in a
   **later release** (maintainer decision, November 4, 2026), once real reviews exist, then F6 (content
   classifier, postponed), each after its plan is approved. Educational context
   settled (learners, results reserved to the trainer); learners are informed (existence of the diagnosis,

@@ -15,7 +15,8 @@ semaine de plus d'usage réel, la surface publique est stabilisée et publiée e
 ([1.1.0](#110--langages-et-part-des-contributeurs)) ; les signatures d'IA et les langages des contributeurs
 sont publiés en **v1.2.0** ([1.2.0](#120--signatures-dia-et-langages-des-contributeurs)) ; les avertissements de
 synchro par dépôt sont publiés en **v1.3.0** ([1.3.0](#130--avertissements-de-synchro-par-dépôt)) ; un message
-dédié pour une empreinte de serveur SSH inconnue (clones Git locaux) en **v1.3.1**.
+dédié pour une empreinte de serveur SSH inconnue (clones Git locaux) en **v1.3.1** ; la supervision et le
+diagnostic (phases 7.1 à 7.5) sont publiés en **v1.4.0** ([7](#après-100--7--supervision-et-diagnostic)).
 
 ```mermaid
 flowchart LR
@@ -158,7 +159,7 @@ L'import d'une organisation entière et les alertes passent en V3 (voir
   pastille sur la carte du tableau de bord, alerte avec le message complet sur la page du dépôt, menu des
   dépôts concernés dans l'indicateur de synchro : **publié en v1.3.0**. Voir
   [Interface web](06-interface-web.md#1-tableau-de-bord).
-### Après 1.0.0 — 7 : supervision et diagnostic (proposition)
+### Après 1.0.0 — 7 : supervision et diagnostic
 - Watchoo devient un outil de **supervision et de diagnostic** (décision du mainteneur). Première brique : la
   détection de signaux suggérant une production assistée par IA, avec ses garde-fous (flag jamais verdict,
   explicabilité, revue humaine, transparence, minimisation des données).
@@ -170,7 +171,7 @@ L'import d'une organisation entière et les alertes passent en V3 (voir
   « à regarder », `watchoo diagnostic backfill`) et **7.4 réalisée** (revue humaine sur le web : page
   « Diagnostic », fiche de revue, décisions enregistrées, bouton de reprise de l'historique) et **7.5
   réalisée** (signaux de forme F1 à F5 mesurés en mémoire, seuls des nombres gardés, niveau « probable ») ;
-  non publiées ; les phases 7.1 à 7.5 forment une même version. La phase 7.6 (calibration) viendra dans une
+  **publiées en v1.4.0**. La phase 7.6 (calibration) viendra dans une
   **version ultérieure** (décision du mainteneur, 4 novembre 2026), quand des revues réelles existeront,
   puis F6 (classifieur de contenu, reporté), chacune après validation de son plan. Contexte pédagogique tranché (apprenants, résultats réservés au formateur) ;
   l'information des apprenants (existence du diagnostic, finalité, critères) se fait avant de l'activer.
