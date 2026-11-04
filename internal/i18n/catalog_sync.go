@@ -90,6 +90,11 @@ var syncTexts = map[string]entry{
 	"sync.thresholds.error": {"activity thresholds of the repository", "seuils d'activité du dépôt"},
 
 	// Statistiques de lignes (clonestats.go, repo.go).
+	"sync.backfill.disabled": {
+		"the diagnosis is disabled in this workspace (diagnostic.enabled: false)",
+		"le diagnostic est désactivé dans cet espace (diagnostic.enabled: false)",
+	},
+	"sync.backfill.clones": {"local Git clones", "clones Git locaux"},
 	"sync.diagnostic.not_recorded": {
 		"diagnostic signals not recorded: %s",
 		"signaux de diagnostic non enregistrés : %s",

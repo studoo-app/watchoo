@@ -31,6 +31,14 @@ PATCH (see [Skills](documentation/en/11-skills.md#versions-and-changelogmd)).
   with the signal that found it (`D1:claude`); for pull requests, only the tools found in the description
   are kept, never the description (`pull_requests.tool_ids`, new `repository_signals` table, migration
   `00008`). With the diagnosis disabled, the command says so.
+- **Diagnosis, phase 7.3 (rhythm signals)**: `watchoo diagnostic` also shows leads of level "to review":
+  commits or days whose rhythm is unusual for the learner, compared with their own history in the
+  repository over 90 days (modified z-score above 3.5): net lines of a day (R1), commit size (R2),
+  addition ratio (R3), files per commit (R5), regime break (R6), and apparent speed (R4) with the new
+  `diagnostic.speed_signal` setting (off by default). Each signal shows its raw value, the personal median
+  and the z-score (`raw`, `median`, `z` in `--json`); authors with fewer than 20 measured commits in 90
+  days are reported as "not enough history". New `watchoo diagnostic backfill [--repo X]` command: measures
+  on the local clones the commits synced before the diagnosis was enabled, within the retention period.
 
 ## [1.0.0] - 2026-11-01
 

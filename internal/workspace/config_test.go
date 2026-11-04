@@ -36,7 +36,7 @@ func TestDefaultConfig(t *testing.T) {
 		GitHub:   GitHubConfig{User: "", GHPath: "gh"},
 		Git:      GitConfig{Protocol: "ssh"},
 		Diagnostic: DiagnosticConfig{Enabled: false, Exclude: diagnostic.DefaultExclude,
-			RetentionDays: 365},
+			RetentionDays: 365, SpeedSignal: false},
 	}
 	if !reflect.DeepEqual(cfg, want) {
 		t.Errorf("DefaultConfig = %+v\nwant %+v", cfg, want)
@@ -66,6 +66,7 @@ func TestSettingKeys(t *testing.T) {
 		"activity.flemme_after_days", "activity.dead_after_days", "branches.exclude",
 		"web.addr", "web.auth.username", "web.trusted_proxy", "web.allowed_hosts", "timezone", "lang", "github.user", "github.gh_path",
 		"git.protocol", "diagnostic.enabled", "diagnostic.exclude", "diagnostic.retention_days",
+		"diagnostic.speed_signal",
 	}
 	if !slices.Equal(keys, wantKeys) {
 		t.Errorf("keys = %v\nwant %v", keys, wantKeys)
@@ -75,7 +76,7 @@ func TestSettingKeys(t *testing.T) {
 		"WATCHOO_ACTIVITY_FLEMME_AFTER_DAYS", "WATCHOO_ACTIVITY_DEAD_AFTER_DAYS", "WATCHOO_BRANCHES_EXCLUDE",
 		"WATCHOO_WEB_ADDR", "WATCHOO_WEB_AUTH_USERNAME", "WATCHOO_WEB_TRUSTED_PROXY", "WATCHOO_WEB_ALLOWED_HOSTS", "WATCHOO_TIMEZONE", "WATCHOO_LANG", "WATCHOO_GITHUB_USER", "WATCHOO_GITHUB_GH_PATH",
 		"WATCHOO_GIT_PROTOCOL", "WATCHOO_DIAGNOSTIC_ENABLED", "WATCHOO_DIAGNOSTIC_EXCLUDE",
-		"WATCHOO_DIAGNOSTIC_RETENTION_DAYS",
+		"WATCHOO_DIAGNOSTIC_RETENTION_DAYS", "WATCHOO_DIAGNOSTIC_SPEED_SIGNAL",
 	}
 	if !slices.Equal(envs, wantEnvs) {
 		t.Errorf("variables = %v\nwant %v", envs, wantEnvs)
@@ -419,6 +420,7 @@ func TestLoadEnvironmentVariables(t *testing.T) {
 		"WATCHOO_DIAGNOSTIC_ENABLED":         "true",
 		"WATCHOO_DIAGNOSTIC_EXCLUDE":         "vendor/, *.lock",
 		"WATCHOO_DIAGNOSTIC_RETENTION_DAYS":  "30",
+		"WATCHOO_DIAGNOSTIC_SPEED_SIGNAL":    "true",
 	}
 	for k, v := range env {
 		t.Setenv(k, v)
@@ -437,7 +439,7 @@ func TestLoadEnvironmentVariables(t *testing.T) {
 		GitHub:   GitHubConfig{User: "prof", GHPath: "/usr/local/bin/gh"},
 		Git:      GitConfig{Protocol: "https"},
 		Diagnostic: DiagnosticConfig{Enabled: true, Exclude: []string{"vendor/", "*.lock"},
-			RetentionDays: 30},
+			RetentionDays: 30, SpeedSignal: true},
 	}
 	if !reflect.DeepEqual(ws.Config, want) {
 		t.Errorf("Config = %+v\nwant  %+v", ws.Config, want)

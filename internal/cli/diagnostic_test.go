@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/studoo-app/watchoo/internal/diagnostic"
 	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/provider"
 	"github.com/studoo-app/watchoo/internal/provider/providertest"
@@ -70,7 +71,8 @@ func TestDiagnosticText(t *testing.T) {
 		"Reflection leads for the trainer, not verdicts",
 		"PR #3", "D2 claude, D2 unnamed, D5 codex/menu",
 		"commit "+provider.ShortSHA(providertest.SHA("a2")), "D1 claude", "declared",
-		"Context (D4):", "alice/projet: agent configured since 10/25/2026")
+		"Context (D4):", "alice/projet: agent configured since 10/25/2026",
+		"1 of 1 authors do not have enough history yet (fewer than 20 measured commits in 90 days)")
 	assertNotContains(t, "diagnostic", out, provider.ShortSHA(providertest.SHA("a1")), "Ajoute les tests")
 	// PR (4 h ago) before the commit (2 h ago)? No: newest first, the commit comes first.
 	if strings.Index(out, "commit ") > strings.Index(out, "PR #3") {
@@ -98,8 +100,10 @@ func TestDiagnosticJSON(t *testing.T) {
 	assertJSONKeys(t, out, "", jsonTopLevelKeys["diagnostic"]...)
 	assertJSONKeys(t, out, "leads.0", "kind", "level", "repository", "sha", "short_sha", "number", "title", "url",
 		"author", "date", "signals")
-	assertJSONKeys(t, out, "leads.0.signals.0", "id", "value")
+	assertJSONKeys(t, out, "leads.0.signals.0", "id", "value", "raw", "median", "z")
 	assertJSONKeys(t, out, "contexts.0", "repository", "agent_config_since")
+	assertJSONKeys(t, out, "histories.0", "repository", "author", "commits", "worked_days", "sufficient")
+	assertContains(t, "diagnostic --json", out, `"raw": null`, `"sufficient": false`, `"commits": 2`)
 	assertJSONKeys(t, out, "filters", "repository", "author", "since")
 	var rep struct {
 		Enabled bool `json:"enabled"`
@@ -131,8 +135,30 @@ func TestDiagnosticDisabled(t *testing.T) {
 	assertContains(t, "diagnostic (disabled)", out, "The diagnosis is disabled in this workspace", "Inform the learners")
 	js := h.run("diagnostic", "--json").mustSucceed(t).stdout
 	assertContains(t, "diagnostic --json (disabled)", js, `"enabled": false`, `"leads": []`, `"contexts": []`)
+	// Backfill refused: the diagnosis is disabled.
+	if r := h.run("diagnostic", "backfill"); r.code == 0 || !strings.Contains(r.stderr, "the diagnosis is disabled") {
+		t.Errorf("backfill with the diagnosis disabled: %+v", r)
+	}
 	// Invalid option: refused before the workspace is opened.
 	if r := h.run("diagnostic", "--since", "demain"); r.code == 0 {
 		t.Errorf("--since demain accepted: %+v", r)
+	}
+}
+
+func TestDiagnosticHitsText(t *testing.T) {
+	hits := []diagnostic.Hit{
+		{Signal: "D1", Value: "claude"},
+		{Signal: "R2", Value: "388", Raw: 388, Median: 22, Z: 5.4321, HasMedian: true, HasZ: true},
+		{Signal: "R3", Value: "0.97", Raw: 0.97, Median: 0.71, HasMedian: true},
+		{Signal: "R4", Value: "20", Raw: 20},
+	}
+	if got, want := hitsText(hits), "D1 claude, R2 388 (median 22, z 5.4), R3 0.97 (median 0.7), R4 20"; got != want {
+		t.Errorf("hitsText = %q, want %q", got, want)
+	}
+	if v := floatJSON(5.43219, true); v == nil || *v != 5.432 {
+		t.Errorf("floatJSON = %v", v)
+	}
+	if floatJSON(1, false) != nil {
+		t.Error("floatJSON(false) not null")
 	}
 }

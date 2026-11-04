@@ -86,6 +86,9 @@ type DiagnosticConfig struct {
 	// RetentionDays est la durée de conservation des signaux, en jours, comptée depuis la date
 	// d'écriture des commits : entre 1 et MaxDiagnosticRetentionDays (défaut 365).
 	RetentionDays int `mapstructure:"retention_days"`
+	// SpeedSignal active le signal R4 (vitesse apparente : lignes ajoutées par minute depuis le commit
+	// précédent du même auteur, le même jour), le plus fragile : défaut false.
+	SpeedSignal bool `mapstructure:"speed_signal"`
 }
 
 // SyncConfig regroupe les réglages de synchronisation (clés sync.*).
@@ -184,7 +187,7 @@ type GitConfig struct {
 //	lang: "en"
 //	github: {user: "", gh_path: "gh"}
 //	git: {protocol: "ssh"}
-//	diagnostic: {enabled: false, exclude: diagnostic.DefaultExclude, retention_days: 365}
+//	diagnostic: {enabled: false, exclude: diagnostic.DefaultExclude, retention_days: 365, speed_signal: false}
 func DefaultConfig(name string) Config {
 	return Config{
 		Name: name,
@@ -1078,6 +1081,7 @@ func renderConfig(tr *i18n.Translator, defaultName string, active map[string]any
 	setting("  ", "diagnostic.exclude", tr.T("workspace.cfg.diagnostic_exclude"))
 	setting("  ", "diagnostic.retention_days",
 		tr.T("workspace.cfg.diagnostic_retention", MaxDiagnosticRetentionDays))
+	setting("  ", "diagnostic.speed_signal", tr.T("workspace.cfg.diagnostic_speed"))
 	return b.String()
 }
 

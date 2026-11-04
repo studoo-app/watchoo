@@ -165,7 +165,8 @@ Faux pour les tests : `providertest` (Provider en mémoire), `githubtest` (serve
   branches exclues, parallélisme de synchro, fuseau horaire d'affichage (par défaut celui du système),
   compte `gh` (`github.user`), chemin de `gh` (`github.gh_path`), protocole des clones Git locaux
   (`git.protocol` : `ssh` par défaut, ou `https` ; V2), diagnostic (`diagnostic.enabled`, désactivé par
-  défaut ; `diagnostic.exclude` ; `diagnostic.retention_days`, 365 par défaut ; phase 7.1, voir
+  défaut ; `diagnostic.exclude` ; `diagnostic.retention_days`, 365 par défaut ; `diagnostic.speed_signal`, signal R4, désactivé par défaut ;
+  phases 7.1 et 7.3, voir
   [Supervision et diagnostic](12-supervision-diagnostic.md)).
 - Partage entre superviseurs : `watchoo config export` / `import` (et la page Réglages) échangent un
   fichier JSON versionné (`format: watchoo-config`, `version: 1`) avec les dépôts suivis et les réglages

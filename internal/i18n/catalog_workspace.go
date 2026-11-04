@@ -516,6 +516,10 @@ var workspaceTexts = map[string]entry{
 		`files left out of the measures ("vendor/": a directory; binaries always left out)`,
 		`fichiers exclus des mesures (« vendor/ » : un répertoire ; binaires toujours exclus)`,
 	},
+	"workspace.cfg.diagnostic_speed": {
+		"true: also the apparent speed signal (R4), fragile (legitimate copy-paste)",
+		"true : aussi le signal de vitesse apparente (R4), fragile (copier-coller légitime)",
+	},
 	"workspace.cfg.diagnostic_retention": {
 		"days the signals are kept, from the commit date (1 to %d)",
 		"jours de conservation des signaux, depuis la date du commit (1 à %d)",

@@ -45,7 +45,7 @@ var storeTexts = map[string]entry{
 	"store.open.pragma":              {"reading the foreign_keys pragma", "lecture du pragma foreign_keys"},
 	"store.pulls.count":              {"number of pull requests of repository %d", "nombre de pull requests du dépôt %d"},
 	"store.diagnostic.context":       {"diagnostic context of repository %d", "contexte de diagnostic du dépôt %d"},
-	"store.diagnostic.declared":      {"declared diagnostic signals", "signaux de diagnostic déclarés"},
+	"store.diagnostic.list_all":      {"diagnostic signals", "signaux de diagnostic"},
 	"store.diagnostic.list":          {"diagnostic signals of repository %d", "signaux de diagnostic du dépôt %d"},
 	"store.diagnostic.purge":         {"purging old diagnostic signals", "purge des anciens signaux de diagnostic"},
 	"store.diagnostic.write":         {"diagnostic signals of commit %s", "signaux de diagnostic du commit %s"},

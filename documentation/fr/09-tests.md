@@ -468,6 +468,12 @@ fictives, dépôts `gittest`, base SQLite temporaire.
   jamais dans les logs), contexte D4 sur un dépôt `gittest` (avec et sans `AGENTS.md`), pistes assemblées
   par `diagnostic.Declared` ; `watchoo diagnostic` en texte (anglais et français), en `--json` (clés vérifiées,
   description de PR jamais écrite), filtres et diagnostic désactivé.
+- Phase 7.3 : médiane, MAD et score z modifié (valeurs connues, MAD nul, moins de 20 observations) ;
+  signaux R1, R2, R3, R5 sur un historique construit, R4 seulement avec `diagnostic.speed_signal` (et pas
+  à la même minute), R6 au premier jour d'une rupture seulement, fenêtre de 90 jours, commits sans auteur
+  ignorés, niveaux ; reprise de l'historique sur un dépôt `gittest` (refusée sans diagnostic, hors
+  conservation, fusions écartées, une seule fois, contexte D4) ; sortie texte des signaux (médiane, z) et
+  clés `--json` de `histories` et de `diagnostic backfill`.
 
 ## En CI
 

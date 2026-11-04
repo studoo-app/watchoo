@@ -86,7 +86,8 @@ internal/provider/    Provider interface, types, errors; providertest/ (fake Pro
 internal/sync/        sync engine (business core)
 internal/activity/    activity rules (Actif / Flemme / Dead, gray states), series, short formats
 internal/diagnostic/  diagnosis (phase 7): per-commit signals (file exclusions, declared AI tools, bot
-                      author, agent configuration file), reflection leads ("declared" level); keeps neither
+                      author, agent configuration file), rhythm signals R1-R6 (modified z-score), reflection
+                      leads ("declared", "to review"); keeps neither
                       message, PR description nor path
 internal/repoimport/  repository refs, --branch patterns, import files
 internal/configshare/ configuration sharing (JSON export, validation, preview, import)

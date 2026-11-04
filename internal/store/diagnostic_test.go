@@ -142,32 +142,36 @@ func TestDeclaredSignalsStore(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	all, err := s.ListDeclaredCommitSignals(ctx, DiagnosticFilter{})
-	if err != nil || len(all) != 2 || all[0].SHA != sha(3) || all[1].SHA != sha(1) {
-		t.Fatalf("ListDeclaredCommitSignals = %+v, %v", all, err)
+	all, err := s.CommitSignalViews(ctx, 0)
+	if err != nil || len(all) != 3 || all[0].SHA != sha(1) || all[2].SHA != sha(3) {
+		t.Fatalf("CommitSignalViews = %+v, %v", all, err)
 	}
-	if v := all[1]; !slices.Equal(v.Tools, []string{"D1:claude"}) || v.AuthorLogin != "alice" || v.AuthorName != "Alice" ||
+	if v := all[0]; !slices.Equal(v.Tools, []string{"D1:claude"}) || v.AuthorLogin != "alice" || v.AuthorName != "Alice" ||
 		v.URL == "" || v.RepoFullName() != "promo/alice" {
 		t.Errorf("view of commit 1: %+v", v)
 	}
-	for _, tc := range []struct {
-		name string
-		f    DiagnosticFilter
-		want []string
-	}{
-		{"author login", DiagnosticFilter{Author: "ALICE"}, []string{sha(1)}},
-		{"author e-mail", DiagnosticFilter{Author: "Bob@Example.test"}, []string{sha(3)}},
-		{"since", DiagnosticFilter{Since: t0.Add(2 * time.Hour)}, []string{sha(3)}},
-		{"other repository", DiagnosticFilter{RepoID: other}, nil},
-	} {
-		got, err := s.ListDeclaredCommitSignals(ctx, tc.f)
-		var shas []string
-		for _, v := range got {
-			shas = append(shas, v.SHA)
+	if v, err := s.CommitSignalViews(ctx, other); err != nil || len(v) != 0 || v == nil {
+		t.Errorf("other repository: %+v, %v", v, err)
+	}
+	for author, want := range map[string]int{"ALICE": 1, "Bob@Example.test": 1, "Bob": 1, "personne": 0, "": 0} {
+		ids, err := s.MatchingContributorIDs(ctx, author)
+		if err != nil || len(ids) != want || ids == nil {
+			t.Errorf("MatchingContributorIDs(%q) = %v, %v; want %d", author, ids, err, want)
 		}
-		if err != nil || !slices.Equal(shas, tc.want) || got == nil {
-			t.Errorf("%s: %v, %v; want %v", tc.name, shas, err, tc.want)
-		}
+	}
+
+	// History backfill: commits without signals, from a date, page by page.
+	applySync(t, s, repoID, []BranchState{{Name: "main", HeadSHA: sha(5)}}, cw(4, alice, "main"), cw(5, alice, "main"))
+	page, err := s.CommitsWithoutSignals(ctx, repoID, time.Time{}, "", 1)
+	if err != nil || len(page) != 1 || page[0].SHA != sha(4) || page[0].Message != "message 4" || page[0].AuthorLogin != "alice" {
+		t.Fatalf("CommitsWithoutSignals page 1 = %+v, %v", page, err)
+	}
+	page, _ = s.CommitsWithoutSignals(ctx, repoID, time.Time{}, sha(4), 10)
+	if len(page) != 1 || page[0].SHA != sha(5) {
+		t.Errorf("page 2 = %+v", page)
+	}
+	if page, _ := s.CommitsWithoutSignals(ctx, repoID, t0.Add(5*time.Hour), "", 10); len(page) != 1 || page[0].SHA != sha(5) {
+		t.Errorf("since: %+v", page)
 	}
 
 	// D4 context: replaced at each computation, NULL = none, listed by date.

@@ -308,6 +308,9 @@ type CommitStats struct {
 	// les signaux de diagnostic (internal/diagnostic). Renseigné par les clones Git locaux seulement ;
 	// nil = détail inconnu (API GitHub : la réponse n'est lue qu'avec per_page=1, voir son CommitStats).
 	Files []CommitFile
+	// Merge indique un commit de fusion (au moins deux parents). Renseigné par les clones Git locaux
+	// (CommitStatsBatch) seulement.
+	Merge bool
 }
 
 // CommitFile est un fichier modifié par un commit, par rapport à son premier parent.

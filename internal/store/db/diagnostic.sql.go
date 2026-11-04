@@ -118,6 +118,86 @@ func (q *Queries) ListAgentConfigContexts(ctx context.Context, repoID interface{
 	return items, nil
 }
 
+const listCommitSignalViews = `-- name: ListCommitSignalViews :many
+SELECT cs.repo_id, cs.sha, cs.author_id, cs.authored_at, cs.files_kept, cs.files_excluded,
+       cs.additions_kept, cs.deletions_kept, cs.tool_ids, cs.agent_config, cs.bot_author, cs.computed_at,
+       c.url,
+       r.owner AS repo_owner, r.name AS repo_name, r.label AS repo_label,
+       CAST(COALESCE(a.name, '') AS TEXT) AS author_name,
+       CAST(COALESCE(a.provider_login, '') AS TEXT) AS author_login
+FROM commit_signals cs
+JOIN commits c ON c.repo_id = cs.repo_id AND c.sha = cs.sha
+JOIN repositories r ON r.id = cs.repo_id
+LEFT JOIN contributors a ON a.id = cs.author_id
+WHERE (?1 IS NULL OR cs.repo_id = ?1)
+ORDER BY cs.authored_at, cs.sha
+`
+
+type ListCommitSignalViewsRow struct {
+	RepoID        int64
+	SHA           string
+	AuthorID      sql.NullInt64
+	AuthoredAt    string
+	FilesKept     int64
+	FilesExcluded int64
+	AdditionsKept int64
+	DeletionsKept int64
+	ToolIds       string
+	AgentConfig   bool
+	BotAuthor     bool
+	ComputedAt    string
+	URL           string
+	RepoOwner     string
+	RepoName      string
+	RepoLabel     string
+	AuthorName    string
+	AuthorLogin   string
+}
+
+// Signaux de tous les commits mesures (repo_id NULL = tous les depots), avec de quoi les afficher, du
+// plus ancien au plus recent (date d'ecriture, puis SHA) : historique des signaux de rythme.
+func (q *Queries) ListCommitSignalViews(ctx context.Context, repoID interface{}) ([]ListCommitSignalViewsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listCommitSignalViews, repoID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListCommitSignalViewsRow{}
+	for rows.Next() {
+		var i ListCommitSignalViewsRow
+		if err := rows.Scan(
+			&i.RepoID,
+			&i.SHA,
+			&i.AuthorID,
+			&i.AuthoredAt,
+			&i.FilesKept,
+			&i.FilesExcluded,
+			&i.AdditionsKept,
+			&i.DeletionsKept,
+			&i.ToolIds,
+			&i.AgentConfig,
+			&i.BotAuthor,
+			&i.ComputedAt,
+			&i.URL,
+			&i.RepoOwner,
+			&i.RepoName,
+			&i.RepoLabel,
+			&i.AuthorName,
+			&i.AuthorLogin,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listCommitSignals = `-- name: ListCommitSignals :many
 SELECT repo_id, sha, author_id, authored_at, files_kept, files_excluded, additions_kept, deletions_kept,
     tool_ids, agent_config, bot_author, computed_at
@@ -163,97 +243,98 @@ func (q *Queries) ListCommitSignals(ctx context.Context, repoID int64) ([]Commit
 	return items, nil
 }
 
-const listDeclaredCommitSignals = `-- name: ListDeclaredCommitSignals :many
-SELECT cs.repo_id, cs.sha, cs.author_id, cs.authored_at, cs.files_kept, cs.files_excluded,
-       cs.additions_kept, cs.deletions_kept, cs.tool_ids, cs.agent_config, cs.bot_author, cs.computed_at,
-       c.url,
-       r.owner AS repo_owner, r.name AS repo_name, r.label AS repo_label,
+const listCommitsWithoutSignals = `-- name: ListCommitsWithoutSignals :many
+SELECT c.sha, c.message,
        CAST(COALESCE(a.name, '') AS TEXT) AS author_name,
        CAST(COALESCE(a.provider_login, '') AS TEXT) AS author_login
-FROM commit_signals cs
-JOIN commits c ON c.repo_id = cs.repo_id AND c.sha = cs.sha
-JOIN repositories r ON r.id = cs.repo_id
-LEFT JOIN contributors a ON a.id = cs.author_id
-WHERE (cs.tool_ids <> '' OR cs.bot_author = 1)
-  AND (?1 IS NULL OR cs.repo_id = ?1)
-  AND (?2 IS NULL OR cs.authored_at >= ?2)
-  AND (?3 IS NULL OR (cs.author_id IS NOT NULL AND (
-        a.provider_login = ?3 COLLATE NOCASE
-        OR a.name = ?3 COLLATE NOCASE
-        OR EXISTS (
-          SELECT 1 FROM contributor_emails e
-          WHERE e.contributor_id = cs.author_id AND e.email = ?4))))
-ORDER BY cs.authored_at DESC, cs.repo_id, cs.sha
+FROM commits c
+LEFT JOIN contributors a ON a.id = c.author_id
+WHERE c.repo_id = ?1
+  AND c.authored_at >= ?2
+  AND c.sha > ?3
+  AND NOT EXISTS (SELECT 1 FROM commit_signals cs WHERE cs.repo_id = c.repo_id AND cs.sha = c.sha)
+ORDER BY c.sha
+LIMIT ?4
 `
 
-type ListDeclaredCommitSignalsParams struct {
-	RepoID      interface{}
-	Since       interface{}
-	Author      interface{}
-	AuthorEmail sql.NullString
+type ListCommitsWithoutSignalsParams struct {
+	RepoID   int64
+	Since    string
+	AfterSha string
+	RowLimit int64
 }
 
-type ListDeclaredCommitSignalsRow struct {
-	RepoID        int64
-	SHA           string
-	AuthorID      sql.NullInt64
-	AuthoredAt    string
-	FilesKept     int64
-	FilesExcluded int64
-	AdditionsKept int64
-	DeletionsKept int64
-	ToolIds       string
-	AgentConfig   bool
-	BotAuthor     bool
-	ComputedAt    string
-	URL           string
-	RepoOwner     string
-	RepoName      string
-	RepoLabel     string
-	AuthorName    string
-	AuthorLogin   string
+type ListCommitsWithoutSignalsRow struct {
+	SHA         string
+	Message     string
+	AuthorName  string
+	AuthorLogin string
 }
 
-// Signaux des commits qui ont au moins un signal declaratif (outil declare ou auteur bot), filtres
-// (depot, auteur, periode sur la date d'ecriture), du plus recent au plus ancien. author_email doit
-// etre deja en minuscules ; author est compare sans casse (ASCII) au login et au nom.
-func (q *Queries) ListDeclaredCommitSignals(ctx context.Context, arg ListDeclaredCommitSignalsParams) ([]ListDeclaredCommitSignalsRow, error) {
-	rows, err := q.db.QueryContext(ctx, listDeclaredCommitSignals,
+// Commits du depot sans signaux, ecrits a partir de since, par SHA croissant apres after_sha (pagination ;
+// chaine vide = depuis le debut), au plus row_limit : reprise de l'historique.
+func (q *Queries) ListCommitsWithoutSignals(ctx context.Context, arg ListCommitsWithoutSignalsParams) ([]ListCommitsWithoutSignalsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listCommitsWithoutSignals,
 		arg.RepoID,
 		arg.Since,
-		arg.Author,
-		arg.AuthorEmail,
+		arg.AfterSha,
+		arg.RowLimit,
 	)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListDeclaredCommitSignalsRow{}
+	items := []ListCommitsWithoutSignalsRow{}
 	for rows.Next() {
-		var i ListDeclaredCommitSignalsRow
+		var i ListCommitsWithoutSignalsRow
 		if err := rows.Scan(
-			&i.RepoID,
 			&i.SHA,
-			&i.AuthorID,
-			&i.AuthoredAt,
-			&i.FilesKept,
-			&i.FilesExcluded,
-			&i.AdditionsKept,
-			&i.DeletionsKept,
-			&i.ToolIds,
-			&i.AgentConfig,
-			&i.BotAuthor,
-			&i.ComputedAt,
-			&i.URL,
-			&i.RepoOwner,
-			&i.RepoName,
-			&i.RepoLabel,
+			&i.Message,
 			&i.AuthorName,
 			&i.AuthorLogin,
 		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const matchingContributorIDs = `-- name: MatchingContributorIDs :many
+SELECT DISTINCT a.id
+FROM contributors a
+WHERE a.provider_login = ?1 COLLATE NOCASE
+   OR a.name = ?1 COLLATE NOCASE
+   OR EXISTS (SELECT 1 FROM contributor_emails e WHERE e.contributor_id = a.id AND e.email = ?2)
+ORDER BY a.id
+`
+
+type MatchingContributorIDsParams struct {
+	Author      string
+	AuthorEmail string
+}
+
+// Contributeurs dont le login ou le nom vaut author (sans casse, ASCII), ou qui ont l'e-mail
+// author_email (deja en minuscules).
+func (q *Queries) MatchingContributorIDs(ctx context.Context, arg MatchingContributorIDsParams) ([]int64, error) {
+	rows, err := q.db.QueryContext(ctx, matchingContributorIDs, arg.Author, arg.AuthorEmail)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []int64{}
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err

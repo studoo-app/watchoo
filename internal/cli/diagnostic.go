@@ -1,11 +1,13 @@
 package cli
 
-// « watchoo diagnostic [--repo owner/repo] [--author X] [--since 30d] » (phase 7.2) : pistes de
-// réflexion de niveau « Déclaré » calculées par internal/diagnostic, réservées au formateur, avec leurs
-// signaux et le contexte D4 des dépôts. Une piste n'est jamais un verdict.
+// « watchoo diagnostic [--repo owner/repo] [--author X] [--since 30d] » (phases 7.2 et 7.3) : pistes
+// de réflexion calculées par internal/diagnostic (niveaux « Déclaré » et « À regarder »), réservées au
+// formateur, avec leurs signaux, le contexte D4 des dépôts et l'historique des auteurs. Une piste n'est
+// jamais un verdict. « watchoo diagnostic backfill [--repo X] » reprend l'historique déjà cloné.
 
 import (
 	"context"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -20,11 +22,12 @@ import (
 
 // diagnosticReport est la sortie JSON de « watchoo diagnostic ».
 type diagnosticReport struct {
-	Enabled  bool                  `json:"enabled"`  // réglage diagnostic.enabled de l'espace
-	Leads    []diagnosticLeadJSON  `json:"leads"`    // de la plus récente à la plus ancienne
-	Contexts []agentConfigCtxJSON  `json:"contexts"` // contexte D4, du plus ancien ajout au plus récent
-	Notice   string                `json:"notice"`   // rappel : une piste n'est pas un verdict
-	Filters  diagnosticFiltersJSON `json:"filters"`  // filtres appliqués
+	Enabled   bool                  `json:"enabled"`   // réglage diagnostic.enabled de l'espace
+	Leads     []diagnosticLeadJSON  `json:"leads"`     // de la plus récente à la plus ancienne
+	Contexts  []agentConfigCtxJSON  `json:"contexts"`  // contexte D4, du plus ancien ajout au plus récent
+	Histories []authorHistoryJSON   `json:"histories"` // historique des auteurs (signaux de rythme)
+	Notice    string                `json:"notice"`    // rappel : une piste n'est pas un verdict
+	Filters   diagnosticFiltersJSON `json:"filters"`   // filtres appliqués
 }
 
 // diagnosticFiltersJSON rappelle les filtres de la commande (chaînes vides : pas de filtre).
@@ -51,8 +54,20 @@ type diagnosticLeadJSON struct {
 
 // diagnosticHitJSON est un signal déclenché et sa valeur.
 type diagnosticHitJSON struct {
-	ID    string `json:"id"`    // D1, D2, D3 ou D5
-	Value string `json:"value"` // outil, compte bot ou branche
+	ID     string   `json:"id"`     // D1, D2, D3, D5, R1 à R6
+	Value  string   `json:"value"`  // outil, compte bot, branche, ou mesure écrite
+	Raw    *float64 `json:"raw"`    // mesure d'un signal de rythme ; null pour un signal déclaratif
+	Median *float64 `json:"median"` // médiane personnelle ; null si sans objet
+	Z      *float64 `json:"z"`      // score z modifié ; null si sans objet
+}
+
+// authorHistoryJSON résume l'historique d'un auteur dans un dépôt.
+type authorHistoryJSON struct {
+	Repository repoRefJSON `json:"repository"`
+	Author     authorJSON  `json:"author"`
+	Commits    int         `json:"commits"`     // commits mesurés
+	WorkedDays int         `json:"worked_days"` // jours avec au moins un commit mesuré
+	Sufficient bool        `json:"sufficient"`  // au moins 20 commits mesurés dans les 90 jours
 }
 
 // agentConfigCtxJSON est le contexte D4 d'un dépôt.
@@ -83,6 +98,7 @@ func newDiagnosticCmd(deps Deps, opts *options) *cobra.Command {
 	cmd.Flags().StringVar(&f.repo, "repo", "", i18n.T("cli.sync.flag_repo"))
 	cmd.Flags().StringVar(&f.author, "author", "", i18n.T("cli.sync.flag_author"))
 	cmd.Flags().StringVar(&f.since, "since", "", i18n.T("cli.sync.flag_since"))
+	cmd.AddCommand(newDiagnosticBackfillCmd(deps, opts))
 	return cmd
 }
 
@@ -100,11 +116,12 @@ func runDiagnostic(ctx context.Context, deps Deps, opts *options, f diagnosticFl
 	defer closeSession(s, &err)
 
 	report := diagnosticReport{
-		Enabled:  s.ws.Config.Diagnostic.Enabled,
-		Leads:    []diagnosticLeadJSON{},
-		Contexts: []agentConfigCtxJSON{},
-		Notice:   i18n.T("cli.diag.notice"),
-		Filters:  diagnosticFiltersJSON{Author: strings.TrimSpace(f.author), Since: timeJSON(since)},
+		Enabled:   s.ws.Config.Diagnostic.Enabled,
+		Leads:     []diagnosticLeadJSON{},
+		Contexts:  []agentConfigCtxJSON{},
+		Histories: []authorHistoryJSON{},
+		Notice:    i18n.T("cli.diag.notice"),
+		Filters:   diagnosticFiltersJSON{Author: strings.TrimSpace(f.author), Since: timeJSON(since)},
 	}
 	filter := store.DiagnosticFilter{Author: report.Filters.Author, Since: since}
 	if f.repo != "" {
@@ -122,7 +139,8 @@ func runDiagnostic(ctx context.Context, deps Deps, opts *options, f diagnosticFl
 		return writeText(deps.Stdout, i18n.T("cli.diag.disabled"))
 	}
 
-	res, err := diagnostic.Declared(ctx, s.store, filter)
+	res, err := diagnostic.Build(ctx, s.store, filter, diagnostic.RhythmOptions{Location: s.loc,
+		SpeedSignal: s.ws.Config.Diagnostic.SpeedSignal})
 	if err != nil {
 		return err
 	}
@@ -133,6 +151,14 @@ func runDiagnostic(ctx context.Context, deps Deps, opts *options, f diagnosticFl
 		report.Contexts = append(report.Contexts, agentConfigCtxJSON{
 			Repository:       repoRefJSON{ID: c.RepoID, FullName: c.RepoFullName(), DisplayName: c.RepoDisplayName()},
 			AgentConfigSince: timeJSON(c.Since),
+		})
+	}
+	for _, h := range res.Histories {
+		report.Histories = append(report.Histories, authorHistoryJSON{
+			Repository: repoRefJSON{ID: h.RepoID, FullName: h.RepoFullName(), DisplayName: h.RepoDisplayName()},
+			Author: authorJSON{Name: h.AuthorName, Login: h.AuthorLogin,
+				DisplayName: cmpOr(cmpOr(h.AuthorName, h.AuthorLogin), i18n.T("cli.diag.unknown_author"))},
+			Commits: h.Commits, WorkedDays: h.WorkedDays, Sufficient: h.Sufficient,
 		})
 	}
 	if opts.json {
@@ -160,7 +186,13 @@ func newDiagnosticLeadJSON(l diagnostic.Lead) diagnosticLeadJSON {
 		out.ShortSHA = provider.ShortSHA(l.SHA)
 	}
 	for _, h := range l.Hits {
-		out.Signals = append(out.Signals, diagnosticHitJSON{ID: h.Signal, Value: h.Value})
+		hit := diagnosticHitJSON{ID: h.Signal, Value: h.Value}
+		if strings.HasPrefix(h.Signal, "R") {
+			hit.Raw = floatJSON(h.Raw, true)
+			hit.Median = floatJSON(h.Median, h.HasMedian)
+			hit.Z = floatJSON(h.Z, h.HasZ)
+		}
+		out.Signals = append(out.Signals, hit)
 	}
 	return out
 }
@@ -175,8 +207,11 @@ func (s *session) diagnosticText(st textStyle, res diagnostic.Report) string {
 		rows := make([][]string, len(res.Leads))
 		for i, l := range res.Leads {
 			item := "PR #" + strconv.Itoa(l.Number)
-			if l.Kind == diagnostic.KindCommit {
+			switch l.Kind {
+			case diagnostic.KindCommit:
 				item = "commit " + provider.ShortSHA(l.SHA)
+			case diagnostic.KindDay:
+				item = i18n.T("cli.diag.item_day")
 			}
 			rows[i] = []string{
 				l.Date.In(s.loc).Format(i18n.T("cli.diag.fmt.date")),
@@ -196,6 +231,15 @@ func (s *session) diagnosticText(st textStyle, res diagnostic.Report) string {
 		}
 		b.WriteString(renderTable(st, headers, rows, nil))
 	}
+	short := 0
+	for _, h := range res.Histories {
+		if !h.Sufficient {
+			short++
+		}
+	}
+	if short > 0 {
+		b.WriteString("\n" + st.gray(i18n.T("cli.diag.history_short", short, len(res.Histories), diagnostic.MinHistory)) + "\n")
+	}
 	if len(res.Contexts) > 0 {
 		b.WriteString("\n" + i18n.T("cli.diag.context_title") + "\n")
 		for _, c := range res.Contexts {
@@ -206,11 +250,34 @@ func (s *session) diagnosticText(st textStyle, res diagnostic.Report) string {
 	return strings.TrimRight(b.String(), "\n")
 }
 
-// hitsText décrit les signaux d'une piste : « D1 claude, D5 codex/fix ».
+// hitsText décrit les signaux d'une piste : « D1 claude, D5 codex/fix, R2 388 (médiane 22, z 5.4) ».
 func hitsText(hits []diagnostic.Hit) string {
 	parts := make([]string, len(hits))
 	for i, h := range hits {
 		parts[i] = h.Signal + " " + h.Value
+		switch {
+		case h.HasMedian && h.HasZ:
+			parts[i] += " " + i18n.T("cli.diag.hit_median_z", numberText(h.Median), numberText(h.Z))
+		case h.HasMedian:
+			parts[i] += " " + i18n.T("cli.diag.hit_median", numberText(h.Median))
+		}
 	}
 	return strings.Join(parts, ", ")
+}
+
+// numberText écrit une mesure : entière sans décimale, sinon avec une décimale.
+func numberText(x float64) string {
+	if x == math.Trunc(x) {
+		return strconv.FormatFloat(x, 'f', 0, 64)
+	}
+	return strconv.FormatFloat(x, 'f', 1, 64)
+}
+
+// floatJSON renvoie x arrondi au millième si ok, sinon nil (null).
+func floatJSON(x float64, ok bool) *float64 {
+	if !ok {
+		return nil
+	}
+	r := math.Round(x*1000) / 1000
+	return &r
 }

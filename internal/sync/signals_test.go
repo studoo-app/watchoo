@@ -4,6 +4,7 @@ package sync_test
 // set, merges left out, nothing without the setting, purge by retention, no personal data in the logs.
 
 import (
+	"errors"
 	"slices"
 	"strings"
 	"testing"
@@ -150,7 +151,7 @@ func TestSignalsPurgedAfterRetention(t *testing.T) {
 }
 
 // D2 on pull requests: the description is read in memory at sync, only the tools are kept, and only
-// with diagnostic.enabled; D5 comes from the branch name. diagnostic.Declared assembles the leads.
+// with diagnostic.enabled; D5 comes from the branch name. diagnostic.Build assembles the leads.
 func TestPullRequestDeclarationsAtSync(t *testing.T) {
 	for _, enabled := range []bool{true, false} {
 		opts := []envOption{}
@@ -182,7 +183,7 @@ func TestPullRequestDeclarationsAtSync(t *testing.T) {
 		if !enabled {
 			continue
 		}
-		rep, err := diagnostic.Declared(t.Context(), e.st, store.DiagnosticFilter{})
+		rep, err := diagnostic.Build(t.Context(), e.st, store.DiagnosticFilter{}, diagnostic.RhythmOptions{})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -198,11 +199,12 @@ func TestPullRequestDeclarationsAtSync(t *testing.T) {
 		}
 		// Filters: another author, or a period after the opening, leave nothing.
 		for _, f := range []store.DiagnosticFilter{{Author: "quelquun"}, {Since: epoch.Add(time.Minute)}} {
-			if r, err := diagnostic.Declared(t.Context(), e.st, f); err != nil || len(r.Leads) != 0 {
+			if r, err := diagnostic.Build(t.Context(), e.st, f, diagnostic.RhythmOptions{}); err != nil || len(r.Leads) != 0 {
 				t.Errorf("filter %+v: %+v, %v", f, r.Leads, err)
 			}
 		}
-		if r, _ := diagnostic.Declared(t.Context(), e.st, store.DiagnosticFilter{Author: strings.ToUpper(secretLogin)}); len(r.Leads) != 1 {
+		if r, _ := diagnostic.Build(t.Context(), e.st, store.DiagnosticFilter{Author: strings.ToUpper(secretLogin)},
+			diagnostic.RhythmOptions{}); len(r.Leads) != 1 {
 			t.Errorf("author login, other case: %+v", r.Leads)
 		}
 	}
@@ -215,7 +217,7 @@ func TestAgentContextAndCommitLeads(t *testing.T) {
 	e := newEnv(t, withGit(srv.URL), withDiagnostic(3650))
 	repo, _ := addAndSync(t, e)
 
-	rep, err := diagnostic.Declared(t.Context(), e.st, store.DiagnosticFilter{RepoID: repo.ID})
+	rep, err := diagnostic.Build(t.Context(), e.st, store.DiagnosticFilter{RepoID: repo.ID}, diagnostic.RhythmOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -241,5 +243,51 @@ func TestAgentContextAndCommitLeads(t *testing.T) {
 	repo2, _ := addAndSync(t, e2)
 	if ctxs, err := e2.st.AgentConfigContexts(t.Context(), repo2.ID); err != nil || len(ctxs) != 0 {
 		t.Errorf("context without agent file: %+v, %v", ctxs, err)
+	}
+}
+
+// History backfill: commits synced before the diagnosis was enabled are measured afterwards, on the
+// clones, merges excluded, once only, within the retention period.
+func TestBackfillSignals(t *testing.T) {
+	srv := gittest.NewServer(t)
+	_, shas := signalRepo(t, srv, epoch)
+	e := newEnv(t, withGit(srv.URL))
+	repo, _ := addAndSync(t, e)
+	ctx := t.Context()
+	if _, err := e.eng.BackfillSignals(ctx, 0); !errors.Is(err, wsync.ErrDiagnosticDisabled) {
+		t.Fatalf("backfill with the diagnosis disabled: %v", err)
+	}
+
+	// Short retention: everything is too old.
+	e.cfg.Diagnostic.Enabled, e.cfg.Diagnostic.RetentionDays = true, 1
+	res, err := e.newEngine(e.st).BackfillSignals(ctx, 0)
+	if err != nil || len(res) != 1 || res[0].Measured != 0 || res[0].Error != "" {
+		t.Fatalf("backfill outside the retention: %+v, %v", res, err)
+	}
+
+	e.cfg.Diagnostic.RetentionDays = 3650
+	eng := e.newEngine(e.st)
+	res, err = eng.BackfillSignals(ctx, repo.ID)
+	if err != nil || len(res) != 1 || res[0].Measured != 5 || res[0].Merges != 1 || res[0].Missing != 0 || res[0].Error != "" {
+		t.Fatalf("backfill: %+v, %v", res, err)
+	}
+	got, err := e.st.CommitSignals(ctx, repo.ID)
+	if err != nil || len(got) != 5 {
+		t.Fatalf("signals after the backfill: %d, %v", len(got), err)
+	}
+	for _, s := range got {
+		if s.SHA == shas["merge"] {
+			t.Error("the merge commit was measured")
+		}
+		if s.SHA == shas["ai"] && !slices.Equal(s.Tools, []string{"D1:claude"}) {
+			t.Errorf("AI commit after the backfill: %+v", s)
+		}
+	}
+	if ctxs, _ := e.st.AgentConfigContexts(ctx, repo.ID); len(ctxs) != 1 {
+		t.Errorf("D4 context after the backfill: %+v", ctxs)
+	}
+	// Second pass: nothing left to measure.
+	if res, err := eng.BackfillSignals(ctx, 0); err != nil || res[0].Measured != 0 || res[0].Merges != 1 {
+		t.Errorf("second backfill: %+v, %v", res, err)
 	}
 }

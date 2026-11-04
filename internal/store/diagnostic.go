@@ -4,7 +4,6 @@ package store
 
 import (
 	"context"
-	"database/sql"
 	"strings"
 	"time"
 
@@ -132,7 +131,7 @@ type DiagnosticFilter struct {
 	Since  time.Time // date d'écriture >= Since ; zéro = pas de borne
 }
 
-// CommitSignalView est un commit avec au moins un signal déclaratif, et de quoi l'afficher.
+// CommitSignalView est un commit mesuré et de quoi l'afficher.
 type CommitSignalView struct {
 	model.CommitSignal
 	RepoRef
@@ -149,41 +148,85 @@ type AgentConfigContext struct {
 	Since time.Time // date d'écriture du commit qui a ajouté le premier fichier, UTC
 }
 
-// ListDeclaredCommitSignals renvoie les commits qui ont au moins un signal déclaratif (outil déclaré
-// ou auteur bot) et satisfont f, du plus récent au plus ancien ; liste vide non nil si aucun.
-func (s *Store) ListDeclaredCommitSignals(ctx context.Context, f DiagnosticFilter) ([]CommitSignalView, error) {
-	params := db.ListDeclaredCommitSignalsParams{RepoID: optionalID(f.RepoID), Since: optionalTime(f.Since)}
-	if author := strings.TrimSpace(f.Author); author != "" {
-		params.Author = author
-		params.AuthorEmail = sql.NullString{String: normalizeEmail(author), Valid: true}
-	}
-	rows, err := s.queries.ListDeclaredCommitSignals(ctx, params)
+// CommitSignalViews renvoie les signaux de tous les commits mesurés du dépôt repoID (0 = tous), du plus
+// ancien au plus récent : historique des signaux de rythme. Liste vide non nil si aucun.
+func (s *Store) CommitSignalViews(ctx context.Context, repoID int64) ([]CommitSignalView, error) {
+	rows, err := s.queries.ListCommitSignalViews(ctx, optionalID(repoID))
 	if err != nil {
-		return nil, wrapErr(i18n.T("store.diagnostic.declared"), err)
+		return nil, wrapErr(i18n.T("store.diagnostic.list", repoID), err)
 	}
 	out := make([]CommitSignalView, 0, len(rows))
 	for _, r := range rows {
-		authored, err := ParseTime(r.AuthoredAt)
+		v, err := commitSignalView(r)
 		if err != nil {
-			return nil, wrapErr(i18n.T("store.diagnostic.declared"), err)
+			return nil, err
 		}
-		computed, err := ParseTime(r.ComputedAt)
-		if err != nil {
-			return nil, wrapErr(i18n.T("store.diagnostic.declared"), err)
-		}
-		out = append(out, CommitSignalView{
-			CommitSignal: model.CommitSignal{
-				RepoID: r.RepoID, SHA: r.SHA, AuthorID: r.AuthorID.Int64, AuthoredAt: authored,
-				FilesKept: int(r.FilesKept), FilesExcluded: int(r.FilesExcluded),
-				AdditionsKept: int(r.AdditionsKept), DeletionsKept: int(r.DeletionsKept),
-				Tools: splitList(r.ToolIds), AgentConfig: r.AgentConfig, BotAuthor: r.BotAuthor,
-				ComputedAt: computed,
-			},
-			RepoRef:     RepoRef{RepoOwner: r.RepoOwner, RepoName: r.RepoName, RepoLabel: r.RepoLabel},
-			URL:         r.URL,
-			AuthorName:  r.AuthorName,
-			AuthorLogin: r.AuthorLogin,
-		})
+		out = append(out, v)
+	}
+	return out, nil
+}
+
+// commitSignalView convertit une ligne de vue des signaux.
+func commitSignalView(r db.ListCommitSignalViewsRow) (CommitSignalView, error) {
+	authored, err := ParseTime(r.AuthoredAt)
+	if err != nil {
+		return CommitSignalView{}, wrapErr(i18n.T("store.diagnostic.list_all"), err)
+	}
+	computed, err := ParseTime(r.ComputedAt)
+	if err != nil {
+		return CommitSignalView{}, wrapErr(i18n.T("store.diagnostic.list_all"), err)
+	}
+	return CommitSignalView{
+		CommitSignal: model.CommitSignal{
+			RepoID: r.RepoID, SHA: r.SHA, AuthorID: r.AuthorID.Int64, AuthoredAt: authored,
+			FilesKept: int(r.FilesKept), FilesExcluded: int(r.FilesExcluded),
+			AdditionsKept: int(r.AdditionsKept), DeletionsKept: int(r.DeletionsKept),
+			Tools: splitList(r.ToolIds), AgentConfig: r.AgentConfig, BotAuthor: r.BotAuthor,
+			ComputedAt: computed,
+		},
+		RepoRef:     RepoRef{RepoOwner: r.RepoOwner, RepoName: r.RepoName, RepoLabel: r.RepoLabel},
+		URL:         r.URL,
+		AuthorName:  r.AuthorName,
+		AuthorLogin: r.AuthorLogin,
+	}, nil
+}
+
+// MatchingContributorIDs renvoie les contributeurs désignés par author : login ou nom (sans tenir compte
+// de la casse) ou e-mail rattaché ; liste vide non nil si aucun (author vide : aucun).
+func (s *Store) MatchingContributorIDs(ctx context.Context, author string) ([]int64, error) {
+	author = strings.TrimSpace(author)
+	if author == "" {
+		return []int64{}, nil
+	}
+	ids, err := s.queries.MatchingContributorIDs(ctx, db.MatchingContributorIDsParams{
+		Author: author, AuthorEmail: normalizeEmail(author)})
+	if err != nil {
+		return nil, wrapErr(i18n.T("store.diagnostic.list_all"), err)
+	}
+	return ids, nil
+}
+
+// CommitForSignals est un commit en base sans signaux, avec ce qu'il faut pour les calculer : son
+// message (donnée personnelle, lu en mémoire seulement) et son auteur.
+type CommitForSignals struct {
+	SHA         string
+	Message     string
+	AuthorName  string
+	AuthorLogin string
+}
+
+// CommitsWithoutSignals renvoie, par SHA croissant, au plus limit (> 0) commits du dépôt repoID sans
+// signaux, écrits à partir de since, strictement après after (vide = depuis le début) : reprise de
+// l'historique, page par page.
+func (s *Store) CommitsWithoutSignals(ctx context.Context, repoID int64, since time.Time, after string, limit int) ([]CommitForSignals, error) {
+	rows, err := s.queries.ListCommitsWithoutSignals(ctx, db.ListCommitsWithoutSignalsParams{
+		RepoID: repoID, Since: FormatTime(since), AfterSha: after, RowLimit: int64(max(limit, 1))})
+	if err != nil {
+		return nil, wrapErr(i18n.T("store.diagnostic.list", repoID), err)
+	}
+	out := make([]CommitForSignals, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, CommitForSignals{SHA: r.SHA, Message: r.Message, AuthorName: r.AuthorName, AuthorLogin: r.AuthorLogin})
 	}
 	return out, nil
 }

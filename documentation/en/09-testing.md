@@ -471,6 +471,12 @@ See [Supervision and diagnosis](12-supervision-diagnostic.md). No external servi
   logs), D4 context on a `gittest` repository (with and without `AGENTS.md`), leads assembled by
   `diagnostic.Declared`; `watchoo diagnostic` in text (English and French), in `--json` (keys checked, PR
   description never written), filters and disabled diagnosis.
+- Phase 7.3: median, MAD and modified z-score (known values, zero MAD, fewer than 20 observations); signals
+  R1, R2, R3, R5 on a built history, R4 only with `diagnostic.speed_signal` (and not at the same minute), R6
+  on the first day of a break only, 90-day window, commits without author ignored, levels; history backfill
+  on a `gittest` repository (refused without diagnosis, outside retention, merges set aside, once only, D4
+  context); text output of the signals (median, z) and `--json` keys of `histories` and of `diagnostic
+  backfill`.
 
 ## In CI
 

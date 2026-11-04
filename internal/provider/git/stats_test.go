@@ -55,6 +55,11 @@ func TestCommitStatsBatch(t *testing.T) {
 			t.Errorf("CommitStats(%s) = %+v, %v; want %+v (same rule)", provider.ShortSHA(sha), one, err, w)
 		}
 	}
+	for sha, st := range got {
+		if st.Merge != (sha == x) {
+			t.Errorf("CommitStatsBatch[%s].Merge = %v", provider.ShortSHA(sha), st.Merge)
+		}
+	}
 	if _, ok := got[unknown]; ok {
 		t.Error("a SHA missing from the clone is in the result")
 	}

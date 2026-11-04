@@ -2,8 +2,9 @@
 
 [← Sommaire](README.md)
 
-**Statut** : décision du mainteneur. Phases **7.1 et 7.2 réalisées** (fondations, signaux déclaratifs et
-commande `watchoo diagnostic` ; non publiées, sections 9.1 et 9.2) ; phases 7.3 à 7.6 à venir, chacune après validation de son plan (voir [Roadmap](07-roadmap.md)). Source de la partie
+**Statut** : décision du mainteneur. Phases **7.1 à 7.3 réalisées** (fondations, signaux déclaratifs,
+commande `watchoo diagnostic`, signaux de rythme et reprise de l'historique ; non publiées, sections 9.1 à
+9.3) ; phases 7.4 à 7.6 à venir, chacune après validation de son plan (voir [Roadmap](07-roadmap.md)). Source de la partie
 signaux : la spécification « Détection des signaux de production de code assistée par IA », **version 0.2**
 (3 novembre 2026, références vérifiées).
 
@@ -206,8 +207,9 @@ résumé de ce qui marche. Le plan et l'arborescence de chaque phase sont propos
   signaux par commit, activée par espace, sans rien changer à l'affichage ni aux sorties publiques existantes.
 - **7.2 Déclaratif** (réalisée) : signaux D1 à D5 (D2 pour les descriptions de PR et D5 en plus de 7.1), niveau
   « Déclaré », sortie `watchoo diagnostic`. Livrable : flags déclaratifs visibles et expliqués en CLI.
-- **7.3 Rythme** : signaux R1 à R6, fenêtre de 90 jours, z modifié, niveaux « Probable » et « À regarder ».
-  Livrable : flags statistiques avec historique insuffisant signalé.
+- **7.3 Rythme** (réalisée) : signaux R1 à R6, fenêtre de 90 jours, z modifié, niveau « À regarder »
+  (« Probable » attend la phase 7.5), reprise de l'historique. Livrable : pistes statistiques, historique
+  insuffisant signalé.
 - **7.4 Revue** : fiche de revue en CLI et sur le web, enregistrement des décisions, graphique de débit.
   Livrable : chaque flag peut être étiqueté.
 - **7.5 Forme** : signaux F1 à F5, F6 optionnel et désactivé. Livrable : indices d'appoint, jamais seuls.
@@ -286,6 +288,30 @@ d'une description de PR), clés `--json` en anglais comme le reste de Watchoo, s
   D4 par dépôt, rappel « piste de réflexion, pas un verdict ». Diagnostic désactivé : la commande le dit, sans
   erreur.
 - **Purge** : les identifiants d'outils des PR suivent aussi `diagnostic.retention_days` (date d'ouverture).
+
+## 9.3 Phase 7.3 — signaux de rythme et reprise de l'historique (réalisée)
+
+Plan validé par le mainteneur le 4 novembre 2026 : seuils de la spécification sans calibration jusqu'à la
+phase 7.6 ; une commande de reprise de l'historique déjà cloné (le bouton web vient avec les pages web du
+diagnostic, en 7.4) ; R4 désactivé par défaut.
+
+- **Signaux R1 à R6** (section 5), calculés à la lecture par `internal/diagnostic` à partir de
+  `commit_signals` (aucune nouvelle table) : score z modifié, seuil 3,5, fenêtre de 90 jours. L'historique
+  est celui de l'auteur **dans le dépôt** (un projet d'apprenant par dépôt) ; un jour est un jour du fuseau
+  d'affichage de l'espace.
+- **Historique insuffisant** : moins de 20 observations, ou MAD nul : le signal n'est pas déclenché, et la
+  sortie dit combien d'auteurs sont dans ce cas.
+- **R6** compare la médiane R1 des 14 derniers jours (au moins 3 jours travaillés) à celle des 90 jours
+  précédents (au moins 20 jours travaillés, médiane positive) ; seul le premier jour d'une rupture est
+  signalé.
+- **R4** (vitesse apparente) n'est calculé qu'avec le réglage `diagnostic.speed_signal: true` (défaut
+  `false`) ; un commit à la même minute que le précédent n'est pas mesuré.
+- **Niveaux** : « Déclaré » garde la priorité ; sinon un ou plusieurs signaux R donnent « À regarder »
+  (`to_review`). « Probable » demande un signal de forme (phase 7.5).
+- **Pistes** : par commit (R2 à R5) ou par jour (R1, R6 : `kind` `day`) ; chaque signal donne sa valeur
+  brute, la médiane personnelle et le score z.
+- **Reprise de l'historique** : `watchoo diagnostic backfill [--repo X]` mesure, sur les clones locaux, les
+  commits déjà en base sans signaux et plus récents que la durée de conservation, hors fusions.
 
 ## 10. Points ouverts (à trancher par le mainteneur)
 

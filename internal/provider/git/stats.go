@@ -92,10 +92,14 @@ func (p *Provider) statsBatch(ctx context.Context, owner, name, path string, sha
 	// Une ligne « commit premier-parent » (ou « commit » pour une racine) par commit présent.
 	var lines bytes.Buffer
 	n := 0
+	var merges []string
 	for line := range strings.SplitSeq(string(res.stdout), "\n") {
 		fields := strings.Fields(line)
 		if len(fields) == 0 || provider.ValidateSHA(fields[0]) != nil {
 			continue
+		}
+		if len(fields) > 2 {
+			merges = append(merges, fields[0])
 		}
 		lines.WriteString(fields[0])
 		if len(fields) > 1 {
@@ -116,6 +120,12 @@ func (p *Provider) statsBatch(ctx context.Context, owner, name, path string, sha
 		return localError(op, res)
 	}
 	parseBatchNumstat(res.stdout, out)
+	for _, sha := range merges {
+		if st, ok := out[sha]; ok {
+			st.Merge = true
+			out[sha] = st
+		}
+	}
 	return nil
 }
 

@@ -2,8 +2,9 @@
 
 [← Contents](README.md)
 
-**Status**: maintainer decision. Phases **7.1 and 7.2 done** (foundations, declarative signals and the
-`watchoo diagnostic` command; unreleased, sections 9.1 and 9.2); phases 7.3 to 7.6 to come, each after its plan is approved (see [Roadmap](07-roadmap.md)). Source of the signal part: the specification
+**Status**: maintainer decision. Phases **7.1 to 7.3 done** (foundations, declarative signals, the
+`watchoo diagnostic` command, rhythm signals and history backfill; unreleased, sections 9.1 to 9.3); phases
+7.4 to 7.6 to come, each after its plan is approved (see [Roadmap](07-roadmap.md)). Source of the signal part: the specification
 "Detection of AI-assisted code production signals", **version 0.2** (November 3, 2026, references verified),
 written in French.
 
@@ -200,8 +201,8 @@ summary of what works. The plan and tree of each phase are proposed before the c
   table, enabled per workspace, without changing existing displays or public outputs.
 - **7.2 Declarative** (done): signals D1 to D5 (D2 for PR descriptions and D5 on top of 7.1), "Declared" level,
   `watchoo diagnostic` output. Deliverable: declarative flags visible and explained in the CLI.
-- **7.3 Rhythm**: signals R1 to R6, 90-day window, modified z-score, "Probable" and "To review" levels.
-  Deliverable: statistical flags, with insufficient history reported.
+- **7.3 Rhythm** (done): signals R1 to R6, 90-day window, modified z-score, "To review" level ("Probable"
+  waits for phase 7.5), history backfill. Deliverable: statistical leads, insufficient history reported.
 - **7.4 Review**: review sheet in CLI and on the web, decision recording, throughput chart. Deliverable: every
   flag can be labelled.
 - **7.5 Form**: signals F1 to F5, F6 optional and disabled. Deliverable: supporting hints, never alone.
@@ -279,6 +280,28 @@ the review sheet).
   repository, reminder "a reflection lead, not a verdict". Diagnosis disabled: the command says so, without
   an error.
 - **Purge**: the tool identifiers of PRs also follow `diagnostic.retention_days` (opening date).
+
+## 9.3 Phase 7.3: rhythm signals and history backfill (done)
+
+Plan approved by the maintainer on November 4, 2026: thresholds of the specification without calibration until
+phase 7.6; a command to backfill the history already cloned (the web button comes with the diagnosis web
+pages, in 7.4); R4 disabled by default.
+
+- **Signals R1 to R6** (section 5), computed when read by `internal/diagnostic` from `commit_signals` (no new
+  table): modified z-score, 3.5 threshold, 90-day window. The history is the author's **in the repository**
+  (one learner project per repository); a day is a day in the workspace's display time zone.
+- **Insufficient history**: fewer than 20 observations, or zero MAD: the signal does not trigger, and the
+  output says how many authors are in that case.
+- **R6** compares the R1 median of the last 14 days (at least 3 worked days) with that of the previous 90
+  days (at least 20 worked days, positive median); only the first day of a break is reported.
+- **R4** (apparent speed) is computed only with the `diagnostic.speed_signal: true` setting (default
+  `false`); a commit at the same minute as the previous one is not measured.
+- **Levels**: "Declared" keeps priority; otherwise one or more R signals give "To review" (`to_review`).
+  "Probable" requires a form signal (phase 7.5).
+- **Leads**: per commit (R2 to R5) or per day (R1, R6: `kind` `day`); each signal gives its raw value, the
+  personal median and the z-score.
+- **History backfill**: `watchoo diagnostic backfill [--repo X]` measures, on the local clones, the commits
+  already stored without signals and more recent than the retention period, merges excluded.
 
 ## 10. Open questions (for the maintainer to decide)
 

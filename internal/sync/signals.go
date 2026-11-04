@@ -36,16 +36,7 @@ func (e *Engine) writeSignals(ctx context.Context, s *repoSync, repoID int64) st
 		if !ok {
 			continue
 		}
-		rows = append(rows, store.CommitSignalWrite{
-			SHA:           c.SHA,
-			FilesKept:     sig.FilesKept,
-			FilesExcluded: sig.FilesExcluded,
-			AdditionsKept: sig.AdditionsKept,
-			DeletionsKept: sig.DeletionsKept,
-			Tools:         sig.Tools,
-			AgentConfig:   sig.AgentConfig,
-			BotAuthor:     sig.BotAuthor,
-		})
+		rows = append(rows, signalWrite(c.SHA, sig))
 	}
 	n, err := e.store.WriteCommitSignals(ctx, repoID, rows, e.now().UTC())
 	if err != nil {
@@ -56,6 +47,20 @@ func (e *Engine) writeSignals(ctx context.Context, s *repoSync, repoID int64) st
 		e.logger.Debug("signaux de diagnostic enregistrés", "repo", s.full, "commits", n)
 	}
 	return ""
+}
+
+// signalWrite convertit les signaux calculés d'un commit en ligne à écrire.
+func signalWrite(sha string, sig diagnostic.Signals) store.CommitSignalWrite {
+	return store.CommitSignalWrite{
+		SHA:           sha,
+		FilesKept:     sig.FilesKept,
+		FilesExcluded: sig.FilesExcluded,
+		AdditionsKept: sig.AdditionsKept,
+		DeletionsKept: sig.DeletionsKept,
+		Tools:         sig.Tools,
+		AgentConfig:   sig.AgentConfig,
+		BotAuthor:     sig.BotAuthor,
+	}
 }
 
 // firstAdder est implémenté par le provider des clones Git locaux (*git.Provider) : date du premier
