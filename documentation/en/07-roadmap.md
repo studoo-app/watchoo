@@ -171,7 +171,9 @@ Importing a whole organization and the alerts move to V3 (see
   backfill button) and **7.5 done** (form signals F1 to F5 measured in memory, numbers only kept, "probable"
   level); **released in v1.4.0**. Phase 7.6 (calibration) will come in a
   **later release** (maintainer decision, November 4, 2026), once real reviews exist, then F6 (content
-  classifier, postponed), each after its plan is approved. Educational context
+  classifier, postponed), each after its plan is approved. Phase **7.7** (absolute signals,
+  work-in-progress markers, counter-indicators) is proposed, plan to be approved (see
+  [Supervision and diagnosis](12-supervision-diagnostic.md#96-phase-77-absolute-signals-work-in-progress-markers-and-counter-indicators-proposal-to-be-approved)). Educational context
   settled (learners, results reserved to the trainer); learners are informed (existence of the diagnosis,
   purpose, criteria) before it is enabled.
 

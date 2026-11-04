@@ -220,6 +220,9 @@ résumé de ce qui marche. Le plan et l'arborescence de chaque phase sont propos
 - **7.6 Calibration** : précision par signal, recalibrage, κ. Livrable : rapport de calibration, seuils
   documentés. Démarre quand un volume de revues suffisant existe ; **version ultérieure** (décision du
   mainteneur, 4 novembre 2026) : les phases 7.1 à 7.5 sortent sans elle, seuils de la spécification.
+- **7.7 Signaux absolus, marqueurs de travail et contre-indicateurs** (proposition du 4 novembre 2026, plan
+  en section 9.6, **à valider**) : couvrir les projets rendus en peu de commits, que les signaux R et F
+  (comparaison à soi-même, 20 observations) ne voient pas. Indépendante de 7.6 : peut sortir avant elle.
 - **Étape ultérieure — F6, classifieur de contenu** (reporté par le mainteneur le 4 novembre 2026) : optionnel,
   désactivé par défaut, poids faible (0,5). Il demande un modèle de détection (type GPTSniffer ou
   DetectCodeGPT, références 17 à 19), donc une dépendance hors de la pile documentée, soumise à l'accord du
@@ -398,6 +401,85 @@ revoir seulement si la calibration en montre le besoin) ; F6 reporté (section 9
 - **Affichage** : chaque signal F donne sa valeur brute, la médiane personnelle (F5 : la part habituelle des
   commits avec tests) et, pour F1, F3 et F4, le score z ; libellés en anglais et en français.
 
+## 9.6 Phase 7.7 — signaux absolus, marqueurs de travail et contre-indicateurs (proposition, à valider)
+
+**Origine** : le référentiel « Signaux de détection d'usage IA dans les repos étudiants » (agent
+AGENT_DETECTION_IA, 5 pages, 8 catégories, transmis par le mainteneur le 4 novembre 2026 ; document interne,
+référence 34). Ses seuils viennent de l'expérience d'enseignants, **sans validation empirique** : ils sont
+repris comme valeurs de départ, à calibrer (7.6). Mêmes garde-fous que le reste du diagnostic (section 2).
+
+**Constat** (comparaison avec la 1.4.0) : le référentiel juge un projet avec des **seuils absolus** (plus de
+500 lignes dans un commit, aucun TODO sur 800 lignes…) ; Watchoo compare l'apprenant à **son propre
+historique** (au moins 20 observations en 90 jours). Un projet rendu en 1 à 5 commits, cas typique du
+référentiel, ne lève donc aucune piste R ni F. Le référentiel tempère aussi par des **contre-indicateurs**
+(traces de travail humain), que la 1.4.0 n'a pas.
+
+### Nouvelles mesures (en mémoire, nombres seulement)
+
+Ajoutées au `FormMeter` (même lecture des lignes ajoutées que F1 à F5) et au style du message, gardées dans
+`commit_signals` (migration `00015`). Ni ligne, ni mot, ni chemin gardé.
+
+| Mesure | Définition |
+| --- | --- |
+| `decorative_lines` | Lignes de commentaire décoratives : au moins 8 caractères de remplissage consécutifs (`─ ━ ═ = - * ~ #`), seuls ou encadrant un titre (`// ── Section ──`) |
+| `fr_words`, `fr_words_unaccented` | Dans les commentaires, mots d'une liste fixe de mots français accentués courants (« données », « accès », « méthode », « élément », « requête », « paramètre »…), comptés avec et sans leurs accents (« donnees ») |
+| `wip_markers` | Marqueurs de travail en cours : `TODO`, `FIXME`, `XXX`, `HACK` en commentaire ; lignes de debug (`print(` en Python, `var_dump(`, `dd(`, `dump(`, `console.log(`, `fmt.Println(` hors `main`… liste par langage) |
+| `short_identifiers` | Identifiants d'une lettre (`$i`, `j`, `k`, `x`…) parmi les identifiants déjà comptés pour F3 |
+| `private_defs` | Définitions privées parmi les définitions (`private function`, `private` en Java/C#/Kotlin, `def _nom` en Python, `#nom` en JS) |
+| `message_revert`, `message_fix` | Message de la forme `Revert "…"` (git revert) ; sujet de correction (`fix`, `corrige`, `correction`, `oups`…) |
+
+### Famille A — signaux absolus (sans historique personnel)
+
+| ID | Signal | Déclenchement par défaut (référentiel) | Compte comme |
+| --- | --- | --- | --- |
+| A1 | Commit massif | ≥ 500 lignes source ajoutées (fichiers retenus) | R |
+| A2 | Dépôt rendu « en une fois » | L'auteur a au plus 3 commits mesurés dans le dépôt, et l'un d'eux apporte ≥ 80 % de ses lignes source ajoutées (et au moins 200) | R |
+| A3 | Poussée après un silence | ≥ 300 lignes source ajoutées après au moins 14 jours sans commit de l'auteur dans le dépôt | R |
+| A4 | Revert puis remplacement | Commit `Revert "…"` suivi, dans l'heure, d'un commit de l'auteur d'au moins 100 lignes source ajoutées (sans vérifier les fichiers : les chemins ne sont pas gardés) | R |
+| A5 | Commentaires décoratifs | ≥ 3 lignes décoratives dans le commit | F |
+| A6 | Commentaires français sans accents | ≥ 10 mots repérés dans le commit, ≥ 90 % sans accents | F |
+| A7 | Code « dans son état final » | Sur l'ensemble de l'auteur dans le dépôt : ≥ 800 lignes source ajoutées, aucun marqueur de travail et aucun identifiant d'une lettre | F |
+
+A1 à A4 comptent comme des signaux de rythme et A5 à A7 comme des signaux de forme pour les niveaux
+(section 6) : un dépôt rendu en un commit de 600 lignes (A1, A2) avec des séparateurs décoratifs (A5) donne
+« Probable ». A2 et A7 portent sur l'ensemble de l'auteur dans le dépôt : nouvelle nature de piste
+`project` (auteur × dépôt), à côté de `commit`, `day` et `pull_request`.
+
+### Famille H — contre-indicateurs (traces de travail humain)
+
+| ID | Indice | Repère |
+| --- | --- | --- |
+| H1 | Marqueurs de travail | Au moins un marqueur dans le commit (ou le projet, pour une piste `project`) |
+| H2 | Variables courtes | Au moins 3 identifiants d'une lettre |
+| H3 | Squelette initial | Premier commit de l'auteur : au moins 5 fichiers et au plus 2 lignes ajoutées par fichier en moyenne |
+| H4 | Corrections itératives | Au moins 3 commits de correction (`message_fix`) de l'auteur dans les 14 jours qui précèdent |
+
+Un contre-indicateur **ne supprime jamais une piste** : il l'**abaisse d'un niveau** (« Probable » →
+« À regarder » ; « À regarder » reste « À regarder ») et s'affiche à côté des signaux, avec la mention
+« trace de travail humain ». Il ne touche jamais « Déclaré ».
+
+### Hors périmètre de 7.7 (avec la raison)
+
+- **Documentation** (README impeccable, décalage doc/code) et **CSS** (palettes, polices, chaînes de classes
+  Bootstrap) : demanderaient de garder ou de comparer des contenus, pas seulement des nombres.
+- **Homogénéité stylistique, rupture de convention** (français → anglais, MySQLi → PDO), **pages
+  quasi identiques**, **architecture trop mature** : demandent une analyse syntaxique ou de garder des
+  empreintes de fichiers ; à reconsidérer après calibration.
+- **Bonnes pratiques hors programme** : dépendent du programme du cours (liste par espace possible plus
+  tard).
+- **Cohérence entre projets d'un même apprenant** (palette identique, saut de niveau, même faille) : demande
+  de croiser des dépôts ; le croisement entre personnes reste hors périmètre (section 2).
+
+### Décisions à valider par le mainteneur
+
+1. Seuils du référentiel repris tels quels (500, 80 %, 14 jours, 90 %, 800), non calibrés jusqu'à 7.6.
+2. Nouvelle nature de piste `project` (migration du `CHECK` de `diagnostic_reviews.kind`).
+3. Contre-indicateurs : abaissent d'un niveau, ne suppriment jamais une piste.
+4. A4 sans recouvrement de fichiers (les chemins ne sont pas gardés).
+5. Liste des mots français accentués et des appels de debug : fixe, dans le code, documentée ; pas de réglage.
+6. Ordre : 7.7 avant 7.6 (elle ne dépend pas des revues), dans une version MINEURE (ajouts de signaux, de
+   colonnes, d'une valeur `project` pour `kind` ; aucune clé `--json` retirée).
+
 ## 10. Points ouverts (à trancher par le mainteneur)
 
 1. **Information des apprenants** : texte et moment (avant la première analyse : présentation du module,
@@ -513,3 +595,10 @@ les autres sections. Les sources secondaires sont signalées.
 31. Code du travail, art. L1222-4 (information préalable du salarié).
 32. Code du travail, art. L2312-37 et L2312-38 (consultation du CSE). https://code.travail.gouv.fr/code-du-travail/l2312-38
 33. Cour de cassation, chambre sociale, 11 décembre 2019, n° 18-11.792.
+
+### 11.8 Référentiel d'enseignants : famille A et contre-indicateurs H
+
+34. « Signaux de détection d'usage IA dans les repos étudiants » : référentiel des signaux indirects de l'agent
+    AGENT_DETECTION_IA (5 pages, 8 catégories : historique Git, style, qualité, structure, documentation, cohérence
+    inter-projets, signaux humains, mesures quantitatives). Document interne transmis par le mainteneur le 4 novembre
+    2026, non publié ; seuils issus de l'expérience, sans validation empirique. *(Source de la phase 7.7.)*

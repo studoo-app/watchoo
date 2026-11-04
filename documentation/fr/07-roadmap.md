@@ -173,7 +173,9 @@ L'import d'une organisation entière et les alertes passent en V3 (voir
   réalisée** (signaux de forme F1 à F5 mesurés en mémoire, seuls des nombres gardés, niveau « probable ») ;
   **publiées en v1.4.0**. La phase 7.6 (calibration) viendra dans une
   **version ultérieure** (décision du mainteneur, 4 novembre 2026), quand des revues réelles existeront,
-  puis F6 (classifieur de contenu, reporté), chacune après validation de son plan. Contexte pédagogique tranché (apprenants, résultats réservés au formateur) ;
+  puis F6 (classifieur de contenu, reporté), chacune après validation de son plan. La phase
+  **7.7** (signaux absolus, marqueurs de travail, contre-indicateurs) est proposée, plan à valider (voir
+  [Supervision et diagnostic](12-supervision-diagnostic.md#96-phase-77--signaux-absolus-marqueurs-de-travail-et-contre-indicateurs-proposition-à-valider)). Contexte pédagogique tranché (apprenants, résultats réservés au formateur) ;
   l'information des apprenants (existence du diagnostic, finalité, critères) se fait avant de l'activer.
 
 ## Définition de « terminé » pour chaque phase
