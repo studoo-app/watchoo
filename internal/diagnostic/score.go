@@ -1,6 +1,6 @@
 package diagnostic
 
-// Score d'un dépôt (1.7.0, documentation/fr/12-supervision-diagnostic.md section 6) : somme des poids des
+// Score d'un dépôt (1.6.0, documentation/fr/12-supervision-diagnostic.md section 6) : somme des poids des
 // signaux de ses pistes, jamais affichée seule (nombre de pistes par niveau, décompte et points de chaque
 // signal). Il ne classe pas les dépôts entre eux et ne sert à aucune évaluation.
 
@@ -16,6 +16,25 @@ const (
 	WeightRhythm   = 3  // R1 à R6, A1 à A4
 	WeightForm     = 1  // F1 à F5, A5 à A7
 )
+
+// Paliers du score IA d'un contributeur, affichés par une icône. Valeurs stables.
+const (
+	TierNone   = "none"   // score 0 : aucune piste
+	TierMedium = "medium" // de 1 à HighScore - 1
+	TierHigh   = "high"   // HighScore ou plus
+	HighScore  = 30       // 3 signaux déclarés, ou 10 signaux de rythme
+)
+
+// Tier renvoie le palier d'un score.
+func Tier(score int) string {
+	switch {
+	case score >= HighScore:
+		return TierHigh
+	case score > 0:
+		return TierMedium
+	}
+	return TierNone
+}
 
 // Weight renvoie le poids d'un signal : 0 pour un contre-indicateur (H1 à H4), le contexte D4 ou un
 // signal inconnu.
@@ -50,7 +69,7 @@ type Summary struct {
 }
 
 // SummarizeByContributor résume les pistes de chaque contributeur auteur (score IA d'un contributeur,
-// 1.7.0) : commit et jour par AuthorID, pull request par login de forge (logins : login en minuscules →
+// 1.6.0) : commit et jour par AuthorID, pull request par login de forge (logins : login en minuscules →
 // contributeur). Une piste sans auteur connu est ignorée.
 func SummarizeByContributor(leads []Lead, logins map[string]int64) map[int64]Summary {
 	by := map[int64][]Lead{}
