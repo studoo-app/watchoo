@@ -183,6 +183,13 @@ L'import d'une organisation entière et les alertes passent en V3 (voir
   [Supervision et diagnostic](12-supervision-diagnostic.md#96-phase-77--signaux-absolus-marqueurs-de-travail-et-contre-indicateurs-réalisée)). Contexte pédagogique tranché (apprenants, résultats réservés au formateur) ;
   l'information des apprenants (existence du diagnostic, finalité, critères) se fait avant de l'activer.
 
+### Proposition — 8 : conventions de projet
+- Indicateurs de conformité à une charte de conventions (Conventional Commits, branches et pull requests,
+  SemVer, CHANGELOG Keep a Changelog, README, `documentation/INDEX.md`) et vue « revue de jalon ».
+  Constats objectifs, séparés du diagnostic, sans note globale, désactivés par défaut.
+- Sous-phases 8.0 à 8.7 : voir [Conventions de projet](13-conventions.md#10-plan-par-phases-proposition).
+- **Statut** : **proposition**, en attente de la validation du mainteneur ; aucun code.
+
 ## Définition de « terminé » pour chaque phase
 
 - Code écrit et relu.

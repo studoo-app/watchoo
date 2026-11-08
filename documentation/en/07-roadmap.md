@@ -183,6 +183,13 @@ Importing a whole organization and the alerts move to V3 (see
   settled (learners, results reserved to the trainer); learners are informed (existence of the diagnosis,
   purpose, criteria) before it is enabled.
 
+### Proposal — 8: project conventions
+- Compliance indicators against a conventions charter (Conventional Commits, branches and pull requests,
+  SemVer, Keep a Changelog CHANGELOG, README, `documentation/INDEX.md`) and a "milestone review" view.
+  Objective findings, separate from the diagnosis, with no overall grade, disabled by default.
+- Sub-phases 8.0 to 8.7: see [Project conventions](13-conventions.md#10-phase-plan-proposal).
+- **Status**: **proposal**, awaiting the maintainer's approval; no code.
+
 ## Definition of "done" for each phase
 
 - Code written and reviewed.

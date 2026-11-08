@@ -51,6 +51,7 @@ the same numbering; the index is [INDEX.md](documentation/INDEX.md).
 | Workspaces (`watchoo init`) | [10-workspaces.md](documentation/en/10-workspaces.md) |
 | Skills | [11-skills.md](documentation/en/11-skills.md) |
 | Supervision and diagnosis (signals, guardrails, phase 7) | [12-supervision-diagnostic.md](documentation/en/12-supervision-diagnostic.md) |
+| Project conventions (compliance indicators, milestone review, phase 8, proposal) | [13-conventions.md](documentation/en/13-conventions.md) |
 
 A decision that changes what is documented is made **in the documentation first**, with the
 maintainer's approval, then in the code.

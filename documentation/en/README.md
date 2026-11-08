@@ -27,6 +27,7 @@ the terminal (`watchoo tui`) or through a local web interface served by the same
 | 10 | [Workspaces](10-workspaces.md) | `watchoo init`, one directory per monitored group, "undergraduate students" scenario |
 | 11 | [Coding agent skills](11-skills.md) | Skills installed via skills.sh, layout in the repository, rules |
 | 12 | [Supervision and diagnosis](12-supervision-diagnostic.md) | Signals to review, guardrails, phase plan (proposal) |
+| 13 | [Project conventions](13-conventions.md) | Compliance indicators against a charter (commits, branches, PRs, SemVer, CHANGELOG, README, INDEX), milestone review (proposal) |
 | — | [Glossary](glossary.md) | Project vocabulary |
 
 ## At a glance
