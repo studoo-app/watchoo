@@ -56,7 +56,10 @@ students. Data is never mixed. See [Workspaces](10-workspaces.md).
   style of the messages whether AI was used: outside the diagnosis, Watchoo only reads the
   [signatures declared in the commits](02-features.md#ai-signatures). Form and rhythm signals (AI usage)
   fall under [supervision and diagnosis](12-supervision-diagnostic.md), off by default, for the trainer
-  only and bound by its guardrails.
+  only and bound by its guardrails. Exception decided on November 8, 2026: the
+  [project conventions](13-conventions.md) read in memory, without keeping their content, the README, the
+  CHANGELOG, `documentation/` and the tooling files, and judge the form of the messages against a charter
+  the students know, never to infer any suspicion of AI usage.
 - Writing to GitHub: Watchoo is **read-only**.
 
 ## Target users

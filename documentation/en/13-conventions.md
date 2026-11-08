@@ -2,30 +2,33 @@
 
 [← Contents](README.md)
 
-**Status**: **proposal**, awaiting the maintainer's approval (phase 8, November 8, 2026). No code is
-written before the [open questions](#11-open-questions-for-the-maintainer-to-decide) are settled. The
-updates to [Vision](01-vision.md), [Features](02-features.md), [Data model](04-data-model.md),
-[CLI](05-cli.md) and [Web interface](06-web-interface.md) will follow this approval, phase by phase.
+**Status**: **maintainer decision** (phase 8, November 8, 2026); the choices are recorded in
+[section 11](#11-maintainer-decisions). No code is written yet: each phase starts after its plan is
+approved. The scope exception is carried over into the [Vision](01-vision.md); the updates to
+[Features](02-features.md), [Data model](04-data-model.md), [CLI](05-cli.md) and
+[Web interface](06-web-interface.md) will follow phase by phase.
 
-## 1. Proposed decision
+## 1. Decision
 
 The trainer imposes on the groups a **conventions charter** (commits, branches and pull requests,
 versions, CHANGELOG, README, documentation) and checks it at a **milestone review**. Watchoo measures how
 well this charter is followed, repository by repository, and derives a **"milestone review" view** from it.
 
-These measures are **compliance indicators**: deterministic, verifiable by the student, with no comparison
-to a personal history and no hidden weight. They are not suspicions and stay **separate from the
-[diagnosis](12-supervision-diagnostic.md)**: no data, no score and no page in common.
+These measures are **compliance indicators**: deterministic, verifiable, with no comparison to a personal
+history and no hidden weight. They are not suspicions and stay **separate from the
+[diagnosis](12-supervision-diagnostic.md)**: no data, no score and no page in common. Like the diagnosis,
+their results are **reserved to the trainer**.
 
 ## 2. Positioning and guardrails
 
 - **A finding, not a verdict**: each result shows its rule, its raw values and its exclusions. Watchoo
   does not grade: it computes no overall grade (no "/20") and ranks neither repositories nor people.
 - **Unknown is not non-compliant**: a criterion that cannot be measured (clone unavailable, mode without
-  the API, missing data) is shown as "unknown" and leaves the total.
-- **Can be shown to students**: unlike the diagnosis leads, reserved to the trainer, these indicators
-  concern a charter the students have in hand. The view and the `--json` output contain nothing from the
-  diagnosis.
+  the API, missing data) is shown as "unknown" and is left out of the total.
+- **Reserved to the trainer**: the view and the `--json` output are intended for the trainer who
+  supervises the workspace, like the diagnosis (maintainer decision). They contain nothing from the
+  diagnosis; the students know the charter and its criteria, not the individual results computed by
+  Watchoo.
 - **Minimisation**: nothing of the content read is persisted (message, PR body, README, CHANGELOG, INDEX,
   file paths); only issue codes, counters, masks and version numbers are stored. The detailed lists
   (unreferenced documents, dead links) are **recomputed at display time** from the clone, never stored or
@@ -35,7 +38,7 @@ to a personal history and no hidden weight. They are not suspicions and stay **s
 - **Off by default**: everything goes through the `conventions.enabled` setting.
 - **Scope exception**: reading README, CHANGELOG, INDEX, `documentation/` and the tooling files falls
   outside the "code content analysis" line of the [out of scope](01-vision.md#out-of-scope-for-now) list.
-  The proposed exception: in-memory reading of these files only, without persisting the content; the style
+  The exception adopted: in-memory reading of these files only, without persisting the content; the style
   of the messages is judged against a charter known to the students, **never** to derive a suspicion of AI
   use.
 
@@ -59,7 +62,7 @@ Default values of the configuration ([section 8](#8-configuration)); each traine
 | --- | --- | --- |
 | Database (already synced) | `commits.message`, `commit_branches`, `branches`, `pull_requests` (title, branches, states, dates), `tags`, `releases` | both |
 | Local clone, **through git objects** | `git rev-list` (first parent, ranges between tags), `git for-each-ref refs/remotes/origin/` (all the remote's branches), `git ls-tree` and `git cat-file blob` on `origin/<default>` or on a tag, `git merge-base --is-ancestor` | both (the clone exists with or without `gh`) |
-| API, no extra request | `protected` in `GET /branches`; `merge_commit_sha` (merged PRs only), PR body (in memory) and source repository in `GET /pulls`; `allow_squash_merge`, `allow_merge_commit`, `allow_rebase_merge` in `GET /repos` | API |
+| API, no extra request | `merge_commit_sha` (merged PRs only), PR body (in memory) and source repository in `GET /pulls`; `allow_squash_merge`, `allow_merge_commit`, `allow_rebase_merge` in `GET /repos` | API |
 | API, extra request | `GET /repos/{o}/{r}/pulls/{n}/reviews` | API |
 
 - The clone is **never** read through the file system of `repos/`: the working copy is reset at every sync
@@ -83,10 +86,10 @@ suffix "(#n)". It is compliant if it matches, case-sensitively,
 `^(<types>)(\([a-z0-9][a-z0-9._/-]*\))?!?: \S.*$`. The permissive parser of the diagnosis's F4 signal
 remains a separate "tolerant" mode.
 
-**Scope**: the default branch as it is today (`git rev-list origin/<default>` in the clone), since
-`conventions.since`. `commit_branches` is only a fallback, with the note "may include rewritten commits"
-(the links between a commit and a branch are never removed). The tracked branches form a second,
-informative view.
+**Scope** (maintainer decision): **all the tracked branches**, as they are today (`git rev-list` of the
+tracked `origin/<branch>` in the clone, each commit counted once), since `conventions.since`.
+`commit_branches` is only a fallback, with the note "may include rewritten commits" (the links between a
+commit and a branch are never removed). The default branch alone forms a second, informative view.
 
 | id | Indicator | Rule | Granularity | Source | Mode | Rel. | Prio |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -104,7 +107,7 @@ informative view.
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | BR1 | Compliant branch name | Remote branches (`refs/remotes/origin/` of the clone) and `pull_requests.head_branch` of PRs not coming from a fork, excluding the default branch and exclusions (`gh-pages`, `dependabot/*`, `renovate/*`, setting). Compliant if `^(<types>)/[a-z0-9]+(-[a-z0-9]+)+$`; a single segment after `/`: "to review". Pattern given: unknown type, uppercase, `_`, space, accent, missing `/` | branch, repository; contributor through the PR author | clone + database | both | H | P1 |
 | BR2 | Reused branch | A `head_branch` (not from a fork) with more than one PR merged into the default branch | branch, repository | database | API | M | P2 |
-| BR3 | Protected default branch | `protected` from `GET /branches`: yes, no, unknown (clone), not applicable (setting, for example a private repository on GitHub Free). **Snapshot** without history | repository | API, 0 requests | API | M | P2 |
+| BR3 | Protected default branch | **Postponed** (maintainer decision: not implemented in phase 8). Planned measure: `protected` from `GET /branches`: yes, no, unknown (clone), not applicable (for example a private repository on GitHub Free). **Snapshot** without history | repository | API, 0 requests | API | M | — |
 | BR4 | Rewritten default branch | At sync time, the old head is no longer an ancestor of the new one (`merge-base --is-ancestor`); dated event (old and new SHA). Old object missing from the clone: "unknown", never "rewritten". In API mode, the sync's `ErrUnknownBase` error is also used as a signal | event, repository | clone | both | H | P2 |
 | BR5 | Allowed merge methods | `allow_squash_merge`, `allow_merge_commit`, `allow_rebase_merge` of the repository (returned to an account with push rights) | repository | API, 0 requests | API | M | P3 |
 
@@ -114,8 +117,8 @@ informative view.
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | PR1 | Conventional PR title | Shared parser on the title of non-draft, non-bot PRs; open and merged PRs counted separately | PR, repository, author | database | API | H | P1 |
 | PR2 | Forbidden or default title | Normalised title in the forbidden list, or equal (after normalisation: case, `-` and `_` as spaces) to the head branch name or to the subject of the PR's only commit (titles suggested by GitHub) | PR | database | API | H | P1 |
-| PR3 | Commits that reached the default branch outside a PR | Walk of `git rev-list --first-parent origin/<default>` since `since`, without the root commit. **Through a PR**: SHA equal to the `merge_commit_sha` of a merged PR; sequence rebased by GitHub (consecutive commits whose committer is GitHub and whose `committed_at` equals the `merged_at` of the PR that ends it); merge whose committer is GitHub. **Outside a PR**: human committer, local merge pushed, web edit without a PR. Otherwise: "undetermined". With a clone only, fallback on `^Merge pull request #\d+` and `\(#\d+\)$` with the GitHub committer recognised by its `noreply@github.com` e-mail (in memory) | commit; repository; "author of the commit that arrived outside a PR" (never "pushed") | clone + database | both (degraded with a clone) | H with the API, M with a clone | P1 |
-| PR4 | Reviewed by another member | New Provider method `PullRequestReviews` (login, identifier, state, date; never the body). Reviewed if, for at least one reviewer with an identifier other than the author's and not excluded (trainer, bots), the last state among `APPROVED`, `CHANGES_REQUESTED` and `DISMISSED` submitted no later than `merged_at` is `APPROVED`. Derived view: "merged without review" | PR, repository; reviews given and received per contributor | API, 1 request per PR | API | H | P1 |
+| PR3 | Commits that reached the default branch outside a PR | Walk of `git rev-list --first-parent origin/<default>` since `since`, without the root commit. **Through a PR**: SHA equal to the `merge_commit_sha` of a merged PR; sequence rebased by GitHub, recognised by a heuristic with no request (consecutive commits whose committer is GitHub and whose `committed_at` equals the `merged_at` of the PR that ends it; maintainer decision); merge whose committer is GitHub. **Outside a PR**: human committer, local merge pushed, web edit without a PR. Otherwise: "undetermined". With a clone only, fallback on `^Merge pull request #\d+` and `\(#\d+\)$` with the GitHub committer recognised by its `noreply@github.com` e-mail (in memory) | commit; repository; "author of the commit that arrived outside a PR" (never "pushed") | clone + database | both (degraded with a clone) | H with the API, M with a clone | P1 |
+| PR4 | Reviewed by another member | New Provider method `PullRequestReviews` (login, identifier, state, date; never the body). Reviewed if, for at least one reviewer with an identifier other than the author's and not excluded (trainer, bots), the last state among `APPROVED`, `CHANGES_REQUESTED` and `DISMISSED` submitted no later than `merged_at` is `APPROVED`. Another account is enough; the `pr.reviewer_must_contribute` setting also requires a reviewer who authored at least one commit of the repository. Only counters are stored, not the reviewers. Derived view: "merged without review" | PR, repository; reviews received by the PR author | API, 1 request per PR | API | H | P1 |
 | PR5 | Structured body and `Closes #n` | Body read in memory (as for D2): section headings, or bold text, among versioned FR and EN synonyms (context, what changes, how to test, screenshots); an empty section (or one reduced to an HTML comment) does not count. Closing keyword searched separately. Only a bit mask is stored (NULL while unknown). Known false negative: issue linked through the "Development" sidebar | PR, repository | API, 0 requests | API | M | P2 |
 | PR6 | Squash merge | Commit of `merge_commit_sha` with one parent and the "(#n)" suffix: squash; two parents: merge commit. Compliant if squash **and** message compliant with the parser | PR | database | API | M | P2 |
 | PR7 | PR template | See TL3 | repository | clone | both | H | P2 |
@@ -127,9 +130,9 @@ informative view.
 | SV1 | SemVer tag name | Lowercase `v` then a SemVer 2.0.0 version (comparator extracted from `internal/selfupdate` into `internal/semver`). Patterns: no `v`, `V`, missing component, leading zero, empty pre-release; `+build` as a warning | tag, repository | database | both | H | P1 |
 | SV2 | Milestones present | For each configured milestone: present, present under a non-compliant name, absent; a pre-release does not count as a milestone. With a deadline: compared to the first observation of the tag; "undetermined" if no successful sync took place between the date of the target commit and the deadline (display "set between X and Y") | milestone × repository | database | both | H (presence), M (deadline) | P1 |
 | SV3 | Tag rewritten or deleted | `tag_observations` table, fed only if reading the tags succeeded and was not truncated: same name with another SHA (rewritten), gone (deleted). Label: "no rewrite observed since …", never "never rewritten"; no attribution to a person | tag, repository | database | both | M | P1 |
-| SV4 | Pre-releases | Form `-rc.N`, `-beta.N`, `-alpha.N`; warning if an rc is set after the final version or if precedence contradicts ancestry | tag | database + clone | both | M | P2 |
+| SV4 | Pre-releases | Form `-rc.N`, `-beta.N`, `-alpha.N`; free forms (`-rc1`, `-RC.1`) give a warning, not an issue (maintainer decision); also a warning if an rc is set after the final version or if precedence contradicts ancestry | tag | database + clone | both | M | P2 |
 | SV5 | Bump consistent with the commits | For each final tag F, base B = highest compliant final tag lower than F that is its ancestor; commits of `B..F` excluding merges and bots. Breaking change: MAJOR expected (MINOR before 1.0.0); `feat`: at least MINOR. **Only under-versioning is flagged**; "undetermined" if less than 80% of the range's commits are compliant; first tag not evaluated | pair of tags | clone + database | both | M | P2 |
-| SV6 | Associated release | Excluding drafts: milestone without a release, release without a tag, inconsistent `prerelease` flag | tag, release | database | API | H | P2 |
+| SV6 | Associated release | Excluding drafts: milestone without a release, release without a tag, inconsistent `prerelease` flag. **Information only**: the charter only mentions tags, SV6 does not count towards compliance | tag, release | database | API | H | P2 |
 | SV7 | Precedence and history | Higher version set on an ancestor of a lower version; increment skip (v1 → v3) as information | pair of tags | database + clone | both | M | P3 |
 
 ### 5.5 CHANGELOG (CL)
@@ -139,11 +142,11 @@ The `CHANGELOG.md` blob is read in memory from the clone (at most 1 MiB); code b
 | id | Indicator | Rule | Granularity | Source | Mode | Rel. | Prio |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | CL1 | Present at the root | Exact `CHANGELOG.md`; otherwise misnamed (`(?i)^change[-_]?log(\.md)?$`), elsewhere, absent, or not measurable (empty repository) | repository, tag | clone | both | H | P1 |
-| CL2 | Header and statements | H1 `Changelog`, mention of Keep a Changelog and of SemVer before the first H2 | repository | clone | both | H | P1 |
+| CL2 | Header and statements | H1 `Changelog` (or `Journal des modifications`), mention of Keep a Changelog and of SemVer before the first H2 | repository | clone | both | H | P1 |
 | CL3 | `[Unreleased]` at the top | First H2 = `## [Unreleased]`; issues: absent, misplaced, duplicated, without brackets | repository | clone | both | H | P1 |
 | CL4 | Version headings and dates | `## [X.Y.Z(-pre)] - YYYY-MM-DD`, `[YANKED]` allowed; real date, not in the future. Issues: `v` in the heading (warning), missing brackets, date in FR format, absent, invalid, in the future | version | clone | both | H | P1 |
 | CL5 | Descending order | Strictly descending SemVer precedence, non-increasing dates | repository | clone | both | H | P2 |
-| CL6 | Categories | H3 in {Added, Changed, Deprecated, Removed, Fixed, Security}, no duplicate, in that order, no bullet outside a category; FR labels configurable | version | clone | both | H | P1 |
+| CL6 | Categories | H3 in {Added, Changed, Deprecated, Removed, Fixed, Security}, or their French labels (Ajouté, Modifié, Obsolète, Supprimé, Corrigé, Sécurité), allowed by default; no duplicate, in that order, no bullet outside a category | version | clone | both | H | P1 |
 | CL7 | Empty entries | Released version without a bullet, category without a bullet, empty or "TODO" bullet; an empty `[Unreleased]` is not an issue | repository | clone | both | H | P2 |
 | CL8 | Consistent tags and sections | Tag `vX.Y.Z` without a section, dated section without a tag (`[YANKED]` exempt); date gap shown without being counted | tag | database + clone | both | H | P1 |
 | CL9 | Up to date at the tag | In `<tag>:CHANGELOG.md`, the `## [X.Y.Z]` section exists; result cached per (tag, SHA) | milestone | clone | both | H | P1 |
@@ -169,10 +172,10 @@ The `CHANGELOG.md` blob is read in memory from the clone (at most 1 MiB); code b
 | DOC2 | INDEX table | GFM table with the 5 expected columns (synonyms allowed); number of rows. The cells are never stored (the Owner column contains names) | repository, tag | clone | both | H | P1 |
 | DOC3 | Exhaustive INDEX | Number of `*.md` files in `documentation/` (excluding INDEX and `Media/`) that no INDEX link targets; duplicate INDEX rows | repository, tag | clone | both | H | P1 |
 | DOC4 | Dead links | Relative links of the README, the INDEX and the documents whose target does not exist; a case difference is flagged as such | repository | clone | both | H | P1 |
-| DOC5 | Naming | Folders `^\d{2}-[a-z0-9]+(-[a-z0-9]+)*$`; files in lowercase with hyphens, no space or accent (exceptions: `INDEX.md`, `README.md`, `Media`) | repository, tag | clone | both | H | P1 |
+| DOC5 | Naming | Folders `^\d{2}-[a-z0-9]+(-[a-z0-9]+)*$`; files in lowercase with hyphens, no space or accent (exceptions: `INDEX.md`, `README.md`, and `Media/` with its capital letter, allowed by the charter) | repository, tag | clone | both | H | P1 |
 | DOC6 | Document headers | Title, purpose, scope, author, date, version: front matter or "Key: value" lines in the first 40 lines; counters per field | repository | clone | both | M | P2 |
 | DOC7 | Diagrams and images | Relative images present or broken, external images (badges excluded), `mermaid` blocks, `Media/` folder | repository | clone | both | H | P2 |
-| DOC8 | Archives | `.zip`, `.rar`, `.7z`, `.tar(.gz)` under `documentation/` | repository, tag | clone | both | H | P1 |
+| DOC8 | Archives | `.zip`, `.rar`, `.7z`, `.tar(.gz)` **in the whole repository** (maintainer decision); `.docx` and `.pdf` files under `documentation/` are flagged as information | repository, tag | clone | both | H | P1 |
 | DOC9 | Freshness | Dates of the last commit on `documentation/`, the INDEX, the CHANGELOG and the code; commits outside the documentation since; lead | repository | clone | both | M | P2 |
 | DOC10 | Declared dates | Date in the INDEX column compared to the document's last commit | document | clone | both | L | P3 |
 
@@ -197,7 +200,7 @@ The lists of DOC3, DOC4 and DOC5 (paths) are recomputed at display time; only th
 | Hook installed and active | `.git/hooks` is not versioned; `--no-verify`; web edits | "Configured" (TL2), measured effect (TL5) |
 | One branch, one PR = one subject | Semantics | Reused branch (BR2), PR size in context |
 | Quality of the review, real identity of the reviewer | Human; multiple accounts | Approval, delay, excluded accounts |
-| Details of the protection, protection with a clone only | Admin rights required; concept absent from git; depends on the GitHub plan | `protected`, "unknown", "not applicable", observed effects (PR3, BR4) |
+| Protection of the default branch | Admin rights required for the details; concept absent from git; depends on the GitHub plan; BR3 postponed | Observed effects: commits outside a PR (PR3), rewrites (BR4) |
 | Tags "never rewritten", date a tag was set | Snapshots only; no tag date | "No rewrite observed since …", first observation (SV3) |
 | Semantic correctness of the version bump | No declared public API | Consistency with the declared commits (SV5) |
 | Reproducible installation | The code would have to be run | Lead RD5 |
@@ -213,8 +216,8 @@ nor ranks anything.
 - **Per repository**: CC1, BR1, PR1, PR3, PR4, SV1, SV2, then the CHANGELOG (CL1 to CL9), README (RD1 to
   RD3), documentation (DOC1 to DOC5, DOC8) and tooling grids.
 - **Per contributor**: CC3 and its main patterns, PR titles (PR1), commits that arrived outside a PR that
-  they authored (PR3), reviews given and received (PR4). No repository indicator (CL, RD, DOC, SV) is
-  attributed to a person.
+  they authored (PR3), reviews received on their PRs (PR4; the reviews given are not counted, since the
+  reviewers are not stored). No repository indicator (CL, RD, DOC, SV) is attributed to a person.
 
 ### 7.1 Milestone review (RJ)
 
@@ -225,8 +228,8 @@ evaluable". `conventions.since` is mandatory for the RJ.
 
 | Criterion G | Indicators | Target |
 | --- | --- | --- |
-| 100% compliant commits | CC1 on the range | 100% |
-| Branches per feature, `main` protected, PRs reviewed | BR1, PR3 = 0, PR4; BR3 as **current state on DD/MM**, same value in every column, not counting for past milestones | compliant, or "unknown" with a clone only |
+| 100% compliant commits | CC1 on the range, all tracked branches | 100% |
+| Branches per feature, `main` protected, PRs reviewed | BR1, PR3 = 0, PR4; protection "not evaluated" (BR3 postponed) | compliant, or "unknown" with a clone only |
 | Milestone tags never rewritten | SV1, SV2, SV3 | present, no rewrite observed |
 | CHANGELOG up to date at the milestone | CL9, CL8 | section present at the tag |
 | README with installation | RD1, RD3, installation section of RD2 (RD5 as a lead) | present; the other RD2 sections as information |
@@ -240,7 +243,8 @@ evaluable". `conventions.since` is mandatory for the RJ.
   dashboard, without sorting by this value. Icons always come with a text.
 - **CLI**: a single command, with no subcommand (a repository named like a subcommand would be ambiguous):
   `watchoo conventions [repo] [--commits] [--failing] [--contributor <x>] [--milestone vX.Y.Z] [--json]`.
-  `--commits --failing` lists the short SHA, the author and the issue codes, never the message.
+  `--commits --failing` lists the short SHA, the author and the issue codes, never the message. No
+  `--strict` option (exit code depending on compliance) for now: it can be added later in a MINOR.
 - **JSON**: keys in English (`commits.rate`, `commits.issues[{code,count,shas}]`, `semver_checks[]`,
   `changelog.rules[]`…), frozen by `internal/cli/json_schema_test.go`. No key added to `prs` or
   `releases` at first.
@@ -254,23 +258,24 @@ charter in [section 3](#3-reference-the-charter).
 | Setting | Default | Role |
 | --- | --- | --- |
 | `enabled` | `false` | Turns the conventions on |
-| `since` | empty | Start date of the evaluation (mandatory for the milestone review) |
+| `since` | empty | Start date of the evaluation (mandatory for the milestone review); can be overridden per repository (`watchoo repo add --conventions-since YYYY-MM-DD`, like `--flemme` and `--dead`; `repositories.conventions_since` column) |
 | `commit.types`, `commit.scopes` | charter types, all scopes | Allowed types and scopes |
 | `commit.max_subject_soft`, `commit.max_subject_hard` | 50, 72 | Subject length (warning, blocking) |
 | `commit.forbidden` | charter list | Forbidden subjects |
 | `commit.language` | `any` | `fr`, `en` or `any` |
 | `branch.pattern`, `branch.exclude` | `<type>/<scope>-<subject>`, `gh-pages`, `dependabot/*`, `renovate/*` | Naming (RE2 validated at load time) |
 | `pr.body_sections`, `pr.require_closes` | charter sections, `true` | PR body |
-| `pr.min_reviews`, `pr.excluded_reviewers` | 1, empty | Reviews |
+| `pr.min_reviews`, `pr.reviewer_must_contribute` | 1, `false` | Reviews; another account is enough, unless the reviewer must be a contributor |
 | `tags.milestones` | `v1.0.0`, `v2.0.0`, `v3.0.0` (optional deadline) | Milestones |
-| `tags.prerelease_forms` | `rc`, `beta`, `alpha` | Allowed pre-releases |
-| `changelog.categories_fr` | `false` | Allows French labels |
+| `tags.prerelease_forms` | `rc`, `beta`, `alpha` | Compliant pre-releases; the other forms give a warning |
+| `changelog.categories_fr` | `true` | Allows French labels (categories, H1) |
 | `readme.sections` | charter sections | Synonyms of the expected sections |
-| `docs.dir`, `docs.media_dir`, `docs.archives_scope` | `documentation`, `Media`, `documentation` | Tree |
-| `excluded_accounts` | empty | Excluded accounts (trainer, bots) |
+| `docs.dir`, `docs.media_dir`, `docs.archives_scope` | `documentation`, `Media`, `repository` | Tree; archives forbidden in the whole repository |
+| `excluded_accounts` | empty | Excluded accounts (trainer, bots), specific to the conventions: separate from `diagnostic.exclude` |
 
-The block can be shared through [`configshare`](02-features.md), except `enabled` and
-`excluded_accounts` (which contains logins): sharing a charter is the intended use.
+The block is shared through [`configshare`](02-features.md) (maintainer decision), except `enabled`,
+`excluded_accounts` (which contains logins): sharing a charter is the intended use. A repository's own date
+is exported with it, like its activity thresholds. The keys are then frozen by SemVer.
 
 ## 9. Technical impact
 
@@ -283,8 +288,8 @@ The block can be shared through [`configshare`](02-features.md), except `enabled
   - bot recognition moves from `internal/diagnostic` to `internal/aisignature` (account catalogue).
 - **Sync**: `internal/sync/conventions.go`, called when `conventions.enabled`. The clone is read through
   optional interfaces of the git provider (`TreePaths`, `ReadBlobs`, `FirstParent`, `IsAncestor`,
-  `RevList`), with no addition to the `Provider` interface. On the `Provider` side: `Branch.Protected`,
-  `PullRequest.MergeCommitSHA` (filled only if the PR is merged), `PullRequest.FromFork` and
+  `RevList`), with no addition to the `Provider` interface. On the `Provider` side: `PullRequest.MergeCommitSHA`
+  (filled only if the PR is merged), `PullRequest.FromFork` and
   `PullRequestReviews` (GET; `ErrUnsupported` with a clone). The computation is only rerun if the head of
   the default branch, `RulesVersion` or the configuration fingerprint has changed. Failures logged at
   Debug level, without message or path.
@@ -295,9 +300,11 @@ The block can be shared through [`configshare`](02-features.md), except `enabled
     computed_at)`: codes and counters, per head and per tag;
   - `tag_observations(repo_id, name, sha, first_seen_at, last_seen_at, ended_at, end_reason)`;
   - `branch_rewrites(repo_id, branch, old_sha, new_sha, observed_at)`;
-  - `branches.protected` (NULL = unknown);
+  - `repositories.conventions_since` (NULL = the workspace's date);
   - `pull_requests.merge_commit_sha`, `from_fork`, `body_sections` (NULL = unknown),
-    `reviews_by_others`, `approved_before_merge`, `reviews_checked_at`;
+    `reviews_by_others`, `approved_before_merge`, `reviews_checked_at`: counters and flags, never the
+    reviewers' logins (maintainer decision);
+  - `branches.protected` is not added while BR3 is postponed;
   - that is 19 tables instead of 16.
   - CC, BR1, PR1, PR2, SV1, SV2 and SV6 are computed on the fly from the database: a charter change takes
     effect immediately.
@@ -331,45 +338,45 @@ Each phase can be delivered alone; phases 8.1 to 8.4 are enough for a milestone 
 
 | Phase | Content | Cost | Version |
 | --- | --- | --- | --- |
-| 8.0 | This document approved, updates to 01, 02, 04, 05, 06, 07 and 12 | no code | — |
+| 8.0 | This document approved (done, November 8, 2026) and exception carried over into 01; updates to 02, 04, 05, 06 and 12 with each phase | no code | — |
 | 8.1 | `internal/conventions` (parser), `internal/semver`, `conventions.*` settings, CC1 to CC4, `commits.parent_count` and its backfill, `watchoo conventions --commits`, web section and contributor page, adjustments to A1, A2 and F4 | 0 quota, 1 migration | 1.7.0 |
 | 8.2 | On the fly: BR1, PR1, PR2, SV1, SV2 (presence), SV6; first milestone review; CC5 to CC7 | 0 quota | 1.8.0 |
 | 8.3 | Clone tree: `repository_conventions`, CL1 to CL9, RD1 to RD4, DOC1 to DOC8, TL1 to TL3; milestone review on the tags' tree | 0 quota, 1 migration | 1.9.0 |
 | 8.4 | History: `tag_observations` (SV3, SV2 deadlines), `branch_rewrites` (BR4), SV4, SV5, SV7, CL10 | 0 quota, 2 migrations | 1.10.0 |
-| 8.5 | API with no extra request: `merge_commit_sha`, `from_fork`, `protected`, `body_sections`, merge methods; full PR3, PR5, PR6, BR2, BR3, BR5 | one reread of the PR lists | 1.11.0 |
-| 8.6 | Reviews: PR4, "merged without review", reviews given and received | 1 request per merged PR | 1.12.0 |
+| 8.5 | API with no extra request: `merge_commit_sha`, `from_fork`, `body_sections`, merge methods; full PR3, PR5, PR6, BR2, BR5 | one reread of the PR lists | 1.11.0 |
+| 8.6 | Reviews: PR4, "merged without review", reviews received | 1 request per merged PR | 1.12.0 |
 | 8.7 | Optional leads: CL11, CL12, RD5, DOC6, DOC7, DOC9, DOC10, TL4, TL5 | 0 quota | MINOR |
 
-## 11. Open questions (for the maintainer to decide)
+## 11. Maintainer decisions
 
-1. **Scope**: lift the "code content analysis" exclusion of the [vision](01-vision.md) for the README, the
-   CHANGELOG, `documentation/` and the tooling files, with in-memory reading without persisting the
-   content?
-2. **Visibility**: confirm there is no overall grade (`n/m` rates and criteria only), and that the view and
-   the JSON can be shown to students.
-3. **Scope of the "100%"**: default branch as the milestone review criterion, tracked branches as
-   information? `conventions.since` global, or configurable per repository (like `flemme_after_days`)?
-4. **Migrations**: approve `commits.parent_count`, `repository_conventions`, `tag_observations`,
-   `branch_rewrites` and the columns of `branches` and `pull_requests`. Reviews as plain counters
-   (proposed, better minimisation) or a `pull_request_reviews` table (logins, states, dates)?
-5. **Sharing**: `conventions.*` in `configshare` (except `enabled` and `excluded_accounts`)? The keys will
-   be frozen afterwards.
-6. **Tolerances**: commit language; `[v1.2.0]` in the CHANGELOG as a warning; category labels and H1 in
-   French; free-form pre-releases (`-rc1`) and `+build`; case of `Media/`; archives forbidden in
-   `documentation/` only or in the whole repository; flag `.docx` and `.pdf` files?
-7. **Milestones**: default `v1.0.0`, `v2.0.0`, `v3.0.0` or empty? Require a GitHub release per milestone
-   (SV6), while the charter only mentions tags?
-8. **Reviewer**: must "another member" also be a contributor to the repository (at least one commit)? A
-   list of excluded accounts specific to the conventions (proposed) or shared with `diagnostic.exclude`?
-9. **Thresholds** to validate on real repositories: 80% for SV5, 150 words for RD4, CL8 date gap, CL12 and
-   DOC9 thresholds.
-10. **To check on a real repository before documenting the details**: does `protected` reflect rulesets?
-    Are student repositories on GitHub Free, Team or Education (BR3 applicable)? Does a review update the
-    PR's `updated_at`?
-11. **Rebase merge** (PR3): accept the documented imprecision, or read `GET /pulls/{n}/commits` for the
-    PRs merged by rebase only?
-12. **Exit code**: a `watchoo conventions --strict` option (non-zero exit if a criterion fails, useful in
-    CI)? It is one more piece of public surface.
+Decisions of November 8, 2026.
+
+| # | Question | Decision |
+| --- | --- | --- |
+| 1 | Reading README, CHANGELOG, `documentation/` and the tooling, excluded by the [vision](01-vision.md) | **Yes**, in memory, without persisting the content; exception carried over into the vision |
+| 2 | Output and visibility | `n/m` rates and criteria, **no overall grade**; results **reserved to the trainer**, like the diagnosis |
+| 3 | Scope of the "100% compliant commits" | **All the tracked branches**; the default branch alone as information |
+| 4 | `conventions.since` | Workspace date, **can be overridden per repository** |
+| 5 | Storage of the reviews | **Counters only** (no `pull_request_reviews` table); reviews received only |
+| 6 | Sharing the charter | **Yes** through `configshare`, except `enabled` and `excluded_accounts` |
+| 7 | Default milestones | **`v1.0.0`, `v2.0.0`, `v3.0.0`** |
+| 8 | GitHub release per milestone (SV6) | **Information only** |
+| 9 | "Another member" reviewer | **Another account is enough**; `pr.reviewer_must_contribute` as an option |
+| 10 | Excluded accounts | **Specific to the conventions**, separate from `diagnostic.exclude` |
+| 11 | Rebase merge (PR3) | **Heuristic with no request**; "undetermined" when in doubt |
+| 12 | `--strict` option | **Not for now** |
+| 13 | Commit language | **Free** (`commit.language: any`); mix flagged as information (CC7) |
+| 14 | Default tolerances (warning rather than issue) | `[v1.2.0]` in the CHANGELOG; categories and H1 in French; free-form pre-releases and `+build`; `Media/` with its capital letter |
+| 15 | Archives | Forbidden **in the whole repository**; `.docx` and `.pdf` files under `documentation/` flagged as information |
+| 16 | Branch protection (BR3) | **Postponed**: not implemented in phase 8 |
+
+### 11.1 Points still to check
+
+- **Thresholds** to validate on real repositories before display: 80% for SV5, 150 words for RD4, CL8 date
+  gap, CL12 and DOC9 thresholds.
+- **Before phase 8.6**: does a review update the PR's `updated_at` (rereading the open PRs)?
+- **If BR3 is taken up again**: does `protected` reflect rulesets? Which GitHub plan are the student
+  repositories on (protection of a private repository does not exist on GitHub Free)?
 
 ## 12. References
 
