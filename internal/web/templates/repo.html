@@ -530,7 +530,7 @@
       {{if .Rewrites}}<ul class="text-xs space-y-1 pl-5 list-disc">{{range .Rewrites}}<li>{{localDate .ObservedAt}} · <span class="font-mono">{{truncate 40 (clean .Branch)}}</span> · <span class="badge badge-sm badge-ghost font-mono">{{shortSHA .OldSHA}}</span> → <span class="badge badge-sm badge-ghost font-mono">{{shortSHA .NewSHA}}</span></li>{{end}}</ul>{{end}}
       <p class="text-sm" id="repo-conventions-tag-history">{{t "web.conv.hist_label" (t "conv.indicator.SV3")}}
         {{if not .TagsObserved}}<span class="text-base-content/70">{{t "web.conv.cell_unknown"}} ({{.TagsReason}})</span>
-        {{else}}{{t "web.conv.hist_line" .TagsStable (localDate .TagsSince) .TagsRewritten .TagsDeleted}}{{end}}
+        {{else}}{{t "web.conv.hist_line" .TagsStable (localDate .TagsSince) .TagsRewritten .TagsDeleted .TagsRestored}}{{end}}
       </p>
       {{if .TagHistory}}<div class="flex flex-wrap gap-1">{{range .TagHistory}}{{template "conv-status" (dict "Status" .Status "Text" (truncate 40 .Name))}}{{end}}</div>
       {{if .TagHistoryMore}}<p class="text-xs text-base-content/60">{{t "web.conv.hist_more" .TagHistoryMore}}</p>{{end}}{{end}}

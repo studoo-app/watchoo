@@ -36,6 +36,13 @@ func TestConventionsHistoryLocalClone(t *testing.T) {
 	h.Now = func() time.Time { return first }
 	h.run("sync").mustSucceed(t)
 
+	// Second sync on October 26 at noon, after the end of the due date: v0.1.1 still missing. A new tag
+	// (not a version) opens an observation, which keeps the date of this read: the proof of the delay (a
+	// read before the end of the due date alone would leave it undetermined).
+	r.Tag("demo", c1, "")
+	h.Now = func() time.Time { return testNow.Add(-24 * time.Hour) }
+	h.run("sync").mustSucceed(t)
+
 	// v0.1.1 set after the due date; a free-form pre-release on a new commit.
 	c5 := r.Commit("main", "a.txt", "5\n", "fix: corrige la recherche", who, testNow.Add(-50*time.Hour))
 	r.Tag("v0.1.1", c4, "")
@@ -55,7 +62,7 @@ func TestConventionsHistoryLocalClone(t *testing.T) {
 	assertContains(t, "conventions (history)", out,
 		"1 rewrite(s) of the default branch observed, the last on 10/27/2026",
 		"main on 10/27/2026: "+c5[:7]+" → "+c4[:7],
-		"tag history: 2 without rewrite observed since 10/25/2026, 1 rewritten, 0 deleted",
+		"tag history: 3 without rewrite observed since 10/25/2026, 1 rewritten, 0 deleted, 0 deleted then set again on the same commit",
 		"v0.1.0: rewritten (other commit) (first seen on 10/25/2026)",
 		"due dates: v0.1.1 late (first seen on 10/27/2026)",
 		"pre-releases: 0/1 in a conforming form", "v0.2.0-rc1 (free form (expected -<form>.N))",
@@ -69,7 +76,7 @@ func TestConventionsHistoryLocalClone(t *testing.T) {
 	js := h.run("conventions", "--json").mustSucceed(t).stdout
 	assertJSONKeys(t, js, "repositories.0.rewrites.events.0", "branch", "old_sha", "new_sha", "observed_at")
 	assertJSONKeys(t, js, "repositories.0.tag_history.items.0", "name", "status", "sha", "first_seen_at", "rewrites", "deletions")
-	assertJSONKeys(t, js, "repositories.0.tags.milestones.0.deadline", "status", "due_end", "first_seen_at", "commit_at")
+	assertJSONKeys(t, js, "repositories.0.tags.milestones.0.deadline", "status", "due_end", "first_seen_at", "commit_at", "set_after")
 	assertJSONKeys(t, js, "repositories.0.prereleases.notes.0", "code", "tag", "other")
 	assertJSONKeys(t, js, "repositories.0.bumps.items.0", "from", "to", "status", "reason", "actual", "expected",
 		"evaluated", "conform", "breaking", "features", "missing")
@@ -94,7 +101,7 @@ func TestConventionsHistoryLocalClone(t *testing.T) {
 	ms = h.run("conventions", "--milestone", "v0.1.0").mustSucceed(t).stdout
 	assertContains(t, "--milestone v0.1.0", ms, "SV3  not conform — rewritten (other commit)")
 	review := h.run("conventions", "--milestone", "v0.1.1", "--json").mustSucceed(t).stdout
-	assertJSONKeys(t, review, "milestone.repositories.0.deadline", "status", "due_end", "first_seen_at", "commit_at")
+	assertJSONKeys(t, review, "milestone.repositories.0.deadline", "status", "due_end", "first_seen_at", "commit_at", "set_after")
 	assertJSONKeys(t, review, "milestone.repositories.0.tag_history", "status", "first_seen_at", "rewrites", "deletions")
 
 	// With --contributor: the repository history is not shown.
@@ -105,7 +112,7 @@ func TestConventionsHistoryLocalClone(t *testing.T) {
 	fr := h.run("conventions").mustSucceed(t).stdout
 	assertContains(t, "conventions (history, fr)", fr,
 		"1 réécriture(s) de la branche par défaut observée(s), la dernière le 27/10/2026",
-		"historique des tags : 2 sans réécriture observée depuis le 25/10/2026",
+		"historique des tags : 3 sans réécriture observée depuis le 25/10/2026",
 		"échéances : v0.1.1 en retard (vu pour la première fois le 27/10/2026)",
 		"v0.1.0→v0.1.1 sous-versionné (PATCH, MINOR attendu)")
 }

@@ -256,12 +256,15 @@ signatures, no address displayed. Rules: [AI signatures](02-features.md#ai-signa
   syncs while the conventions are enabled and attributed to nobody: the **rewrites of the default branch**
   (BR4: count, date of the last one, each event with its date and old and new short SHAs; otherwise "no
   rewrite of the default branch observed"), the **tag history** (SV3: "n without rewrite observed since
-  <date>, r rewritten, d deleted", one badge per tag, those that changed first; never "never rewritten"), the
+  <date>, r rewritten, d deleted, p deleted then set again on the same commit", the latter not conform,
+  one badge per tag, those that changed first; never "never rewritten"), the
   **pre-releases** (SV4: warnings only), the **precedence** of the final versions (SV7; increment skipped as
   information), the **version bumps** (SV5: counts, then each pair that is not consistent with the expected
   bump or the reason) and the **CHANGELOG freshness** (CL10: `feat` and `fix` since the last commit that
-  touched the CHANGELOG, grayed out when the CHANGELOG of the last milestone is up to date). SV4, SV5, SV7
-  and CL10 are read from the local clone ("unknown (no local clone)" without one).
+  touched the CHANGELOG, grayed out when the CHANGELOG of the last milestone is up to date). SV5 and CL10
+  are read from the local clone ("unknown (no local clone)" without one); without a clone, SV4 judges when
+  a pre-release was set by the first observation of the tags and SV7 only keeps the skipped increment
+  (information).
 - Button **"Sync this repository"** (absent if tracking is stopped).
 - Fragments: `/repos/{id}/commits` (history); `/repos/{id}` with the `HX-Target` header
   `repo-overview`, `repo-contributors`, `repo-languages`, `repo-pulls`, `repo-diagnostic` or

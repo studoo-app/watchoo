@@ -69,8 +69,13 @@ func (p *Provider) IsAncestor(ctx context.Context, owner, name, ancestor, descen
 //
 //	git --literal-pathspecs log -1 --format=%H --end-of-options <head> -- <file>
 //
-// found faux si aucun commit de head n'a touché file. head absent du clone : provider.ErrNotFound. Sans
-// clone : provider.ErrNotFound. Le chemin n'apparaît jamais dans les erreurs.
+// found faux si file n'existe pas (ou n'est pas un fichier) dans l'arbre de head, lu d'abord par
+//
+//	git --literal-pathspecs ls-tree -z --end-of-options <head> -- <file>
+//
+// (un fichier supprimé n'a pas de dernière modification), ou si aucun commit de head ne l'a touché. head
+// absent du clone : provider.ErrNotFound. Sans clone : provider.ErrNotFound. Le chemin n'apparaît jamais
+// dans les erreurs.
 func (p *Provider) LastTouch(ctx context.Context, owner, name, head, file string) (string, bool, error) {
 	if err := provider.ValidateRepo(owner, name); err != nil {
 		return "", false, err
@@ -96,7 +101,20 @@ func (p *Provider) LastTouch(ctx context.Context, owner, name, head, file string
 	if !found {
 		return "", false, &provider.APIError{Op: op, Err: provider.ErrNotFound}
 	}
-	res, err := p.run(ctx, p.localTimeout, gitDir(path), "log",
+	// Un fichier supprimé de head n'a pas de « dernière modification » : le dernier commit qui l'a touché
+	// serait sa suppression.
+	res, err := p.run(ctx, p.localTimeout, gitDir(path), "ls-tree",
+		"--literal-pathspecs", "ls-tree", "-z", "--end-of-options", head, "--", file)
+	if err != nil {
+		return "", false, &provider.APIError{Op: op, Err: err}
+	}
+	if res.exitCode != 0 {
+		return "", false, localError(op, res)
+	}
+	if !lsTreeBlob(res.stdout, file) {
+		return "", false, nil
+	}
+	res, err = p.run(ctx, p.localTimeout, gitDir(path), "log",
 		"--literal-pathspecs", "log", "-1", "--format=%H", "--no-color", "--end-of-options", head, "--", file)
 	if err != nil {
 		return "", false, &provider.APIError{Op: op, Err: err}
@@ -112,4 +130,19 @@ func (p *Provider) LastTouch(ctx context.Context, owner, name, head, file string
 		return "", false, localError(op, res)
 	}
 	return sha, true, nil
+}
+
+// lsTreeBlob indique que la sortie de git ls-tree -z (entrées « <mode> <type> <objet>\t<chemin> »
+// terminées par NUL, chemins non échappés) contient le fichier file comme blob.
+func lsTreeBlob(out []byte, file string) bool {
+	for line := range strings.SplitSeq(string(out), "\x00") {
+		meta, path, ok := strings.Cut(line, "\t")
+		if !ok || path != file {
+			continue
+		}
+		if f := strings.Fields(meta); len(f) == 3 && f[1] == "blob" {
+			return true
+		}
+	}
+	return false
 }

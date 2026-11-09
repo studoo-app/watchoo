@@ -409,8 +409,9 @@ depuis le clone pour la vue détaillée d'un dépôt.
 Clé primaire : **`id`** ; une ligne par **période d'observation** d'un couple (nom du tag, SHA du commit
 visé), ouverte (`ended_at` NULL) tant que le couple est vu par la synchro ; au plus une période ouverte par
 nom et par dépôt (index unique partiel) ; supprimée avec le dépôt. Écrite par la synchro **seulement quand
-les conventions sont activées** et seulement après une lecture des tags **réussie et non tronquée**
-(au plus 1 000 tags) : une lecture en échec, ignorée ou tronquée ne ferme rien. Sert à SV3 (tag réécrit ou
+les conventions sont activées** et seulement après une lecture des tags **réussie et non tronquée** (moins
+de 1 000 tags : une liste de 1 000 exactement est tenue pour tronquée) **sans tag ignoré** (nom vide, SHA
+invalide) : une lecture en échec, ignorée, tronquée ou incomplète ne ferme rien. Sert à SV3 (tag réécrit ou
 supprimé) et aux échéances de SV2 (voir [Conventions de projet](13-conventions.md), sections 5.4 et 9).
 Aucune attribution à une personne.
 
@@ -433,8 +434,9 @@ période ouverte en ouvre une, y compris un couple déjà vu puis supprimé (l'h
 Clé primaire : **`id`** ; une ligne par événement observé ; supprimée avec le dépôt. Écrite par la synchro
 **seulement quand les conventions sont activées**, quand l'ancienne tête connue de la branche par défaut
 n'est plus ancêtre de la nouvelle (BR4, voir [Conventions de projet](13-conventions.md), sections 5.2 et 9) ;
-un résultat inconnu (ancien commit absent du clone) n'est jamais enregistré. Aucune attribution à une
-personne.
+un résultat inconnu (ancien commit absent du clone) n'est jamais enregistré, sauf en mode API, où l'erreur
+`ErrUnknownBase` de la synchro sur l'ancienne tête sert de signal (voir 13, section 5.2). Aucune
+attribution à une personne.
 
 | Colonne | Description |
 | --- | --- |

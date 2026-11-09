@@ -408,8 +408,9 @@ for the detailed view of a repository.
 Primary key: **`id`**; one row per **observation period** of a couple (tag name, SHA of the target commit),
 open (`ended_at` NULL) as long as the sync sees the couple; at most one open period per name and per
 repository (partial unique index); deleted with the repository. Written by the sync **only when the
-conventions are enabled**, and only after a **successful, non-truncated** read of the tags (at most 1,000
-tags): a failed, skipped or truncated read closes nothing. Used by SV3 (tag rewritten or deleted) and by the
+conventions are enabled**, and only after a **successful, non-truncated** read of the tags (fewer than
+1,000 tags: a list of exactly 1,000 is taken as truncated) **without any skipped tag** (empty name, invalid
+SHA): a failed, skipped, truncated or incomplete read closes nothing. Used by SV3 (tag rewritten or deleted) and by the
 deadlines of SV2 (see [Project conventions](13-conventions.md), sections 5.4 and 9). No attribution to a
 person.
 
@@ -432,7 +433,8 @@ open period opens one, including a couple already seen then deleted (the history
 Primary key: **`id`**; one row per observed event; deleted with the repository. Written by the sync **only
 when the conventions are enabled**, when the old known head of the default branch is no longer an ancestor
 of the new one (BR4, see [Project conventions](13-conventions.md), sections 5.2 and 9); an unknown result
-(old commit missing from the clone) is never recorded. No attribution to a person.
+(old commit missing from the clone) is never recorded, except in API mode, where the `ErrUnknownBase` error of
+the sync on the old head serves as the signal (see 13, section 5.2). No attribution to a person.
 
 | Column | Description |
 | --- | --- |

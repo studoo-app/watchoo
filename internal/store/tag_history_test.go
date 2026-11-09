@@ -181,8 +181,8 @@ func TestApplyRepoSyncObservesTags(t *testing.T) {
 	}
 	mustExec(t, s, "UPDATE sync_runs SET status = 'error', finished_at = ? WHERE status = 'running'", testDate)
 
-	// Standalone method: an empty complete list closes everything as deleted.
-	if err := s.ObserveTags(ctx, repo, nil, at(6)); err != nil {
+	// Direct write (tests only): an empty complete list closes everything as deleted.
+	if err := s.observeTagsForTest(ctx, repo, nil, at(6)); err != nil {
 		t.Fatal(err)
 	}
 	if n := count(t, s, "SELECT count(*) FROM tag_observations WHERE repo_id = ? AND ended_at IS NULL", repo); n != 0 {
@@ -221,11 +221,11 @@ func TestBranchRewritesStore(t *testing.T) {
 	if _, err := s.ApplyRepoSync(ctx, w); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.RecordBranchRewrite(ctx, model.BranchRewrite{RepoID: repo, Branch: "main", OldSHA: sha(2),
+	if err := s.recordBranchRewriteForTest(ctx, model.BranchRewrite{RepoID: repo, Branch: "main", OldSHA: sha(2),
 		NewSHA: sha(3), ObservedAt: t0.Add(time.Hour)}); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.RecordBranchRewrite(ctx, model.BranchRewrite{RepoID: other, Branch: "trunk", OldSHA: sha(4),
+	if err := s.recordBranchRewriteForTest(ctx, model.BranchRewrite{RepoID: other, Branch: "trunk", OldSHA: sha(4),
 		NewSHA: sha(5), ObservedAt: t0}); err != nil {
 		t.Fatal(err)
 	}
@@ -235,7 +235,7 @@ func TestBranchRewritesStore(t *testing.T) {
 		"empty branch":       {RepoID: repo, OldSHA: sha(1), NewSHA: sha(2), ObservedAt: t0},
 		"unknown repository": {RepoID: other + 9, Branch: "main", OldSHA: sha(1), NewSHA: sha(2), ObservedAt: t0},
 	} {
-		if err := s.RecordBranchRewrite(ctx, bad); err == nil {
+		if err := s.recordBranchRewriteForTest(ctx, bad); err == nil {
 			t.Errorf("%s accepted", name)
 		}
 	}

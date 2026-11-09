@@ -104,7 +104,8 @@ PATCH (see [Skills](documentation/en/11-skills.md#versions-and-changelogmd)).
   pre-release forms (SV4, warnings), the version bumps compared to the declared commits (SV5,
   under-versioning only, undetermined below 80% of conforming commits), the precedence against the
   history (SV7) and the `feat`/`fix` commits since the last change of the CHANGELOG (CL10, information);
-  SV4, SV5, SV7 and CL10 read from the local clone at read time, never stored. The milestone review adds
+  SV4, SV5, SV7 and CL10 computed at read time, never stored (SV5 and CL10 unknown without a local clone;
+  SV4 then falls back on the first observation of the tags, SV7 only keeps the skipped increment). The milestone review adds
   SV3 after SV2 (12 criteria) and judges the due date in SV2. `--json`: additive keys `rewrites`,
   `tag_history`, `prereleases`, `bumps`, `precedence`, `changelog_freshness` per repository, `deadline` per
   milestone, `deadline` and `tag_history` per repository of the review. Web: a "History of the tags and of

@@ -86,11 +86,15 @@ func TestBuildHistory(t *testing.T) {
 		!h.Since.Equal(time.Date(2026, 9, 6, 8, 0, 0, 0, time.UTC)) {
 		t.Errorf("SV3: %+v", h)
 	}
-	// SV2 deadlines: v0.1.0 has no due date; v1.0.0 late (a read on September 10 did not see it); v1.0.1
-	// first seen on September 10, before the end of the due date (midnight the next day).
+	// SV2 deadlines: v0.1.0 has no due date; v1.0.0 undetermined (the read of September 10 that did not see
+	// it is before the end of the due date, proves nothing; no read between the end and its first
+	// observation), set between that read and September 11, without the date of its current commit (c4:
+	// rewritten since its first observation on c3); v1.0.1 first seen on September 10, before the end of the
+	// due date (midnight the next day), its commit date kept.
 	ms := p.Tags.Milestones
-	if ms[0].Deadline.Status != "" || ms[1].Deadline.Status != DeadlineLate || ms[2].Deadline.Status != DeadlineOnTime ||
-		!ms[1].Deadline.CommitAt.Equal(day(8)) {
+	sept := func(d int) time.Time { return time.Date(2026, 9, d, 8, 0, 0, 0, time.UTC) }
+	if ms[0].Deadline.Status != "" || ms[1].Deadline.Status != DeadlineUndetermined || ms[2].Deadline.Status != DeadlineOnTime ||
+		!ms[1].Deadline.CommitAt.IsZero() || !ms[1].Deadline.SetAfter.Equal(sept(10)) || !ms[2].Deadline.CommitAt.Equal(day(9)) {
 		t.Errorf("deadlines: %+v", ms)
 	}
 	// SV4: free form, never an error.
@@ -120,6 +124,18 @@ func TestBuildHistory(t *testing.T) {
 	if _, err := Build(t.Context(), r, cl, Filter{}, opts); err != nil || cl.asked-asked != asked {
 		t.Errorf("ancestry reads: %d then %d", asked, cl.asked-asked)
 	}
+
+	// A complete read after the end of the due date, before the first observation, proves the delay.
+	r.obs[1] = append(r.obs[1], model.TagObservation{RepoID: 1, Name: "v0.0.1", SHA: "c1",
+		FirstSeenAt: time.Date(2026, 9, 11, 2, 0, 0, 0, time.UTC), LastSeenAt: sept(25)})
+	late, err := Build(t.Context(), r, cl, Filter{}, opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if d := late.Repos[0].Tags.Milestones[1].Deadline; d.Status != DeadlineLate {
+		t.Errorf("late deadline: %+v", d)
+	}
+	r.obs[1] = r.obs[1][:len(r.obs[1])-1]
 }
 
 func TestBuildHistoryUnknown(t *testing.T) {
@@ -189,7 +205,10 @@ func TestReviewMilestoneHistory(t *testing.T) {
 		return c.Status + ":" + c.Reason
 	}
 
-	// v1.0.0: late and rewritten.
+	// v1.0.0: late (a complete read on September 11 at 02:00, after the end of the due date and before its
+	// first observation, did not see it) and rewritten.
+	r.obs[1] = append(r.obs[1], model.TagObservation{RepoID: 1, Name: "v0.0.1", SHA: "c1",
+		FirstSeenAt: time.Date(2026, 9, 11, 2, 0, 0, 0, time.UTC), LastSeenAt: time.Date(2026, 9, 25, 8, 0, 0, 0, time.UTC)})
 	rv, err := ReviewMilestone(t.Context(), r, cl, Filter{}, "v1.0.0", opts, after)
 	if err != nil {
 		t.Fatal(err)
@@ -204,7 +223,13 @@ func TestReviewMilestoneHistory(t *testing.T) {
 	if crit(rv, CriterionSV2) != "conform:" || crit(rv, CriterionSV3) != "conform:" {
 		t.Errorf("v1.0.1: %v", statuses(rv.Repos[0].Criteria))
 	}
-	// Undetermined: no read between the commit and the end of the due date.
+	// Undetermined: no read between the end of the due date and the first observation (the read of
+	// September 10, before the end, proves nothing).
+	r.obs[1] = slices.DeleteFunc(r.obs[1], func(o model.TagObservation) bool { return o.Name == "v0.0.1" })
+	rv, _ = ReviewMilestone(t.Context(), r, cl, Filter{}, "v1.0.0", opts, after)
+	if crit(rv, CriterionSV2) != "unknown:"+UnknownDeadline {
+		t.Errorf("undetermined (read before the end): %v", statuses(rv.Repos[0].Criteria))
+	}
 	r.obs[1] = slices.DeleteFunc(r.obs[1], func(o model.TagObservation) bool { return o.Name == "v0.1.0" || o.Name == "v1.0.1" })
 	rv, _ = ReviewMilestone(t.Context(), r, cl, Filter{}, "v1.0.0", opts, after)
 	if crit(rv, CriterionSV2) != "unknown:"+UnknownDeadline {

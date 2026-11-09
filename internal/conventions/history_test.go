@@ -179,7 +179,7 @@ func TestBuildTagHistory(t *testing.T) {
 		rew, del, per int
 		conform       bool
 	}{
-		"v0.1.0": {TagHistoryRestored, hsha(5), at(3, 0), 0, 1, 2, true},
+		"v0.1.0": {TagHistoryRestored, hsha(5), at(3, 0), 0, 1, 2, false},
 		"v0.2.0": {TagHistoryRewritten, hsha(7), at(3, 0), 0, 1, 2, false},
 		"v1.0.0": {TagHistoryStable, hsha(1), at(2, 0), 0, 0, 1, true},
 		"v1.1.0": {TagHistoryRewritten, hsha(3), at(2, 0), 1, 0, 2, false},
@@ -238,7 +238,8 @@ func TestMilestoneSV3(t *testing.T) {
 		{MilestoneResult{Status: MilestoneAbsent}, UnknownNotDue, Criterion{ID: CriterionSV3, Status: CriterionUnknown, Reason: UnknownNotDue}},
 		{MilestoneResult{Status: MilestonePresent, Tag: "v1.0.0"}, "", Criterion{ID: CriterionSV3, Status: CriterionConform}},
 		{MilestoneResult{Status: MilestoneNonconformingName, Tag: "V2"}, "", Criterion{ID: CriterionSV3, Status: CriterionNonconform}},
-		{MilestoneResult{Status: MilestonePresent, Tag: "v3.0.0"}, "", Criterion{ID: CriterionSV3, Status: CriterionConform}},
+		// Supprimé puis reposé sur le même commit : une suppression a été observée.
+		{MilestoneResult{Status: MilestonePresent, Tag: "v3.0.0"}, "", Criterion{ID: CriterionSV3, Status: CriterionNonconform}},
 		{MilestoneResult{Status: MilestonePresent, Tag: "v4.0.0"}, "", Criterion{ID: CriterionSV3, Status: CriterionUnknown, Reason: UnknownNotObserved}},
 	}
 	for i, c := range cases {
@@ -264,28 +265,32 @@ func TestCheckDeadline(t *testing.T) {
 		commitAt  time.Time
 		reads     []time.Time
 		want      string
+		after     time.Time // borne basse SetAfter attendue
 	}{
-		{"sans échéance", MilestoneResult{Milestone: ms[1], Status: MilestonePresent, Tag: "v2.0.0"}, at(1, 0), at(1, 0), nil, ""},
-		{"absent", MilestoneResult{Milestone: ms[0], Status: MilestoneAbsent}, at(1, 0), at(1, 0), nil, ""},
-		{"nom non conforme", MilestoneResult{Milestone: ms[0], Status: MilestoneNonconformingName, Tag: "v1.0"}, at(1, 0), at(1, 0), nil, ""},
-		{"jamais observé", present, time.Time{}, at(1, 0), []time.Time{at(5, 0)}, DeadlineUndetermined},
-		{"à l'heure", present, at(9, 0), at(8, 0), nil, DeadlineOnTime},
-		{"à l'heure, dernière seconde", present, end.Add(-time.Second), at(8, 0), nil, DeadlineOnTime},
-		{"borne exclue", present, end, at(8, 0), nil, DeadlineUndetermined},
-		{"en retard", present, at(12, 0), at(8, 0), []time.Time{at(7, 0), at(9, 0), at(12, 0)}, DeadlineLate},
-		{"lecture à la date du commit", present, at(12, 0), at(8, 0), []time.Time{at(8, 0)}, DeadlineLate},
-		{"lecture avant le commit", present, at(12, 0), at(8, 0), []time.Time{at(7, 0)}, DeadlineUndetermined},
-		{"lecture à la fin de l'échéance", present, at(12, 0), at(8, 0), []time.Time{end}, DeadlineUndetermined},
-		{"date du commit inconnue", present, at(12, 0), time.Time{}, []time.Time{at(9, 0)}, DeadlineUndetermined},
-		{"commit après l'échéance", present, at(12, 0), at(11, 0), []time.Time{at(9, 0)}, DeadlineUndetermined},
-		{"aucune lecture", present, at(12, 0), at(8, 0), nil, DeadlineUndetermined},
+		{"sans échéance", MilestoneResult{Milestone: ms[1], Status: MilestonePresent, Tag: "v2.0.0"}, at(1, 0), at(1, 0), nil, "", time.Time{}},
+		{"absent", MilestoneResult{Milestone: ms[0], Status: MilestoneAbsent}, at(1, 0), at(1, 0), nil, "", time.Time{}},
+		{"nom non conforme", MilestoneResult{Milestone: ms[0], Status: MilestoneNonconformingName, Tag: "v1.0"}, at(1, 0), at(1, 0), nil, "", time.Time{}},
+		{"jamais observé", present, time.Time{}, at(1, 0), []time.Time{at(5, 0), at(12, 0)}, DeadlineUndetermined, at(1, 0)},
+		{"à l'heure", present, at(9, 0), at(8, 0), nil, DeadlineOnTime, at(8, 0)},
+		{"à l'heure, dernière seconde", present, end.Add(-time.Second), at(8, 0), nil, DeadlineOnTime, at(8, 0)},
+		{"borne exclue", present, end, at(8, 0), nil, DeadlineUndetermined, at(8, 0)},
+		// Une lecture avant l'échéance ne prouve rien : le tag a pu être posé entre elle et l'échéance.
+		{"lecture avant l'échéance seulement", present, at(12, 0), at(8, 0), []time.Time{at(7, 0), at(9, 0), at(12, 0)}, DeadlineUndetermined, at(9, 0)},
+		{"lecture à la fin de l'échéance", present, at(12, 0), at(8, 0), []time.Time{at(9, 0), end}, DeadlineLate, end},
+		{"lecture après l'échéance", present, at(12, 0), at(8, 0), []time.Time{at(11, 6)}, DeadlineLate, at(11, 6)},
+		{"lecture à la première observation", present, at(12, 0), at(8, 0), []time.Time{at(12, 0)}, DeadlineUndetermined, at(8, 0)},
+		{"date du commit inconnue", present, at(12, 0), time.Time{}, []time.Time{at(11, 0)}, DeadlineLate, at(11, 0)},
+		{"commit après l'échéance", present, at(12, 0), at(11, 0), nil, DeadlineUndetermined, at(11, 0)},
+		{"commit après la première observation", present, at(12, 0), at(13, 0), nil, DeadlineUndetermined, time.Time{}},
+		{"aucune lecture", present, at(12, 0), at(8, 0), nil, DeadlineUndetermined, at(8, 0)},
 	}
 	for _, c := range cases {
 		d := CheckDeadline(c.r, paris, c.firstSeen, c.commitAt, c.reads)
 		if d.Status != c.want {
 			t.Errorf("%s : %q, attendu %q", c.name, d.Status, c.want)
 		}
-		if c.want != "" && (!d.DueEnd.Equal(end) || !d.FirstSeenAt.Equal(c.firstSeen) || !d.CommitAt.Equal(c.commitAt)) {
+		if c.want != "" && (!d.DueEnd.Equal(end) || !d.FirstSeenAt.Equal(c.firstSeen) || !d.CommitAt.Equal(c.commitAt) ||
+			!d.SetAfter.Equal(c.after)) {
 			t.Errorf("%s : bornes %+v", c.name, d)
 		}
 		if c.want == "" && d != (MilestoneDeadline{}) {

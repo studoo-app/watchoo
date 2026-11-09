@@ -128,7 +128,7 @@ commit and a branch are never removed). The default branch alone forms a second,
 | id | Indicator | Rule | Granularity | Source | Mode | Rel. | Prio |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | SV1 | SemVer tag name | Lowercase `v` then a SemVer 2.0.0 version (comparator extracted from `internal/selfupdate` into `internal/semver`). Codes (`--json`): blocking `no_v` (no `v`), `upper_v` (`V`), `missing_component` (missing component), `leading_zero` (leading zero), `empty_prerelease` (empty pre-release), `invalid` (any other name); warning `build_metadata` (`+build`) | tag, repository | database | both | H | P1 |
-| SV2 | Milestones present | For each configured milestone: present, present under a non-compliant name, absent; a pre-release does not count as a milestone. With a deadline: the tag with the exact name is "on time" if its first observation precedes the end of the deadline, "late" if a complete read of the tags between the date of the target commit and the end of the deadline did not see it, otherwise "undetermined" (display "set between X and Y"); proof of a read: see phase 8.4 below | milestone × repository | database | both | H (presence), M (deadline) | P1 |
+| SV2 | Milestones present | For each configured milestone: present, present under a non-compliant name, absent; a pre-release does not count as a milestone. With a deadline: the tag with the exact name is "on time" if its first observation precedes the end of the deadline, "late" if a complete read of the tags made at the end of the deadline or later, before its first observation, did not see it, otherwise "undetermined" (display "set between X and Y"); proof of a read: see phase 8.4 below | milestone × repository | database | both | H (presence), M (deadline) | P1 |
 | SV3 | Tag rewritten or deleted | `tag_observations` table, fed only when the conventions are enabled and reading the tags succeeded, was not truncated (fewer than 1,000 tags) and skipped no tag (a tag missing from an incomplete list would be closed wrongly): same name with another SHA (rewritten), gone (deleted); only a change of target commit is seen (both sources give the SHA of the target commit, not of the tag object: an annotated tag recreated on the same commit is invisible). Label: "no rewrite observed since …", never "never rewritten"; no attribution to a person | tag, repository | database | both | M | P1 |
 | SV4 | Pre-releases | Form `-rc.N`, `-beta.N`, `-alpha.N`; free forms (`-rc1`, `-RC.1`) give a warning, not an issue (maintainer decision); also a warning if an rc is set after the final version or if precedence contradicts ancestry | tag | database + clone | both | M | P2 |
 | SV5 | Bump consistent with the commits | For each final tag F, base B = highest compliant final tag lower than F that is its ancestor; commits of `B..F` excluding merges and bots. Breaking change: MAJOR expected (MINOR before 1.0.0); `feat`: at least MINOR. **Only under-versioning is flagged**; "undetermined" if less than 80% of the range's commits are compliant; first tag not evaluated | pair of tags | clone + database | both | M | P2 |
@@ -186,14 +186,21 @@ Approximations kept:
   neither which list was read, nor whether it was truncated, nor whether the conventions were enabled):
   **the proof of a complete read is a date of `tag_observations`** of the repository (first observation,
   last observation or end of any row), each being the moment of a successful, untruncated read made with the
-  conventions enabled. "Late" requires such a date in `[date of the target commit, end of the deadline)`,
-  earlier than the first observation of the tag. Otherwise "undetermined", shown as "set between X and Y"
-  (X: date of the target commit, when the commit is in the database; Y: first observation). Limits: a
-  repository without any other tag, or whose reads left no date in the window (the last observation of a
-  row is rewritten at every read), gives "undetermined"; so does a target commit later than the deadline or
-  of unknown date, and a tag never observed.
+  conventions enabled. "Late" requires such a date in `[end of the deadline, first observation of the
+  tag)`: that read proves the tag was still missing after the deadline. A read earlier than the end of the
+  deadline proves nothing (the tag may have been set between it and the deadline); the date of the target
+  commit plays no part in the judgment. Otherwise "undetermined", shown as "set between X and Y" (Y: first
+  observation; X: the later, among the dates earlier than Y, of the date of the target commit and the last
+  complete read that did not see the tag; the date of the target commit only counts when the commit is in the
+  database and is still the one of the first observation, a tag rewritten since having first designated
+  another commit; "an unknown date" otherwise). Limits: the proof of a delay is rare, since the last
+  observation of a row is rewritten at every read and the intermediate reads are lost; a repository without
+  any other tag, or whose reads left no date in the window, gives "undetermined", like a tag never
+  observed. It is also assumed that a tag seen missing after the deadline was not set before it and then
+  deleted between two reads.
 - **SV3**: four states per tag, `stable` (no rewrite observed), `restored` (deleted then set again on the
-  same commit, without rewrite: counted with the tags without observed rewrite), `rewritten` (the name
+  same commit: a deletion was observed, hence **not conform** like `rewritten` and `deleted`, counted
+  apart), `rewritten` (the name
   designated another commit) and `deleted` (gone and not back, prevails over an earlier rewrite). One row of
   `tag_observations` per period: a (name, SHA) pair that comes back after a deletion opens a new row. Label:
   "no rewrite observed since <first observation>". Tag never seen by a complete read (conventions enabled
@@ -225,8 +232,10 @@ Approximations kept:
   commits of the head not reachable from it; same exclusions as SV5. The count is a minimum when commits are
   missing from the database (`missing`). **Grayed out** (information) when CL9 of the last milestone set
   (highest version among the milestones that have a tag) is compliant in the cache of the sync. Unknown
-  without a clone (`no_clone`), without a commit that touched the CHANGELOG (`no_file`) or when the head is
-  not known in the database (`clone_unreadable`). Computed at read time: `FileRulesVersion` does not change.
+  without a clone (`no_clone`), without `CHANGELOG.md` at the root of the head or without a commit that
+  touched it (`no_file`; presence read first by `git --literal-pathspecs ls-tree -z --end-of-options <head>
+  -- CHANGELOG.md`: a deleted CHANGELOG is not counted from its deletion) or when the head is not known in
+  the database (`clone_unreadable`). Computed at read time: `FileRulesVersion` does not change.
 - **Reading the clone**: through an optional interface (`HistoryReader`: `IsAncestor`, `LastTouch`),
   without update; each ancestry test is memoized for one computation. An error (commit missing from the
   clone, unreadable clone) means "unknown", never "no".
@@ -454,8 +463,8 @@ evaluable: missing start date". PR3 and PR4 are added with phases 8.5 and 8.6.
 **Phase 8.4: SV2 deadline and SV3 in the review.** With a due date, **SV2** also judges when the tag with the
 exact name was set: "on time" conform, "late" not conform, "undetermined" unknown (`deadline_undetermined`).
 **SV3** follows SV2 (the "milestone tags never rewritten" criterion combines SV1, SV2 and SV3): conform when no
-rewrite of the tag that designates the milestone was observed (stable, or deleted then set again on the same
-commit), not conform when it was rewritten or deleted; missing tag: "unknown" with the reason of SV1; tag
+rewrite nor deletion of the tag that designates the milestone was observed (stable), not conform when it was
+rewritten or deleted, even when set again afterwards on the same commit; missing tag: "unknown" with the reason of SV1; tag
 never observed: "unknown" (`not_observed`). The review therefore counts twelve criteria.
 
 **Phase 8.3: file criteria of the review.** Seven criteria follow SV2, read from the cache of the sync for
@@ -654,9 +663,10 @@ contains it is refused by the versions before 1.10.0 (as is a `config.yaml` that
     `CheckDocsTree`, `DetectTooling`);
   - `internal/semver`: comparator extracted from `internal/selfupdate`, with no change to the surface;
   - bot recognition moves from `internal/diagnostic` to `internal/aisignature` (account catalogue).
-- **Sync**: `internal/sync/conventions.go`, called when `conventions.enabled`. The clone is read through
+- **Sync**: `internal/sync/conventions.go` (files, phase 8.3) and `internal/sync/history.go`
+  (`tag_observations` and BR4, phase 8.4), called when `conventions.enabled`. The clone is read through
   optional interfaces of the git provider (`TreePaths`, `ReadBlobs`, `FirstParent`, `IsAncestor`,
-  `RevList`), with no addition to the `Provider` interface. On the `Provider` side: `PullRequest.MergeCommitSHA`
+  `LastTouch` (CL10, at read time), `RevList`), with no addition to the `Provider` interface. On the `Provider` side: `PullRequest.MergeCommitSHA`
   (filled only if the PR is merged), `PullRequest.FromFork` and
   `PullRequestReviews` (GET; `ErrUnsupported` with a clone). The computation is only rerun if the head of
   the default branch, `RulesVersion` or the configuration fingerprint has changed. Failures logged at
@@ -749,7 +759,7 @@ Each phase can be delivered alone; phases 8.1 to 8.4 are enough for a milestone 
 | 8.1 | `internal/conventions` (parser), `internal/semver`, `conventions.*` settings, CC1 to CC4, `commits.parent_count` and its backfill, `watchoo conventions --commits`, web section and contributor page, adjustments to A1, A2 and F4. **Done, not released** (`[Unreleased]` of the CHANGELOG; `scope` code added to the blocking codes of CC2; CC1 per range between tags and CC3 trend since the last tag postponed to 8.2, with the reading of the tags) | 0 quota, 1 migration | 1.7.0 |
 | 8.2 | On the fly: BR1, PR1, PR2, SV1, SV2 (presence), SV6; first milestone review; CC5 to CC7; CC1 per range between tags, CC3 trend. **Done, not released** (`[Unreleased]` of the CHANGELOG; `branch.pattern`, `branch.exclude` and `tags.milestones` settings; `/conventions` route; approximations listed in [5.4](#54-tags-and-semver-sv): forks included until 8.5, PR2 comparison with the only commit not measured, API mode inferred; compact dot on the dashboard postponed) | 0 quota | 1.8.0 |
 | 8.3 | Clone tree: `repository_conventions`, CL1 to CL9, RD1 to RD4, DOC1 to DOC8, TL1 to TL3; milestone review on the tags' tree. **Done, not released** (`[Unreleased]` of the CHANGELOG; migration `00017`; `changelog.categories_fr`, `readme.sections`, `readme.min_words`, `docs.dir`, `docs.media_dir`, `docs.archives_scope` settings; deviations: DOC6 and DOC7 postponed to 8.7, CL10 to 8.4; `FileRulesVersion` separate from `RulesVersion`; `config_hash` also covers the names of the version tags (CL8); category order (CL6) as a warning; date gap between tag and section (CL8) not measured; TL1 without introduction date; DOC4 reads at most 300 documents; path lists only on a repository's page and in `watchoo conventions owner/repo`, not in `/conventions`; in API mode, milestone tags read from the database, see [section 9](#9-technical-impact)) | 0 quota, 1 migration | 1.9.0 |
-| 8.4 | History: `tag_observations` (SV3, SV2 deadlines), `branch_rewrites` (BR4), SV4, SV5, SV7, CL10. **Done, not released** (`[Unreleased]` of the CHANGELOG; migrations `00018` and `00019`; setting `tags.prerelease_forms`; SV3 in the milestone review; approximations listed in [5.4](#54-tags-and-semver-sv): proof of a read of the tags by the dates of `tag_observations`, rewrite of an annotated tag on the same commit invisible, BR4 partial in API mode alone; SV4, SV5, SV7 and CL10 computed at read time, not stored) | 0 quota, 2 migrations | 1.10.0 |
+| 8.4 | History: `tag_observations` (SV3, SV2 deadlines), `branch_rewrites` (BR4), SV4, SV5, SV7, CL10. **Done, not released** (`[Unreleased]` of the CHANGELOG; migrations `00018` and `00019`; setting `tags.prerelease_forms`; SV3 in the milestone review; approximations listed in [5.4](#54-tags-and-semver-sv): proof of a read of the tags by the dates of `tag_observations`, "late" only on a read made after the deadline, rewrite of an annotated tag on the same commit invisible, BR4 partial in API mode alone; SV4, SV5, SV7 and CL10 computed at read time, not stored) | 0 quota, 2 migrations | 1.10.0 |
 | 8.5 | API with no extra request: `merge_commit_sha`, `from_fork`, `body_sections`, merge methods; full PR3, PR5, PR6, BR2, BR5 | one reread of the PR lists | 1.11.0 |
 | 8.6 | Reviews: PR4, "merged without review", reviews received | 1 request per merged PR | 1.12.0 |
 | 8.7 | Optional leads: CL11, CL12, RD5, DOC6, DOC7, DOC9, DOC10, TL4, TL5 | 0 quota | MINOR |

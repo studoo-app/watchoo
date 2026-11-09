@@ -3,7 +3,8 @@
 -- n'etait plus ancetre de la nouvelle (historique reecrit). Une ligne par evenement observe.
 --
 -- Alimentee seulement si conventions.enabled ; un ancien commit absent du clone donne un resultat inconnu,
--- jamais enregistre. branch : nom de la branche par defaut au moment de l'observation ; old_sha et new_sha :
+-- jamais enregistre, sauf en mode API ou l'erreur ErrUnknownBase de la synchro sur l'ancienne tete sert de
+-- signal (voir 13-conventions.md, section 5.2). branch : nom de la branche par defaut au moment de l'observation ; old_sha et new_sha :
 -- ancienne et nouvelle tete ; observed_at : fin de la synchro qui l'a observee. Aucune attribution a une
 -- personne (jamais "a pousse"). Supprimer le depot supprime ses lignes.
 

@@ -18,7 +18,7 @@ import (
 // conventionsRewritesJSON est BR4 d'un dépôt.
 type conventionsRewritesJSON struct {
 	Known  bool                          `json:"known"`
-	Reason *string                       `json:"reason"` // filtered si inconnu ; null sinon
+	Reason *string                       `json:"reason"` // toujours null (known toujours vrai), gardé pour la symétrie
 	Count  int                           `json:"count"`
 	Last   *time.Time                    `json:"last"` // date de la plus récente ; null si aucune
 	Events []conventionsRewriteEventJSON `json:"events"`
@@ -56,7 +56,8 @@ type conventionsDeadlineJSON struct {
 	Status      string     `json:"status"`        // on_time, late ou undetermined
 	DueEnd      *time.Time `json:"due_end"`       // fin de l'échéance (borne exclue)
 	FirstSeenAt *time.Time `json:"first_seen_at"` // première observation du tag ; null si jamais observé
-	CommitAt    *time.Time `json:"commit_at"`     // date du commit visé ; null si inconnue
+	CommitAt    *time.Time `json:"commit_at"`     // date du commit visé à la première observation ; null si inconnue
+	SetAfter    *time.Time `json:"set_after"`     // borne basse de la pose (commit visé ou dernière lecture sans le tag) ; null si inconnue
 }
 
 // conventionsVersionNoteJSON est un constat SV4 ou SV7.
@@ -158,7 +159,7 @@ func newConventionsDeadlineJSON(d conventions.MilestoneDeadline) *conventionsDea
 		return nil
 	}
 	return &conventionsDeadlineJSON{Status: d.Status, DueEnd: timeJSON(d.DueEnd), FirstSeenAt: timeJSON(d.FirstSeenAt),
-		CommitAt: timeJSON(d.CommitAt)}
+		CommitAt: timeJSON(d.CommitAt), SetAfter: timeJSON(d.SetAfter)}
 }
 
 // newVersionNotesJSON convertit des constats SV4 ou SV7.
@@ -267,8 +268,8 @@ func tagHistoryLines(h conventions.TagHistoryReport, loc *time.Location) []strin
 	if !h.Observed {
 		return []string{unknownLine("SV3", h.Reason)}
 	}
-	lines := []string{i18n.T("conv.history.line", h.Counts[conventions.TagHistoryStable]+h.Counts[conventions.TagHistoryRestored],
-		dateText(h.Since, loc), h.Counts[conventions.TagHistoryRewritten], h.Counts[conventions.TagHistoryDeleted])}
+	lines := []string{i18n.T("conv.history.line", h.Counts[conventions.TagHistoryStable], dateText(h.Since, loc),
+		h.Counts[conventions.TagHistoryRewritten], h.Counts[conventions.TagHistoryDeleted], h.Counts[conventions.TagHistoryRestored])}
 	for _, t := range h.Tags {
 		if t.Status == conventions.TagHistoryStable {
 			continue
@@ -287,7 +288,7 @@ func deadlineText(d conventions.MilestoneDeadline, loc *time.Location) string {
 		return ""
 	case conventions.DeadlineUndetermined:
 		return i18n.T("conv.deadline."+d.Status) + " (" +
-			i18n.T("conv.deadline.between", dateText(d.CommitAt, loc), dateText(d.FirstSeenAt, loc)) + ")"
+			i18n.T("conv.deadline.between", dateText(d.SetAfter, loc), dateText(d.FirstSeenAt, loc)) + ")"
 	}
 	return i18n.T("conv.deadline."+d.Status) + " (" + i18n.T("conv.deadline.first_seen", dateText(d.FirstSeenAt, loc)) + ")"
 }

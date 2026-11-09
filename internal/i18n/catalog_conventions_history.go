@@ -25,8 +25,8 @@ var conventionsHistoryTexts = map[string]entry{
 	// SV3.
 	"conv.history.since": {"no rewrite observed since %s", "aucune réécriture observée depuis le %s"},
 	"conv.history.line": {
-		"tag history: %d without rewrite observed since %s, %d rewritten, %d deleted",
-		"historique des tags : %d sans réécriture observée depuis le %s, %d réécrit(s), %d supprimé(s)",
+		"tag history: %d without rewrite observed since %s, %d rewritten, %d deleted, %d deleted then set again on the same commit",
+		"historique des tags : %d sans réécriture observée depuis le %s, %d réécrit(s), %d supprimé(s), %d supprimé(s) puis reposé(s) sur le même commit",
 	},
 	"conv.history.status.stable":    {"no rewrite observed", "aucune réécriture observée"},
 	"conv.history.status.restored":  {"deleted then set again on the same commit", "supprimé puis reposé sur le même commit"},

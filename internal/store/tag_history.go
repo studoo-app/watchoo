@@ -2,8 +2,9 @@ package store
 
 // Historique des tags et de la branche par défaut (phase 8.4, voir documentation/fr/13-conventions.md) :
 // observations des tags (table tag_observations : SV3 et échéances de SV2) et réécritures observées de la
-// branche par défaut (table branch_rewrites : BR4). Écrites par la synchro seulement si conventions.enabled
-// (ApplyRepoSync, champs ObserveTags et BranchRewrites) ; aucune attribution à une personne. Les messages
+// branche par défaut (table branch_rewrites : BR4). Écrites seulement par la synchro, si conventions.enabled
+// (ApplyRepoSync, champs ObserveTags et BranchRewrites : aucune autre méthode exportée n'y écrit) ; aucune
+// attribution à une personne. Les messages
 // d'erreur ne citent ni nom de tag ni nom de branche, seulement des SHA courts.
 
 import (
@@ -27,15 +28,6 @@ func (s *Store) TagObservations(ctx context.Context, repoID int64) ([]model.TagO
 	return tagObservationsFrom(rows, repoID)
 }
 
-// ObserveTags met à jour les observations des tags du dépôt repoID d'après la liste complète tags lue à
-// l'instant at (voir RepoSyncWrite.ObserveTags), dans une transaction. À n'appeler qu'après une lecture
-// des tags réussie et non tronquée.
-func (s *Store) ObserveTags(ctx context.Context, repoID int64, tags []model.Tag, at time.Time) error {
-	return s.writeTx(ctx, func(q *db.Queries) error {
-		return observeTags(ctx, q, repoID, tags, at)
-	})
-}
-
 // BranchRewrites renvoie les réécritures observées de la branche par défaut du dépôt repoID (0 = tous les
 // dépôts), par dépôt puis date ; liste vide non nil si aucune.
 func (s *Store) BranchRewrites(ctx context.Context, repoID int64) ([]model.BranchRewrite, error) {
@@ -53,14 +45,6 @@ func (s *Store) BranchRewrites(ctx context.Context, repoID int64) ([]model.Branc
 			NewSHA: r.NewSha, ObservedAt: at})
 	}
 	return out, nil
-}
-
-// RecordBranchRewrite enregistre une réécriture observée de la branche par défaut (r.RepoID, à la date
-// r.ObservedAt). La base refuse un dépôt inconnu, une branche vide, un SHA mal formé ou deux têtes égales.
-func (s *Store) RecordBranchRewrite(ctx context.Context, r model.BranchRewrite) error {
-	return s.writeTx(ctx, func(q *db.Queries) error {
-		return insertBranchRewrite(ctx, q, r.RepoID, r, r.ObservedAt)
-	})
 }
 
 // ConventionTagDates renvoie, pour chaque tag du dépôt repoID dont le commit visé est en base, la date de

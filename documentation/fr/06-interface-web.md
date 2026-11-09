@@ -256,12 +256,14 @@ classement sur les signatures, aucune adresse affichée. Règles :
   personne : les **réécritures de la branche par défaut** (BR4 : nombre, date de la dernière, chaque
   événement avec sa date et les SHA courts ancien et nouveau ; sinon « aucune réécriture de la branche par
   défaut observée »), l'**historique des tags** (SV3 : « n sans réécriture observée depuis le <date>, r
-  réécrit(s), d supprimé(s) », une pastille par tag, ceux qui ont changé d'abord ; jamais « jamais
-  réécrit »), les **pré-versions** (SV4 : avertissements seulement), la **précédence** des versions finales
+  réécrit(s), d supprimé(s), p supprimé(s) puis reposé(s) sur le même commit », ces
+  derniers non conformes, une pastille par tag, ceux qui ont changé d'abord ; jamais « jamais réécrit »), les **pré-versions** (SV4 : avertissements seulement), la **précédence** des versions finales
   (SV7 ; incrément sauté en information), les **sauts de version** (SV5 : décomptes, puis chaque paire qui
   n'est pas cohérente avec le saut attendu ou la raison) et la **fraîcheur du CHANGELOG** (CL10 : `feat` et
   `fix` depuis le dernier commit qui a touché le CHANGELOG, grisée quand le CHANGELOG du dernier jalon est à
-  jour). SV4, SV5, SV7 et CL10 sont lus dans le clone local (« inconnu (pas de clone local) » sans clone).
+  jour). SV5 et CL10 sont lus dans le clone local (« inconnu (pas de clone local) » sans clone) ; sans
+  clone, SV4 juge la pose d'une pré-version par la première observation des tags et SV7 ne garde que
+  l'incrément sauté (information).
 - Bouton **« Synchroniser ce dépôt »** (absent si le suivi est arrêté).
 - Fragments : `/repos/{id}/commits` (historique) ; `/repos/{id}` avec l'en-tête `HX-Target`
   `repo-overview`, `repo-contributors`, `repo-languages`, `repo-pulls`, `repo-diagnostic` ou

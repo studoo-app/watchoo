@@ -14,26 +14,40 @@ import (
 	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/store"
+	wsync "github.com/studoo-app/watchoo/internal/sync"
 )
 
-// seedHistory records, for repository repoID, two complete reads of the tags (v1.0 moved to another
-// commit in between) and a rewrite of the default branch.
+// seedHistory records, for repository repoID (promo/alice, after seedPulls), two syncs that read the
+// complete list of tags (v1.0 moved to another commit in between), the second one also observing a
+// rewrite of the default branch: through ApplyRepoSync, like the sync with conventions.enabled.
 func (e *testEnv) seedHistory(repoID int64, tagSHA string) {
 	e.t.Helper()
 	ctx := e.t.Context()
 	other := strings.Repeat("d", 40)
+	v09 := model.Tag{Name: "v0.9", SHA: strings.Repeat("e", 40)}
 	first, second := e.now.Add(-48*time.Hour), e.now.Add(-25*time.Minute)
-	if err := e.store.ObserveTags(ctx, repoID, []model.Tag{{Name: "v1.0", SHA: other}, {Name: "v0.9", SHA: strings.Repeat("e", 40)}},
-		first); err != nil {
-		e.t.Fatal(err)
-	}
-	if err := e.store.ObserveTags(ctx, repoID, []model.Tag{{Name: "v1.0", SHA: tagSHA}, {Name: "v0.9", SHA: strings.Repeat("e", 40)}},
-		second); err != nil {
-		e.t.Fatal(err)
-	}
-	if err := e.store.RecordBranchRewrite(ctx, model.BranchRewrite{RepoID: repoID, Branch: "main", OldSHA: other, NewSHA: tagSHA,
-		ObservedAt: second}); err != nil {
-		e.t.Fatal(err)
+	for _, s := range []struct {
+		at       time.Time
+		tags     []model.Tag
+		rewrites []model.BranchRewrite
+	}{
+		{first, []model.Tag{{Name: "v1.0", SHA: other}, v09}, nil},
+		{second, []model.Tag{{Name: "v1.0", SHA: tagSHA}, v09}, []model.BranchRewrite{{Branch: "main", OldSHA: other, NewSHA: tagSHA}}},
+	} {
+		run, err := e.store.BeginSyncRun(ctx, repoID, s.at.Add(-time.Minute), wsync.LockStaleAfter)
+		if err != nil {
+			e.t.Fatal(err)
+		}
+		if _, err := e.store.ApplyRepoSync(ctx, store.RepoSyncWrite{
+			RepoID: repoID, RunID: run.ID,
+			Metadata: store.RepositoryMetadata{Owner: "promo", Name: "alice", DefaultBranch: "main",
+				URL: "https://github.com/promo/alice"},
+			Branches:    []store.BranchState{{Name: "main", HeadSHA: tagSHA}},
+			ReplaceTags: true, Tags: s.tags, ObserveTags: true, BranchRewrites: s.rewrites,
+			SyncedAt: s.at,
+		}); err != nil {
+			e.t.Fatalf("ApplyRepoSync: %v", err)
+		}
 	}
 }
 
@@ -50,7 +64,7 @@ func TestRepoConventionsHistory(t *testing.T) {
 		`id="repo-conventions-rewrites"`, "1 rewrite(s) of the default branch observed, the last on",
 		shortSHA(strings.Repeat("d", 40)), shortSHA(head),
 		// SV3: v1.0 rewritten, v0.9 without rewrite observed.
-		`id="repo-conventions-tag-history"`, "1 without rewrite observed since", "1 rewritten, 0 deleted",
+		`id="repo-conventions-tag-history"`, "1 without rewrite observed since", "1 rewritten, 0 deleted, 0 deleted then set again on the same commit",
 		"v1.0 · rewritten (other commit)", "v0.9 · no rewrite observed",
 		// SV4: no pre-release; SV5, SV7 and CL10: no local clone.
 		`id="repo-conventions-prereleases"`, "no pre-release",
@@ -103,6 +117,11 @@ func TestConventionsDeadlineLabels(t *testing.T) {
 	undet := conventions.MilestoneDeadline{Status: conventions.DeadlineUndetermined, FirstSeenAt: at}
 	if got := e.server.deadlineDetail(tr, undet); !strings.HasPrefix(got, "set between an unknown date and ") {
 		t.Errorf("undetermined detail: %q", got)
+	}
+	// The lower bound is SetAfter (target commit or last read without the tag), not CommitAt alone.
+	undet.CommitAt, undet.SetAfter = at.Add(-96*time.Hour), at.Add(-24*time.Hour)
+	if got, want := e.server.deadlineDetail(tr, undet), "set between "+e.server.formatLocal(undet.SetAfter, tr.T("web.fmt.date"))+" and "; !strings.HasPrefix(got, want) {
+		t.Errorf("undetermined detail with a bound: %q, want prefix %q", got, want)
 	}
 	if st := deadlineStatus(tr, conventions.MilestoneDeadline{Status: conventions.DeadlineOnTime}); st == nil || st.Class != "badge-success" {
 		t.Errorf("on time: %+v", st)

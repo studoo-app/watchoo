@@ -22,7 +22,7 @@ type HistoryReader interface {
 	// commit absent du clone est une erreur, lue comme « inconnu ».
 	IsAncestor(ctx context.Context, owner, name, ancestor, descendant string) (bool, error)
 	// LastTouch renvoie le dernier commit de l'historique de head qui a modifié file (chemin relatif à la
-	// racine) ; found faux si aucun.
+	// racine) ; found faux si aucun, ou si file est absent de head (supprimé : CL10 « pas de CHANGELOG »).
 	LastTouch(ctx context.Context, owner, name, head, file string) (sha string, found bool, err error)
 }
 
@@ -138,8 +138,8 @@ func firstSeenByName(h TagHistoryReport) map[string]time.Time {
 }
 
 // applyDeadlines calcule l'échéance de SV2 de chaque jalon (ms, modifiés sur place) : première observation
-// du tag de nom exact, date de son commit visé (base) et lectures complètes des tags prouvées par les
-// observations (ObservationReads).
+// du tag de nom exact, date de son commit visé (base, seulement si c'est encore le commit de la première
+// observation) et lectures complètes des tags prouvées par les observations (ObservationReads).
 func applyDeadlines(ctx context.Context, r Reader, repo model.Repository, obs []model.TagObservation,
 	hist TagHistoryReport, ms []MilestoneResult, loc *time.Location) error {
 	need := false
@@ -156,9 +156,18 @@ func applyDeadlines(ctx context.Context, r Reader, repo model.Repository, obs []
 		return err
 	}
 	reads := ObservationReads(obs)
-	seen := firstSeenByName(hist)
 	for i := range ms {
-		ms[i].Deadline = CheckDeadline(ms[i], loc, seen[ms[i].Tag], dates[ms[i].Tag], reads)
+		var firstSeen, commitAt time.Time
+		h, observed := FindTagHistory(hist, ms[i].Tag)
+		if observed {
+			firstSeen = h.FirstSeenAt
+		}
+		// La date du commit visé actuel ne borne la pose que s'il est celui de la première observation :
+		// un tag réécrit depuis a d'abord désigné un autre commit, de date inconnue ici.
+		if !observed || (len(h.Periods) > 0 && h.Periods[0].SHA == h.SHA) {
+			commitAt = dates[ms[i].Tag]
+		}
+		ms[i].Deadline = CheckDeadline(ms[i], loc, firstSeen, commitAt, reads)
 	}
 	return nil
 }

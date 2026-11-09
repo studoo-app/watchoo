@@ -361,8 +361,8 @@ var webConventionsTexts = map[string]entry{
 	"web.conv.history_title": {"History of the tags and of the default branch, versions", "Historique des tags et de la branche par défaut, versions"},
 	"web.conv.hist_label":    {"%s:", "%s :"},
 	"web.conv.hist_line": {
-		"%d without rewrite observed since %s, %d rewritten, %d deleted",
-		"%d sans réécriture observée depuis le %s, %d réécrit(s), %d supprimé(s)",
+		"%d without rewrite observed since %s, %d rewritten, %d deleted, %d deleted then set again on the same commit",
+		"%d sans réécriture observée depuis le %s, %d réécrit(s), %d supprimé(s), %d supprimé(s) puis reposé(s) sur le même commit",
 	},
 	"web.conv.hist_more":        {"… and %d more tags", "… et %d tags de plus"},
 	"web.conv.hist_rewrites":    {"rewrites %d", "réécritures %d"},

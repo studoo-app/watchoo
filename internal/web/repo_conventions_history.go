@@ -48,7 +48,8 @@ type convHistoryView struct {
 	TagsObserved   bool
 	TagsReason     string
 	TagsSince      time.Time
-	TagsStable     int // sans réécriture observée (stables, ou supprimés puis reposés sur le même commit)
+	TagsStable     int // sans réécriture ni suppression observée
+	TagsRestored   int // supprimés puis reposés sur le même commit
 	TagsRewritten  int
 	TagsDeleted    int
 	TagHistory     []convTagHistoryRow // tags réécrits, supprimés ou reposés d'abord, au plus repoConventionsList
@@ -101,7 +102,7 @@ type convHistorySummary struct {
 func tagHistoryStatus(tr *i18n.Translator, status string) convStatus {
 	key := "conv.history.status." + status
 	switch status {
-	case conventions.TagHistoryStable, conventions.TagHistoryRestored:
+	case conventions.TagHistoryStable:
 		return statusConform(tr, key)
 	default:
 		return statusNonconform(tr, key)
@@ -137,7 +138,7 @@ func (s *server) deadlineDetail(tr *i18n.Translator, d conventions.MilestoneDead
 	case "":
 		return ""
 	case conventions.DeadlineUndetermined:
-		return tr.T("conv.deadline.between", date(d.CommitAt), date(d.FirstSeenAt))
+		return tr.T("conv.deadline.between", date(d.SetAfter), date(d.FirstSeenAt))
 	}
 	return tr.T("conv.deadline.first_seen", date(d.FirstSeenAt))
 }
@@ -177,7 +178,7 @@ func newConvHistory(tr *i18n.Translator, repo conventions.RepoReport) convHistor
 	if !h.Observed {
 		v.TagsReason = reason(h.Reason)
 	}
-	v.TagsStable = h.Counts[conventions.TagHistoryStable] + h.Counts[conventions.TagHistoryRestored]
+	v.TagsStable, v.TagsRestored = h.Counts[conventions.TagHistoryStable], h.Counts[conventions.TagHistoryRestored]
 	v.TagsRewritten, v.TagsDeleted = h.Counts[conventions.TagHistoryRewritten], h.Counts[conventions.TagHistoryDeleted]
 	// Les tags qui ont changé d'abord, puis les autres, chacun par nom.
 	for _, pass := range []bool{false, true} {

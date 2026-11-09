@@ -88,7 +88,7 @@ func TestIsAncestor(t *testing.T) {
 }
 
 // LastTouch returns the last commit of the history of head that changed a file, found false when none
-// did; head missing from the clone, or no clone: ErrNotFound; the path never appears in the errors.
+// did or when the file is missing from head (deleted); head missing from the clone, or no clone: ErrNotFound; the path never appears in the errors.
 func TestLastTouch(t *testing.T) {
 	srv := gittest.NewServer(t)
 	r := srv.Create("alice", "projet", "main")
@@ -97,6 +97,7 @@ func TestLastTouch(t *testing.T) {
 	head := r.Commit("main", "a.txt", "b\n", "c3", alice, t0.Add(2*time.Hour))
 	r.Commit("main", ":(glob)*", "magic\n", "c4", alice, t0.Add(3*time.Hour))
 	last := r.Head("main")
+	gone := r.RemoveFile("main", "CHANGELOG.md", "chore: remove changelog", alice, t0.Add(4*time.Hour))
 
 	p, _, logs := newProvider(t, srv)
 	ctx := t.Context()
@@ -118,6 +119,13 @@ func TestLastTouch(t *testing.T) {
 	}
 	if got, found, err := p.LastTouch(ctx, "alice", "projet", head, ":(glob)*"); err != nil || found {
 		t.Errorf("literal path before its commit = %q, %v, %v", got, found, err)
+	}
+	// A file deleted from head has no last change: its deletion does not count.
+	if got, found, err := p.LastTouch(ctx, "alice", "projet", gone, "CHANGELOG.md"); err != nil || found || got != "" {
+		t.Errorf("deleted file = %q, %v, %v", got, found, err)
+	}
+	if got, found, err := p.LastTouch(ctx, "alice", "projet", gone, "a.txt"); err != nil || !found || got != head {
+		t.Errorf("file still present = %q, %v, %v; want %q", got, found, err, head)
 	}
 	unknown := strings.Repeat("cd", 20)
 	_, _, err := p.LastTouch(ctx, "alice", "projet", unknown, "CHANGELOG.md")

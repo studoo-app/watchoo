@@ -182,9 +182,10 @@ type TagHistory struct {
 	Deletions   int         // périodes fermées parce que le nom a disparu
 }
 
-// Conform indique un tag sans réécriture observée : stable, ou supprimé puis reposé sur le même commit.
+// Conform indique un tag sans réécriture ni suppression observée (stable). Un tag supprimé puis reposé sur
+// le même commit (restored) ne l'est pas : SV3 relève toute réécriture ou suppression observée.
 func (h TagHistory) Conform() bool {
-	return h.Status == TagHistoryStable || h.Status == TagHistoryRestored
+	return h.Status == TagHistoryStable
 }
 
 // TagHistoryReport est SV3 d'un dépôt.
@@ -283,8 +284,8 @@ const UnknownNotObserved = "not_observed"
 // MilestoneSV3 calcule le critère SV3 de la revue de jalon pour le tag qui désigne le jalon (nom exact, ou
 // premier nom non conforme). Tag absent : « inconnu » avec la raison absentReason (celle de SV1 :
 // UnknownNoTag, UnknownNotDue ou UnknownTagAbsent ; vide : UnknownNoTag). Tag jamais observé : inconnu
-// (UnknownNotObserved). Sinon conforme si aucune réécriture n'a été observée (stable, ou supprimé puis
-// reposé sur le même commit), non conforme s'il a été réécrit ou supprimé.
+// (UnknownNotObserved). Sinon conforme si aucune réécriture ni suppression n'a été observée (stable), non
+// conforme s'il a été réécrit ou supprimé, même reposé ensuite sur le même commit.
 func MilestoneSV3(ms MilestoneResult, hist TagHistoryReport, absentReason string) Criterion {
 	if ms.Tag == "" {
 		if absentReason == "" {
@@ -307,51 +308,62 @@ func MilestoneSV3(ms MilestoneResult, hist TagHistoryReport, absentReason string
 // États de l'échéance d'un jalon (clés --json), en anglais.
 const (
 	DeadlineOnTime       = "on_time"      // première observation du tag avant la fin de l'échéance
-	DeadlineLate         = "late"         // observé après, et une lecture entre le commit visé et l'échéance ne l'a pas vu
-	DeadlineUndetermined = "undetermined" // observé après, sans lecture qui prouve son absence avant l'échéance
+	DeadlineLate         = "late"         // une lecture complète des tags faite à la fin de l'échéance ou après ne l'a pas vu
+	DeadlineUndetermined = "undetermined" // observé après, sans lecture qui prouve son absence à la fin de l'échéance
 )
 
 // AllDeadlineStatuses liste les états d'échéance dans leur ordre d'affichage.
 var AllDeadlineStatuses = []string{DeadlineOnTime, DeadlineLate, DeadlineUndetermined}
 
 // MilestoneDeadline est l'échéance de SV2 d'un jalon dans un dépôt. Indéterminée, le tag a été posé
-// entre CommitAt (date du commit visé, si connue) et FirstSeenAt (première observation, si observé).
+// entre SetAfter (si connue) et FirstSeenAt (première observation, si observé).
 type MilestoneDeadline struct {
 	Status      string    // DeadlineOnTime, DeadlineLate ou DeadlineUndetermined ; vide : sans échéance ou sans tag de nom exact
 	DueEnd      time.Time // fin de l'échéance (borne exclue)
 	FirstSeenAt time.Time // première observation du tag ; zéro s'il n'a jamais été observé
-	CommitAt    time.Time // date du commit visé ; zéro si inconnue
+	CommitAt    time.Time // date du commit visé à la première observation du tag ; zéro si inconnue
+	// SetAfter est la borne basse de la pose : la plus tardive entre CommitAt et la dernière lecture
+	// complète des tags qui ne l'a pas vu, antérieures à FirstSeenAt ; zéro si aucune n'est connue.
+	SetAfter time.Time
 }
 
 // CheckDeadline compare la pose du tag du jalon à son échéance (fin exclue : minuit du lendemain dans le
 // fuseau loc, UTC si nil). Seul un tag de nom exact (MilestonePresent) est jugé :
 //   - première observation avant la fin de l'échéance : à l'heure ;
-//   - première observation après, et une lecture complète des tags (reads) a eu lieu entre la date du
-//     commit visé (incluse) et la fin de l'échéance (exclue) : en retard, cette lecture ne l'a pas vu ;
-//   - sinon (jamais observé, date du commit inconnue, aucune lecture dans la fenêtre) : indéterminé.
+//   - première observation après, et une lecture complète des tags (reads) a eu lieu à la fin de
+//     l'échéance ou après, mais avant la première observation : en retard, cette lecture prouve que le tag
+//     manquait encore après l'échéance ;
+//   - sinon (jamais observé, aucune lecture dans cette fenêtre) : indéterminé. Une lecture antérieure à la
+//     fin de l'échéance ne prouve rien : le tag a pu être posé entre elle et l'échéance.
 //
-// firstSeen est la première observation du nom (zéro : jamais observé) ; commitAt la date du commit visé
-// (zéro : inconnue).
+// firstSeen est la première observation du nom (zéro : jamais observé) ; commitAt la date du commit visé à
+// cette première observation (zéro : inconnue), qui ne sert qu'à la borne basse SetAfter.
 func CheckDeadline(r MilestoneResult, loc *time.Location, firstSeen, commitAt time.Time, reads []time.Time) MilestoneDeadline {
 	end, ok := r.DueEnd(loc)
 	if !ok || r.Status != MilestonePresent {
 		return MilestoneDeadline{}
 	}
 	d := MilestoneDeadline{Status: DeadlineUndetermined, DueEnd: end, FirstSeenAt: firstSeen, CommitAt: commitAt}
-	switch {
-	case firstSeen.IsZero():
-		return d
-	case firstSeen.Before(end):
-		d.Status = DeadlineOnTime
-		return d
-	case commitAt.IsZero():
+	if firstSeen.IsZero() {
+		d.SetAfter = commitAt
 		return d
 	}
+	if !commitAt.IsZero() && commitAt.Before(firstSeen) {
+		d.SetAfter = commitAt
+	}
 	for _, at := range reads {
-		if !at.Before(commitAt) && at.Before(end) && at.Before(firstSeen) {
-			d.Status = DeadlineLate
-			break
+		if !at.Before(firstSeen) {
+			continue
 		}
+		if at.After(d.SetAfter) {
+			d.SetAfter = at
+		}
+		if !at.Before(end) {
+			d.Status = DeadlineLate
+		}
+	}
+	if firstSeen.Before(end) {
+		d.Status = DeadlineOnTime
 	}
 	return d
 }
@@ -421,8 +433,9 @@ type RewriteEvent struct {
 
 // RewriteReport est BR4 d'un dépôt : les réécritures observées, sans attribution.
 type RewriteReport struct {
-	// Known indique des réécritures lues ; faux : Reason vaut UnknownFiltered (rapport restreint à des
-	// contributeurs). Aucune réécriture n'est jamais « jamais réécrite » : seulement « aucune observée ».
+	// Known est toujours vrai et Reason toujours vide : BR4 est lu en base, même dans un rapport restreint à
+	// des contributeurs (indicateur de dépôt) ; les deux champs gardent la forme des autres indicateurs.
+	// Aucune branche n'est jamais « jamais réécrite » : seulement « aucune réécriture observée ».
 	Known  bool
 	Reason string
 	Count  int
