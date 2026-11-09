@@ -21,6 +21,10 @@ var _ conventions.CloneReader = (*gitprov.Provider)(nil)
 // Vérifie à la compilation que le provider des clones sait lire les fichiers d'une révision (phase 8.3).
 var _ conventions.FileReader = (*gitprov.Provider)(nil)
 
+// Vérifie à la compilation que le provider des clones sait lire l'historique (phase 8.4 : SV4, SV5, SV7,
+// CL10).
+var _ conventions.HistoryReader = (*gitprov.Provider)(nil)
+
 // ConventionsClones renvoie l'accès en lecture aux clones Git locaux existants de l'espace (périmètre
 // des conventions : git rev-list des branches suivies), sans les mettre à jour ; nil si les clones sont
 // désactivés ou si le provider ne sait pas les lire (repli sur la base). Erreur seulement pour la base.

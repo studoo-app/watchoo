@@ -167,8 +167,12 @@ func TestConventionsTagsAndBranchesFromClone(t *testing.T) {
 		p.Conform != 2 || len(p.Criteria) != len(conventions.AllCriteria) || p.Unknown != len(p.Criteria)-4 {
 		t.Errorf("review: %+v", p)
 	}
-	// Conventions disabled in this workspace: the file criteria of the milestone tag were never computed.
-	for _, c := range review.Repos[0].Criteria[4:] {
+	// Conventions disabled in this workspace: the tags were never observed (SV3) and the file criteria of
+	// the milestone tag were never computed.
+	if c := review.Repos[0].Criteria[4]; c.ID != conventions.CriterionSV3 || c.Reason != conventions.UnknownNotObserved {
+		t.Errorf("SV3: %+v, want unknown (not observed)", c)
+	}
+	for _, c := range review.Repos[0].Criteria[5:] {
 		if c.Status != conventions.CriterionUnknown || c.Reason != conventions.UnknownNotComputed {
 			t.Errorf("file criterion %s: %+v, want unknown (not computed)", c.ID, c)
 		}

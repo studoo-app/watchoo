@@ -138,6 +138,14 @@ type RepoSyncWrite struct {
 	// ReplaceTags et Tags : de même pour les tags.
 	ReplaceTags bool
 	Tags        []model.Tag
+	// ObserveTags (phase 8.4) met à jour les observations des tags (tag_observations) d'après Tags, à la
+	// date SyncedAt : couple revu, nom revu avec un autre SHA (réécrit), nom disparu (supprimé), couple
+	// nouveau. Exige ReplaceTags. L'appelant ne le pose que si conventions.enabled et si la lecture des
+	// tags est complète (réussie et non tronquée) : sinon aucune observation n'est fermée.
+	ObserveTags bool
+	// BranchRewrites (phase 8.4, BR4) sont les réécritures observées de la branche par défaut, enregistrées
+	// à la date SyncedAt (RepoID et ObservedAt ignorés). Seulement si conventions.enabled.
+	BranchRewrites []model.BranchRewrite
 	// ReplaceLanguages et Languages : de même pour les langages (clone lu ; RepoID ignoré).
 	ReplaceLanguages bool
 	Languages        []model.RepositoryLanguage

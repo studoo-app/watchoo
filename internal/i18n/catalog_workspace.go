@@ -253,6 +253,18 @@ var workspaceTexts = map[string]entry{
 		"conventions.tags.milestones: entry #%d repeats the milestone %s",
 		"conventions.tags.milestones : l'entrée n° %d répète le jalon %s",
 	},
+	"workspace.validate.conv_prerelease_forms_empty": {
+		`conventions.tags.prerelease_forms: at least one form is required (e.g. "rc")`,
+		"conventions.tags.prerelease_forms : au moins une forme est requise (ex. « rc »)",
+	},
+	"workspace.validate.conv_prerelease_form_invalid": {
+		`conventions.tags.prerelease_forms: form #%d %q is invalid (1 to 32 lowercase letters, e.g. "rc")`,
+		"conventions.tags.prerelease_forms : la forme n° %d %q est invalide (1 à 32 lettres minuscules, ex. « rc »)",
+	},
+	"workspace.validate.conv_prerelease_form_duplicate": {
+		"conventions.tags.prerelease_forms: form #%d repeats %q",
+		"conventions.tags.prerelease_forms : la forme n° %d répète %q",
+	},
 	"workspace.validate.conv_readme_section_invalid": {
 		"conventions.readme.sections: entry #%d %q is not a known section (expected one of: %s)",
 		"conventions.readme.sections : l'entrée n° %d %q n'est pas une section connue (attendu l'une de : %s)",
@@ -659,6 +671,10 @@ var workspaceTexts = map[string]entry{
 	"workspace.cfg.conventions_milestones": {
 		`milestones "vX.Y.Z", or "vX.Y.Z@YYYY-MM-DD" with a due date`,
 		`jalons « vX.Y.Z », ou « vX.Y.Z@AAAA-MM-JJ » avec une échéance`,
+	},
+	"workspace.cfg.conventions_prerelease_forms": {
+		`compliant pre-releases "-<form>.N" (e.g. "v1.0.0-rc.1"); other forms give a warning`,
+		`pré-versions conformes « -<forme>.N » (ex. « v1.0.0-rc.1 ») ; les autres formes donnent un avertissement`,
 	},
 	"workspace.cfg.conventions_categories_fr": {
 		"French CHANGELOG labels (Ajouté, [Non publié]…) accepted with a warning; false: deviations",

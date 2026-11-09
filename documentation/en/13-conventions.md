@@ -3,7 +3,7 @@
 [← Contents](README.md)
 
 **Status**: **maintainer decision** (phase 8, November 8, 2026); the choices are recorded in
-[section 11](#11-maintainer-decisions). Phases 8.1 to 8.3 done, not released; the next phases start after their
+[section 11](#11-maintainer-decisions). Phases 8.1 to 8.4 done, not released; the next phases start after their
 plan is approved. The scope exception is carried over into the [Vision](01-vision.md); the updates to
 [Features](02-features.md), [Data model](04-data-model.md), [CLI](05-cli.md) and
 [Web interface](06-web-interface.md) follow phase by phase.
@@ -108,7 +108,7 @@ commit and a branch are never removed). The default branch alone forms a second,
 | BR1 | Compliant branch name | Remote branches (`refs/remotes/origin/` of the clone) and `pull_requests.head_branch` of PRs not coming from a fork (forks counted until phase 8.5, see the note below), excluding the default branch and exclusions (`gh-pages`, `dependabot/*`, `renovate/*`, setting). Compliant if `^(<types>)/[a-z0-9]+(-[a-z0-9]+)+$`; a single segment after `/`: "to review". Codes (`--json`): blocking `unknown_type` (unknown type), `uppercase` (uppercase), `underscore` (`_`), `space` (space), `accent` (accent), `no_slash` (missing `/`), `pattern` (name that does not follow the rule with no other named issue, `feat/a.b`, or custom pattern not matched); warning `single_segment` ("to review") | branch, repository; contributor through the PR author | clone + database | both | H | P1 |
 | BR2 | Reused branch | A `head_branch` (not from a fork) with more than one PR merged into the default branch | branch, repository | database | API | M | P2 |
 | BR3 | Protected default branch | **Postponed** (maintainer decision: not implemented in phase 8). Planned measure: `protected` from `GET /branches`: yes, no, unknown (clone), not applicable (for example a private repository on GitHub Free). **Snapshot** without history | repository | API, 0 requests | API | M | — |
-| BR4 | Rewritten default branch | At sync time, the old head is no longer an ancestor of the new one (`merge-base --is-ancestor`); dated event (old and new SHA). Old object missing from the clone: "unknown", never "rewritten". In API mode, the sync's `ErrUnknownBase` error is also used as a signal | event, repository | clone | both | H | P2 |
+| BR4 | Rewritten default branch | At sync time, the old head is no longer an ancestor of the new one (`merge-base --is-ancestor`); dated event (old and new SHA). Old object missing from the clone: "unknown", never "rewritten". Only when the conventions are enabled, for the default branch tracked before and after the sync and under the same name (a change of default branch is not a rewrite); the ancestry is read in the clone updated by the sync, in both modes. In API mode only, when the clone does not decide (no clone, or commit missing from it), the sync's `ErrUnknownBase` error on the old head (commit gone from the repository, or no common ancestor) is also used as a signal. Limit: GitHub keeps orphaned commits for a long time, so after a force-push its comparison often succeeds (`diverged`, `behind`) and the API alone misses the rewrite; in clone-only mode `ErrUnknownBase` means a commit missing from the clone and is never a signal | event, repository | clone | both | H | P2 |
 | BR5 | Allowed merge methods | `allow_squash_merge`, `allow_merge_commit`, `allow_rebase_merge` of the repository (returned to an account with push rights) | repository | API, 0 requests | API | M | P3 |
 
 ### 5.3 Pull requests (PR)
@@ -128,8 +128,8 @@ commit and a branch are never removed). The default branch alone forms a second,
 | id | Indicator | Rule | Granularity | Source | Mode | Rel. | Prio |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | SV1 | SemVer tag name | Lowercase `v` then a SemVer 2.0.0 version (comparator extracted from `internal/selfupdate` into `internal/semver`). Codes (`--json`): blocking `no_v` (no `v`), `upper_v` (`V`), `missing_component` (missing component), `leading_zero` (leading zero), `empty_prerelease` (empty pre-release), `invalid` (any other name); warning `build_metadata` (`+build`) | tag, repository | database | both | H | P1 |
-| SV2 | Milestones present | For each configured milestone: present, present under a non-compliant name, absent; a pre-release does not count as a milestone. With a deadline: compared to the first observation of the tag; "undetermined" if no successful sync took place between the date of the target commit and the deadline (display "set between X and Y") | milestone × repository | database | both | H (presence), M (deadline) | P1 |
-| SV3 | Tag rewritten or deleted | `tag_observations` table, fed only if reading the tags succeeded and was not truncated: same name with another SHA (rewritten), gone (deleted). Label: "no rewrite observed since …", never "never rewritten"; no attribution to a person | tag, repository | database | both | M | P1 |
+| SV2 | Milestones present | For each configured milestone: present, present under a non-compliant name, absent; a pre-release does not count as a milestone. With a deadline: the tag with the exact name is "on time" if its first observation precedes the end of the deadline, "late" if a complete read of the tags between the date of the target commit and the end of the deadline did not see it, otherwise "undetermined" (display "set between X and Y"); proof of a read: see phase 8.4 below | milestone × repository | database | both | H (presence), M (deadline) | P1 |
+| SV3 | Tag rewritten or deleted | `tag_observations` table, fed only when the conventions are enabled and reading the tags succeeded, was not truncated (fewer than 1,000 tags) and skipped no tag (a tag missing from an incomplete list would be closed wrongly): same name with another SHA (rewritten), gone (deleted); only a change of target commit is seen (both sources give the SHA of the target commit, not of the tag object: an annotated tag recreated on the same commit is invisible). Label: "no rewrite observed since …", never "never rewritten"; no attribution to a person | tag, repository | database | both | M | P1 |
 | SV4 | Pre-releases | Form `-rc.N`, `-beta.N`, `-alpha.N`; free forms (`-rc1`, `-RC.1`) give a warning, not an issue (maintainer decision); also a warning if an rc is set after the final version or if precedence contradicts ancestry | tag | database + clone | both | M | P2 |
 | SV5 | Bump consistent with the commits | For each final tag F, base B = highest compliant final tag lower than F that is its ancestor; commits of `B..F` excluding merges and bots. Breaking change: MAJOR expected (MINOR before 1.0.0); `feat`: at least MINOR. **Only under-versioning is flagged**; "undetermined" if less than 80% of the range's commits are compliant; first tag not evaluated | pair of tags | clone + database | both | M | P2 |
 | SV6 | Associated release | Excluding drafts: milestone without a release (`milestone_without_release`), release without a tag (`release_without_tag`), inconsistent `prerelease` flag (`prerelease_mismatch`). **Information only**: the charter only mentions tags, SV6 does not count towards compliance | tag, release | database | API | H | P2 |
@@ -173,6 +173,66 @@ migration and no extra request. Approximations:
   tag is not placed (counted apart).
 - **CC7**: a heuristic without dependency (closed lists of function words, accented letters); many short
   subjects stay "unknown".
+
+**Phase 8.4: history and versions, implementation and limits.** BR4, SV3 and the SV2 deadlines are read
+from the `branch_rewrites` and `tag_observations` tables, fed by the sync **only while the conventions are
+enabled** (data minimization); SV4, SV5, SV7 and CL10 are computed at read time, from the database and the
+existing clone (no fetch), and are not stored. None of these indicators is attributed to a person.
+Approximations kept:
+
+- **SV2 deadlines**: only the tag with the **exact name** is judged (a non-compliant name stays
+  "nonconforming name"). End of the deadline: midnight the next day in the time zone of the workspace,
+  bound excluded. No existing data proves that a sync read the tags at a given moment (`sync_runs` says
+  neither which list was read, nor whether it was truncated, nor whether the conventions were enabled):
+  **the proof of a complete read is a date of `tag_observations`** of the repository (first observation,
+  last observation or end of any row), each being the moment of a successful, untruncated read made with the
+  conventions enabled. "Late" requires such a date in `[date of the target commit, end of the deadline)`,
+  earlier than the first observation of the tag. Otherwise "undetermined", shown as "set between X and Y"
+  (X: date of the target commit, when the commit is in the database; Y: first observation). Limits: a
+  repository without any other tag, or whose reads left no date in the window (the last observation of a
+  row is rewritten at every read), gives "undetermined"; so does a target commit later than the deadline or
+  of unknown date, and a tag never observed.
+- **SV3**: four states per tag, `stable` (no rewrite observed), `restored` (deleted then set again on the
+  same commit, without rewrite: counted with the tags without observed rewrite), `rewritten` (the name
+  designated another commit) and `deleted` (gone and not back, prevails over an earlier rewrite). One row of
+  `tag_observations` per period: a (name, SHA) pair that comes back after a deletion opens a new row. Label:
+  "no rewrite observed since <first observation>". Tag never seen by a complete read (conventions enabled
+  after the last sync, truncated reads): "unknown" (`not_observed`).
+- **BR4**: shown per repository, number of events, date of each, old and new short SHAs; never "pushed".
+- **SV4**: codes `free_form` (neither `-<form>.N` nor a form of `tags.prerelease_forms`), `after_final`
+  (pre-release set after the final version with the same MAJOR.MINOR.PATCH: the final version is a strict
+  ancestor of the pre-release in the clone; when ancestry does not decide, same commit, unrelated commits or
+  no clone, the pre-release was first observed after the final version) and `order` (of two pre-releases
+  of the same version successive by precedence, the higher one is set on a strict ancestor of the lower one;
+  clone only). All are **warnings**, never issues. Only the pre-releases with a compliant name (SV1) are
+  evaluated.
+- **SV5**: bases searched by decreasing precedence, stopping at the first unreadable ancestry
+  (`clone_unreadable`); no ancestor: `no_base`. Commits of `B..F` read from the clone then from the database;
+  merges (parent count, or default merge message when it is unknown) and bots are excluded, **not** the
+  accounts of `excluded_accounts` nor the commits before the start date. Only the commits compliant with
+  the strict parser declare a type or a breaking change. The "MINOR is enough for a breaking change" rule
+  applies when the base is `0.y.z`. "Undetermined" when commits of the range are missing from the database
+  (`partial`) or when less than 80% of the evaluated commits are compliant (`low_conform`); a range without
+  evaluated commit is "consistent". Over-versioning is never flagged. Without a clone: "unknown"
+  (`no_clone`).
+- **SV7**: only **successive** compliant final versions by precedence are compared (an inconsistency
+  between non-successive versions, both unrelated to the version between them, is not seen);
+  `precedence_ancestry` (higher version set on a strict ancestor of the lower version) is the issue,
+  `increment_skip` is information, also computed without a clone and extended to PATCH and MINOR skips
+  (`v1.0.0` → `v1.0.2`). Two tags on the same commit are consistent.
+- **CL10**: last commit of the history of the known head of the default branch that touched `CHANGELOG.md` at
+  the root (`git --literal-pathspecs log -1 --format=%H --end-of-options <head> -- CHANGELOG.md`), then the
+  commits of the head not reachable from it; same exclusions as SV5. The count is a minimum when commits are
+  missing from the database (`missing`). **Grayed out** (information) when CL9 of the last milestone set
+  (highest version among the milestones that have a tag) is compliant in the cache of the sync. Unknown
+  without a clone (`no_clone`), without a commit that touched the CHANGELOG (`no_file`) or when the head is
+  not known in the database (`clone_unreadable`). Computed at read time: `FileRulesVersion` does not change.
+- **Reading the clone**: through an optional interface (`HistoryReader`: `IsAncestor`, `LastTouch`),
+  without update; each ancestry test is memoized for one computation. An error (commit missing from the
+  clone, unreadable clone) means "unknown", never "no".
+- **Report restricted to contributors** (`--contributor`): SV4, SV5, SV7 and CL10 are not computed
+  (`filtered`); BR4, SV3 and the deadlines, read from the database, stay in the JSON; the CLI text and the
+  page of a contributor do not show them.
 
 ### 5.5 CHANGELOG (CL)
 
@@ -389,7 +449,14 @@ measured in 8.2 appear:
   "unknown".
 
 Without a start date (`conventions.since` of the workspace or of the repository), the repository is "not
-evaluable: missing start date". PR3 and PR4 are added with phases 8.5 and 8.6, SV3 with phase 8.4.
+evaluable: missing start date". PR3 and PR4 are added with phases 8.5 and 8.6.
+
+**Phase 8.4: SV2 deadline and SV3 in the review.** With a due date, **SV2** also judges when the tag with the
+exact name was set: "on time" conform, "late" not conform, "undetermined" unknown (`deadline_undetermined`).
+**SV3** follows SV2 (the "milestone tags never rewritten" criterion combines SV1, SV2 and SV3): conform when no
+rewrite of the tag that designates the milestone was observed (stable, or deleted then set again on the same
+commit), not conform when it was rewritten or deleted; missing tag: "unknown" with the reason of SV1; tag
+never observed: "unknown" (`not_observed`). The review therefore counts twelve criteria.
 
 **Phase 8.3: file criteria of the review.** Seven criteria follow SV2, read from the cache of the sync for
 the **tree of the tag** that designates the milestone (same rule as SV1: exact name, else the first
@@ -433,6 +500,9 @@ absent from the tree counts once (RD1 or DOC1 not conform), the criteria that re
   `sha`, `computed_at`, `conform`, `unknown`, `total`, `criteria[{id,status,reason,codes,counts}]`; `docs`
   adds `lists`, filled only in the detailed view of a repository and empty otherwise, so that the keys stay
   the same) and `files` per repository of the milestone review.
+- **JSON, phase 8.4**: only adds keys: `rewrites`, `tag_history`, `prereleases`, `bumps`, `precedence` and
+  `changelog_freshness` per repository, `deadline` per milestone of `tags.milestones`, `deadline` and
+  `tag_history` per repository of the milestone review; details in [05-cli.md](05-cli.md#json-output).
 - **Phase 8.3: reading of the file criteria.** `Build` and `ReviewMilestone` only read the cache of the
   sync (`repository_conventions`), never the clone, except for the path lists. The head of the default
   branch is compared with the last known commit of the branch in the database, a milestone tag with its
@@ -466,7 +536,7 @@ charter in [section 3](#3-reference-the-charter).
 | `pr.body_sections`, `pr.require_closes` | charter sections, `true` | PR body |
 | `pr.min_reviews`, `pr.reviewer_must_contribute` | 1, `false` | Reviews; another account is enough, unless the reviewer must be a contributor |
 | `tags.milestones` | `v1.0.0`, `v2.0.0`, `v3.0.0` (no deadline) | Milestones (SV2, milestone review): each entry `vX.Y.Z`, or `vX.Y.Z@YYYY-MM-DD` for a deadline |
-| `tags.prerelease_forms` | `rc`, `beta`, `alpha` | Compliant pre-releases; the other forms give a warning (SV4, phase 8.4; not read yet in 8.2) |
+| `tags.prerelease_forms` | `rc`, `beta`, `alpha` | Compliant pre-release forms `-<form>.N` (SV4, phase 8.4); the other forms give a warning, never a deviation |
 | `changelog.categories_fr` | `true` | Allows French labels (categories, H1, `[Non publié]`) with a warning; `false`: they are deviations (CL2, CL3, CL5) |
 | `readme.sections` | the eight charter sections | Expected README sections (RD2): keys among `presentation`, `group`, `stack`, `install`, `run`, `env`, `tree`, `license`; their FR and EN synonyms are built in and versioned |
 | `readme.min_words` | 150 | Number of words below which the README is too short (RD4), at least 1 |
@@ -510,9 +580,9 @@ last two; the pattern is never split: `{2,40}` stays whole). Rules checked at lo
   calendar date (`v1.0.0@2026-12-18`; the deadline runs until the end of the day, in the workspace time
   zone); a version appears only once; an empty list declares no milestone.
 
-`tags.prerelease_forms` does not exist yet: it comes with SV4 (phase 8.4). In 8.2, SV1 accepts any valid
-SemVer pre-release, whatever its form (`-rc1` as well as `-rc.1`), and the setting is refused at load time
-like any unknown key.
+`tags.prerelease_forms` did not exist in 8.2: it comes with SV4 (phase 8.4, see below). SV1 still accepts
+any valid SemVer pre-release, whatever its form (`-rc1` as well as `-rc.1`); SV4 is the one that warns about
+a free form.
 
 In the sharing file, these keys are written `settings.conventions.branch` (`pattern`, `exclude`) and
 `settings.conventions.tags` (`milestones`); a file that contains them is refused by the versions before
@@ -556,6 +626,22 @@ recomputes the file criteria at the next sync. In the sharing file, they are wri
 `settings.conventions.changelog` (`categories_fr`), `settings.conventions.readme` (`sections`, `min_words`)
 and `settings.conventions.docs` (`dir`, `media_dir`, `archives_scope`); a file that contains them is refused
 by the versions before 1.9.0, which accept no unknown key (as is a `config.yaml` that contains them).
+
+**Phase 8.4**: `tags.prerelease_forms` is added (1.10.0), shared like `commit.*`. Exact syntax:
+
+```yaml
+conventions:
+  tags:
+    prerelease_forms: ["rc", "beta", "alpha"] # compliant forms "-<form>.N"
+```
+
+Environment variable: `WATCHOO_CONVENTIONS_TAGS_PRERELEASE_FORMS` (comma-separated list, `rc,preview`).
+Rules checked at load time: **at least one form**; each form is a word of 1 to 32 lowercase ASCII letters
+(`rc`, `preview`; `RC`, `rc1`, `pre-release` are refused); a form appears only once. A pre-release has a
+compliant form if it is written exactly `-<form>.N`, the form in the list and `N` an integer without a
+leading zero (`v1.0.0-rc.1`); any other form (`-rc1`, `-RC.1`, `-pre`) gets a SV4 warning, never a
+deviation. In the sharing file, the key is written `settings.conventions.tags.prerelease_forms`; a file that
+contains it is refused by the versions before 1.10.0 (as is a `config.yaml` that contains it).
 
 ## 9. Technical impact
 
@@ -602,6 +688,18 @@ by the versions before 1.9.0, which accept no unknown key (as is a `config.yaml`
     path, tag name or content), the repository sync succeeds; a database access failure (reading or writing the cache, reading the
     tags) is logged at Debug level as well;
   - a "future" date (CL4) is judged on the day of the computation, in the time zone of the workspace.
+- **Sync, done in phase 8.4** (history):
+  - only when `conventions.enabled`; written in the transaction of the sync of the repository, at its date;
+  - `tag_observations` is updated only when the read of the tags by the sync succeeded, is not truncated
+    (fewer than 1,000 tags: a list of exactly 1,000 tags is taken as truncated) and skipped no tag (empty
+    name, invalid SHA); otherwise nothing is opened or closed. Same name with another SHA: the old row is
+    closed (`rewritten`) and a new one opened; name gone: closed (`deleted`);
+  - `branch_rewrites`: at most one event per sync, for the default branch tracked before and after, under
+    the same name, two different full SHAs; ancestry read by `git merge-base --is-ancestor --end-of-options`
+    in the clone updated by the sync (both modes); in API mode without a clone that decides,
+    `ErrUnknownBase` on the old head counts as a rewrite;
+  - no tag name, branch name nor SHA in the logs (Debug, repository name only); the sync of the repository
+    never fails because of these computations.
 - **Data** (migrations from `00016`, described first in [Data model](04-data-model.md)):
   - `commits.parent_count`, written at sync time from `Commit.Parents`; existing rows are backfilled by an
     `UPDATE` from `git rev-list --parents` (insertion never modifies a commit already in the database);
@@ -651,7 +749,7 @@ Each phase can be delivered alone; phases 8.1 to 8.4 are enough for a milestone 
 | 8.1 | `internal/conventions` (parser), `internal/semver`, `conventions.*` settings, CC1 to CC4, `commits.parent_count` and its backfill, `watchoo conventions --commits`, web section and contributor page, adjustments to A1, A2 and F4. **Done, not released** (`[Unreleased]` of the CHANGELOG; `scope` code added to the blocking codes of CC2; CC1 per range between tags and CC3 trend since the last tag postponed to 8.2, with the reading of the tags) | 0 quota, 1 migration | 1.7.0 |
 | 8.2 | On the fly: BR1, PR1, PR2, SV1, SV2 (presence), SV6; first milestone review; CC5 to CC7; CC1 per range between tags, CC3 trend. **Done, not released** (`[Unreleased]` of the CHANGELOG; `branch.pattern`, `branch.exclude` and `tags.milestones` settings; `/conventions` route; approximations listed in [5.4](#54-tags-and-semver-sv): forks included until 8.5, PR2 comparison with the only commit not measured, API mode inferred; compact dot on the dashboard postponed) | 0 quota | 1.8.0 |
 | 8.3 | Clone tree: `repository_conventions`, CL1 to CL9, RD1 to RD4, DOC1 to DOC8, TL1 to TL3; milestone review on the tags' tree. **Done, not released** (`[Unreleased]` of the CHANGELOG; migration `00017`; `changelog.categories_fr`, `readme.sections`, `readme.min_words`, `docs.dir`, `docs.media_dir`, `docs.archives_scope` settings; deviations: DOC6 and DOC7 postponed to 8.7, CL10 to 8.4; `FileRulesVersion` separate from `RulesVersion`; `config_hash` also covers the names of the version tags (CL8); category order (CL6) as a warning; date gap between tag and section (CL8) not measured; TL1 without introduction date; DOC4 reads at most 300 documents; path lists only on a repository's page and in `watchoo conventions owner/repo`, not in `/conventions`; in API mode, milestone tags read from the database, see [section 9](#9-technical-impact)) | 0 quota, 1 migration | 1.9.0 |
-| 8.4 | History: `tag_observations` (SV3, SV2 deadlines), `branch_rewrites` (BR4), SV4, SV5, SV7, CL10 | 0 quota, 2 migrations | 1.10.0 |
+| 8.4 | History: `tag_observations` (SV3, SV2 deadlines), `branch_rewrites` (BR4), SV4, SV5, SV7, CL10. **Done, not released** (`[Unreleased]` of the CHANGELOG; migrations `00018` and `00019`; setting `tags.prerelease_forms`; SV3 in the milestone review; approximations listed in [5.4](#54-tags-and-semver-sv): proof of a read of the tags by the dates of `tag_observations`, rewrite of an annotated tag on the same commit invisible, BR4 partial in API mode alone; SV4, SV5, SV7 and CL10 computed at read time, not stored) | 0 quota, 2 migrations | 1.10.0 |
 | 8.5 | API with no extra request: `merge_commit_sha`, `from_fork`, `body_sections`, merge methods; full PR3, PR5, PR6, BR2, BR5 | one reread of the PR lists | 1.11.0 |
 | 8.6 | Reviews: PR4, "merged without review", reviews received | 1 request per merged PR | 1.12.0 |
 | 8.7 | Optional leads: CL11, CL12, RD5, DOC6, DOC7, DOC9, DOC10, TL4, TL5 | 0 quota | MINOR |

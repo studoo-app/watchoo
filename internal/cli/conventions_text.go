@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/studoo-app/watchoo/internal/conventions"
 	"github.com/studoo-app/watchoo/internal/i18n"
@@ -221,7 +222,7 @@ func authorBranchesText(b conventions.BranchTally, dash string) string {
 
 // milestoneText écrit la revue d'un jalon : par dépôt, « k/n critères conformes, u inconnus » puis
 // l'état de chaque critère ; aucune note globale ni tri.
-func milestoneText(st textStyle, rv conventions.MilestoneReview) string {
+func milestoneText(st textStyle, rv conventions.MilestoneReview, loc *time.Location) string {
 	var b strings.Builder
 	b.WriteString(st.gray(i18n.T("cli.conv.milestone_notice")) + "\n\n")
 	title := i18n.T("cli.conv.milestone_title", rv.Milestone.Name)
@@ -247,15 +248,15 @@ func milestoneText(st textStyle, rv conventions.MilestoneReview) string {
 			if c.Reason != "" {
 				status += " (" + i18n.T("cli.conv.reason."+c.Reason) + ")"
 			}
-			b.WriteString("  " + c.ID + "  " + status + criterionDetail(r, c.ID, dash) + "\n")
+			b.WriteString("  " + c.ID + "  " + status + criterionDetail(r, c.ID, dash, loc) + "\n")
 		}
 	}
 	return strings.TrimRight(b.String(), "\n")
 }
 
 // criterionDetail précise un critère de la revue : intervalle et taux (CC1), branches (BR1), tag (SV1,
-// SV2), sections du README au tag (RD2, phase 8.3).
-func criterionDetail(r conventions.RepoMilestoneReview, id, dash string) string {
+// SV2 et son échéance), historique du tag (SV3, phase 8.4), sections du README au tag (RD2, phase 8.3).
+func criterionDetail(r conventions.RepoMilestoneReview, id, dash string, loc *time.Location) string {
 	switch id {
 	case conventions.CriterionCC1:
 		iv := r.Interval
@@ -290,7 +291,20 @@ func criterionDetail(r conventions.RepoMilestoneReview, id, dash string) string 
 		}
 		return s
 	case conventions.CriterionSV2:
-		return " — " + milestoneStatusText(r.Milestone)
+		s := " — " + milestoneStatusText(r.Milestone)
+		if d := deadlineText(r.Milestone.Deadline, loc); d != "" {
+			s += ", " + d
+		}
+		return s
+	case conventions.CriterionSV3:
+		if r.History == nil {
+			return ""
+		}
+		s := " — " + i18n.T("conv.history.status."+r.History.Status)
+		if r.History.Status == conventions.TagHistoryStable {
+			s = " — " + i18n.T("conv.history.since", dateText(r.History.FirstSeenAt, loc))
+		}
+		return s
 	}
 	return milestoneFileDetail(r, id)
 }

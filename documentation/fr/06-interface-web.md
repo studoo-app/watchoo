@@ -249,6 +249,19 @@ classement sur les signatures, aucune adresse affichée. Règles :
   référencés par l'INDEX (DOC3), liens morts `source → cible` (DOC4), chemins mal nommés (DOC5), archives et
   documents bureautiques (DOC8) ; sans clone lisible, « Listes de chemins indisponibles ». Jamais une
   cellule de l'INDEX ni un contenu de fichier.
+  Depuis 1.10.0 (phase 8.4), chaque jalon reçoit aussi une pastille d'**échéance** (SV2 : « à l'heure »,
+  « en retard », « indéterminé ») avec la première observation de son tag, ou « posé entre le X et le Y » ;
+  et la section ajoute **Historique des tags et de la branche par défaut, versions**
+  (`repo-conventions-history`), observé par les synchros quand les conventions sont activées et attribué à
+  personne : les **réécritures de la branche par défaut** (BR4 : nombre, date de la dernière, chaque
+  événement avec sa date et les SHA courts ancien et nouveau ; sinon « aucune réécriture de la branche par
+  défaut observée »), l'**historique des tags** (SV3 : « n sans réécriture observée depuis le <date>, r
+  réécrit(s), d supprimé(s) », une pastille par tag, ceux qui ont changé d'abord ; jamais « jamais
+  réécrit »), les **pré-versions** (SV4 : avertissements seulement), la **précédence** des versions finales
+  (SV7 ; incrément sauté en information), les **sauts de version** (SV5 : décomptes, puis chaque paire qui
+  n'est pas cohérente avec le saut attendu ou la raison) et la **fraîcheur du CHANGELOG** (CL10 : `feat` et
+  `fix` depuis le dernier commit qui a touché le CHANGELOG, grisée quand le CHANGELOG du dernier jalon est à
+  jour). SV4, SV5, SV7 et CL10 sont lus dans le clone local (« inconnu (pas de clone local) » sans clone).
 - Bouton **« Synchroniser ce dépôt »** (absent si le suivi est arrêté).
 - Fragments : `/repos/{id}/commits` (historique) ; `/repos/{id}` avec l'en-tête `HX-Target`
   `repo-overview`, `repo-contributors`, `repo-languages`, `repo-pulls`, `repo-diagnostic` ou
@@ -521,15 +534,21 @@ activées (`conventions.enabled`). Désactivées : la page explique comment les 
   conformes (BR1) et nombre à revoir, titres de pull request conformes (ouvertes et fusionnées à part,
   titres par défaut ; « inconnu » sans données de l'API), tags conformes (SV1), une pastille par jalon
   configuré (SV2) et la langue des sujets (CC7) ; depuis 1.9.0, une colonne **Fichiers**, une pastille
-  par famille (« CHANGELOG 6/8 · 1 inconnus »), ou « inconnu » avec sa raison (phase 8.3).
+  par famille (« CHANGELOG 6/8 · 1 inconnus »), ou « inconnu » avec sa raison (phase 8.3) ; depuis 1.10.0,
+  la pastille d'un jalon avec échéance est suivie de sa pastille d'échéance (à l'heure, en retard,
+  indéterminé), et une colonne **Historique et versions** donne les réécritures de la branche par défaut,
+  les tags réécrits ou supprimés, les sauts sous-versionnés, les avertissements de pré-version et de
+  précédence et les commits `feat`/`fix` depuis le CHANGELOG (phase 8.4).
 - **Par contributeur** : par nom, jamais triés par conformité : commits conformes (CC3), tendance (avant /
   depuis le dernier tag final), titres de pull request et branches conformes (seulement les branches de tête
   de ses pull requests). Tags, jalons et branches sans pull request ne sont attribués à personne.
 - **Revue de jalon** (`?milestone=vX.Y.Z`, premier jalon configuré par défaut ; jalon absent de
   `conventions.tags.milestones` : 400) : un tableau dépôt × critère (CC1 sur l'intervalle du jalon, BR1,
   SV1, SV2 ; depuis 1.9.0 CL9, CL8, RD1, RD2 section installation, RD3, DOC1 et DOC3, lus sur l'arbre du tag
-  du jalon ; tag absent : « inconnu » avec la raison de SV1), chaque case « conforme », « non conforme » ou « inconnu » avec sa raison, puis « k/n critères
-  conformes, u inconnus » et l'intervalle lu ; aucune note globale. Sans date de début : « Non évaluable :
+  du jalon ; tag absent : « inconnu » avec la raison de SV1 ; depuis 1.10.0 SV3 après SV2, et SV2 juge
+  l'échéance), chaque case « conforme », « non conforme » ou « inconnu » avec sa raison, puis « k/n critères
+  conformes, u inconnus », l'échéance et l'historique du tag (1.10.0) et l'intervalle lu ; aucune note
+  globale. Sans date de début : « Non évaluable :
   date de début manquante ». Aucun jalon configuré : un texte dédié.
 - L'espace se synchronise par les clones seuls : une note indique que pull requests et releases sont
   inconnues.

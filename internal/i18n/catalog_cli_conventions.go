@@ -1,4 +1,4 @@
-// Textes du paquet internal/cli pour « watchoo conventions » (phases 8.1 à 8.3) : aide, rappel, tableaux
+// Textes du paquet internal/cli pour « watchoo conventions » (phases 8.1 à 8.4) : aide, rappel, tableaux
 // des dépôts, des contributeurs et des commits, libellés des codes d'écart (CC2) et des motifs d'exclusion
 // (CC4), puis lignes de branches (BR1), PR (PR1, PR2), tags et jalons (SV1, SV2), releases (SV6),
 // formulation, pieds et langue (CC5 à CC7), intervalles entre tags et revue de jalon. Préfixe des clés : « cli.conv. ». Les clés et valeurs JSON (codes, motifs, sources) ne passent
@@ -44,8 +44,15 @@ File criteria, measured by "watchoo sync" on the local clone and read from its c
 family. With a repository (watchoo conventions owner/repo), the path lists are recomputed from the
 clone: documents not referenced by the INDEX, dead links, badly named paths, archives.
 
+History, observed by "watchoo sync" while the conventions are enabled and read from the clone: rewrites
+of the default branch (BR4, never attributed to anyone), tags rewritten or deleted (SV3: "no rewrite
+observed since" the first observation), the due dates of the milestones compared to the first
+observation of their tag (SV2), the pre-releases (SV4, warnings), the version bumps compared to the
+declared commits (SV5, under-versioning only), the precedence of the versions against the history
+(SV7) and the "feat" and "fix" commits since the last change of the CHANGELOG (CL10, information).
+
 --milestone vX.Y.Z shows the review of a configured milestone, repository by repository: CC1 on the
-milestone interval, BR1, SV1 and SV2, then CL9, CL8, RD1, RD2 (installation section), RD3, DOC1 and
+milestone interval, BR1, SV1, SV2 (with its due date) and SV3, then CL9, CL8, RD1, RD2 (installation section), RD3, DOC1 and
 DOC3 on the tree of the milestone tag, each conform, not conform or unknown ("k/n criteria conform,
 u unknown"), never an overall grade. It requires a start date (conventions.since).
 
@@ -91,8 +98,15 @@ grille par famille. Avec un dépôt (watchoo conventions owner/repo), les listes
 recalculées depuis le clone : documents non référencés par l'INDEX, liens morts, chemins mal nommés,
 archives.
 
+Historique, observé par « watchoo sync » quand les conventions sont activées et lu dans le clone :
+réécritures de la branche par défaut (BR4, attribuées à personne), tags réécrits ou supprimés (SV3 :
+« aucune réécriture observée depuis » la première observation), échéances des jalons comparées à la
+première observation de leur tag (SV2), pré-versions (SV4, avertissements), sauts de version comparés
+aux commits déclarés (SV5, sous-versionnement seulement), précédence des versions face à l'historique
+(SV7) et commits « feat » et « fix » depuis la dernière modification du CHANGELOG (CL10, information).
+
 --milestone vX.Y.Z affiche la revue d'un jalon configuré, dépôt par dépôt : CC1 sur l'intervalle du
-jalon, BR1, SV1 et SV2, puis CL9, CL8, RD1, RD2 (section installation), RD3, DOC1 et DOC3 sur l'arbre
+jalon, BR1, SV1, SV2 (avec son échéance) et SV3, puis CL9, CL8, RD1, RD2 (section installation), RD3, DOC1 et DOC3 sur l'arbre
 du tag du jalon, chacun conforme, non conforme ou inconnu (« k/n critères conformes, u inconnus »),
 jamais de note globale. Elle exige une date de début (conventions.since).
 
@@ -284,18 +298,22 @@ Options :
 	"cli.conv.criterion_status.nonconform": {"not conform", "non conforme"},
 	"cli.conv.criterion_status.unknown":    {"unknown", "inconnu"},
 
-	"cli.conv.reason.no_clone":         {"no local clone", "pas de clone local"},
-	"cli.conv.reason.clone_unreadable": {"unreadable clone", "clone illisible"},
-	"cli.conv.reason.no_api":           {"no data from the GitHub API", "pas de données de l'API GitHub"},
-	"cli.conv.reason.filtered":         {"report restricted to contributors", "rapport restreint à des contributeurs"},
-	"cli.conv.reason.no_final_tag":     {"no conforming final tag", "aucun tag final conforme"},
-	"cli.conv.reason.no_since":         {"missing start date", "date de début manquante"},
-	"cli.conv.reason.no_tag":           {"milestone tag missing, no due date", "tag du jalon absent, sans échéance"},
-	"cli.conv.reason.tag_absent":       {"milestone tag still missing after the due date", "tag du jalon toujours absent après l'échéance"},
-	"cli.conv.reason.not_due":          {"before the due date", "avant l'échéance"},
-	"cli.conv.reason.no_commits":       {"no evaluated commit", "aucun commit évalué"},
-	"cli.conv.reason.partial":          {"commits not in the database", "commits absents de la base"},
-	"cli.conv.reason.no_branch":        {"no branch to evaluate", "aucune branche à évaluer"},
+	"cli.conv.reason.no_clone":              {"no local clone", "pas de clone local"},
+	"cli.conv.reason.clone_unreadable":      {"unreadable clone", "clone illisible"},
+	"cli.conv.reason.no_api":                {"no data from the GitHub API", "pas de données de l'API GitHub"},
+	"cli.conv.reason.filtered":              {"report restricted to contributors", "rapport restreint à des contributeurs"},
+	"cli.conv.reason.no_final_tag":          {"no conforming final tag", "aucun tag final conforme"},
+	"cli.conv.reason.no_since":              {"missing start date", "date de début manquante"},
+	"cli.conv.reason.no_tag":                {"milestone tag missing, no due date", "tag du jalon absent, sans échéance"},
+	"cli.conv.reason.tag_absent":            {"milestone tag still missing after the due date", "tag du jalon toujours absent après l'échéance"},
+	"cli.conv.reason.not_due":               {"before the due date", "avant l'échéance"},
+	"cli.conv.reason.no_commits":            {"no evaluated commit", "aucun commit évalué"},
+	"cli.conv.reason.partial":               {"commits not in the database", "commits absents de la base"},
+	"cli.conv.reason.no_branch":             {"no branch to evaluate", "aucune branche à évaluer"},
+	"cli.conv.reason.not_observed":          {"tag never seen by a complete read of the tags", "tag jamais vu par une lecture complète des tags"},
+	"cli.conv.reason.deadline_undetermined": {"tagging date undetermined against the due date", "date de pose indéterminée par rapport à l'échéance"},
+	"cli.conv.reason.no_base":               {"no lower final tag is an ancestor", "aucun tag final inférieur n'en est ancêtre"},
+	"cli.conv.reason.low_conform":           {"fewer than 80% conforming commits", "moins de 80 % de commits conformes"},
 
 	// Phase 8.3 : critères de fichiers (CHANGELOG, README, documentation, outillage).
 	"cli.conv.reason.empty_repository": {"empty repository", "dépôt vide"},
@@ -355,6 +373,13 @@ Options :
 		"Sections du README au tag : %s",
 	},
 	"cli.conv.milestone_readme_none": {"none found", "aucune trouvée"},
+
+	// Phase 8.4 (libellés des codes et états : clés « conv. » communes avec le web).
+	"cli.conv.history_unknown": {"%s: unknown (%s)", "%s : inconnu (%s)"},
+	"cli.conv.history_item":    {"%s: %s (%s)", "%s : %s (%s)"},
+	"cli.conv.label_value":     {"%s: %s", "%s : %s"},
+	"cli.conv.sep":             {"; ", " ; "},
+	"cli.conv.deadlines_line":  {"due dates: %s", "échéances : %s"},
 }
 
 func init() {

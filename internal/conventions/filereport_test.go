@@ -220,7 +220,7 @@ func TestReviewMilestoneFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 	p := rv.Repos[0]
-	got := statuses(p.Criteria)[4:]
+	got := statuses(p.Criteria)[5:]
 	// Tree of the tag: CHANGELOG section present, README without installation section, INDEX exhaustive.
 	want := []string{"CL9:conform:", "CL8:conform:", "RD1:conform:", "RD2:nonconform:", "RD3:conform:",
 		"DOC1:conform:", "DOC3:conform:"}
@@ -238,14 +238,14 @@ func TestReviewMilestoneFiles(t *testing.T) {
 	// Tag moved since the computation: to recompute.
 	r.tags[1] = []model.Tag{{Name: "v1.0.0", SHA: "t2"}}
 	rv, _ = ReviewMilestone(t.Context(), r, cl, Filter{}, "v1.0.0", opts, after)
-	if got := statuses(rv.Repos[0].Criteria)[4:]; !slices.Equal(got, fileTail(UnknownStale)) {
+	if got := statuses(rv.Repos[0].Criteria)[5:]; !slices.Equal(got, fileTail(UnknownStale)) {
 		t.Errorf("moved tag: %v", got)
 	}
 	// Not computed yet.
 	r.tags[1] = []model.Tag{{Name: "v1.0.0", SHA: "t1"}}
 	r.files = map[int64][]model.RepositoryConventions{1: {headRow}}
 	rv, _ = ReviewMilestone(t.Context(), r, cl, Filter{}, "v1.0.0", opts, after)
-	if got := statuses(rv.Repos[0].Criteria)[4:]; !slices.Equal(got, fileTail(UnknownNotComputed)) ||
+	if got := statuses(rv.Repos[0].Criteria)[5:]; !slices.Equal(got, fileTail(UnknownNotComputed)) ||
 		rv.Repos[0].Files.Reason != UnknownNotComputed {
 		t.Errorf("not computed: %v", got)
 	}
@@ -255,7 +255,7 @@ func TestReviewMilestoneFiles(t *testing.T) {
 	r.files = map[int64][]model.RepositoryConventions{1: {cacheRow(t, r, cl,
 		FileTarget{Kind: model.ConventionRevTag, Tag: "v1.0.0", SHA: "t1"}, opts)}}
 	rv, _ = ReviewMilestone(t.Context(), r, cl, Filter{}, "v1.0.0", opts, after)
-	if c := rv.Repos[0].Criteria[7]; c.ID != CriterionRD2 || c.Status != CriterionConform {
+	if c := rv.Repos[0].Criteria[8]; c.ID != CriterionRD2 || c.Status != CriterionConform {
 		t.Errorf("RD2 install: %+v", c)
 	}
 	r.errFiles = errors.New("db")

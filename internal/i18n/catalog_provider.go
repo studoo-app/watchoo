@@ -329,6 +329,14 @@ var providerTexts = map[string]entry{
 		"parent counts of the commits of %s/%s",
 		"nombre de parents des commits de %s/%s",
 	},
+	"provider.git.op.ancestry": {
+		"ancestry of %s and %s in %s/%s",
+		"ascendance de %s et %s dans %s/%s",
+	},
+	"provider.git.op.last_touch": {
+		"last commit touching a file from %s in %s/%s",
+		"dernier commit modifiant un fichier depuis %s dans %s/%s",
+	},
 	"provider.git.op.rev_list": {
 		"commits of the tracked branches of %s/%s",
 		"commits des branches suivies de %s/%s",

@@ -160,7 +160,7 @@ signed on this commit?", never "was this code written by AI?".
 
 ## Project conventions
 
-Phases 8.1 to 8.3 (not released): Watchoo measures the compliance of commit messages with a Conventional
+Phases 8.1 to 8.4 (not released): Watchoo measures the compliance of commit messages with a Conventional
 Commits charter, then that of branch names, pull request titles and tags, then that of the CHANGELOG, the
 README, the documentation and the tooling; the details are in
 [Project conventions](13-conventions.md).
@@ -193,10 +193,19 @@ README, the documentation and the tooling; the details are in
     and never stored;
   - **milestone review**: CL9, CL8, RD1, RD2 (installation section), RD3, DOC1 and DOC3 are added, on the
     tree of the milestone tag.
+- **Phase 8.4**, history observed by the sync while the conventions are enabled (`tag_observations` and
+  `branch_rewrites` tables, migrations `00018` and `00019`), versions read from the clone:
+  - **BR4**: rewrites of the default branch observed (dated events, old and new SHA), never attributed;
+  - **SV3**: tags rewritten or deleted, "no rewrite observed since …", never "never rewritten"; **SV2**: due
+    date of a milestone compared to the first observation of its tag (on time, late, undetermined);
+  - **SV4** (pre-release forms of `conventions.tags.prerelease_forms`, warnings), **SV5** (version bump
+    consistent with the declared commits, under-versioning only), **SV7** (precedence against the history)
+    and **CL10** (`feat` and `fix` since the last change of the CHANGELOG, information);
+  - **milestone review**: SV3 is added after SV2, which also judges the due date.
 - **Output**: `watchoo conventions` command (`--milestone vX.Y.Z` for the milestone review), `/conventions`
   page, section of a repository's page and contributor's page; never the commit message nor a pull request
   title, only the short SHA, the pull request number, the author, the branch and tag names and the codes.
   Repository indicators (branches without a pull request, tags, milestones, files) are attributed to no one.
-- The charter (`since`, `commit.*`, `branch.*`, `tags.milestones`, and since phase 8.3 `changelog.*`,
-  `readme.*`, `docs.*`) is shared through `watchoo config export` /
+- The charter (`since`, `commit.*`, `branch.*`, `tags.milestones`, since phase 8.3 `changelog.*`,
+  `readme.*`, `docs.*`, and since phase 8.4 `tags.prerelease_forms`) is shared through `watchoo config export` /
   `import`.

@@ -483,7 +483,7 @@
       {{end}}
       {{if $c.Milestones}}
       <p class="text-sm">{{t "web.conv.milestones_title"}}</p>
-      <div class="flex flex-wrap gap-1">{{range $c.Milestones}}{{template "conv-status" (dict "Status" .Status "Text" .Name)}}{{if .Tag}} <span class="text-xs text-base-content/60">({{truncate 40 (clean .Tag)}})</span>{{end}}{{end}}</div>
+      <div class="flex flex-wrap gap-1">{{range $c.Milestones}}{{template "conv-status" (dict "Status" .Status "Text" .Name)}}{{if .Tag}} <span class="text-xs text-base-content/60">({{truncate 40 (clean .Tag)}})</span>{{end}}{{with .Deadline}}{{template "conv-status" (dict "Status" . "Text" "")}}{{end}}{{if .DeadlineDetail}} <span class="text-xs text-base-content/60">{{.DeadlineDetail}}</span>{{end}}{{end}}</div>
       {{end}}
       <p class="text-sm">{{t "web.conv.releases_title"}}
         {{if not $c.ReleasesKnown}}<span class="text-base-content/70">{{t "web.conv.releases_unknown" $c.ReleasesReason}}</span>
@@ -517,6 +517,46 @@
       </div>
       {{end}}
     </div>
+
+    {{/* Phase 8.4 : réécritures de la branche par défaut (BR4), historique des tags (SV3), pré-versions (SV4),
+         précédence (SV7), sauts de version (SV5), fraîcheur du CHANGELOG (CL10). Attribués à personne. */}}
+    <h3 class="font-semibold">{{t "web.conv.history_title"}}</h3>
+    <div id="repo-conventions-history" class="space-y-2">{{with $c.History}}
+      <p class="text-sm" id="repo-conventions-rewrites">{{t "web.conv.hist_label" (t "conv.indicator.BR4")}}
+        {{if not .RewritesKnown}}<span class="text-base-content/70">{{t "web.conv.cell_unknown"}} ({{.RewritesReason}})</span>
+        {{else if not .RewritesTotal}}<span class="text-base-content/70">{{t "conv.rewrites.none"}}</span>
+        {{else}}{{t "conv.rewrites.count" .RewritesTotal (localDate .RewritesLast)}}{{end}}
+      </p>
+      {{if .Rewrites}}<ul class="text-xs space-y-1 pl-5 list-disc">{{range .Rewrites}}<li>{{localDate .ObservedAt}} · <span class="font-mono">{{truncate 40 (clean .Branch)}}</span> · <span class="badge badge-sm badge-ghost font-mono">{{shortSHA .OldSHA}}</span> → <span class="badge badge-sm badge-ghost font-mono">{{shortSHA .NewSHA}}</span></li>{{end}}</ul>{{end}}
+      <p class="text-sm" id="repo-conventions-tag-history">{{t "web.conv.hist_label" (t "conv.indicator.SV3")}}
+        {{if not .TagsObserved}}<span class="text-base-content/70">{{t "web.conv.cell_unknown"}} ({{.TagsReason}})</span>
+        {{else}}{{t "web.conv.hist_line" .TagsStable (localDate .TagsSince) .TagsRewritten .TagsDeleted}}{{end}}
+      </p>
+      {{if .TagHistory}}<div class="flex flex-wrap gap-1">{{range .TagHistory}}{{template "conv-status" (dict "Status" .Status "Text" (truncate 40 .Name))}}{{end}}</div>
+      {{if .TagHistoryMore}}<p class="text-xs text-base-content/60">{{t "web.conv.hist_more" .TagHistoryMore}}</p>{{end}}{{end}}
+      <p class="text-sm" id="repo-conventions-prereleases">{{t "web.conv.hist_label" (t "conv.indicator.SV4")}}
+        {{if not .PreKnown}}<span class="text-base-content/70">{{t "web.conv.cell_unknown"}} ({{.PreReason}})</span>
+        {{else if not .PreChecked}}<span class="text-base-content/70">{{t "conv.prereleases.none"}}</span>
+        {{else}}{{t "conv.prereleases.line" .PreConform .PreChecked}}{{end}}
+      </p>
+      {{if .PreNotes}}<div class="flex flex-wrap gap-1">{{range .PreNotes}}{{template "conv-status" (dict "Status" .Status "Text" (truncate 40 .Tag))}}{{if .Other}} <span class="text-xs text-base-content/60">({{truncate 40 (clean .Other)}})</span>{{end}}{{end}}</div>{{end}}
+      <p class="text-sm" id="repo-conventions-precedence">{{t "web.conv.hist_label" (t "conv.indicator.SV7")}}
+        {{if .PrecReason}}<span class="text-base-content/70">{{t "web.conv.cell_unknown"}} ({{.PrecReason}})</span>{{end}}
+        {{if .PrecKnown}}{{t "conv.precedence.line" .PrecPairs}}{{if .PrecConsistent}} · {{t "conv.precedence.consistent"}}{{end}}{{if .PrecUnknown}} · {{t "conv.precedence.unread" .PrecUnknown}}{{end}}{{end}}
+      </p>
+      {{if .PrecNotes}}<div class="flex flex-wrap gap-1">{{range .PrecNotes}}{{template "conv-status" (dict "Status" .Status "Text" (truncate 40 .Tag))}}{{if .Other}} <span class="text-xs text-base-content/60">({{truncate 40 (clean .Other)}})</span>{{end}}{{end}}</div>{{end}}
+      <p class="text-sm" id="repo-conventions-bumps">{{t "web.conv.hist_label" (t "conv.indicator.SV5")}}
+        {{if not .BumpsKnown}}<span class="text-base-content/70">{{t "web.conv.cell_unknown"}} ({{.BumpsReason}})</span>
+        {{else if not .BumpsTotal}}<span class="text-base-content/70">{{t "conv.bumps.none"}}</span>
+        {{else}}{{t "conv.bumps.line" .BumpsConsistent .BumpsUnder .BumpsUndet .BumpsUnread}}{{end}}
+      </p>
+      {{if .Bumps}}<ul class="text-xs space-y-1 pl-5 list-disc">{{range .Bumps}}<li><span class="font-mono">{{if .Other}}{{truncate 30 (clean .Other)}}{{else}}?{{end}}..{{truncate 30 (clean .Tag)}}</span> {{template "conv-status" (dict "Status" .Status "Text" "")}}{{if .Detail}} {{.Detail}}{{end}}</li>{{end}}</ul>{{end}}
+      <p class="text-sm{{if .FreshGrayed}} text-base-content/60{{end}}" id="repo-conventions-freshness">{{t "web.conv.hist_label" (t "conv.indicator.CL10")}}
+        {{if not .FreshKnown}}<span class="text-base-content/70">{{t "web.conv.cell_unknown"}} ({{.FreshReason}})</span>
+        {{else}}{{t "conv.freshness.line" .FreshFeat .FreshFix (shortSHA .FreshSince)}}{{if .FreshMissing}} · {{t "conv.freshness.missing" .FreshMissing}}{{end}}{{if .FreshGrayed}} · {{t "conv.freshness.grayed"}}{{end}}{{end}}
+      </p>
+      <p class="text-xs text-base-content/60">{{t "web.conv.history_note"}}</p>
+    {{end}}</div>
 
     {{/* Phase 8.3 : critères de fichiers (cache de la synchro), listes de chemins repliées. */}}
     <h3 class="font-semibold">{{t "web.conv.files_title"}}</h3>

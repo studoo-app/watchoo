@@ -123,6 +123,13 @@ func TestSharedSettingsFromAndValues(t *testing.T) {
 	if got := v[KeyConventionsMilestones]; !reflect.DeepEqual(got, []string{}) {
 		t.Errorf("conventions.tags.milestones = %#v, empty list expected", got)
 	}
+	if got := v[KeyConventionsPrereleaseForms]; !reflect.DeepEqual(got, []string{"rc", "beta", "alpha"}) {
+		t.Errorf("conventions.tags.prerelease_forms = %#v", got)
+	}
+	cfg.Conventions.Tags.PrereleaseForms[0] = "changed"
+	if (*s.ConventionsPrereleaseForms)[0] != "rc" {
+		t.Error("conventions.tags.prerelease_forms not copied")
+	}
 	cfg.Conventions.Branch.Exclude[0] = "changed"
 	if (*s.ConventionsBranchExclude)[0] != "gh-pages" {
 		t.Error("conventions.branch.exclude not copied")
@@ -183,29 +190,30 @@ func TestSharedSettingsApplyToConventions(t *testing.T) {
 	cfg.Conventions.ExcludedAccounts = []string{"prof"}
 	types := []string{"feat", "fix"}
 	s := SharedSettings{
-		ConventionsSince:          ptr("2026-09-01"),
-		ConventionsTypes:          &types,
-		ConventionsScopes:         &[]string{"api"},
-		ConventionsMaxSubjectSoft: ptr(60),
-		ConventionsMaxSubjectHard: ptr(90),
-		ConventionsForbidden:      new([]string), // nil list: becomes an empty list
-		ConventionsLanguage:       ptr("fr"),
-		ConventionsBranchPattern:  ptr("^feat/.+$"),
-		ConventionsBranchExclude:  &[]string{"gh-pages"},
-		ConventionsMilestones:     &[]string{"v1.0.0@2026-12-18"},
-		ConventionsCategoriesFR:   ptr(false),
-		ConventionsReadmeSections: &[]string{"install"},
-		ConventionsReadmeMinWords: ptr(40),
-		ConventionsDocsDir:        ptr("docs"),
-		ConventionsDocsMediaDir:   ptr("img"),
-		ConventionsArchivesScope:  ptr("documentation"),
+		ConventionsSince:           ptr("2026-09-01"),
+		ConventionsTypes:           &types,
+		ConventionsScopes:          &[]string{"api"},
+		ConventionsMaxSubjectSoft:  ptr(60),
+		ConventionsMaxSubjectHard:  ptr(90),
+		ConventionsForbidden:       new([]string), // nil list: becomes an empty list
+		ConventionsLanguage:        ptr("fr"),
+		ConventionsBranchPattern:   ptr("^feat/.+$"),
+		ConventionsBranchExclude:   &[]string{"gh-pages"},
+		ConventionsMilestones:      &[]string{"v1.0.0@2026-12-18"},
+		ConventionsPrereleaseForms: &[]string{"rc"},
+		ConventionsCategoriesFR:    ptr(false),
+		ConventionsReadmeSections:  &[]string{"install"},
+		ConventionsReadmeMinWords:  ptr(40),
+		ConventionsDocsDir:         ptr("docs"),
+		ConventionsDocsMediaDir:    ptr("img"),
+		ConventionsArchivesScope:   ptr("documentation"),
 	}
 	got := s.ApplyTo(cfg)
 	want := ConventionsConfig{Enabled: true, Since: "2026-09-01",
 		Commit: ConventionsCommitConfig{Types: []string{"feat", "fix"}, Scopes: []string{"api"},
 			MaxSubjectSoft: 60, MaxSubjectHard: 90, Forbidden: []string{}, Language: "fr"},
 		Branch:           ConventionsBranchConfig{Pattern: "^feat/.+$", Exclude: []string{"gh-pages"}},
-		Tags:             ConventionsTagsConfig{Milestones: []string{"v1.0.0@2026-12-18"}},
+		Tags:             ConventionsTagsConfig{Milestones: []string{"v1.0.0@2026-12-18"}, PrereleaseForms: []string{"rc"}},
 		Changelog:        ConventionsChangelogConfig{CategoriesFR: false},
 		Readme:           ConventionsReadmeConfig{Sections: []string{"install"}, MinWords: 40},
 		Docs:             ConventionsDocsConfig{Dir: "docs", MediaDir: "img", ArchivesScope: "documentation"},
@@ -217,8 +225,10 @@ func TestSharedSettingsApplyToConventions(t *testing.T) {
 	got.Conventions.ExcludedAccounts[0] = "changed"
 	got.Diagnostic.Exclude[0] = "changed"
 	(*s.ConventionsMilestones)[0] = "changed"
+	(*s.ConventionsPrereleaseForms)[0] = "changed"
 	(*s.ConventionsReadmeSections)[0] = "changed"
 	if got.Conventions.Commit.Types[0] != "feat" || got.Conventions.Tags.Milestones[0] != "v1.0.0@2026-12-18" ||
+		got.Conventions.Tags.PrereleaseForms[0] != "rc" ||
 		got.Conventions.Readme.Sections[0] != "install" {
 		t.Error("ApplyTo does not copy the provided list")
 	}
@@ -231,7 +241,7 @@ func TestSharedSettingsApplyToConventions(t *testing.T) {
 	if cfg.Conventions.Since != "" || cfg.Conventions.Commit.MaxSubjectSoft != 50 {
 		t.Error("ApplyTo changed the original configuration")
 	}
-	if got := s.Keys(); !slices.Equal(got, SharedKeys[len(SharedKeys)-16:]) {
+	if got := s.Keys(); !slices.Equal(got, SharedKeys[len(SharedKeys)-17:]) {
 		t.Errorf("Keys = %v", got)
 	}
 }

@@ -210,3 +210,15 @@ pistes par niveau dans l'infobulle. Donnée : diagnostic.Summary. Liste et page 
 
 {{/* Conventions : badge d'un code d'écart (bloquant ou avertissement), code et libellé. Donnée : convCode. */}}
 {{define "conv-code"}}<span class="badge badge-sm {{if .Blocking}}badge-error{{else}}badge-warning{{end}} whitespace-nowrap"><code>{{.Code}}</code> {{.Label}}</span>{{end}}
+
+{{/* Conventions (phase 8.4) : synthèse de l'historique d'un dépôt dans « /conventions » : réécritures de la
+     branche par défaut (BR4), tags réécrits ou supprimés (SV3), sauts sous-versionnés (SV5), constats SV4
+     et SV7, fraîcheur du CHANGELOG (CL10). Donnée : convHistorySummary. */}}
+{{define "conv-history-summary"}}<div class="flex flex-wrap gap-1">
+<span class="badge badge-sm badge-ghost whitespace-nowrap">{{t "web.conv.hist_rewrites" .Rewrites}}</span>
+{{if .TagsObserved}}<span class="badge badge-sm {{if .TagsChanged}}badge-error{{else}}badge-ghost{{end}} whitespace-nowrap">{{t "web.conv.hist_tags" .TagsChanged}}</span>{{end}}
+{{if .BumpsKnown}}<span class="badge badge-sm {{if .BumpsUnder}}badge-error{{else}}badge-ghost{{end}} whitespace-nowrap">{{t "web.conv.hist_under" .BumpsUnder}}</span>{{end}}
+{{if .PreWarnings}}<span class="badge badge-sm badge-warning whitespace-nowrap">{{t "web.conv.hist_prereleases" .PreWarnings}}</span>{{end}}
+{{if .PrecAncestry}}<span class="badge badge-sm badge-warning whitespace-nowrap">{{t "web.conv.hist_precedence" .PrecAncestry}}</span>{{end}}
+{{if .FreshKnown}}<span class="badge badge-sm badge-ghost whitespace-nowrap{{if .FreshGrayed}} text-base-content/60{{end}}">{{t "web.conv.hist_fresh" .FreshFeatFix}}</span>{{end}}
+</div>{{end}}

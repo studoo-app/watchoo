@@ -32,6 +32,7 @@
         <th scope="col">{{t "web.conv.col_milestones"}}</th>
         <th scope="col">{{t "web.conv.col_language"}}</th>
         <th scope="col">{{t "web.conv.col_files"}}</th>
+        <th scope="col">{{t "web.conv.col_history"}}</th>
       </tr></thead>
       <tbody>
         {{range $c.Repos}}
@@ -41,9 +42,10 @@
           <td class="tabular-nums whitespace-nowrap">{{if .BranchesChecked}}{{.BranchesConform}}/{{.BranchesChecked}}{{if .BranchesReview}} <span class="text-base-content/60">· {{t "web.conv.to_review" .BranchesReview}}</span>{{end}}{{else}}—{{end}}</td>
           <td class="text-sm">{{if not .PullsKnown}}<span class="text-base-content/60">{{t "web.conv.cell_unknown"}} ({{.PullsReason}})</span>{{else if .Pulls.Evaluated}}{{template "conv-pr-counts" .Pulls}}{{else}}—{{end}}</td>
           <td class="tabular-nums whitespace-nowrap">{{if .TagsChecked}}{{.TagsConform}}/{{.TagsChecked}}{{else}}—{{end}}</td>
-          <td><div class="flex flex-wrap gap-1">{{range .Milestones}}{{template "conv-status" (dict "Status" .Status "Text" .Name)}}{{end}}</div></td>
+          <td><div class="flex flex-wrap gap-1">{{range .Milestones}}{{template "conv-status" (dict "Status" .Status "Text" .Name)}}{{with .Deadline}}{{template "conv-status" (dict "Status" . "Text" "")}}{{end}}{{end}}</div></td>
           <td class="text-sm whitespace-nowrap">{{template "conv-language" .Language}}</td>
           <td class="text-sm">{{if .FilesReason}}<span class="text-base-content/60">{{t "web.conv.cell_unknown"}} ({{.FilesReason}})</span>{{else}}<div class="flex flex-wrap gap-1">{{range .Files}}<span class="badge badge-sm badge-ghost whitespace-nowrap">{{.Label}} {{.Conform}}/{{.Total}}{{if .Unknown}} · {{t "web.conv.family_unknown" .Unknown}}{{end}}</span>{{end}}</div>{{end}}</td>
+          <td class="text-sm">{{template "conv-history-summary" .History}}</td>
         </tr>
         {{end}}
       </tbody>
@@ -122,6 +124,8 @@
           {{else}}
           {{range .Cells}}<td>{{template "conv-status" (dict "Status" .Status "Text" "")}}{{if .Reason}}<div class="text-xs text-base-content/60">{{.Reason}}</div>{{end}}</td>{{end}}
           <td class="text-sm">{{t "web.conv.review_result" .Conform .Total .Unknown}}
+            {{if .Deadline}}<div class="text-xs text-base-content/60">{{t "web.conv.review_deadline" .Deadline .DeadlineDetail}}</div>{{end}}
+            {{if .History}}<div class="text-xs text-base-content/60">{{t "web.conv.review_history" .History}}</div>{{end}}
             {{if .HasInterval}}<div class="text-xs text-base-content/60">{{t "web.conv.interval_label"}} {{if .From}}{{truncate 30 (clean .From)}}{{else}}{{t "web.conv.interval_start"}}{{end}}..{{if .To}}{{truncate 30 (clean .To)}}{{else}}{{t "web.conv.due" .Due}}{{end}}{{if .Missing}} · {{t "web.conv.interval_missing" .Missing}}{{end}}</div>{{end}}
           </td>
           {{end}}

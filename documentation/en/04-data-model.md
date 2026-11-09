@@ -10,7 +10,7 @@ migration `00005` (0.5.0) adds `contributors.profile_url` and the migration `000
 `commits.stats_known`; the migration `00007` (1.1.0) adds `repository_languages`; the migration `00008` (1.2.0)
 adds `commits.ai_rules_version` and the `commit_ai_signatures` table; the migration `00009` (1.2.0) adds
 `commits.languages_version` and the `commit_languages` table, i.e. **thirteen tables**; the migration `00010` (1.3.0)
-adds `sync_runs.warnings`. The migration `00011` (phase 7.1) adds `commit_signals`, the migration `00012` (phase 7.2) `pull_requests.tool_ids` and `repository_signals`, the migration `00013` (phase 7.4) `diagnostic_reviews`, i.e. **sixteen tables**, the migration `00014` (phase 7.5) the form columns of `commit_signals`, and the migration `00015` (phase 7.7) its measures of the absolute signals and counter-indicators (see [Supervision and diagnosis](12-supervision-diagnostic.md)). The migration `00016` (phase 8.1) adds `commits.parent_count` and `repositories.conventions_since` (see [Project conventions](13-conventions.md) and [Migration `00016`](#migration-00016-project-conventions)), and the migration `00017` (phase 8.3) the cache `repository_conventions` of the file criteria of the conventions, i.e. **seventeen tables** (see [Migration `00017`](#migration-00017-cache-of-the-file-criteria)). The storage is a SQLite file versioned by `goose` migrations, with **one
+adds `sync_runs.warnings`. The migration `00011` (phase 7.1) adds `commit_signals`, the migration `00012` (phase 7.2) `pull_requests.tool_ids` and `repository_signals`, the migration `00013` (phase 7.4) `diagnostic_reviews`, i.e. **sixteen tables**, the migration `00014` (phase 7.5) the form columns of `commit_signals`, and the migration `00015` (phase 7.7) its measures of the absolute signals and counter-indicators (see [Supervision and diagnosis](12-supervision-diagnostic.md)). The migration `00016` (phase 8.1) adds `commits.parent_count` and `repositories.conventions_since` (see [Project conventions](13-conventions.md) and [Migration `00016`](#migration-00016-project-conventions)), the migration `00017` (phase 8.3) the cache `repository_conventions` of the file criteria of the conventions (see [Migration `00017`](#migration-00017-cache-of-the-file-criteria)), then the migrations `00018` and `00019` (phase 8.4) the history of the tags `tag_observations` and the observed rewrites of the default branch `branch_rewrites`, i.e. **nineteen tables** (see [Migrations `00018` and `00019`](#migrations-00018-and-00019-history-of-the-tags-and-of-the-default-branch)). The storage is a SQLite file versioned by `goose` migrations, with **one
 database per workspace** (`.watchoo/watchoo.db`, see [Workspaces](10-workspaces.md)). The tables
 therefore do not know the notion of workspace: two workspaces never share data.
 
@@ -32,6 +32,8 @@ erDiagram
     repositories ||--o| repository_signals : "context"
     repositories ||--o{ diagnostic_reviews : "reviews"
     repositories ||--o{ repository_conventions : "file criteria"
+    repositories ||--o{ tag_observations : "observed tags"
+    repositories ||--o{ branch_rewrites : "observed rewrites"
     branches ||--o{ commit_branches : "contains"
     contributors ||--o{ contributor_emails : "uses"
     contributors ||--o{ commits : "author"
@@ -401,6 +403,45 @@ the rows of the tags that no longer designate a configured milestone (tag gone, 
 deleted, and the head row when the source no longer has a default branch. The lists of paths (DOC3, DOC4, DOC5, DOC8) are not stored: they are recomputed from the clone
 for the detailed view of a repository.
 
+### `tag_observations` — history of the observed tags (phase 8.4)
+
+Primary key: **`id`**; one row per **observation period** of a couple (tag name, SHA of the target commit),
+open (`ended_at` NULL) as long as the sync sees the couple; at most one open period per name and per
+repository (partial unique index); deleted with the repository. Written by the sync **only when the
+conventions are enabled**, and only after a **successful, non-truncated** read of the tags (at most 1,000
+tags): a failed, skipped or truncated read closes nothing. Used by SV3 (tag rewritten or deleted) and by the
+deadlines of SV2 (see [Project conventions](13-conventions.md), sections 5.4 and 9). No attribution to a
+person.
+
+| Column | Description |
+| --- | --- |
+| repo_id | Repository |
+| name | Name of the tag (not empty) |
+| sha | SHA of the target commit (complete, 40 or 64 lowercase hexadecimal characters); for an annotated tag, the commit, never the tag object |
+| first_seen_at | First read that saw the couple |
+| last_seen_at | Last read that saw it (`>= first_seen_at`) |
+| ended_at | Read that noticed the end (`>= last_seen_at`); NULL while the period is open |
+| end_reason | `rewritten` (the name designates another commit) or `deleted` (the name disappeared); NULL if and only if `ended_at` is |
+
+At each complete read: a couple seen again moves `last_seen_at`; a name seen with another SHA closes its
+period (`rewritten`) and opens a new one; a missing name closes its period (`deleted`); a couple without an
+open period opens one, including a couple already seen then deleted (the history of the periods stays).
+
+### `branch_rewrites` — observed rewrites of the default branch (phase 8.4)
+
+Primary key: **`id`**; one row per observed event; deleted with the repository. Written by the sync **only
+when the conventions are enabled**, when the old known head of the default branch is no longer an ancestor
+of the new one (BR4, see [Project conventions](13-conventions.md), sections 5.2 and 9); an unknown result
+(old commit missing from the clone) is never recorded. No attribution to a person.
+
+| Column | Description |
+| --- | --- |
+| repo_id | Repository |
+| branch | Default branch at the time of the observation (not empty) |
+| old_sha | Old head (complete lowercase SHA) |
+| new_sha | New head (complete lowercase SHA, different from `old_sha`) |
+| observed_at | End of the sync that observed the rewrite |
+
 ## Index
 
 | Index | Usage |
@@ -417,6 +458,9 @@ for the detailed view of a repository.
 | `commits(repo_id, sha) WHERE parent_count IS NULL` | Partial index: commits whose number of parents is still to be read in the clone (migration `00016`) |
 | `commit_signals(repo_id, author_id, authored_at)` | Per-author sliding windows of the rhythm signals (phase 7.3) |
 | `commit_signals(authored_at)` | Purge by retention period |
+| `tag_observations(repo_id, name) WHERE ended_at IS NULL` | Partial unique index: at most one open period per tag (migration `00018`) |
+| `tag_observations(repo_id, name, first_seen_at)` | History of the tags of a repository (migration `00018`) |
+| `branch_rewrites(repo_id, observed_at)` | Rewrites of a repository by date (migration `00019`) |
 | `diagnostic_reviews(lead_date)` | Purge of the reviews by retention period |
 
 ## Identity merging
@@ -503,6 +547,21 @@ sync with the conventions enabled fills it.
 
 Rolling back (`Down`): the table is removed. A test (`internal/store/migration_conventions_files_test.go`)
 applies the migration to a database at schema `00016`, checks the constraints, then the rollback.
+
+## Migrations `00018` and `00019`: history of the tags and of the default branch
+
+Phase 8.4 ([Project conventions](13-conventions.md)) creates the tables `tag_observations` (migration
+`00018`) and `branch_rewrites` (migration `00019`), see above, without touching the other tables.
+Constraints of `tag_observations`: `name` not empty, `sha` of 40 or 64 lowercase hexadecimal characters,
+dates in the fixed format, `last_seen_at >= first_seen_at`, `ended_at >= last_seen_at`, `end_reason IN
+('rewritten', 'deleted')`, `ended_at` and `end_reason` null together, a single open period per name (partial
+unique index). Constraints of `branch_rewrites`: `branch` not empty, `old_sha` and `new_sha` of 40 or 64
+lowercase hexadecimal characters and different, `observed_at` in the fixed format. Foreign keys on
+`repositories` with `ON DELETE CASCADE`. The tables start empty: the history starts at the first sync with
+the conventions enabled, hence the wording "no rewrite observed since …".
+
+Rolling back (`Down`): each table is removed. A test (`internal/store/tag_history_test.go`) applies the
+migrations to a database at schema `00017`, checks the constraints, then the rollback.
 
 ## Renames and login changes
 

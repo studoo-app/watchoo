@@ -49,6 +49,10 @@ type repoSync struct {
 	// parentWrites sont les nombres de parents rattrapés par le clone (commits déjà en base dont il était
 	// inconnu ; phase 8.1), écrits par ApplyRepoSync.
 	parentWrites []store.CommitParentsWrite
+	// unknownBase sont les branches dont l'ancienne tête est restée introuvable à la comparaison
+	// (provider.ErrUnknownBase) : signal de réécriture de la branche par défaut en mode API (BR4, phase
+	// 8.4, branchRewrites).
+	unknownBase map[string]bool
 }
 
 // syncRepository synchronise repo avec le sync_run run déjà ouvert (verrou pris) ; en cas de succès,
@@ -63,7 +67,8 @@ func (e *Engine) syncRepository(ctx context.Context, prov provider.Provider, cl 
 		e: e, prov: prov,
 		owner: meta.Owner, name: meta.Name, full: meta.FullName(),
 		index: make(map[string]int), merges: make(map[string]bool),
-		files: make(map[string][]provider.CommitFile),
+		files:       make(map[string][]provider.CommitFile),
+		unknownBase: make(map[string]bool),
 	}
 	if s.full != repo.FullName() {
 		e.logger.Info("dépôt renommé ou transféré", "repo", repo.FullName(), "nouveau_nom", s.full)
@@ -170,6 +175,8 @@ func (e *Engine) syncRepository(ctx context.Context, prov provider.Provider, cl 
 		Releases:         x.releases,
 		ReplaceTags:      x.replaceTags,
 		Tags:             x.tags,
+		ObserveTags:      e.observeTags(x),
+		BranchRewrites:   e.branchRewrites(ctx, s, src, headChange(repo, known, meta.DefaultBranch, tracked)),
 		ReplaceLanguages: replaceLangs,
 		Languages:        langs,
 		SyncedAt:         e.now().UTC(),
@@ -247,6 +254,7 @@ func (s *repoSync) fetchBranch(ctx context.Context, isRef, fullList bool, b prov
 	case hasPrev && prev.HeadSHA != "":
 		commits, err = s.compare(ctx, prev.HeadSHA, b.HeadSHA)
 		if errors.Is(err, provider.ErrUnknownBase) {
+			s.unknownBase[b.Name] = true
 			s.e.logger.Debug("ancienne tête introuvable (historique réécrit ?), repli", "repo", s.full,
 				"base", provider.ShortSHA(prev.HeadSHA), "tete", provider.ShortSHA(b.HeadSHA))
 			base := refHead

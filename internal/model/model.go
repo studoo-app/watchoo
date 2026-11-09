@@ -440,6 +440,40 @@ type Tag struct {
 	SHA    string // SHA du commit visé
 }
 
+// Motifs de fin d'une observation de tag (tag_observations.end_reason, phase 8.4).
+const (
+	TagEndRewritten = "rewritten" // le nom a été revu avec un autre SHA
+	TagEndDeleted   = "deleted"   // le nom a disparu de la liste des tags
+)
+
+// TagObservation est une période d'observation d'un couple (nom de tag, SHA du commit visé) par la
+// synchro (table tag_observations, phase 8.4, SV3 et échéances de SV2) : ouverte tant que le couple est vu
+// dans une lecture complète des tags, fermée quand le nom change de SHA ou disparaît. Aucune attribution à
+// une personne.
+type TagObservation struct {
+	RepoID      int64      // dépôt
+	Name        string     // nom du tag
+	SHA         string     // SHA du commit visé
+	FirstSeenAt time.Time  // première lecture qui a vu le couple, UTC
+	LastSeenAt  time.Time  // dernière lecture qui l'a vu, UTC
+	EndedAt     *time.Time // lecture qui a constaté la fin ; nil tant que la période est ouverte
+	EndReason   string     // TagEndRewritten ou TagEndDeleted ; vide tant que la période est ouverte
+}
+
+// Open indique une observation en cours.
+func (o TagObservation) Open() bool { return o.EndedAt == nil }
+
+// BranchRewrite est une réécriture observée de la branche par défaut (table branch_rewrites, phase 8.4,
+// BR4) : à la synchro, l'ancienne tête connue n'était plus ancêtre de la nouvelle. Aucune attribution à une
+// personne (jamais « a poussé »).
+type BranchRewrite struct {
+	RepoID     int64     // dépôt
+	Branch     string    // branche par défaut au moment de l'observation
+	OldSHA     string    // ancienne tête
+	NewSHA     string    // nouvelle tête
+	ObservedAt time.Time // date de la synchro qui l'a observée, UTC
+}
+
 // CommitSignal sont les signaux de diagnostic d'un commit (table commit_signals, phase 7.1), mesurés
 // à la synchro par internal/diagnostic. Ni message, ni e-mail, ni chemin de fichier. Clé : (RepoID, SHA).
 type CommitSignal struct {

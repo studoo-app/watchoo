@@ -343,7 +343,8 @@ func assertMode(t *testing.T, path string, want fs.FileMode) {
 var migratedTables = []string{
 	"branches", "commit_branches", "commits", "contributor_emails", "contributors", "pull_requests", "releases",
 	"repositories", "repository_languages", "sync_runs", "tags", "commit_ai_signatures",
-	"commit_languages", "commit_signals", "diagnostic_reviews", "repository_conventions", "repository_signals",
+	"commit_languages", "commit_signals", "diagnostic_reviews", "repository_conventions", "repository_signals", "tag_observations",
+	"branch_rewrites",
 }
 
 // tables returns the tables of the database path, sorted, SQLite's internal tables excluded. The

@@ -16,6 +16,15 @@ type Branch struct {
 	Tracked bool
 }
 
+type BranchRewrite struct {
+	ID         int64
+	RepoID     int64
+	Branch     string
+	OldSha     string
+	NewSha     string
+	ObservedAt string
+}
+
 type Commit struct {
 	RepoID           int64
 	SHA              string
@@ -207,4 +216,15 @@ type Tag struct {
 	RepoID int64
 	Name   string
 	SHA    string
+}
+
+type TagObservation struct {
+	ID          int64
+	RepoID      int64
+	Name        string
+	SHA         string
+	FirstSeenAt string
+	LastSeenAt  string
+	EndedAt     sql.NullString
+	EndReason   sql.NullString
 }

@@ -52,8 +52,9 @@ func TestExport(t *testing.T) {
 	e.ws.Config.Conventions = workspace.ConventionsConfig{Enabled: true, Since: "2026-09-01",
 		Commit: workspace.ConventionsCommitConfig{Types: []string{"feat", "fix"}, Scopes: nil,
 			MaxSubjectSoft: 50, MaxSubjectHard: 72, Forbidden: []string{"wip"}, Language: "any"},
-		Branch:    workspace.ConventionsBranchConfig{Exclude: []string{"gh-pages", "dependabot/*", "renovate/*"}},
-		Tags:      workspace.ConventionsTagsConfig{Milestones: []string{"v1.0.0", "v2.0.0", "v3.0.0"}},
+		Branch: workspace.ConventionsBranchConfig{Exclude: []string{"gh-pages", "dependabot/*", "renovate/*"}},
+		Tags: workspace.ConventionsTagsConfig{Milestones: []string{"v1.0.0", "v2.0.0", "v3.0.0"},
+			PrereleaseForms: []string{"rc", "beta", "alpha"}},
 		Changelog: workspace.ConventionsChangelogConfig{CategoriesFR: true},
 		Readme:    workspace.ConventionsReadmeConfig{Sections: []string{"install", "run"}, MinWords: 150},
 		Docs: workspace.ConventionsDocsConfig{Dir: "documentation", MediaDir: "Media",
@@ -123,6 +124,11 @@ func TestExport(t *testing.T) {
           "v1.0.0",
           "v2.0.0",
           "v3.0.0"
+        ],
+        "prerelease_forms": [
+          "rc",
+          "beta",
+          "alpha"
         ]
       },
       "changelog": {

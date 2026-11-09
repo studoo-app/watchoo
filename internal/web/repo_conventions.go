@@ -93,12 +93,15 @@ type convTagRow struct {
 	Codes  []convCode
 }
 
-// convMilestoneRow est un jalon configuré dans un dépôt (SV2, présence seulement).
+// convMilestoneRow est un jalon configuré dans un dépôt (SV2 : présence, et échéance depuis la phase 8.4).
 type convMilestoneRow struct {
 	Name   string
 	Due    string // AAAA-MM-JJ ; vide sans échéance
 	Status convStatus
 	Tag    string // tag qui le désigne sous un nom non conforme ; vide sinon
+	// Deadline est la pastille de l'échéance (à l'heure, en retard, indéterminée) ; nil sans échéance jugée.
+	Deadline       *convStatus
+	DeadlineDetail string // première observation, ou « posé entre le … et le … »
 }
 
 // convReleaseRow est une remarque SV6 (information seule).
@@ -230,6 +233,9 @@ type RepoConventionsView struct {
 
 	// Phase 8.3 : CHANGELOG, README, documentation et outillage (cache de la synchro), listes de chemins.
 	Files convFilesView
+
+	// Phase 8.4 : réécritures de la branche par défaut, historique des tags, versions, fraîcheur.
+	History convHistoryView
 }
 
 // conventionsInputs renvoie l'accès aux clones (lus sans mise à jour, sinon repli sur la base) et les
@@ -396,6 +402,7 @@ func (s *server) repoConventions(r *http.Request, id int64) (*RepoConventionsVie
 	s.repoConventionsTags(tr, repo, v)
 	s.repoConventionsIntervals(tr, repo, v)
 	v.Files = newConvFiles(tr, repo.Files)
+	v.History = newConvHistory(tr, repo)
 	return v, nil
 }
 
@@ -467,7 +474,8 @@ func (s *server) repoConventionsTags(tr *i18n.Translator, repo conventions.RepoR
 		v.Tags = append(v.Tags, tagRow(tr, tag))
 	}
 	for _, m := range t.Milestones {
-		row := convMilestoneRow{Name: m.Name, Due: m.Due, Status: milestoneStatus(tr, m.Status)}
+		row := convMilestoneRow{Name: m.Name, Due: m.Due, Status: milestoneStatus(tr, m.Status),
+			Deadline: deadlineStatus(tr, m.Deadline), DeadlineDetail: s.deadlineDetail(tr, m.Deadline)}
 		if m.Status == conventions.MilestoneNonconformingName {
 			row.Tag = m.Tag
 		}

@@ -32,8 +32,12 @@ type extras struct {
 	replaceReleases bool // releases lues : à remplacer en base
 	tags            []model.Tag
 	replaceTags     bool // tags lus : à remplacer en base
-	warnings        []model.SyncWarning
-	skipped         int // éléments inexploitables ignorés (comptés dans un log)
+	// tagsComplete : liste des tags lue en entier (phase 8.4) : lecture réussie, aucun tag ignoré et
+	// moins de provider.MaxTags tags (au plafond, la liste peut être tronquée). Seule une lecture
+	// complète met à jour les observations des tags (un tag absent y serait fermé à tort).
+	tagsComplete bool
+	warnings     []model.SyncWarning
+	skipped      int // éléments inexploitables ignorés (comptés dans un log)
 }
 
 // fetchExtras lit les pull requests (depuis la plus récente date de modification en base), les
@@ -101,13 +105,16 @@ func (s *repoSync) fetchExtras(ctx context.Context, h *halt, repoID int64) (extr
 	if err == nil {
 		x.replaceTags = true
 		x.tags = make([]model.Tag, 0, len(tags))
+		tagsSkipped := 0 // tags ignorés : propres aux tags, contrairement à x.skipped
 		for _, t := range tags {
 			if t.Name == "" || provider.ValidateSHA(t.SHA) != nil {
-				x.skipped++
+				tagsSkipped++
 				continue
 			}
 			x.tags = append(x.tags, model.Tag{Name: t.Name, SHA: t.SHA})
 		}
+		x.skipped += tagsSkipped
+		x.tagsComplete = tagsSkipped == 0 && len(tags) < provider.MaxTags
 	}
 	if x.skipped > 0 {
 		s.e.logger.Warn("pull requests, releases ou tags ignorés : données incomplètes", "repo", s.full,

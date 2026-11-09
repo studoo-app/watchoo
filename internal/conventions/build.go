@@ -1,6 +1,6 @@
 package conventions
 
-// Lecture et rapport des conventions (phases 8.1 à 8.3) : Build lit les commits, pull requests, tags et
+// Lecture et rapport des conventions (phases 8.1 à 8.4) : Build lit les commits, pull requests, tags et
 // releases d'un dépôt dans la base (Reader, implémenté par *store.Store) et, quand le clone Git local
 // existe, le périmètre précis des commits, les branches du distant et les intervalles entre tags
 // (CloneReader, implémenté par le provider des clones, lu sans mise à jour), puis calcule les indicateurs.
@@ -53,6 +53,14 @@ type Reader interface {
 	// RepositoryConventions renvoie les résultats en cache des critères de fichiers du dépôt (phase 8.3),
 	// écrits par la synchro.
 	RepositoryConventions(ctx context.Context, repoID int64) ([]model.RepositoryConventions, error)
+	// TagObservations renvoie les périodes d'observation des tags du dépôt (phase 8.4, SV3 et échéances
+	// de SV2), écrites par la synchro.
+	TagObservations(ctx context.Context, repoID int64) ([]model.TagObservation, error)
+	// BranchRewrites renvoie les réécritures observées de la branche par défaut du dépôt (phase 8.4, BR4).
+	BranchRewrites(ctx context.Context, repoID int64) ([]model.BranchRewrite, error)
+	// ConventionTagDates renvoie la date du commit visé de chaque tag du dépôt dont le commit est en base
+	// (phase 8.4, borne basse de « posé entre X et Y »).
+	ConventionTagDates(ctx context.Context, repoID int64) (map[string]time.Time, error)
 }
 
 // CloneReader lit les clones Git locaux existants, sans les mettre à jour ; le provider des clones
@@ -84,6 +92,7 @@ type BuildOptions struct {
 	Location         *time.Location // fuseau de l'espace (date de début, échéances) ; nil : UTC
 	Branch           BranchRules    // conventions.commit.types et conventions.branch.* (BR1)
 	Milestones       []Milestone    // conventions.tags.milestones (SV2, SV6, revue de jalon)
+	PrereleaseForms  []string       // conventions.tags.prerelease_forms (SV4) ; vide : DefaultPrereleaseForms
 	Language         string         // conventions.commit.language : fr, en ou any (CC7, information)
 	Files            FileRules      // conventions.changelog.*, readme.* et docs.* (CL, RD, DOC, phase 8.3)
 	// LocalOnly indique un espace synchronisé sans l'API (clone seul) : les pull requests et releases en
@@ -142,6 +151,14 @@ type RepoReport struct {
 
 	// Phase 8.3.
 	Files FileReport // CL, RD, DOC et TL sur la tête de la branche par défaut (cache de la synchro)
+
+	// Phase 8.4 (échéances de SV2 : Tags.Milestones[i].Deadline).
+	Rewrites    RewriteReport      // BR4 : réécritures observées de la branche par défaut
+	TagHistory  TagHistoryReport   // SV3 : tags réécrits ou supprimés
+	Prereleases PrereleaseReport   // SV4 : formes et pose des pré-versions (avertissements)
+	Bumps       BumpReport         // SV5 : saut de version cohérent avec les commits
+	Precedence  PrecedenceReport   // SV7 : précédence et historique
+	Freshness   ChangelogFreshness // CL10 : fraîcheur du CHANGELOG (information)
 }
 
 // ContributorReport est le taux CC3 d'un contributeur, tous dépôts du rapport confondus.

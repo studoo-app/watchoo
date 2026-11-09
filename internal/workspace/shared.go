@@ -37,22 +37,23 @@ const (
 	KeyTimezone        = "timezone"
 	KeyLang            = "lang"
 
-	KeyConventionsSince          = "conventions.since"
-	KeyConventionsTypes          = "conventions.commit.types"
-	KeyConventionsScopes         = "conventions.commit.scopes"
-	KeyConventionsMaxSubjectSoft = "conventions.commit.max_subject_soft"
-	KeyConventionsMaxSubjectHard = "conventions.commit.max_subject_hard"
-	KeyConventionsForbidden      = "conventions.commit.forbidden"
-	KeyConventionsLanguage       = "conventions.commit.language"
-	KeyConventionsBranchPattern  = "conventions.branch.pattern"
-	KeyConventionsBranchExclude  = "conventions.branch.exclude"
-	KeyConventionsMilestones     = "conventions.tags.milestones"
-	KeyConventionsCategoriesFR   = "conventions.changelog.categories_fr"
-	KeyConventionsReadmeSections = "conventions.readme.sections"
-	KeyConventionsReadmeMinWords = "conventions.readme.min_words"
-	KeyConventionsDocsDir        = "conventions.docs.dir"
-	KeyConventionsDocsMediaDir   = "conventions.docs.media_dir"
-	KeyConventionsArchivesScope  = "conventions.docs.archives_scope"
+	KeyConventionsSince           = "conventions.since"
+	KeyConventionsTypes           = "conventions.commit.types"
+	KeyConventionsScopes          = "conventions.commit.scopes"
+	KeyConventionsMaxSubjectSoft  = "conventions.commit.max_subject_soft"
+	KeyConventionsMaxSubjectHard  = "conventions.commit.max_subject_hard"
+	KeyConventionsForbidden       = "conventions.commit.forbidden"
+	KeyConventionsLanguage        = "conventions.commit.language"
+	KeyConventionsBranchPattern   = "conventions.branch.pattern"
+	KeyConventionsBranchExclude   = "conventions.branch.exclude"
+	KeyConventionsMilestones      = "conventions.tags.milestones"
+	KeyConventionsPrereleaseForms = "conventions.tags.prerelease_forms"
+	KeyConventionsCategoriesFR    = "conventions.changelog.categories_fr"
+	KeyConventionsReadmeSections  = "conventions.readme.sections"
+	KeyConventionsReadmeMinWords  = "conventions.readme.min_words"
+	KeyConventionsDocsDir         = "conventions.docs.dir"
+	KeyConventionsDocsMediaDir    = "conventions.docs.media_dir"
+	KeyConventionsArchivesScope   = "conventions.docs.archives_scope"
 )
 
 // SharedKeys liste les clés des réglages communs, dans l'ordre du modèle de config.yaml.
@@ -64,6 +65,7 @@ var SharedKeys = []string{
 	KeyConventionsMaxSubjectSoft, KeyConventionsMaxSubjectHard,
 	KeyConventionsForbidden, KeyConventionsLanguage,
 	KeyConventionsBranchPattern, KeyConventionsBranchExclude, KeyConventionsMilestones,
+	KeyConventionsPrereleaseForms,
 	KeyConventionsCategoriesFR, KeyConventionsReadmeSections, KeyConventionsReadmeMinWords,
 	KeyConventionsDocsDir, KeyConventionsDocsMediaDir, KeyConventionsArchivesScope,
 }
@@ -80,22 +82,23 @@ type SharedSettings struct {
 	Timezone        *string   // "" = fuseau du système
 	Lang            *string   // langue de l'interface web : « en » ou « fr »
 
-	ConventionsSince          *string   // "" = depuis le début ; sinon AAAA-MM-JJ
-	ConventionsTypes          *[]string // listes : vide (non nil) = aucune entrée
-	ConventionsScopes         *[]string // liste vide = tout scope bien formé
-	ConventionsMaxSubjectSoft *int
-	ConventionsMaxSubjectHard *int
-	ConventionsForbidden      *[]string
-	ConventionsLanguage       *string   // « fr », « en » ou « any »
-	ConventionsBranchPattern  *string   // "" = règle intégrée ; sinon RE2
-	ConventionsBranchExclude  *[]string // liste vide = aucune branche exclue (hors branche par défaut)
-	ConventionsMilestones     *[]string // « vX.Y.Z » ou « vX.Y.Z@AAAA-MM-JJ » ; vide = aucun jalon
-	ConventionsCategoriesFR   *bool     // libellés français du CHANGELOG admis (avertissement)
-	ConventionsReadmeSections *[]string // clés de sections attendues ; vide = aucune
-	ConventionsReadmeMinWords *int
-	ConventionsDocsDir        *string // dossier de la documentation, relatif à la racine
-	ConventionsDocsMediaDir   *string // dossier des médias sous la documentation
-	ConventionsArchivesScope  *string // « repository » ou « documentation »
+	ConventionsSince           *string   // "" = depuis le début ; sinon AAAA-MM-JJ
+	ConventionsTypes           *[]string // listes : vide (non nil) = aucune entrée
+	ConventionsScopes          *[]string // liste vide = tout scope bien formé
+	ConventionsMaxSubjectSoft  *int
+	ConventionsMaxSubjectHard  *int
+	ConventionsForbidden       *[]string
+	ConventionsLanguage        *string   // « fr », « en » ou « any »
+	ConventionsBranchPattern   *string   // "" = règle intégrée ; sinon RE2
+	ConventionsBranchExclude   *[]string // liste vide = aucune branche exclue (hors branche par défaut)
+	ConventionsMilestones      *[]string // « vX.Y.Z » ou « vX.Y.Z@AAAA-MM-JJ » ; vide = aucun jalon
+	ConventionsPrereleaseForms *[]string // formes de pré-version conformes (SV4) ; au moins une
+	ConventionsCategoriesFR    *bool     // libellés français du CHANGELOG admis (avertissement)
+	ConventionsReadmeSections  *[]string // clés de sections attendues ; vide = aucune
+	ConventionsReadmeMinWords  *int
+	ConventionsDocsDir         *string // dossier de la documentation, relatif à la racine
+	ConventionsDocsMediaDir    *string // dossier des médias sous la documentation
+	ConventionsArchivesScope   *string // « repository » ou « documentation »
 }
 
 // cloneList copie une liste en la gardant non nil : nil et vide sont la même valeur pour un réglage, et
@@ -117,6 +120,7 @@ func SharedSettingsFrom(c Config) SharedSettings {
 	forbidden := cloneList(c.Conventions.Commit.Forbidden)
 	branchExclude := cloneList(c.Conventions.Branch.Exclude)
 	milestones := cloneList(c.Conventions.Tags.Milestones)
+	forms := cloneList(c.Conventions.Tags.PrereleaseForms)
 	sections := cloneList(c.Conventions.Readme.Sections)
 	return SharedSettings{
 		SyncAuto:        &c.Sync.Auto,
@@ -128,22 +132,23 @@ func SharedSettingsFrom(c Config) SharedSettings {
 		Timezone:        &c.Timezone,
 		Lang:            &c.Lang,
 
-		ConventionsSince:          &c.Conventions.Since,
-		ConventionsTypes:          &types,
-		ConventionsScopes:         &scopes,
-		ConventionsMaxSubjectSoft: &c.Conventions.Commit.MaxSubjectSoft,
-		ConventionsMaxSubjectHard: &c.Conventions.Commit.MaxSubjectHard,
-		ConventionsForbidden:      &forbidden,
-		ConventionsLanguage:       &c.Conventions.Commit.Language,
-		ConventionsBranchPattern:  &c.Conventions.Branch.Pattern,
-		ConventionsBranchExclude:  &branchExclude,
-		ConventionsMilestones:     &milestones,
-		ConventionsCategoriesFR:   &c.Conventions.Changelog.CategoriesFR,
-		ConventionsReadmeSections: &sections,
-		ConventionsReadmeMinWords: &c.Conventions.Readme.MinWords,
-		ConventionsDocsDir:        &c.Conventions.Docs.Dir,
-		ConventionsDocsMediaDir:   &c.Conventions.Docs.MediaDir,
-		ConventionsArchivesScope:  &c.Conventions.Docs.ArchivesScope,
+		ConventionsSince:           &c.Conventions.Since,
+		ConventionsTypes:           &types,
+		ConventionsScopes:          &scopes,
+		ConventionsMaxSubjectSoft:  &c.Conventions.Commit.MaxSubjectSoft,
+		ConventionsMaxSubjectHard:  &c.Conventions.Commit.MaxSubjectHard,
+		ConventionsForbidden:       &forbidden,
+		ConventionsLanguage:        &c.Conventions.Commit.Language,
+		ConventionsBranchPattern:   &c.Conventions.Branch.Pattern,
+		ConventionsBranchExclude:   &branchExclude,
+		ConventionsMilestones:      &milestones,
+		ConventionsPrereleaseForms: &forms,
+		ConventionsCategoriesFR:    &c.Conventions.Changelog.CategoriesFR,
+		ConventionsReadmeSections:  &sections,
+		ConventionsReadmeMinWords:  &c.Conventions.Readme.MinWords,
+		ConventionsDocsDir:         &c.Conventions.Docs.Dir,
+		ConventionsDocsMediaDir:    &c.Conventions.Docs.MediaDir,
+		ConventionsArchivesScope:   &c.Conventions.Docs.ArchivesScope,
 	}
 }
 
@@ -204,6 +209,9 @@ func (s SharedSettings) Values() map[string]any {
 	}
 	if s.ConventionsMilestones != nil {
 		out[KeyConventionsMilestones] = cloneList(*s.ConventionsMilestones)
+	}
+	if s.ConventionsPrereleaseForms != nil {
+		out[KeyConventionsPrereleaseForms] = cloneList(*s.ConventionsPrereleaseForms)
 	}
 	if s.ConventionsCategoriesFR != nil {
 		out[KeyConventionsCategoriesFR] = *s.ConventionsCategoriesFR
@@ -301,6 +309,9 @@ func (s SharedSettings) ApplyTo(c Config) Config {
 	if s.ConventionsMilestones != nil {
 		out.Conventions.Tags.Milestones = cloneList(*s.ConventionsMilestones)
 	}
+	if s.ConventionsPrereleaseForms != nil {
+		out.Conventions.Tags.PrereleaseForms = cloneList(*s.ConventionsPrereleaseForms)
+	}
 	if s.ConventionsCategoriesFR != nil {
 		out.Conventions.Changelog.CategoriesFR = *s.ConventionsCategoriesFR
 	}
@@ -334,6 +345,7 @@ func cloneLists(c Config) Config {
 	out.Conventions.Commit.Forbidden = slices.Clone(c.Conventions.Commit.Forbidden)
 	out.Conventions.Branch.Exclude = slices.Clone(c.Conventions.Branch.Exclude)
 	out.Conventions.Tags.Milestones = slices.Clone(c.Conventions.Tags.Milestones)
+	out.Conventions.Tags.PrereleaseForms = slices.Clone(c.Conventions.Tags.PrereleaseForms)
 	out.Conventions.Readme.Sections = slices.Clone(c.Conventions.Readme.Sections)
 	out.Conventions.ExcludedAccounts = slices.Clone(c.Conventions.ExcludedAccounts)
 	return out

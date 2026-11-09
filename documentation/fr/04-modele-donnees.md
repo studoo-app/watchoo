@@ -9,7 +9,7 @@ facultatif (dépôts suivis par clones Git locaux) ; la migration `00005` (0.5.0
 `contributors.profile_url` et la migration `00006` (0.5.0) `commits.stats_known` ; la migration `00007` (1.1.0) ajoute `repository_languages` ; la migration `00008` (1.2.0)
 ajoute `commits.ai_rules_version` et la table `commit_ai_signatures` ; la migration `00009` (1.2.0) ajoute
 `commits.languages_version` et la table `commit_languages`, soit **treize tables** ; la migration `00010` (1.3.0)
-ajoute `sync_runs.warnings`. La migration `00011` (phase 7.1) ajoute `commit_signals`, la migration `00012` (phase 7.2) `pull_requests.tool_ids` et `repository_signals`, la migration `00013` (phase 7.4) `diagnostic_reviews`, soit **seize tables**, la migration `00014` (phase 7.5) les colonnes de forme de `commit_signals`, et la migration `00015` (phase 7.7) ses mesures des signaux absolus et des contre-indicateurs (voir [Supervision et diagnostic](12-supervision-diagnostic.md)). La migration `00016` (phase 8.1) ajoute `commits.parent_count` et `repositories.conventions_since` (voir [Conventions de projet](13-conventions.md) et [Migration `00016`](#migration-00016--conventions-de-projet)), et la migration `00017` (phase 8.3) le cache `repository_conventions` des critères de fichiers des conventions, soit **dix-sept tables** (voir [Migration `00017`](#migration-00017--cache-des-critères-de-fichiers)). Le stockage est un fichier SQLite versionné par des migrations
+ajoute `sync_runs.warnings`. La migration `00011` (phase 7.1) ajoute `commit_signals`, la migration `00012` (phase 7.2) `pull_requests.tool_ids` et `repository_signals`, la migration `00013` (phase 7.4) `diagnostic_reviews`, soit **seize tables**, la migration `00014` (phase 7.5) les colonnes de forme de `commit_signals`, et la migration `00015` (phase 7.7) ses mesures des signaux absolus et des contre-indicateurs (voir [Supervision et diagnostic](12-supervision-diagnostic.md)). La migration `00016` (phase 8.1) ajoute `commits.parent_count` et `repositories.conventions_since` (voir [Conventions de projet](13-conventions.md) et [Migration `00016`](#migration-00016--conventions-de-projet)), la migration `00017` (phase 8.3) le cache `repository_conventions` des critères de fichiers des conventions (voir [Migration `00017`](#migration-00017--cache-des-critères-de-fichiers)), puis les migrations `00018` et `00019` (phase 8.4) l'historique des tags `tag_observations` et les réécritures observées de la branche par défaut `branch_rewrites`, soit **dix-neuf tables** (voir [Migrations `00018` et `00019`](#migrations-00018-et-00019--historique-des-tags-et-de-la-branche-par-défaut)). Le stockage est un fichier SQLite versionné par des migrations
 `goose`, avec **une base par espace de supervision** (`.watchoo/watchoo.db`, voir
 [Espaces de supervision](10-espaces-de-supervision.md)). Les tables ne connaissent donc pas la notion
 d'espace : deux espaces ne partagent jamais de données.
@@ -32,6 +32,8 @@ erDiagram
     repositories ||--o| repository_signals : "contexte"
     repositories ||--o{ diagnostic_reviews : "revues"
     repositories ||--o{ repository_conventions : "critères de fichiers"
+    repositories ||--o{ tag_observations : "tags observés"
+    repositories ||--o{ branch_rewrites : "réécritures observées"
     branches ||--o{ commit_branches : "contient"
     contributors ||--o{ contributor_emails : "utilise"
     contributors ||--o{ commits : "auteur"
@@ -402,6 +404,46 @@ suivante ; les lignes des tags qui ne désignent plus de jalon configuré (tag d
 supprimées, et la ligne de la tête quand la source n'a plus de branche par défaut. Les listes de chemins (DOC3, DOC4, DOC5, DOC8) ne sont pas stockées : elles sont recalculées
 depuis le clone pour la vue détaillée d'un dépôt.
 
+### `tag_observations` — historique des tags observés (phase 8.4)
+
+Clé primaire : **`id`** ; une ligne par **période d'observation** d'un couple (nom du tag, SHA du commit
+visé), ouverte (`ended_at` NULL) tant que le couple est vu par la synchro ; au plus une période ouverte par
+nom et par dépôt (index unique partiel) ; supprimée avec le dépôt. Écrite par la synchro **seulement quand
+les conventions sont activées** et seulement après une lecture des tags **réussie et non tronquée**
+(au plus 1 000 tags) : une lecture en échec, ignorée ou tronquée ne ferme rien. Sert à SV3 (tag réécrit ou
+supprimé) et aux échéances de SV2 (voir [Conventions de projet](13-conventions.md), sections 5.4 et 9).
+Aucune attribution à une personne.
+
+| Colonne | Description |
+| --- | --- |
+| repo_id | Dépôt |
+| name | Nom du tag (non vide) |
+| sha | SHA du commit visé (complet, 40 ou 64 caractères hexadécimaux en minuscules) ; pour un tag annoté, le commit, jamais l'objet tag |
+| first_seen_at | Première lecture qui a vu le couple |
+| last_seen_at | Dernière lecture qui l'a vu (`>= first_seen_at`) |
+| ended_at | Lecture qui a constaté la fin (`>= last_seen_at`) ; NULL tant que la période est ouverte |
+| end_reason | `rewritten` (le nom désigne un autre commit) ou `deleted` (le nom a disparu) ; NULL si et seulement si `ended_at` l'est |
+
+À chaque lecture complète : un couple revu reporte `last_seen_at` ; un nom revu avec un autre SHA ferme sa
+période (`rewritten`) et en ouvre une nouvelle ; un nom absent ferme sa période (`deleted`) ; un couple sans
+période ouverte en ouvre une, y compris un couple déjà vu puis supprimé (l'historique des périodes reste).
+
+### `branch_rewrites` — réécritures observées de la branche par défaut (phase 8.4)
+
+Clé primaire : **`id`** ; une ligne par événement observé ; supprimée avec le dépôt. Écrite par la synchro
+**seulement quand les conventions sont activées**, quand l'ancienne tête connue de la branche par défaut
+n'est plus ancêtre de la nouvelle (BR4, voir [Conventions de projet](13-conventions.md), sections 5.2 et 9) ;
+un résultat inconnu (ancien commit absent du clone) n'est jamais enregistré. Aucune attribution à une
+personne.
+
+| Colonne | Description |
+| --- | --- |
+| repo_id | Dépôt |
+| branch | Branche par défaut au moment de l'observation (non vide) |
+| old_sha | Ancienne tête (SHA complet en minuscules) |
+| new_sha | Nouvelle tête (SHA complet en minuscules, différent de `old_sha`) |
+| observed_at | Fin de la synchro qui a observé la réécriture |
+
 ## Index
 
 | Index | Usage |
@@ -418,6 +460,9 @@ depuis le clone pour la vue détaillée d'un dépôt.
 | `commits(repo_id, sha) WHERE parent_count IS NULL` | Index partiel : commits dont le nombre de parents reste à lire dans le clone (migration `00016`) |
 | `commit_signals(repo_id, author_id, authored_at)` | Fenêtres glissantes par auteur des signaux de rythme (phase 7.3) |
 | `commit_signals(authored_at)` | Purge par durée de conservation |
+| `tag_observations(repo_id, name) WHERE ended_at IS NULL` | Index unique partiel : au plus une période ouverte par tag (migration `00018`) |
+| `tag_observations(repo_id, name, first_seen_at)` | Historique des tags d'un dépôt (migration `00018`) |
+| `branch_rewrites(repo_id, observed_at)` | Réécritures d'un dépôt par date (migration `00019`) |
 | `diagnostic_reviews(lead_date)` | Purge des revues par durée de conservation |
 
 ## Fusion des identités
@@ -501,6 +546,21 @@ avec les conventions activées la remplit.
 
 Retour arrière (`Down`) : la table est supprimée. Un test (`internal/store/migration_conventions_files_test.go`)
 applique la migration à une base au schéma `00016`, vérifie les contraintes, puis le retour arrière.
+
+## Migrations `00018` et `00019` : historique des tags et de la branche par défaut
+
+La phase 8.4 ([Conventions de projet](13-conventions.md)) crée les tables `tag_observations` (migration
+`00018`) et `branch_rewrites` (migration `00019`), voir plus haut, sans toucher aux autres tables.
+Contraintes de `tag_observations` : `name` non vide, `sha` de 40 ou 64 caractères hexadécimaux en minuscules,
+dates au format fixe, `last_seen_at >= first_seen_at`, `ended_at >= last_seen_at`, `end_reason IN
+('rewritten', 'deleted')`, `ended_at` et `end_reason` nuls ensemble, une seule période ouverte par nom
+(index unique partiel). Contraintes de `branch_rewrites` : `branch` non vide, `old_sha` et `new_sha` de 40 ou
+64 caractères hexadécimaux en minuscules et différents, `observed_at` au format fixe. Clés étrangères sur
+`repositories` avec `ON DELETE CASCADE`. Les tables partent vides : l'historique commence à la première
+synchro avec les conventions activées, d'où le libellé « aucune réécriture observée depuis le … ».
+
+Retour arrière (`Down`) : chaque table est supprimée. Un test (`internal/store/tag_history_test.go`)
+applique les migrations à une base au schéma `00017`, vérifie les contraintes, puis le retour arrière.
 
 ## Renommages et changements de login
 

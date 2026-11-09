@@ -20,6 +20,10 @@ type fakeReader struct {
 	tags        map[int64][]model.Tag
 	releases    map[int64][]model.Release
 	files       map[int64][]model.RepositoryConventions
+	obs         map[int64][]model.TagObservation
+	rewrites    map[int64][]model.BranchRewrite
+	tagDates    map[int64]map[string]time.Time
+	errHistory  error
 	errRepos    error
 	errBranches error
 	errCommits  error
@@ -44,6 +48,22 @@ func (f *fakeReader) ConventionReleases(_ context.Context, id int64) ([]model.Re
 
 func (f *fakeReader) RepositoryConventions(_ context.Context, id int64) ([]model.RepositoryConventions, error) {
 	return f.files[id], f.errFiles
+}
+
+func (f *fakeReader) TagObservations(_ context.Context, id int64) ([]model.TagObservation, error) {
+	return f.obs[id], f.errHistory
+}
+
+func (f *fakeReader) BranchRewrites(_ context.Context, id int64) ([]model.BranchRewrite, error) {
+	return f.rewrites[id], f.errHistory
+}
+
+func (f *fakeReader) ConventionTagDates(_ context.Context, id int64) (map[string]time.Time, error) {
+	out := map[string]time.Time{}
+	for k, v := range f.tagDates[id] {
+		out[k] = v
+	}
+	return out, f.errHistory
 }
 
 func (f *fakeReader) ListRepositories(context.Context) ([]model.Repository, error) {

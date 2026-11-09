@@ -278,6 +278,8 @@ func prepareRepoSync(w RepoSyncWrite) ([]CommitWrite, error) {
 		return nil, errors.New(i18n.T("store.sync.no_finished_at"))
 	case !w.Metadata.Partial && (w.Metadata.Owner == "" || w.Metadata.Name == ""):
 		return nil, errors.New(i18n.T("store.sync.no_owner_name"))
+	case w.ObserveTags && !w.ReplaceTags:
+		return nil, errors.New(i18n.T("store.sync.tags_observe_unread"))
 	}
 
 	branches := make(map[string]bool, len(w.Branches))
@@ -438,6 +440,16 @@ func writeExtras(ctx context.Context, q *db.Queries, w RepoSyncWrite) error {
 			if err := q.InsertTag(ctx, db.InsertTagParams{RepoID: w.RepoID, Name: t.Name, SHA: t.SHA}); err != nil {
 				return wrapErr(i18n.T("store.sync.tag_record", shortSHA(t.SHA)), err)
 			}
+		}
+		if w.ObserveTags {
+			if err := observeTags(ctx, q, w.RepoID, w.Tags, w.SyncedAt); err != nil {
+				return err
+			}
+		}
+	}
+	for _, r := range w.BranchRewrites {
+		if err := insertBranchRewrite(ctx, q, w.RepoID, r, w.SyncedAt); err != nil {
+			return err
 		}
 	}
 	if w.ReplaceLanguages {

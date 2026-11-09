@@ -181,6 +181,7 @@ func sharedKeysOf(doc *configshare.Document) []string {
 		}
 		if tg := c.Tags; tg != nil {
 			add(tg.Milestones != nil, workspace.KeyConventionsMilestones)
+			add(tg.PrereleaseForms != nil, workspace.KeyConventionsPrereleaseForms)
 		}
 		if cl := c.Changelog; cl != nil {
 			add(cl.CategoriesFR != nil, workspace.KeyConventionsCategoriesFR)

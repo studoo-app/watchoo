@@ -33,6 +33,15 @@ PATCH (see [Skills](documentation/en/11-skills.md#versions-and-changelogmd)).
   `conventions.docs.archives_scope` (`repository` by default, or `documentation`), validated at load time,
   with the matching `WATCHOO_CONVENTIONS_*` variables, and shared under `settings.conventions.changelog`,
   `settings.conventions.readme` and `settings.conventions.docs` (refused by earlier versions).
+- **Pre-release forms of the conventions** (phase 8.4): `conventions.tags.prerelease_forms` (default `rc`,
+  `beta`, `alpha`; at least one, lowercase words, each once), the compliant forms `-<form>.N` of SV4,
+  validated at load time, with the `WATCHOO_CONVENTIONS_TAGS_PRERELEASE_FORMS` variable, and shared under
+  `settings.conventions.tags.prerelease_forms` (refused by earlier versions).
+- **History of the tags and of the default branch** (phase 8.4): when the conventions are enabled, the sync
+  records the observation periods of each tag (name, target commit, first and last read, end: rewritten or
+  deleted) in the new `tag_observations` table (migration `00018`), only after a successful, non-truncated
+  read of the tags, and the observed rewrites of the default branch in the new `branch_rewrites` table
+  (migration `00019`); 19 tables. Nothing is attributed to a person.
 - **File criteria of the conventions measured at sync time** (phase 8.3): when the conventions are enabled,
   the sync reads the CHANGELOG, the README, the documentation and the tooling files of the head of the
   default branch and of every milestone tag in the updated local Git clone, through its Git objects only
@@ -88,6 +97,19 @@ PATCH (see [Skills](documentation/en/11-skills.md#versions-and-changelogmd)).
   the milestones, the releases (information), CC1 per interval between tags, the wording, footers and
   language of the subjects; the contributor's page adds the conforming pull request titles and the CC3
   trend (before and since the last final tag). Every icon comes with a text.
+- **`watchoo conventions`, phase 8.4 indicators (history and versions)**: per repository the observed
+  rewrites of the default branch (BR4: count, dates, old and new short SHAs, never attributed), the tag
+  history (SV3: "no rewrite observed since …", rewritten, deleted), the due date of each milestone compared
+  to the first observation of its tag (SV2: on time, late, or undetermined "set between X and Y"), the
+  pre-release forms (SV4, warnings), the version bumps compared to the declared commits (SV5,
+  under-versioning only, undetermined below 80% of conforming commits), the precedence against the
+  history (SV7) and the `feat`/`fix` commits since the last change of the CHANGELOG (CL10, information);
+  SV4, SV5, SV7 and CL10 read from the local clone at read time, never stored. The milestone review adds
+  SV3 after SV2 (12 criteria) and judges the due date in SV2. `--json`: additive keys `rewrites`,
+  `tag_history`, `prereleases`, `bumps`, `precedence`, `changelog_freshness` per repository, `deadline` per
+  milestone, `deadline` and `tag_history` per repository of the review. Web: a "History of the tags and of
+  the default branch, versions" block on the repository page, due-date badges, a "History and versions"
+  column and the SV3 column of the review in `/conventions`.
 - **Migration `00016`**: `commits.parent_count` (number of parents, written at insertion, backfilled for
   the existing commits by the local Git clone at every sync, whether the conventions are enabled or not)
   and `repositories.conventions_since`.

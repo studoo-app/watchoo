@@ -150,6 +150,7 @@ var webConventionsTexts = map[string]entry{
 	"web.conv.criterion.BR1":   {"branch names", "noms de branche"},
 	"web.conv.criterion.SV1":   {"name of the tag", "nom du tag"},
 	"web.conv.criterion.SV2":   {"milestone present", "jalon présent"},
+	"web.conv.criterion.SV3":   {"milestone tag without rewrite observed", "tag du jalon sans réécriture observée"},
 	// Phase 8.3 : critères de fichiers de la revue, sur l'arbre du tag du jalon.
 	"web.conv.criterion.CL9":  {"CHANGELOG section of the milestone", "section du jalon dans le CHANGELOG"},
 	"web.conv.criterion.CL8":  {"tags and CHANGELOG sections", "tags et sections du CHANGELOG"},
@@ -167,8 +168,8 @@ var webConventionsTexts = map[string]entry{
 	"web.conv.interval_start":   {"start", "début"},
 	"web.conv.interval_missing": {"%d commits not in the database", "%d commits absents de la base"},
 	"web.conv.review_note": {
-		"The file criteria (CL, RD, DOC) are measured by the sync on the tree of the milestone tag; RD2 judges only the installation section here. The rewritten tags arrive with phase 8.4, the pull request reviews with phases 8.5 and 8.6.",
-		"Les critères de fichiers (CL, RD, DOC) sont mesurés par la synchro sur l'arbre du tag du jalon ; RD2 ne juge ici que la section installation. Les tags réécrits arrivent avec la phase 8.4, les relectures de pull request avec les phases 8.5 et 8.6.",
+		"The file criteria (CL, RD, DOC) are measured by the sync on the tree of the milestone tag; RD2 judges only the installation section here. SV2 compares the first observation of the tag to the due date and SV3 reports the observed rewrites of the tag, both since the conventions are enabled; the pull request reviews arrive with phases 8.5 and 8.6.",
+		"Les critères de fichiers (CL, RD, DOC) sont mesurés par la synchro sur l'arbre du tag du jalon ; RD2 ne juge ici que la section installation. SV2 compare la première observation du tag à l'échéance et SV3 signale les réécritures observées du tag, toutes deux depuis l'activation des conventions ; les relectures de pull request arrivent avec les phases 8.5 et 8.6.",
 	},
 	"web.conv.bad_milestone": {
 		"Milestone %q is not configured (conventions.tags.milestones).",
@@ -298,6 +299,10 @@ var webConventionsTexts = map[string]entry{
 	"web.conv.reason.no_commits":                      {"no evaluated commit", "aucun commit évalué"},
 	"web.conv.reason.partial":                         {"commits not in the database", "commits absents de la base"},
 	"web.conv.reason.no_branch":                       {"no branch to evaluate", "aucune branche à évaluer"},
+	"web.conv.reason.not_observed":                    {"tag never seen by a complete read of the tags", "tag jamais vu par une lecture complète des tags"},
+	"web.conv.reason.deadline_undetermined":           {"tagging date undetermined against the due date", "date de pose indéterminée par rapport à l'échéance"},
+	"web.conv.reason.no_base":                         {"no lower final tag is an ancestor", "aucun tag final inférieur n'en est ancêtre"},
+	"web.conv.reason.low_conform":                     {"fewer than 80% conforming commits", "moins de 80 % de commits conformes"},
 	"web.conv.reason.empty_repository":                {"empty repository", "dépôt vide"},
 	"web.conv.reason.tree_truncated":                  {"too many files, list truncated", "trop de fichiers, liste tronquée"},
 	"web.conv.reason.no_file":                         {"file absent", "fichier absent"},
@@ -350,6 +355,28 @@ var webConventionsTexts = map[string]entry{
 	},
 	"web.conv.col_files":      {"Files", "Fichiers"},
 	"web.conv.family_unknown": {"%d unknown", "%d inconnus"},
+
+	// Phase 8.4 : historique et versions (libellés des codes et états : clés « conv. » communes avec la CLI).
+	"web.conv.col_history":   {"History and versions", "Historique et versions"},
+	"web.conv.history_title": {"History of the tags and of the default branch, versions", "Historique des tags et de la branche par défaut, versions"},
+	"web.conv.hist_label":    {"%s:", "%s :"},
+	"web.conv.hist_line": {
+		"%d without rewrite observed since %s, %d rewritten, %d deleted",
+		"%d sans réécriture observée depuis le %s, %d réécrit(s), %d supprimé(s)",
+	},
+	"web.conv.hist_more":        {"… and %d more tags", "… et %d tags de plus"},
+	"web.conv.hist_rewrites":    {"rewrites %d", "réécritures %d"},
+	"web.conv.hist_tags":        {"tags rewritten or deleted %d", "tags réécrits ou supprimés %d"},
+	"web.conv.hist_under":       {"under-versioned %d", "sous-versionnés %d"},
+	"web.conv.hist_prereleases": {"pre-release warnings %d", "avertissements de pré-version %d"},
+	"web.conv.hist_precedence":  {"precedence against history %d", "précédence contraire à l'historique %d"},
+	"web.conv.hist_fresh":       {"feat/fix since the CHANGELOG %d", "feat/fix depuis le CHANGELOG %d"},
+	"web.conv.history_note": {
+		"Observed by the syncs while the conventions are enabled: a rewrite is observed, never attributed to anyone; \"no rewrite observed\" is not \"never rewritten\".",
+		"Observé par les synchros quand les conventions sont activées : une réécriture est observée, jamais attribuée à une personne ; « aucune réécriture observée » ne veut pas dire « jamais réécrit ».",
+	},
+	"web.conv.review_deadline": {"Due date: %s, %s", "Échéance : %s, %s"},
+	"web.conv.review_history":  {"Tag: %s", "Tag : %s"},
 }
 
 func init() {

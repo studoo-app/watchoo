@@ -135,6 +135,45 @@ func TestConventionsBranchTagsImport(t *testing.T) {
 	}
 }
 
+// The pre-release forms (settings.conventions.tags.prerelease_forms, SV4), phase 8.4, are read, previewed,
+// applied and exported like the milestones.
+func TestConventionsPrereleaseFormsImport(t *testing.T) {
+	isolate(t)
+	e := newEnv(t, "licence")
+	f := mustParse(t, doc(`{"conventions": {"tags": {"prerelease_forms": ["rc", "preview"]}}}`, ""))
+	wantKeys := []string{workspace.KeyConventionsPrereleaseForms}
+	if keys := f.Settings.Keys(); !slices.Equal(keys, wantKeys) {
+		t.Errorf("keys = %v", keys)
+	}
+	p, err := configshare.Plan(t.Context(), e.ws, e.st, f, configshare.PlanOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(p.Settings.Changes) != 1 || p.Settings.Changes[0].Key != workspace.KeyConventionsPrereleaseForms ||
+		p.Settings.Changes[0].Before != `["rc", "beta", "alpha"]` || p.Settings.Changes[0].After != `["rc", "preview"]` {
+		t.Errorf("changes = %+v", p.Settings.Changes)
+	}
+	if _, err := configshare.Apply(t.Context(), e.ws, e.st, nil, f, configshare.ApplyOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	e.ws.Config = e.reload()
+	if got := e.ws.Config.Conventions.Tags.PrereleaseForms; !slices.Equal(got, []string{"rc", "preview"}) {
+		t.Errorf("prerelease_forms = %v", got)
+	}
+	d, err := configshare.Export(t.Context(), e.ws, e.st, configshare.ExportOptions{Now: testNow})
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, _ := d.Marshal()
+	if !strings.Contains(string(data), `"prerelease_forms": [`) || !strings.Contains(string(data), `"preview"`) {
+		t.Errorf("export lacks prerelease_forms:\n%s", data)
+	}
+	back := mustParse(t, string(data))
+	if !slices.Equal(*back.Settings.ConventionsPrereleaseForms, []string{"rc", "preview"}) {
+		t.Errorf("read back = %v", *back.Settings.ConventionsPrereleaseForms)
+	}
+}
+
 // The file criteria settings (settings.conventions.changelog, readme and docs), phase 8.3, are read,
 // previewed and applied like the other conventions; false and empty lists stay explicit on export.
 func TestConventionsFilesImport(t *testing.T) {
@@ -234,7 +273,12 @@ func TestConventionsParseRejects(t *testing.T) {
 		`{"tags": {"milestones": ["v1.0.0@2026-02-30"]}}`: `settings.conventions.tags.milestones: entry #1 "v1.0.0@2026-02-30" has an invalid due date`,
 		`{"tags": {"milestones": ["v1.0.0", "v1.0.0"]}}`:  "settings.conventions.tags.milestones: entry #2 repeats the milestone v1.0.0",
 		`{"tags": {"milestones": ["v1\u0007"]}}`:          "settings.conventions.tags.milestones: entry #1 contains a control character",
-		`{"tags": {"prerelease_forms": ["rc"]}}`:          "prerelease_forms",
+		`{"tags": {"prerelease_forms": ["rc", "RC"]}}`:    `settings.conventions.tags.prerelease_forms: entry #2 "RC" is invalid`,
+		`{"tags": {"prerelease_forms": ["rc1"]}}`:         `settings.conventions.tags.prerelease_forms: entry #1 "rc1" is invalid`,
+		`{"tags": {"prerelease_forms": [""]}}`:            "settings.conventions.tags.prerelease_forms: entry #1 is empty",
+		`{"tags": {"prerelease_forms": ["r\u0007"]}}`:     "settings.conventions.tags.prerelease_forms: entry #1 contains a control character",
+		`{"tags": {"prerelease_forms": "rc"}}`:            "type",
+		`{"tags": {"prerelease": ["rc"]}}`:                "prerelease",
 
 		`{"readme": {"sections": ["install", "Install"]}}`: `settings.conventions.readme.sections: entry #2 "Install" is invalid`,
 		`{"readme": {"sections": [""]}}`:                   "settings.conventions.readme.sections: entry #1 is empty",
@@ -261,11 +305,13 @@ func TestConventionsPlanRejectsInvalidMerged(t *testing.T) {
 	e := newEnv(t, "licence")
 	before := readFile(t, e.ws.ConfigPath())
 	for name, settings := range map[string]string{
-		"no type":          `{"conventions": {"commit": {"types": []}}}`,
-		"soft above hard":  `{"conventions": {"commit": {"max_subject_soft": 80}}}`,
-		"zero soft length": `{"conventions": {"commit": {"max_subject_soft": 0}}}`,
-		"zero min words":   `{"conventions": {"readme": {"min_words": 0}}}`,
-		"repeated section": `{"conventions": {"readme": {"sections": ["run", "run"]}}}`,
+		"no type":            `{"conventions": {"commit": {"types": []}}}`,
+		"soft above hard":    `{"conventions": {"commit": {"max_subject_soft": 80}}}`,
+		"zero soft length":   `{"conventions": {"commit": {"max_subject_soft": 0}}}`,
+		"zero min words":     `{"conventions": {"readme": {"min_words": 0}}}`,
+		"repeated section":   `{"conventions": {"readme": {"sections": ["run", "run"]}}}`,
+		"no prerelease form": `{"conventions": {"tags": {"prerelease_forms": []}}}`,
+		"repeated form":      `{"conventions": {"tags": {"prerelease_forms": ["rc", "rc"]}}}`,
 	} {
 		t.Run(name, func(t *testing.T) {
 			f := mustParse(t, doc(settings, ""))

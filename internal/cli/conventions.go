@@ -70,6 +70,13 @@ type conventionsRepoJSON struct {
 	Readme    conventionsFilesJSON `json:"readme"`    // RD1 à RD4
 	Docs      conventionsDocsJSON  `json:"docs"`      // DOC1 à DOC5, DOC8 ; listes en vue détaillée
 	Tooling   conventionsFilesJSON `json:"tooling"`   // TL1 à TL3
+	// Phase 8.4 : historique des tags et de la branche par défaut, versions, fraîcheur du CHANGELOG.
+	Rewrites           conventionsRewritesJSON    `json:"rewrites"`            // BR4
+	TagHistory         conventionsTagHistoryJSON  `json:"tag_history"`         // SV3
+	Prereleases        conventionsPrereleasesJSON `json:"prereleases"`         // SV4 (avertissements)
+	Bumps              conventionsBumpsJSON       `json:"bumps"`               // SV5
+	Precedence         conventionsPrecedenceJSON  `json:"precedence"`          // SV7
+	ChangelogFreshness conventionsFreshnessJSON   `json:"changelog_freshness"` // CL10 (information)
 }
 
 // conventionsTallyJSON est un taux n/m, ses exclusions et ses écarts.
@@ -242,6 +249,10 @@ func runConventions(ctx context.Context, deps Deps, opts *options, ref string, f
 			Readme:    newConventionsFilesJSON(r.Files, r.Files.Results.Readme),
 			Docs:      newConventionsDocsJSON(r.Files),
 			Tooling:   newConventionsFilesJSON(r.Files, r.Files.Results.Tooling),
+			Rewrites:  newConventionsRewritesJSON(r.Rewrites), TagHistory: newConventionsTagHistoryJSON(r.TagHistory),
+			Prereleases: newConventionsPrereleasesJSON(r.Prereleases), Bumps: newConventionsBumpsJSON(r.Bumps),
+			Precedence:         newConventionsPrecedenceJSON(r.Precedence),
+			ChangelogFreshness: newConventionsFreshnessJSON(r.Freshness),
 		})
 		if !report.Filters.Commits {
 			continue
@@ -269,7 +280,7 @@ func runConventions(ctx context.Context, deps Deps, opts *options, ref string, f
 		return writeJSON(deps.Stdout, report)
 	}
 	if review != nil {
-		return writeText(deps.Stdout, milestoneText(outputStyle(deps, opts), *review))
+		return writeText(deps.Stdout, milestoneText(outputStyle(deps, opts), *review, s.loc))
 	}
 	return writeText(deps.Stdout, s.conventionsText(outputStyle(deps, opts), res, report))
 }
@@ -349,6 +360,9 @@ func (s *session) conventionsText(st textStyle, res conventions.BuildReport, rep
 	for _, r := range res.Repos {
 		lines := append(conventionsDetail(r), conventionsMoreDetail(r, dash)...)
 		lines = append(lines, s.fileLines(r.Files, report.Filters.Repository != "")...)
+		if report.Filters.Contributor == "" {
+			lines = append(lines, historyLines(r, s.loc)...)
+		}
 		if len(lines) == 0 {
 			continue
 		}

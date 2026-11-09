@@ -271,7 +271,7 @@ func FindMilestone(ms []Milestone, name string) (Milestone, bool) {
 	return ms[i], true
 }
 
-// États SV2 d'un jalon (présence seule ; l'échéance comparée à la pose arrive avec la phase 8.4).
+// États SV2 d'un jalon (présence ; l'échéance comparée à la pose est dans MilestoneResult.Deadline).
 const (
 	MilestonePresent           = "present"            // tag de nom exact
 	MilestoneNonconformingName = "nonconforming_name" // tag qui désigne la version sous un nom non conforme
@@ -284,6 +284,9 @@ type MilestoneResult struct {
 	Status string   // MilestonePresent, MilestoneNonconformingName ou MilestoneAbsent
 	Tag    string   // tag du jalon : nom exact, ou premier nom non conforme (ordre alphabétique) ; vide si absent
 	Others []string // noms non conformes qui désignent aussi le jalon, triés ; vide non nil si aucun
+	// Deadline est l'échéance du jalon comparée à la pose du tag de nom exact (phase 8.4, CheckDeadline) ;
+	// zéro sans échéance, sans tag de nom exact, ou si les observations n'ont pas été lues.
+	Deadline MilestoneDeadline
 }
 
 // CheckMilestones calcule SV2 pour chaque jalon, dans l'ordre donné, d'après les noms des tags du dépôt.

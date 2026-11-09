@@ -99,6 +99,8 @@ type conventionsMilestoneItemJSON struct {
 	Status string   `json:"status"` // present, nonconforming_name ou absent
 	Tag    *string  `json:"tag"`    // tag qui désigne le jalon ; null si absent
 	Others []string `json:"others"` // autres noms non conformes qui le désignent
+	// Deadline est l'échéance comparée à la pose du tag de nom exact (phase 8.4) ; null sans échéance jugée.
+	Deadline *conventionsDeadlineJSON `json:"deadline"`
 }
 
 // conventionsReleasesJSON est SV6 d'un dépôt (information, hors conformité).
@@ -171,10 +173,12 @@ type conventionsMilestoneRepoJSON struct {
 	Since      *string                           `json:"since"`
 	Status     string                            `json:"status"` // SV2 : present, nonconforming_name, absent
 	Tag        *string                           `json:"tag"`
-	TagCodes   []string                          `json:"tag_codes"` // SV1 du tag ; [] sans tag
-	Interval   *conventionsMilestoneIntervalJSON `json:"interval"`  // null si non mesuré
-	Branches   conventionsAuthorBranchesJSON     `json:"branches"`  // BR1, état courant
-	Files      *conventionsMilestoneFilesJSON    `json:"files"`     // critères de fichiers au tag (8.3) ; null si non évaluable
+	TagCodes   []string                          `json:"tag_codes"`   // SV1 du tag ; [] sans tag
+	Interval   *conventionsMilestoneIntervalJSON `json:"interval"`    // null si non mesuré
+	Branches   conventionsAuthorBranchesJSON     `json:"branches"`    // BR1, état courant
+	Files      *conventionsMilestoneFilesJSON    `json:"files"`       // critères de fichiers au tag (8.3) ; null si non évaluable
+	Deadline   *conventionsDeadlineJSON          `json:"deadline"`    // échéance de SV2 (8.4) ; null sans échéance jugée
+	TagHistory *conventionsMilestoneHistoryJSON  `json:"tag_history"` // SV3 du tag (8.4) ; null s'il est absent ou jamais observé
 	Criteria   []conventionsCriterionJSON        `json:"criteria"`
 	Conform    int                               `json:"conform"`
 	Unknown    int                               `json:"unknown"`
@@ -269,7 +273,7 @@ func newConventionsTagsJSON(t conventions.TagReport) conventionsTagsJSON {
 // newMilestoneItemJSON convertit la présence d'un jalon.
 func newMilestoneItemJSON(m conventions.MilestoneResult) conventionsMilestoneItemJSON {
 	return conventionsMilestoneItemJSON{Name: m.Name, Due: optionalString(m.Due), Status: m.Status,
-		Tag: optionalString(m.Tag), Others: nonNil(m.Others)}
+		Tag: optionalString(m.Tag), Others: nonNil(m.Others), Deadline: newConventionsDeadlineJSON(m.Deadline)}
 }
 
 // newConventionsIntervalsJSON convertit CC1 par intervalle.
@@ -301,6 +305,7 @@ func newConventionsMilestoneJSON(rv conventions.MilestoneReview) *conventionsMil
 			Branches: conventionsAuthorBranchesJSON{Checked: r.Branches.Checked, Conform: r.Branches.Conform, Review: r.Branches.Review},
 			Criteria: make([]conventionsCriterionJSON, 0, len(r.Criteria)), Conform: r.Conform, Unknown: r.Unknown,
 			Total: len(r.Criteria), Files: newConventionsMilestoneFilesJSON(r.Files),
+			Deadline: newConventionsDeadlineJSON(r.Milestone.Deadline), TagHistory: newConventionsMilestoneHistoryJSON(r.History),
 		}
 		if r.Tag != nil {
 			item.TagCodes = nonNil(r.Tag.Codes)

@@ -51,6 +51,8 @@ type convRepoRow struct {
 	// Critères de fichiers (phase 8.3) : synthèse par famille ; FilesReason traduit si inconnus.
 	Files       []convFamilySummary
 	FilesReason string
+	// Phase 8.4 : réécritures, tags réécrits, sauts sous-versionnés, pré-versions, précédence, fraîcheur.
+	History convHistorySummary
 }
 
 // convContributorRow est la ligne d'un contributeur dans la vue d'ensemble.
@@ -90,6 +92,10 @@ type convReviewRepo struct {
 	From, To    string
 	Due         string
 	Missing     int
+	// Phase 8.4 : échéance de SV2 (libellé et précision traduits, vides sans échéance jugée) et SV3 du tag.
+	Deadline       string
+	DeadlineDetail string
+	History        string
 }
 
 // convReviewCell est l'état d'un critère.
@@ -144,8 +150,10 @@ func (s *server) handleConventions(w http.ResponseWriter, r *http.Request) {
 		row.Files, row.FilesReason = convFilesSummary(tr, repo.Files)
 		for _, m := range repo.Tags.Milestones {
 			row.Milestones = append(row.Milestones, convMilestoneRow{Name: m.Name, Due: m.Due,
-				Status: milestoneStatus(tr, m.Status)})
+				Status: milestoneStatus(tr, m.Status), Deadline: deadlineStatus(tr, m.Deadline),
+				DeadlineDetail: s.deadlineDetail(tr, m.Deadline)})
 		}
+		row.History = newConvHistorySummary(repo)
 		view.Repos = append(view.Repos, row)
 	}
 	for _, c := range rep.Contributors {
@@ -181,6 +189,15 @@ func newConvReview(s *server, r *http.Request, rv conventions.MilestoneReview) *
 		}
 		if iv := rr.Interval; iv != nil {
 			row.HasInterval, row.From, row.To, row.Due, row.Missing = true, iv.From, iv.To, iv.Due, iv.Missing
+		}
+		if d := rr.Milestone.Deadline; d.Status != "" {
+			row.Deadline, row.DeadlineDetail = tr.T("conv.deadline."+d.Status), s.deadlineDetail(tr, d)
+		}
+		if h := rr.History; h != nil {
+			row.History = tr.T("conv.history.status." + h.Status)
+			if h.Status == conventions.TagHistoryStable {
+				row.History = tr.T("conv.history.since", s.formatLocal(h.FirstSeenAt, tr.T("web.fmt.date")))
+			}
 		}
 		for _, c := range rr.Criteria {
 			cell := convReviewCell{ID: c.ID, Status: criterionStatus(tr, c.Status)}

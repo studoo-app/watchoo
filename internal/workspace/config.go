@@ -99,7 +99,8 @@ type ConventionsConfig struct {
 	Commit ConventionsCommitConfig `mapstructure:"commit"`
 	// Branch regroupe les règles du nommage des branches, BR1 (clés conventions.branch.*, phase 8.2).
 	Branch ConventionsBranchConfig `mapstructure:"branch"`
-	// Tags regroupe les jalons des tags, SV2 et revue de jalon (clés conventions.tags.*, phase 8.2).
+	// Tags regroupe les jalons des tags, SV2 et revue de jalon (clés conventions.tags.*, phase 8.2), et les
+	// formes de pré-version, SV4 (phase 8.4).
 	Tags ConventionsTagsConfig `mapstructure:"tags"`
 	// Changelog regroupe les règles du CHANGELOG, CL1 à CL9 (clés conventions.changelog.*, phase 8.3).
 	Changelog ConventionsChangelogConfig `mapstructure:"changelog"`
@@ -145,11 +146,15 @@ type ConventionsBranchConfig struct {
 	Exclude []string `mapstructure:"exclude"`
 }
 
-// ConventionsTagsConfig regroupe les jalons des tags (clés conventions.tags.*).
+// ConventionsTagsConfig regroupe les jalons et les formes de pré-version des tags (clés conventions.tags.*).
 type ConventionsTagsConfig struct {
 	// Milestones liste les jalons, « vX.Y.Z » ou « vX.Y.Z@AAAA-MM-JJ » pour une échéance (version
 	// finale conforme, date valide, chaque version une seule fois) ; défaut : conventions.DefaultMilestones.
 	Milestones []string `mapstructure:"milestones"`
+	// PrereleaseForms liste les formes de pré-version conformes « -<forme>.N » (SV4, phase 8.4) : au moins
+	// une, chacune un mot de lettres minuscules (conventions.ValidPrereleaseForm), une seule fois ; défaut :
+	// conventions.DefaultPrereleaseForms (rc, beta, alpha). Les autres formes donnent un avertissement.
+	PrereleaseForms []string `mapstructure:"prerelease_forms"`
 }
 
 // ConventionsChangelogConfig regroupe les règles du CHANGELOG (clés conventions.changelog.*).
@@ -238,6 +243,7 @@ func (c ConventionsConfig) BuildOptions(loc *time.Location) conventions.BuildOpt
 		Location:         loc,
 		Branch:           c.BranchRules(),
 		Milestones:       ms,
+		PrereleaseForms:  slices.Clone(c.Tags.PrereleaseForms),
 		Language:         c.Commit.Language,
 		Files:            c.FileRules(),
 	}
@@ -359,7 +365,8 @@ type GitConfig struct {
 //	conventions: {enabled: false, since: "", commit: {types: conventions.DefaultTypes, scopes: [],
 //	              max_subject_soft: 50, max_subject_hard: 72, forbidden: conventions.DefaultForbidden,
 //	              language: "any"}, branch: {pattern: "", exclude: conventions.DefaultBranchExclude},
-//	              tags: {milestones: conventions.DefaultMilestones}, changelog: {categories_fr: true},
+//	              tags: {milestones: conventions.DefaultMilestones,
+//	              prerelease_forms: conventions.DefaultPrereleaseForms}, changelog: {categories_fr: true},
 //	              readme: {sections: conventions.AllReadmeSections, min_words: 150},
 //	              docs: {dir: "documentation", media_dir: "Media", archives_scope: "repository"},
 //	              excluded_accounts: []}
@@ -401,7 +408,10 @@ func DefaultConfig(name string) Config {
 				Pattern: "",
 				Exclude: conventions.DefaultBranchExclude(),
 			},
-			Tags:      ConventionsTagsConfig{Milestones: conventions.DefaultMilestones()},
+			Tags: ConventionsTagsConfig{
+				Milestones:      conventions.DefaultMilestones(),
+				PrereleaseForms: conventions.DefaultPrereleaseForms(),
+			},
 			Changelog: ConventionsChangelogConfig{CategoriesFR: true},
 			Readme: ConventionsReadmeConfig{
 				Sections: conventions.AllReadmeSections(),
@@ -446,6 +456,8 @@ func DefaultConfig(name string) Config {
 //     motif non vide et valide pour path.Match ;
 //   - conventions.tags.milestones : chaque entrée « vX.Y.Z » (version finale conforme, sans pré-version
 //     ni build) suivie au besoin de « @AAAA-MM-JJ » (date valide), chaque version une seule fois ;
+//   - conventions.tags.prerelease_forms : au moins une forme, chacune un mot de 1 à 32 lettres
+//     minuscules (conventions.ValidPrereleaseForm), une seule fois ;
 //   - conventions.readme.sections : chaque clé parmi conventions.AllReadmeSections, une seule fois ;
 //     conventions.readme.min_words >= 1 ;
 //   - conventions.docs.dir : chemin relatif à la racine, sans « . » ni « .. » (conventions.ValidDocsDir) ;
@@ -604,6 +616,20 @@ func (c ConventionsConfig) validate() []error {
 			add("workspace.validate.conv_milestone_duplicate", i+1, m.Name)
 		default:
 			seen[m.Name] = true
+		}
+	}
+	if len(c.Tags.PrereleaseForms) == 0 {
+		add("workspace.validate.conv_prerelease_forms_empty")
+	}
+	forms := map[string]bool{}
+	for i, f := range c.Tags.PrereleaseForms {
+		switch {
+		case !conventions.ValidPrereleaseForm(f):
+			add("workspace.validate.conv_prerelease_form_invalid", i+1, f)
+		case forms[f]:
+			add("workspace.validate.conv_prerelease_form_duplicate", i+1, f)
+		default:
+			forms[f] = true
 		}
 	}
 	sections := map[string]bool{}
@@ -1441,6 +1467,7 @@ func renderConfig(tr *i18n.Translator, defaultName string, active map[string]any
 		text("#   tags:")
 	}
 	setting("    ", "conventions.tags.milestones", tr.T("workspace.cfg.conventions_milestones"))
+	setting("    ", "conventions.tags.prerelease_forms", tr.T("workspace.cfg.conventions_prerelease_forms"))
 	if sectionActive("conventions.changelog") {
 		text("  changelog:")
 	} else {

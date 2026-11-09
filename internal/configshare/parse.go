@@ -356,6 +356,10 @@ func parseConventions(c *ConventionsSettings, out *workspace.SharedSettings, fai
 	if c.Tags != nil && c.Tags.Milestones != nil {
 		out.ConventionsMilestones = parseMilestones(*c.Tags.Milestones, fail)
 	}
+	if c.Tags != nil {
+		out.ConventionsPrereleaseForms = parseConventionsList(c.Tags.PrereleaseForms, "tags.prerelease_forms",
+			conventions.ValidPrereleaseForm, fail)
+	}
 	parseConventionsFiles(c, out, fail)
 	if c.Commit == nil {
 		return

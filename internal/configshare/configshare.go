@@ -150,6 +150,8 @@ type ConventionsBranchSettings struct {
 // ConventionsTagsSettings : conventions.tags.* (milestones [] = aucun jalon).
 type ConventionsTagsSettings struct {
 	Milestones *[]string `json:"milestones,omitempty"`
+	// PrereleaseForms : formes de pré-version conformes (SV4, phase 8.4) ; au moins une.
+	PrereleaseForms *[]string `json:"prerelease_forms,omitempty"`
 }
 
 // ConventionsCommitSettings : conventions.commit.* (listes : [] = aucune entrée ; scopes vide = tous).
@@ -317,7 +319,8 @@ func settingsFromConfig(c workspace.Config) *Settings {
 				Pattern: shared.ConventionsBranchPattern,
 				Exclude: shared.ConventionsBranchExclude,
 			},
-			Tags:      &ConventionsTagsSettings{Milestones: shared.ConventionsMilestones},
+			Tags: &ConventionsTagsSettings{Milestones: shared.ConventionsMilestones,
+				PrereleaseForms: shared.ConventionsPrereleaseForms},
 			Changelog: &ConventionsChangelogSettings{CategoriesFR: shared.ConventionsCategoriesFR},
 			Readme: &ConventionsReadmeSettings{
 				Sections: shared.ConventionsReadmeSections,

@@ -250,6 +250,18 @@ signatures, no address displayed. Rules: [AI signatures](02-features.md#ai-signa
   this page only and never stored: documents not referenced by the INDEX (DOC3), dead links `source →
   target` (DOC4), badly named paths (DOC5), archives and office documents (DOC8); without a readable
   clone, "Path lists unavailable". Never a cell of the INDEX nor a file content.
+  Since 1.10.0 (phase 8.4), each milestone also gets a badge for its **due date** (SV2: "on time", "late",
+  "undetermined") with the first observation of its tag, or "set between X and Y"; and the section adds
+  **History of the tags and of the default branch, versions** (`repo-conventions-history`), observed by the
+  syncs while the conventions are enabled and attributed to nobody: the **rewrites of the default branch**
+  (BR4: count, date of the last one, each event with its date and old and new short SHAs; otherwise "no
+  rewrite of the default branch observed"), the **tag history** (SV3: "n without rewrite observed since
+  <date>, r rewritten, d deleted", one badge per tag, those that changed first; never "never rewritten"), the
+  **pre-releases** (SV4: warnings only), the **precedence** of the final versions (SV7; increment skipped as
+  information), the **version bumps** (SV5: counts, then each pair that is not consistent with the expected
+  bump or the reason) and the **CHANGELOG freshness** (CL10: `feat` and `fix` since the last commit that
+  touched the CHANGELOG, grayed out when the CHANGELOG of the last milestone is up to date). SV4, SV5, SV7
+  and CL10 are read from the local clone ("unknown (no local clone)" without one).
 - Button **"Sync this repository"** (absent if tracking is stopped).
 - Fragments: `/repos/{id}/commits` (history); `/repos/{id}` with the `HX-Target` header
   `repo-overview`, `repo-contributors`, `repo-languages`, `repo-pulls`, `repo-diagnostic` or
@@ -519,15 +531,21 @@ For the trainer only; "Conventions" navigation entry only when the conventions a
   conforming branches (BR1) and the number to review, conforming pull request titles (open and merged
   apart, default titles; "unknown" without API data), conforming tags (SV1), a badge per configured
   milestone (SV2) and the language of the subjects (CC7); since 1.9.0, a **Files** column, one badge per
-  family ("CHANGELOG 6/8 · 1 unknown"), or "unknown" with its reason (phase 8.3).
+  family ("CHANGELOG 6/8 · 1 unknown"), or "unknown" with its reason (phase 8.3); since 1.10.0, the badge of
+  a milestone with a due date is followed by its due-date badge (on time, late, undetermined), and a
+  **History and versions** column gives the rewrites of the default branch, the tags rewritten or deleted,
+  the under-versioned bumps, the pre-release and precedence warnings and the `feat`/`fix` commits since the
+  CHANGELOG (phase 8.4).
 - **By contributor**: by name, never sorted by conformity: conforming commits (CC3), the trend (before /
   since the last final tag), conforming pull request titles and branches (head branches of their pull
   requests only). Tags, milestones and branches without a pull request are never attributed to a person.
 - **Milestone review** (`?milestone=vX.Y.Z`, first configured milestone by default; a milestone that is not
   in `conventions.tags.milestones`: 400): a repository × criterion table (CC1 on the interval of the
   milestone, BR1, SV1, SV2; since 1.9.0 CL9, CL8, RD1, RD2 installation section, RD3, DOC1 and DOC3, read on
-  the tree of the milestone tag; tag absent: "unknown" with the reason of SV1), each cell "conforming", "not conforming" or "unknown" with its reason, then
-  "k/n criteria conforming, u unknown" and the interval read; no global grade. Without a start date:
+  the tree of the milestone tag; tag absent: "unknown" with the reason of SV1; since 1.10.0 SV3 after SV2,
+  and SV2 judges the due date), each cell "conforming", "not conforming" or "unknown" with its reason, then
+  "k/n criteria conforming, u unknown", the due date and the history of the tag (1.10.0) and the interval
+  read; no global grade. Without a start date:
   "Not evaluable: missing start date". No milestone configured: a dedicated text.
 - The workspace syncs from the clones only: a note says that pull requests and releases are unknown.
 - No commit message, no pull request title; computed when read, nothing is stored, except the file

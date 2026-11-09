@@ -95,6 +95,7 @@ name: "licence-projet"
 #     exclude: ["gh-pages", "dependabot/*", "renovate/*"] # branches left out (glob, the name or one of its path prefixes: "dependabot/*")
 #   tags:
 #     milestones: ["v1.0.0", "v2.0.0", "v3.0.0"] # milestones "vX.Y.Z", or "vX.Y.Z@YYYY-MM-DD" with a due date
+#     prerelease_forms: ["rc", "beta", "alpha"] # compliant pre-releases "-<form>.N" (e.g. "v1.0.0-rc.1"); other forms give a warning
 #   changelog:
 #     categories_fr: true    # French CHANGELOG labels (Ajouté, [Non publié]…) accepted with a warning; false: deviations
 #   readme:
