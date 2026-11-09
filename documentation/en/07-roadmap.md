@@ -22,7 +22,8 @@ counter-indicators of the diagnosis (phase 7.7) as **v1.5.0**; the EN / FR langu
 interface and the lines behind the signals on the review sheet of the diagnosis (phase 7.8) and the diagnosis score per
 repository and per contributor as **v1.6.0**; the link to the documentation in the language of the web
 interface, the icons of the AI score and the AI score and the leads of the commits on a contributor's page as
-**v1.6.1**.
+**v1.6.1**; the project conventions (phase 8, except BR3) and the sorting and filters of the dashboard as
+**v1.7.0**.
 
 ```mermaid
 flowchart LR
@@ -201,7 +202,7 @@ Importing a whole organization and the alerts move to V3 (see
   milestone review) and phase **8.6** (reviews: one request per merged pull request, counters only; PR4,
   merged without review, reviews received, PR4 in the milestone review) and phase **8.7** (leads that invite
   a reread without judging, outside the grids and the rates: CL11, CL12, RD5, DOC6, DOC7, DOC9, DOC10, TL4,
-  TL5) **done, not released**: phase 8 is done, except branch protection (BR3), postponed.
+  TL5) **released in v1.7.0**: phase 8 is done, except branch protection (BR3), postponed.
 
 ## Definition of "done" for each phase
 

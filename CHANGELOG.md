@@ -9,6 +9,14 @@ PATCH (see [Skills](documentation/en/11-skills.md#versions-and-changelogmd)).
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-11-09
+
+Project conventions (phase 8, sub-phases 8.1 to 8.7; branch protection BR3 postponed), off by default:
+compliance of the commits, branches, pull requests, tags, CHANGELOG, README, documentation and tooling with a
+conventions charter, the `watchoo conventions` command and the `/conventions` web route, migrations 00016 to
+00021 (still 19 tables); and the sorting and filters of the dashboard. Additive surface, no incompatible change;
+a sharing file that contains the new `conventions.*` keys is refused by 1.6.1 and earlier.
+
 ### Added
 
 - **Project conventions settings** (phase 8.1): a `conventions:` block in `config.yaml` (`enabled`, off by
@@ -737,7 +745,8 @@ First published release: the MVP (phases 1 to 5 of the [roadmap](documentation/e
   `gh` is the official binary verified by SHA-256; base images and GitHub actions pinned by
   digest.
 
-[Unreleased]: https://github.com/studoo-app/watchoo/compare/v1.6.1...HEAD
+[Unreleased]: https://github.com/studoo-app/watchoo/compare/v1.7.0...HEAD
+[1.7.0]: https://github.com/studoo-app/watchoo/compare/v1.6.1...v1.7.0
 [1.6.1]: https://github.com/studoo-app/watchoo/compare/v1.6.0...v1.6.1
 [1.6.0]: https://github.com/studoo-app/watchoo/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/studoo-app/watchoo/compare/v1.4.0...v1.5.0

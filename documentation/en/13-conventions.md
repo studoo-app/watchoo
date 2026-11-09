@@ -3,7 +3,7 @@
 [← Contents](README.md)
 
 **Status**: **maintainer decision** (phase 8, November 8, 2026); the choices are recorded in
-[section 11](#11-maintainer-decisions). Phases 8.1 to 8.7 done, not released; only BR3 (branch protection) remains
+[section 11](#11-maintainer-decisions). Phases 8.1 to 8.7 released in 1.7.0; only BR3 (branch protection) remains
 postponed. The scope exception is carried over into the [Vision](01-vision.md); the updates to
 [Features](02-features.md), [Data model](04-data-model.md), [CLI](05-cli.md) and
 [Web interface](06-web-interface.md) follow phase by phase.
@@ -778,7 +778,7 @@ scope of the form `[a-z0-9][a-z0-9._/-]*`; `commit.max_subject_soft` at least 1 
 block is written `settings.conventions` (`since`, `commit`): see
 [Configuration sharing](05-cli.md#configuration-sharing-watchoo-config).
 
-**Phase 8.2**: `branch.pattern`, `branch.exclude` and `tags.milestones` are added (1.8.0), shared like
+**Phase 8.2**: `branch.pattern`, `branch.exclude` and `tags.milestones` are added (1.7.0), shared like
 `commit.*`. Environment variables: `WATCHOO_CONVENTIONS_BRANCH_PATTERN`,
 `WATCHOO_CONVENTIONS_BRANCH_EXCLUDE` and `WATCHOO_CONVENTIONS_TAGS_MILESTONES` (comma-separated lists for the
 last two; the pattern is never split: `{2,40}` stays whole). Rules checked at load time:
@@ -805,10 +805,10 @@ a free form.
 
 In the sharing file, these keys are written `settings.conventions.branch` (`pattern`, `exclude`) and
 `settings.conventions.tags` (`milestones`); a file that contains them is refused by the versions before
-1.8.0, which accept no unknown key.
+1.7.0, which accept no unknown key.
 
 **Phase 8.3**: `changelog.categories_fr`, `readme.sections`, `readme.min_words`, `docs.dir`,
-`docs.media_dir` and `docs.archives_scope` are added (1.9.0), shared like `commit.*`. Exact syntax:
+`docs.media_dir` and `docs.archives_scope` are added (1.7.0), shared like `commit.*`. Exact syntax:
 
 ```yaml
 conventions:
@@ -844,9 +844,9 @@ These settings are part of the fingerprint of the cached results (`config_hash`)
 recomputes the file criteria at the next sync. In the sharing file, they are written
 `settings.conventions.changelog` (`categories_fr`), `settings.conventions.readme` (`sections`, `min_words`)
 and `settings.conventions.docs` (`dir`, `media_dir`, `archives_scope`); a file that contains them is refused
-by the versions before 1.9.0, which accept no unknown key (as is a `config.yaml` that contains them).
+by the versions before 1.7.0, which accept no unknown key (as is a `config.yaml` that contains them).
 
-**Phase 8.4**: `tags.prerelease_forms` is added (1.10.0), shared like `commit.*`. Exact syntax:
+**Phase 8.4**: `tags.prerelease_forms` is added (1.7.0), shared like `commit.*`. Exact syntax:
 
 ```yaml
 conventions:
@@ -860,9 +860,9 @@ Rules checked at load time: **at least one form**; each form is a word of 1 to 3
 compliant form if it is written exactly `-<form>.N`, the form in the list and `N` an integer without a
 leading zero (`v1.0.0-rc.1`); any other form (`-rc1`, `-RC.1`, `-pre`) gets a SV4 warning, never a
 deviation. In the sharing file, the key is written `settings.conventions.tags.prerelease_forms`; a file that
-contains it is refused by the versions before 1.10.0 (as is a `config.yaml` that contains it).
+contains it is refused by the versions before 1.7.0 (as is a `config.yaml` that contains it).
 
-**Phase 8.5**: `pr.body_sections` and `pr.require_closes` are added (1.11.0), shared like `commit.*`. Exact
+**Phase 8.5**: `pr.body_sections` and `pr.require_closes` are added (1.7.0), shared like `commit.*`. Exact
 syntax:
 
 ```yaml
@@ -880,9 +880,9 @@ test"…) cannot be set: they are built into the binary and versioned with the p
 settings only change the reading of the `body_sections` mask already computed at the sync: changing them
 does not require reading the pull requests again. In the sharing file, they are written
 `settings.conventions.pr` (`body_sections`, `require_closes`); a file that contains them is refused by the
-versions before 1.11.0 (as is a `config.yaml` that contains them).
+versions before 1.7.0 (as is a `config.yaml` that contains them).
 
-**Phase 8.6**: `pr.min_reviews` and `pr.reviewer_must_contribute` are added (1.12.0), shared like
+**Phase 8.6**: `pr.min_reviews` and `pr.reviewer_must_contribute` are added (1.7.0), shared like
 `commit.*`. Exact syntax:
 
 ```yaml
@@ -902,7 +902,7 @@ of the computation, by login or identifier). `pr.min_reviews` and `pr.reviewer_m
 `excluded_accounts`, on the other hand, is applied **when the reviews are read**: changing it only affects
 the pull requests whose reviews are read afterwards (a pull request already read keeps its counters). In
 the sharing file, they are written `settings.conventions.pr` (`min_reviews`, `reviewer_must_contribute`);
-a file that contains them is refused by the versions before 1.12.0 (as is a `config.yaml` that contains
+a file that contains them is refused by the versions before 1.7.0 (as is a `config.yaml` that contains
 them).
 
 ## 9. Technical impact
@@ -1045,13 +1045,13 @@ Each phase can be delivered alone; phases 8.1 to 8.4 are enough for a milestone 
 | Phase | Content | Cost | Version |
 | --- | --- | --- | --- |
 | 8.0 | This document approved (done, November 8, 2026) and exception carried over into 01; updates to 02, 04, 05, 06 and 12 with each phase | no code | — |
-| 8.1 | `internal/conventions` (parser), `internal/semver`, `conventions.*` settings, CC1 to CC4, `commits.parent_count` and its backfill, `watchoo conventions --commits`, web section and contributor page, adjustments to A1, A2 and F4. **Done, not released** (`[Unreleased]` of the CHANGELOG; `scope` code added to the blocking codes of CC2; CC1 per range between tags and CC3 trend since the last tag postponed to 8.2, with the reading of the tags) | 0 quota, 1 migration | 1.7.0 |
-| 8.2 | On the fly: BR1, PR1, PR2, SV1, SV2 (presence), SV6; first milestone review; CC5 to CC7; CC1 per range between tags, CC3 trend. **Done, not released** (`[Unreleased]` of the CHANGELOG; `branch.pattern`, `branch.exclude` and `tags.milestones` settings; `/conventions` route; approximations listed in [5.4](#54-tags-and-semver-sv): forks included until 8.5, PR2 comparison with the only commit not measured, API mode inferred; compact dot on the dashboard postponed) | 0 quota | 1.8.0 |
-| 8.3 | Clone tree: `repository_conventions`, CL1 to CL9, RD1 to RD4, DOC1 to DOC8, TL1 to TL3; milestone review on the tags' tree. **Done, not released** (`[Unreleased]` of the CHANGELOG; migration `00017`; `changelog.categories_fr`, `readme.sections`, `readme.min_words`, `docs.dir`, `docs.media_dir`, `docs.archives_scope` settings; deviations: DOC6 and DOC7 postponed to 8.7, CL10 to 8.4; `FileRulesVersion` separate from `RulesVersion`; `config_hash` also covers the names of the version tags (CL8); category order (CL6) as a warning; date gap between tag and section (CL8) not measured; TL1 without introduction date; DOC4 reads at most 300 documents; path lists only on a repository's page and in `watchoo conventions owner/repo`, not in `/conventions`; in API mode, milestone tags read from the database, see [section 9](#9-technical-impact)) | 0 quota, 1 migration | 1.9.0 |
-| 8.4 | History: `tag_observations` (SV3, SV2 deadlines), `branch_rewrites` (BR4), SV4, SV5, SV7, CL10. **Done, not released** (`[Unreleased]` of the CHANGELOG; migrations `00018` and `00019`; setting `tags.prerelease_forms`; SV3 in the milestone review; approximations listed in [5.4](#54-tags-and-semver-sv): proof of a read of the tags by the dates of `tag_observations`, "late" only on a read made after the deadline, rewrite of an annotated tag on the same commit invisible, BR4 partial in API mode alone; SV4, SV5, SV7 and CL10 computed at read time, not stored) | 0 quota, 2 migrations | 1.10.0 |
-| 8.5 | API with no extra request: `merge_commit_sha`, `from_fork`, `body_sections`, merge methods; full PR3, PR5, PR6, BR2, BR5. **Done, not released** (`[Unreleased]` of the CHANGELOG; migration `00020`; settings `pr.body_sections` and `pr.require_closes`; PR3 in the milestone review; forks set aside from PR1, PR2, PR5, PR6, BR1 and BR2; approximations listed in [5.3](#53-pull-requests-pr): PR3 filtered on the committer date, `unmatched` until the PR list has been reread, PR6 "rebase" for a squash with a rewritten subject, BR5 unknown without push access, repository of 1,000 PRs or more reread at each sync; comparison of PR2 with the only commit not measured) | one reread of the PR lists | 1.11.0 |
-| 8.6 | Reviews: PR4, "merged without review", reviews received. **Done, not released** (`[Unreleased]` of the CHANGELOG; migration `00021`; settings `pr.min_reviews` and `pr.reviewer_must_contribute`, applied at read time; PR4 in the milestone review; no reviewer login stored: counters only, `excluded_accounts` applied to the PRs read afterwards; approximations listed in [5.3](#53-pull-requests-pr) and [7.1](#71-milestone-review-rj): merged PR read before its merge "unknown" until the next read, reviewer without an account never counted, `DISMISSED` dated from the submission of the review and not from its dismissal, contributing reviewer recognized by login or by account identifier, milestone interval bounded by the dates of the commits targeted by the tags) | 1 request per merged PR | 1.12.0 |
-| 8.7 | Optional leads: CL11, CL12, RD5, DOC6, DOC7, DOC9, DOC10, TL4, TL5. **Done, not released** (`[Unreleased]` of the CHANGELOG; no migration, no setting; `FileRulesVersion` goes up to 2; leads outside the grids, the milestone review and the rates; CL11, CL12, RD5, DOC6, DOC7 and TL4 cached at sync time, DOC9, DOC10 and TL5 when read; approximations listed in [5.8](#58-tooling-tl): DOC9, DOC10 and TL5 only in the detailed view, TL5 introduction dated per file only, CL12 underestimated if the default branch is not tracked, grids "to recompute" until the next sync, no lead counter in `/conventions`) | 0 quota | 1.13.0 |
+| 8.1 | `internal/conventions` (parser), `internal/semver`, `conventions.*` settings, CC1 to CC4, `commits.parent_count` and its backfill, `watchoo conventions --commits`, web section and contributor page, adjustments to A1, A2 and F4. **Released in 1.7.0** ( `scope` code added to the blocking codes of CC2; CC1 per range between tags and CC3 trend since the last tag postponed to 8.2, with the reading of the tags) | 0 quota, 1 migration | 1.7.0 |
+| 8.2 | On the fly: BR1, PR1, PR2, SV1, SV2 (presence), SV6; first milestone review; CC5 to CC7; CC1 per range between tags, CC3 trend. **Released in 1.7.0** ( `branch.pattern`, `branch.exclude` and `tags.milestones` settings; `/conventions` route; approximations listed in [5.4](#54-tags-and-semver-sv): forks included until 8.5, PR2 comparison with the only commit not measured, API mode inferred; compact dot on the dashboard postponed) | 0 quota | 1.7.0 |
+| 8.3 | Clone tree: `repository_conventions`, CL1 to CL9, RD1 to RD4, DOC1 to DOC8, TL1 to TL3; milestone review on the tags' tree. **Released in 1.7.0** ( migration `00017`; `changelog.categories_fr`, `readme.sections`, `readme.min_words`, `docs.dir`, `docs.media_dir`, `docs.archives_scope` settings; deviations: DOC6 and DOC7 postponed to 8.7, CL10 to 8.4; `FileRulesVersion` separate from `RulesVersion`; `config_hash` also covers the names of the version tags (CL8); category order (CL6) as a warning; date gap between tag and section (CL8) not measured; TL1 without introduction date; DOC4 reads at most 300 documents; path lists only on a repository's page and in `watchoo conventions owner/repo`, not in `/conventions`; in API mode, milestone tags read from the database, see [section 9](#9-technical-impact)) | 0 quota, 1 migration | 1.7.0 |
+| 8.4 | History: `tag_observations` (SV3, SV2 deadlines), `branch_rewrites` (BR4), SV4, SV5, SV7, CL10. **Released in 1.7.0** ( migrations `00018` and `00019`; setting `tags.prerelease_forms`; SV3 in the milestone review; approximations listed in [5.4](#54-tags-and-semver-sv): proof of a read of the tags by the dates of `tag_observations`, "late" only on a read made after the deadline, rewrite of an annotated tag on the same commit invisible, BR4 partial in API mode alone; SV4, SV5, SV7 and CL10 computed at read time, not stored) | 0 quota, 2 migrations | 1.7.0 |
+| 8.5 | API with no extra request: `merge_commit_sha`, `from_fork`, `body_sections`, merge methods; full PR3, PR5, PR6, BR2, BR5. **Released in 1.7.0** ( migration `00020`; settings `pr.body_sections` and `pr.require_closes`; PR3 in the milestone review; forks set aside from PR1, PR2, PR5, PR6, BR1 and BR2; approximations listed in [5.3](#53-pull-requests-pr): PR3 filtered on the committer date, `unmatched` until the PR list has been reread, PR6 "rebase" for a squash with a rewritten subject, BR5 unknown without push access, repository of 1,000 PRs or more reread at each sync; comparison of PR2 with the only commit not measured) | one reread of the PR lists | 1.7.0 |
+| 8.6 | Reviews: PR4, "merged without review", reviews received. **Released in 1.7.0** ( migration `00021`; settings `pr.min_reviews` and `pr.reviewer_must_contribute`, applied at read time; PR4 in the milestone review; no reviewer login stored: counters only, `excluded_accounts` applied to the PRs read afterwards; approximations listed in [5.3](#53-pull-requests-pr) and [7.1](#71-milestone-review-rj): merged PR read before its merge "unknown" until the next read, reviewer without an account never counted, `DISMISSED` dated from the submission of the review and not from its dismissal, contributing reviewer recognized by login or by account identifier, milestone interval bounded by the dates of the commits targeted by the tags) | 1 request per merged PR | 1.7.0 |
+| 8.7 | Optional leads: CL11, CL12, RD5, DOC6, DOC7, DOC9, DOC10, TL4, TL5. **Released in 1.7.0** ( no migration, no setting; `FileRulesVersion` goes up to 2; leads outside the grids, the milestone review and the rates; CL11, CL12, RD5, DOC6, DOC7 and TL4 cached at sync time, DOC9, DOC10 and TL5 when read; approximations listed in [5.8](#58-tooling-tl): DOC9, DOC10 and TL5 only in the detailed view, TL5 introduction dated per file only, CL12 underestimated if the default branch is not tracked, grids "to recompute" until the next sync, no lead counter in `/conventions`) | 0 quota | 1.7.0 |
 
 ## 11. Maintainer decisions
 

@@ -3,7 +3,7 @@
 [← Sommaire](README.md)
 
 **Statut** : **décision du mainteneur** (phase 8, 8 novembre 2026) ; les choix sont consignés en
-[section 11](#11-décisions-du-mainteneur). Phases 8.1 à 8.7 réalisées, non publiées ; seul BR3 (protection de branche) reste
+[section 11](#11-décisions-du-mainteneur). Phases 8.1 à 8.7 publiées en 1.7.0 ; seul BR3 (protection de branche) reste
 reporté. L'exception au périmètre est reportée dans la [Vision](01-vision.md) ; les
 reprises dans [Fonctionnalités](02-fonctionnalites.md), [Modèle de données](04-modele-donnees.md),
 [CLI](05-cli.md) et [Interface web](06-interface-web.md) se font phase par phase.
@@ -790,7 +790,7 @@ vide dans `commit.forbidden` ni `excluded_accounts` ; `commit.language` parmi `f
 sur l'analyse en 8.1 ; information de CC7 depuis 8.2). Dans le fichier de partage, le bloc s'écrit `settings.conventions` (`since`,
 `commit`) : voir [Partage de la configuration](05-cli.md#partage-de-la-configuration--watchoo-config).
 
-**Phase 8.2** : s'ajoutent `branch.pattern`, `branch.exclude` et `tags.milestones` (1.8.0), partagés comme
+**Phase 8.2** : s'ajoutent `branch.pattern`, `branch.exclude` et `tags.milestones` (1.7.0), partagés comme
 `commit.*`. Variables d'environnement : `WATCHOO_CONVENTIONS_BRANCH_PATTERN`,
 `WATCHOO_CONVENTIONS_BRANCH_EXCLUDE` et `WATCHOO_CONVENTIONS_TAGS_MILESTONES` (listes séparées par des
 virgules pour les deux dernières ; le motif n'est jamais découpé : `{2,40}` y reste entier). Règles vérifiées
@@ -818,10 +818,10 @@ avertit d'une forme libre.
 
 Dans le fichier de partage, ces clés s'écrivent `settings.conventions.branch` (`pattern`, `exclude`) et
 `settings.conventions.tags` (`milestones`) ; un fichier qui les contient est refusé par les versions
-antérieures à 1.8.0, qui n'acceptent aucune clé inconnue.
+antérieures à 1.7.0, qui n'acceptent aucune clé inconnue.
 
 **Phase 8.3** : s'ajoutent `changelog.categories_fr`, `readme.sections`, `readme.min_words`, `docs.dir`,
-`docs.media_dir` et `docs.archives_scope` (1.9.0), partagés comme `commit.*`. Syntaxe exacte :
+`docs.media_dir` et `docs.archives_scope` (1.7.0), partagés comme `commit.*`. Syntaxe exacte :
 
 ```yaml
 conventions:
@@ -858,10 +858,10 @@ Ces réglages entrent dans l'empreinte des résultats en cache (`config_hash`) :
 les critères de fichiers à la synchro suivante. Dans le fichier de partage, ils s'écrivent
 `settings.conventions.changelog` (`categories_fr`), `settings.conventions.readme` (`sections`, `min_words`)
 et `settings.conventions.docs` (`dir`, `media_dir`, `archives_scope`) ; un fichier qui les contient est
-refusé par les versions antérieures à 1.9.0, qui n'acceptent aucune clé inconnue (de même qu'un `config.yaml`
+refusé par les versions antérieures à 1.7.0, qui n'acceptent aucune clé inconnue (de même qu'un `config.yaml`
 qui les contient).
 
-**Phase 8.4** : s'ajoute `tags.prerelease_forms` (1.10.0), partagé comme `commit.*`. Syntaxe exacte :
+**Phase 8.4** : s'ajoute `tags.prerelease_forms` (1.7.0), partagé comme `commit.*`. Syntaxe exacte :
 
 ```yaml
 conventions:
@@ -876,9 +876,9 @@ figure qu'une fois. Une pré-version est de forme conforme si elle s'écrit exac
 dans la liste et `N` un entier sans zéro en tête (`v1.0.0-rc.1`) ; toute autre forme (`-rc1`, `-RC.1`,
 `-pre`) reçoit un avertissement de SV4, jamais un écart. Dans le fichier de partage, la clé s'écrit
 `settings.conventions.tags.prerelease_forms` ; un fichier qui la contient est refusé par les versions
-antérieures à 1.10.0 (de même qu'un `config.yaml` qui la contient).
+antérieures à 1.7.0 (de même qu'un `config.yaml` qui la contient).
 
-**Phase 8.5** : s'ajoutent `pr.body_sections` et `pr.require_closes` (1.11.0), partagés comme `commit.*`.
+**Phase 8.5** : s'ajoutent `pr.body_sections` et `pr.require_closes` (1.7.0), partagés comme `commit.*`.
 Syntaxe exacte :
 
 ```yaml
@@ -896,9 +896,9 @@ synonymes reconnus pour chaque clé (« Contexte », « Why », « How to test �
 intégrés au binaire et versionnés avec les règles de PR. Ces réglages ne changent que la lecture du masque
 `body_sections` déjà calculé à la synchro : les modifier n'oblige pas à relire les PR. Dans le fichier de
 partage, ils s'écrivent `settings.conventions.pr` (`body_sections`, `require_closes`) ; un fichier qui les
-contient est refusé par les versions antérieures à 1.11.0 (de même qu'un `config.yaml` qui les contient).
+contient est refusé par les versions antérieures à 1.7.0 (de même qu'un `config.yaml` qui les contient).
 
-**Phase 8.6** : s'ajoutent `pr.min_reviews` et `pr.reviewer_must_contribute` (1.12.0), partagés comme
+**Phase 8.6** : s'ajoutent `pr.min_reviews` et `pr.reviewer_must_contribute` (1.7.0), partagés comme
 `commit.*`. Syntaxe exacte :
 
 ```yaml
@@ -919,7 +919,7 @@ aucune requête ni nouvelle lecture des relectures. `excluded_accounts`, en reva
 lecture des relectures** : le modifier ne touche que les PR dont les relectures sont lues ensuite (une PR
 déjà lue garde ses compteurs). Dans le fichier de partage, ils s'écrivent `settings.conventions.pr`
 (`min_reviews`, `reviewer_must_contribute`) ; un fichier qui les contient est refusé par les versions
-antérieures à 1.12.0 (de même qu'un `config.yaml` qui les contient).
+antérieures à 1.7.0 (de même qu'un `config.yaml` qui les contient).
 
 ## 9. Impact technique
 
@@ -1063,13 +1063,13 @@ Chaque phase est livrable seule ; les phases 8.1 à 8.4 suffisent pour une revue
 | Phase | Contenu | Coût | Version |
 | --- | --- | --- | --- |
 | 8.0 | Ce document validé (fait, 8 novembre 2026) et exception reportée dans 01 ; reprises dans 02, 04, 05, 06 et 12 avec chaque phase | aucun code | — |
-| 8.1 | `internal/conventions` (parseur), `internal/semver`, réglages `conventions.*`, CC1 à CC4, `commits.parent_count` et son rattrapage, `watchoo conventions --commits`, section web et page contributeur, ajustements de A1, A2 et F4. **Réalisée, non publiée** (`[Unreleased]` du CHANGELOG ; code `scope` ajouté aux codes bloquants de CC2 ; CC1 par intervalle entre tags et tendance de CC3 depuis le dernier tag reportés à 8.2, avec la lecture des tags) | 0 quota, 1 migration | 1.7.0 |
-| 8.2 | À la volée : BR1, PR1, PR2, SV1, SV2 (présence), SV6 ; première revue de jalon ; CC5 à CC7 ; CC1 par intervalle entre tags, tendance de CC3. **Réalisée, non publiée** (`[Unreleased]` du CHANGELOG ; réglages `branch.pattern`, `branch.exclude` et `tags.milestones` ; route `/conventions` ; approximations listées en [5.4](#54-tags-et-semver-sv) : forks inclus jusqu'à 8.5, comparaison de PR2 avec le seul commit non mesurée, mode API déduit ; pastille compacte du tableau de bord reportée) | 0 quota | 1.8.0 |
-| 8.3 | Arbre du clone : `repository_conventions`, CL1 à CL9, RD1 à RD4, DOC1 à DOC8, TL1 à TL3 ; revue de jalon sur l'arbre des tags. **Réalisée, non publiée** (`[Unreleased]` du CHANGELOG ; migration `00017` ; réglages `changelog.categories_fr`, `readme.sections`, `readme.min_words`, `docs.dir`, `docs.media_dir`, `docs.archives_scope` ; écarts : DOC6 et DOC7 reportés à 8.7, CL10 à 8.4 ; `FileRulesVersion` distincte de `RulesVersion` ; `config_hash` couvre aussi les noms des tags de version (CL8) ; ordre des catégories (CL6) en avertissement ; écart de date entre tag et section (CL8) non mesuré ; TL1 sans date d'introduction ; DOC4 lit au plus 300 documents ; listes de chemins seulement sur la page d'un dépôt et dans `watchoo conventions owner/repo`, pas dans `/conventions` ; en mode API, tags des jalons lus dans la base, voir [section 9](#9-impact-technique)) | 0 quota, 1 migration | 1.9.0 |
-| 8.4 | Historique : `tag_observations` (SV3, échéances de SV2), `branch_rewrites` (BR4), SV4, SV5, SV7, CL10. **Réalisée, non publiée** (`[Unreleased]` du CHANGELOG ; migrations `00018` et `00019` ; réglage `tags.prerelease_forms` ; SV3 dans la revue de jalon ; approximations listées en [5.4](#54-tags-et-semver-sv) : preuve d'une lecture des tags par les dates de `tag_observations`, « en retard » seulement sur une lecture faite après l'échéance, réécriture d'un tag annoté sur le même commit invisible, BR4 en mode API seul partiel ; SV4, SV5, SV7 et CL10 calculés à la lecture, non stockés) | 0 quota, 2 migrations | 1.10.0 |
-| 8.5 | API sans requête de plus : `merge_commit_sha`, `from_fork`, `body_sections`, méthodes de fusion ; PR3 complet, PR5, PR6, BR2, BR5. **Réalisée, non publiée** (`[Unreleased]` du CHANGELOG ; migration `00020` ; réglages `pr.body_sections` et `pr.require_closes` ; PR3 dans la revue de jalon ; forks écartés de PR1, PR2, PR5, PR6, BR1 et BR2 ; approximations listées en [5.3](#53-pull-requests-pr) : PR3 filtré par la date du committer, `unmatched` tant que la liste des PR n'a pas été relue, PR6 « rebase » pour un squash au sujet réécrit, BR5 inconnu sans droit push, dépôt de 1 000 PR ou plus relu à chaque synchro ; comparaison de PR2 avec le seul commit non mesurée) | une relecture des listes de PR | 1.11.0 |
-| 8.6 | Relectures : PR4, « fusionnées sans relecture », relectures reçues. **Réalisée, non publiée** (`[Unreleased]` du CHANGELOG ; migration `00021` ; réglages `pr.min_reviews` et `pr.reviewer_must_contribute`, appliqués à la lecture ; PR4 dans la revue de jalon ; aucun login de relecteur stocké : des compteurs seulement, `excluded_accounts` appliqué aux PR lues ensuite ; approximations listées en [5.3](#53-pull-requests-pr) et [7.1](#71-revue-de-jalon-rj) : PR fusionnée lue avant sa fusion « inconnue » jusqu'à la lecture suivante, relecteur sans compte jamais compté, `DISMISSED` daté du dépôt de la relecture et non de son retrait, relecteur contributeur reconnu par login ou par identifiant de compte, intervalle du jalon borné par les dates des commits visés par les tags) | 1 requête par PR fusionnée | 1.12.0 |
-| 8.7 | Pistes facultatives : CL11, CL12, RD5, DOC6, DOC7, DOC9, DOC10, TL4, TL5. **Réalisée, non publiée** (`[Unreleased]` du CHANGELOG ; aucune migration, aucun réglage ; `FileRulesVersion` passe à 2 ; pistes hors grilles, hors revue de jalon et hors taux ; CL11, CL12, RD5, DOC6, DOC7 et TL4 en cache à la synchro, DOC9, DOC10 et TL5 à la lecture ; approximations listées en [5.8](#58-outillage-tl) : DOC9, DOC10 et TL5 seulement en vue détaillée, introduction de TL5 datée par fichier seulement, CL12 sous-estimé si la branche par défaut n'est pas suivie, grilles « à recalculer » jusqu'à la synchro suivante, aucun compteur de pistes dans `/conventions`) | 0 quota | 1.13.0 |
+| 8.1 | `internal/conventions` (parseur), `internal/semver`, réglages `conventions.*`, CC1 à CC4, `commits.parent_count` et son rattrapage, `watchoo conventions --commits`, section web et page contributeur, ajustements de A1, A2 et F4. **Publiée en 1.7.0** ( code `scope` ajouté aux codes bloquants de CC2 ; CC1 par intervalle entre tags et tendance de CC3 depuis le dernier tag reportés à 8.2, avec la lecture des tags) | 0 quota, 1 migration | 1.7.0 |
+| 8.2 | À la volée : BR1, PR1, PR2, SV1, SV2 (présence), SV6 ; première revue de jalon ; CC5 à CC7 ; CC1 par intervalle entre tags, tendance de CC3. **Publiée en 1.7.0** ( réglages `branch.pattern`, `branch.exclude` et `tags.milestones` ; route `/conventions` ; approximations listées en [5.4](#54-tags-et-semver-sv) : forks inclus jusqu'à 8.5, comparaison de PR2 avec le seul commit non mesurée, mode API déduit ; pastille compacte du tableau de bord reportée) | 0 quota | 1.7.0 |
+| 8.3 | Arbre du clone : `repository_conventions`, CL1 à CL9, RD1 à RD4, DOC1 à DOC8, TL1 à TL3 ; revue de jalon sur l'arbre des tags. **Publiée en 1.7.0** ( migration `00017` ; réglages `changelog.categories_fr`, `readme.sections`, `readme.min_words`, `docs.dir`, `docs.media_dir`, `docs.archives_scope` ; écarts : DOC6 et DOC7 reportés à 8.7, CL10 à 8.4 ; `FileRulesVersion` distincte de `RulesVersion` ; `config_hash` couvre aussi les noms des tags de version (CL8) ; ordre des catégories (CL6) en avertissement ; écart de date entre tag et section (CL8) non mesuré ; TL1 sans date d'introduction ; DOC4 lit au plus 300 documents ; listes de chemins seulement sur la page d'un dépôt et dans `watchoo conventions owner/repo`, pas dans `/conventions` ; en mode API, tags des jalons lus dans la base, voir [section 9](#9-impact-technique)) | 0 quota, 1 migration | 1.7.0 |
+| 8.4 | Historique : `tag_observations` (SV3, échéances de SV2), `branch_rewrites` (BR4), SV4, SV5, SV7, CL10. **Publiée en 1.7.0** ( migrations `00018` et `00019` ; réglage `tags.prerelease_forms` ; SV3 dans la revue de jalon ; approximations listées en [5.4](#54-tags-et-semver-sv) : preuve d'une lecture des tags par les dates de `tag_observations`, « en retard » seulement sur une lecture faite après l'échéance, réécriture d'un tag annoté sur le même commit invisible, BR4 en mode API seul partiel ; SV4, SV5, SV7 et CL10 calculés à la lecture, non stockés) | 0 quota, 2 migrations | 1.7.0 |
+| 8.5 | API sans requête de plus : `merge_commit_sha`, `from_fork`, `body_sections`, méthodes de fusion ; PR3 complet, PR5, PR6, BR2, BR5. **Publiée en 1.7.0** ( migration `00020` ; réglages `pr.body_sections` et `pr.require_closes` ; PR3 dans la revue de jalon ; forks écartés de PR1, PR2, PR5, PR6, BR1 et BR2 ; approximations listées en [5.3](#53-pull-requests-pr) : PR3 filtré par la date du committer, `unmatched` tant que la liste des PR n'a pas été relue, PR6 « rebase » pour un squash au sujet réécrit, BR5 inconnu sans droit push, dépôt de 1 000 PR ou plus relu à chaque synchro ; comparaison de PR2 avec le seul commit non mesurée) | une relecture des listes de PR | 1.7.0 |
+| 8.6 | Relectures : PR4, « fusionnées sans relecture », relectures reçues. **Publiée en 1.7.0** ( migration `00021` ; réglages `pr.min_reviews` et `pr.reviewer_must_contribute`, appliqués à la lecture ; PR4 dans la revue de jalon ; aucun login de relecteur stocké : des compteurs seulement, `excluded_accounts` appliqué aux PR lues ensuite ; approximations listées en [5.3](#53-pull-requests-pr) et [7.1](#71-revue-de-jalon-rj) : PR fusionnée lue avant sa fusion « inconnue » jusqu'à la lecture suivante, relecteur sans compte jamais compté, `DISMISSED` daté du dépôt de la relecture et non de son retrait, relecteur contributeur reconnu par login ou par identifiant de compte, intervalle du jalon borné par les dates des commits visés par les tags) | 1 requête par PR fusionnée | 1.7.0 |
+| 8.7 | Pistes facultatives : CL11, CL12, RD5, DOC6, DOC7, DOC9, DOC10, TL4, TL5. **Publiée en 1.7.0** ( aucune migration, aucun réglage ; `FileRulesVersion` passe à 2 ; pistes hors grilles, hors revue de jalon et hors taux ; CL11, CL12, RD5, DOC6, DOC7 et TL4 en cache à la synchro, DOC9, DOC10 et TL5 à la lecture ; approximations listées en [5.8](#58-outillage-tl) : DOC9, DOC10 et TL5 seulement en vue détaillée, introduction de TL5 datée par fichier seulement, CL12 sous-estimé si la branche par défaut n'est pas suivie, grilles « à recalculer » jusqu'à la synchro suivante, aucun compteur de pistes dans `/conventions`) | 0 quota | 1.7.0 |
 
 ## 11. Décisions du mainteneur
 

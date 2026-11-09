@@ -20,7 +20,8 @@ diagnostic (phases 7.1 à 7.5) sont publiés en **v1.4.0** ([7](#après-100--7--
 absolus et les contre-indicateurs du diagnostic (phase 7.7) en **v1.5.0** ; le sélecteur de langue EN / FR de
 l'interface web et les lignes en cause sur la fiche de revue du diagnostic (phase 7.8) et le score du diagnostic par dépôt et
 par contributeur en **v1.6.0** ; le lien vers la documentation dans la langue de l'interface web, les icônes du score IA et le score IA et les
-pistes des commits sur la page d'un contributeur en **v1.6.1**.
+pistes des commits sur la page d'un contributeur en **v1.6.1** ; les conventions de projet (phase 8, sauf BR3) et le tri
+et les filtres du tableau de bord en **v1.7.0**.
 
 ```mermaid
 flowchart LR
@@ -200,7 +201,7 @@ L'import d'une organisation entière et les alertes passent en V3 (voir
   revue de jalon) et phase **8.6** (relectures : une requête par pull request fusionnée, des compteurs
   seulement ; PR4, fusionnées sans relecture, relectures reçues, PR4 dans la revue de jalon) et phase **8.7**
   (pistes qui invitent à relire sans juger, hors grilles et hors taux : CL11, CL12, RD5, DOC6, DOC7, DOC9,
-  DOC10, TL4, TL5) **réalisées, non publiées** : la phase 8 est réalisée, sauf la protection de branche (BR3),
+  DOC10, TL4, TL5) **publiées en v1.7.0** : la phase 8 est réalisée, sauf la protection de branche (BR3),
   reportée.
 
 ## Définition de « terminé » pour chaque phase
