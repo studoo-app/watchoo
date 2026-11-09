@@ -118,7 +118,7 @@ func TestDashboardPage(t *testing.T) {
 		// Gray badge: repository never synced, without commit.
 		"No known commit: not synced yet.",
 		// Fragments refreshed after a sync.
-		`hx-get="/fragments/dashboard/repos" hx-trigger="sync-finished from:body"`,
+		`hx-get="/fragments/dashboard/repos" hx-include="#dashboard-filters" hx-trigger="sync-finished from:body"`,
 		`hx-get="/fragments/dashboard/feed" hx-trigger="sync-finished from:body"`,
 		// Sync button, protected by the CSRF token.
 		`action="/sync"`, `name="csrf_token"`,
