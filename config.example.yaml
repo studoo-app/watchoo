@@ -78,7 +78,7 @@ name: "licence-projet"
 #   retention_days: 365      # days the signals are kept, from the commit date (1 to 3650)
 #   speed_signal: false      # true: also the apparent speed signal (R4), fragile (legitimate copy-paste)
 
-# Project conventions: compliance of the commit messages with the charter, for the trainer. Disabled by
+# Project conventions: compliance with the charter (commits, branches, pull requests, tags). Disabled by
 # default. Shared by "watchoo config export", except enabled and excluded_accounts.
 # conventions:
 #   enabled: false           # true: conventions evaluated and displayed
@@ -89,5 +89,10 @@ name: "licence-projet"
 #     max_subject_soft: 50   # subject length beyond which a warning is given
 #     max_subject_hard: 72   # subject length beyond which the commit is not compliant
 #     forbidden: ["update", "updates", "maj", "mise à jour", "wip", "test", "tests", "modif", "modifs", "modification", "modifications", "fix", "fixes", "correction", "corrections", "commit", "save", "tmp", "temp", "misc", "dépôt 1", "depot 1", ".", "..", "...", "initial commit", "first commit", "premier commit"] # forbidden subjects (whole subject, case ignored)
-#     language: "any"        # "fr", "en" or "any" (no effect yet)
+#     language: "any"        # expected language of the subjects, "fr", "en" or "any" (information only)
+#   branch:
+#     pattern: ""            # RE2 expression replacing the built-in rule "<type>/<words-with-dashes>"; empty: built-in rule
+#     exclude: ["gh-pages", "dependabot/*", "renovate/*"] # branches left out (glob, the name or one of its path prefixes: "dependabot/*")
+#   tags:
+#     milestones: ["v1.0.0", "v2.0.0", "v3.0.0"] # milestones "vX.Y.Z", or "vX.Y.Z@YYYY-MM-DD" with a due date
 #   excluded_accounts: []    # accounts left out (trainer, bots…): login, name or e-mail

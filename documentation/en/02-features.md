@@ -160,8 +160,9 @@ signed on this commit?", never "was this code written by AI?".
 
 ## Project conventions
 
-Phase 8.1 (not released): Watchoo measures the compliance of commit messages with a Conventional Commits
-charter; the details are in [Project conventions](13-conventions.md).
+Phases 8.1 and 8.2 (not released): Watchoo measures the compliance of commit messages with a Conventional
+Commits charter, then that of branch names, pull request titles and tags; the details are in
+[Project conventions](13-conventions.md).
 
 - **Off by default** (`conventions.enabled`) and **for the trainer only**: these are objective findings,
   separate from the [diagnosis](12-supervision-diagnostic.md), **with no grade nor overall score**.
@@ -170,6 +171,22 @@ charter; the details are in [Project conventions](13-conventions.md).
   **CC4**: exclusions counted separately (merges, bots, root commit "Initial commit" created by GitHub,
   accounts of `conventions.excluded_accounts`).
 - **Scope**: all the tracked branches, since the `conventions.since` date (can be overridden per repository).
-- **Output**: `watchoo conventions` command, section of a repository's page and contributor's page; never
-  the commit message, only the short SHA, the author and the codes.
-- The charter (`since`, `commit.*`) is shared through `watchoo config export` / `import`.
+- **Phase 8.2**, computed when reading (no migration, no extra request):
+  - **BR1**: names of the remote branches and of the pull request head branches (`<type>/<words-with-dashes>`
+    or `conventions.branch.pattern`, except `conventions.branch.exclude` and the default branch);
+  - **PR1** and **PR2**: titles of the open and merged pull requests (same parser, header only), default
+    titles; API mode only, "unknown" in clone-only mode;
+  - **SV1**: `vX.Y.Z` tags conforming to SemVer 2.0.0; **SV2**: presence of the milestones of
+    `conventions.tags.milestones`; **SV6**: releases, as information only;
+  - **CC5** (wording warnings), **CC6** (footers, cited issues) and **CC7** (language of the subjects), as
+    information;
+  - **CC1 per range** between final tags and **CC3 trend** (before and since the last final tag);
+  - **milestone review**: criteria (CC1 on the range, BR1, SV1, SV2) conform, not conform or unknown
+    (`conform`, `nonconform`, `unknown` in `--json`), "k/n criteria conform, u unknown", no grade; requires
+    a start date.
+- **Output**: `watchoo conventions` command (`--milestone vX.Y.Z` for the milestone review), `/conventions`
+  page, section of a repository's page and contributor's page; never the commit message nor a pull request
+  title, only the short SHA, the pull request number, the author, the branch and tag names and the codes.
+  Repository indicators (branches without a pull request, tags, milestones) are attributed to no one.
+- The charter (`since`, `commit.*`, `branch.*`, `tags.milestones`) is shared through `watchoo config export` /
+  `import`.

@@ -192,3 +192,21 @@ pistes par niveau dans l'infobulle. Donnée : diagnostic.Summary. Liste et page 
   </div>
 </li>
 {{end}}
+
+{{/* Conventions (phase 8.2) : pastille d'état, l'icône (décorative) toujours suivie de son texte.
+     Donnée : dict "Status" convStatus "Text" (nom de jalon, de tag…, ou vide). */}}
+{{define "conv-status"}}<span class="badge badge-sm {{.Status.Class}} whitespace-nowrap"><span aria-hidden="true">{{.Status.Icon}}</span> {{if .Text}}{{clean .Text}} · {{end}}{{.Status.Label}}</span>{{end}}
+
+{{/* Conventions : titres de PR conformes, ouvertes et fusionnées à part (PR1), et titres par défaut (PR2).
+     Donnée : convPRCounts. */}}
+{{define "conv-pr-counts"}}<span class="whitespace-nowrap">{{t "web.conv.pr_open" .OpenConform .OpenEvaluated}}</span> · <span class="whitespace-nowrap">{{t "web.conv.pr_merged" .MergedConform .MergedEvaluated}}</span>{{if or .OpenDefault .MergedDefault}} · <span class="whitespace-nowrap">{{t "web.conv.pr_default_count" (add .OpenDefault .MergedDefault)}}</span>{{end}}{{end}}
+
+{{/* Conventions : langue des sujets (CC7, information). Donnée : convLanguage. */}}
+{{define "conv-language"}}{{if or .FR .EN .Unknown}}{{t "web.conv.language_counts" .FR .EN .Unknown}}{{if .Mixed}} · <span class="badge badge-sm badge-warning"><span aria-hidden="true">!</span> {{t "web.conv.language_mixed"}}</span>{{end}}{{if .Other}} · {{t "web.conv.language_other" .Other .ExpectedLabel}}{{end}}{{else}}—{{end}}{{end}}
+
+{{/* Conventions : tendance de CC3, deux taux (avant et depuis le dernier tag final), sans flèche.
+     Donnée : convTrend. */}}
+{{define "conv-trend"}}{{if .Known}}<span class="whitespace-nowrap">{{t "web.conv.trend_before" .BeforeConform .BeforeEvaluated}}{{if .BeforeEvaluated}} ({{t "web.percent" .BeforePercent}}){{end}}</span> · <span class="whitespace-nowrap">{{t "web.conv.trend_since" .SinceConform .SinceEvaluated}}{{if .SinceEvaluated}} ({{t "web.percent" .SincePercent}}){{end}}</span>{{else}}<span class="text-base-content/60">{{t "web.conv.trend_unknown"}}</span>{{end}}{{end}}
+
+{{/* Conventions : badge d'un code d'écart (bloquant ou avertissement), code et libellé. Donnée : convCode. */}}
+{{define "conv-code"}}<span class="badge badge-sm {{if .Blocking}}badge-error{{else}}badge-warning{{end}} whitespace-nowrap"><code>{{.Code}}</code> {{.Label}}</span>{{end}}

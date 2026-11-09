@@ -1,12 +1,16 @@
 package cli
 
-// « watchoo conventions [owner/repo] [--commits] [--failing] [--contributor X] » (phase 8.1) : taux de
-// commits conformes aux conventions (CC1 à CC4), calculés par internal/conventions à la lecture. Aucune
-// note globale : des taux n/m expliqués (dénominateur et exclusions), réservés au formateur. Les messages
-// de commit ne sont jamais affichés : SHA court, auteur et codes d'écart seulement.
+// « watchoo conventions [owner/repo] [--commits] [--failing] [--contributor X] [--milestone vX.Y.Z] »
+// (phases 8.1 et 8.2) : taux de commits conformes aux conventions (CC1 à CC4), puis nommage des branches
+// (BR1), titres de PR (PR1, PR2), tags et jalons (SV1, SV2), releases en information (SV6), formulation,
+// pieds et langue des commits (CC5 à CC7), CC1 par intervalle entre tags, tendance de CC3 et revue de
+// jalon, calculés par internal/conventions à la lecture. Aucune note globale : des taux n/m expliqués
+// (dénominateur et exclusions), réservés au formateur. Ni message de commit ni titre de PR n'est affiché :
+// SHA court, numéro de PR, auteur, noms de branche et de tag, et codes d'écart seulement.
 
 import (
 	"context"
+	"errors"
 	"math"
 	"strconv"
 	"strings"
@@ -17,6 +21,7 @@ import (
 	"github.com/studoo-app/watchoo/internal/conventions"
 	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/provider"
+	wsync "github.com/studoo-app/watchoo/internal/sync"
 )
 
 // conventionsReport est la sortie JSON de « watchoo conventions » : mêmes clés de premier niveau quelles
@@ -29,6 +34,8 @@ type conventionsReport struct {
 	Commits      []conventionsCommitJSON `json:"commits"`       // --commits / --failing ; du plus récent au plus ancien
 	Notice       string                  `json:"notice"`        // rappel : des taux, pas une note
 	Filters      conventionsFiltersJSON  `json:"filters"`       // filtres appliqués
+	// Milestone est la revue du jalon de --milestone (phase 8.2) ; null sans --milestone.
+	Milestone *conventionsMilestoneJSON `json:"milestone"`
 }
 
 // conventionsFiltersJSON rappelle les filtres et options de la commande.
@@ -37,6 +44,7 @@ type conventionsFiltersJSON struct {
 	Contributor string `json:"contributor"` // vide : tous les auteurs
 	Commits     bool   `json:"commits"`     // liste des commits évalués demandée
 	Failing     bool   `json:"failing"`     // seulement les commits non conformes
+	Milestone   string `json:"milestone"`   // --milestone ; vide sans revue de jalon
 }
 
 // conventionsRepoJSON est le rapport d'un dépôt.
@@ -49,6 +57,13 @@ type conventionsRepoJSON struct {
 	BeforeSince    int                      `json:"before_since"`
 	ParentsUnknown int                      `json:"parents_unknown"`
 	DefaultBranch  conventionsDefaultBranch `json:"default_branch"` // vue informative
+	// Phase 8.2.
+	Traits       conventionsTraitsJSON    `json:"traits"`        // CC5, CC6 (informatifs)
+	Language     conventionsLanguageJSON  `json:"language"`      // CC7 (information)
+	Branches     conventionsBranchesJSON  `json:"branches"`      // BR1
+	PullRequests conventionsPullsJSON     `json:"pull_requests"` // PR1, PR2 (numéros et codes, jamais le titre)
+	Tags         conventionsTagsJSON      `json:"tags"`          // SV1, SV2, SV6
+	Intervals    conventionsIntervalsJSON `json:"intervals"`     // CC1 par intervalle entre tags finals
 }
 
 // conventionsTallyJSON est un taux n/m, ses exclusions et ses écarts.
@@ -80,6 +95,11 @@ type conventionsDefaultBranch struct {
 type conventionsAuthorJSON struct {
 	Author  authorJSON           `json:"author"`
 	Commits conventionsTallyJSON `json:"commits"`
+	// Phase 8.2.
+	Traits       conventionsTraitsJSON         `json:"traits"`        // CC5, CC6 de ses commits
+	Trend        conventionsTrendJSON          `json:"trend"`         // CC3 avant et depuis le dernier tag final
+	PullRequests conventionsAuthorPullsJSON    `json:"pull_requests"` // PR1, PR2 de ses PR
+	Branches     conventionsAuthorBranchesJSON `json:"branches"`      // BR1 des branches de tête de ses PR
 }
 
 // conventionsCommitJSON est un commit évalué, sans son message.
@@ -97,6 +117,7 @@ type conventionsCommitJSON struct {
 type conventionsFlags struct {
 	commits, failing bool
 	contributor      string
+	milestone        string
 }
 
 // newConventionsCmd construit « watchoo conventions ».
@@ -108,7 +129,8 @@ func newConventionsCmd(deps Deps, opts *options) *cobra.Command {
 		Long:  i18n.T("cli.conv.long"),
 		Example: `  watchoo conventions
   watchoo conventions alice/projet-licence --commits --failing
-  watchoo conventions --contributor alice --json`,
+  watchoo conventions --contributor alice --json
+  watchoo conventions --milestone v1.0.0`,
 		Args: maxArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ref := ""
@@ -121,6 +143,7 @@ func newConventionsCmd(deps Deps, opts *options) *cobra.Command {
 	cmd.Flags().BoolVar(&f.commits, "commits", false, i18n.T("cli.conv.flag_commits"))
 	cmd.Flags().BoolVar(&f.failing, "failing", false, i18n.T("cli.conv.flag_failing"))
 	cmd.Flags().StringVar(&f.contributor, "contributor", "", i18n.T("cli.conv.flag_contributor"))
+	cmd.Flags().StringVar(&f.milestone, "milestone", "", i18n.T("cli.conv.flag_milestone"))
 	return cmd
 }
 
@@ -140,7 +163,13 @@ func runConventions(ctx context.Context, deps Deps, opts *options, ref string, f
 		Commits:      []conventionsCommitJSON{},
 		Notice:       i18n.T("cli.conv.notice"),
 		Filters: conventionsFiltersJSON{Contributor: strings.TrimSpace(f.contributor),
-			Commits: f.commits || f.failing, Failing: f.failing},
+			Commits: f.commits || f.failing, Failing: f.failing, Milestone: strings.TrimSpace(f.milestone)},
+	}
+	bopts := s.ws.Config.Conventions.BuildOptions(s.loc)
+	if report.Filters.Milestone != "" {
+		if _, ok := conventions.FindMilestone(bopts.Milestones, report.Filters.Milestone); !ok {
+			return errors.New(i18n.T("cli.conv.bad_milestone", report.Filters.Milestone, milestoneNames(bopts.Milestones)))
+		}
 	}
 	filter := conventions.Filter{}
 	if ref != "" {
@@ -170,9 +199,23 @@ func runConventions(ctx context.Context, deps Deps, opts *options, ref string, f
 	if err != nil {
 		return err
 	}
-	res, err := conventions.Build(ctx, s.store, clones, filter, s.ws.Config.Conventions.BuildOptions(s.loc))
+	// PR et releases : « inconnues » en clone seul (règle du cœur, commune avec le web).
+	if bopts.LocalOnly, err = wsync.ConventionsLocalOnly(ctx, eng.Source); err != nil {
+		return err
+	}
+	res, err := conventions.Build(ctx, s.store, clones, filter, bopts)
 	if err != nil {
 		return err
+	}
+	var review *conventions.MilestoneReview
+	if report.Filters.Milestone != "" {
+		rv, err := conventions.ReviewMilestone(ctx, s.store, clones, conventions.Filter{RepoID: filter.RepoID},
+			report.Filters.Milestone, bopts, time.Time{})
+		if err != nil {
+			return err
+		}
+		review = &rv
+		report.Milestone = newConventionsMilestoneJSON(rv)
 	}
 
 	for _, r := range res.Repos {
@@ -184,6 +227,9 @@ func runConventions(ctx context.Context, deps Deps, opts *options, ref string, f
 			Repository: ref, Source: r.Source, Since: optionalString(r.SinceDate),
 			SinceOrigin: optionalString(r.SinceOrigin), Commits: newConventionsTallyJSON(r.Tally),
 			BeforeSince: r.BeforeSince, ParentsUnknown: r.ParentsUnknown, DefaultBranch: def,
+			Traits: newConventionsTraitsJSON(r.Traits), Language: newConventionsLanguageJSON(r.Language),
+			Branches: newConventionsBranchesJSON(r.Branches), PullRequests: newConventionsPullsJSON(r.Pulls),
+			Tags: newConventionsTagsJSON(r.Tags), Intervals: newConventionsIntervalsJSON(r.Intervals),
 		})
 		if !report.Filters.Commits {
 			continue
@@ -201,10 +247,17 @@ func runConventions(ctx context.Context, deps Deps, opts *options, ref string, f
 	}
 	for _, c := range res.Contributors {
 		report.Contributors = append(report.Contributors, conventionsAuthorJSON{
-			Author: conventionsAuthor(c.AuthorName, c.AuthorLogin), Commits: newConventionsTallyJSON(c.Tally)})
+			Author: conventionsAuthor(c.AuthorName, c.AuthorLogin), Commits: newConventionsTallyJSON(c.Tally),
+			Traits: newConventionsTraitsJSON(c.Traits), Trend: newConventionsTrendJSON(c.Trend),
+			PullRequests: conventionsAuthorPullsJSON{Open: newPRCountJSON(c.Pulls.Open), Merged: newPRCountJSON(c.Pulls.Merged)},
+			Branches:     conventionsAuthorBranchesJSON{Checked: c.Branches.Checked, Conform: c.Branches.Conform, Review: c.Branches.Review},
+		})
 	}
 	if opts.json {
 		return writeJSON(deps.Stdout, report)
+	}
+	if review != nil {
+		return writeText(deps.Stdout, milestoneText(outputStyle(deps, opts), *review))
 	}
 	return writeText(deps.Stdout, s.conventionsText(outputStyle(deps, opts), res, report))
 }
@@ -282,7 +335,7 @@ func (s *session) conventionsText(st textStyle, res conventions.BuildReport, rep
 	}
 
 	for _, r := range res.Repos {
-		lines := conventionsDetail(r)
+		lines := append(conventionsDetail(r), conventionsMoreDetail(r, dash)...)
 		if len(lines) == 0 {
 			continue
 		}
@@ -297,11 +350,16 @@ func (s *session) conventionsText(st textStyle, res conventions.BuildReport, rep
 		rows := make([][]string, len(res.Contributors))
 		for i, c := range res.Contributors {
 			rows[i] = []string{cmpOr(cmpOr(c.AuthorName, c.AuthorLogin), i18n.T("cli.conv.unknown_author")),
-				ratioText(c.Tally), rateText(c.Tally, dash), issuesText(c.Issues)}
+				ratioText(c.Tally), rateText(c.Tally, dash), trendText(c.Trend.Before, c.Trend, dash),
+				trendText(c.Trend.Since, c.Trend, dash), authorPullsText(c.Pulls, dash), authorBranchesText(c.Branches, dash),
+				issuesText(c.Issues)}
 		}
 		b.WriteString(renderTable(st, []string{i18n.T("cli.sync.header_author"), i18n.T("cli.conv.header_conform"),
-			i18n.T("cli.conv.header_rate"), st.pick(i18n.T("cli.conv.header_issues"), i18n.T("cli.conv.header_issues_ascii"))},
+			i18n.T("cli.conv.header_rate"), i18n.T("cli.conv.header_before_tag"), i18n.T("cli.conv.header_since_tag"),
+			i18n.T("cli.conv.header_pr_titles"), i18n.T("cli.conv.header_branches"),
+			st.pick(i18n.T("cli.conv.header_issues"), i18n.T("cli.conv.header_issues_ascii"))},
 			rows, nil))
+		b.WriteString(st.gray(i18n.T("cli.conv.contributors_note")) + "\n")
 	}
 
 	if report.Filters.Commits {

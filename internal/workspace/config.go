@@ -48,8 +48,8 @@ const (
 	DefaultConventionsLanguage = "any"
 )
 
-// ConventionsLanguages renvoie les valeurs admises par conventions.commit.language (sans effet sur
-// l'analyse en phase 8.1).
+// ConventionsLanguages renvoie les valeurs admises par conventions.commit.language (information
+// seulement : CC7, sans effet sur la conformité).
 func ConventionsLanguages() []string { return []string{"fr", "en", DefaultConventionsLanguage} }
 
 // Config regroupe tous les réglages d'un espace, après fusion des trois niveaux (voir Load).
@@ -97,6 +97,10 @@ type ConventionsConfig struct {
 	Since string `mapstructure:"since"`
 	// Commit regroupe les règles des messages de commit (clés conventions.commit.*).
 	Commit ConventionsCommitConfig `mapstructure:"commit"`
+	// Branch regroupe les règles du nommage des branches, BR1 (clés conventions.branch.*, phase 8.2).
+	Branch ConventionsBranchConfig `mapstructure:"branch"`
+	// Tags regroupe les jalons des tags, SV2 et revue de jalon (clés conventions.tags.*, phase 8.2).
+	Tags ConventionsTagsConfig `mapstructure:"tags"`
 	// ExcludedAccounts liste les comptes exclus des conventions (formateur, bots…) : login, nom ou
 	// e-mail, casse ignorée ; distincts de diagnostic.*. Propre à l'espace : jamais partagé (logins).
 	ExcludedAccounts []string `mapstructure:"excluded_accounts"`
@@ -117,9 +121,45 @@ type ConventionsCommitConfig struct {
 	// Forbidden liste les sujets interdits, comparés entiers, casse et espaces ignorés (défaut :
 	// conventions.DefaultForbidden).
 	Forbidden []string `mapstructure:"forbidden"`
-	// Language est la langue attendue des sujets : « fr », « en » ou « any » (défaut). Validé, sans
-	// effet sur l'analyse en phase 8.1.
+	// Language est la langue attendue des sujets : « fr », « en » ou « any » (défaut). Information
+	// seulement (CC7, phase 8.2) : sans effet sur la conformité.
 	Language string `mapstructure:"language"`
+}
+
+// ConventionsBranchConfig regroupe les règles du nommage des branches (clés conventions.branch.*).
+type ConventionsBranchConfig struct {
+	// Pattern est une expression RE2 qui remplace la règle intégrée
+	// ^(<types>)/[a-z0-9]+(-[a-z0-9]+)+$ (construite depuis conventions.commit.types) ; vide (défaut) :
+	// règle intégrée.
+	Pattern string `mapstructure:"pattern"`
+	// Exclude liste les branches hors évaluation : motifs path.Match, chacun désignant le nom lui-même ou
+	// l'un de ses préfixes de chemin (« dependabot/* » exclut « dependabot/npm_and_yarn/x ») ; défaut :
+	// conventions.DefaultBranchExclude. La branche par défaut du dépôt est toujours hors évaluation.
+	Exclude []string `mapstructure:"exclude"`
+}
+
+// ConventionsTagsConfig regroupe les jalons des tags (clés conventions.tags.*).
+type ConventionsTagsConfig struct {
+	// Milestones liste les jalons, « vX.Y.Z » ou « vX.Y.Z@AAAA-MM-JJ » pour une échéance (version
+	// finale conforme, date valide, chaque version une seule fois) ; défaut : conventions.DefaultMilestones.
+	Milestones []string `mapstructure:"milestones"`
+}
+
+// BranchRules renvoie les règles BR1 tirées de ces réglages (listes copiées) : types de
+// conventions.commit.types, motif et exclusions de conventions.branch.*.
+func (c ConventionsConfig) BranchRules() conventions.BranchRules {
+	return conventions.BranchRules{
+		Types:   slices.Clone(c.Commit.Types),
+		Pattern: c.Branch.Pattern,
+		Exclude: slices.Clone(c.Branch.Exclude),
+	}
+}
+
+// Milestones renvoie les jalons de conventions.tags.milestones, lus par conventions.ParseMilestones.
+// La configuration validée (Validate) n'en contient pas d'invalide ; une erreur ne se produit que sur une
+// configuration non validée.
+func (c ConventionsConfig) Milestones() ([]conventions.Milestone, error) {
+	return conventions.ParseMilestones(c.Tags.Milestones)
 }
 
 // Rules renvoie les règles du parseur de internal/conventions tirées de ces réglages (listes copiées).
@@ -134,13 +174,22 @@ func (c ConventionsConfig) Rules() conventions.Rules {
 }
 
 // BuildOptions renvoie les options du rapport des conventions (conventions.Build) tirées de ces réglages,
-// la date de début étant lue dans le fuseau loc de l'espace (listes copiées).
+// la date de début et les échéances étant lues dans le fuseau loc de l'espace (listes copiées). Les jalons
+// d'une configuration non validée qui ne se lisent pas sont ignorés. LocalOnly (espace en clone seul)
+// reste à fixer par l'appelant, qui connaît le mode de synchro.
 func (c ConventionsConfig) BuildOptions(loc *time.Location) conventions.BuildOptions {
+	ms, err := c.Milestones()
+	if err != nil {
+		ms = nil
+	}
 	return conventions.BuildOptions{
 		Rules:            c.Rules(),
 		Since:            c.Since,
 		ExcludedAccounts: slices.Clone(c.ExcludedAccounts),
 		Location:         loc,
+		Branch:           c.BranchRules(),
+		Milestones:       ms,
+		Language:         c.Commit.Language,
 	}
 }
 
@@ -259,7 +308,8 @@ type GitConfig struct {
 //	diagnostic: {enabled: false, exclude: diagnostic.DefaultExclude, retention_days: 365, speed_signal: false}
 //	conventions: {enabled: false, since: "", commit: {types: conventions.DefaultTypes, scopes: [],
 //	              max_subject_soft: 50, max_subject_hard: 72, forbidden: conventions.DefaultForbidden,
-//	              language: "any"}, excluded_accounts: []}
+//	              language: "any"}, branch: {pattern: "", exclude: conventions.DefaultBranchExclude},
+//	              tags: {milestones: conventions.DefaultMilestones}, excluded_accounts: []}
 func DefaultConfig(name string) Config {
 	return Config{
 		Name: name,
@@ -294,6 +344,11 @@ func DefaultConfig(name string) Config {
 				Forbidden:      conventions.DefaultForbidden(),
 				Language:       DefaultConventionsLanguage,
 			},
+			Branch: ConventionsBranchConfig{
+				Pattern: "",
+				Exclude: conventions.DefaultBranchExclude(),
+			},
+			Tags:             ConventionsTagsConfig{Milestones: conventions.DefaultMilestones()},
 			ExcludedAccounts: []string{},
 		},
 	}
@@ -323,7 +378,11 @@ func DefaultConfig(name string) Config {
 //     conventions.commit.scopes : chaque scope de la forme admise par le parseur ([a-z0-9][a-z0-9._/-]*) ;
 //   - conventions.commit.max_subject_soft >= 1 et max_subject_hard > max_subject_soft ;
 //   - conventions.commit.forbidden et conventions.excluded_accounts : aucune entrée vide ;
-//   - conventions.commit.language : « fr », « en » ou « any ».
+//   - conventions.commit.language : « fr », « en » ou « any » ;
+//   - conventions.branch.pattern vide ou expression RE2 valide ; conventions.branch.exclude : chaque
+//     motif non vide et valide pour path.Match ;
+//   - conventions.tags.milestones : chaque entrée « vX.Y.Z » (version finale conforme, sans pré-version
+//     ni build) suivie au besoin de « @AAAA-MM-JJ » (date valide), chaque version une seule fois.
 func (c Config) Validate() error {
 	var errs []error
 	add := func(key string, args ...any) {
@@ -454,6 +513,30 @@ func (c ConventionsConfig) validate() []error {
 	}
 	if !slices.Contains(ConventionsLanguages(), c.Commit.Language) {
 		add("workspace.validate.conv_language_unknown", c.Commit.Language)
+	}
+	if conventions.ValidBranchPattern(c.Branch.Pattern) != nil {
+		add("workspace.validate.conv_branch_pattern_invalid", c.Branch.Pattern)
+	}
+	for i, p := range c.Branch.Exclude {
+		if strings.TrimSpace(p) == "" {
+			add("workspace.validate.conv_branch_exclude_empty", i+1)
+		} else if conventions.ValidBranchExclude(p) != nil {
+			add("workspace.validate.conv_branch_exclude_invalid", i+1, p)
+		}
+	}
+	seen := map[string]bool{}
+	for i, entry := range c.Tags.Milestones {
+		m, err := conventions.ParseMilestone(entry)
+		switch {
+		case errors.Is(err, conventions.ErrMilestoneDue):
+			add("workspace.validate.conv_milestone_due_invalid", i+1, entry)
+		case err != nil:
+			add("workspace.validate.conv_milestone_invalid", i+1, entry)
+		case seen[m.Name]:
+			add("workspace.validate.conv_milestone_duplicate", i+1, m.Name)
+		default:
+			seen[m.Name] = true
+		}
 	}
 	for i, a := range c.ExcludedAccounts {
 		if strings.TrimSpace(a) == "" {
@@ -1253,6 +1336,19 @@ func renderConfig(tr *i18n.Translator, defaultName string, active map[string]any
 	setting("    ", "conventions.commit.max_subject_hard", tr.T("workspace.cfg.conventions_hard"))
 	setting("    ", "conventions.commit.forbidden", tr.T("workspace.cfg.conventions_forbidden"))
 	setting("    ", "conventions.commit.language", tr.T("workspace.cfg.conventions_language"))
+	if sectionActive("conventions.branch") {
+		text("  branch:")
+	} else {
+		text("#   branch:")
+	}
+	setting("    ", "conventions.branch.pattern", tr.T("workspace.cfg.conventions_branch_pattern"))
+	setting("    ", "conventions.branch.exclude", tr.T("workspace.cfg.conventions_branch_exclude"))
+	if sectionActive("conventions.tags") {
+		text("  tags:")
+	} else {
+		text("#   tags:")
+	}
+	setting("    ", "conventions.tags.milestones", tr.T("workspace.cfg.conventions_milestones"))
 	setting("  ", "conventions.excluded_accounts", tr.T("workspace.cfg.conventions_excluded"))
 	return b.String()
 }

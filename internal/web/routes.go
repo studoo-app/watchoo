@@ -45,6 +45,7 @@ package web
 //	GET  /diagnostic/lead               handleDiagnosticLead   diagnostic.go    diagnostic (7.4)
 //	POST /diagnostic/review             handleDiagnosticReview diagnostic.go    diagnostic (7.4)
 //	POST /diagnostic/backfill           handleDiagnosticBackfill diagnostic.go  diagnostic (7.4)
+//	GET  /conventions                   handleConventions      conventions.go   conventions (8.2)
 //	GET  /static/*                      handleStatic           assets.go        socle
 //	GET  /favicon.ico, /manifest.webmanifest, /apple-touch-icon.png             socle
 //
@@ -93,6 +94,7 @@ func (s *server) routes() http.Handler {
 	get("/fragments/sync", s.handleSyncStatus)
 	get("/diagnostic", s.handleDiagnostic)
 	get("/diagnostic/lead", s.handleDiagnosticLead)
+	get("/conventions", s.handleConventions)
 
 	// Actions (POST seulement, protégées par le CSRF).
 	r.Post("/sync", s.handleSyncAll)

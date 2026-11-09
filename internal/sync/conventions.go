@@ -34,3 +34,15 @@ func (e *Engine) ConventionsClones(ctx context.Context) (conventions.CloneReader
 	}
 	return cr, nil
 }
+
+// ConventionsLocalOnly indique un espace en clone seul (synchro sans gh) : les pull requests et releases
+// en base ne sont plus mises à jour, PR1, PR2 et SV6 sont donc « inconnus » (BuildOptions.LocalOnly).
+// source lit la source des synchros (Engine.Source) ; si elle ne peut pas être lue, le mode API est
+// supposé. Seul un contexte terminé est une erreur. Règle commune à la CLI et au web.
+func ConventionsLocalOnly(ctx context.Context, source func(context.Context) (Source, error)) (bool, error) {
+	src, err := source(ctx)
+	if err != nil {
+		return false, ctx.Err()
+	}
+	return src.Kind == SourceGit, nil
+}

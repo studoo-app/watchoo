@@ -37,6 +37,7 @@ définir impose la langue partout, sauf dans un navigateur qui a choisi une lang
 | Page d'un contributeur (0.5.0) | `/contributors/{id}` (`?page=`) | `/contributors/{id}/commits` |
 | Réglages | `/settings` | `/fragments/quota` |
 | Diagnostic (7.4, diagnostic activé) | `/diagnostic` (`?repo=`), `/diagnostic/lead` (`?repo=`, `?key=`) | — |
+| Conventions (1.8.0, conventions activées) | `/conventions` (`?milestone=`) | — |
 
 ### Routes
 
@@ -70,6 +71,7 @@ ne modifie quoi que ce soit ; tout `POST` passe par le contrôle CSRF.
 | `GET` | `/diagnostic/lead` | Fiche de revue d'une piste (404 si le diagnostic est désactivé ou la piste inconnue) |
 | `POST` | `/diagnostic/review` | Enregistre la revue d'une piste |
 | `POST` | `/diagnostic/backfill` | Lance la reprise de l'historique en arrière-plan (une à la fois) |
+| `GET` | `/conventions` | Vue d'ensemble des conventions et revue de jalon (1.8.0 ; contenu seulement si les conventions sont activées ; 400 pour un jalon non configuré) |
 | `POST` | `/lang` | Langue du navigateur (`lang` : `en` ou `fr` ; retour au chemin local `return`, sans query, sinon `/` ; 400 si inconnue) |
 | `GET` | `/static/*`, `/favicon.ico`, `/apple-touch-icon.png`, `/manifest.webmanifest` | Fichiers statiques embarqués |
 
@@ -218,6 +220,23 @@ classement sur les signatures, aucune adresse affichée. Règles :
   nombre de parents inconnu (fusions reconnues à leur message). Dépôt jamais synchronisé : « Inconnu »
   (pas 0 %) ; aucun commit évalué : un texte dédié (pas « 0/0 »). Calcul à la lecture, rien n'est
   stocké. **Aucun message de commit**, aucun classement.
+  Depuis 1.8.0 (phase 8.2), la section ajoute : les avertissements de **formulation** (CC5 : passé, forme
+  en « -ing », première personne), les commits avec un pied de message valide et ceux qui citent une issue
+  (CC6) et la **langue des sujets** (CC7 : français, anglais, inconnue ; badge « mélange » ; commits hors de
+  la langue réglée par `conventions.commit.language`), le tout pour information ; les **noms de branche**
+  (BR1 : `n/m` conformes, nombre « à revoir », tableau des branches non conformes et à revoir avec leurs
+  codes et les pull requests dont elles sont la branche de tête, 20 au plus ; une note donne la source :
+  branches du distant du clone local, ou seulement les branches suivies de la base, liste partielle) ; les
+  **titres de pull request** (PR1 et PR2 : ouvertes et fusionnées comptées à part, les pull requests non
+  évaluées par motif, et un tableau des titres non conformes ou par défaut qui donne le **numéro**, l'auteur,
+  la branche de tête et les codes, **jamais le titre** ; « Inconnu » quand l'espace se synchronise par les
+  clones seuls ou que le dépôt n'a jamais été vu par l'API) ; les **tags** (SV1 : une pastille par tag,
+  « conforme », « conforme, avertissement » ou « non conforme », avec ses codes), les **jalons** configurés
+  (SV2 : « présent », « nom non conforme » avec le tag, ou « absent » ; présence seulement) et les
+  **releases** pour information (SV6 : jalon sans release, release sans tag, drapeau de pré-version
+  incohérent ; « inconnu » sans données de l'API) ; les **commits entre tags** (CC1 par intervalle entre
+  tags finals, du plus récent au plus ancien, et depuis le dernier tag final ; « Inconnu » sans clone local
+  ou sans tag final conforme). Chaque pastille porte un texte à côté de son icône.
 - Bouton **« Synchroniser ce dépôt »** (absent si le suivi est arrêté).
 - Fragments : `/repos/{id}/commits` (historique) ; `/repos/{id}` avec l'en-tête `HX-Target`
   `repo-overview`, `repo-contributors`, `repo-languages`, `repo-pulls`, `repo-diagnostic` ou
@@ -269,7 +288,11 @@ lien de profil est l'adresse enregistrée en base (voir [Liens vers les profils]
   « Commits conformes 18/25 (72 %) » (CC3 : ses commits, tous dépôts et toutes branches suivies
   confondus, hors exclusions CC4 ; « aucun commit évalué » sinon), suivie des codes d'écart reçus et de
   leur nombre, et d'une note (nombre de commits exclus ; « un taux, pas une note »). Elle n'est calculée
-  que pour la page complète et le fragment `contributor-overview`, jamais pour l'historique paginé.
+  que pour la page complète et le fragment `contributor-overview`, jamais pour l'historique paginé. Depuis
+  1.8.0 : la ligne « Titres de pull request conformes » (ouvertes et fusionnées à part, pull requests dont
+  l'auteur est le compte de forge de la personne, rapprochées par le compte ; « aucune pull request évaluée »
+  sinon) et la **tendance** de CC3 : deux taux, avant et depuis le dernier tag final de chaque dépôt, sans
+  flèche (« inconnue » sans clone local ni tag final).
 - **Activité sur 90 jours** : commits par jour du contributeur, tous dépôts confondus (graphique
   `daily`, comme le tableau de bord et la page d'un dépôt).
 - **Activité par dépôt sur 12 semaines** : le graphique empilé `contributors-chart` (même template, même
@@ -475,6 +498,29 @@ diagnostic est activé (`diagnostic.enabled`). Détail : [Supervision et diagnos
   au plus). Une saisie refusée est réaffichée avec l'erreur (400) ; une revue enregistrée renvoie sur la
   fiche (303) avec « Revue enregistrée » et le relecteur (compte de l'interface web, sinon nom de l'espace).
 
+### 7. Conventions (1.8.0, phase 8.2)
+
+Réservé au formateur ; entrée « Conventions » de la navigation seulement quand les conventions sont
+activées (`conventions.enabled`). Désactivées : la page explique comment les activer
+(`conventions.enabled`, `conventions.since`, relance) et n'affiche aucune donnée. Détail :
+[Conventions de projet](13-conventions.md#72-interfaces).
+
+- **Par dépôt** : dans l'ordre de l'espace, jamais triés par conformité : commits conformes (CC1), branches
+  conformes (BR1) et nombre à revoir, titres de pull request conformes (ouvertes et fusionnées à part,
+  titres par défaut ; « inconnu » sans données de l'API), tags conformes (SV1), une pastille par jalon
+  configuré (SV2) et la langue des sujets (CC7).
+- **Par contributeur** : par nom, jamais triés par conformité : commits conformes (CC3), tendance (avant /
+  depuis le dernier tag final), titres de pull request et branches conformes (seulement les branches de tête
+  de ses pull requests). Tags, jalons et branches sans pull request ne sont attribués à personne.
+- **Revue de jalon** (`?milestone=vX.Y.Z`, premier jalon configuré par défaut ; jalon absent de
+  `conventions.tags.milestones` : 400) : un tableau dépôt × critère (CC1 sur l'intervalle du jalon, BR1,
+  SV1, SV2), chaque case « conforme », « non conforme » ou « inconnu » avec sa raison, puis « k/n critères
+  conformes, u inconnus » et l'intervalle lu ; aucune note globale. Sans date de début : « Non évaluable :
+  date de début manquante ». Aucun jalon configuré : un texte dédié.
+- L'espace se synchronise par les clones seuls : une note indique que pull requests et releases sont
+  inconnues.
+- Aucun message de commit, aucun titre de pull request ; calcul à la lecture, rien n'est stocké.
+
 ## Navigation
 
 ```mermaid
@@ -490,6 +536,9 @@ flowchart LR
     PERSON --> REPO
     DASH --> DIAG["Diagnostic (si activé)"]
     DIAG --> LEAD["Fiche de revue"]
+    DASH --> CONV["Conventions (si activées)"]
+    CONV --> REPO
+    CONV --> PERSON
 ```
 
 Le pied de chaque page porte un lien **Documentation** (1.6.1) vers le sommaire de la documentation en

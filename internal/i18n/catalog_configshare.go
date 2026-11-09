@@ -169,16 +169,32 @@ var configshareTexts = map[string]entry{
 		`settings.conventions.since : %s n'est pas une date de la forme AAAA-MM-JJ (ex. "2026-09-01" ; "" depuis le début)`,
 	},
 	"configshare.v.conv_item_empty": {
-		"settings.conventions.commit.%s: entry #%d is empty",
-		"settings.conventions.commit.%s : l'entrée n° %d est vide",
+		"settings.conventions.%s: entry #%d is empty",
+		"settings.conventions.%s : l'entrée n° %d est vide",
 	},
 	"configshare.v.conv_item_control": {
-		"settings.conventions.commit.%s: entry #%d contains a control character or invalid UTF-8",
-		"settings.conventions.commit.%s : l'entrée n° %d contient un caractère de contrôle ou de l'UTF-8 invalide",
+		"settings.conventions.%s: entry #%d contains a control character or invalid UTF-8",
+		"settings.conventions.%s : l'entrée n° %d contient un caractère de contrôle ou de l'UTF-8 invalide",
 	},
 	"configshare.v.conv_item_invalid": {
-		"settings.conventions.commit.%s: entry #%d %s is invalid (types: lowercase letters; scopes: lowercase letters, digits, \".\", \"_\", \"/\" and \"-\")",
-		"settings.conventions.commit.%s : l'entrée n° %d %s est invalide (types : lettres minuscules ; scopes : minuscules, chiffres, « . », « _ », « / » et « - »)",
+		"settings.conventions.%s: entry #%d %s is invalid (types: lowercase letters; scopes: lowercase letters, digits, \".\", \"_\", \"/\" and \"-\"; branch exclusions: glob \"*\", \"?\", \"[...]\")",
+		"settings.conventions.%s : l'entrée n° %d %s est invalide (types : lettres minuscules ; scopes : minuscules, chiffres, « . », « _ », « / » et « - » ; exclusions de branches : glob « * », « ? », « [...] »)",
+	},
+	"configshare.v.conv_branch_pattern": {
+		`settings.conventions.branch.pattern: %s is not a valid RE2 regular expression ("" for the built-in rule)`,
+		`settings.conventions.branch.pattern : %s n'est pas une expression régulière RE2 valide ("" pour la règle intégrée)`,
+	},
+	"configshare.v.conv_milestone": {
+		`settings.conventions.tags.milestones: entry #%d %s is not a final version "vX.Y.Z" (e.g. "v1.0.0" or "v1.0.0@2026-12-18")`,
+		`settings.conventions.tags.milestones : l'entrée n° %d %s n'est pas une version finale "vX.Y.Z" (ex. "v1.0.0" ou "v1.0.0@2026-12-18")`,
+	},
+	"configshare.v.conv_milestone_due": {
+		`settings.conventions.tags.milestones: entry #%d %s has an invalid due date (expected "vX.Y.Z@YYYY-MM-DD")`,
+		`settings.conventions.tags.milestones : l'entrée n° %d %s a une échéance invalide (attendu "vX.Y.Z@AAAA-MM-JJ")`,
+	},
+	"configshare.v.conv_milestone_duplicate": {
+		"settings.conventions.tags.milestones: entry #%d repeats the milestone %s",
+		"settings.conventions.tags.milestones : l'entrée n° %d répète le jalon %s",
 	},
 	"configshare.v.conv_language": {
 		`settings.conventions.commit.language: unknown value %s ("fr", "en" or "any")`,

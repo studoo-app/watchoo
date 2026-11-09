@@ -93,6 +93,9 @@ type RepoManager interface {
 	// ConventionsClones donne l'accès en lecture aux clones locaux existants (périmètre des conventions,
 	// 1.7.0) ; nil sans clones (repli sur la base).
 	ConventionsClones(ctx context.Context) (conventions.CloneReader, error)
+	// Source renvoie la source que prendrait une synchro lancée maintenant, sans rien contacter : en
+	// clone seul, PR et releases des conventions sont « inconnues » (phase 8.2).
+	Source(ctx context.Context) (wsync.Source, error)
 }
 
 // UpdateSource donne la nouvelle version de Watchoo connue du processus (bandeau de toutes les pages) ;

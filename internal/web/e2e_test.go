@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/studoo-app/watchoo/internal/auth/authtest"
+	"github.com/studoo-app/watchoo/internal/conventions"
 	"github.com/studoo-app/watchoo/internal/provider"
 	"github.com/studoo-app/watchoo/internal/provider/github"
 	"github.com/studoo-app/watchoo/internal/provider/github/githubtest"
@@ -225,6 +226,11 @@ func TestWebEndToEndConventions(t *testing.T) {
 	merge := commit("Merge branch 'dev' e2e-fusion", 2*time.Hour, c2, d1)
 	srv.SetBranch(1, "main", merge)
 	srv.SetBranch(1, "dev", d1)
+	// Phase 8.2: a pull request whose title is not conventional, from a head branch without type, and a
+	// tag that designates the milestone v1.0.0 under a nonconforming name.
+	srv.SetPullRequests(1, githubtest.PullRequest{Number: 7, Title: "e2e-titre-de-pr", Author: "alice-gh",
+		Head: "Ma_Branche", CreatedAt: testNow.Add(-90 * time.Minute)})
+	srv.SetTags(1, githubtest.Tag{Name: "1.0.0", SHA: c2})
 
 	w := e.post("/settings/repos", url.Values{"repo": {"alice/projet"}}, false)
 	assertStatus(t, w, http.StatusSeeOther)
@@ -259,5 +265,20 @@ func TestWebEndToEndConventions(t *testing.T) {
 
 	w = e.get("/contributors/" + strconv.FormatInt(e.contributorIDs()["Alice Martin"], 10))
 	assertStatus(t, w, http.StatusOK)
-	assertContains(t, w, `id="contributor-conventions"`, "Conforming commits 1/3 (33%)", "1 excluded")
+	assertContains(t, w, `id="contributor-conventions"`, "Conforming commits 1/3 (33%)", "1 excluded",
+		`id="contributor-conventions-pulls"`, "open 0/1")
+
+	// Phase 8.2: the branch, the pull request (number and codes, never its title) and the tag.
+	w = e.get(repoPath(id))
+	assertContains(t, w, "Ma_Branche", "<code>"+conventions.BranchUppercase+"</code>", "<code>underscore</code>", "#7",
+		"1.0.0 · not conforming", "<code>no_v</code>", "v1.0.0 · nonconforming name")
+	// The pull requests section (V2) shows the title; the conventions section never does.
+	if strings.Contains(conventionsSection(t, w.Body.String()), "e2e-titre-de-pr") {
+		t.Error("pull request title in the conventions section")
+	}
+	w = e.get("/conventions")
+	assertStatus(t, w, http.StatusOK)
+	assertContains(t, w, `id="conventions-repos"`, "1/3 (33%)", "open 0/1", "Review of the milestone v1.0.0",
+		"Not evaluable: missing start date.")
+	assertNotContains(t, w, append(messages, "e2e-titre-de-pr")...)
 }

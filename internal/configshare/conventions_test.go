@@ -58,6 +58,8 @@ func TestConventionsImport(t *testing.T) {
 	want := workspace.ConventionsConfig{Enabled: true, Since: "2026-09-01",
 		Commit: workspace.ConventionsCommitConfig{Types: []string{"feat", "fix"}, Scopes: []string{"api"},
 			MaxSubjectSoft: 60, MaxSubjectHard: 72, Forbidden: []string{}, Language: "fr"},
+		Branch:           workspace.DefaultConfig("x").Conventions.Branch,
+		Tags:             workspace.DefaultConfig("x").Conventions.Tags,
 		ExcludedAccounts: []string{"prof-dupont"}}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("conventions = %+v\nwant %+v", got, want)
@@ -71,6 +73,62 @@ func TestConventionsImport(t *testing.T) {
 	}
 	if p.Settings.Rewrite || len(p.Settings.Changes) != 0 {
 		t.Errorf("second import changes = %+v", p.Settings.Changes)
+	}
+}
+
+// The branch naming (settings.conventions.branch) and the milestones (settings.conventions.tags), phase
+// 8.2, are read, previewed and applied like the commit rules; an empty pattern is the built-in rule.
+func TestConventionsBranchTagsImport(t *testing.T) {
+	isolate(t)
+	e := newEnv(t, "licence")
+	f := mustParse(t, doc(`{"conventions": {"branch": {"pattern": "^(feat|fix)/[a-z0-9-]{2,}$",
+		"exclude": ["gh-pages", "release/*"]}, "tags": {"milestones": ["v1.0.0@2026-12-18", "v2.0.0"]}}}`, ""))
+	wantKeys := []string{workspace.KeyConventionsBranchPattern, workspace.KeyConventionsBranchExclude,
+		workspace.KeyConventionsMilestones}
+	if keys := f.Settings.Keys(); !slices.Equal(keys, wantKeys) {
+		t.Errorf("keys = %v", keys)
+	}
+	p, err := configshare.Plan(t.Context(), e.ws, e.st, f, configshare.PlanOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var changed []string
+	for _, c := range p.Settings.Changes {
+		changed = append(changed, c.Key)
+	}
+	if !slices.Equal(changed, wantKeys) {
+		t.Errorf("changes = %v\nwant %v", changed, wantKeys)
+	}
+	if c := p.Settings.Changes[2]; c.Before != `["v1.0.0", "v2.0.0", "v3.0.0"]` ||
+		c.After != `["v1.0.0@2026-12-18", "v2.0.0"]` {
+		t.Errorf("milestones change = %+v", c)
+	}
+	if _, err := configshare.Apply(t.Context(), e.ws, e.st, nil, f, configshare.ApplyOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	got := e.reload().Conventions
+	if got.Branch.Pattern != "^(feat|fix)/[a-z0-9-]{2,}$" || !slices.Equal(got.Branch.Exclude, []string{"gh-pages", "release/*"}) ||
+		!slices.Equal(got.Tags.Milestones, []string{"v1.0.0@2026-12-18", "v2.0.0"}) {
+		t.Errorf("conventions = %+v", got)
+	}
+
+	// Exported again as written; an empty pattern and empty lists stay explicit.
+	e.ws.Config = e.reload()
+	e.ws.Config.Conventions.Branch.Pattern = ""
+	e.ws.Config.Conventions.Tags.Milestones = []string{}
+	d, err := configshare.Export(t.Context(), e.ws, e.st, configshare.ExportOptions{Now: testNow})
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, _ := d.Marshal()
+	for _, want := range []string{`"pattern": ""`, `"release/*"`, `"milestones": []`} {
+		if !strings.Contains(string(data), want) {
+			t.Errorf("export lacks %s:\n%s", want, data)
+		}
+	}
+	back := mustParse(t, string(data))
+	if *back.Settings.ConventionsBranchPattern != "" || len(*back.Settings.ConventionsMilestones) != 0 {
+		t.Errorf("read back = %q / %v", *back.Settings.ConventionsBranchPattern, *back.Settings.ConventionsMilestones)
 	}
 }
 
@@ -104,6 +162,20 @@ func TestConventionsParseRejects(t *testing.T) {
 		`{"enabled": true}`:                             "enabled",
 		`{"excluded_accounts": ["prof"]}`:               "excluded_accounts",
 		`{"commit": {"type": ["feat"]}}`:                "type",
+
+		`{"branch": {"pattern": "^(feat/"}}`:              `settings.conventions.branch.pattern: "^(feat/" is not a valid RE2`,
+		`{"branch": {"pattern": "^(?!main)"}}`:            "settings.conventions.branch.pattern",
+		`{"branch": {"pattern": "a\u0007"}}`:              "settings.conventions.branch.pattern",
+		`{"branch": {"exclude": ["gh-pages", ""]}}`:       "settings.conventions.branch.exclude: entry #2 is empty",
+		`{"branch": {"exclude": ["release/["]}}`:          `settings.conventions.branch.exclude: entry #1 "release/[" is invalid`,
+		`{"branch": {"exclude": ["a\u0007"]}}`:            "settings.conventions.branch.exclude: entry #1 contains a control character",
+		`{"branch": {"exclude": "gh-pages"}}`:             "type",
+		`{"tags": {"milestones": ["1.0.0"]}}`:             `settings.conventions.tags.milestones: entry #1 "1.0.0" is not a final version`,
+		`{"tags": {"milestones": ["v1.0.0-rc.1"]}}`:       `entry #1 "v1.0.0-rc.1" is not a final version`,
+		`{"tags": {"milestones": ["v1.0.0@2026-02-30"]}}`: `settings.conventions.tags.milestones: entry #1 "v1.0.0@2026-02-30" has an invalid due date`,
+		`{"tags": {"milestones": ["v1.0.0", "v1.0.0"]}}`:  "settings.conventions.tags.milestones: entry #2 repeats the milestone v1.0.0",
+		`{"tags": {"milestones": ["v1\u0007"]}}`:          "settings.conventions.tags.milestones: entry #1 contains a control character",
+		`{"tags": {"prerelease_forms": ["rc"]}}`:          "prerelease_forms",
 	} {
 		_, err := configshare.Parse(strings.NewReader(doc(`{"conventions": `+in+`}`, "")))
 		if !errors.Is(err, configshare.ErrInvalid) || !strings.Contains(err.Error(), want) {

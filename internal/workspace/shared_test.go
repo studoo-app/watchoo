@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/studoo-app/watchoo/internal/conventions"
 	"github.com/studoo-app/watchoo/internal/i18n"
 )
 
@@ -108,6 +109,28 @@ func TestSharedSettingsFromAndValues(t *testing.T) {
 	if (*s.ConventionsTypes)[0] != "feat" {
 		t.Error("Values does not copy the conventions lists")
 	}
+
+	// conventions.branch.* and conventions.tags.* (phase 8.2): shared, lists copied and never nil.
+	cfg = DefaultConfig("x")
+	cfg.Conventions.Branch.Pattern = "^feat/.+$"
+	cfg.Conventions.Tags.Milestones = nil
+	s = SharedSettingsFrom(cfg)
+	v = s.Values()
+	if v[KeyConventionsBranchPattern] != "^feat/.+$" ||
+		!reflect.DeepEqual(v[KeyConventionsBranchExclude], []string{"gh-pages", "dependabot/*", "renovate/*"}) {
+		t.Errorf("conventions.branch values = %v / %v", v[KeyConventionsBranchPattern], v[KeyConventionsBranchExclude])
+	}
+	if got := v[KeyConventionsMilestones]; !reflect.DeepEqual(got, []string{}) {
+		t.Errorf("conventions.tags.milestones = %#v, empty list expected", got)
+	}
+	cfg.Conventions.Branch.Exclude[0] = "changed"
+	if (*s.ConventionsBranchExclude)[0] != "gh-pages" {
+		t.Error("conventions.branch.exclude not copied")
+	}
+	v[KeyConventionsBranchExclude].([]string)[0] = "changed"
+	if (*s.ConventionsBranchExclude)[0] != "gh-pages" {
+		t.Error("Values does not copy conventions.branch.exclude")
+	}
 }
 
 func TestSharedSettingsApplyTo(t *testing.T) {
@@ -143,11 +166,16 @@ func TestSharedSettingsApplyToConventions(t *testing.T) {
 		ConventionsMaxSubjectHard: ptr(90),
 		ConventionsForbidden:      new([]string), // nil list: becomes an empty list
 		ConventionsLanguage:       ptr("fr"),
+		ConventionsBranchPattern:  ptr("^feat/.+$"),
+		ConventionsBranchExclude:  &[]string{"gh-pages"},
+		ConventionsMilestones:     &[]string{"v1.0.0@2026-12-18"},
 	}
 	got := s.ApplyTo(cfg)
 	want := ConventionsConfig{Enabled: true, Since: "2026-09-01",
 		Commit: ConventionsCommitConfig{Types: []string{"feat", "fix"}, Scopes: []string{"api"},
 			MaxSubjectSoft: 60, MaxSubjectHard: 90, Forbidden: []string{}, Language: "fr"},
+		Branch:           ConventionsBranchConfig{Pattern: "^feat/.+$", Exclude: []string{"gh-pages"}},
+		Tags:             ConventionsTagsConfig{Milestones: []string{"v1.0.0@2026-12-18"}},
 		ExcludedAccounts: []string{"prof"}}
 	if !reflect.DeepEqual(got.Conventions, want) {
 		t.Errorf("ApplyTo = %+v\nwant %+v", got.Conventions, want)
@@ -155,16 +183,19 @@ func TestSharedSettingsApplyToConventions(t *testing.T) {
 	types[0] = "changed"
 	got.Conventions.ExcludedAccounts[0] = "changed"
 	got.Diagnostic.Exclude[0] = "changed"
-	if got.Conventions.Commit.Types[0] != "feat" {
+	(*s.ConventionsMilestones)[0] = "changed"
+	if got.Conventions.Commit.Types[0] != "feat" || got.Conventions.Tags.Milestones[0] != "v1.0.0@2026-12-18" {
 		t.Error("ApplyTo does not copy the provided list")
 	}
-	if cfg.Conventions.ExcludedAccounts[0] != "prof" || cfg.Diagnostic.Exclude[0] == "changed" {
+	got.Conventions.Branch.Exclude[0] = "changed"
+	if cfg.Conventions.ExcludedAccounts[0] != "prof" || cfg.Diagnostic.Exclude[0] == "changed" ||
+		cfg.Conventions.Branch.Exclude[0] != "gh-pages" {
 		t.Error("ApplyTo shares the lists of the original configuration")
 	}
 	if cfg.Conventions.Since != "" || cfg.Conventions.Commit.MaxSubjectSoft != 50 {
 		t.Error("ApplyTo changed the original configuration")
 	}
-	if got := s.Keys(); !slices.Equal(got, SharedKeys[len(SharedKeys)-7:]) {
+	if got := s.Keys(); !slices.Equal(got, SharedKeys[len(SharedKeys)-10:]) {
 		t.Errorf("Keys = %v", got)
 	}
 }
@@ -254,9 +285,10 @@ func TestWriteSharedSettingsKeepsMachineKeys(t *testing.T) {
 		Timezone:        ptr("Europe/Paris"),
 		Lang:            ptr("fr"),
 
-		ConventionsSince:     ptr("2026-09-01"),
-		ConventionsTypes:     &[]string{"feat", "fix"},
-		ConventionsForbidden: &[]string{"wip", "mise à jour", "."},
+		ConventionsSince:      ptr("2026-09-01"),
+		ConventionsTypes:      &[]string{"feat", "fix"},
+		ConventionsForbidden:  &[]string{"wip", "mise à jour", "."},
+		ConventionsMilestones: &[]string{"v1.0.0@2026-12-18", "v2.0.0"},
 	}
 	res, err := WriteSharedSettings(ws, s)
 	if err != nil {
@@ -297,7 +329,9 @@ func TestWriteSharedSettingsKeepsMachineKeys(t *testing.T) {
 	}
 	if c.Conventions.Since != "2026-09-01" || !slices.Equal(c.Conventions.Commit.Types, []string{"feat", "fix"}) ||
 		!slices.Equal(c.Conventions.Commit.Forbidden, []string{"wip", "mise à jour", "."}) ||
-		c.Conventions.Commit.MaxSubjectSoft != 50 || c.Conventions.Commit.Language != "any" {
+		c.Conventions.Commit.MaxSubjectSoft != 50 || c.Conventions.Commit.Language != "any" ||
+		!slices.Equal(c.Conventions.Tags.Milestones, []string{"v1.0.0@2026-12-18", "v2.0.0"}) ||
+		!slices.Equal(c.Conventions.Branch.Exclude, conventions.DefaultBranchExclude()) {
 		t.Errorf("imported conventions settings missing: %+v", c.Conventions)
 	}
 	if c.Sync.Parallelism != 2 {
@@ -311,7 +345,7 @@ func TestWriteSharedSettingsKeepsMachineKeys(t *testing.T) {
 		t.Errorf("WriteResult.Config = %+v, read back %+v", res.Config, c)
 	}
 	// The settings not provided and absent from the file stay in comments.
-	for _, line := range []string{"#   auto: true", "#   flemme_after_days: 5"} {
+	for _, line := range []string{"#   auto: true", "#   flemme_after_days: 5", "#   branch:\n", `#     pattern: ""`} {
 		if !strings.Contains(content, line) {
 			t.Errorf("commented line %q missing:\n%s", line, content)
 		}
@@ -319,7 +353,8 @@ func TestWriteSharedSettingsKeepsMachineKeys(t *testing.T) {
 	for _, line := range []string{"sync:\n", "  interval: 1h ", "  parallelism: 2 ", "  dead_after_days: 21 ",
 		`  exclude: ["dependabot/*", "renovate/*"]`, `timezone: "Europe/Paris"`, `lang: "fr"`, "  auth:\n", `    username: "prof"`,
 		`  gh_path: "/opt/gh/bin/gh"`, "git:\n", `  protocol: "https"`, "conventions:\n", "  enabled: true ",
-		`  since: "2026-09-01"`, "  commit:\n", `    types: ["feat", "fix"]`, `  excluded_accounts: ["prof-dupont"]`} {
+		`  since: "2026-09-01"`, "  commit:\n", `    types: ["feat", "fix"]`, "  tags:\n",
+		`    milestones: ["v1.0.0@2026-12-18", "v2.0.0"]`, `  excluded_accounts: ["prof-dupont"]`} {
 		if !strings.Contains(content, line) {
 			t.Errorf("active line %q missing:\n%s", line, content)
 		}

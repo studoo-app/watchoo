@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -64,5 +65,71 @@ func TestRevList(t *testing.T) {
 	cancel()
 	if _, err := p.RevList(canceled, "alice", "projet", []string{"main"}); !errors.Is(err, context.Canceled) {
 		t.Errorf("canceled context: %v", err)
+	}
+}
+
+// RemoteBranches lists the remote branches of the existing clone without fetching; RevRange reads the
+// commits between two commits (tag interval) or from branches minus a commit, without fetching, and
+// refuses a commit absent from the clone instead of ignoring it.
+func TestRemoteBranchesAndRevRange(t *testing.T) {
+	srv := gittest.NewServer(t)
+	r := srv.Create("alice", "projet", "main")
+	root := r.Commit("main", "a.txt", "a\n", "racine", alice, t0)
+	m1 := r.Commit("main", "a.txt", "b\n", "m1", alice, t0.Add(time.Hour))
+	r.Branch("feat/login-page", m1)
+	f1 := r.Commit("feat/login-page", "b.txt", "x\n", "f1", bob, t0.Add(2*time.Hour))
+	m2 := r.Commit("main", "a.txt", "c\n", "m2", alice, t0.Add(3*time.Hour))
+
+	p, dir, _ := newProvider(t, srv)
+	ctx := t.Context()
+	if _, err := p.RemoteBranches(ctx, "alice", "projet"); !errors.Is(err, provider.ErrNotFound) {
+		t.Errorf("RemoteBranches without a clone: %v, want ErrNotFound", err)
+	}
+	if _, err := p.RevRange(ctx, "alice", "projet", nil, []string{m2}, nil); !errors.Is(err, provider.ErrNotFound) {
+		t.Errorf("RevRange without a clone: %v, want ErrNotFound", err)
+	}
+	if err := p.Prepare(ctx, "alice", "projet", "main"); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := p.RemoteBranches(ctx, "alice", "projet"); err != nil || !slices.Equal(got, []string{"feat/login-page", "main"}) {
+		t.Errorf("RemoteBranches = %v, %v", got, err)
+	}
+	// A branch created afterwards is unknown: no fetch.
+	r.Branch("later", m2)
+	if got, err := fresh(t, srv, dir).RemoteBranches(ctx, "alice", "projet"); err != nil || slices.Contains(got, "later") {
+		t.Errorf("branch not fetched: %v, %v", got, err)
+	}
+
+	sorted := func(s []string) []string { s = slices.Clone(s); slices.Sort(s); return s }
+	if got, err := p.RevRange(ctx, "alice", "projet", nil, []string{m2}, []string{root}); err != nil ||
+		!slices.Equal(sorted(got), sorted([]string{m1, m2})) {
+		t.Errorf("RevRange(m2 ^root) = %v, %v", got, err)
+	}
+	if got, err := p.RevRange(ctx, "alice", "projet", nil, []string{m1}, nil); err != nil ||
+		!slices.Equal(sorted(got), sorted([]string{root, m1})) {
+		t.Errorf("RevRange(m1) = %v, %v", got, err)
+	}
+	if got, err := p.RevRange(ctx, "alice", "projet", []string{"main", "feat/login-page", "gone"}, nil, []string{m1}); err != nil ||
+		!slices.Equal(sorted(got), sorted([]string{f1, m2})) {
+		t.Errorf("RevRange(branches ^m1) = %v, %v", got, err)
+	}
+	if _, err := p.RevRange(ctx, "alice", "projet", []string{"gone"}, nil, []string{m1}); !errors.Is(err, provider.ErrNotFound) {
+		t.Errorf("no requested branch in the clone: %v, want ErrNotFound", err)
+	}
+	if got, err := p.RevRange(ctx, "alice", "projet", nil, nil, []string{m1}); err != nil || got == nil || len(got) != 0 {
+		t.Errorf("nothing to include: %v, %v", got, err)
+	}
+	missing := strings.Repeat("ab", 20)
+	if _, err := p.RevRange(ctx, "alice", "projet", nil, []string{m2}, []string{missing}); err == nil {
+		t.Error("RevRange accepted an excluded commit absent from the clone")
+	}
+	if _, err := p.RevRange(ctx, "alice", "projet", nil, []string{"HEAD"}, nil); !errors.Is(err, provider.ErrInvalidRef) {
+		t.Errorf("non-SHA include: %v, want ErrInvalidRef", err)
+	}
+	if _, err := p.RevRange(ctx, "alice", "projet", []string{""}, nil, nil); !errors.Is(err, provider.ErrInvalidRef) {
+		t.Errorf("empty branch: %v, want ErrInvalidRef", err)
+	}
+	if _, err := p.RemoteBranches(ctx, "alice", "../x"); err == nil {
+		t.Error("invalid repository accepted")
 	}
 }

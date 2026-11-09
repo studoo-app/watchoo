@@ -16,10 +16,28 @@ type fakeReader struct {
 	repos       []model.Repository
 	branches    map[int64][]model.Branch
 	commits     map[int64][]model.ConventionCommit
+	pulls       map[int64][]model.ConventionPullRequest
+	tags        map[int64][]model.Tag
+	releases    map[int64][]model.Release
 	errRepos    error
 	errBranches error
 	errCommits  error
+	errPulls    error
+	errTags     error
+	errReleases error
 	calls       []int64 // authorID of each ConventionCommits call
+}
+
+func (f *fakeReader) ConventionPullRequests(_ context.Context, id int64) ([]model.ConventionPullRequest, error) {
+	return f.pulls[id], f.errPulls
+}
+
+func (f *fakeReader) ConventionTags(_ context.Context, id int64) ([]model.Tag, error) {
+	return f.tags[id], f.errTags
+}
+
+func (f *fakeReader) ConventionReleases(_ context.Context, id int64) ([]model.Release, error) {
+	return f.releases[id], f.errReleases
 }
 
 func (f *fakeReader) ListRepositories(context.Context) ([]model.Repository, error) {
@@ -44,16 +62,69 @@ func (f *fakeReader) ConventionCommits(_ context.Context, repoID, authorID int64
 	return out, nil
 }
 
-// fakeClones is an in-memory CloneReader: commits reachable per branch.
+// fakeClones is an in-memory CloneReader: commits reachable per branch, and per commit for RevRange
+// (the commit itself included).
 type fakeClones struct {
-	has    map[string]bool
-	reach  map[string][]string // branch -> SHA
-	err    error
-	asked  [][]string
-	cancel context.CancelFunc // called by RevList if not nil
+	has       map[string]bool
+	reach     map[string][]string // branch or SHA -> reachable SHAs
+	remote    map[string][]string // "owner/name" -> remote branches
+	err       error               // RevList and RevRange
+	remoteErr error
+	asked     [][]string
+	ranges    [][3][]string      // branches, include, exclude of each RevRange call
+	cancel    context.CancelFunc // called by RevList if not nil
+	// cancelRange is called by RevRange if not nil.
+	cancelRange context.CancelFunc
 }
 
 func (f *fakeClones) HasClone(owner, name string) bool { return f.has[owner+"/"+name] }
+
+func (f *fakeClones) RemoteBranches(_ context.Context, owner, name string) ([]string, error) {
+	return f.remote[owner+"/"+name], f.remoteErr
+}
+
+func (f *fakeClones) RevRange(_ context.Context, _, _ string, branches, include, exclude []string) ([]string, error) {
+	f.ranges = append(f.ranges, [3][]string{slices.Clone(branches), slices.Clone(include), slices.Clone(exclude)})
+	if f.cancelRange != nil {
+		f.cancelRange()
+	}
+	if f.err != nil {
+		return nil, f.err
+	}
+	// Like the git provider: requested branches all absent from the clone, nothing included: error.
+	if len(branches) > 0 && len(include) == 0 &&
+		!slices.ContainsFunc(branches, func(b string) bool { _, ok := f.reach[b]; return ok }) {
+		return nil, errors.New("no requested branch in the clone")
+	}
+	in, out := map[string]bool{}, map[string]bool{}
+	for _, b := range branches {
+		for _, s := range f.reach[b] {
+			in[s] = true
+		}
+	}
+	for _, list := range []struct {
+		keys []string
+		set  map[string]bool
+	}{{include, in}, {exclude, out}} {
+		for _, k := range list.keys {
+			shas, ok := f.reach[k]
+			if !ok {
+				return nil, errors.New("bad object " + k)
+			}
+			for _, s := range shas {
+				list.set[s] = true
+			}
+		}
+	}
+	res := []string{}
+	for s := range in {
+		if !out[s] {
+			res = append(res, s)
+		}
+	}
+	slices.Sort(res)
+	return res, nil
+}
 
 func (f *fakeClones) RevList(_ context.Context, _, _ string, branches []string) ([]string, error) {
 	f.asked = append(f.asked, slices.Clone(branches))

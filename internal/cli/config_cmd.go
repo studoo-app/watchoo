@@ -175,6 +175,13 @@ func sharedKeysOf(doc *configshare.Document) []string {
 			add(cm.Forbidden != nil, workspace.KeyConventionsForbidden)
 			add(cm.Language != nil, workspace.KeyConventionsLanguage)
 		}
+		if br := c.Branch; br != nil {
+			add(br.Pattern != nil, workspace.KeyConventionsBranchPattern)
+			add(br.Exclude != nil, workspace.KeyConventionsBranchExclude)
+		}
+		if tg := c.Tags; tg != nil {
+			add(tg.Milestones != nil, workspace.KeyConventionsMilestones)
+		}
 	}
 	return keys
 }

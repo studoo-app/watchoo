@@ -52,6 +52,8 @@ func TestExport(t *testing.T) {
 	e.ws.Config.Conventions = workspace.ConventionsConfig{Enabled: true, Since: "2026-09-01",
 		Commit: workspace.ConventionsCommitConfig{Types: []string{"feat", "fix"}, Scopes: nil,
 			MaxSubjectSoft: 50, MaxSubjectHard: 72, Forbidden: []string{"wip"}, Language: "any"},
+		Branch:           workspace.ConventionsBranchConfig{Exclude: []string{"gh-pages", "dependabot/*", "renovate/*"}},
+		Tags:             workspace.ConventionsTagsConfig{Milestones: []string{"v1.0.0", "v2.0.0", "v3.0.0"}},
 		ExcludedAccounts: []string{"prof-secret"}}
 	e.track(1, "zoe", "projet", "Zoé Leroy")
 	e.track(2, "Alice", "projet", "Alice Martin", "main", "release/*")
@@ -103,6 +105,21 @@ func TestExport(t *testing.T) {
           "wip"
         ],
         "language": "any"
+      },
+      "branch": {
+        "pattern": "",
+        "exclude": [
+          "gh-pages",
+          "dependabot/*",
+          "renovate/*"
+        ]
+      },
+      "tags": {
+        "milestones": [
+          "v1.0.0",
+          "v2.0.0",
+          "v3.0.0"
+        ]
       }
     }
   },

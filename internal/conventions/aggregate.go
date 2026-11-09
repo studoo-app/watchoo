@@ -63,6 +63,7 @@ type CommitResult struct {
 	Excluded    string   // motif CC4 ; vide si évalué ou antérieur à la date de début
 	Codes       []string // codes CC2 ; vide si non évalué
 	Conform     bool     // évalué et sans écart bloquant
+	Traits      Traits   // CC5 à CC7 (informatifs) ; zéro si non évalué
 }
 
 // Evaluated indique un commit compté au dénominateur.
@@ -137,6 +138,7 @@ func Aggregate(commits []Commit, opts Options) Report {
 		if r.Evaluated() {
 			res := p.Parse(c.Message)
 			r.Codes, r.Conform = res.Codes, res.Conform()
+			r.Traits = Inspect(c.Message)
 		}
 		if !r.BeforeSince {
 			rep.add(r)

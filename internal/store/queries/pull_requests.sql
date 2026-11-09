@@ -116,3 +116,18 @@ LEFT JOIN commits c ON c.repo_id = t.repo_id AND c.sha = t.sha
 WHERE (sqlc.narg(repo_id) IS NULL OR t.repo_id = sqlc.narg(repo_id))
 ORDER BY c.committed_at IS NULL, c.committed_at DESC, t.name DESC
 LIMIT sqlc.arg(row_limit);
+
+-- name: ListConventionPullRequests :many
+-- Pull requests du depot pour les conventions (phase 8.2), numero decroissant : titre (lu en memoire
+-- seulement, jamais garde), etat, brouillon, auteur et branche de tete ; author_id = contributeur du
+-- meme compte de forge (0 si aucun).
+SELECT p.repo_id, p.number, p.title, p.state, p.merged, p.draft, p.author_login, p.author_provider_id,
+       p.url, p.base_branch, p.head_branch, p.created_at, p.updated_at, p.closed_at, p.merged_at, p.tool_ids,
+       CAST(COALESCE(c.id, 0) AS INTEGER) AS author_id,
+       CAST(COALESCE(c.name, '') AS TEXT) AS author_name
+FROM pull_requests p
+JOIN repositories r ON r.id = p.repo_id
+LEFT JOIN contributors c ON p.author_provider_id <> 0 AND c.provider = r.provider
+                          AND c.provider_user_id = p.author_provider_id
+WHERE p.repo_id = ?
+ORDER BY p.number DESC;

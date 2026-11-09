@@ -1,10 +1,11 @@
 package conventions
 
-// Lecture des commits et rapport des conventions (phase 8.1) : Build lit les commits d'un dépôt dans la
-// base (Reader, implémenté par *store.Store) et, quand le clone Git local existe, leur périmètre précis
-// (CloneReader, implémenté par le provider des clones, lu sans mise à jour), puis appelle Aggregate. Le
-// calcul est fait à la lecture : rien n'est stocké. Le message n'est lu qu'en mémoire ; aucun résultat ne
-// le recopie et rien n'est journalisé.
+// Lecture et rapport des conventions (phases 8.1 et 8.2) : Build lit les commits, pull requests, tags et
+// releases d'un dépôt dans la base (Reader, implémenté par *store.Store) et, quand le clone Git local
+// existe, le périmètre précis des commits, les branches du distant et les intervalles entre tags
+// (CloneReader, implémenté par le provider des clones, lu sans mise à jour), puis calcule les indicateurs.
+// Le calcul est fait à la lecture : rien n'est stocké. Le message de commit et le titre de PR ne sont lus
+// qu'en mémoire ; aucun résultat ne les recopie et rien n'est journalisé.
 
 import (
 	"cmp"
@@ -42,6 +43,12 @@ type Reader interface {
 	ListBranches(ctx context.Context, repoID int64) ([]model.Branch, error)
 	// ConventionCommits renvoie les commits du dépôt repoID de l'auteur authorID (0 = tous).
 	ConventionCommits(ctx context.Context, repoID, authorID int64) ([]model.ConventionCommit, error)
+	// ConventionPullRequests renvoie les pull requests du dépôt, avec le contributeur de leur auteur.
+	ConventionPullRequests(ctx context.Context, repoID int64) ([]model.ConventionPullRequest, error)
+	// ConventionTags renvoie les tags du dépôt (nom, SHA du commit visé).
+	ConventionTags(ctx context.Context, repoID int64) ([]model.Tag, error)
+	// ConventionReleases renvoie les releases du dépôt, brouillons compris.
+	ConventionReleases(ctx context.Context, repoID int64) ([]model.Release, error)
 }
 
 // CloneReader lit les clones Git locaux existants, sans les mettre à jour ; le provider des clones
@@ -50,6 +57,12 @@ type CloneReader interface {
 	HasClone(owner, name string) bool
 	// RevList renvoie les SHA des commits accessibles depuis les branches origin/<branche> données.
 	RevList(ctx context.Context, owner, name string, branches []string) ([]string, error)
+	// RemoteBranches renvoie les noms des branches du distant lues au dernier fetch (sans origin/HEAD).
+	RemoteBranches(ctx context.Context, owner, name string) ([]string, error)
+	// RevRange renvoie les SHA des commits accessibles depuis les branches origin/<branche> et les
+	// commits include, mais pas depuis les commits exclude ; un commit include ou exclude absent du clone
+	// est une erreur.
+	RevRange(ctx context.Context, owner, name string, branches, include, exclude []string) ([]string, error)
 }
 
 // Filter restreint le rapport.
@@ -64,7 +77,13 @@ type BuildOptions struct {
 	Rules            Rules
 	Since            string         // conventions.since de l'espace, AAAA-MM-JJ ; vide : depuis le début
 	ExcludedAccounts []string       // conventions.excluded_accounts
-	Location         *time.Location // fuseau de l'espace (lecture de la date de début) ; nil : UTC
+	Location         *time.Location // fuseau de l'espace (date de début, échéances) ; nil : UTC
+	Branch           BranchRules    // conventions.commit.types et conventions.branch.* (BR1)
+	Milestones       []Milestone    // conventions.tags.milestones (SV2, SV6, revue de jalon)
+	Language         string         // conventions.commit.language : fr, en ou any (CC7, information)
+	// LocalOnly indique un espace synchronisé sans l'API (clone seul) : les pull requests et releases en
+	// base ne sont plus mises à jour, PR1, PR2 et SV6 sont « inconnus ».
+	LocalOnly bool
 }
 
 // CommitLine est le résultat d'un commit du périmètre, sans son message.
@@ -78,6 +97,11 @@ type CommitLine struct {
 	Excluded    string   // motif CC4 ; vide si évalué ou antérieur à la date de début
 	Codes       []string // codes CC2 ; vide si non évalué
 	Conform     bool     // évalué et sans écart bloquant
+	Traits      Traits   // CC5 à CC7 (informatifs) ; zéro si non évalué
+	// TrendKnown indique que la position du commit par rapport au dernier tag final est connue (clone
+	// lisible, au moins un tag final) ; SinceLastTag : le commit n'est pas atteignable depuis ce tag.
+	TrendKnown   bool
+	SinceLastTag bool
 }
 
 // Evaluated indique un commit compté au dénominateur.
@@ -98,6 +122,14 @@ type RepoReport struct {
 	// DefaultBranch est la vue informative de la seule branche par défaut (Repo.DefaultBranch).
 	DefaultBranch Tally
 	Commits       []CommitLine // commits du périmètre, du plus récent au plus ancien
+
+	// Phase 8.2.
+	Traits    TraitsTally     // CC5 à CC7 des commits évalués du périmètre (informatifs)
+	Language  LanguageSummary // CC7 : langues des sujets et mélange
+	Branches  BranchReport    // BR1
+	Pulls     PullReport      // PR1, PR2
+	Tags      TagReport       // SV1, SV2 (présence), SV6 (information)
+	Intervals IntervalReport  // CC1 par intervalle entre tags finals, et depuis le dernier
 }
 
 // ContributorReport est le taux CC3 d'un contributeur, tous dépôts du rapport confondus.
@@ -106,7 +138,25 @@ type ContributorReport struct {
 	AuthorName  string
 	AuthorLogin string
 	Tally
+
+	// Phase 8.2.
+	Traits   TraitsTally // CC5 à CC7 de ses commits évalués (CC6 par contributeur)
+	Trend    Trend       // CC3 avant et depuis le dernier tag final de chaque dépôt
+	Pulls    PRTally     // PR1 et PR2 des PR dont il est l'auteur (rapprochées par le compte de forge)
+	Branches BranchTally // BR1 des branches de tête de ses PR
 }
+
+// Trend est la tendance de CC3 : deux taux, avant et depuis le dernier tag final de chaque dépôt, sans
+// flèche calculée. Un commit n'est placé que si son dépôt a un clone lisible et au moins un tag final.
+type Trend struct {
+	Before     Tally // commits atteignables depuis le dernier tag final de leur dépôt
+	Since      Tally // commits arrivés depuis (non atteignables depuis ce tag)
+	Repos      int   // dépôts où la position a pu être lue
+	Unmeasured int   // commits évalués de dépôts sans clone lisible ni tag final : non placés
+}
+
+// Known indique une tendance mesurée dans au moins un dépôt.
+func (t Trend) Known() bool { return t.Repos > 0 }
 
 // BuildReport est le rapport des conventions.
 type BuildReport struct {
@@ -125,31 +175,74 @@ func Build(ctx context.Context, r Reader, clones CloneReader, f Filter, opts Bui
 	if err != nil {
 		return out, err
 	}
+	env, err := newBuildEnv(opts)
+	if err != nil {
+		return out, err
+	}
 	authors := map[int64]*ContributorReport{}
+	author := func(id int64, name, login string) *ContributorReport {
+		a := authors[id]
+		if a == nil {
+			a = &ContributorReport{AuthorID: id, AuthorName: name, AuthorLogin: login, Tally: newTally(),
+				Traits: NewTraitsTally(), Trend: Trend{Before: newTally(), Since: newTally()}}
+			authors[id] = a
+		}
+		return a
+	}
+	allowed := func(id int64) bool { return id != 0 && (f.AuthorIDs == nil || slices.Contains(f.AuthorIDs, id)) }
 	for _, repo := range repos {
 		if f.RepoID != 0 && repo.ID != f.RepoID {
 			continue
 		}
-		rep, err := buildRepo(ctx, r, clones, repo, f.AuthorIDs, opts)
+		rep, err := buildRepo(ctx, r, clones, repo, f.AuthorIDs, opts, env)
 		if err != nil {
 			return out, err
 		}
 		out.Total.Merge(rep.Tally)
+		measured := map[int64]bool{}
 		for _, c := range rep.Commits {
 			if c.BeforeSince {
 				continue
 			}
-			a := authors[c.AuthorID]
-			if a == nil {
-				a = &ContributorReport{AuthorID: c.AuthorID, AuthorName: c.AuthorName, AuthorLogin: c.AuthorLogin, Tally: newTally()}
-				authors[c.AuthorID] = a
+			a := author(c.AuthorID, c.AuthorName, c.AuthorLogin)
+			res := CommitResult{SHA: c.SHA, Excluded: c.Excluded, Codes: c.Codes, Conform: c.Conform}
+			a.add(res)
+			if !c.Evaluated() {
+				continue
 			}
-			a.add(CommitResult{SHA: c.SHA, Excluded: c.Excluded, Codes: c.Codes, Conform: c.Conform})
+			a.Traits.Add(c.Traits)
+			switch {
+			case !c.TrendKnown:
+				a.Trend.Unmeasured++
+			case c.SinceLastTag:
+				a.Trend.Since.add(res)
+				measured[c.AuthorID] = true
+			default:
+				a.Trend.Before.add(res)
+				measured[c.AuthorID] = true
+			}
+		}
+		for id := range measured {
+			authors[id].Trend.Repos++
+		}
+		for _, p := range rep.Pulls.Pulls {
+			if allowed(p.AuthorID) {
+				author(p.AuthorID, p.AuthorName, p.AuthorLogin).Pulls.add(p)
+			}
+		}
+		for _, b := range rep.Branches.Branches {
+			for i, id := range b.AuthorIDs {
+				if allowed(id) {
+					author(id, b.AuthorNames[i], b.AuthorLogins[i]).Branches.add(b.BranchResult)
+				}
+			}
 		}
 		out.Repos = append(out.Repos, rep)
 	}
-	for _, a := range authors { // chacun a au moins un commit évalué ou exclu
+	for _, a := range authors { // chacun a un commit évalué ou exclu, une PR ou une branche
 		a.sortIssues()
+		a.Trend.Before.sortIssues()
+		a.Trend.Since.sortIssues()
 		out.Contributors = append(out.Contributors, *a)
 	}
 	slices.SortFunc(out.Contributors, func(a, b ContributorReport) int {
@@ -164,8 +257,9 @@ func Build(ctx context.Context, r Reader, clones CloneReader, f Filter, opts Bui
 
 // buildRepo calcule le rapport d'un dépôt.
 func buildRepo(ctx context.Context, r Reader, clones CloneReader, repo model.Repository, authorIDs []int64,
-	opts BuildOptions) (RepoReport, error) {
-	rep := RepoReport{Repo: repo, Source: SourceDatabase, Tally: newTally(), DefaultBranch: newTally(), Commits: []CommitLine{}}
+	opts BuildOptions, env *buildEnv) (RepoReport, error) {
+	rep := RepoReport{Repo: repo, Source: SourceDatabase, Tally: newTally(), DefaultBranch: newTally(), Commits: []CommitLine{},
+		Traits: NewTraitsTally()}
 	since, err := EffectiveSinceAt(opts.Since, repo.ConventionsSince, opts.Location)
 	if err != nil {
 		return rep, fmt.Errorf("%s: %w", repo.FullName(), err)
@@ -179,14 +273,32 @@ func buildRepo(ctx context.Context, r Reader, clones CloneReader, repo model.Rep
 		}
 	}
 	rows, err := readCommits(ctx, r, repo.ID, authorIDs)
-	if err != nil || len(rows) == 0 {
+	if err != nil {
 		return rep, err
 	}
+	results, err := buildCommits(ctx, r, clones, repo, rows, opts, &rep)
+	if err != nil {
+		return rep, err
+	}
+	rep.Language = rep.Traits.LanguageSummary(opts.Language)
+	if err := buildExtras(ctx, r, clones, repo, authorIDs, rows, results, opts, env, &rep); err != nil {
+		return rep, err
+	}
+	return rep, nil
+}
 
+// buildCommits calcule CC1 à CC7 sur les commits du périmètre (rows lus en base) et renvoie leurs
+// résultats, dans l'ordre de rep.Commits.
+func buildCommits(ctx context.Context, r Reader, clones CloneReader, repo model.Repository,
+	rows []model.ConventionCommit, opts BuildOptions, rep *RepoReport) ([]CommitResult, error) {
+	if len(rows) == 0 {
+		return nil, nil
+	}
+	since := rep.Since
 	inScope := func(c model.ConventionCommit) bool { return c.OnTracked }
 	onDefault := func(c model.ConventionCommit) bool { return c.OnDefault }
 	if all, def, ok, err := cloneScope(ctx, r, clones, repo); err != nil {
-		return rep, err
+		return nil, err
 	} else if ok {
 		rep.Source = SourceClone
 		inScope = func(c model.ConventionCommit) bool { return all[c.SHA] }
@@ -215,13 +327,16 @@ func buildRepo(ctx context.Context, r Reader, clones CloneReader, repo model.Rep
 		if !c.BeforeSince && row.ParentCount == nil {
 			rep.ParentsUnknown++
 		}
+		if c.Evaluated() {
+			rep.Traits.Add(c.Traits)
+		}
 		rep.Commits = append(rep.Commits, CommitLine{
 			SHA: c.SHA, AuthorID: row.AuthorID, AuthorName: row.AuthorName, AuthorLogin: row.AuthorLogin,
 			AuthoredAt: row.AuthoredAt, BeforeSince: c.BeforeSince, Excluded: c.Excluded, Codes: c.Codes,
-			Conform: c.Conform,
+			Conform: c.Conform, Traits: c.Traits,
 		})
 	}
-	return rep, nil
+	return res.Commits, nil
 }
 
 // readCommits lit les commits du dépôt, de tous les auteurs (authorIDs nil) ou des seuls authorIDs.

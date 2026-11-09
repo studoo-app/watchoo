@@ -44,6 +44,9 @@ const (
 	KeyConventionsMaxSubjectHard = "conventions.commit.max_subject_hard"
 	KeyConventionsForbidden      = "conventions.commit.forbidden"
 	KeyConventionsLanguage       = "conventions.commit.language"
+	KeyConventionsBranchPattern  = "conventions.branch.pattern"
+	KeyConventionsBranchExclude  = "conventions.branch.exclude"
+	KeyConventionsMilestones     = "conventions.tags.milestones"
 )
 
 // SharedKeys liste les clés des réglages communs, dans l'ordre du modèle de config.yaml.
@@ -54,6 +57,7 @@ var SharedKeys = []string{
 	KeyConventionsSince, KeyConventionsTypes, KeyConventionsScopes,
 	KeyConventionsMaxSubjectSoft, KeyConventionsMaxSubjectHard,
 	KeyConventionsForbidden, KeyConventionsLanguage,
+	KeyConventionsBranchPattern, KeyConventionsBranchExclude, KeyConventionsMilestones,
 }
 
 // SharedSettings regroupe des valeurs de réglages communs. Chaque champ nil veut dire « non fourni » :
@@ -74,7 +78,10 @@ type SharedSettings struct {
 	ConventionsMaxSubjectSoft *int
 	ConventionsMaxSubjectHard *int
 	ConventionsForbidden      *[]string
-	ConventionsLanguage       *string // « fr », « en » ou « any »
+	ConventionsLanguage       *string   // « fr », « en » ou « any »
+	ConventionsBranchPattern  *string   // "" = règle intégrée ; sinon RE2
+	ConventionsBranchExclude  *[]string // liste vide = aucune branche exclue (hors branche par défaut)
+	ConventionsMilestones     *[]string // « vX.Y.Z » ou « vX.Y.Z@AAAA-MM-JJ » ; vide = aucun jalon
 }
 
 // cloneList copie une liste en la gardant non nil : nil et vide sont la même valeur pour un réglage, et
@@ -94,6 +101,8 @@ func SharedSettingsFrom(c Config) SharedSettings {
 	types := cloneList(c.Conventions.Commit.Types)
 	scopes := cloneList(c.Conventions.Commit.Scopes)
 	forbidden := cloneList(c.Conventions.Commit.Forbidden)
+	branchExclude := cloneList(c.Conventions.Branch.Exclude)
+	milestones := cloneList(c.Conventions.Tags.Milestones)
 	return SharedSettings{
 		SyncAuto:        &c.Sync.Auto,
 		SyncInterval:    &c.Sync.Interval,
@@ -111,6 +120,9 @@ func SharedSettingsFrom(c Config) SharedSettings {
 		ConventionsMaxSubjectHard: &c.Conventions.Commit.MaxSubjectHard,
 		ConventionsForbidden:      &forbidden,
 		ConventionsLanguage:       &c.Conventions.Commit.Language,
+		ConventionsBranchPattern:  &c.Conventions.Branch.Pattern,
+		ConventionsBranchExclude:  &branchExclude,
+		ConventionsMilestones:     &milestones,
 	}
 }
 
@@ -162,6 +174,15 @@ func (s SharedSettings) Values() map[string]any {
 	}
 	if s.ConventionsLanguage != nil {
 		out[KeyConventionsLanguage] = *s.ConventionsLanguage
+	}
+	if s.ConventionsBranchPattern != nil {
+		out[KeyConventionsBranchPattern] = *s.ConventionsBranchPattern
+	}
+	if s.ConventionsBranchExclude != nil {
+		out[KeyConventionsBranchExclude] = cloneList(*s.ConventionsBranchExclude)
+	}
+	if s.ConventionsMilestones != nil {
+		out[KeyConventionsMilestones] = cloneList(*s.ConventionsMilestones)
 	}
 	return out
 }
@@ -232,6 +253,15 @@ func (s SharedSettings) ApplyTo(c Config) Config {
 	if s.ConventionsLanguage != nil {
 		out.Conventions.Commit.Language = *s.ConventionsLanguage
 	}
+	if s.ConventionsBranchPattern != nil {
+		out.Conventions.Branch.Pattern = *s.ConventionsBranchPattern
+	}
+	if s.ConventionsBranchExclude != nil {
+		out.Conventions.Branch.Exclude = cloneList(*s.ConventionsBranchExclude)
+	}
+	if s.ConventionsMilestones != nil {
+		out.Conventions.Tags.Milestones = cloneList(*s.ConventionsMilestones)
+	}
 	return out
 }
 
@@ -245,6 +275,8 @@ func cloneLists(c Config) Config {
 	out.Conventions.Commit.Types = slices.Clone(c.Conventions.Commit.Types)
 	out.Conventions.Commit.Scopes = slices.Clone(c.Conventions.Commit.Scopes)
 	out.Conventions.Commit.Forbidden = slices.Clone(c.Conventions.Commit.Forbidden)
+	out.Conventions.Branch.Exclude = slices.Clone(c.Conventions.Branch.Exclude)
+	out.Conventions.Tags.Milestones = slices.Clone(c.Conventions.Tags.Milestones)
 	out.Conventions.ExcludedAccounts = slices.Clone(c.Conventions.ExcludedAccounts)
 	return out
 }

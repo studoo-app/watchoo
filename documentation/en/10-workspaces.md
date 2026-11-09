@@ -203,7 +203,7 @@ tracked repositories and the **common settings** of a workspace: `sync.auto`, `s
 `sync.parallelism`, `activity.flemme_after_days`, `activity.dead_after_days`, `branches.exclude`,
 `timezone`, `lang` (English by default, see
 [Web interface](06-web-interface.md#interface-language)) and the charter of the
-[project conventions](13-conventions.md#8-configuration) (`conventions.since`, `conventions.commit.*`). Settings specific to the machine or the person are **never** shared: `name`, `github.*`
+[project conventions](13-conventions.md#8-configuration) (`conventions.since`, `conventions.commit.*`, `conventions.branch.*` and `conventions.tags.*`). Settings specific to the machine or the person are **never** shared: `name`, `github.*`
 (`gh` account, path to `gh`: a file coming from elsewhere must never choose the program being run),
 `git.*` (clone protocol, tied to the machine's credentials), `web.*` and `diagnostic.*` (enabling the
 diagnosis requires informing the people of this workspace: it never comes from an imported file), as

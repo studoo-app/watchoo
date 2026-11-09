@@ -350,13 +350,19 @@ func parseConventions(c *ConventionsSettings, out *workspace.SharedSettings, fai
 			out.ConventionsSince = &since
 		}
 	}
+	if c.Branch != nil {
+		parseConventionsBranch(c.Branch, out, fail)
+	}
+	if c.Tags != nil && c.Tags.Milestones != nil {
+		out.ConventionsMilestones = parseMilestones(*c.Tags.Milestones, fail)
+	}
 	if c.Commit == nil {
 		return
 	}
 	cm := c.Commit
-	out.ConventionsTypes = parseConventionsList(cm.Types, "types", conventions.ValidType, fail)
-	out.ConventionsScopes = parseConventionsList(cm.Scopes, "scopes", conventions.ValidScope, fail)
-	out.ConventionsForbidden = parseConventionsList(cm.Forbidden, "forbidden", nil, fail)
+	out.ConventionsTypes = parseConventionsList(cm.Types, "commit.types", conventions.ValidType, fail)
+	out.ConventionsScopes = parseConventionsList(cm.Scopes, "commit.scopes", conventions.ValidScope, fail)
+	out.ConventionsForbidden = parseConventionsList(cm.Forbidden, "commit.forbidden", nil, fail)
 	out.ConventionsMaxSubjectSoft = cm.MaxSubjectSoft
 	out.ConventionsMaxSubjectHard = cm.MaxSubjectHard
 	if cm.Language != nil {
@@ -368,7 +374,61 @@ func parseConventions(c *ConventionsSettings, out *workspace.SharedSettings, fai
 	}
 }
 
-// parseConventionsList valide une liste de settings.conventions.commit.<name> : chaque entrée non vide,
+// parseConventionsBranch convertit settings.conventions.branch : pattern vide ou RE2 valide, sans
+// caractère de contrôle (checkText) ; exclude, chaque motif valide pour path.Match.
+func parseConventionsBranch(b *ConventionsBranchSettings, out *workspace.SharedSettings,
+	fail func(string, ...any)) {
+	if b.Pattern != nil {
+		p := *b.Pattern
+		msg := checkText(p)
+		switch {
+		case msg != "":
+			fail("configshare.v.field", "settings.conventions.branch.pattern", msg)
+		case conventions.ValidBranchPattern(p) != nil:
+			fail("configshare.v.conv_branch_pattern", quote(p))
+		default:
+			out.ConventionsBranchPattern = &p
+		}
+	}
+	valid := func(g string) bool { return conventions.ValidBranchExclude(g) == nil }
+	out.ConventionsBranchExclude = parseConventionsList(b.Exclude, "branch.exclude", valid, fail)
+}
+
+// parseMilestones valide settings.conventions.tags.milestones : chaque entrée lue par
+// conventions.ParseMilestone, chaque version une seule fois. Une liste refusée renvoie nil.
+func parseMilestones(in []string, fail func(string, ...any)) *[]string {
+	list := make([]string, 0, len(in))
+	seen := map[string]bool{}
+	ok := true
+	for i, v := range in {
+		if !utf8.ValidString(v) || strings.ContainsFunc(v, unicode.IsControl) {
+			fail("configshare.v.conv_item_control", "tags.milestones", i+1)
+			ok = false
+			continue
+		}
+		m, err := conventions.ParseMilestone(v)
+		switch {
+		case errors.Is(err, conventions.ErrMilestoneDue):
+			fail("configshare.v.conv_milestone_due", i+1, quote(v))
+			ok = false
+		case err != nil:
+			fail("configshare.v.conv_milestone", i+1, quote(v))
+			ok = false
+		case seen[m.Name]:
+			fail("configshare.v.conv_milestone_duplicate", i+1, m.Name)
+			ok = false
+		default:
+			seen[m.Name] = true
+			list = append(list, v)
+		}
+	}
+	if !ok {
+		return nil
+	}
+	return &list
+}
+
+// parseConventionsList valide une liste de settings.conventions.<name> (« commit.types »…) : chaque entrée non vide,
 // sans caractère de contrôle et, si valid n'est pas nil, de la forme attendue. nil reste nil (non
 // fourni) ; une liste refusée renvoie nil.
 func parseConventionsList(in *[]string, name string, valid func(string) bool,

@@ -170,6 +170,85 @@ func (q *Queries) LatestReleaseByRepo(ctx context.Context, repoID interface{}) (
 	return items, nil
 }
 
+const listConventionPullRequests = `-- name: ListConventionPullRequests :many
+SELECT p.repo_id, p.number, p.title, p.state, p.merged, p.draft, p.author_login, p.author_provider_id,
+       p.url, p.base_branch, p.head_branch, p.created_at, p.updated_at, p.closed_at, p.merged_at, p.tool_ids,
+       CAST(COALESCE(c.id, 0) AS INTEGER) AS author_id,
+       CAST(COALESCE(c.name, '') AS TEXT) AS author_name
+FROM pull_requests p
+JOIN repositories r ON r.id = p.repo_id
+LEFT JOIN contributors c ON p.author_provider_id <> 0 AND c.provider = r.provider
+                          AND c.provider_user_id = p.author_provider_id
+WHERE p.repo_id = ?
+ORDER BY p.number DESC
+`
+
+type ListConventionPullRequestsRow struct {
+	RepoID           int64
+	Number           int64
+	Title            string
+	State            string
+	Merged           bool
+	Draft            bool
+	AuthorLogin      string
+	AuthorProviderID int64
+	URL              string
+	BaseBranch       string
+	HeadBranch       string
+	CreatedAt        string
+	UpdatedAt        string
+	ClosedAt         sql.NullString
+	MergedAt         sql.NullString
+	ToolIds          string
+	AuthorID         int64
+	AuthorName       string
+}
+
+// Pull requests du depot pour les conventions (phase 8.2), numero decroissant : titre (lu en memoire
+// seulement, jamais garde), etat, brouillon, auteur et branche de tete ; author_id = contributeur du
+// meme compte de forge (0 si aucun).
+func (q *Queries) ListConventionPullRequests(ctx context.Context, repoID int64) ([]ListConventionPullRequestsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listConventionPullRequests, repoID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListConventionPullRequestsRow{}
+	for rows.Next() {
+		var i ListConventionPullRequestsRow
+		if err := rows.Scan(
+			&i.RepoID,
+			&i.Number,
+			&i.Title,
+			&i.State,
+			&i.Merged,
+			&i.Draft,
+			&i.AuthorLogin,
+			&i.AuthorProviderID,
+			&i.URL,
+			&i.BaseBranch,
+			&i.HeadBranch,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ClosedAt,
+			&i.MergedAt,
+			&i.ToolIds,
+			&i.AuthorID,
+			&i.AuthorName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listPullRequests = `-- name: ListPullRequests :many
 SELECT p.repo_id, p.number, p.title, p.state, p.merged, p.draft, p.author_login, p.author_provider_id,
        p.url, p.base_branch, p.head_branch, p.created_at, p.updated_at, p.closed_at, p.merged_at, p.tool_ids,

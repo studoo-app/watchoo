@@ -17,6 +17,14 @@ PATCH (see [Skills](documentation/en/11-skills.md#versions-and-changelogmd)).
   of the charter and the `WATCHOO_CONVENTIONS_*` variables. The charter (`since` and `commit.*`) is shared
   by `watchoo config export / import` and the Settings page under `settings.conventions`; `enabled` and
   `excluded_accounts` never are. A sharing file containing this key is refused by earlier versions.
+- **Branch and milestone settings of the conventions** (phase 8.2): `conventions.branch.pattern` (RE2
+  expression replacing the built-in rule `<type>/<words-with-dashes>`, empty by default),
+  `conventions.branch.exclude` (default `gh-pages`, `dependabot/*`, `renovate/*`; a pattern also matches
+  the path prefixes of a name, so `dependabot/*` covers `dependabot/npm_and_yarn/x`) and
+  `conventions.tags.milestones` (default `v1.0.0`, `v2.0.0`, `v3.0.0`; `vX.Y.Z@YYYY-MM-DD` for a due
+  date), validated at load time, with the `WATCHOO_CONVENTIONS_BRANCH_PATTERN`, `_BRANCH_EXCLUDE` and
+  `_TAGS_MILESTONES` variables, and shared under `settings.conventions.branch` and
+  `settings.conventions.tags` (refused by earlier versions).
 - **Per-repository conventions start date** (phase 8.1): `watchoo repo add --conventions-since YYYY-MM-DD`
   (`""` goes back to `conventions.since`), quoted in the report and below the `repo list` table, exposed
   as `conventions_since` in the repository object of `--json` (`null` = date of the workspace) and in
@@ -31,9 +39,30 @@ PATCH (see [Skills](documentation/en/11-skills.md#versions-and-changelogmd)).
   with `--commits` / `--failing`, the evaluated commits (short SHA, author, codes). No grade, never a
   commit message, exit code `0` whatever the rates. `--json`: `enabled`, `rules_version`,
   `repositories`, `contributors`, `commits`, `notice`, `filters`.
+- **`watchoo conventions`, phase 8.2 indicators**, computed when reading (no migration, no extra
+  request): per repository the branch names (BR1, remote branches of the clone and pull request head
+  branches), the pull request titles (PR1 and PR2, open and merged apart, shown by number, author, head
+  branch and codes, never the title; API mode only), the tags (SV1), the configured milestones (SV2,
+  presence) and the releases as information (SV6), the wording of the subjects (CC5 warnings), the footers
+  and issue references (CC6), the language of the subjects (CC7) and CC1 per interval between final tags;
+  per contributor the CC3 trend (rates up to and since the last final tag), the conforming pull request
+  titles and branches; with `--contributor`, only the pull requests and head branches of the selected
+  contributors are listed. **`--milestone vX.Y.Z`**: milestone review per repository (CC1 on the milestone
+  interval, BR1, SV1, SV2; "k/n criteria conform, u unknown", no grade; a milestone that is not configured
+  is a usage error). `--json`: additive keys `traits`, `language`, `branches`, `pull_requests`, `tags`,
+  `intervals` per repository, `traits`, `trend`, `pull_requests`, `branches` per contributor, `filters.milestone`
+  and top-level `milestone` (`null` without `--milestone`).
 - Web interface: a **Conventions** section on the repository page (`repo-conventions` fragment: rate,
   default branch, exclusions, issues by code, latest non-conforming commits, scope) and a line
   "Conforming commits n/m (x%)" on a contributor's page, only when the conventions are enabled.
+- Web interface, phase 8.2: a **`/conventions`** page (navigation entry only when the conventions are
+  enabled; disabled, it explains how to enable them, without data): overview by repository and by
+  contributor, never sorted by conformity, and a **milestone review** with a milestone selector
+  (`?milestone=vX.Y.Z`, 400 for a milestone that is not configured). The repository section adds the
+  non-conforming branches, a badge per pull request (number and codes, never the title), a dot per tag,
+  the milestones, the releases (information), CC1 per interval between tags, the wording, footers and
+  language of the subjects; the contributor's page adds the conforming pull request titles and the CC3
+  trend (before and since the last final tag). Every icon comes with a text.
 - **Migration `00016`**: `commits.parent_count` (number of parents, written at insertion, backfilled for
   the existing commits by the local Git clone at every sync, whether the conventions are enabled or not)
   and `repositories.conventions_since`.

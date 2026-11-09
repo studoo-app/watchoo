@@ -51,6 +51,7 @@ var storeTexts = map[string]entry{
 	"store.diagnostic.purge":           {"purging old diagnostic signals", "purge des anciens signaux de diagnostic"},
 	"store.diagnostic.write":           {"diagnostic signals of commit %s", "signaux de diagnostic du commit %s"},
 	"store.conventions.commits":        {"commits of repository %d for the conventions", "commits du dépôt %d pour les conventions"},
+	"store.conventions.pulls":          {"pull requests of repository %d for the conventions", "pull requests du dépôt %d pour les conventions"},
 	"store.pulls.latest":               {"latest pull request of repository %d", "dernière pull request du dépôt %d"},
 	"store.pulls.list":                 {"list of pull requests", "liste des pull requests"},
 	"store.pulls.number":               {"pull request #%d", "pull request n° %d"},

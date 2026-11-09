@@ -14,7 +14,8 @@
 //     (workspace.WriteSharedSettings), puis ajoute ou met à jour les dépôts
 //     (wsync.Engine.AddRepositories, accès vérifié). Rien n'est jamais retiré.
 //
-// Partagées : les conventions de projet (settings.conventions : date de début et règles des commits),
+// Partagées : les conventions de projet (settings.conventions : date de début, règles des commits,
+// nommage des branches et jalons des tags),
 // sauf conventions.enabled et conventions.excluded_accounts.
 //
 // Jamais partagés : name, github.* (dont gh_path : un fichier venu d'ailleurs ne doit jamais choisir
@@ -108,10 +109,25 @@ type Settings struct {
 	Conventions *ConventionsSettings `json:"conventions,omitempty"`
 }
 
-// ConventionsSettings : conventions.since (AAAA-MM-JJ, "" = depuis le début) et conventions.commit.*.
+// ConventionsSettings : conventions.since (AAAA-MM-JJ, "" = depuis le début), conventions.commit.*,
+// conventions.branch.* et conventions.tags.* (ces deux blocs depuis la phase 8.2, clés facultatives
+// ajoutées sans changer la version du format).
 type ConventionsSettings struct {
 	Since  *string                    `json:"since,omitempty"`
 	Commit *ConventionsCommitSettings `json:"commit,omitempty"`
+	Branch *ConventionsBranchSettings `json:"branch,omitempty"`
+	Tags   *ConventionsTagsSettings   `json:"tags,omitempty"`
+}
+
+// ConventionsBranchSettings : conventions.branch.* (pattern "" = règle intégrée ; exclude [] = aucune).
+type ConventionsBranchSettings struct {
+	Pattern *string   `json:"pattern,omitempty"`
+	Exclude *[]string `json:"exclude,omitempty"`
+}
+
+// ConventionsTagsSettings : conventions.tags.* (milestones [] = aucun jalon).
+type ConventionsTagsSettings struct {
+	Milestones *[]string `json:"milestones,omitempty"`
 }
 
 // ConventionsCommitSettings : conventions.commit.* (listes : [] = aucune entrée ; scopes vide = tous).
@@ -275,6 +291,11 @@ func settingsFromConfig(c workspace.Config) *Settings {
 				Forbidden:      shared.ConventionsForbidden,
 				Language:       shared.ConventionsLanguage,
 			},
+			Branch: &ConventionsBranchSettings{
+				Pattern: shared.ConventionsBranchPattern,
+				Exclude: shared.ConventionsBranchExclude,
+			},
+			Tags: &ConventionsTagsSettings{Milestones: shared.ConventionsMilestones},
 		},
 	}
 }

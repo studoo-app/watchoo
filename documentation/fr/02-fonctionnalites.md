@@ -157,8 +157,9 @@ outil est-il signé sur ce commit ? », jamais à « ce code a-t-il été écrit
 
 ## Conventions de projet
 
-Phase 8.1 (non publiée) : Watchoo mesure la conformité des messages de commit à une charte Conventional
-Commits ; le détail est dans [Conventions de projet](13-conventions.md).
+Phases 8.1 et 8.2 (non publiées) : Watchoo mesure la conformité des messages de commit à une charte
+Conventional Commits, puis celle des noms de branche, des titres de pull request et des tags ; le détail est
+dans [Conventions de projet](13-conventions.md).
 
 - **Désactivé par défaut** (`conventions.enabled`) et **réservé au formateur** : ce sont des constats
   objectifs, séparés du [diagnostic](12-supervision-diagnostic.md), **sans note ni score global**.
@@ -167,6 +168,22 @@ Commits ; le détail est dans [Conventions de projet](13-conventions.md).
   **CC4** : exclusions comptées à part (fusions, bots, commit racine « Initial commit » créé par GitHub,
   comptes de `conventions.excluded_accounts`).
 - **Périmètre** : toutes les branches suivies, depuis la date `conventions.since` (surchargeable par dépôt).
-- **Restitution** : commande `watchoo conventions`, section de la page d'un dépôt et page d'un
-  contributeur ; jamais le message de commit, seulement le SHA court, l'auteur et les codes.
-- La charte (`since`, `commit.*`) se partage par `watchoo config export` / `import`.
+- **Phase 8.2**, calculée à la lecture (sans migration ni requête de plus) :
+  - **BR1** : noms des branches du distant et des branches de tête des PR (`<type>/<mots-avec-tirets>` ou
+    `conventions.branch.pattern`, hors `conventions.branch.exclude` et branche par défaut) ;
+  - **PR1** et **PR2** : titres des PR ouvertes et fusionnées (même parseur, en-tête seulement), titres par
+    défaut ; mode API seulement, « inconnu » en clone seul ;
+  - **SV1** : tags `vX.Y.Z` conformes à SemVer 2.0.0 ; **SV2** : présence des jalons de
+    `conventions.tags.milestones` ; **SV6** : releases, en information seulement ;
+  - **CC5** (avertissements de formulation), **CC6** (footers, issues citées) et **CC7** (langue des sujets),
+    en information ;
+  - **CC1 par intervalle** entre tags finals et **tendance de CC3** (avant et depuis le dernier tag final) ;
+  - **revue de jalon** : critères (CC1 sur l'intervalle, BR1, SV1, SV2) conformes, non conformes ou inconnus
+    (`conform`, `nonconform`, `unknown` en `--json`), « k/n critères conformes, u inconnus », sans note ;
+    exige une date de début.
+- **Restitution** : commande `watchoo conventions` (`--milestone vX.Y.Z` pour la revue de jalon), page
+  `/conventions`, section de la page d'un dépôt et page d'un contributeur ; jamais le message de commit ni le
+  titre d'une PR, seulement le SHA court, le numéro de PR, l'auteur, les noms de branche et de tag et les
+  codes. Les indicateurs de dépôt (branches sans PR, tags, jalons) ne sont attribués à personne.
+- La charte (`since`, `commit.*`, `branch.*`, `tags.milestones`) se partage par `watchoo config export` /
+  `import`.

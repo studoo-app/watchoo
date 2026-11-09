@@ -3,7 +3,7 @@
 [← Contents](README.md)
 
 **Status**: **maintainer decision** (phase 8, November 8, 2026); the choices are recorded in
-[section 11](#11-maintainer-decisions). Phase 8.1 done, not released; the next phases start after their
+[section 11](#11-maintainer-decisions). Phases 8.1 and 8.2 done, not released; the next phases start after their
 plan is approved. The scope exception is carried over into the [Vision](01-vision.md); the updates to
 [Features](02-features.md), [Data model](04-data-model.md), [CLI](05-cli.md) and
 [Web interface](06-web-interface.md) follow phase by phase.
@@ -98,14 +98,14 @@ commit and a branch are never removed). The default branch alone forms a second,
 | CC3 | Rate per contributor | CC1 on the commits they authored, with the trend since the last tag | contributor, contributor × repository | database | both | H | P1 |
 | CC4 | Exclusions | Outside the denominator, counted separately: merges (`parent_count ≥ 2`), bots (`[bot]` suffix and catalogue accounts), root commit "Initial commit" created by GitHub or Classroom; unknown `parent_count` (NULL): fallback on the default merge messages and on the exact subject "Initial commit" with the GitHub committer. Web edits ("Update README.md") and AI agent accounts are still evaluated | commit | database | both | H | P1 |
 | CC5 | Wording to review | Warning only: `past_tense` (closed lexicon of FR and EN participles), `progressive` (`-ing`), `first_person`. No rule on the "-é" ending alone | commit | database | both | M | P2 |
-| CC6 | Footers and issues | Share of commits with a valid footer and share of those citing an issue (`(Closes\|Fixes\|Resolves\|Refs) #\d+`); informative | repository, contributor | database | both | H | P3 |
+| CC6 | Footers and issues | Share of commits with a valid footer and share of those citing an issue (`(Closes\|Fixes\|Resolves\|Refs) #\d+`, keyword case ignored, optional `:` after it (`Refs: #12`, footer form), searched in the whole message, subject included); informative | repository, contributor | database | both | H | P3 |
 | CC7 | Message language | FR / EN mix within one repository, if the charter imposes a language; informative | repository | database | both | M | P3 |
 
 ### 5.2 Branches (BR)
 
 | id | Indicator | Rule | Granularity | Source | Mode | Rel. | Prio |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| BR1 | Compliant branch name | Remote branches (`refs/remotes/origin/` of the clone) and `pull_requests.head_branch` of PRs not coming from a fork, excluding the default branch and exclusions (`gh-pages`, `dependabot/*`, `renovate/*`, setting). Compliant if `^(<types>)/[a-z0-9]+(-[a-z0-9]+)+$`; a single segment after `/`: "to review". Pattern given: unknown type, uppercase, `_`, space, accent, missing `/` | branch, repository; contributor through the PR author | clone + database | both | H | P1 |
+| BR1 | Compliant branch name | Remote branches (`refs/remotes/origin/` of the clone) and `pull_requests.head_branch` of PRs not coming from a fork (forks counted until phase 8.5, see the note below), excluding the default branch and exclusions (`gh-pages`, `dependabot/*`, `renovate/*`, setting). Compliant if `^(<types>)/[a-z0-9]+(-[a-z0-9]+)+$`; a single segment after `/`: "to review". Codes (`--json`): blocking `unknown_type` (unknown type), `uppercase` (uppercase), `underscore` (`_`), `space` (space), `accent` (accent), `no_slash` (missing `/`), `pattern` (name that does not follow the rule with no other named issue, `feat/a.b`, or custom pattern not matched); warning `single_segment` ("to review") | branch, repository; contributor through the PR author | clone + database | both | H | P1 |
 | BR2 | Reused branch | A `head_branch` (not from a fork) with more than one PR merged into the default branch | branch, repository | database | API | M | P2 |
 | BR3 | Protected default branch | **Postponed** (maintainer decision: not implemented in phase 8). Planned measure: `protected` from `GET /branches`: yes, no, unknown (clone), not applicable (for example a private repository on GitHub Free). **Snapshot** without history | repository | API, 0 requests | API | M | — |
 | BR4 | Rewritten default branch | At sync time, the old head is no longer an ancestor of the new one (`merge-base --is-ancestor`); dated event (old and new SHA). Old object missing from the clone: "unknown", never "rewritten". In API mode, the sync's `ErrUnknownBase` error is also used as a signal | event, repository | clone | both | H | P2 |
@@ -116,7 +116,7 @@ commit and a branch are never removed). The default branch alone forms a second,
 | id | Indicator | Rule | Granularity | Source | Mode | Rel. | Prio |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | PR1 | Conventional PR title | Shared parser on the title of non-draft, non-bot PRs; open and merged PRs counted separately | PR, repository, author | database | API | H | P1 |
-| PR2 | Forbidden or default title | Normalised title in the forbidden list, or equal (after normalisation: case, `-` and `_` as spaces) to the head branch name or to the subject of the PR's only commit (titles suggested by GitHub) | PR | database | API | H | P1 |
+| PR2 | Forbidden or default title | Normalised title in the forbidden list, or equal (after normalisation: case, `-` and `_` as spaces) to the head branch name or to the subject of the PR's only commit (titles suggested by GitHub; comparison with the only commit not measured in 8.2, not before phase 8.5 and `merge_commit_sha`). Codes (`default_codes`): `forbidden`, `github_default`, `head_branch` | PR | database | API | H | P1 |
 | PR3 | Commits that reached the default branch outside a PR | Walk of `git rev-list --first-parent origin/<default>` since `since`, without the root commit. **Through a PR**: SHA equal to the `merge_commit_sha` of a merged PR; sequence rebased by GitHub, recognised by a heuristic with no request (consecutive commits whose committer is GitHub and whose `committed_at` equals the `merged_at` of the PR that ends it; maintainer decision); merge whose committer is GitHub. **Outside a PR**: human committer, local merge pushed, web edit without a PR. Otherwise: "undetermined". With a clone only, fallback on `^Merge pull request #\d+` and `\(#\d+\)$` with the GitHub committer recognised by its `noreply@github.com` e-mail (in memory) | commit; repository; "author of the commit that arrived outside a PR" (never "pushed") | clone + database | both (degraded with a clone) | H with the API, M with a clone | P1 |
 | PR4 | Reviewed by another member | New Provider method `PullRequestReviews` (login, identifier, state, date; never the body). Reviewed if, for at least one reviewer with an identifier other than the author's and not excluded (trainer, bots), the last state among `APPROVED`, `CHANGES_REQUESTED` and `DISMISSED` submitted no later than `merged_at` is `APPROVED`. Another account is enough; the `pr.reviewer_must_contribute` setting also requires a reviewer who authored at least one commit of the repository. Only counters are stored, not the reviewers. Derived view: "merged without review" | PR, repository; reviews received by the PR author | API, 1 request per PR | API | H | P1 |
 | PR5 | Structured body and `Closes #n` | Body read in memory (as for D2): section headings, or bold text, among versioned FR and EN synonyms (context, what changes, how to test, screenshots); an empty section (or one reduced to an HTML comment) does not count. Closing keyword searched separately. Only a bit mask is stored (NULL while unknown). Known false negative: issue linked through the "Development" sidebar | PR, repository | API, 0 requests | API | M | P2 |
@@ -127,13 +127,52 @@ commit and a branch are never removed). The default branch alone forms a second,
 
 | id | Indicator | Rule | Granularity | Source | Mode | Rel. | Prio |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| SV1 | SemVer tag name | Lowercase `v` then a SemVer 2.0.0 version (comparator extracted from `internal/selfupdate` into `internal/semver`). Patterns: no `v`, `V`, missing component, leading zero, empty pre-release; `+build` as a warning | tag, repository | database | both | H | P1 |
+| SV1 | SemVer tag name | Lowercase `v` then a SemVer 2.0.0 version (comparator extracted from `internal/selfupdate` into `internal/semver`). Codes (`--json`): blocking `no_v` (no `v`), `upper_v` (`V`), `missing_component` (missing component), `leading_zero` (leading zero), `empty_prerelease` (empty pre-release), `invalid` (any other name); warning `build_metadata` (`+build`) | tag, repository | database | both | H | P1 |
 | SV2 | Milestones present | For each configured milestone: present, present under a non-compliant name, absent; a pre-release does not count as a milestone. With a deadline: compared to the first observation of the tag; "undetermined" if no successful sync took place between the date of the target commit and the deadline (display "set between X and Y") | milestone × repository | database | both | H (presence), M (deadline) | P1 |
 | SV3 | Tag rewritten or deleted | `tag_observations` table, fed only if reading the tags succeeded and was not truncated: same name with another SHA (rewritten), gone (deleted). Label: "no rewrite observed since …", never "never rewritten"; no attribution to a person | tag, repository | database | both | M | P1 |
 | SV4 | Pre-releases | Form `-rc.N`, `-beta.N`, `-alpha.N`; free forms (`-rc1`, `-RC.1`) give a warning, not an issue (maintainer decision); also a warning if an rc is set after the final version or if precedence contradicts ancestry | tag | database + clone | both | M | P2 |
 | SV5 | Bump consistent with the commits | For each final tag F, base B = highest compliant final tag lower than F that is its ancestor; commits of `B..F` excluding merges and bots. Breaking change: MAJOR expected (MINOR before 1.0.0); `feat`: at least MINOR. **Only under-versioning is flagged**; "undetermined" if less than 80% of the range's commits are compliant; first tag not evaluated | pair of tags | clone + database | both | M | P2 |
-| SV6 | Associated release | Excluding drafts: milestone without a release, release without a tag, inconsistent `prerelease` flag. **Information only**: the charter only mentions tags, SV6 does not count towards compliance | tag, release | database | API | H | P2 |
+| SV6 | Associated release | Excluding drafts: milestone without a release (`milestone_without_release`), release without a tag (`release_without_tag`), inconsistent `prerelease` flag (`prerelease_mismatch`). **Information only**: the charter only mentions tags, SV6 does not count towards compliance | tag, release | database | API | H | P2 |
 | SV7 | Precedence and history | Higher version set on an ancestor of a lower version; increment skip (v1 → v3) as information | pair of tags | database + clone | both | M | P3 |
+
+**Phase 8.2: measured on the fly, and limits.** BR1, PR1, PR2, SV1, SV2 (presence), SV6, CC5 to CC7, CC1
+per interval between tags and the CC3 trend are computed when read, from the database and the clone, with no
+migration and no extra request. Approximations:
+
+- **Forks**: the database does not keep the source repository of a PR, so the head branches of PRs from a
+  fork are counted in BR1, and those PRs in PR1, until phase 8.5 (`from_fork`).
+- **API mode**: it is not stored. PR1, PR2 and SV6 are "unknown" for a repository the API has never seen
+  (no forge identifier) and for a workspace synced in clone-only mode; otherwise the PRs and releases in the
+  database are those of the last sync through the API. PR head branches are only added to BR1 in API mode.
+- **PR1 and PR2**: PRs other than drafts, bots and PRs closed without merge, opened since the start date. A
+  PR is linked to a contributor by its forge account. Comparing the title with the subject of the PR's only
+  commit is **not measured**: the database does not link commits to PRs.
+- **BR1**: remote branches read in the clone (`refs/remotes/origin/`, without update) and PR head branches
+  (without bots), each name once. The built-in rule also gives `pattern` to a name that does not follow it
+  with no other named issue (`feat/a.b`, `feat/-x`). Without a clone, or with an unreadable clone, the fallback is the
+  **tracked** branches in the database: the list is partial (a branch excluded by `branches.exclude` or by
+  the repository patterns never appears there). A branch is attributed to a person only through the author
+  of the PR whose head branch it is.
+- **Tags**: read in the database (the sync writes them in both modes, with the SHA of the target commit). A
+  tag has no date: a due date bounds the commits by their **authored date** (`authored_at`).
+- **CC1 per interval**: `git rev-list <tag> ^<previous final tag>` in the clone, without update; only
+  conforming final tags bound an interval. Commits of the interval that are not in the database (untracked
+  branches) have no message: they are counted apart ("not in the database") and, in the milestone review,
+  make the criterion "unknown" when there is no other issue. A tag commit missing from the clone makes the
+  interval "unknown", never wrongly bounded. Without a clone: "unknown". Only final tags bound an interval:
+  conforming, without pre-release **nor build metadata** (`v1.0.0+build`, conforming with a warning, bounds
+  none). Interval of a milestone bounded by its due date: a commit not in the database has no date, it is
+  counted among the missing ones even if it is later than the due date (a cautious choice: "unknown" rather
+  than an unverified 100%); if none of the tracked branches is in the clone, the interval is unreadable
+  (`clone_unreadable`), never empty.
+- **Report restricted to contributors** (`--contributor`): intervals not computed (a repository
+  indicator); PR1, PR2 and BR1 only cover the PRs of these contributors and their head branches,
+  unattributed branches are left out: no other person appears.
+- **CC3 trend**: two rates per contributor, on the commits reachable from the last final tag of their
+  repository and on those that arrived since; a commit of a repository without a readable clone or a final
+  tag is not placed (counted apart).
+- **CC7**: a heuristic without dependency (closed lists of function words, accented letters); many short
+  subjects stay "unknown".
 
 ### 5.5 CHANGELOG (CL)
 
@@ -235,19 +274,54 @@ evaluable". `conventions.since` is mandatory for the RJ.
 | README with installation | RD1, RD3, installation section of RD2 (RD5 as a lead) | present; the other RD2 sections as information |
 | Exhaustive INDEX | DOC1, DOC3 | 0 unreferenced documents |
 
+**Phase 8.2: first milestone review.** For one configured milestone (`tags.milestones`), each repository
+gets a list of criteria, `conform`, `nonconform` or `unknown` (conform, not conform, unknown), with no overall score and no sorting ("k/n
+criteria conform, u unknown"); they are repository indicators, attributed to nobody. Only the criteria
+measured in 8.2 appear:
+
+- **CC1** on the milestone interval: from the previous final tag (SemVer precedence) to the tag that
+  designates the milestone (exact or nonconforming name); missing tag: commits of the tracked branches since
+  the previous final tag authored before the end of the due date, "unknown" before that end (`not_due`),
+  "unknown" (`no_tag`) without a due date. Conform when every evaluated commit conforms; "unknown" without a clone,
+  without an evaluated commit, or when commits of the interval are not in the database;
+- **BR1**, current state: conform when no branch has a blocking issue; "unknown" without a branch to
+  evaluate;
+- **SV1** of the tag that designates the milestone; missing tag: "unknown" (`no_tag` without a due date,
+  `not_due` before the end of the due date, `tag_absent` after it: no name to judge, the absence is counted
+  by SV2);
+- **SV2**: conform when the tag with the exact name exists; tag missing before the end of the due date:
+  "unknown".
+
+Without a start date (`conventions.since` of the workspace or of the repository), the repository is "not
+evaluable: missing start date". PR3 and PR4 are added with phases 8.5 and 8.6, SV3 with phase 8.4, CL, RD
+and DOC with phase 8.3.
+
 ### 7.2 Interfaces
 
 - **Web**: `/conventions` route (overview and milestone review), navigation entry only if
   `conventions.enabled`. "Conventions" section on the repository page (badges per PR, dot per tag,
   "Tooling" block); "Compliant commits 18/25 (72%)" line on the contributor's page; compact dot on the
   dashboard, without sorting by this value. Icons always come with a text.
+  Phase 8.2: `/conventions` shows the overview by repository (order of the workspace) and by contributor
+  (by name), never sorted by conformity, and the milestone review of the milestone chosen with
+  `?milestone=vX.Y.Z` (first configured milestone by default, 400 for a milestone that is not configured);
+  disabled, it explains how to enable the conventions, without data. The repository section adds the
+  non-conforming branches, a badge per PR (number and codes, never the title), a dot per tag, the
+  milestones, the releases (SV6, information) and CC1 per interval between tags; the contributor's page
+  adds the conforming PR titles and the CC3 trend (two rates). The compact dot on the dashboard is not
+  there yet. Detail in [06-web-interface.md](06-web-interface.md#7-conventions-180-phase-82).
 - **CLI**: a single command, with no subcommand (a repository named like a subcommand would be ambiguous):
   `watchoo conventions [repo] [--commits] [--failing] [--contributor <x>] [--milestone vX.Y.Z] [--json]`.
   `--commits --failing` lists the short SHA, the author and the issue codes, never the message. No
   `--strict` option (exit code depending on compliance) for now: it can be added later in a MINOR.
+  Phase 8.2: the pull requests are shown by **number, author, head branch and codes**, never by their
+  title; `--milestone vX.Y.Z` shows the milestone review instead of the overview (a milestone that is not
+  configured is a usage error); details in [05-cli.md](05-cli.md#commands).
 - **JSON**: keys in English (`commits.rate`, `commits.issues[{code,count,shas}]`, `semver_checks[]`,
   `changelog.rules[]`…), frozen by `internal/cli/json_schema_test.go`. No key added to `prs` or
-  `releases` at first.
+  `releases` at first. Phase 8.2 adds keys only (`traits`, `language`, `branches`, `pull_requests`, `tags`,
+  `intervals` per repository; `traits`, `trend`, `pull_requests`, `branches` per contributor; top-level
+  `milestone`, `null` without `--milestone`), the same top-level keys whatever the options.
 - All texts go through `internal/i18n`, in English and in French.
 
 ## 8. Configuration
@@ -262,12 +336,13 @@ charter in [section 3](#3-reference-the-charter).
 | `commit.types`, `commit.scopes` | charter types, all scopes | Allowed types and scopes |
 | `commit.max_subject_soft`, `commit.max_subject_hard` | 50, 72 | Subject length (warning, blocking) |
 | `commit.forbidden` | charter list | Forbidden subjects |
-| `commit.language` | `any` | `fr`, `en` or `any` |
-| `branch.pattern`, `branch.exclude` | `<type>/<scope>-<subject>`, `gh-pages`, `dependabot/*`, `renovate/*` | Naming (RE2 validated at load time) |
+| `commit.language` | `any` | `fr`, `en` or `any`; information only (CC7), no effect on compliance |
+| `branch.pattern` | empty (built-in rule `^(<types>)/[a-z0-9]+(-[a-z0-9]+)+$`, built from `commit.types`) | Branch naming (BR1): an RE2 expression, validated at load time, that replaces the built-in rule |
+| `branch.exclude` | `gh-pages`, `dependabot/*`, `renovate/*` | Branches left out (BR1): glob patterns (`*`, `?`, `[...]`, `path.Match` syntax), each one designating the name itself or one of its path prefixes (`dependabot/*` excludes `dependabot/npm_and_yarn/lodash-4.17.21`); the default branch is always left out |
 | `pr.body_sections`, `pr.require_closes` | charter sections, `true` | PR body |
 | `pr.min_reviews`, `pr.reviewer_must_contribute` | 1, `false` | Reviews; another account is enough, unless the reviewer must be a contributor |
-| `tags.milestones` | `v1.0.0`, `v2.0.0`, `v3.0.0` (optional deadline) | Milestones |
-| `tags.prerelease_forms` | `rc`, `beta`, `alpha` | Compliant pre-releases; the other forms give a warning |
+| `tags.milestones` | `v1.0.0`, `v2.0.0`, `v3.0.0` (no deadline) | Milestones (SV2, milestone review): each entry `vX.Y.Z`, or `vX.Y.Z@YYYY-MM-DD` for a deadline |
+| `tags.prerelease_forms` | `rc`, `beta`, `alpha` | Compliant pre-releases; the other forms give a warning (SV4, phase 8.4; not read yet in 8.2) |
 | `changelog.categories_fr` | `true` | Allows French labels (categories, H1) |
 | `readme.sections` | charter sections | Synonyms of the expected sections |
 | `docs.dir`, `docs.media_dir`, `docs.archives_scope` | `documentation`, `Media`, `repository` | Tree; archives forbidden in the whole repository |
@@ -278,16 +353,45 @@ The block is shared through [`configshare`](02-features.md) (maintainer decision
 is exported with it, like its activity thresholds. The keys are then frozen by SemVer.
 
 **Phase 8.1**: only `enabled`, `since`, `commit.*` and `excluded_accounts` exist; the other keys come with
-their phase. Environment variables: `WATCHOO_CONVENTIONS_ENABLED`, `WATCHOO_CONVENTIONS_SINCE`,
+their phase (see **Phase 8.2** below). Environment variables: `WATCHOO_CONVENTIONS_ENABLED`, `WATCHOO_CONVENTIONS_SINCE`,
 `WATCHOO_CONVENTIONS_COMMIT_TYPES`… (comma-separated lists). Rules checked at load time: `since` empty or of
 the form `YYYY-MM-DD` (an unquoted YAML date, `since: 2026-09-01`, is accepted; a date with a time is
 refused, except an unquoted YAML timestamp at exactly midnight UTC, `2026-09-01T00:00:00Z`, which the YAML
 decoder cannot tell from the date alone and which is read as `2026-09-01`), read at midnight in the workspace time zone; at least one type, each in lowercase letters; each
 scope of the form `[a-z0-9][a-z0-9._/-]*`; `commit.max_subject_soft` at least 1 and
 `commit.max_subject_hard` strictly greater; no empty entry in `commit.forbidden` nor `excluded_accounts`;
-`commit.language` among `fr`, `en`, `any` (no effect on the analysis in 8.1). In the sharing file, the
+`commit.language` among `fr`, `en`, `any` (no effect on the analysis in 8.1; information of CC7 since 8.2). In the sharing file, the
 block is written `settings.conventions` (`since`, `commit`): see
 [Configuration sharing](05-cli.md#configuration-sharing-watchoo-config).
+
+**Phase 8.2**: `branch.pattern`, `branch.exclude` and `tags.milestones` are added (1.8.0), shared like
+`commit.*`. Environment variables: `WATCHOO_CONVENTIONS_BRANCH_PATTERN`,
+`WATCHOO_CONVENTIONS_BRANCH_EXCLUDE` and `WATCHOO_CONVENTIONS_TAGS_MILESTONES` (comma-separated lists for the
+last two; the pattern is never split: `{2,40}` stays whole). Rules checked at load time:
+
+- `branch.pattern` empty (built-in rule) or a valid **RE2** regular expression (Go syntax: no lookbehind
+  nor lookahead, `(?!…)` is refused); a branch name that does not match the given pattern gets the single
+  code `pattern`. The pattern is applied as is, **without anchoring**: a match anywhere in the name is
+  enough (`(feat|fix)/[a-z-]+` accepts `WIP_Feat/feat/x`); add `^…$` to require the whole name to follow
+  it, like the built-in rule;
+- `branch.exclude`: each pattern non-empty and valid for `path.Match`. A pattern designates the name itself
+  or one of its **path prefixes**, like `.gitignore`: `path.Match` alone does not cross `/`, and
+  `dependabot/*` would not have matched the real Dependabot branches (`dependabot/<ecosystem>/<dependency>`).
+  This reading is specific to `conventions.branch.exclude`: `branches.exclude` (branches tracked by the
+  sync) keeps the strict `path.Match` reading;
+- `tags.milestones`: each entry is a compliant tag name (SV1) of a **final version**, lowercase `v`
+  followed by `MAJOR.MINOR.PATCH` without pre-release nor build metadata (`v1.0.0`; `1.0.0`, `V1.0.0`,
+  `v1.0`, `v1.0.0-rc.1` and `v1.0.0+build` are refused), followed if needed by `@YYYY-MM-DD`, a valid
+  calendar date (`v1.0.0@2026-12-18`; the deadline runs until the end of the day, in the workspace time
+  zone); a version appears only once; an empty list declares no milestone.
+
+`tags.prerelease_forms` does not exist yet: it comes with SV4 (phase 8.4). In 8.2, SV1 accepts any valid
+SemVer pre-release, whatever its form (`-rc1` as well as `-rc.1`), and the setting is refused at load time
+like any unknown key.
+
+In the sharing file, these keys are written `settings.conventions.branch` (`pattern`, `exclude`) and
+`settings.conventions.tags` (`milestones`); a file that contains them is refused by the versions before
+1.8.0, which accept no unknown key.
 
 ## 9. Technical impact
 
@@ -354,7 +458,7 @@ Each phase can be delivered alone; phases 8.1 to 8.4 are enough for a milestone 
 | --- | --- | --- | --- |
 | 8.0 | This document approved (done, November 8, 2026) and exception carried over into 01; updates to 02, 04, 05, 06 and 12 with each phase | no code | — |
 | 8.1 | `internal/conventions` (parser), `internal/semver`, `conventions.*` settings, CC1 to CC4, `commits.parent_count` and its backfill, `watchoo conventions --commits`, web section and contributor page, adjustments to A1, A2 and F4. **Done, not released** (`[Unreleased]` of the CHANGELOG; `scope` code added to the blocking codes of CC2; CC1 per range between tags and CC3 trend since the last tag postponed to 8.2, with the reading of the tags) | 0 quota, 1 migration | 1.7.0 |
-| 8.2 | On the fly: BR1, PR1, PR2, SV1, SV2 (presence), SV6; first milestone review; CC5 to CC7; CC1 per range between tags, CC3 trend | 0 quota | 1.8.0 |
+| 8.2 | On the fly: BR1, PR1, PR2, SV1, SV2 (presence), SV6; first milestone review; CC5 to CC7; CC1 per range between tags, CC3 trend. **Done, not released** (`[Unreleased]` of the CHANGELOG; `branch.pattern`, `branch.exclude` and `tags.milestones` settings; `/conventions` route; approximations listed in [5.4](#54-tags-and-semver-sv): forks included until 8.5, PR2 comparison with the only commit not measured, API mode inferred; compact dot on the dashboard postponed) | 0 quota | 1.8.0 |
 | 8.3 | Clone tree: `repository_conventions`, CL1 to CL9, RD1 to RD4, DOC1 to DOC8, TL1 to TL3; milestone review on the tags' tree | 0 quota, 1 migration | 1.9.0 |
 | 8.4 | History: `tag_observations` (SV3, SV2 deadlines), `branch_rewrites` (BR4), SV4, SV5, SV7, CL10 | 0 quota, 2 migrations | 1.10.0 |
 | 8.5 | API with no extra request: `merge_commit_sha`, `from_fork`, `body_sections`, merge methods; full PR3, PR5, PR6, BR2, BR5 | one reread of the PR lists | 1.11.0 |

@@ -162,6 +162,15 @@ type ConventionCommit struct {
 	OnDefault       bool      // rattaché à la branche par défaut du dépôt (commit_branches)
 }
 
+// ConventionPullRequest est une pull request lue pour les conventions (phase 8.2, internal/conventions) :
+// le titre n'est lu qu'en mémoire pour être analysé, jamais gardé ni journalisé. L'auteur est rapproché
+// d'un contributeur par son compte de forge (pull_requests.author_provider_id = contributors.provider_user_id).
+type ConventionPullRequest struct {
+	PullRequest
+	AuthorID   int64  // contributeur de l'auteur ; 0 = aucun contributeur de ce compte
+	AuthorName string // nom du contributeur ; vide si inconnu
+}
+
 // AISignature est une signature d'outil d'IA déclarée dans un commit (commit_ai_signatures) : elle dit
 // qu'un outil est déclaré sur le commit, pas qui a écrit le code ; son absence ne dit rien.
 type AISignature struct {

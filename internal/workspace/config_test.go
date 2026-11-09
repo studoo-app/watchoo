@@ -46,6 +46,8 @@ func TestDefaultConfig(t *testing.T) {
 				Forbidden: conventions.DefaultForbidden(),
 				Language:  "any",
 			},
+			Branch:           ConventionsBranchConfig{Pattern: "", Exclude: []string{"gh-pages", "dependabot/*", "renovate/*"}},
+			Tags:             ConventionsTagsConfig{Milestones: []string{"v1.0.0", "v2.0.0", "v3.0.0"}},
 			ExcludedAccounts: []string{}},
 	}
 	if !reflect.DeepEqual(cfg, want) {
@@ -87,7 +89,8 @@ func TestSettingKeys(t *testing.T) {
 		"git.protocol", "diagnostic.enabled", "diagnostic.exclude", "diagnostic.retention_days",
 		"diagnostic.speed_signal", "conventions.enabled", "conventions.since", "conventions.commit.types",
 		"conventions.commit.scopes", "conventions.commit.max_subject_soft", "conventions.commit.max_subject_hard",
-		"conventions.commit.forbidden", "conventions.commit.language", "conventions.excluded_accounts",
+		"conventions.commit.forbidden", "conventions.commit.language", "conventions.branch.pattern",
+		"conventions.branch.exclude", "conventions.tags.milestones", "conventions.excluded_accounts",
 	}
 	if !slices.Equal(keys, wantKeys) {
 		t.Errorf("keys = %v\nwant %v", keys, wantKeys)
@@ -101,7 +104,9 @@ func TestSettingKeys(t *testing.T) {
 		"WATCHOO_CONVENTIONS_ENABLED", "WATCHOO_CONVENTIONS_SINCE", "WATCHOO_CONVENTIONS_COMMIT_TYPES",
 		"WATCHOO_CONVENTIONS_COMMIT_SCOPES", "WATCHOO_CONVENTIONS_COMMIT_MAX_SUBJECT_SOFT",
 		"WATCHOO_CONVENTIONS_COMMIT_MAX_SUBJECT_HARD", "WATCHOO_CONVENTIONS_COMMIT_FORBIDDEN",
-		"WATCHOO_CONVENTIONS_COMMIT_LANGUAGE", "WATCHOO_CONVENTIONS_EXCLUDED_ACCOUNTS",
+		"WATCHOO_CONVENTIONS_COMMIT_LANGUAGE", "WATCHOO_CONVENTIONS_BRANCH_PATTERN",
+		"WATCHOO_CONVENTIONS_BRANCH_EXCLUDE", "WATCHOO_CONVENTIONS_TAGS_MILESTONES",
+		"WATCHOO_CONVENTIONS_EXCLUDED_ACCOUNTS",
 	}
 	if !slices.Equal(envs, wantEnvs) {
 		t.Errorf("variables = %v\nwant %v", envs, wantEnvs)
@@ -253,6 +258,35 @@ func TestValidateRejectsInvalidValues(t *testing.T) {
 			[]string{"conventions.commit.language", `""`}},
 		{"empty excluded account", func(c *Config) { c.Conventions.ExcludedAccounts = []string{""} },
 			[]string{"conventions.excluded_accounts", "#1", "empty"}},
+		{"invalid branch pattern", func(c *Config) { c.Conventions.Branch.Pattern = "^(feat/" },
+			[]string{"conventions.branch.pattern", `"^(feat/"`, "RE2"}},
+		{"Perl-only branch pattern", func(c *Config) { c.Conventions.Branch.Pattern = `^(?!main)` },
+			[]string{"conventions.branch.pattern", "RE2"}},
+		{"empty branch exclusion", func(c *Config) { c.Conventions.Branch.Exclude = []string{"gh-pages", " "} },
+			[]string{"conventions.branch.exclude", "#2", "empty"}},
+		{"invalid branch exclusion", func(c *Config) { c.Conventions.Branch.Exclude = []string{"release/["} },
+			[]string{"conventions.branch.exclude", "#1", `"release/["`, "invalid"}},
+		{"milestone without v", func(c *Config) { c.Conventions.Tags.Milestones = []string{"v1.0.0", "2.0.0"} },
+			[]string{"conventions.tags.milestones", "#2", `"2.0.0"`, "vX.Y.Z"}},
+		{"uppercase milestone", func(c *Config) { c.Conventions.Tags.Milestones = []string{"V1.0.0"} },
+			[]string{"conventions.tags.milestones", "#1", `"V1.0.0"`}},
+		{"incomplete milestone", func(c *Config) { c.Conventions.Tags.Milestones = []string{"v1.0"} },
+			[]string{"conventions.tags.milestones", "#1", `"v1.0"`}},
+		{"pre-release milestone", func(c *Config) { c.Conventions.Tags.Milestones = []string{"v1.0.0-rc.1"} },
+			[]string{"conventions.tags.milestones", "#1", "final"}},
+		{"milestone with build metadata", func(c *Config) { c.Conventions.Tags.Milestones = []string{"v1.0.0+build"} },
+			[]string{"conventions.tags.milestones", "#1", `"v1.0.0+build"`}},
+		{"empty milestone", func(c *Config) { c.Conventions.Tags.Milestones = []string{""} },
+			[]string{"conventions.tags.milestones", "#1"}},
+		{"impossible due date", func(c *Config) { c.Conventions.Tags.Milestones = []string{"v1.0.0@2026-02-30"} },
+			[]string{"conventions.tags.milestones", "#1", "due date", "vX.Y.Z@YYYY-MM-DD"}},
+		{"due date with a time", func(c *Config) { c.Conventions.Tags.Milestones = []string{"v1.0.0@2026-12-18T00:00"} },
+			[]string{"conventions.tags.milestones", "#1", "due date"}},
+		{"empty due date", func(c *Config) { c.Conventions.Tags.Milestones = []string{"v1.0.0@"} },
+			[]string{"conventions.tags.milestones", "#1", "due date"}},
+		{"repeated milestone", func(c *Config) {
+			c.Conventions.Tags.Milestones = []string{"v1.0.0", "v2.0.0", "v1.0.0@2026-12-18"}
+		}, []string{"conventions.tags.milestones", "#3", "v1.0.0"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -497,6 +531,9 @@ func TestLoadEnvironmentVariables(t *testing.T) {
 		"WATCHOO_CONVENTIONS_COMMIT_MAX_SUBJECT_HARD": "100",
 		"WATCHOO_CONVENTIONS_COMMIT_FORBIDDEN":        "wip, maj",
 		"WATCHOO_CONVENTIONS_COMMIT_LANGUAGE":         "fr",
+		"WATCHOO_CONVENTIONS_BRANCH_PATTERN":          "^(feat|fix)/[a-z0-9-]{2,40}$",
+		"WATCHOO_CONVENTIONS_BRANCH_EXCLUDE":          "gh-pages, release/*",
+		"WATCHOO_CONVENTIONS_TAGS_MILESTONES":         "v1.0.0@2026-12-18, v2.0.0",
 		"WATCHOO_CONVENTIONS_EXCLUDED_ACCOUNTS":       "prof-dupont",
 	}
 	for k, v := range env {
@@ -520,6 +557,9 @@ func TestLoadEnvironmentVariables(t *testing.T) {
 		Conventions: ConventionsConfig{Enabled: true, Since: "2026-09-01",
 			Commit: ConventionsCommitConfig{Types: []string{"feat", "fix"}, Scopes: []string{"api", "web"},
 				MaxSubjectSoft: 60, MaxSubjectHard: 100, Forbidden: []string{"wip", "maj"}, Language: "fr"},
+			Branch: ConventionsBranchConfig{Pattern: "^(feat|fix)/[a-z0-9-]{2,40}$",
+				Exclude: []string{"gh-pages", "release/*"}},
+			Tags:             ConventionsTagsConfig{Milestones: []string{"v1.0.0@2026-12-18", "v2.0.0"}},
 			ExcludedAccounts: []string{"prof-dupont"}},
 	}
 	if !reflect.DeepEqual(ws.Config, want) {
@@ -619,6 +659,11 @@ conventions:
     max_subject_hard: 80
     forbidden: ["wip", "."]
     language: en
+  branch:
+    pattern: '^(feat|fix)/[a-z]+$'
+    exclude: [gh-pages]
+  tags:
+    milestones: [v1.0.0@2026-12-18, "v2.0.0"]
   excluded_accounts: [prof-dupont]
 `)
 		if err := Load(ws); err != nil {
@@ -628,6 +673,8 @@ conventions:
 		want.Conventions = ConventionsConfig{Enabled: true, Since: "2026-09-01",
 			Commit: ConventionsCommitConfig{Types: []string{"feat", "fix", "docs"}, Scopes: []string{},
 				MaxSubjectSoft: 60, MaxSubjectHard: 80, Forbidden: []string{"wip", "."}, Language: "en"},
+			Branch:           ConventionsBranchConfig{Pattern: "^(feat|fix)/[a-z]+$", Exclude: []string{"gh-pages"}},
+			Tags:             ConventionsTagsConfig{Milestones: []string{"v1.0.0@2026-12-18", "v2.0.0"}},
 			ExcludedAccounts: []string{"prof-dupont"}}
 		if !reflect.DeepEqual(ws.Config, want) {
 			t.Errorf("Config = %+v\nwant  %+v", ws.Config.Conventions, want.Conventions)
@@ -644,12 +691,33 @@ conventions:
 		paris, _ := time.LoadLocation("Europe/Paris")
 		bo := ws.Config.Conventions.BuildOptions(paris)
 		if bo.Since != "2026-09-01" || bo.Location != paris || !slices.Equal(bo.Rules.Types, []string{"feat", "fix", "docs"}) ||
-			!slices.Equal(bo.ExcludedAccounts, []string{"prof-dupont"}) {
+			!slices.Equal(bo.ExcludedAccounts, []string{"prof-dupont"}) || bo.Language != "en" ||
+			bo.Branch.Pattern != "^(feat|fix)/[a-z]+$" || !slices.Equal(bo.Branch.Exclude, []string{"gh-pages"}) ||
+			len(bo.Milestones) != 2 || bo.Milestones[0].Due != "2026-12-18" || bo.LocalOnly {
 			t.Errorf("BuildOptions = %+v", bo)
+		}
+		broken := ws.Config.Conventions
+		broken.Tags.Milestones = []string{"1.0"}
+		if got := broken.BuildOptions(paris).Milestones; got != nil {
+			t.Errorf("unreadable milestones: %+v, want none", got)
 		}
 		bo.ExcludedAccounts[0] = "changed"
 		if ws.Config.Conventions.ExcludedAccounts[0] != "prof-dupont" {
 			t.Error("BuildOptions shares its lists with the configuration")
+		}
+		br := ws.Config.Conventions.BranchRules()
+		if br.Pattern != "^(feat|fix)/[a-z]+$" || !slices.Equal(br.Types, []string{"feat", "fix", "docs"}) ||
+			!slices.Equal(br.Exclude, []string{"gh-pages"}) {
+			t.Errorf("BranchRules = %+v", br)
+		}
+		br.Types[0], br.Exclude[0] = "changed", "changed"
+		if ws.Config.Conventions.Commit.Types[0] != "feat" || ws.Config.Conventions.Branch.Exclude[0] != "gh-pages" {
+			t.Error("BranchRules shares its lists with the configuration")
+		}
+		ms, err := ws.Config.Conventions.Milestones()
+		if err != nil || len(ms) != 2 || ms[0].Name != "v1.0.0" || ms[0].Due != "2026-12-18" ||
+			ms[1].Name != "v2.0.0" || ms[1].HasDue() {
+			t.Errorf("Milestones = %+v, %v", ms, err)
 		}
 	})
 	t.Run("quoted date", func(t *testing.T) {

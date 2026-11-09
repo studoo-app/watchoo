@@ -265,11 +265,13 @@ func TestSettingsImportPreviewConventions(t *testing.T) {
 	ws := e.withShareWorkspace()
 	before := e.snapshot(ws)
 	doc := `{"format": "watchoo-config", "version": 1, "settings": {"conventions": {"since": "2026-09-01",
-		"commit": {"types": ["feat", "fix"], "max_subject_soft": 60}}}}`
+		"commit": {"types": ["feat", "fix"], "max_subject_soft": 60}, "branch": {"exclude": ["gh-pages"]},
+		"tags": {"milestones": ["v1.0.0@2026-12-18"]}}}}`
 	w := e.postMultipart("/settings/import", nil, []byte(doc), true)
 	assertStatus(t, w, http.StatusOK)
 	assertContains(t, w, "conventions.since", "2026-09-01", "conventions.commit.types",
-		"conventions.commit.max_subject_soft", "60")
+		"conventions.commit.max_subject_soft", "60", "conventions.branch.exclude", "conventions.tags.milestones",
+		"v1.0.0@2026-12-18")
 	if after := e.snapshot(ws); after != before {
 		t.Error("the preview changed the workspace")
 	}

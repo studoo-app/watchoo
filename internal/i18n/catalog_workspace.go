@@ -229,6 +229,30 @@ var workspaceTexts = map[string]entry{
 		`conventions.commit.language: %q is unknown (expected "fr", "en" or "any")`,
 		"conventions.commit.language : %q inconnue (attendu « fr », « en » ou « any »)",
 	},
+	"workspace.validate.conv_branch_pattern_invalid": {
+		`conventions.branch.pattern: %q is not a valid RE2 regular expression (empty: built-in rule <type>/<words-with-dashes>)`,
+		"conventions.branch.pattern : %q n'est pas une expression régulière RE2 valide (vide : règle intégrée <type>/<mots-avec-tirets>)",
+	},
+	"workspace.validate.conv_branch_exclude_empty": {
+		"conventions.branch.exclude: pattern #%d is empty",
+		"conventions.branch.exclude : le motif n° %d est vide",
+	},
+	"workspace.validate.conv_branch_exclude_invalid": {
+		`conventions.branch.exclude: pattern #%d %q is invalid (glob "*", "?", "[...]", e.g. "dependabot/*")`,
+		"conventions.branch.exclude : le motif n° %d %q est invalide (glob « * », « ? », « [...] », ex. « dependabot/* »)",
+	},
+	"workspace.validate.conv_milestone_invalid": {
+		`conventions.tags.milestones: entry #%d %q is not a final version "vX.Y.Z" (lowercase "v", no pre-release nor build, e.g. "v1.0.0" or "v1.0.0@2026-12-18")`,
+		"conventions.tags.milestones : l'entrée n° %d %q n'est pas une version finale « vX.Y.Z » (« v » minuscule, sans pré-version ni build, ex. « v1.0.0 » ou « v1.0.0@2026-12-18 »)",
+	},
+	"workspace.validate.conv_milestone_due_invalid": {
+		`conventions.tags.milestones: entry #%d %q has an invalid due date (expected "vX.Y.Z@YYYY-MM-DD", e.g. "v1.0.0@2026-12-18")`,
+		"conventions.tags.milestones : l'entrée n° %d %q a une échéance invalide (attendu « vX.Y.Z@AAAA-MM-JJ », ex. « v1.0.0@2026-12-18 »)",
+	},
+	"workspace.validate.conv_milestone_duplicate": {
+		"conventions.tags.milestones: entry #%d repeats the milestone %s",
+		"conventions.tags.milestones : l'entrée n° %d répète le jalon %s",
+	},
 	"workspace.validate.conv_account_empty": {
 		"conventions.excluded_accounts: account #%d is empty",
 		"conventions.excluded_accounts : le compte n° %d est vide",
@@ -561,8 +585,8 @@ var workspaceTexts = map[string]entry{
 		"jours de conservation des signaux, depuis la date du commit (1 à %d)",
 	},
 	"workspace.cfg.conventions_l1": {
-		"Project conventions: compliance of the commit messages with the charter, for the trainer. Disabled by",
-		"Conventions de projet : conformité des messages de commit à la charte, pour le formateur. Désactivées par",
+		"Project conventions: compliance with the charter (commits, branches, pull requests, tags). Disabled by",
+		"Conventions de projet : conformité à la charte (commits, branches, pull requests, tags). Désactivées par",
 	},
 	"workspace.cfg.conventions_l2": {
 		"default. Shared by \"watchoo config export\", except enabled and excluded_accounts.",
@@ -597,8 +621,20 @@ var workspaceTexts = map[string]entry{
 		"sujets interdits (sujet entier, casse ignorée)",
 	},
 	"workspace.cfg.conventions_language": {
-		`"fr", "en" or "any" (no effect yet)`,
-		`"fr", "en" ou "any" (sans effet pour l'instant)`,
+		`expected language of the subjects, "fr", "en" or "any" (information only)`,
+		`langue attendue des sujets, "fr", "en" ou "any" (information seulement)`,
+	},
+	"workspace.cfg.conventions_branch_pattern": {
+		`RE2 expression replacing the built-in rule "<type>/<words-with-dashes>"; empty: built-in rule`,
+		`expression RE2 qui remplace la règle intégrée « <type>/<mots-avec-tirets> » ; vide : règle intégrée`,
+	},
+	"workspace.cfg.conventions_branch_exclude": {
+		`branches left out (glob, the name or one of its path prefixes: "dependabot/*")`,
+		`branches hors évaluation (glob, le nom ou l'un de ses préfixes de chemin : « dependabot/* »)`,
+	},
+	"workspace.cfg.conventions_milestones": {
+		`milestones "vX.Y.Z", or "vX.Y.Z@YYYY-MM-DD" with a due date`,
+		`jalons « vX.Y.Z », ou « vX.Y.Z@AAAA-MM-JJ » avec une échéance`,
 	},
 	"workspace.cfg.conventions_excluded": {
 		"accounts left out (trainer, bots…): login, name or e-mail",

@@ -1,0 +1,137 @@
+{{/*
+  Conventions « /conventions » (phase 8.2). Donnée : PageData, Content de type conventionsView
+  (conventions.go). Vue d'ensemble par dépôt et par contributeur, puis revue d'un jalon. Des taux n/m
+  expliqués, jamais une note ni un classement ; aucun message de commit ni titre de pull request. Chaque
+  icône est suivie de son texte.
+*/}}
+{{define "content"}}{{$c := .Content}}
+<div class="mb-4">
+  <h1 class="text-2xl font-bold">{{t "web.nav.conventions"}}</h1>
+  <p class="text-sm text-base-content/70">{{t "web.conv.page_intro"}}</p>
+</div>
+{{if not $c.Enabled}}
+<div role="status" class="alert alert-info alert-soft text-sm"><span>{{t "web.conv.disabled"}}</span></div>
+{{else}}
+<div role="note" class="alert alert-soft text-sm mb-4"><span>{{t "web.conv.page_notice"}}</span></div>
+{{if $c.LocalOnly}}<p class="text-sm text-base-content/70 mb-4">{{t "web.conv.local_only"}}</p>{{end}}
+
+<section id="conventions-repos" class="mb-6" aria-labelledby="conventions-repos-title">
+  <h2 id="conventions-repos-title" class="text-xl font-semibold mb-2">{{t "web.conv.repos_title"}}</h2>
+  {{if not $c.Repos}}
+  <div class="card bg-base-100 shadow-sm"><div class="card-body"><p>{{t "web.conv.no_repos"}}</p></div></div>
+  {{else}}
+  <div class="overflow-x-auto rounded-box bg-base-100 shadow-sm">
+    <table class="table table-sm">
+      <caption class="sr-only">{{t "web.conv.repos_caption"}}</caption>
+      <thead><tr>
+        <th scope="col">{{t "web.col.repo"}}</th>
+        <th scope="col">{{t "web.conv.col_commits"}}</th>
+        <th scope="col">{{t "web.conv.col_branches"}}</th>
+        <th scope="col">{{t "web.conv.col_pr_titles"}}</th>
+        <th scope="col">{{t "web.conv.col_tags"}}</th>
+        <th scope="col">{{t "web.conv.col_milestones"}}</th>
+        <th scope="col">{{t "web.conv.col_language"}}</th>
+      </tr></thead>
+      <tbody>
+        {{range $c.Repos}}
+        <tr>
+          <th scope="row" class="font-normal"><a class="link link-hover" href="{{repoPath .ID}}">{{truncate 40 .Name}}</a></th>
+          <td class="tabular-nums whitespace-nowrap">{{if .Unknown}}<span class="text-base-content/60">{{t "web.conv.cell_unknown"}}</span>{{else if .Evaluated}}{{.Conform}}/{{.Evaluated}} ({{t "web.percent" .Percent}}){{else}}—{{end}}</td>
+          <td class="tabular-nums whitespace-nowrap">{{if .BranchesChecked}}{{.BranchesConform}}/{{.BranchesChecked}}{{if .BranchesReview}} <span class="text-base-content/60">· {{t "web.conv.to_review" .BranchesReview}}</span>{{end}}{{else}}—{{end}}</td>
+          <td class="text-sm">{{if not .PullsKnown}}<span class="text-base-content/60">{{t "web.conv.cell_unknown"}} ({{.PullsReason}})</span>{{else if .Pulls.Evaluated}}{{template "conv-pr-counts" .Pulls}}{{else}}—{{end}}</td>
+          <td class="tabular-nums whitespace-nowrap">{{if .TagsChecked}}{{.TagsConform}}/{{.TagsChecked}}{{else}}—{{end}}</td>
+          <td><div class="flex flex-wrap gap-1">{{range .Milestones}}{{template "conv-status" (dict "Status" .Status "Text" .Name)}}{{end}}</div></td>
+          <td class="text-sm whitespace-nowrap">{{template "conv-language" .Language}}</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+  <p class="text-xs text-base-content/60 mt-2">{{t "web.conv.repos_note"}}</p>
+  {{end}}
+</section>
+
+<section id="conventions-contributors" class="mb-6" aria-labelledby="conventions-contributors-title">
+  <h2 id="conventions-contributors-title" class="text-xl font-semibold mb-2">{{t "web.conv.contributors_title"}}</h2>
+  {{if not $c.Contributors}}
+  <div class="card bg-base-100 shadow-sm"><div class="card-body"><p>{{t "web.conv.no_contributors"}}</p></div></div>
+  {{else}}
+  <div class="overflow-x-auto rounded-box bg-base-100 shadow-sm">
+    <table class="table table-sm">
+      <caption class="sr-only">{{t "web.conv.contributors_caption"}}</caption>
+      <thead><tr>
+        <th scope="col">{{t "web.col.contributor"}}</th>
+        <th scope="col">{{t "web.conv.col_commits"}}</th>
+        <th scope="col">{{t "web.conv.col_trend"}}</th>
+        <th scope="col">{{t "web.conv.col_pr_titles"}}</th>
+        <th scope="col">{{t "web.conv.col_branches"}}</th>
+      </tr></thead>
+      <tbody>
+        {{range $c.Contributors}}
+        <tr>
+          <th scope="row" class="font-normal">{{if .ID}}<a class="link link-hover" href="{{contribPath .ID}}">{{truncate 30 .Name}}</a>{{else}}<span class="text-base-content/60">{{t "web.conv.unknown_author"}}</span>{{end}}</th>
+          <td class="tabular-nums whitespace-nowrap">{{if .Evaluated}}{{.Conform}}/{{.Evaluated}} ({{t "web.percent" .Percent}}){{else}}—{{end}}</td>
+          <td class="text-sm">{{template "conv-trend" .Trend}}</td>
+          <td class="text-sm">{{if .Pulls.Evaluated}}{{template "conv-pr-counts" .Pulls}}{{else}}—{{end}}</td>
+          <td class="tabular-nums whitespace-nowrap">{{if .BranchesChecked}}{{.BranchesConform}}/{{.BranchesChecked}}{{else}}—{{end}}</td>
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+  <p class="text-xs text-base-content/60 mt-2">{{t "web.conv.contributors_note"}}</p>
+  {{end}}
+</section>
+
+<section id="conventions-milestone" aria-labelledby="conventions-milestone-title">
+  <h2 id="conventions-milestone-title" class="text-xl font-semibold mb-2">{{t "web.conv.review_title"}}</h2>
+  <p class="text-sm text-base-content/70 mb-2">{{t "web.conv.review_intro"}}</p>
+  {{if not $c.Milestones}}
+  <div class="card bg-base-100 shadow-sm"><div class="card-body"><p>{{t "web.conv.no_milestones"}}</p></div></div>
+  {{else}}
+  <form method="get" action="/conventions" class="flex flex-wrap items-end gap-2 mb-4">
+    <label class="block">
+      <span class="label text-sm mb-1">{{t "web.conv.milestone_label"}}</span>
+      <select name="milestone" class="select select-sm w-56">
+        {{range $c.Milestones}}<option value="{{.Name}}"{{if eq .Name $c.Milestone}} selected{{end}}>{{.Name}}{{if .Due}} ({{t "web.conv.due" .Due}}){{end}}</option>{{end}}
+      </select>
+    </label>
+    <button type="submit" class="btn btn-sm">{{t "web.conv.show"}}</button>
+  </form>
+  {{with $c.Review}}
+  {{if not .Repos}}
+  <div class="card bg-base-100 shadow-sm"><div class="card-body"><p>{{t "web.conv.no_repos"}}</p></div></div>
+  {{else}}
+  <div class="overflow-x-auto rounded-box bg-base-100 shadow-sm">
+    <table class="table table-sm">
+      <caption class="text-left text-sm font-medium p-2">{{t "web.conv.review_caption" .Name}}{{if .Due}} ({{t "web.conv.due" .Due}}){{end}}</caption>
+      <thead><tr>
+        <th scope="col">{{t "web.col.repo"}}</th>
+        {{range .Criteria}}<th scope="col">{{.}} <span class="font-normal text-base-content/60">{{t (print "web.conv.criterion." .)}}</span></th>{{end}}
+        <th scope="col">{{t "web.conv.col_result"}}</th>
+      </tr></thead>
+      <tbody>
+        {{range .Repos}}
+        <tr>
+          <th scope="row" class="font-normal"><a class="link link-hover" href="{{repoPath .ID}}">{{truncate 40 .Name}}</a></th>
+          {{if not .Evaluable}}
+          <td colspan="{{len $c.Review.Criteria}}" class="text-sm text-base-content/70">{{t "web.conv.not_evaluable" .Reason}}</td>
+          <td>—</td>
+          {{else}}
+          {{range .Cells}}<td>{{template "conv-status" (dict "Status" .Status "Text" "")}}{{if .Reason}}<div class="text-xs text-base-content/60">{{.Reason}}</div>{{end}}</td>{{end}}
+          <td class="text-sm">{{t "web.conv.review_result" .Conform .Total .Unknown}}
+            {{if .HasInterval}}<div class="text-xs text-base-content/60">{{t "web.conv.interval_label"}} {{if .From}}{{truncate 30 (clean .From)}}{{else}}{{t "web.conv.interval_start"}}{{end}}..{{if .To}}{{truncate 30 (clean .To)}}{{else}}{{t "web.conv.due" .Due}}{{end}}{{if .Missing}} · {{t "web.conv.interval_missing" .Missing}}{{end}}</div>{{end}}
+          </td>
+          {{end}}
+        </tr>
+        {{end}}
+      </tbody>
+    </table>
+  </div>
+  <p class="text-xs text-base-content/60 mt-2">{{t "web.conv.review_note"}}</p>
+  {{end}}
+  {{end}}
+  {{end}}
+</section>
+{{end}}
+{{end}}

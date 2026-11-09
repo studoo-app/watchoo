@@ -42,10 +42,12 @@ const (
 	// Diagnostic (phase 7.4).
 	pageDiagnostic     = "diagnostic"
 	pageDiagnosticLead = "diagnostic_lead"
+	// Conventions (phase 8.2).
+	pageConventions = "conventions"
 )
 
 var pageNames = []string{pageDashboard, pageRepo, pageContributors, pageContributor, pageSettings, pageSettingsImport,
-	pageDiagnostic, pageDiagnosticLead, pageErrors}
+	pageDiagnostic, pageDiagnosticLead, pageConventions, pageErrors}
 
 // Entrées de la barre de navigation (PageData.Nav).
 const (
@@ -53,6 +55,7 @@ const (
 	navContributors = "contributors"
 	navSettings     = "settings"
 	navDiagnostic   = "diagnostic"
+	navConventions  = "conventions"
 )
 
 // PageData est la donnée de TOUS les templates (pages complètes et fragments). Construire avec s.page.
@@ -73,6 +76,9 @@ type PageData struct {
 	Public bool
 	// Diagnostic : le diagnostic est activé (diagnostic.enabled) ; entrée « Diagnostic » de la navigation.
 	Diagnostic bool
+	// Conventions : les conventions sont activées (conventions.enabled) ; entrée « Conventions » de la
+	// navigation (phase 8.2).
+	Conventions bool
 }
 
 // UpdateView est le bandeau de nouvelle version du layout (0.6.0).
@@ -117,6 +123,8 @@ func (s *server) page(r *http.Request, title, nav string, content any) PageData 
 		Update:    s.updateView(),
 		// Diagnostic : entrée de navigation réservée au formateur, seulement si le diagnostic est activé.
 		Diagnostic: s.cfg.Diagnostic.Enabled,
+		// Conventions : entrée de navigation seulement si les conventions sont activées.
+		Conventions: s.cfg.Conventions.Enabled,
 	}
 }
 

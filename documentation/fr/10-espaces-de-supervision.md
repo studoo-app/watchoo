@@ -196,7 +196,7 @@ gestionnaire d'identifiants de Git).
 suivis et les **réglages communs** d'un espace : `sync.auto`, `sync.interval`, `sync.parallelism`,
 `activity.flemme_after_days`, `activity.dead_after_days`, `branches.exclude`, `timezone`, `lang`
 (anglais par défaut, voir [Interface web](06-interface-web.md#langue-de-linterface)) et la charte des
-[conventions de projet](13-conventions.md#8-configuration) (`conventions.since`, `conventions.commit.*`). Les réglages
+[conventions de projet](13-conventions.md#8-configuration) (`conventions.since`, `conventions.commit.*`, `conventions.branch.*` et `conventions.tags.*`). Les réglages
 propres à la machine ou à la personne ne sont **jamais** partagés : `name`, `github.*` (compte `gh`,
 chemin de `gh` : un fichier venu d'ailleurs ne doit jamais choisir le programme lancé), `git.*`
 (protocole des clones, lié aux identifiants de la machine), `web.*` et `diagnostic.*` (l'activation du
