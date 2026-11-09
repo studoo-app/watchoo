@@ -1,4 +1,4 @@
-// Textes du paquet internal/cli pour « watchoo conventions » (phases 8.1 à 8.4) : aide, rappel, tableaux
+// Textes du paquet internal/cli pour « watchoo conventions » (phases 8.1 à 8.5) : aide, rappel, tableaux
 // des dépôts, des contributeurs et des commits, libellés des codes d'écart (CC2) et des motifs d'exclusion
 // (CC4), puis lignes de branches (BR1), PR (PR1, PR2), tags et jalons (SV1, SV2), releases (SV6),
 // formulation, pieds et langue (CC5 à CC7), intervalles entre tags et revue de jalon. Préfixe des clés : « cli.conv. ». Les clés et valeurs JSON (codes, motifs, sources) ne passent
@@ -51,8 +51,18 @@ observation of their tag (SV2), the pre-releases (SV4, warnings), the version bu
 declared commits (SV5, under-versioning only), the precedence of the versions against the history
 (SV7) and the "feat" and "fix" commits since the last change of the CHANGELOG (CL10, information).
 
+Merges (API mode, no extra request): the commits that reached the default branch outside a pull request
+(PR3: first parent of the default branch since the start date, read in the clone; by pull request,
+outside, or undetermined; attributed to the commit author, never to whoever pushed it; degraded on the
+messages of GitHub without the API), the pull request descriptions (PR5: expected sections and "Closes
+#n", conventions.pr.*; the description itself is never kept), the merge method of each merged pull
+request (PR6: squash with a conforming message), the head branches merged more than once (BR2) and the
+merge methods allowed on the repository (BR5: squash only; unknown without push access). Pull requests
+from a fork are set aside.
+
 --milestone vX.Y.Z shows the review of a configured milestone, repository by repository: CC1 on the
-milestone interval, BR1, SV1, SV2 (with its due date) and SV3, then CL9, CL8, RD1, RD2 (installation section), RD3, DOC1 and
+milestone interval, BR1, PR3 (no commit outside a pull request on the interval), SV1, SV2 (with its due
+date) and SV3, then CL9, CL8, RD1, RD2 (installation section), RD3, DOC1 and
 DOC3 on the tree of the milestone tag, each conform, not conform or unknown ("k/n criteria conform,
 u unknown"), never an overall grade. It requires a start date (conventions.since).
 
@@ -105,8 +115,17 @@ première observation de leur tag (SV2), pré-versions (SV4, avertissements), sa
 aux commits déclarés (SV5, sous-versionnement seulement), précédence des versions face à l'historique
 (SV7) et commits « feat » et « fix » depuis la dernière modification du CHANGELOG (CL10, information).
 
+Fusions (mode API, sans requête de plus) : commits arrivés sur la branche par défaut hors pull request
+(PR3 : premier parent de la branche par défaut depuis la date de début, lu dans le clone ; par pull
+request, hors pull request ou indéterminé ; attribué à l'auteur du commit, jamais à qui l'a poussé ;
+dégradé sur les messages de GitHub sans l'API), description des pull requests (PR5 : sections attendues
+et « Closes #n », conventions.pr.* ; la description n'est jamais gardée), méthode de fusion de chaque
+pull request fusionnée (PR6 : squash au message conforme), branches de tête fusionnées plus d'une fois
+(BR2) et méthodes de fusion autorisées sur le dépôt (BR5 : squash seul ; inconnu sans droit push). Les
+pull requests issues d'un fork sont écartées.
+
 --milestone vX.Y.Z affiche la revue d'un jalon configuré, dépôt par dépôt : CC1 sur l'intervalle du
-jalon, BR1, SV1, SV2 (avec son échéance) et SV3, puis CL9, CL8, RD1, RD2 (section installation), RD3, DOC1 et DOC3 sur l'arbre
+jalon, BR1, PR3 (aucun commit hors pull request sur l'intervalle), SV1, SV2 (avec son échéance) et SV3, puis CL9, CL8, RD1, RD2 (section installation), RD3, DOC1 et DOC3 sur l'arbre
 du tag du jalon, chacun conforme, non conforme ou inconnu (« k/n critères conformes, u inconnus »),
 jamais de note globale. Elle exige une date de début (conventions.since).
 
@@ -206,9 +225,11 @@ Options :
 	"cli.conv.header_since_tag":  {"Since last tag", "Depuis le dernier tag"},
 	"cli.conv.header_pr_titles":  {"PR titles", "Titres de PR"},
 	"cli.conv.header_branches":   {"Branches", "Branches"},
+	"cli.conv.header_pr_bodies":  {"PR bodies", "Corps de PR"},
+	"cli.conv.header_outside_pr": {"Outside PR", "Hors PR"},
 	"cli.conv.contributors_note": {
-		"Last tag: rates up to and since the last final tag of each repository (CC3 trend, \"—\" without clone or final tag); PR titles and branches: those of the contributor's pull requests.",
-		"Dernier tag : taux jusqu'au et depuis le dernier tag final de chaque dépôt (tendance de CC3, « — » sans clone ni tag final) ; titres de PR et branches : ceux des pull requests du contributeur.",
+		"Last tag: rates up to and since the last final tag of each repository (CC3 trend, \"—\" without clone or final tag); PR titles, PR bodies and branches: those of the contributor's pull requests; outside PR: commits of the default branch the contributor wrote that arrived outside a pull request, out of those classified.",
+		"Dernier tag : taux jusqu'au et depuis le dernier tag final de chaque dépôt (tendance de CC3, « — » sans clone ni tag final) ; titres de PR, corps de PR et branches : ceux des pull requests du contributeur ; hors PR : commits de la branche par défaut dont il est l'auteur arrivés hors pull request, sur ceux classés.",
 	},
 
 	"cli.conv.branches_source.clone":    {"clone", "clone"},
@@ -240,6 +261,7 @@ Options :
 	"cli.conv.pr_skip.closed":             {"closed without merge", "fermées sans fusion"},
 	"cli.conv.pr_skip.draft":              {"drafts", "brouillons"},
 	"cli.conv.pr_skip.bot":                {"bots", "bots"},
+	"cli.conv.pr_skip.fork":               {"from a fork", "issues d'un fork"},
 	"cli.conv.pr_skip.before_since":       {"before the start date", "avant la date de début"},
 	"cli.conv.tags_none":                  {"tags: none", "tags : aucun"},
 	"cli.conv.tags_line":                  {"tags: %d/%d conform", "tags : %d/%d conformes"},
@@ -314,6 +336,11 @@ Options :
 	"cli.conv.reason.deadline_undetermined": {"tagging date undetermined against the due date", "date de pose indéterminée par rapport à l'échéance"},
 	"cli.conv.reason.no_base":               {"no lower final tag is an ancestor", "aucun tag final inférieur n'en est ancêtre"},
 	"cli.conv.reason.low_conform":           {"fewer than 80% conforming commits", "moins de 80 % de commits conformes"},
+	"cli.conv.reason.no_push_access": {
+		"merge methods not returned (no push access, or not synchronized yet)",
+		"méthodes de fusion non renvoyées (pas de droit push, ou pas encore synchronisé)",
+	},
+	"cli.conv.reason.undetermined": {"commits of undetermined arrival", "commits d'arrivée indéterminée"},
 
 	// Phase 8.3 : critères de fichiers (CHANGELOG, README, documentation, outillage).
 	"cli.conv.reason.empty_repository": {"empty repository", "dépôt vide"},
@@ -380,6 +407,63 @@ Options :
 	"cli.conv.label_value":     {"%s: %s", "%s : %s"},
 	"cli.conv.sep":             {"; ", " ; "},
 	"cli.conv.deadlines_line":  {"due dates: %s", "échéances : %s"},
+
+	// Phase 8.5 : PR3, PR5, PR6, BR2, BR5.
+	"cli.conv.arrivals_unknown": {"commits outside PR: unknown (%s)", "commits hors PR : inconnu (%s)"},
+	"cli.conv.arrivals_line": {
+		"commits outside PR on the default branch: %d of %d (by PR %d, undetermined %d)",
+		"commits hors PR sur la branche par défaut : %d sur %d (par PR %d, indéterminés %d)",
+	},
+	"cli.conv.arrivals_clone": {
+		"; clone only: read on the messages of GitHub",
+		" ; clone seul : lu sur les messages de GitHub",
+	},
+	"cli.conv.arrivals_incomplete": {
+		"; pull request list not read in full yet",
+		" ; liste des pull requests pas encore relue en entier",
+	},
+	"cli.conv.arrival_item":                     {"%s %s (author): %s", "%s %s (auteur) : %s"},
+	"cli.conv.arrival_reason.merge_commit_sha":  {"merge commit of a pull request", "commit de fusion d'une pull request"},
+	"cli.conv.arrival_reason.rebase_run":        {"rebased by GitHub", "rebasé par GitHub"},
+	"cli.conv.arrival_reason.github_merge":      {"merge made by GitHub", "fusion faite par GitHub"},
+	"cli.conv.arrival_reason.squash_suffix":     {"squash with \"(#n)\"", "squash avec « (#n) »"},
+	"cli.conv.arrival_reason.human_committer":   {"direct commit on the branch", "commit direct sur la branche"},
+	"cli.conv.arrival_reason.local_merge":       {"merge made outside GitHub", "fusion faite hors de GitHub"},
+	"cli.conv.arrival_reason.web_edit":          {"edited on GitHub without pull request", "édité sur GitHub sans pull request"},
+	"cli.conv.arrival_reason.not_in_db":         {"commit not in the database", "commit absent de la base"},
+	"cli.conv.arrival_reason.committer_unknown": {"committer unknown", "committer inconnu"},
+	"cli.conv.arrival_reason.unmatched":         {"commit of GitHub without known pull request", "commit de GitHub sans pull request connue"},
+	"cli.conv.arrival_reason.clone_only":        {"commit of GitHub, clone only", "commit de GitHub, clone seul"},
+	"cli.conv.bodies_line": {
+		"pull request bodies: %d/%d conform (%d unknown)",
+		"corps des pull requests : %d/%d conformes (%d inconnus)",
+	},
+	"cli.conv.bodies_gaps":            {"missing: %s", "manque : %s"},
+	"cli.conv.pr_section.context":     {"context", "contexte"},
+	"cli.conv.pr_section.changes":     {"changes", "ce qui change"},
+	"cli.conv.pr_section.testing":     {"how to test", "comment tester"},
+	"cli.conv.pr_section.screenshots": {"screenshots", "captures"},
+	"cli.conv.pr_section.closes":      {"\"Closes #n\"", "« Closes #n »"},
+	"cli.conv.merge_method.squash":    {"squash", "squash"},
+	"cli.conv.merge_method.merge":     {"merge commit", "merge commit"},
+	"cli.conv.merge_method.rebase":    {"rebase", "rebase"},
+	"cli.conv.merge_method.unknown":   {"unknown", "inconnue"},
+	"cli.conv.merges_line": {
+		"merges: %d/%d squashed with a conforming message (%s)",
+		"fusions : %d/%d en squash au message conforme (%s)",
+	},
+	"cli.conv.reused_none":           {"reused branches: none", "branches réutilisées : aucune"},
+	"cli.conv.reused_line":           {"reused branches (%d): %s", "branches réutilisées (%d) : %s"},
+	"cli.conv.merge_methods_unknown": {"allowed merge methods: unknown (%s)", "méthodes de fusion autorisées : inconnu (%s)"},
+	"cli.conv.merge_methods_none":    {"none", "aucune"},
+	"cli.conv.merge_methods_line": {
+		"allowed merge methods: %s (%s)",
+		"méthodes de fusion autorisées : %s (%s)",
+	},
+	"cli.conv.milestone_arrivals": {
+		"%d outside PR of %d commits (%d undetermined)",
+		"%d hors PR sur %d commits (%d indéterminés)",
+	},
 }
 
 func init() {

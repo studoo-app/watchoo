@@ -25,6 +25,9 @@ var _ conventions.FileReader = (*gitprov.Provider)(nil)
 // CL10).
 var _ conventions.HistoryReader = (*gitprov.Provider)(nil)
 
+// Vérifie à la compilation que le provider des clones sait lire le premier parent (phase 8.5 : PR3).
+var _ conventions.FirstParentReader = (*gitprov.Provider)(nil)
+
 // ConventionsClones renvoie l'accès en lecture aux clones Git locaux existants de l'espace (périmètre
 // des conventions : git rev-list des branches suivies), sans les mettre à jour ; nil si les clones sont
 // désactivés ou si le provider ne sait pas les lire (repli sur la base). Erreur seulement pour la base.

@@ -24,6 +24,7 @@ func conventionsMoreDetail(r conventions.RepoReport, dash string) []string {
 	lines = append(lines, tagLines(r.Tags)...)
 	lines = append(lines, traitLines(r.Traits, r.Language)...)
 	lines = append(lines, intervalLine(r.Intervals, dash))
+	lines = append(lines, mergeFlowLines(r)...)
 	return lines
 }
 
@@ -281,6 +282,8 @@ func criterionDetail(r conventions.RepoMilestoneReview, id, dash string, loc *ti
 			return ""
 		}
 		return " — " + i18n.T("cli.conv.milestone_branches", r.Branches.Conform, r.Branches.Checked)
+	case conventions.CriterionPR3:
+		return milestoneArrivalsDetail(r)
 	case conventions.CriterionSV1:
 		if r.Tag == nil {
 			return ""

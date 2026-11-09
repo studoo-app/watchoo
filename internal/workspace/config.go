@@ -99,6 +99,8 @@ type ConventionsConfig struct {
 	Commit ConventionsCommitConfig `mapstructure:"commit"`
 	// Branch regroupe les règles du nommage des branches, BR1 (clés conventions.branch.*, phase 8.2).
 	Branch ConventionsBranchConfig `mapstructure:"branch"`
+	// PR regroupe les attentes du corps des pull requests, PR5 (clés conventions.pr.*, phase 8.5).
+	PR ConventionsPRConfig `mapstructure:"pr"`
 	// Tags regroupe les jalons des tags, SV2 et revue de jalon (clés conventions.tags.*, phase 8.2), et les
 	// formes de pré-version, SV4 (phase 8.4).
 	Tags ConventionsTagsConfig `mapstructure:"tags"`
@@ -144,6 +146,22 @@ type ConventionsBranchConfig struct {
 	// l'un de ses préfixes de chemin (« dependabot/* » exclut « dependabot/npm_and_yarn/x ») ; défaut :
 	// conventions.DefaultBranchExclude. La branche par défaut du dépôt est toujours hors évaluation.
 	Exclude []string `mapstructure:"exclude"`
+}
+
+// ConventionsPRConfig regroupe les attentes du corps des pull requests (clés conventions.pr.*, PR5).
+type ConventionsPRConfig struct {
+	// BodySections liste les clés des sections attendues dans le corps d'une PR, parmi
+	// conventions.AllPRBodySections : context, changes, testing, screenshots ; défaut : toutes. Vide : PR5
+	// n'attend aucune section.
+	BodySections []string `mapstructure:"body_sections"`
+	// RequireCloses exige un mot-clé de fermeture suivi d'un numéro d'issue (« Closes #12 ») dans le corps
+	// (défaut true).
+	RequireCloses bool `mapstructure:"require_closes"`
+}
+
+// PRBodyRules renvoie les attentes PR5 tirées de ces réglages (liste copiée).
+func (c ConventionsConfig) PRBodyRules() conventions.PRBodyRules {
+	return conventions.PRBodyRules{Sections: slices.Clone(c.PR.BodySections), RequireCloses: c.PR.RequireCloses}
 }
 
 // ConventionsTagsConfig regroupe les jalons et les formes de pré-version des tags (clés conventions.tags.*).
@@ -246,6 +264,7 @@ func (c ConventionsConfig) BuildOptions(loc *time.Location) conventions.BuildOpt
 		PrereleaseForms:  slices.Clone(c.Tags.PrereleaseForms),
 		Language:         c.Commit.Language,
 		Files:            c.FileRules(),
+		PRBody:           c.PRBodyRules(),
 	}
 }
 
@@ -365,6 +384,7 @@ type GitConfig struct {
 //	conventions: {enabled: false, since: "", commit: {types: conventions.DefaultTypes, scopes: [],
 //	              max_subject_soft: 50, max_subject_hard: 72, forbidden: conventions.DefaultForbidden,
 //	              language: "any"}, branch: {pattern: "", exclude: conventions.DefaultBranchExclude},
+//	              pr: {body_sections: conventions.DefaultPRBodySections, require_closes: true},
 //	              tags: {milestones: conventions.DefaultMilestones,
 //	              prerelease_forms: conventions.DefaultPrereleaseForms}, changelog: {categories_fr: true},
 //	              readme: {sections: conventions.AllReadmeSections, min_words: 150},
@@ -407,6 +427,10 @@ func DefaultConfig(name string) Config {
 			Branch: ConventionsBranchConfig{
 				Pattern: "",
 				Exclude: conventions.DefaultBranchExclude(),
+			},
+			PR: ConventionsPRConfig{
+				BodySections:  conventions.DefaultPRBodySections(),
+				RequireCloses: true,
 			},
 			Tags: ConventionsTagsConfig{
 				Milestones:      conventions.DefaultMilestones(),
@@ -454,6 +478,7 @@ func DefaultConfig(name string) Config {
 //   - conventions.commit.language : « fr », « en » ou « any » ;
 //   - conventions.branch.pattern vide ou expression RE2 valide ; conventions.branch.exclude : chaque
 //     motif non vide et valide pour path.Match ;
+//   - conventions.pr.body_sections : chaque clé parmi conventions.AllPRBodySections, une seule fois ;
 //   - conventions.tags.milestones : chaque entrée « vX.Y.Z » (version finale conforme, sans pré-version
 //     ni build) suivie au besoin de « @AAAA-MM-JJ » (date valide), chaque version une seule fois ;
 //   - conventions.tags.prerelease_forms : au moins une forme, chacune un mot de 1 à 32 lettres
@@ -602,6 +627,17 @@ func (c ConventionsConfig) validate() []error {
 			add("workspace.validate.conv_branch_exclude_empty", i+1)
 		} else if conventions.ValidBranchExclude(p) != nil {
 			add("workspace.validate.conv_branch_exclude_invalid", i+1, p)
+		}
+	}
+	prSections := map[string]bool{}
+	for i, k := range c.PR.BodySections {
+		switch {
+		case !conventions.ValidPRBodySection(k):
+			add("workspace.validate.conv_pr_section_invalid", i+1, k, strings.Join(conventions.AllPRBodySections(), ", "))
+		case prSections[k]:
+			add("workspace.validate.conv_pr_section_duplicate", i+1, k)
+		default:
+			prSections[k] = true
 		}
 	}
 	seen := map[string]bool{}
@@ -1461,6 +1497,14 @@ func renderConfig(tr *i18n.Translator, defaultName string, active map[string]any
 	}
 	setting("    ", "conventions.branch.pattern", tr.T("workspace.cfg.conventions_branch_pattern"))
 	setting("    ", "conventions.branch.exclude", tr.T("workspace.cfg.conventions_branch_exclude"))
+	if sectionActive("conventions.pr") {
+		text("  pr:")
+	} else {
+		text("#   pr:")
+	}
+	setting("    ", "conventions.pr.body_sections",
+		tr.T("workspace.cfg.conventions_pr_body_sections", strings.Join(conventions.AllPRBodySections(), ", ")))
+	setting("    ", "conventions.pr.require_closes", tr.T("workspace.cfg.conventions_pr_require_closes"))
 	if sectionActive("conventions.tags") {
 		text("  tags:")
 	} else {

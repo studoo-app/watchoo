@@ -59,8 +59,9 @@ func TestReviewMilestone(t *testing.T) {
 	}
 	p := rv.Repos[0]
 	// No file result cached yet (phase 8.3): the file criteria are "not computed".
-	want := append([]string{"CC1:nonconform:", "BR1:conform:", "SV1:conform:", "SV2:conform:", "SV3:unknown:not_observed"}, fileTail(UnknownNotComputed)...)
-	if !p.Evaluable || p.SinceDate != "2026-09-01" || !slices.Equal(statuses(p.Criteria), want) || p.Conform != 3 || p.Unknown != 8 {
+	want := append([]string{"CC1:nonconform:", "BR1:conform:", "PR3:unknown:no_clone", "SV1:conform:", "SV2:conform:",
+		"SV3:unknown:not_observed"}, fileTail(UnknownNotComputed)...)
+	if !p.Evaluable || p.SinceDate != "2026-09-01" || !slices.Equal(statuses(p.Criteria), want) || p.Conform != 3 || p.Unknown != 9 {
 		t.Errorf("v1.0.0: %v %+v", statuses(p.Criteria), p)
 	}
 	if iv := p.Interval; iv == nil || iv.From != "v0.1.0" || iv.To != "v1.0.0" || iv.Evaluated != 2 || iv.Conform != 1 || iv.Missing != 1 {
@@ -83,9 +84,9 @@ func TestReviewMilestone(t *testing.T) {
 		t.Fatal(err)
 	}
 	p = rv.Repos[0]
-	want = append([]string{"CC1:conform:", "BR1:conform:", "SV1:unknown:tag_absent", "SV2:nonconform:", "SV3:unknown:tag_absent"},
-		fileTail(UnknownTagAbsent)...)
-	if !slices.Equal(statuses(p.Criteria), want) || p.Conform != 2 || p.Unknown != 9 || p.Tag != nil {
+	want = append([]string{"CC1:conform:", "BR1:conform:", "PR3:unknown:no_clone", "SV1:unknown:tag_absent", "SV2:nonconform:",
+		"SV3:unknown:tag_absent"}, fileTail(UnknownTagAbsent)...)
+	if !slices.Equal(statuses(p.Criteria), want) || p.Conform != 2 || p.Unknown != 10 || p.Tag != nil {
 		t.Errorf("v2.0.0: %v", statuses(p.Criteria))
 	}
 	if iv := p.Interval; iv == nil || iv.From != "v1.0.0" || iv.To != "" || iv.Due != "2026-09-20" || iv.Evaluated != 1 {
@@ -104,16 +105,16 @@ func TestReviewMilestone(t *testing.T) {
 
 	// Before the due date: CC1 and SV2 wait.
 	rv, _ = ReviewMilestone(t.Context(), r, cl, Filter{}, "v2.0.0", opts, time.Date(2026, 9, 8, 23, 0, 0, 0, time.UTC))
-	want = append([]string{"CC1:unknown:not_due", "BR1:conform:", "SV1:unknown:not_due", "SV2:unknown:not_due", "SV3:unknown:not_due"},
-		fileTail(UnknownNotDue)...)
-	if p := rv.Repos[0]; !slices.Equal(statuses(p.Criteria), want) || p.Unknown != 11 || p.Interval != nil {
+	want = append([]string{"CC1:unknown:not_due", "BR1:conform:", "PR3:unknown:not_due", "SV1:unknown:not_due", "SV2:unknown:not_due",
+		"SV3:unknown:not_due"}, fileTail(UnknownNotDue)...)
+	if p := rv.Repos[0]; !slices.Equal(statuses(p.Criteria), want) || p.Unknown != 12 || p.Interval != nil || p.Arrivals != nil {
 		t.Errorf("v2.0.0 before the due date: %v", statuses(p.Criteria))
 	}
 
 	// v3.0.0: no tag, no due date.
 	rv, _ = ReviewMilestone(t.Context(), r, cl, Filter{}, "v3.0.0", opts, after)
-	want = append([]string{"CC1:unknown:no_tag", "BR1:conform:", "SV1:unknown:no_tag", "SV2:nonconform:", "SV3:unknown:no_tag"},
-		fileTail(UnknownNoTag)...)
+	want = append([]string{"CC1:unknown:no_tag", "BR1:conform:", "PR3:unknown:no_tag", "SV1:unknown:no_tag", "SV2:nonconform:",
+		"SV3:unknown:no_tag"}, fileTail(UnknownNoTag)...)
 	if p := rv.Repos[0]; !slices.Equal(statuses(p.Criteria), want) {
 		t.Errorf("v3.0.0: %v", statuses(p.Criteria))
 	}
@@ -128,8 +129,8 @@ func TestReviewMilestoneNonconformingTag(t *testing.T) {
 		t.Fatal(err)
 	}
 	p := rv.Repos[0]
-	want := append([]string{"CC1:unknown:no_clone", "BR1:nonconform:", "SV1:nonconform:", "SV2:nonconform:", "SV3:unknown:not_observed"},
-		fileTail(UnknownNoClone)...)
+	want := append([]string{"CC1:unknown:no_clone", "BR1:nonconform:", "PR3:unknown:no_clone", "SV1:nonconform:", "SV2:nonconform:",
+		"SV3:unknown:not_observed"}, fileTail(UnknownNoClone)...)
 	if !slices.Equal(statuses(p.Criteria), want) || p.Tag == nil || p.Tag.Name != "V2.0.0" || p.Branches.Source != SourceDatabase {
 		t.Errorf("V2.0.0 without a clone: %v %+v", statuses(p.Criteria), p)
 	}

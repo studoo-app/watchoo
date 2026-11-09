@@ -173,6 +173,7 @@ func (q *Queries) LatestReleaseByRepo(ctx context.Context, repoID interface{}) (
 const listConventionPullRequests = `-- name: ListConventionPullRequests :many
 SELECT p.repo_id, p.number, p.title, p.state, p.merged, p.draft, p.author_login, p.author_provider_id,
        p.url, p.base_branch, p.head_branch, p.created_at, p.updated_at, p.closed_at, p.merged_at, p.tool_ids,
+       p.merge_commit_sha, p.from_fork, p.body_sections,
        CAST(COALESCE(c.id, 0) AS INTEGER) AS author_id,
        CAST(COALESCE(c.name, '') AS TEXT) AS author_name
 FROM pull_requests p
@@ -200,12 +201,16 @@ type ListConventionPullRequestsRow struct {
 	ClosedAt         sql.NullString
 	MergedAt         sql.NullString
 	ToolIds          string
+	MergeCommitSha   sql.NullString
+	FromFork         sql.NullInt64
+	BodySections     sql.NullInt64
 	AuthorID         int64
 	AuthorName       string
 }
 
 // Pull requests du depot pour les conventions (phase 8.2), numero decroissant : titre (lu en memoire
-// seulement, jamais garde), etat, brouillon, auteur et branche de tete ; author_id = contributeur du
+// seulement, jamais garde), etat, brouillon, auteur et branche de tete, commit de fusion, origine (fork)
+// et masque des sections du corps (phase 8.5) ; author_id = contributeur du
 // meme compte de forge (0 si aucun).
 func (q *Queries) ListConventionPullRequests(ctx context.Context, repoID int64) ([]ListConventionPullRequestsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listConventionPullRequests, repoID)
@@ -233,6 +238,9 @@ func (q *Queries) ListConventionPullRequests(ctx context.Context, repoID int64) 
 			&i.ClosedAt,
 			&i.MergedAt,
 			&i.ToolIds,
+			&i.MergeCommitSha,
+			&i.FromFork,
+			&i.BodySections,
 			&i.AuthorID,
 			&i.AuthorName,
 		); err != nil {
@@ -252,6 +260,7 @@ func (q *Queries) ListConventionPullRequests(ctx context.Context, repoID int64) 
 const listPullRequests = `-- name: ListPullRequests :many
 SELECT p.repo_id, p.number, p.title, p.state, p.merged, p.draft, p.author_login, p.author_provider_id,
        p.url, p.base_branch, p.head_branch, p.created_at, p.updated_at, p.closed_at, p.merged_at, p.tool_ids,
+       p.merge_commit_sha, p.from_fork, p.body_sections,
        r.owner AS repo_owner, r.name AS repo_name, r.label AS repo_label
 FROM pull_requests p
 JOIN repositories r ON r.id = p.repo_id
@@ -288,6 +297,9 @@ type ListPullRequestsRow struct {
 	ClosedAt         sql.NullString
 	MergedAt         sql.NullString
 	ToolIds          string
+	MergeCommitSha   sql.NullString
+	FromFork         sql.NullInt64
+	BodySections     sql.NullInt64
 	RepoOwner        string
 	RepoName         string
 	RepoLabel        string
@@ -327,6 +339,9 @@ func (q *Queries) ListPullRequests(ctx context.Context, arg ListPullRequestsPara
 			&i.ClosedAt,
 			&i.MergedAt,
 			&i.ToolIds,
+			&i.MergeCommitSha,
+			&i.FromFork,
+			&i.BodySections,
 			&i.RepoOwner,
 			&i.RepoName,
 			&i.RepoLabel,
@@ -515,10 +530,44 @@ func (q *Queries) PullRequestCounts(ctx context.Context, repoID int64) (PullRequ
 	return i, err
 }
 
+const setPullRequestConventions = `-- name: SetPullRequestConventions :execrows
+UPDATE pull_requests
+SET merge_commit_sha = ?1,
+    from_fork = COALESCE(?2, from_fork),
+    body_sections = COALESCE(?3, body_sections)
+WHERE repo_id = ?4 AND number = ?5
+`
+
+type SetPullRequestConventionsParams struct {
+	MergeCommitSha sql.NullString
+	FromFork       sql.NullInt64
+	BodySections   sql.NullInt64
+	RepoID         int64
+	Number         int64
+}
+
+// Relecture complete des PR (phase 8.5) : ecrit le commit de fusion, l'origine (fork) et le masque des
+// sections du corps d'une PR deja en base, sans toucher aux autres colonnes (tool_ids compris) ; from_fork
+// et body_sections inconnus (NULL) gardent la valeur connue. 0 ligne : PR absente.
+func (q *Queries) SetPullRequestConventions(ctx context.Context, arg SetPullRequestConventionsParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, setPullRequestConventions,
+		arg.MergeCommitSha,
+		arg.FromFork,
+		arg.BodySections,
+		arg.RepoID,
+		arg.Number,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const upsertPullRequest = `-- name: UpsertPullRequest :exec
 INSERT INTO pull_requests (repo_id, number, title, state, merged, draft, author_login, author_provider_id,
-                           url, base_branch, head_branch, created_at, updated_at, closed_at, merged_at, tool_ids)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                           url, base_branch, head_branch, created_at, updated_at, closed_at, merged_at, tool_ids,
+                           merge_commit_sha, from_fork, body_sections)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT (repo_id, number) DO UPDATE SET
     title = excluded.title,
     state = excluded.state,
@@ -533,7 +582,10 @@ ON CONFLICT (repo_id, number) DO UPDATE SET
     updated_at = excluded.updated_at,
     closed_at = excluded.closed_at,
     merged_at = excluded.merged_at,
-    tool_ids = excluded.tool_ids
+    tool_ids = excluded.tool_ids,
+    merge_commit_sha = excluded.merge_commit_sha,
+    from_fork = COALESCE(excluded.from_fork, pull_requests.from_fork),
+    body_sections = COALESCE(excluded.body_sections, pull_requests.body_sections)
 `
 
 type UpsertPullRequestParams struct {
@@ -553,9 +605,13 @@ type UpsertPullRequestParams struct {
 	ClosedAt         sql.NullString
 	MergedAt         sql.NullString
 	ToolIds          string
+	MergeCommitSha   sql.NullString
+	FromFork         sql.NullInt64
+	BodySections     sql.NullInt64
 }
 
-// Cree la pull request (repo_id, number) ou la met a jour en entier.
+// Cree la pull request (repo_id, number) ou la met a jour en entier. merge_commit_sha est remplace
+// (NULL : non fusionnee) ; from_fork et body_sections inconnus (NULL) gardent la valeur connue.
 func (q *Queries) UpsertPullRequest(ctx context.Context, arg UpsertPullRequestParams) error {
 	_, err := q.db.ExecContext(ctx, upsertPullRequest,
 		arg.RepoID,
@@ -574,6 +630,9 @@ func (q *Queries) UpsertPullRequest(ctx context.Context, arg UpsertPullRequestPa
 		arg.ClosedAt,
 		arg.MergedAt,
 		arg.ToolIds,
+		arg.MergeCommitSha,
+		arg.FromFork,
+		arg.BodySections,
 	)
 	return err
 }

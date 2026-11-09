@@ -222,7 +222,7 @@ func TestEndToEnd(t *testing.T) {
 		"File criteria (CHANGELOG, README, documentation, tooling): unknown (")
 	t.Setenv("WATCHOO_CONVENTIONS_SINCE", "2020-01-01")
 	convReview := h.run("conventions", "--milestone", "v1.0.0").mustSucceed(t).stdout
-	assertContains(t, "conventions --milestone", convReview, "Milestone review v1.0.0", "Alice Martin: 0/12 criteria conform", "CL9  unknown (")
+	assertContains(t, "conventions --milestone", convReview, "Milestone review v1.0.0", "Alice Martin: 0/13 criteria conform", "CL9  unknown (")
 	convReviewJSON := h.run("conventions", "--milestone", "v1.0.0", "--json").mustSucceed(t).stdout
 	t.Setenv("WATCHOO_CONVENTIONS_SINCE", "")
 	// Neither a commit message nor a pull request title, whatever the options.

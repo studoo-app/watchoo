@@ -1,8 +1,10 @@
 -- name: UpsertPullRequest :exec
--- Cree la pull request (repo_id, number) ou la met a jour en entier.
+-- Cree la pull request (repo_id, number) ou la met a jour en entier. merge_commit_sha est remplace
+-- (NULL : non fusionnee) ; from_fork et body_sections inconnus (NULL) gardent la valeur connue.
 INSERT INTO pull_requests (repo_id, number, title, state, merged, draft, author_login, author_provider_id,
-                           url, base_branch, head_branch, created_at, updated_at, closed_at, merged_at, tool_ids)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                           url, base_branch, head_branch, created_at, updated_at, closed_at, merged_at, tool_ids,
+                           merge_commit_sha, from_fork, body_sections)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT (repo_id, number) DO UPDATE SET
     title = excluded.title,
     state = excluded.state,
@@ -17,7 +19,20 @@ ON CONFLICT (repo_id, number) DO UPDATE SET
     updated_at = excluded.updated_at,
     closed_at = excluded.closed_at,
     merged_at = excluded.merged_at,
-    tool_ids = excluded.tool_ids;
+    tool_ids = excluded.tool_ids,
+    merge_commit_sha = excluded.merge_commit_sha,
+    from_fork = COALESCE(excluded.from_fork, pull_requests.from_fork),
+    body_sections = COALESCE(excluded.body_sections, pull_requests.body_sections);
+
+-- name: SetPullRequestConventions :execrows
+-- Relecture complete des PR (phase 8.5) : ecrit le commit de fusion, l'origine (fork) et le masque des
+-- sections du corps d'une PR deja en base, sans toucher aux autres colonnes (tool_ids compris) ; from_fork
+-- et body_sections inconnus (NULL) gardent la valeur connue. 0 ligne : PR absente.
+UPDATE pull_requests
+SET merge_commit_sha = sqlc.narg(merge_commit_sha),
+    from_fork = COALESCE(sqlc.narg(from_fork), from_fork),
+    body_sections = COALESCE(sqlc.narg(body_sections), body_sections)
+WHERE repo_id = sqlc.arg(repo_id) AND number = sqlc.arg(number);
 
 -- name: MaxPullRequestUpdatedAt :one
 -- Date de modification la plus recente des pull requests du depot (chaine vide si aucune).
@@ -30,6 +45,7 @@ WHERE repo_id = ?;
 -- row_limit negatif = pas de limite.
 SELECT p.repo_id, p.number, p.title, p.state, p.merged, p.draft, p.author_login, p.author_provider_id,
        p.url, p.base_branch, p.head_branch, p.created_at, p.updated_at, p.closed_at, p.merged_at, p.tool_ids,
+       p.merge_commit_sha, p.from_fork, p.body_sections,
        r.owner AS repo_owner, r.name AS repo_name, r.label AS repo_label
 FROM pull_requests p
 JOIN repositories r ON r.id = p.repo_id
@@ -119,10 +135,12 @@ LIMIT sqlc.arg(row_limit);
 
 -- name: ListConventionPullRequests :many
 -- Pull requests du depot pour les conventions (phase 8.2), numero decroissant : titre (lu en memoire
--- seulement, jamais garde), etat, brouillon, auteur et branche de tete ; author_id = contributeur du
+-- seulement, jamais garde), etat, brouillon, auteur et branche de tete, commit de fusion, origine (fork)
+-- et masque des sections du corps (phase 8.5) ; author_id = contributeur du
 -- meme compte de forge (0 si aucun).
 SELECT p.repo_id, p.number, p.title, p.state, p.merged, p.draft, p.author_login, p.author_provider_id,
        p.url, p.base_branch, p.head_branch, p.created_at, p.updated_at, p.closed_at, p.merged_at, p.tool_ids,
+       p.merge_commit_sha, p.from_fork, p.body_sections,
        CAST(COALESCE(c.id, 0) AS INTEGER) AS author_id,
        CAST(COALESCE(c.name, '') AS TEXT) AS author_name
 FROM pull_requests p

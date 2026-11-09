@@ -205,12 +205,24 @@ SELECT cs.repo_id, cs.sha, c.author_id, cs.authored_at, cs.files_kept, cs.files_
        r.owner AS repo_owner, r.name AS repo_name, r.label AS repo_label,
        CAST(COALESCE(a.name, '') AS TEXT) AS author_name,
        CAST(COALESCE(a.provider_login, '') AS TEXT) AS author_login,
-       CAST(CASE WHEN c.committer_id IS NOT NULL AND (
+       CAST(CASE WHEN (c.committer_id IS NOT NULL AND (
+                EXISTS (SELECT 1 FROM contributors k
+                        WHERE k.id = c.committer_id AND k.provider_login = ?1 COLLATE NOCASE)
+             OR EXISTS (SELECT 1 FROM contributor_emails e
+                        WHERE e.contributor_id = c.committer_id AND e.email = ?2)))
+             OR EXISTS (SELECT 1 FROM pull_requests p
+                        WHERE p.repo_id = cs.repo_id AND p.merged = 1 AND p.merge_commit_sha = cs.sha)
+            THEN c.message ELSE '' END AS TEXT) AS squash_message,
+       CAST(COALESCE((SELECT MIN(p.number) FROM pull_requests p
+                      WHERE p.repo_id = cs.repo_id AND p.merged = 1 AND p.merge_commit_sha = cs.sha), 0)
+            AS INTEGER) AS merge_pr_number,
+       CAST(COALESCE(c.parent_count, -1) AS INTEGER) AS parent_count,
+       CAST(c.committer_id IS NOT NULL AND (
                 EXISTS (SELECT 1 FROM contributors k
                         WHERE k.id = c.committer_id AND k.provider_login = ?1 COLLATE NOCASE)
              OR EXISTS (SELECT 1 FROM contributor_emails e
                         WHERE e.contributor_id = c.committer_id AND e.email = ?2))
-            THEN c.message ELSE '' END AS TEXT) AS squash_message,
+            AS BOOLEAN) AS github_committer,
        CAST(COALESCE(r.conventions_since, '') AS TEXT) AS conventions_since
 FROM commit_signals cs
 JOIN commits c ON c.repo_id = cs.repo_id AND c.sha = cs.sha
@@ -265,6 +277,9 @@ type ListCommitSignalViewsRow struct {
 	AuthorName          string
 	AuthorLogin         string
 	SquashMessage       string
+	MergePrNumber       int64
+	ParentCount         int64
+	GithubCommitter     bool
 	ConventionsSince    string
 }
 
@@ -274,6 +289,10 @@ type ListCommitSignalViewsRow struct {
 // commit quand son committer est GitHub (login github_login ou adresse github_email, parametres tires de
 // aisignature), vide sinon ; il sert seulement a reperer un squash en memoire (sujet termine par (#n)) et
 // n'est jamais conserve. conventions_since est la date de debut propre au depot (vide = celle de l'espace).
+// Phase 8.5 : squash_message est aussi renseigne pour le merge_commit_sha d'une PR fusionnee
+// (merge_pr_number, son numero ; 0 sinon), avec le nombre de parents du commit (parent_count, -1 si
+// inconnu) et github_committer (committer GitHub reconnu) : un squash est alors reconnu meme sans committer
+// GitHub identifie.
 func (q *Queries) ListCommitSignalViews(ctx context.Context, arg ListCommitSignalViewsParams) ([]ListCommitSignalViewsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listCommitSignalViews, arg.GithubLogin, arg.GithubEmail, arg.RepoID)
 	if err != nil {
@@ -322,6 +341,9 @@ func (q *Queries) ListCommitSignalViews(ctx context.Context, arg ListCommitSigna
 			&i.AuthorName,
 			&i.AuthorLogin,
 			&i.SquashMessage,
+			&i.MergePrNumber,
+			&i.ParentCount,
+			&i.GithubCommitter,
 			&i.ConventionsSince,
 		); err != nil {
 			return nil, err

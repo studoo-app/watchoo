@@ -27,8 +27,9 @@ const (
 // PRSkipBeforeSince sort de PR1 et PR2 une pull request ouverte avant la date de début.
 const PRSkipBeforeSince = "before_since"
 
-// AllPRSkips liste les motifs qui sortent une pull request de PR1 et PR2, dans leur ordre d'affichage.
-var AllPRSkips = []string{PRSkipClosed, PRSkipDraft, PRSkipBot, PRSkipBeforeSince}
+// AllPRSkips liste les motifs qui sortent une pull request de PR1, PR2, PR5 et PR6, dans leur ordre
+// d'affichage.
+var AllPRSkips = []string{PRSkipClosed, PRSkipDraft, PRSkipBot, PRSkipFork, PRSkipBeforeSince}
 
 // buildEnv regroupe ce que Build prépare une fois pour tous les dépôts.
 type buildEnv struct {
@@ -67,6 +68,10 @@ type BranchReport struct {
 	Conform  int          // noms sans écart bloquant (« à revoir » compris)
 	Review   int          // noms conformes à revoir (single_segment)
 	Branches []BranchLine // par nom
+	// Phase 8.5 : BR2, branches de tête (hors forks) dont plus d'une PR a été fusionnée vers la branche par
+	// défaut ; ReusedKnown est faux sans PR de l'API (clone seul, dépôt jamais vu par l'API).
+	ReusedKnown bool
+	Reused      []ReusedBranch // par nom ; vide non nil si aucune
 }
 
 // BranchTally compte les branches d'un contributeur (BR1, par l'auteur de la PR).
@@ -84,12 +89,18 @@ func (t *BranchTally) add(r BranchResult) {
 	}
 }
 
-// PRCount compte des pull requests évaluées : titres conventionnels (PR1) et titres par défaut ou
-// interdits (PR2).
+// PRCount compte des pull requests évaluées : titres conventionnels (PR1), titres par défaut ou
+// interdits (PR2), corps structuré (PR5) et, pour les fusionnées, méthode de fusion (PR6).
 type PRCount struct {
 	Evaluated int
 	Conform   int // PR1
 	Default   int // PR2
+	// Phase 8.5.
+	BodyKnown    int // PR5 : corps lu (masque connu)
+	BodyConform  int // PR5 : sections attendues présentes et, si exigé, mot-clé de fermeture
+	MergeKnown   int // PR6 (fusionnées) : méthode de fusion déterminée
+	Squash       int // PR6 : fusionnées en squash
+	MergeConform int // PR6 : squash et message du commit conforme
 }
 
 // PRTally compte à part les PR ouvertes et fusionnées.
@@ -109,6 +120,21 @@ func (t *PRTally) add(p PullLine) {
 	if len(p.Default) > 0 {
 		c.Default++
 	}
+	if p.Body.Known {
+		c.BodyKnown++
+		if p.Body.Conform {
+			c.BodyConform++
+		}
+	}
+	if p.Merge.Method != "" && p.Merge.Known() {
+		c.MergeKnown++
+		if p.Merge.Method == MergeMethodSquash {
+			c.Squash++
+		}
+		if p.Merge.Conform {
+			c.MergeConform++
+		}
+	}
 }
 
 // PullLine est une pull request évaluée, sans son titre : numéro, auteur, branche de tête et codes.
@@ -122,15 +148,21 @@ type PullLine struct {
 	Codes       []string // PR1 : codes CC2 de l'en-tête
 	Default     []string // PR2 : codes d'AllPRTitleCodes ; vide non nil si aucun
 	Conform     bool     // PR1 : aucun écart bloquant
+	// Phase 8.5.
+	Body  PRBodyResult // PR5 : sections du corps et mot-clé de fermeture (Known faux : masque inconnu)
+	Merge MergeResult  // PR6 : méthode de fusion d'une PR fusionnée ; Method vide pour une PR ouverte
 }
 
-// PullReport est PR1 et PR2 d'un dépôt. Mesuré seulement si la base suit les PR par l'API.
+// PullReport est PR1, PR2, PR5 et PR6 d'un dépôt. Mesuré seulement si la base suit les PR par l'API.
 type PullReport struct {
 	Known  bool
 	Reason string // UnknownNoAPI si inconnu
 	PRTally
 	Skipped map[string]int // PR hors évaluation par motif (toutes les clés d'AllPRSkips)
 	Pulls   []PullLine     // PR évaluées, numéro décroissant
+	// Methods compte les PR fusionnées évaluées par méthode de fusion (PR6, toutes les clés
+	// d'AllMergeMethods).
+	Methods map[string]int
 }
 
 // TagReport est SV1, SV2 et SV6 d'un dépôt.
@@ -188,12 +220,26 @@ func buildExtras(ctx context.Context, r Reader, clones CloneReader, repo model.R
 		return err
 	}
 	mine := pullsOf(pulls, authorIDs)
-	rep.Pulls = buildPulls(mine, pullsKnown(repo, opts), rep.Since, env.parser)
+	commits, err := commitIndex(ctx, r, repo, rows, authorIDs != nil, mine)
+	if err != nil {
+		return err
+	}
+	rep.Pulls = buildPulls(mine, pullsKnown(repo, opts), rep.Since, env.parser, opts.PRBody, commits)
 	if rep.Branches, err = buildBranches(ctx, r, clones, repo, pulls, env.branches); err != nil {
 		return err
 	}
 	if authorIDs != nil {
 		rep.Branches = branchesOf(rep.Branches, authorIDs, mine)
+	}
+	rep.Branches.Reused = []ReusedBranch{}
+	if pullsKnown(repo, opts) {
+		rep.Branches.ReusedKnown = true
+		rep.Branches.Reused = ReusedBranches(mine, repo.DefaultBranch)
+	}
+	rep.MergeMethods = buildMergeMethods(repo, opts)
+	if rep.Arrivals, err = buildArrivals(ctx, clones, repo, authorIDs, pulls, commits, arrivalRange{since: rep.Since},
+		opts); err != nil {
+		return err
 	}
 	tags, err := r.ConventionTags(ctx, repo.ID)
 	if err != nil {
@@ -231,7 +277,7 @@ func pullsOf(pulls []model.ConventionPullRequest, authorIDs []int64) []model.Con
 // et celles des autres auteurs sont écartées. Une ligne gardée ne cite que les auteurs du filtre et
 // leurs PR (mine).
 func branchesOf(b BranchReport, authorIDs []int64, mine []model.ConventionPullRequest) BranchReport {
-	out := BranchReport{Source: b.Source, Branches: []BranchLine{}}
+	out := BranchReport{Source: b.Source, Branches: []BranchLine{}, ReusedKnown: b.ReusedKnown, Reused: b.Reused}
 	numbers := map[int]bool{}
 	for _, pr := range mine {
 		numbers[pr.Number] = true
@@ -274,11 +320,16 @@ func readPulls(ctx context.Context, r Reader, repo model.Repository, opts BuildO
 	return r.ConventionPullRequests(ctx, repo.ID)
 }
 
-// buildPulls calcule PR1 et PR2. Le titre n'est lu qu'ici, en mémoire.
-func buildPulls(pulls []model.ConventionPullRequest, known bool, since time.Time, p *Parser) PullReport {
-	out := PullReport{Known: known, Skipped: map[string]int{}, Pulls: []PullLine{}}
+// buildPulls calcule PR1, PR2, PR5 et PR6. Le titre et le message du commit de fusion ne sont lus qu'ici,
+// en mémoire ; le corps n'est connu que par son masque. commits donne les commits en base par SHA (PR6).
+func buildPulls(pulls []model.ConventionPullRequest, known bool, since time.Time, p *Parser, body PRBodyRules,
+	commits map[string]model.ConventionCommit) PullReport {
+	out := PullReport{Known: known, Skipped: map[string]int{}, Pulls: []PullLine{}, Methods: map[string]int{}}
 	for _, s := range AllPRSkips {
 		out.Skipped[s] = 0
+	}
+	for _, m := range AllMergeMethods {
+		out.Methods[m] = 0
 	}
 	if !known {
 		out.Reason = UnknownNoAPI
@@ -297,7 +348,15 @@ func buildPulls(pulls []model.ConventionPullRequest, known bool, since time.Time
 		line := PullLine{
 			Number: pr.Number, Category: cat, AuthorID: pr.AuthorID, AuthorName: pr.AuthorName,
 			AuthorLogin: pr.AuthorLogin, HeadBranch: pr.HeadBranch, Codes: res.Codes, Default: res.Default,
-			Conform: res.Conform(),
+			Conform: res.Conform(), Body: EvalPRBody(pr.BodySections, body),
+		}
+		if cat == PRCategoryMerged {
+			var c *model.ConventionCommit
+			if row, ok := commits[pr.MergeCommitSHA]; ok && pr.MergeCommitSHA != "" {
+				c = &row
+			}
+			line.Merge = ClassifyMerge(pr.Number, c, p)
+			out.Methods[line.Merge.Method]++
 		}
 		out.add(line)
 		out.Pulls = append(out.Pulls, line)
@@ -307,7 +366,8 @@ func buildPulls(pulls []model.ConventionPullRequest, known bool, since time.Time
 }
 
 // buildBranches calcule BR1 : branches du distant lues dans le clone (sans clone ou clone illisible :
-// branches suivies en base) et branches de tête des PR (hors bots), chaque nom une fois.
+// branches suivies en base) et branches de tête des PR (hors bots et, phase 8.5, hors forks), chaque nom
+// une fois.
 func buildBranches(ctx context.Context, r Reader, clones CloneReader, repo model.Repository,
 	pulls []model.ConventionPullRequest, bc *BranchChecker) (BranchReport, error) {
 	out := BranchReport{Source: SourceDatabase, Branches: []BranchLine{}}
@@ -344,8 +404,8 @@ func buildBranches(ctx context.Context, r Reader, clones CloneReader, repo model
 	prs := map[string][]int{}
 	authors := map[string][]who{}
 	for _, pr := range pulls {
-		if pr.HeadBranch == "" || aisignature.IsBot(pr.AuthorLogin) {
-			continue
+		if pr.HeadBranch == "" || aisignature.IsBot(pr.AuthorLogin) || IsFork(pr.PullRequest) {
+			continue // une branche de fork n'est pas une branche du dépôt (phase 8.5)
 		}
 		names = append(names, pr.HeadBranch)
 		prs[pr.HeadBranch] = append(prs[pr.HeadBranch], pr.Number)

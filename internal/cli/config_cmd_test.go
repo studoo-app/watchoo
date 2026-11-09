@@ -75,10 +75,11 @@ func TestConfigExport(t *testing.T) {
 	}
 	assertJSONKeys(t, r.stdout, "", jsonTopLevelKeys["config export"]...)
 	assertJSONKeys(t, r.stdout, "settings", "sync", "activity", "branches", "timezone", "lang", "conventions")
-	assertJSONKeys(t, r.stdout, "settings.conventions", "since", "commit", "branch", "tags", "changelog", "readme", "docs")
+	assertJSONKeys(t, r.stdout, "settings.conventions", "since", "commit", "branch", "pr", "tags", "changelog", "readme", "docs")
 	assertJSONKeys(t, r.stdout, "settings.conventions.commit", "types", "scopes", "max_subject_soft",
 		"max_subject_hard", "forbidden", "language")
 	assertJSONKeys(t, r.stdout, "settings.conventions.branch", "pattern", "exclude")
+	assertJSONKeys(t, r.stdout, "settings.conventions.pr", "body_sections", "require_closes")
 	assertJSONKeys(t, r.stdout, "settings.conventions.tags", "milestones", "prerelease_forms")
 	assertJSONKeys(t, r.stdout, "settings.conventions.changelog", "categories_fr")
 	assertJSONKeys(t, r.stdout, "settings.conventions.readme", "sections", "min_words")
@@ -102,7 +103,7 @@ func TestConfigExport(t *testing.T) {
 
 	// -o: file in 0600, confirmation line.
 	r = h.run("config", "export", "-o", "licence.json").mustSucceed(t)
-	if r.stdout != "Configuration exported to licence.json: 2 repositories, 25 settings.\n" {
+	if r.stdout != "Configuration exported to licence.json: 2 repositories, 27 settings.\n" {
 		t.Errorf("export -o = %q", r.stdout)
 	}
 	out := filepath.Join(h.cwd, "licence.json")
@@ -194,7 +195,7 @@ func TestConfigImportRoundTrip(t *testing.T) {
 	// New run: nothing to change, no question (even outside a terminal, without --yes).
 	r = b.run("config", "import", "licence.json").mustSucceed(t)
 	assertContains(t, "new run", r.stdout, "  unchanged          3\n", "Nothing to change: the workspace is already up to date.\n",
-		"  already tracked    3\n", "unchanged (25 settings, identical to those of the workspace)\n",
+		"  already tracked    3\n", "unchanged (27 settings, identical to those of the workspace)\n",
 		"! the WATCHOO_TIMEZONE variable is set: it overrides timezone (config.yaml already contains the imported value")
 	assertNotContains(t, "new run", r.stderr, "Apply")
 	if readFile(t, configPath(b)) != written || readFile(t, bak) != configBefore {

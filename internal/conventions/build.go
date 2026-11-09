@@ -1,6 +1,6 @@
 package conventions
 
-// Lecture et rapport des conventions (phases 8.1 à 8.4) : Build lit les commits, pull requests, tags et
+// Lecture et rapport des conventions (phases 8.1 à 8.5) : Build lit les commits, pull requests, tags et
 // releases d'un dépôt dans la base (Reader, implémenté par *store.Store) et, quand le clone Git local
 // existe, le périmètre précis des commits, les branches du distant et les intervalles entre tags
 // (CloneReader, implémenté par le provider des clones, lu sans mise à jour), puis calcule les indicateurs.
@@ -95,6 +95,7 @@ type BuildOptions struct {
 	PrereleaseForms  []string       // conventions.tags.prerelease_forms (SV4) ; vide : DefaultPrereleaseForms
 	Language         string         // conventions.commit.language : fr, en ou any (CC7, information)
 	Files            FileRules      // conventions.changelog.*, readme.* et docs.* (CL, RD, DOC, phase 8.3)
+	PRBody           PRBodyRules    // conventions.pr.* (PR5, phase 8.5)
 	// LocalOnly indique un espace synchronisé sans l'API (clone seul) : les pull requests et releases en
 	// base ne sont plus mises à jour, PR1, PR2 et SV6 sont « inconnus ».
 	LocalOnly bool
@@ -159,6 +160,10 @@ type RepoReport struct {
 	Bumps       BumpReport         // SV5 : saut de version cohérent avec les commits
 	Precedence  PrecedenceReport   // SV7 : précédence et historique
 	Freshness   ChangelogFreshness // CL10 : fraîcheur du CHANGELOG (information)
+
+	// Phase 8.5 (PR5 et PR6 : Pulls ; BR2 : Branches.Reused).
+	Arrivals     ArrivalReport      // PR3 : commits arrivés sur la branche par défaut hors PR
+	MergeMethods MergeMethodsReport // BR5 : méthodes de fusion autorisées
 }
 
 // ContributorReport est le taux CC3 d'un contributeur, tous dépôts du rapport confondus.
@@ -171,8 +176,11 @@ type ContributorReport struct {
 	// Phase 8.2.
 	Traits   TraitsTally // CC5 à CC7 de ses commits évalués (CC6 par contributeur)
 	Trend    Trend       // CC3 avant et depuis le dernier tag final de chaque dépôt
-	Pulls    PRTally     // PR1 et PR2 des PR dont il est l'auteur (rapprochées par le compte de forge)
+	Pulls    PRTally     // PR1, PR2, PR5 et PR6 des PR dont il est l'auteur (rapprochées par le compte de forge)
 	Branches BranchTally // BR1 des branches de tête de ses PR
+
+	// Phase 8.5.
+	Arrivals ArrivalTally // PR3 : commits du premier parent de la branche par défaut dont il est l'auteur
 }
 
 // Trend est la tendance de CC3 : deux taux, avant et depuis le dernier tag final de chaque dépôt, sans
@@ -267,6 +275,11 @@ func Build(ctx context.Context, r Reader, clones CloneReader, f Filter, opts Bui
 				if allowed(id) {
 					author(id, b.AuthorNames[i], b.AuthorLogins[i]).Branches.add(b.BranchResult)
 				}
+			}
+		}
+		for _, l := range rep.Arrivals.Lines {
+			if allowed(l.AuthorID) {
+				author(l.AuthorID, l.AuthorName, l.AuthorLogin).Arrivals.add(l)
 			}
 		}
 		out.Repos = append(out.Repos, rep)

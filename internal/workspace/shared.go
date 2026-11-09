@@ -46,6 +46,8 @@ const (
 	KeyConventionsLanguage        = "conventions.commit.language"
 	KeyConventionsBranchPattern   = "conventions.branch.pattern"
 	KeyConventionsBranchExclude   = "conventions.branch.exclude"
+	KeyConventionsPRBodySections  = "conventions.pr.body_sections"
+	KeyConventionsPRRequireCloses = "conventions.pr.require_closes"
 	KeyConventionsMilestones      = "conventions.tags.milestones"
 	KeyConventionsPrereleaseForms = "conventions.tags.prerelease_forms"
 	KeyConventionsCategoriesFR    = "conventions.changelog.categories_fr"
@@ -64,8 +66,9 @@ var SharedKeys = []string{
 	KeyConventionsSince, KeyConventionsTypes, KeyConventionsScopes,
 	KeyConventionsMaxSubjectSoft, KeyConventionsMaxSubjectHard,
 	KeyConventionsForbidden, KeyConventionsLanguage,
-	KeyConventionsBranchPattern, KeyConventionsBranchExclude, KeyConventionsMilestones,
-	KeyConventionsPrereleaseForms,
+	KeyConventionsBranchPattern, KeyConventionsBranchExclude,
+	KeyConventionsPRBodySections, KeyConventionsPRRequireCloses,
+	KeyConventionsMilestones, KeyConventionsPrereleaseForms,
 	KeyConventionsCategoriesFR, KeyConventionsReadmeSections, KeyConventionsReadmeMinWords,
 	KeyConventionsDocsDir, KeyConventionsDocsMediaDir, KeyConventionsArchivesScope,
 }
@@ -91,6 +94,8 @@ type SharedSettings struct {
 	ConventionsLanguage        *string   // « fr », « en » ou « any »
 	ConventionsBranchPattern   *string   // "" = règle intégrée ; sinon RE2
 	ConventionsBranchExclude   *[]string // liste vide = aucune branche exclue (hors branche par défaut)
+	ConventionsPRBodySections  *[]string // sections attendues du corps de PR (PR5) ; vide = aucune
+	ConventionsPRRequireCloses *bool     // mot-clé de fermeture exigé dans le corps de PR (PR5)
 	ConventionsMilestones      *[]string // « vX.Y.Z » ou « vX.Y.Z@AAAA-MM-JJ » ; vide = aucun jalon
 	ConventionsPrereleaseForms *[]string // formes de pré-version conformes (SV4) ; au moins une
 	ConventionsCategoriesFR    *bool     // libellés français du CHANGELOG admis (avertissement)
@@ -119,6 +124,7 @@ func SharedSettingsFrom(c Config) SharedSettings {
 	scopes := cloneList(c.Conventions.Commit.Scopes)
 	forbidden := cloneList(c.Conventions.Commit.Forbidden)
 	branchExclude := cloneList(c.Conventions.Branch.Exclude)
+	prSections := cloneList(c.Conventions.PR.BodySections)
 	milestones := cloneList(c.Conventions.Tags.Milestones)
 	forms := cloneList(c.Conventions.Tags.PrereleaseForms)
 	sections := cloneList(c.Conventions.Readme.Sections)
@@ -141,6 +147,8 @@ func SharedSettingsFrom(c Config) SharedSettings {
 		ConventionsLanguage:        &c.Conventions.Commit.Language,
 		ConventionsBranchPattern:   &c.Conventions.Branch.Pattern,
 		ConventionsBranchExclude:   &branchExclude,
+		ConventionsPRBodySections:  &prSections,
+		ConventionsPRRequireCloses: &c.Conventions.PR.RequireCloses,
 		ConventionsMilestones:      &milestones,
 		ConventionsPrereleaseForms: &forms,
 		ConventionsCategoriesFR:    &c.Conventions.Changelog.CategoriesFR,
@@ -206,6 +214,12 @@ func (s SharedSettings) Values() map[string]any {
 	}
 	if s.ConventionsBranchExclude != nil {
 		out[KeyConventionsBranchExclude] = cloneList(*s.ConventionsBranchExclude)
+	}
+	if s.ConventionsPRBodySections != nil {
+		out[KeyConventionsPRBodySections] = cloneList(*s.ConventionsPRBodySections)
+	}
+	if s.ConventionsPRRequireCloses != nil {
+		out[KeyConventionsPRRequireCloses] = *s.ConventionsPRRequireCloses
 	}
 	if s.ConventionsMilestones != nil {
 		out[KeyConventionsMilestones] = cloneList(*s.ConventionsMilestones)
@@ -306,6 +320,12 @@ func (s SharedSettings) ApplyTo(c Config) Config {
 	if s.ConventionsBranchExclude != nil {
 		out.Conventions.Branch.Exclude = cloneList(*s.ConventionsBranchExclude)
 	}
+	if s.ConventionsPRBodySections != nil {
+		out.Conventions.PR.BodySections = cloneList(*s.ConventionsPRBodySections)
+	}
+	if s.ConventionsPRRequireCloses != nil {
+		out.Conventions.PR.RequireCloses = *s.ConventionsPRRequireCloses
+	}
 	if s.ConventionsMilestones != nil {
 		out.Conventions.Tags.Milestones = cloneList(*s.ConventionsMilestones)
 	}
@@ -344,6 +364,7 @@ func cloneLists(c Config) Config {
 	out.Conventions.Commit.Scopes = slices.Clone(c.Conventions.Commit.Scopes)
 	out.Conventions.Commit.Forbidden = slices.Clone(c.Conventions.Commit.Forbidden)
 	out.Conventions.Branch.Exclude = slices.Clone(c.Conventions.Branch.Exclude)
+	out.Conventions.PR.BodySections = slices.Clone(c.Conventions.PR.BodySections)
 	out.Conventions.Tags.Milestones = slices.Clone(c.Conventions.Tags.Milestones)
 	out.Conventions.Tags.PrereleaseForms = slices.Clone(c.Conventions.Tags.PrereleaseForms)
 	out.Conventions.Readme.Sections = slices.Clone(c.Conventions.Readme.Sections)

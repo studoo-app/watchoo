@@ -10,7 +10,7 @@ migration `00005` (0.5.0) adds `contributors.profile_url` and the migration `000
 `commits.stats_known`; the migration `00007` (1.1.0) adds `repository_languages`; the migration `00008` (1.2.0)
 adds `commits.ai_rules_version` and the `commit_ai_signatures` table; the migration `00009` (1.2.0) adds
 `commits.languages_version` and the `commit_languages` table, i.e. **thirteen tables**; the migration `00010` (1.3.0)
-adds `sync_runs.warnings`. The migration `00011` (phase 7.1) adds `commit_signals`, the migration `00012` (phase 7.2) `pull_requests.tool_ids` and `repository_signals`, the migration `00013` (phase 7.4) `diagnostic_reviews`, i.e. **sixteen tables**, the migration `00014` (phase 7.5) the form columns of `commit_signals`, and the migration `00015` (phase 7.7) its measures of the absolute signals and counter-indicators (see [Supervision and diagnosis](12-supervision-diagnostic.md)). The migration `00016` (phase 8.1) adds `commits.parent_count` and `repositories.conventions_since` (see [Project conventions](13-conventions.md) and [Migration `00016`](#migration-00016-project-conventions)), the migration `00017` (phase 8.3) the cache `repository_conventions` of the file criteria of the conventions (see [Migration `00017`](#migration-00017-cache-of-the-file-criteria)), then the migrations `00018` and `00019` (phase 8.4) the history of the tags `tag_observations` and the observed rewrites of the default branch `branch_rewrites`, i.e. **nineteen tables** (see [Migrations `00018` and `00019`](#migrations-00018-and-00019-history-of-the-tags-and-of-the-default-branch)). The storage is a SQLite file versioned by `goose` migrations, with **one
+adds `sync_runs.warnings`. The migration `00011` (phase 7.1) adds `commit_signals`, the migration `00012` (phase 7.2) `pull_requests.tool_ids` and `repository_signals`, the migration `00013` (phase 7.4) `diagnostic_reviews`, i.e. **sixteen tables**, the migration `00014` (phase 7.5) the form columns of `commit_signals`, and the migration `00015` (phase 7.7) its measures of the absolute signals and counter-indicators (see [Supervision and diagnosis](12-supervision-diagnostic.md)). The migration `00016` (phase 8.1) adds `commits.parent_count` and `repositories.conventions_since` (see [Project conventions](13-conventions.md) and [Migration `00016`](#migration-00016-project-conventions)), the migration `00017` (phase 8.3) the cache `repository_conventions` of the file criteria of the conventions (see [Migration `00017`](#migration-00017-cache-of-the-file-criteria)), then the migrations `00018` and `00019` (phase 8.4) the history of the tags `tag_observations` and the observed rewrites of the default branch `branch_rewrites`, i.e. **nineteen tables** (see [Migrations `00018` and `00019`](#migrations-00018-and-00019-history-of-the-tags-and-of-the-default-branch)); the migration `00020` (phase 8.5) only adds columns to `pull_requests` and `repositories` (see [Migration `00020`](#migration-00020-merges-and-pull-request-bodies)). The storage is a SQLite file versioned by `goose` migrations, with **one
 database per workspace** (`.watchoo/watchoo.db`, see [Workspaces](10-workspaces.md)). The tables
 therefore do not know the notion of workspace: two workspaces never share data.
 
@@ -68,6 +68,8 @@ unique.
 | enabled | Actively tracked, or stopped (`repo remove --keep-history`: history kept, no more sync; `repo add` reactivates it) |
 | branch_patterns | Branches to track (`--branch`, `branches` column of the import): names and `path.Match` patterns separated by commas (`main,dev,release/*`); empty = all the branches. Added by the migration `00002` |
 | conventions_since | Start date of the conventions for this repository (`repo add --conventions-since YYYY-MM-DD`, configuration sharing), stored in the fixed format at **midnight UTC** of the calendar date (`2026-09-01T00:00:00Z`, `CHECK`); empty = date of the workspace (`conventions.since`). Read as the calendar date, at midnight in the time zone of the workspace. Added by the migration `00016` (phase 8.1) |
+| allow_squash_merge, allow_merge_commit, allow_rebase_merge | Merge methods allowed on the forge (BR5, phase 8.5): `1` or `0`, read in the `GET /repos` the sync already makes; empty = unknown (GitHub only returns them to an account with the push right; always unknown in local clone mode). Rewritten at every sync through the API: empty again if the push right is lost. Added by the migration `00020` |
+| conventions_prs_version | Version of the pull request rules (`conventions.PRRulesVersion`) for which the full list of the pull requests of the repository was read again once (filling of `merge_commit_sha`, `from_fork` and `body_sections` for the PRs already in the database); empty = never. Added by the migration `00020` (phase 8.5) |
 
 ### `branches` — monitored branches
 
@@ -238,6 +240,9 @@ removed, except with its repository.
 | closed_at | Date of closing; empty if open |
 | merged_at | Date of merge; empty if not merged. A merged PR has `state = closed` and `merged_at` filled |
 | tool_ids | Diagnosis (phase 7.2, migration `00012`): tools declared in the description, encoded `D2:claude`, sorted, comma-separated; empty if none or not measured. The description is never kept; value cleared by the purge (`diagnostic.retention_days`, opening date) |
+| merge_commit_sha | Conventions (phase 8.5, migration `00020`): commit created by the merge (squash, merge commit or last rebased commit), filled only for a merged PR; empty = not merged or unknown |
+| from_fork | Conventions (phase 8.5, migration `00020`): `1` if the head repository differs from the base repository or was deleted, `0` otherwise; empty = unknown (PR read before the migration, or answer without the base repository) |
+| body_sections | Conventions (PR5, phase 8.5, migration `00020`): bit mask of the sections recognized in the description (context 1, changes 2, testing 4, screenshots 8) and of the closing keyword (16), computed in memory at the sync (`conventions.CheckPRBody`), even with the conventions disabled; empty = unknown. The description is never kept |
 
 - **Author**: kept as is (login and account ID), **without a link** to `contributors`: a
   contributor is the author of at least one commit, and an author of PRs without a commit must not
@@ -564,6 +569,24 @@ the conventions enabled, hence the wording "no rewrite observed since …".
 
 Rolling back (`Down`): each table is removed. A test (`internal/store/tag_history_test.go`) applies the
 migrations to a database at schema `00017`, checks the constraints, then the rollback.
+
+## Migration `00020`: merges and pull request bodies
+
+Phase 8.5 ([Project conventions](13-conventions.md)) adds, with `ALTER TABLE … ADD COLUMN` and without
+rebuilding any table, `pull_requests.merge_commit_sha`, `from_fork` and `body_sections`, and
+`repositories.allow_squash_merge`, `allow_merge_commit`, `allow_rebase_merge` and `conventions_prs_version`
+(see above); the number of tables does not change. Constraints (column `CHECK`): `merge_commit_sha` of 40 or
+64 lowercase hexadecimal characters, the booleans `0` or `1`, `body_sections >= 0`,
+`conventions_prs_version >= 1`; every column is nullable, `NULL` meaning unknown. The values come from the
+answers the sync already asks for (`GET /pulls`, `GET /repos`): no extra request in the regular course.
+The pull requests already in the database stay unknown until the single full read of the list of the PRs
+(conventions enabled, marker `conventions_prs_version` absent or lower than the rules version); at the
+writing of a PR read again, an unknown `from_fork` or `body_sections` keeps the known value, and the full
+read only writes these three columns (never `tool_ids`).
+
+Rolling back (`Down`): the seven columns are removed; the rows remain. A test
+(`internal/store/pull_conventions_test.go`) applies the migration to a database at schema `00019`, checks
+the unknown values and the constraints, then the rollback.
 
 ## Renames and login changes
 

@@ -40,8 +40,12 @@ const stopUpdatedBefore = "PR plus ancienne"
 // Conversion (toPullRequest) : Number = number ; Title = title ; State = state (« open » ou
 // « closed ») ; MergedAt = merged_at ; Merged = merged, ou merged_at non nul (la liste de l'API ne
 // donne pas le champ merged) ; Draft = draft ; Author = user.{login, id, avatar_url} ; URL = html_url ;
-// BaseBranch = base.ref ; HeadBranch = head.ref ; dates en UTC. Une PR sans numéro positif, d'état
-// inconnu ou sans updated_at → p.unexpected.
+// BaseBranch = base.ref ; HeadBranch = head.ref ; Body = body (lu en mémoire par la synchro, jamais
+// journalisé) ; MergeCommitSHA = merge_commit_sha, gardé seulement pour une PR fusionnée et un SHA
+// complet (GitHub le remplit aussi pour une PR ouverte : commit de fusion d'essai) ; FromFork (phase
+// 8.5) : base.repo absent → Unknown, head.repo null (fork supprimé) ou d'un autre id que base.repo →
+// True, sinon False ; dates en UTC. Une PR sans numéro positif, d'état inconnu ou sans updated_at →
+// p.unexpected.
 func (p *Provider) PullRequests(ctx context.Context, owner, name string, opts provider.PullRequestsOptions) ([]provider.PullRequest, error) {
 	if err := provider.ValidateRepo(owner, name); err != nil {
 		return nil, err
@@ -112,22 +116,46 @@ func toPullRequest(pr *gogithub.PullRequest) (provider.PullRequest, bool) {
 		return provider.PullRequest{}, false
 	}
 	mergedAt := utc(pr.GetMergedAt())
+	merged := pr.GetMerged() || !mergedAt.IsZero()
+	mergeSHA := ""
+	if sha := pr.GetMergeCommitSHA(); merged && provider.ValidateSHA(sha) == nil {
+		mergeSHA = sha
+	}
 	return provider.PullRequest{
-		Number:     pr.GetNumber(),
-		Title:      pr.GetTitle(),
-		State:      state,
-		Merged:     pr.GetMerged() || !mergedAt.IsZero(),
-		Draft:      pr.GetDraft(),
-		Author:     toAccount(pr.GetUser()),
-		URL:        pr.GetHTMLURL(),
-		BaseBranch: pr.GetBase().GetRef(),
-		HeadBranch: pr.GetHead().GetRef(),
-		Body:       pr.GetBody(),
-		CreatedAt:  utc(pr.GetCreatedAt()),
-		UpdatedAt:  utc(pr.GetUpdatedAt()),
-		ClosedAt:   utc(pr.GetClosedAt()),
-		MergedAt:   mergedAt,
+		Number:         pr.GetNumber(),
+		Title:          pr.GetTitle(),
+		State:          state,
+		Merged:         merged,
+		Draft:          pr.GetDraft(),
+		Author:         toAccount(pr.GetUser()),
+		URL:            pr.GetHTMLURL(),
+		BaseBranch:     pr.GetBase().GetRef(),
+		HeadBranch:     pr.GetHead().GetRef(),
+		Body:           pr.GetBody(),
+		MergeCommitSHA: mergeSHA,
+		FromFork:       fromFork(pr),
+		CreatedAt:      utc(pr.GetCreatedAt()),
+		UpdatedAt:      utc(pr.GetUpdatedAt()),
+		ClosedAt:       utc(pr.GetClosedAt()),
+		MergedAt:       mergedAt,
 	}, true
+}
+
+// fromFork dit si la PR vient d'un fork : Unknown sans dépôt de base identifié ; True si le dépôt de
+// tête est null (fork supprimé) ou d'un autre identifiant ; Unknown si son identifiant manque.
+func fromFork(pr *gogithub.PullRequest) provider.OptionalBool {
+	baseID := pr.GetBase().GetRepo().GetID()
+	if baseID <= 0 {
+		return provider.Unknown
+	}
+	head := pr.GetHead().GetRepo()
+	switch {
+	case head == nil:
+		return provider.True
+	case head.GetID() <= 0:
+		return provider.Unknown
+	}
+	return provider.KnownBool(head.GetID() != baseID)
 }
 
 // toAccount convertit le compte d'un auteur (nil : compte inconnu, valeur zéro).

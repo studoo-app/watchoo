@@ -179,6 +179,10 @@ func sharedKeysOf(doc *configshare.Document) []string {
 			add(br.Pattern != nil, workspace.KeyConventionsBranchPattern)
 			add(br.Exclude != nil, workspace.KeyConventionsBranchExclude)
 		}
+		if pr := c.PR; pr != nil {
+			add(pr.BodySections != nil, workspace.KeyConventionsPRBodySections)
+			add(pr.RequireCloses != nil, workspace.KeyConventionsPRRequireCloses)
+		}
 		if tg := c.Tags; tg != nil {
 			add(tg.Milestones != nil, workspace.KeyConventionsMilestones)
 			add(tg.PrereleaseForms != nil, workspace.KeyConventionsPrereleaseForms)

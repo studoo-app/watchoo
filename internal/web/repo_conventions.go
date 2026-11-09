@@ -84,6 +84,10 @@ type convPullRow struct {
 	AuthorID   int64  // contributeur ; 0 si aucun
 	HeadBranch string
 	Codes      []convCode // PR1 puis PR2
+	// Phase 8.5 : Body, pastille PR5 (sections et mot-clé de fermeture) ; Merge, pastille PR6 d'une PR
+	// fusionnée (nil si ouverte).
+	Body  convStatus
+	Merge *convStatus
 }
 
 // convTagRow est la pastille d'un tag (SV1).
@@ -121,16 +125,21 @@ type convIntervalRow struct {
 	Missing   int
 }
 
-// convPRCounts sont les titres de PR évalués d'un dépôt ou d'une personne, ouvertes et fusionnées à part.
+// convPRCounts sont les titres de PR évalués d'un dépôt ou d'une personne, ouvertes et fusionnées à part,
+// et (phase 8.5) leurs corps (PR5) et fusions en squash au message conforme (PR6).
 type convPRCounts struct {
 	OpenEvaluated, OpenConform, OpenDefault       int
 	MergedEvaluated, MergedConform, MergedDefault int
+	BodyKnown, BodyConform                        int
+	MergeConform                                  int
 }
 
 func newConvPRCounts(t conventions.PRTally) convPRCounts {
 	return convPRCounts{
 		OpenEvaluated: t.Open.Evaluated, OpenConform: t.Open.Conform, OpenDefault: t.Open.Default,
 		MergedEvaluated: t.Merged.Evaluated, MergedConform: t.Merged.Conform, MergedDefault: t.Merged.Default,
+		BodyKnown: t.Open.BodyKnown + t.Merged.BodyKnown, BodyConform: t.Open.BodyConform + t.Merged.BodyConform,
+		MergeConform: t.Merged.MergeConform,
 	}
 }
 
@@ -236,6 +245,9 @@ type RepoConventionsView struct {
 
 	// Phase 8.4 : réécritures de la branche par défaut, historique des tags, versions, fraîcheur.
 	History convHistoryView
+
+	// Phase 8.5 : commits hors PR, corps et fusion des PR, branches réutilisées, méthodes de fusion.
+	Merges convMergesView
 }
 
 // conventionsInputs renvoie l'accès aux clones (lus sans mise à jour, sinon repli sur la base) et les
@@ -403,6 +415,7 @@ func (s *server) repoConventions(r *http.Request, id int64) (*RepoConventionsVie
 	s.repoConventionsIntervals(tr, repo, v)
 	v.Files = newConvFiles(tr, repo.Files)
 	v.History = newConvHistory(tr, repo)
+	v.Merges = newConvMerges(tr, repo)
 	return v, nil
 }
 
@@ -434,7 +447,8 @@ func (s *server) repoConventionsBranches(tr *i18n.Translator, repo conventions.R
 	}
 }
 
-// repoConventionsPulls remplit PR1 et PR2 : numéro, auteur, branche de tête et codes, jamais le titre.
+// repoConventionsPulls remplit PR1, PR2 et, phase 8.5, les pastilles PR5 et PR6 : numéro, auteur, branche
+// de tête et codes, jamais le titre ni le corps.
 func (s *server) repoConventionsPulls(tr *i18n.Translator, repo conventions.RepoReport, v *RepoConventionsView) {
 	p := repo.Pulls
 	v.PullsKnown = p.Known
@@ -449,7 +463,7 @@ func (s *server) repoConventionsPulls(tr *i18n.Translator, repo conventions.Repo
 		}
 	}
 	for _, l := range p.Pulls {
-		if l.Conform && len(l.Default) == 0 {
+		if !pullNeedsRow(l) {
 			continue
 		}
 		v.PullRowsTotal++
@@ -459,7 +473,8 @@ func (s *server) repoConventionsPulls(tr *i18n.Translator, repo conventions.Repo
 		codes := convCodesOf(tr, "web.conv.code.", l.Codes, conventions.SeverityOf)
 		codes = append(codes, convCodesOf(tr, "web.conv.pr_default.", l.Default, prDefaultSeverity)...)
 		v.PullRows = append(v.PullRows, convPullRow{Number: l.Number, Merged: l.Category == conventions.PRCategoryMerged,
-			Author: cmp.Or(l.AuthorName, l.AuthorLogin), AuthorID: l.AuthorID, HeadBranch: l.HeadBranch, Codes: codes})
+			Author: cmp.Or(l.AuthorName, l.AuthorLogin), AuthorID: l.AuthorID, HeadBranch: l.HeadBranch, Codes: codes,
+			Body: bodyStatus(tr, l.Body), Merge: mergeStatus(tr, l.Merge)})
 	}
 }
 
@@ -521,6 +536,9 @@ type contributorConventions struct {
 	// Phase 8.2.
 	Pulls convPRCounts
 	Trend convTrend
+	// Phase 8.5 : commits de la branche par défaut dont il est l'auteur arrivés hors PR (PR3), tous dépôts
+	// confondus ; Arrivals.Known faux si PR3 n'est connu dans aucun dépôt.
+	Arrivals convArrivals
 }
 
 // contributorConventionsOf calcule les lignes des conventions du contributeur id ; nil si les conventions
@@ -541,6 +559,12 @@ func (s *server) contributorConventionsOf(r *http.Request, id int64) (*contribut
 		if c.AuthorID == id {
 			v.Pulls, v.Trend = newConvPRCounts(c.Pulls), newConvTrend(c.Trend)
 			break
+		}
+	}
+	for _, repo := range rep.Repos {
+		if repo.Arrivals.Known {
+			v.Arrivals.Known = true
+			v.Arrivals.addArrivals(tr, repo.Arrivals, repo.Repo.DisplayName(), repo.Repo.ID)
 		}
 	}
 	return v, nil

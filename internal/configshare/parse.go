@@ -353,6 +353,11 @@ func parseConventions(c *ConventionsSettings, out *workspace.SharedSettings, fai
 	if c.Branch != nil {
 		parseConventionsBranch(c.Branch, out, fail)
 	}
+	if c.PR != nil {
+		out.ConventionsPRBodySections = parseConventionsList(c.PR.BodySections, "pr.body_sections",
+			conventions.ValidPRBodySection, fail)
+		out.ConventionsPRRequireCloses = c.PR.RequireCloses
+	}
 	if c.Tags != nil && c.Tags.Milestones != nil {
 		out.ConventionsMilestones = parseMilestones(*c.Tags.Milestones, fail)
 	}

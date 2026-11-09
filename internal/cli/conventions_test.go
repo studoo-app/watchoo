@@ -146,11 +146,11 @@ func TestConventionsMilestone(t *testing.T) {
 	t.Setenv("WATCHOO_CONVENTIONS_SINCE", "2020-01-01")
 	out = h.run("conventions", "--milestone", "v1.0.0").mustSucceed(t).stdout
 	assertContains(t, "--milestone", out,
-		"alice/projet: 1/12 criteria conform, 8 unknown", "CL9  unknown (no local clone)",
+		"alice/projet: 1/13 criteria conform, 9 unknown", "CL9  unknown (no local clone)",
 		"CC1  unknown (no local clone)", "BR1  not conform — 0/3 branches conform",
 		"SV1  not conform — v1.0 (missing_component)", "SV2  not conform — v1.0.0 nonconforming name (v1.0)",
 		"SV3  conform — no rewrite observed since",
-		"bob/projet: 0/12 criteria conform, 11 unknown", "DOC3  unknown (milestone tag missing, no due date)", "CC1  unknown (milestone tag missing, no due date)",
+		"bob/projet: 0/13 criteria conform, 12 unknown", "DOC3  unknown (milestone tag missing, no due date)", "CC1  unknown (milestone tag missing, no due date)",
 		"BR1  unknown (no branch to evaluate)", "SV2  not conform — v1.0.0 absent")
 	assertNotContains(t, "--milestone", out, conventionMessages...)
 	assertNotContains(t, "--milestone", out, "Contributors:", "Rates n/m")
@@ -167,10 +167,11 @@ func TestConventionsMilestone(t *testing.T) {
 	}
 	a := m.Repositories[0]
 	if !a.Evaluable || a.Reason != nil || a.Status != "nonconforming_name" || a.Tag == nil || *a.Tag != "v1.0" ||
-		len(a.TagCodes) != 1 || a.Interval != nil || a.Conform != 1 || a.Unknown != 8 || a.Total != 12 || len(a.Criteria) != 12 ||
+		len(a.TagCodes) != 1 || a.Interval != nil || a.Conform != 1 || a.Unknown != 9 || a.Total != 13 || len(a.Criteria) != 13 ||
 		a.Criteria[0].ID != "CC1" || a.Criteria[0].Status != "unknown" || *a.Criteria[0].Reason != "no_clone" ||
-		a.Criteria[1].Status != "nonconform" || a.Criteria[1].Reason != nil || a.Criteria[4].ID != "SV3" ||
-		a.Criteria[4].Status != "conform" || a.Criteria[5].ID != "CL9" || *a.Criteria[5].Reason != "no_clone" || a.Files == nil || a.Files.State != "unknown" || *a.Files.Reason != "no_clone" {
+		a.Criteria[1].Status != "nonconform" || a.Criteria[1].Reason != nil || a.Criteria[2].ID != "PR3" ||
+		*a.Criteria[2].Reason != "no_clone" || a.Arrivals == nil || a.Criteria[5].ID != "SV3" ||
+		a.Criteria[5].Status != "conform" || a.Criteria[6].ID != "CL9" || *a.Criteria[6].Reason != "no_clone" || a.Files == nil || a.Files.State != "unknown" || *a.Files.Reason != "no_clone" {
 		t.Errorf("milestone of alice/projet: %+v", a)
 	}
 	// Without --milestone: the same keys, milestone null.
@@ -187,7 +188,7 @@ func TestConventionsMilestone(t *testing.T) {
 		t.Errorf("--milestone 1.0.0 (fr): %+v", r)
 	}
 	fr := h.run("conventions", "--milestone", "v1.0.0").mustSucceed(t).stdout
-	assertContains(t, "--milestone (fr)", fr, "Revue du jalon v1.0.0", "alice/projet : 1/12 critères conformes, 8 inconnus",
+	assertContains(t, "--milestone (fr)", fr, "Revue du jalon v1.0.0", "alice/projet : 1/13 critères conformes, 9 inconnus",
 		"CC1  inconnu (pas de clone local)", "BR1  non conforme — 0/3 branches conformes")
 }
 
@@ -251,7 +252,7 @@ func TestConventionsLocalClone(t *testing.T) {
 	ms := h.run("conventions", "--milestone", "v1.0.0").mustSucceed(t).stdout
 	// Phase 8.3: no CHANGELOG, README nor INDEX at the tag; the absence counts once (RD1, DOC1), the
 	// criteria that read the file are unknown.
-	assertContains(t, "--milestone (clone)", ms, "alice/projet: 4/12 criteria conform, 5 unknown", "SV3  conform",
+	assertContains(t, "--milestone (clone)", ms, "alice/projet: 4/13 criteria conform, 5 unknown", "SV3  conform",
 		"CC1  conform — v0.1.0→v1.0.0 1/1 100%", "BR1  not conform — 1/2 branches conform", "SV1  conform — v1.0.0",
 		"SV2  conform — v1.0.0 present", "CL9  unknown (file absent)", "RD1  not conform", "DOC1  not conform",
 		"RD2  unknown (file absent)\n")

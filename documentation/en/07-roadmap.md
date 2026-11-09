@@ -196,7 +196,9 @@ Importing a whole organization and the alerts move to V3 (see
   documentation and tooling read from the tree of the clone and cached, milestone review on the tags' tree)
   and phase **8.4** (history: tag observations and rewrites of the default branch recorded by the sync,
   due dates of the milestones, SV3 to SV5, SV7, CHANGELOG freshness, SV3 in the milestone review)
-  **done, not released**; phases 8.5 to 8.7 to plan. Branch protection (BR3) postponed.
+  and phase **8.5** (merges read with no extra request: merge SHA, fork origin, sections of the PR
+  descriptions, merge methods; PR3, PR5, PR6, BR2, BR5, forks set aside from PR1, PR2, PR5, PR6, BR1 and BR2, PR3 in the
+  milestone review) **done, not released**; phases 8.6 and 8.7 to plan. Branch protection (BR3) postponed.
 
 ## Definition of "done" for each phase
 

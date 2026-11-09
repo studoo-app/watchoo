@@ -2,12 +2,13 @@ package git
 
 // Lectures des conventions dans le clone existant, sans le mettre à jour : commits des branches suivies
 // (phase 8.1, périmètre de l'évaluation des messages de commit), branches du distant et intervalles de
-// commits entre tags (phase 8.2).
+// commits entre tags (phase 8.2), premier parent de la branche par défaut (PR3, phase 8.5).
 
 import (
 	"context"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/provider"
@@ -161,6 +162,81 @@ func (p *Provider) RevRange(ctx context.Context, owner, name string, branches, i
 		if sha := strings.TrimSpace(line); provider.ValidateSHA(sha) == nil {
 			out = append(out, sha)
 		}
+	}
+	return out, nil
+}
+
+// FirstParent renvoie les SHA des commits du premier parent (PR3, phase 8.5) dans le clone EXISTANT de
+// owner/name, lu tel quel, sans mise à jour (aucun accès réseau), du plus récent au plus ancien, sans le
+// commit racine (aucun parent) :
+//
+//	git rev-list --first-parent --parents [--since=…] [--until=…] --stdin
+//	  (entrée : refs/remotes/origin/<branche> ou <head>, puis ^<sha> pour chaque commit exclude)
+//
+// La chaîne part de la branche branch du distant si elle n'est pas vide, sinon du commit head. since et
+// until (zéro : sans borne) filtrent sur la date du committer, la plus proche de l'arrivée du commit sur
+// la branche. Une branche absente du clone, un commit head ou exclude absent : erreur (jamais une liste
+// vide à tort). Sans clone : provider.ErrNotFound. Noms et SHA passent par l'entrée standard.
+func (p *Provider) FirstParent(ctx context.Context, owner, name, branch, head string, exclude []string,
+	since, until time.Time) ([]string, error) {
+	if err := provider.ValidateRepo(owner, name); err != nil {
+		return nil, err
+	}
+	switch {
+	case branch != "":
+		if err := provider.ValidateBranch(branch); err != nil {
+			return nil, err
+		}
+	default:
+		if err := provider.ValidateSHA(head); err != nil {
+			return nil, err
+		}
+	}
+	for _, sha := range exclude {
+		if err := provider.ValidateSHA(sha); err != nil {
+			return nil, err
+		}
+	}
+	op := i18n.T("provider.git.op.first_parent", owner, name)
+	if !p.HasClone(owner, name) {
+		return nil, &provider.APIError{Op: op, Err: provider.ErrNotFound}
+	}
+	path, err := p.layout.Path(owner, name)
+	if err != nil {
+		return nil, err
+	}
+	var input strings.Builder
+	if branch != "" {
+		input.WriteString(remotePrefix + branch + "\n")
+	} else {
+		input.WriteString(head + "\n")
+	}
+	for _, sha := range exclude {
+		input.WriteString("^" + sha + "\n")
+	}
+	args := []string{"rev-list", "--first-parent", "--parents"}
+	const gitDate = "2006-01-02 15:04:05 +0000"
+	if !since.IsZero() {
+		args = append(args, "--since="+since.UTC().Format(gitDate))
+	}
+	if !until.IsZero() {
+		args = append(args, "--until="+until.UTC().Format(gitDate))
+	}
+	args = append(args, "--stdin")
+	res, err := p.runInput(ctx, p.localTimeout, gitDir(path), "rev-list", []byte(input.String()), args...)
+	if err != nil {
+		return nil, &provider.APIError{Op: op, Err: err}
+	}
+	if res.exitCode != 0 {
+		return nil, localError(op, res)
+	}
+	out := []string{}
+	for line := range strings.SplitSeq(string(res.stdout), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) < 2 || provider.ValidateSHA(fields[0]) != nil {
+			continue // ligne vide, ou commit racine (aucun parent)
+		}
+		out = append(out, fields[0])
 	}
 	return out, nil
 }

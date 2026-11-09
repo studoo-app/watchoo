@@ -264,6 +264,18 @@ classement sur les signatures, aucune adresse affichée. Règles :
   jour). SV5 et CL10 sont lus dans le clone local (« inconnu (pas de clone local) » sans clone) ; sans
   clone, SV4 juge la pose d'une pré-version par la première observation des tags et SV7 ne garde que
   l'incrément sauté (information).
+  Depuis 1.11.0 (phase 8.5), le tableau des pull requests liste celles dont le titre, la **description** ou
+  la **fusion** est à regarder, avec deux pastilles : la description (PR5 : « complète », « manque : … » avec
+  les sections attendues et « Closes #n », ou « inconnue ») et, pour une pull request fusionnée, la fusion
+  (PR6 : « squash », « squash, message non conforme », « merge commit », « rebase », « fusion inconnue ») ;
+  les pull requests issues d'un fork sont écartées (« issues d'un fork »). Un bloc **Fusions**
+  (`repo-conventions-merges`) donne les commits arrivés sur la branche par défaut hors pull request (PR3 :
+  « n sur m (par pull request p, indéterminés u) », puis chaque commit par SHA court, **auteur du commit**
+  (lien vers sa page) et raison, jamais « poussé par » ; clone seul, ou liste des pull requests pas encore
+  relue en entier : une note), les descriptions des pull requests (conformes sur celles lues), les fusions
+  en squash au message conforme par méthode, les branches de tête fusionnées plus d'une fois (BR2) et les
+  méthodes de fusion autorisées (BR5 : pastille « squash seul » ou « pas seulement le squash », « inconnu »
+  avec sa raison sans droit push). Ni description, ni titre, ni message de commit n'est jamais affiché.
 - Bouton **« Synchroniser ce dépôt »** (absent si le suivi est arrêté).
 - Fragments : `/repos/{id}/commits` (historique) ; `/repos/{id}` avec l'en-tête `HX-Target`
   `repo-overview`, `repo-contributors`, `repo-languages`, `repo-pulls`, `repo-diagnostic` ou
@@ -319,7 +331,9 @@ lien de profil est l'adresse enregistrée en base (voir [Liens vers les profils]
   1.8.0 : la ligne « Titres de pull request conformes » (ouvertes et fusionnées à part, pull requests dont
   l'auteur est le compte de forge de la personne, rapprochées par le compte ; « aucune pull request évaluée »
   sinon) et la **tendance** de CC3 : deux taux, avant et depuis le dernier tag final de chaque dépôt, sans
-  flèche (« inconnue » sans clone local ni tag final).
+  flèche (« inconnue » sans clone local ni tag final). Depuis 1.11.0 (`contributor-conventions-outside-pr`) :
+  les commits de la branche par défaut dont la personne est l'auteur arrivés hors pull request (« n sur
+  m », puis chacun par dépôt, SHA court et raison, au plus 20 ; « inconnu » sans clone local lisible).
 - **Activité sur 90 jours** : commits par jour du contributeur, tous dépôts confondus (graphique
   `daily`, comme le tableau de bord et la page d'un dépôt).
 - **Activité par dépôt sur 12 semaines** : le graphique empilé `contributors-chart` (même template, même
@@ -540,21 +554,25 @@ activées (`conventions.enabled`). Désactivées : la page explique comment les 
   la pastille d'un jalon avec échéance est suivie de sa pastille d'échéance (à l'heure, en retard,
   indéterminé), et une colonne **Historique et versions** donne les réécritures de la branche par défaut,
   les tags réécrits ou supprimés, les sauts sous-versionnés, les avertissements de pré-version et de
-  précédence et les commits `feat`/`fix` depuis le CHANGELOG (phase 8.4).
+  précédence et les commits `feat`/`fix` depuis le CHANGELOG (phase 8.4) ; depuis 1.11.0, une colonne
+  **Hors PR, méthodes de fusion** : commits hors pull request sur ceux du premier parent de la branche par
+  défaut (PR3) et la pastille des méthodes de fusion autorisées (BR5).
 - **Par contributeur** : par nom, jamais triés par conformité : commits conformes (CC3), tendance (avant /
   depuis le dernier tag final), titres de pull request et branches conformes (seulement les branches de tête
-  de ses pull requests). Tags, jalons et branches sans pull request ne sont attribués à personne.
+  de ses pull requests), et depuis 1.11.0 les commits dont la personne est l'auteur arrivés hors pull
+  request (PR3). Tags, jalons et branches sans pull request ne sont attribués à personne.
 - **Revue de jalon** (`?milestone=vX.Y.Z`, premier jalon configuré par défaut ; jalon absent de
   `conventions.tags.milestones` : 400) : un tableau dépôt × critère (CC1 sur l'intervalle du jalon, BR1,
   SV1, SV2 ; depuis 1.9.0 CL9, CL8, RD1, RD2 section installation, RD3, DOC1 et DOC3, lus sur l'arbre du tag
   du jalon ; tag absent : « inconnu » avec la raison de SV1 ; depuis 1.10.0 SV3 après SV2, et SV2 juge
-  l'échéance), chaque case « conforme », « non conforme » ou « inconnu » avec sa raison, puis « k/n critères
+  l'échéance ; depuis 1.11.0 PR3 après BR1, avec « PR3 : n hors pull request sur m commits (u indéterminés) » sous le
+  résultat), chaque case « conforme », « non conforme » ou « inconnu » avec sa raison, puis « k/n critères
   conformes, u inconnus », l'échéance et l'historique du tag (1.10.0) et l'intervalle lu ; aucune note
   globale. Sans date de début : « Non évaluable :
   date de début manquante ». Aucun jalon configuré : un texte dédié.
 - L'espace se synchronise par les clones seuls : une note indique que pull requests et releases sont
   inconnues.
-- Aucun message de commit, aucun titre de pull request ; calcul à la lecture, rien n'est stocké, sauf les
+- Aucun message de commit, aucun titre ni description de pull request ; calcul à la lecture, rien n'est stocké, sauf les
   critères de fichiers, calculés par la synchro et gardés en cache (codes, états et compteurs seulement).
 
 ## Navigation

@@ -133,3 +133,58 @@ func TestRemoteBranchesAndRevRange(t *testing.T) {
 		t.Error("invalid repository accepted")
 	}
 }
+
+// FirstParent follows the first parent of the default branch (merged commits of a branch are not
+// listed), without the root commit, filtered by committer date, from a branch or a commit minus
+// excluded commits; a missing branch or commit is an error, never an empty list.
+func TestFirstParent(t *testing.T) {
+	srv := gittest.NewServer(t)
+	r := srv.Create("alice", "projet", "main")
+	root := r.Commit("main", "a.txt", "a\n", "racine", alice, t0)
+	m1 := r.Commit("main", "a.txt", "b\n", "m1", alice, t0.Add(time.Hour))
+	r.Branch("feat/x", m1)
+	f1 := r.Commit("feat/x", "b.txt", "x\n", "f1", bob, t0.Add(2*time.Hour))
+	merge := r.Merge("main", "feat/x", "Merge pull request #1 from bob/feat/x", alice, t0.Add(3*time.Hour))
+	m2 := r.Commit("main", "a.txt", "c\n", "m2", alice, t0.Add(4*time.Hour))
+
+	p, _, _ := newProvider(t, srv)
+	ctx := t.Context()
+	if _, err := p.FirstParent(ctx, "alice", "projet", "main", "", nil, time.Time{}, time.Time{}); !errors.Is(err, provider.ErrNotFound) {
+		t.Errorf("without a clone: %v, want ErrNotFound", err)
+	}
+	if err := p.Prepare(ctx, "alice", "projet", "main"); err != nil {
+		t.Fatal(err)
+	}
+	got, err := p.FirstParent(ctx, "alice", "projet", "main", "", nil, time.Time{}, time.Time{})
+	if want := []string{m2, merge, m1}; err != nil || !slices.Equal(got, want) {
+		t.Errorf("FirstParent(main) = %v, %v; want %v (no root, no f1)", got, err, want)
+	}
+	if slices.Contains(got, f1) || slices.Contains(got, root) {
+		t.Error("merged branch commit or root listed")
+	}
+	got, err = p.FirstParent(ctx, "alice", "projet", "main", "", nil, t0.Add(150*time.Minute), time.Time{})
+	if want := []string{m2, merge}; err != nil || !slices.Equal(got, want) {
+		t.Errorf("since = %v, %v; want %v", got, err, want)
+	}
+	got, err = p.FirstParent(ctx, "alice", "projet", "main", "", nil, time.Time{}, t0.Add(210*time.Minute))
+	if want := []string{merge, m1}; err != nil || !slices.Equal(got, want) {
+		t.Errorf("until = %v, %v; want %v", got, err, want)
+	}
+	got, err = p.FirstParent(ctx, "alice", "projet", "", merge, []string{m1}, time.Time{}, time.Time{})
+	if want := []string{merge}; err != nil || !slices.Equal(got, want) {
+		t.Errorf("head merge ^m1 = %v, %v; want %v", got, err, want)
+	}
+	if _, err := p.FirstParent(ctx, "alice", "projet", "gone", "", nil, time.Time{}, time.Time{}); err == nil {
+		t.Error("missing branch: no error")
+	}
+	missing := strings.Repeat("ab", 20)
+	if _, err := p.FirstParent(ctx, "alice", "projet", "", missing, nil, time.Time{}, time.Time{}); err == nil {
+		t.Error("missing head commit: no error")
+	}
+	if _, err := p.FirstParent(ctx, "alice", "projet", "", "", nil, time.Time{}, time.Time{}); err == nil {
+		t.Error("neither branch nor head accepted")
+	}
+	if _, err := p.FirstParent(ctx, "alice", "projet", "main", "", []string{"zz"}, time.Time{}, time.Time{}); err == nil {
+		t.Error("invalid exclude accepted")
+	}
+}

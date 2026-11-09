@@ -55,7 +55,9 @@ const (
 // Conversion (toRepository, utilisée aussi par RepositoryByID) : ID = id ; Owner = owner.login ;
 // Name = name ; DefaultBranch = default_branch ; URL = html_url ; Stars = stargazers_count ;
 // OpenIssues = open_issues_count ; Archived = archived ; Private = private ; PushedAt = pushed_at en
-// UTC (zéro si absent). Un dépôt sans id, sans owner.login ou sans name → p.unexpected.
+// UTC (zéro si absent) ; AllowSquashMerge, AllowMergeCommit, AllowRebaseMerge = allow_squash_merge,
+// allow_merge_commit, allow_rebase_merge (phase 8.5), Unknown si absents (GitHub ne les renvoie qu'à un
+// compte qui a le droit push). Un dépôt sans id, sans owner.login ou sans name → p.unexpected.
 func (p *Provider) Repository(ctx context.Context, owner, name string) (provider.Repository, error) {
 	if err := provider.ValidateRepo(owner, name); err != nil {
 		return provider.Repository{}, err
@@ -99,6 +101,10 @@ func (p *Provider) toRepository(op string, resp *gogithub.Response, r *gogithub.
 		Archived:      r.GetArchived(),
 		Private:       r.GetPrivate(),
 		PushedAt:      utc(r.GetPushedAt()),
+		// Les pointeurs, pas GetAllow…() : un champ absent est inconnu, pas faux.
+		AllowSquashMerge: provider.OptionalBoolOf(r.AllowSquashMerge),
+		AllowMergeCommit: provider.OptionalBoolOf(r.AllowMergeCommit),
+		AllowRebaseMerge: provider.OptionalBoolOf(r.AllowRebaseMerge),
 	}, nil
 }
 

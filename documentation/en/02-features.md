@@ -160,9 +160,9 @@ signed on this commit?", never "was this code written by AI?".
 
 ## Project conventions
 
-Phases 8.1 to 8.4 (not released): Watchoo measures the compliance of commit messages with a Conventional
+Phases 8.1 to 8.5 (not released): Watchoo measures the compliance of commit messages with a Conventional
 Commits charter, then that of branch names, pull request titles and tags, then that of the CHANGELOG, the
-README, the documentation and the tooling; the details are in
+README, the documentation and the tooling, then the history of the tags and the merges; the details are in
 [Project conventions](13-conventions.md).
 
 - **Off by default** (`conventions.enabled`) and **for the trainer only**: these are objective findings,
@@ -202,10 +202,22 @@ README, the documentation and the tooling; the details are in
     consistent with the declared commits, under-versioning only), **SV7** (precedence against the history)
     and **CL10** (`feat` and `fix` since the last change of the CHANGELOG, information);
   - **milestone review**: SV3 is added after SV2, which also judges the due date.
+- **Phase 8.5**, merges read with no extra request (migration `00020`: merge SHA, fork origin and sections
+  of the description of a pull request, the description itself being read in memory only and never stored;
+  allowed merge methods, known only with push rights):
+  - **PR3**: commits that reached the default branch outside a pull request (first parent of the default
+    branch of the local clone), credited to the author of the commit, never to whoever pushed it; by pull
+    request, outside a pull request or undetermined;
+  - **PR5** (expected sections of the description, `conventions.pr.body_sections`, and closing keyword
+    `Closes #n`, `conventions.pr.require_closes`), **PR6** (squash merge with a conforming message),
+    **BR2** (head branch merged more than once) and **BR5** (squash as the only allowed merge method,
+    information); pull requests from a fork are set aside from PR1, PR2, PR5, PR6, BR1 and BR2;
+  - **milestone review**: the **PR3 = 0** criterion is added after BR1, on the interval of the milestone.
 - **Output**: `watchoo conventions` command (`--milestone vX.Y.Z` for the milestone review), `/conventions`
   page, section of a repository's page and contributor's page; never the commit message nor a pull request
   title, only the short SHA, the pull request number, the author, the branch and tag names and the codes.
   Repository indicators (branches without a pull request, tags, milestones, files) are attributed to no one.
 - The charter (`since`, `commit.*`, `branch.*`, `tags.milestones`, since phase 8.3 `changelog.*`,
-  `readme.*`, `docs.*`, and since phase 8.4 `tags.prerelease_forms`) is shared through `watchoo config export` /
+  `readme.*`, `docs.*`, since phase 8.4 `tags.prerelease_forms`, and since phase 8.5 `pr.body_sections`
+  and `pr.require_closes`) is shared through `watchoo config export` /
   `import`.

@@ -475,8 +475,10 @@ commits, total of lines and dominant commit). A squash merge gathers the work of
 tells the size of the pull request, not writing in one go. A7 (and its attachment to the biggest commit) is
 still computed on all the commits; A3 and A4 do not change. The detection is made when reading: the subject
 is read in memory for this test and is neither kept, shown nor logged. A lead already reviewed that loses A1
-or A2 may change level or disappear; its review sheet stays in the database. Phase 8.5 will complete the
-detection with the merge SHA of the pull requests.
+or A2 may change level or disappear; its review sheet stays in the database. Since phase 8.5, a commit is
+also an identified squash when it is the merge SHA (`merge_commit_sha`) of a merged pull request, has a single
+parent and its subject ends with the "(#n)" of **that** pull request, even when its committer is not
+recognised as GitHub (read the same way, in memory).
 
 ### Family H: counter-indicators (traces of human work)
 

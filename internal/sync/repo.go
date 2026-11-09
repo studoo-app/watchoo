@@ -125,7 +125,7 @@ func (e *Engine) syncRepository(ctx context.Context, prov provider.Provider, cl 
 		return repoOutcome{}, err
 	}
 
-	x, err := s.fetchExtras(ctx, h, repo.ID)
+	x, err := s.fetchExtras(ctx, h, repo)
 	if err != nil {
 		return repoOutcome{}, err
 	}
@@ -164,22 +164,28 @@ func (e *Engine) syncRepository(ctx context.Context, prov provider.Provider, cl 
 			Stars:         meta.Stars,
 			OpenIssues:    meta.OpenIssues,
 			Archived:      meta.Archived,
+			// Méthodes de fusion (BR5, phase 8.5) : lues dans la réponse GET /repos déjà demandée.
+			AllowSquashMerge: meta.AllowSquashMerge.Ptr(),
+			AllowMergeCommit: meta.AllowMergeCommit.Ptr(),
+			AllowRebaseMerge: meta.AllowRebaseMerge.Ptr(),
 		},
-		Branches:         states,
-		Commits:          s.commits,
-		ParentCounts:     s.parentWrites,
-		Stats:            statsWrites,
-		LanguagesVersion: gitprov.LanguageRulesVersion,
-		PullRequests:     x.pulls,
-		ReplaceReleases:  x.replaceReleases,
-		Releases:         x.releases,
-		ReplaceTags:      x.replaceTags,
-		Tags:             x.tags,
-		ObserveTags:      e.observeTags(x),
-		BranchRewrites:   e.branchRewrites(ctx, s, src, headChange(repo, known, meta.DefaultBranch, tracked)),
-		ReplaceLanguages: replaceLangs,
-		Languages:        langs,
-		SyncedAt:         e.now().UTC(),
+		Branches:               states,
+		Commits:                s.commits,
+		ParentCounts:           s.parentWrites,
+		Stats:                  statsWrites,
+		LanguagesVersion:       gitprov.LanguageRulesVersion,
+		PullRequests:           x.pulls,
+		PullRequestConventions: x.prConventions,
+		PullRequestsVersion:    x.prsVersion,
+		ReplaceReleases:        x.replaceReleases,
+		Releases:               x.releases,
+		ReplaceTags:            x.replaceTags,
+		Tags:                   x.tags,
+		ObserveTags:            e.observeTags(x),
+		BranchRewrites:         e.branchRewrites(ctx, s, src, headChange(repo, known, meta.DefaultBranch, tracked)),
+		ReplaceLanguages:       replaceLangs,
+		Languages:              langs,
+		SyncedAt:               e.now().UTC(),
 	})
 	if err != nil {
 		return repoOutcome{}, err

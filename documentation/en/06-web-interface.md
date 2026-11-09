@@ -265,6 +265,18 @@ signatures, no address displayed. Rules: [AI signatures](02-features.md#ai-signa
   are read from the local clone ("unknown (no local clone)" without one); without a clone, SV4 judges when
   a pre-release was set by the first observation of the tags and SV7 only keeps the skipped increment
   (information).
+  Since 1.11.0 (phase 8.5), the table of pull requests lists those whose title, **description** or
+  **merge** needs a look, with two badges: the description (PR5: "complete", "missing: …" with the expected
+  sections and "Closes #n", or "unknown") and, for a merged pull request, the merge (PR6: "squash",
+  "squash, nonconforming message", "merge commit", "rebase", "merge unknown"); pull requests from a fork
+  are set aside ("from a fork"). A **Merges** block (`repo-conventions-merges`) gives the commits that
+  reached the default branch outside a pull request (PR3: "n of m (by pull request p, undetermined u)",
+  then each commit as short SHA, **author of the commit** (link to their page) and reason, never "pushed
+  by"; clone only, or pull request list not read in full yet: a note), the pull request descriptions
+  (conforming out of those read), the merges squashed with a conforming message by method, the head
+  branches merged more than once (BR2) and the allowed merge methods (BR5: badge "squash only" or "not only
+  squash", "unknown" with its reason without push access). Neither a description, a title nor a commit
+  message is ever shown.
 - Button **"Sync this repository"** (absent if tracking is stopped).
 - Fragments: `/repos/{id}/commits` (history); `/repos/{id}` with the `HX-Target` header
   `repo-overview`, `repo-contributors`, `repo-languages`, `repo-pulls`, `repo-diagnostic` or
@@ -321,7 +333,9 @@ nor the templates: the profile link is the address stored in the database (see
   "Conforming pull request titles" (open and merged apart, pull requests whose author is this person's
   forge account, matched by account; "no pull request evaluated" otherwise) and the CC3 **trend**: two
   rates, before and since the last final tag of each repository, without an arrow ("unknown" without a
-  local clone or a final tag).
+  local clone or a final tag). Since 1.11.0 (`contributor-conventions-outside-pr`): the commits of the
+  default branch they wrote that arrived outside a pull request ("n of m", then each one as repository, short
+  SHA and reason, at most 20; "unknown" without a readable local clone).
 - **Activity over 90 days**: commits per day of the contributor, across all repositories (`daily`
   chart, like the dashboard and the repository page).
 - **Per-repository activity over 12 weeks**: the stacked `contributors-chart` chart (same template,
@@ -538,20 +552,23 @@ For the trainer only; "Conventions" navigation entry only when the conventions a
   a milestone with a due date is followed by its due-date badge (on time, late, undetermined), and a
   **History and versions** column gives the rewrites of the default branch, the tags rewritten or deleted,
   the under-versioned bumps, the pre-release and precedence warnings and the `feat`/`fix` commits since the
-  CHANGELOG (phase 8.4).
+  CHANGELOG (phase 8.4); since 1.11.0, an **Outside PR, merge methods** column: commits outside a pull
+  request out of those of the first parent of the default branch (PR3) and the badge of the allowed merge
+  methods (BR5).
 - **By contributor**: by name, never sorted by conformity: conforming commits (CC3), the trend (before /
   since the last final tag), conforming pull request titles and branches (head branches of their pull
-  requests only). Tags, milestones and branches without a pull request are never attributed to a person.
+  requests only), and since 1.11.0 the commits they wrote that arrived outside a pull request (PR3). Tags, milestones and branches without a pull request are never attributed to a person.
 - **Milestone review** (`?milestone=vX.Y.Z`, first configured milestone by default; a milestone that is not
   in `conventions.tags.milestones`: 400): a repository × criterion table (CC1 on the interval of the
   milestone, BR1, SV1, SV2; since 1.9.0 CL9, CL8, RD1, RD2 installation section, RD3, DOC1 and DOC3, read on
   the tree of the milestone tag; tag absent: "unknown" with the reason of SV1; since 1.10.0 SV3 after SV2,
-  and SV2 judges the due date), each cell "conforming", "not conforming" or "unknown" with its reason, then
+  and SV2 judges the due date; since 1.11.0 PR3 after BR1, with "PR3: n outside a pull request of m commits (u undetermined)"
+  under the result), each cell "conforming", "not conforming" or "unknown" with its reason, then
   "k/n criteria conforming, u unknown", the due date and the history of the tag (1.10.0) and the interval
   read; no global grade. Without a start date:
   "Not evaluable: missing start date". No milestone configured: a dedicated text.
 - The workspace syncs from the clones only: a note says that pull requests and releases are unknown.
-- No commit message, no pull request title; computed when read, nothing is stored, except the file
+- No commit message, no pull request title or description; computed when read, nothing is stored, except the file
   criteria, computed by the sync and kept in a cache (codes, states and counters only).
 
 ## Navigation

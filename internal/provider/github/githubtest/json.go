@@ -158,6 +158,10 @@ type repoJSON struct {
 	Watchers        int             `json:"watchers"`
 	DefaultBranch   string          `json:"default_branch"`
 	Permissions     permissionsJSON `json:"permissions"`
+	// Merge methods: only returned to an account with the push right (phase 8.5).
+	AllowSquashMerge *bool `json:"allow_squash_merge,omitempty"`
+	AllowMergeCommit *bool `json:"allow_merge_commit,omitempty"`
+	AllowRebaseMerge *bool `json:"allow_rebase_merge,omitempty"`
 }
 
 // repoJSON returns the metadata of repo, with its current owner/name.
@@ -168,31 +172,38 @@ func (s *Server) repoJSON(repo *repoState) repoJSON {
 		visibility = "private"
 	}
 	pushed := nullableTime(repo.PushedAt)
+	var squash, merge, rebase *bool
+	if repo.Push {
+		squash, merge, rebase = repo.AllowSquashMerge, repo.AllowMergeCommit, repo.AllowRebaseMerge
+	}
 	return repoJSON{
-		ID:              repo.ID,
-		NodeID:          "R_fake" + strconv.FormatInt(repo.ID, 10),
-		Name:            repo.Name,
-		FullName:        full,
-		Private:         repo.Private,
-		Owner:           s.user(repo.Owner, 0, ""),
-		HTMLURL:         githubWeb + full,
-		Fork:            false,
-		URL:             s.URL() + "repos/" + full,
-		CreatedAt:       pushed,
-		UpdatedAt:       pushed,
-		PushedAt:        pushed,
-		GitURL:          "git://github.com/" + full + ".git",
-		SSHURL:          "git@github.com:" + full + ".git",
-		CloneURL:        githubWeb + full + ".git",
-		StargazersCount: repo.Stars,
-		WatchersCount:   repo.Stars,
-		Archived:        repo.Archived,
-		OpenIssuesCount: repo.OpenIssues,
-		Visibility:      visibility,
-		OpenIssues:      repo.OpenIssues,
-		Watchers:        repo.Stars,
-		DefaultBranch:   repo.DefaultBranch,
-		Permissions:     permissionsJSON{Pull: true},
+		ID:               repo.ID,
+		NodeID:           "R_fake" + strconv.FormatInt(repo.ID, 10),
+		Name:             repo.Name,
+		FullName:         full,
+		Private:          repo.Private,
+		Owner:            s.user(repo.Owner, 0, ""),
+		HTMLURL:          githubWeb + full,
+		Fork:             false,
+		URL:              s.URL() + "repos/" + full,
+		CreatedAt:        pushed,
+		UpdatedAt:        pushed,
+		PushedAt:         pushed,
+		GitURL:           "git://github.com/" + full + ".git",
+		SSHURL:           "git@github.com:" + full + ".git",
+		CloneURL:         githubWeb + full + ".git",
+		StargazersCount:  repo.Stars,
+		WatchersCount:    repo.Stars,
+		Archived:         repo.Archived,
+		OpenIssuesCount:  repo.OpenIssues,
+		Visibility:       visibility,
+		OpenIssues:       repo.OpenIssues,
+		Watchers:         repo.Stars,
+		DefaultBranch:    repo.DefaultBranch,
+		Permissions:      permissionsJSON{Pull: true, Push: repo.Push},
+		AllowSquashMerge: squash,
+		AllowMergeCommit: merge,
+		AllowRebaseMerge: rebase,
 	}
 }
 

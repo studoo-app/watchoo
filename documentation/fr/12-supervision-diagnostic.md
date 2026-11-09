@@ -488,7 +488,10 @@ toute une branche : sa taille dit la taille de la pull request, pas une écritur
 rattachement au commit le plus gros) reste calculé sur tous les commits ; A3 et A4 ne changent pas. Le
 repérage se fait à la lecture : le sujet est lu en mémoire pour ce test et n'est ni conservé, ni affiché, ni
 journalisé. Une piste déjà relue qui perd A1 ou A2 peut changer de niveau ou disparaître ; sa fiche reste en
-base. La phase 8.5 complétera le repérage par le SHA de fusion des pull requests.
+base. Depuis la phase 8.5, un commit est aussi un squash identifié quand il est le SHA de fusion
+(`merge_commit_sha`) d'une pull request fusionnée, n'a qu'un parent et que son sujet se termine par le
+« (#n) » de **cette** pull request, même si son committer n'est pas reconnu comme GitHub (lu de la même façon,
+en mémoire).
 
 ### Famille H — contre-indicateurs (traces de travail humain)
 

@@ -9,7 +9,7 @@ facultatif (dépôts suivis par clones Git locaux) ; la migration `00005` (0.5.0
 `contributors.profile_url` et la migration `00006` (0.5.0) `commits.stats_known` ; la migration `00007` (1.1.0) ajoute `repository_languages` ; la migration `00008` (1.2.0)
 ajoute `commits.ai_rules_version` et la table `commit_ai_signatures` ; la migration `00009` (1.2.0) ajoute
 `commits.languages_version` et la table `commit_languages`, soit **treize tables** ; la migration `00010` (1.3.0)
-ajoute `sync_runs.warnings`. La migration `00011` (phase 7.1) ajoute `commit_signals`, la migration `00012` (phase 7.2) `pull_requests.tool_ids` et `repository_signals`, la migration `00013` (phase 7.4) `diagnostic_reviews`, soit **seize tables**, la migration `00014` (phase 7.5) les colonnes de forme de `commit_signals`, et la migration `00015` (phase 7.7) ses mesures des signaux absolus et des contre-indicateurs (voir [Supervision et diagnostic](12-supervision-diagnostic.md)). La migration `00016` (phase 8.1) ajoute `commits.parent_count` et `repositories.conventions_since` (voir [Conventions de projet](13-conventions.md) et [Migration `00016`](#migration-00016--conventions-de-projet)), la migration `00017` (phase 8.3) le cache `repository_conventions` des critères de fichiers des conventions (voir [Migration `00017`](#migration-00017--cache-des-critères-de-fichiers)), puis les migrations `00018` et `00019` (phase 8.4) l'historique des tags `tag_observations` et les réécritures observées de la branche par défaut `branch_rewrites`, soit **dix-neuf tables** (voir [Migrations `00018` et `00019`](#migrations-00018-et-00019--historique-des-tags-et-de-la-branche-par-défaut)). Le stockage est un fichier SQLite versionné par des migrations
+ajoute `sync_runs.warnings`. La migration `00011` (phase 7.1) ajoute `commit_signals`, la migration `00012` (phase 7.2) `pull_requests.tool_ids` et `repository_signals`, la migration `00013` (phase 7.4) `diagnostic_reviews`, soit **seize tables**, la migration `00014` (phase 7.5) les colonnes de forme de `commit_signals`, et la migration `00015` (phase 7.7) ses mesures des signaux absolus et des contre-indicateurs (voir [Supervision et diagnostic](12-supervision-diagnostic.md)). La migration `00016` (phase 8.1) ajoute `commits.parent_count` et `repositories.conventions_since` (voir [Conventions de projet](13-conventions.md) et [Migration `00016`](#migration-00016--conventions-de-projet)), la migration `00017` (phase 8.3) le cache `repository_conventions` des critères de fichiers des conventions (voir [Migration `00017`](#migration-00017--cache-des-critères-de-fichiers)), puis les migrations `00018` et `00019` (phase 8.4) l'historique des tags `tag_observations` et les réécritures observées de la branche par défaut `branch_rewrites`, soit **dix-neuf tables** (voir [Migrations `00018` et `00019`](#migrations-00018-et-00019--historique-des-tags-et-de-la-branche-par-défaut)) ; la migration `00020` (phase 8.5) ajoute seulement des colonnes à `pull_requests` et `repositories` (voir [Migration `00020`](#migration-00020--fusions-et-corps-des-pull-requests)). Le stockage est un fichier SQLite versionné par des migrations
 `goose`, avec **une base par espace de supervision** (`.watchoo/watchoo.db`, voir
 [Espaces de supervision](10-espaces-de-supervision.md)). Les tables ne connaissent donc pas la notion
 d'espace : deux espaces ne partagent jamais de données.
@@ -68,6 +68,8 @@ uniques.
 | enabled | Suivi actif, ou arrêté (`repo remove --keep-history` : historique gardé, plus de synchro ; `repo add` le réactive) |
 | branch_patterns | Branches à suivre (`--branch`, colonne `branches` de l'import) : noms et motifs `path.Match` séparés par des virgules (`main,dev,release/*`) ; vide = toutes les branches. Ajoutée par la migration `00002` |
 | conventions_since | Date de début des conventions propre au dépôt (`repo add --conventions-since AAAA-MM-JJ`, partage de la configuration), stockée au format fixe à **minuit UTC** de la date du calendrier (`2026-09-01T00:00:00Z`, `CHECK`) ; vide = date de l'espace (`conventions.since`). Interprétée comme la date du calendrier, à minuit dans le fuseau de l'espace. Ajoutée par la migration `00016` (phase 8.1) |
+| allow_squash_merge, allow_merge_commit, allow_rebase_merge | Méthodes de fusion autorisées sur la forge (BR5, phase 8.5) : `1` ou `0`, lues dans le `GET /repos` que la synchro fait déjà ; vide = inconnu (GitHub ne les renvoie qu'à un compte qui a le droit push ; toujours inconnues en mode clone). Réécrites à chaque synchro par l'API : de nouveau vides si le droit push est perdu. Ajoutées par la migration `00020` |
+| conventions_prs_version | Version des règles de pull request (`conventions.PRRulesVersion`) pour laquelle la liste complète des pull requests du dépôt a été relue une fois (remplissage de `merge_commit_sha`, `from_fork` et `body_sections` des PR déjà en base) ; vide = jamais. Ajoutée par la migration `00020` (phase 8.5) |
 
 ### `branches` — branches surveillées
 
@@ -238,6 +240,9 @@ supprimée, sauf avec son dépôt.
 | closed_at | Date de fermeture ; vide si ouverte |
 | merged_at | Date de merge ; vide si non mergée. Une PR mergée a `state = closed` et `merged_at` renseigné |
 | tool_ids | Diagnostic (phase 7.2, migration `00012`) : outils déclarés dans la description, encodés `D2:claude`, triés, séparés par des virgules ; vide si aucun ou non mesuré. La description n'est jamais gardée ; valeur effacée par la purge (`diagnostic.retention_days`, date d'ouverture) |
+| merge_commit_sha | Conventions (phase 8.5, migration `00020`) : commit créé par la fusion (squash, merge commit ou dernier commit rebasé), rempli seulement pour une PR fusionnée ; vide = non fusionnée ou inconnu |
+| from_fork | Conventions (phase 8.5, migration `00020`) : `1` si le dépôt de tête diffère du dépôt de base ou a été supprimé, `0` sinon ; vide = inconnu (PR lue avant la migration, ou réponse sans dépôt de base) |
+| body_sections | Conventions (PR5, phase 8.5, migration `00020`) : masque de bits des sections reconnues dans la description (contexte 1, changements 2, tests 4, captures 8) et du mot-clé de fermeture (16), calculé en mémoire à la synchro (`conventions.CheckPRBody`), même conventions désactivées ; vide = inconnu. La description n'est jamais gardée |
 
 - **Auteur** : gardé tel quel (login et identifiant de compte), **sans lien** vers `contributors` : un
   contributeur est l'auteur d'au moins un commit, et un auteur de PR sans commit ne doit pas apparaître
@@ -563,6 +568,24 @@ synchro avec les conventions activées, d'où le libellé « aucune réécriture
 
 Retour arrière (`Down`) : chaque table est supprimée. Un test (`internal/store/tag_history_test.go`)
 applique les migrations à une base au schéma `00017`, vérifie les contraintes, puis le retour arrière.
+
+## Migration `00020` : fusions et corps des pull requests
+
+La phase 8.5 ([Conventions de projet](13-conventions.md)) ajoute, par `ALTER TABLE … ADD COLUMN` et sans
+reconstruire de table, `pull_requests.merge_commit_sha`, `from_fork` et `body_sections`, et
+`repositories.allow_squash_merge`, `allow_merge_commit`, `allow_rebase_merge` et `conventions_prs_version`
+(voir plus haut) ; le nombre de tables ne change pas. Contraintes (`CHECK` de colonne) : `merge_commit_sha`
+de 40 ou 64 caractères hexadécimaux minuscules, les booléens `0` ou `1`, `body_sections >= 0`,
+`conventions_prs_version >= 1` ; toutes les colonnes acceptent `NULL`, qui veut dire inconnu. Les valeurs
+viennent des réponses que la synchro demande déjà (`GET /pulls`, `GET /repos`) : aucune requête de plus en
+régime courant. Les pull requests déjà en base restent inconnues jusqu'à la relecture complète unique de la
+liste des PR (conventions activées, marqueur `conventions_prs_version` absent ou inférieur à la version des
+règles) ; à l'écriture d'une PR relue, un `from_fork` ou un `body_sections` inconnu garde la valeur connue,
+et la relecture complète n'écrit que ces trois colonnes (jamais `tool_ids`).
+
+Retour arrière (`Down`) : les sept colonnes sont retirées ; les lignes restent. Un test
+(`internal/store/pull_conventions_test.go`) applique la migration à une base au schéma `00019`, vérifie
+les valeurs inconnues et les contraintes, puis le retour arrière.
 
 ## Renommages et changements de login
 

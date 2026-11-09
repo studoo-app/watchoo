@@ -253,6 +253,14 @@ var workspaceTexts = map[string]entry{
 		"conventions.tags.milestones: entry #%d repeats the milestone %s",
 		"conventions.tags.milestones : l'entrée n° %d répète le jalon %s",
 	},
+	"workspace.validate.conv_pr_section_invalid": {
+		"conventions.pr.body_sections: entry #%d %q is not a known section (expected one of: %s)",
+		"conventions.pr.body_sections : l'entrée n° %d %q n'est pas une section connue (attendu l'une de : %s)",
+	},
+	"workspace.validate.conv_pr_section_duplicate": {
+		"conventions.pr.body_sections: entry #%d repeats the section %s",
+		"conventions.pr.body_sections : l'entrée n° %d répète la section %s",
+	},
 	"workspace.validate.conv_prerelease_forms_empty": {
 		`conventions.tags.prerelease_forms: at least one form is required (e.g. "rc")`,
 		"conventions.tags.prerelease_forms : au moins une forme est requise (ex. « rc »)",
@@ -671,6 +679,14 @@ var workspaceTexts = map[string]entry{
 	"workspace.cfg.conventions_milestones": {
 		`milestones "vX.Y.Z", or "vX.Y.Z@YYYY-MM-DD" with a due date`,
 		`jalons « vX.Y.Z », ou « vX.Y.Z@AAAA-MM-JJ » avec une échéance`,
+	},
+	"workspace.cfg.conventions_pr_body_sections": {
+		"expected sections of a pull request body (PR5), among: %s",
+		"sections attendues du corps d'une pull request (PR5), parmi : %s",
+	},
+	"workspace.cfg.conventions_pr_require_closes": {
+		`a closing keyword followed by an issue number ("Closes #12") is expected in the pull request body`,
+		`un mot-clé de fermeture suivi d'un numéro d'issue (« Closes #12 ») est attendu dans le corps de la pull request`,
 	},
 	"workspace.cfg.conventions_prerelease_forms": {
 		`compliant pre-releases "-<form>.N" (e.g. "v1.0.0-rc.1"); other forms give a warning`,

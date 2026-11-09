@@ -3,7 +3,7 @@
 [← Contents](README.md)
 
 **Status**: **maintainer decision** (phase 8, November 8, 2026); the choices are recorded in
-[section 11](#11-maintainer-decisions). Phases 8.1 to 8.4 done, not released; the next phases start after their
+[section 11](#11-maintainer-decisions). Phases 8.1 to 8.5 done, not released; the next phases start after their
 plan is approved. The scope exception is carried over into the [Vision](01-vision.md); the updates to
 [Features](02-features.md), [Data model](04-data-model.md), [CLI](05-cli.md) and
 [Web interface](06-web-interface.md) follow phase by phase.
@@ -60,7 +60,7 @@ Default values of the configuration ([section 8](#8-configuration)); each traine
 
 | Source | What is read | Mode |
 | --- | --- | --- |
-| Database (already synced) | `commits.message`, `commit_branches`, `branches`, `pull_requests` (title, branches, states, dates), `tags`, `releases` | both |
+| Database (already synced) | `commits.message`, `commit_branches`, `branches`, `pull_requests` (title, branches, states, dates; since phase 8.5 `merge_commit_sha`, `from_fork`, `body_sections`), `repositories` (since phase 8.5 `allow_squash_merge`, `allow_merge_commit`, `allow_rebase_merge`, `conventions_prs_version`), `tags`, `releases` | both |
 | Local clone, **through git objects** | `git rev-list` (first parent, ranges between tags), `git for-each-ref refs/remotes/origin/` (all the remote's branches), `git ls-tree -r -l -z` on the full SHA of the head of the default branch (branch list of the sync source) or of a tag's commit (read from the database); never a branch or tag name, then `git cat-file --batch` on object ids (see [section 9](#9-technical-impact)), `git merge-base --is-ancestor` | both (the clone exists with or without `gh`) |
 | API, no extra request | `merge_commit_sha` (merged PRs only), PR body (in memory) and source repository in `GET /pulls`; `allow_squash_merge`, `allow_merge_commit`, `allow_rebase_merge` in `GET /repos` | API |
 | API, extra request | `GET /repos/{o}/{r}/pulls/{n}/reviews` | API |
@@ -105,7 +105,7 @@ commit and a branch are never removed). The default branch alone forms a second,
 
 | id | Indicator | Rule | Granularity | Source | Mode | Rel. | Prio |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| BR1 | Compliant branch name | Remote branches (`refs/remotes/origin/` of the clone) and `pull_requests.head_branch` of PRs not coming from a fork (forks counted until phase 8.5, see the note below), excluding the default branch and exclusions (`gh-pages`, `dependabot/*`, `renovate/*`, setting). Compliant if `^(<types>)/[a-z0-9]+(-[a-z0-9]+)+$`; a single segment after `/`: "to review". Codes (`--json`): blocking `unknown_type` (unknown type), `uppercase` (uppercase), `underscore` (`_`), `space` (space), `accent` (accent), `no_slash` (missing `/`), `pattern` (name that does not follow the rule with no other named issue, `feat/a.b`, or custom pattern not matched); warning `single_segment` ("to review") | branch, repository; contributor through the PR author | clone + database | both | H | P1 |
+| BR1 | Compliant branch name | Remote branches (`refs/remotes/origin/` of the clone) and `pull_requests.head_branch` of PRs not coming from a fork (`from_fork`, since phase 8.5; a PR of unknown origin is counted), excluding the default branch and exclusions (`gh-pages`, `dependabot/*`, `renovate/*`, setting). Compliant if `^(<types>)/[a-z0-9]+(-[a-z0-9]+)+$`; a single segment after `/`: "to review". Codes (`--json`): blocking `unknown_type` (unknown type), `uppercase` (uppercase), `underscore` (`_`), `space` (space), `accent` (accent), `no_slash` (missing `/`), `pattern` (name that does not follow the rule with no other named issue, `feat/a.b`, or custom pattern not matched); warning `single_segment` ("to review") | branch, repository; contributor through the PR author | clone + database | both | H | P1 |
 | BR2 | Reused branch | A `head_branch` (not from a fork) with more than one PR merged into the default branch | branch, repository | database | API | M | P2 |
 | BR3 | Protected default branch | **Postponed** (maintainer decision: not implemented in phase 8). Planned measure: `protected` from `GET /branches`: yes, no, unknown (clone), not applicable (for example a private repository on GitHub Free). **Snapshot** without history | repository | API, 0 requests | API | M | — |
 | BR4 | Rewritten default branch | At sync time, the old head is no longer an ancestor of the new one (`merge-base --is-ancestor`); dated event (old and new SHA). Old object missing from the clone: "unknown", never "rewritten". Only when the conventions are enabled, for the default branch tracked before and after the sync and under the same name (a change of default branch is not a rewrite); the ancestry is read in the clone updated by the sync, in both modes. In API mode only, when the clone does not decide (no clone, or commit missing from it), the sync's `ErrUnknownBase` error on the old head (commit gone from the repository, or no common ancestor) is also used as a signal. Limit: GitHub keeps orphaned commits for a long time, so after a force-push its comparison often succeeds (`diverged`, `behind`) and the API alone misses the rewrite; in clone-only mode `ErrUnknownBase` means a commit missing from the clone and is never a signal | event, repository | clone | both | H | P2 |
@@ -116,12 +116,79 @@ commit and a branch are never removed). The default branch alone forms a second,
 | id | Indicator | Rule | Granularity | Source | Mode | Rel. | Prio |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | PR1 | Conventional PR title | Shared parser on the title of non-draft, non-bot PRs; open and merged PRs counted separately | PR, repository, author | database | API | H | P1 |
-| PR2 | Forbidden or default title | Normalised title in the forbidden list, or equal (after normalisation: case, `-` and `_` as spaces) to the head branch name or to the subject of the PR's only commit (titles suggested by GitHub; comparison with the only commit not measured in 8.2, not before phase 8.5 and `merge_commit_sha`). Codes (`default_codes`): `forbidden`, `github_default`, `head_branch` | PR | database | API | H | P1 |
-| PR3 | Commits that reached the default branch outside a PR | Walk of `git rev-list --first-parent origin/<default>` since `since`, without the root commit. **Through a PR**: SHA equal to the `merge_commit_sha` of a merged PR; sequence rebased by GitHub, recognised by a heuristic with no request (consecutive commits whose committer is GitHub and whose `committed_at` equals the `merged_at` of the PR that ends it; maintainer decision); merge whose committer is GitHub. **Outside a PR**: human committer, local merge pushed, web edit without a PR. Otherwise: "undetermined". With a clone only, fallback on `^Merge pull request #\d+` and `\(#\d+\)$` with the GitHub committer recognised by its `noreply@github.com` e-mail (in memory) | commit; repository; "author of the commit that arrived outside a PR" (never "pushed") | clone + database | both (degraded with a clone) | H with the API, M with a clone | P1 |
+| PR2 | Forbidden or default title | Normalised title in the forbidden list, or equal (after normalisation: case, `-` and `_` as spaces) to the head branch name or to the subject of the PR's only commit (titles suggested by GitHub; comparison with the only commit **not measured**: it would take `GET /pulls/{n}/commits`, one request per PR). Codes (`default_codes`): `forbidden`, `github_default`, `head_branch` | PR | database | API | H | P1 |
+| PR3 | Commits that reached the default branch outside a PR | Walk of `git rev-list --first-parent origin/<default>` since `since`, without the root commit. **Through a PR**: SHA equal to the `merge_commit_sha` of a merged PR; sequence rebased by GitHub, recognised by a heuristic with no request (consecutive commits whose committer is GitHub, with the same `committed_at` as the most recent commit of the sequence, which is the `merge_commit_sha` of the PR that ends it; without a known `merge_commit_sha`, `merged_at` of the PR within ±2 s; maintainer decision); merge whose committer is GitHub. **Outside a PR**: human committer, local merge pushed, web edit without a PR. Otherwise: "undetermined". With a clone only, fallback on `^Merge pull request #\d+` and `\(#\d+\)$` with the GitHub committer recognised by its `noreply@github.com` e-mail (in memory) | commit; repository; "author of the commit that arrived outside a PR" (never "pushed") | clone + database | both (degraded with a clone) | H with the API, M with a clone | P1 |
 | PR4 | Reviewed by another member | New Provider method `PullRequestReviews` (login, identifier, state, date; never the body). Reviewed if, for at least one reviewer with an identifier other than the author's and not excluded (trainer, bots), the last state among `APPROVED`, `CHANGES_REQUESTED` and `DISMISSED` submitted no later than `merged_at` is `APPROVED`. Another account is enough; the `pr.reviewer_must_contribute` setting also requires a reviewer who authored at least one commit of the repository. Only counters are stored, not the reviewers. Derived view: "merged without review" | PR, repository; reviews received by the PR author | API, 1 request per PR | API | H | P1 |
 | PR5 | Structured body and `Closes #n` | Body read in memory (as for D2): section headings, or bold text, among versioned FR and EN synonyms (context, what changes, how to test, screenshots); an empty section (or one reduced to an HTML comment) does not count. Closing keyword searched separately. Only a bit mask is stored (NULL while unknown). Known false negative: issue linked through the "Development" sidebar | PR, repository | API, 0 requests | API | M | P2 |
 | PR6 | Squash merge | Commit of `merge_commit_sha` with one parent and the "(#n)" suffix: squash; two parents: merge commit. Compliant if squash **and** message compliant with the parser | PR | database | API | M | P2 |
 | PR7 | PR template | See TL3 | repository | clone | both | H | P2 |
+
+**Phase 8.5: merges, implementation and limits.** PR3, PR5, PR6, BR2 and BR5 are computed when reading, from
+the database (columns `merge_commit_sha`, `from_fork`, `body_sections` of the PRs and `allow_*` of the
+repository, filled by the sync with no extra request, see [section 9](#9-technical-impact)) and, for PR3, the
+existing clone (no fetch). PRs from a fork (`from_fork` true) are set aside from PR1, PR2, PR5 and PR6 (reason
+`fork`) and their head branches from BR1 and BR2; a PR of unknown origin (NULL) is evaluated. No score:
+`n/m` counts. Approximations:
+
+- **PR3**: `git rev-list --first-parent --parents` of `origin/<default>` in the clone, filtered on the
+  **committer date** (`--since`, the closest to the arrival on the branch; a commit rebased by GitHub has the
+  date of the merge), without the root commit (no parent). Order of the tests in API mode: `merge_commit_sha`
+  of a PR merged into the default branch (`merge_commit_sha`); unknown committer (`committer_unknown`,
+  undetermined); human committer: outside PR (`human_committer`, or `local_merge` for a merge with two
+  parents); merge by the GitHub committer (`github_merge`); GitHub commit with the "(#n)" suffix of a merged
+  PR whose `merge_commit_sha` is unknown (`squash_suffix`); GitHub commit with the "(#n)" suffix of a PR
+  **missing** from the list: "undetermined" (`unmatched`), even with a list read in full, since the PR list
+  can lag behind the commits (postponed for low quota or failed at that sync); otherwise a GitHub commit
+  without a PR: **web edit** outside PR (`web_edit`) only when the PR list has been read in full
+  (`repositories.conventions_prs_version`), "undetermined" (`unmatched`) otherwise. **Sequences rebased** by
+  GitHub (`rebase_run`) are recognised afterwards, from their most recent commit: when a GitHub commit (not a
+  merge) is the `merge_commit_sha` of a PR, the commits that follow it on the first parent, consecutive, by
+  the GitHub committer, not merges, with the **same `committed_at` as it** (to the second) and classified
+  `web_edit` or `unmatched` are attached to that PR; the gap of one or two seconds GitHub sometimes leaves
+  between `committed_at` and `merged_at` therefore has no effect. Fallback for a PR without a known
+  `merge_commit_sha`: a sequence of such commits with the same `committed_at` is attached to the PR whose
+  `merged_at` is the closest, within ±2 s, to the `committed_at` of its most recent commit (the smallest PR on
+  a tie). An isolated web edit made in the same second as an unrelated merge whose `merge_commit_sha` is known,
+  or separated from the head by another commit, therefore stays outside PR; the fallback only checks the
+  second. Commit not in the database: by PR when it is the
+  `merge_commit_sha` of a PR, undetermined otherwise (`not_in_db`). **Clone only** (degraded): unknown
+  committer undetermined (`committer_unknown`); human committer outside PR (`human_committer`, or
+  `local_merge` for a local merge pushed); GitHub committer (address `noreply@github.com`) with "Merge pull
+  request #n" (`github_merge`) or "(#n)" (`squash_suffix`) by PR; any other GitHub commit undetermined
+  (`clone_only`). The GitHub committer is only recognised by its `web-flow` login or its
+  address: a merge made on GitHub by an account whose address is public is a GitHub commit like any other.
+  The attribution is the **commit author**, never whoever pushed it; a report restricted to contributors only
+  keeps their commits. Without a clone, with an unreadable clone or a default branch missing from the clone:
+  "unknown" (`no_clone`, `clone_unreadable`).
+- **PR5**: the body is read in memory by the sync and reduced to a bit mask (context, changes, how to test,
+  screenshots, closing keyword); reading rules versioned by `conventions.PRRulesVersion` (raising it rereads
+  the full PR list once). A section is opened by an ATX heading (`#` to `######`) **containing** a normalised
+  synonym (lowercase, without accents nor punctuation), or by a bold label at the start of a line
+  (`**Context**`, `__Tests:__`) **equal** to a synonym (a bold sentence does not count); it ends at the next
+  heading of a lower or equal level (or, opened in bold, at the next heading or bold label). It counts when
+  it has content: text after the bold label, or a non-empty line other than a thematic break; fenced code
+  counts as content, HTML comments (on one or several lines) are removed first, an unchecked checkbox of a
+  template (`- [ ] …`) counts as content. Setext (underlined) headings are not recognised. Synonyms built into
+  the binary: context (contexte, context, pourquoi, why, motivation, problème, problem, description, objectif,
+  goal, background, résumé, summary, enjeux…), changes (ce qui change, changes, changements, what changed,
+  modifications, solution, implementation, approche, approach…), how to test (comment tester, how to test,
+  testing, tests, test plan, plan de test, vérification, validation, recette…), screenshots (captures, capture
+  d'écran, screenshots, images, démo, preview, gif, vidéo, rendu…). Closing keyword: `close`, `closes`,
+  `closed`, `fix`, `fixes`, `fixed`, `resolve`, `resolves`, `resolved`, with an optional `:`, followed by `#n`
+  or `owner/repo#n`, outside code and comments. Compliant when the sections of `pr.body_sections` are present
+  and, with `pr.require_closes`, the keyword too; empty body: known mask 0. Known false negative: an issue
+  linked through GitHub's "Development" sidebar does not appear in the body. A PR synced before phase 8.5
+  stays "unknown" until the full reread.
+- **PR6**: on the evaluated merged PRs; commit of `merge_commit_sha` read in the database: two parents or
+  more, `merge`; one parent and the "(#n)" suffix of **this** PR, `squash` (compliant when the message is also
+  compliant with the parser); one parent without suffix, `rebase` (approximation: a squash whose subject was
+  rewritten without the suffix lands here); commit not in the database, unknown parents, or suffix of another
+  PR, `unknown`. Neither the title nor the message is shown.
+- **BR2**: head branches of the PRs merged into the default branch, excluding forks, bots and unnamed
+  branches; shown per repository (restricted report: only the PRs of the chosen contributors).
+- **BR5**: shown as is (allowed methods), compliant when **only** squash is allowed; "unknown"
+  (`no_push_access`) when GitHub does not return the settings (account without push access, or repository
+  not synced again since phase 8.5); for information, no badge in the milestone review.
 
 ### 5.4 Tags and SemVer (SV)
 
@@ -139,14 +206,16 @@ commit and a branch are never removed). The default branch alone forms a second,
 per interval between tags and the CC3 trend are computed when read, from the database and the clone, with no
 migration and no extra request. Approximations:
 
-- **Forks**: the database does not keep the source repository of a PR, so the head branches of PRs from a
-  fork are counted in BR1, and those PRs in PR1, until phase 8.5 (`from_fork`).
+- **Forks**: in 8.2, the database did not keep the source repository of a PR, so the head branches of PRs
+  from a fork were counted in BR1, and those PRs in PR1. Since phase 8.5 (`from_fork`), they are set aside
+  (reason `fork`); a PR of unknown origin is still counted.
 - **API mode**: it is not stored. PR1, PR2 and SV6 are "unknown" for a repository the API has never seen
   (no forge identifier) and for a workspace synced in clone-only mode; otherwise the PRs and releases in the
   database are those of the last sync through the API. PR head branches are only added to BR1 in API mode.
-- **PR1 and PR2**: PRs other than drafts, bots and PRs closed without merge, opened since the start date. A
-  PR is linked to a contributor by its forge account. Comparing the title with the subject of the PR's only
-  commit is **not measured**: the database does not link commits to PRs.
+- **PR1 and PR2**: PRs other than drafts, bots and PRs closed without merge (and forks since phase 8.5),
+  opened since the start date. A PR is linked to a contributor by its forge account. Comparing the title with
+  the subject of the PR's only commit is **not measured**: the database does not link commits to PRs, and it
+  would take one request per PR (`GET /pulls/{n}/commits`).
 - **BR1**: remote branches read in the clone (`refs/remotes/origin/`, without update) and PR head branches
   (without bots), each name once. The built-in rule also gives `pattern` to a name that does not follow it
   with no other named issue (`feat/a.b`, `feat/-x`). Without a clone, or with an unreadable clone, the fallback is the
@@ -458,14 +527,22 @@ measured in 8.2 appear:
   "unknown".
 
 Without a start date (`conventions.since` of the workspace or of the repository), the repository is "not
-evaluable: missing start date". PR3 and PR4 are added with phases 8.5 and 8.6.
+evaluable: missing start date". PR3 is added with phase 8.5 (below), PR4 with phase 8.6.
 
 **Phase 8.4: SV2 deadline and SV3 in the review.** With a due date, **SV2** also judges when the tag with the
 exact name was set: "on time" conform, "late" not conform, "undetermined" unknown (`deadline_undetermined`).
 **SV3** follows SV2 (the "milestone tags never rewritten" criterion combines SV1, SV2 and SV3): conform when no
 rewrite nor deletion of the tag that designates the milestone was observed (stable), not conform when it was
 rewritten or deleted, even when set again afterwards on the same commit; missing tag: "unknown" with the reason of SV1; tag
-never observed: "unknown" (`not_observed`). The review therefore counts twelve criteria.
+never observed: "unknown" (`not_observed`).
+
+**Phase 8.5: PR3 in the review.** The **PR3 = 0** criterion follows BR1 (criterion "feature branches, reviewed
+PRs"): first parent of the tag that designates the milestone (missing tag: of the default branch, committed
+before the end of the due date), minus the commits of the previous final tag, since the start date, all
+authors. Conform when no commit arrived outside a PR and none is undetermined; not conform as soon as a commit
+arrived outside a PR; "unknown" without a clone (`no_clone`), with an unreadable clone (`clone_unreadable`),
+without commits (`no_commits`), with commits of undetermined arrival (`undetermined`, frequent in clone-only
+mode), or in the `no_tag` and `not_due` cases of CC1. The review therefore counts thirteen criteria.
 
 **Phase 8.3: file criteria of the review.** Seven criteria follow SV2, read from the cache of the sync for
 the **tree of the tag** that designates the milestone (same rule as SV1: exact name, else the first
@@ -512,6 +589,14 @@ absent from the tree counts once (RD1 or DOC1 not conform), the criteria that re
 - **JSON, phase 8.4**: only adds keys: `rewrites`, `tag_history`, `prereleases`, `bumps`, `precedence` and
   `changelog_freshness` per repository, `deadline` per milestone of `tags.milestones`, `deadline` and
   `tag_history` per repository of the milestone review; details in [05-cli.md](05-cli.md#json-output).
+- **Phase 8.5**: the repository page adds two badges per PR (description PR5, merge PR6; the list shows the
+  PRs whose title, description or merge needs a look) and a "Merges" block (commits outside PR: short SHA and
+  commit author; descriptions; squash merges; reused branches; allowed merge methods); `/conventions` adds a
+  column "Outside PR, merge methods" per repository, "Commits outside PR" per contributor and the PR3
+  criterion of the review; a contributor's page, the commits they wrote that arrived outside a PR. The JSON
+  only adds keys: `arrivals` and `merge_methods` per repository, `branches.reused`, `pull_requests.methods`,
+  `body` and `merge` per PR, `body_known`, `body_conform`, `merge_known`, `squash`, `merge_conform` in the PR
+  counts, `skipped.fork`, `arrivals` per contributor and per repository of the milestone review.
 - **Phase 8.3: reading of the file criteria.** `Build` and `ReviewMilestone` only read the cache of the
   sync (`repository_conventions`), never the clone, except for the path lists. The head of the default
   branch is compared with the last known commit of the branch in the database, a milestone tag with its
@@ -542,7 +627,7 @@ charter in [section 3](#3-reference-the-charter).
 | `commit.language` | `any` | `fr`, `en` or `any`; information only (CC7), no effect on compliance |
 | `branch.pattern` | empty (built-in rule `^(<types>)/[a-z0-9]+(-[a-z0-9]+)+$`, built from `commit.types`) | Branch naming (BR1): an RE2 expression, validated at load time, that replaces the built-in rule |
 | `branch.exclude` | `gh-pages`, `dependabot/*`, `renovate/*` | Branches left out (BR1): glob patterns (`*`, `?`, `[...]`, `path.Match` syntax), each one designating the name itself or one of its path prefixes (`dependabot/*` excludes `dependabot/npm_and_yarn/lodash-4.17.21`); the default branch is always left out |
-| `pr.body_sections`, `pr.require_closes` | charter sections, `true` | PR body |
+| `pr.body_sections`, `pr.require_closes` | `context`, `changes`, `testing`, `screenshots`, `true` | PR body (PR5, phase 8.5): expected sections, keys among `context`, `changes`, `testing`, `screenshots` (FR and EN synonyms built in and versioned; empty list: no section expected); closing keyword `Closes #n` required |
 | `pr.min_reviews`, `pr.reviewer_must_contribute` | 1, `false` | Reviews; another account is enough, unless the reviewer must be a contributor |
 | `tags.milestones` | `v1.0.0`, `v2.0.0`, `v3.0.0` (no deadline) | Milestones (SV2, milestone review): each entry `vX.Y.Z`, or `vX.Y.Z@YYYY-MM-DD` for a deadline |
 | `tags.prerelease_forms` | `rc`, `beta`, `alpha` | Compliant pre-release forms `-<form>.N` (SV4, phase 8.4); the other forms give a warning, never a deviation |
@@ -652,6 +737,27 @@ leading zero (`v1.0.0-rc.1`); any other form (`-rc1`, `-RC.1`, `-pre`) gets a SV
 deviation. In the sharing file, the key is written `settings.conventions.tags.prerelease_forms`; a file that
 contains it is refused by the versions before 1.10.0 (as is a `config.yaml` that contains it).
 
+**Phase 8.5**: `pr.body_sections` and `pr.require_closes` are added (1.11.0), shared like `commit.*`. Exact
+syntax:
+
+```yaml
+conventions:
+  pr:
+    body_sections: ["context", "changes", "testing", "screenshots"] # expected sections of the body (PR5)
+    require_closes: true # closing keyword "Closes #n" required
+```
+
+Environment variables: `WATCHOO_CONVENTIONS_PR_BODY_SECTIONS` (comma-separated list, `context,testing`) and
+`WATCHOO_CONVENTIONS_PR_REQUIRE_CLOSES`. Rules checked at load time: each key of `pr.body_sections` among
+the four above (lowercase, as is; `closes` is not one, the closing keyword has its own setting), only once;
+an empty list expects no section. The synonyms recognized for each key ("Context", "Pourquoi", "How to
+test"…) cannot be set: they are built into the binary and versioned with the pull request rules. These
+settings only change the reading of the `body_sections` mask already computed at the sync: changing them
+does not require reading the pull requests again. In the sharing file, they are written
+`settings.conventions.pr` (`body_sections`, `require_closes`); a file that contains them is refused by the
+versions before 1.11.0 (as is a `config.yaml` that contains them). `pr.min_reviews` and
+`pr.reviewer_must_contribute` come with PR4 (phase 8.6).
+
 ## 9. Technical impact
 
 - **Packages**:
@@ -666,9 +772,11 @@ contains it is refused by the versions before 1.10.0 (as is a `config.yaml` that
 - **Sync**: `internal/sync/conventions.go` (files, phase 8.3) and `internal/sync/history.go`
   (`tag_observations` and BR4, phase 8.4), called when `conventions.enabled`. The clone is read through
   optional interfaces of the git provider (`TreePaths`, `ReadBlobs`, `FirstParent`, `IsAncestor`,
-  `LastTouch` (CL10, at read time), `RevList`), with no addition to the `Provider` interface. On the `Provider` side: `PullRequest.MergeCommitSHA`
-  (filled only if the PR is merged), `PullRequest.FromFork` and
-  `PullRequestReviews` (GET; `ErrUnsupported` with a clone). The computation is only rerun if the head of
+  `LastTouch` (CL10, at read time), `RevList`), with no addition to the `Provider` interface. On the `Provider` side, done in phase 8.5:
+  `PullRequest.MergeCommitSHA` (filled only if the PR is merged), `PullRequest.FromFork`,
+  `PullRequest.BodySections` (mask computed in memory), `Repository.AllowSquashMerge`, `AllowMergeCommit` and
+  `AllowRebaseMerge` (nil = unknown; "unknown" with a clone); planned for phase 8.6: `PullRequestReviews`
+  (GET; `ErrUnsupported` with a clone). The computation is only rerun if the head of
   the default branch, `RulesVersion` or the configuration fingerprint has changed. Failures logged at
   Debug level, without message or path.
 - **Sync, done in phase 8.3** (file criteria):
@@ -718,18 +826,33 @@ contains it is refused by the versions before 1.10.0 (as is a `config.yaml` that
   - `tag_observations(repo_id, name, sha, first_seen_at, last_seen_at, ended_at, end_reason)`;
   - `branch_rewrites(repo_id, branch, old_sha, new_sha, observed_at)`;
   - `repositories.conventions_since` (NULL = the workspace's date);
-  - `pull_requests.merge_commit_sha`, `from_fork`, `body_sections` (NULL = unknown),
-    `reviews_by_others`, `approved_before_merge`, `reviews_checked_at`: counters and flags, never the
-    reviewers' logins (maintainer decision);
+  - done, migration `00020` (phase 8.5): `pull_requests.merge_commit_sha`, `from_fork`, `body_sections`
+    and `repositories.allow_squash_merge`, `allow_merge_commit`, `allow_rebase_merge`,
+    `conventions_prs_version` (NULL = unknown, or full reread not done yet);
+  - planned for phase 8.6: `pull_requests.reviews_by_others`, `approved_before_merge`,
+    `reviews_checked_at`: counters and flags, never the reviewers' logins (maintainer decision);
   - `branches.protected` is not added while BR3 is postponed;
   - that is 19 tables instead of 16.
   - CC, BR1, PR1, PR2, SV1, SV2 and SV6 are computed on the fly from the database: a charter change takes
     effect immediately.
 - **Quota**:
   - phases 8.1 to 8.4: no request;
-  - 8.5: no request in steady state; turning the conventions on (or raising `RulesVersion`) triggers
-    **one** full reread of the PR list (at most 10 pages per repository) to fill `merge_commit_sha`,
-    `from_fork` and `body_sections`;
+  - 8.5: no request in steady state: `merge_commit_sha` (kept for merged PRs only), `from_fork` and the
+    body (read **in memory** only, to compute the `body_sections` mask, like D2: never stored, logged nor
+    returned) come from `GET /pulls`, the merge methods from `GET /repos`, both already requested at every
+    sync. They are filled at insertion even when the conventions are off (they cost nothing). With
+    `conventions.enabled`, a repository whose `repositories.conventions_prs_version` is missing or lower
+    than the version of the PR rules (`conventions.PRRulesVersion`, raised when the section synonyms
+    change) gets **one** full reread of its PR list (state `all`, at most 10 pages, under the existing
+    quota reserve) in place of the incremental read it contains: the PRs updated since the previous sync
+    are written in full as usual, the others only receive `merge_commit_sha`, `from_fork` and
+    `body_sections` (their `tool_ids` are untouched). The marker is set only when the list was read
+    without error, without an unusable PR and below the cap of 1,000 PRs; an interrupted reread (exhausted
+    quota, failure) keeps what was filled and is retried at the next sync. Approximation: a repository
+    with 1,000 PRs or more never gets the marker and is reread (10 pages) at every sync while the
+    conventions are on. Clone mode: no PR, everything "unknown". `from_fork` is unknown when the response
+    does not give the base repository; the merge methods are only returned to an account with push
+    rights (otherwise "unknown", written NULL even over a value known before);
   - 8.6: one request per merged PR, only once, plus the open PRs whose `updated_at` changed; for example
     30 repositories × 40 PRs = 1,200 requests on the first pass (24% of the hourly quota), capped per sync
     and cut below the quota reserve. The ETag cache is shared in `watchoo serve` but empty for each CLI
@@ -737,8 +860,9 @@ contains it is refused by the versions before 1.10.0 (as is a `config.yaml` that
   - releases are already reread in full at every sync: cost unchanged.
 - **Interaction with the diagnosis**: the squash merge imposed by the charter produces large single commits
   on the default branch, which feed A1 (massive commit) and A2 (repository delivered in one go) and erase
-  the material of H4. When `conventions.enabled` is on, identified squash commits (`merge_commit_sha` of a
-  PR, or "(#n)" with the GitHub committer) are excluded from A1 and A2, and the "novelty: Conventional
+  the material of H4. When `conventions.enabled` is on, identified squash commits ("(#n)" with the GitHub
+  committer, phase 8.1; or, phase 8.5, `merge_commit_sha` of a merged PR, with one parent and the "(#n)" suffix
+  of that PR) are excluded from A1 and A2, and the "novelty: Conventional
   Commits subject" criterion of F4 is neutralised after `conventions.since`. To be reported in
   [Supervision and diagnosis](12-supervision-diagnostic.md).
 - **Public surface**: new command, route, settings, JSON keys and additive migrations: MINOR.
@@ -760,7 +884,7 @@ Each phase can be delivered alone; phases 8.1 to 8.4 are enough for a milestone 
 | 8.2 | On the fly: BR1, PR1, PR2, SV1, SV2 (presence), SV6; first milestone review; CC5 to CC7; CC1 per range between tags, CC3 trend. **Done, not released** (`[Unreleased]` of the CHANGELOG; `branch.pattern`, `branch.exclude` and `tags.milestones` settings; `/conventions` route; approximations listed in [5.4](#54-tags-and-semver-sv): forks included until 8.5, PR2 comparison with the only commit not measured, API mode inferred; compact dot on the dashboard postponed) | 0 quota | 1.8.0 |
 | 8.3 | Clone tree: `repository_conventions`, CL1 to CL9, RD1 to RD4, DOC1 to DOC8, TL1 to TL3; milestone review on the tags' tree. **Done, not released** (`[Unreleased]` of the CHANGELOG; migration `00017`; `changelog.categories_fr`, `readme.sections`, `readme.min_words`, `docs.dir`, `docs.media_dir`, `docs.archives_scope` settings; deviations: DOC6 and DOC7 postponed to 8.7, CL10 to 8.4; `FileRulesVersion` separate from `RulesVersion`; `config_hash` also covers the names of the version tags (CL8); category order (CL6) as a warning; date gap between tag and section (CL8) not measured; TL1 without introduction date; DOC4 reads at most 300 documents; path lists only on a repository's page and in `watchoo conventions owner/repo`, not in `/conventions`; in API mode, milestone tags read from the database, see [section 9](#9-technical-impact)) | 0 quota, 1 migration | 1.9.0 |
 | 8.4 | History: `tag_observations` (SV3, SV2 deadlines), `branch_rewrites` (BR4), SV4, SV5, SV7, CL10. **Done, not released** (`[Unreleased]` of the CHANGELOG; migrations `00018` and `00019`; setting `tags.prerelease_forms`; SV3 in the milestone review; approximations listed in [5.4](#54-tags-and-semver-sv): proof of a read of the tags by the dates of `tag_observations`, "late" only on a read made after the deadline, rewrite of an annotated tag on the same commit invisible, BR4 partial in API mode alone; SV4, SV5, SV7 and CL10 computed at read time, not stored) | 0 quota, 2 migrations | 1.10.0 |
-| 8.5 | API with no extra request: `merge_commit_sha`, `from_fork`, `body_sections`, merge methods; full PR3, PR5, PR6, BR2, BR5 | one reread of the PR lists | 1.11.0 |
+| 8.5 | API with no extra request: `merge_commit_sha`, `from_fork`, `body_sections`, merge methods; full PR3, PR5, PR6, BR2, BR5. **Done, not released** (`[Unreleased]` of the CHANGELOG; migration `00020`; settings `pr.body_sections` and `pr.require_closes`; PR3 in the milestone review; forks set aside from PR1, PR2, PR5, PR6, BR1 and BR2; approximations listed in [5.3](#53-pull-requests-pr): PR3 filtered on the committer date, `unmatched` until the PR list has been reread, PR6 "rebase" for a squash with a rewritten subject, BR5 unknown without push access, repository of 1,000 PRs or more reread at each sync; comparison of PR2 with the only commit not measured) | one reread of the PR lists | 1.11.0 |
 | 8.6 | Reviews: PR4, "merged without review", reviews received | 1 request per merged PR | 1.12.0 |
 | 8.7 | Optional leads: CL11, CL12, RD5, DOC6, DOC7, DOC9, DOC10, TL4, TL5 | 0 quota | MINOR |
 

@@ -111,12 +111,13 @@ type Settings struct {
 
 // ConventionsSettings : conventions.since (AAAA-MM-JJ, "" = depuis le début), conventions.commit.*,
 // conventions.branch.* et conventions.tags.* (ces deux blocs depuis la phase 8.2), conventions.changelog.*,
-// conventions.readme.* et conventions.docs.* (phase 8.3) ; blocs facultatifs ajoutés sans changer la
+// conventions.readme.* et conventions.docs.* (phase 8.3), conventions.pr.* (phase 8.5) ; blocs facultatifs ajoutés sans changer la
 // version du format.
 type ConventionsSettings struct {
 	Since     *string                       `json:"since,omitempty"`
 	Commit    *ConventionsCommitSettings    `json:"commit,omitempty"`
 	Branch    *ConventionsBranchSettings    `json:"branch,omitempty"`
+	PR        *ConventionsPRSettings        `json:"pr,omitempty"`
 	Tags      *ConventionsTagsSettings      `json:"tags,omitempty"`
 	Changelog *ConventionsChangelogSettings `json:"changelog,omitempty"`
 	Readme    *ConventionsReadmeSettings    `json:"readme,omitempty"`
@@ -145,6 +146,12 @@ type ConventionsDocsSettings struct {
 type ConventionsBranchSettings struct {
 	Pattern *string   `json:"pattern,omitempty"`
 	Exclude *[]string `json:"exclude,omitempty"`
+}
+
+// ConventionsPRSettings : conventions.pr.* (body_sections [] = aucune section attendue ; phase 8.5).
+type ConventionsPRSettings struct {
+	BodySections  *[]string `json:"body_sections,omitempty"`
+	RequireCloses *bool     `json:"require_closes,omitempty"`
 }
 
 // ConventionsTagsSettings : conventions.tags.* (milestones [] = aucun jalon).
@@ -318,6 +325,10 @@ func settingsFromConfig(c workspace.Config) *Settings {
 			Branch: &ConventionsBranchSettings{
 				Pattern: shared.ConventionsBranchPattern,
 				Exclude: shared.ConventionsBranchExclude,
+			},
+			PR: &ConventionsPRSettings{
+				BodySections:  shared.ConventionsPRBodySections,
+				RequireCloses: shared.ConventionsPRRequireCloses,
 			},
 			Tags: &ConventionsTagsSettings{Milestones: shared.ConventionsMilestones,
 				PrereleaseForms: shared.ConventionsPrereleaseForms},

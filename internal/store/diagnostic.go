@@ -191,8 +191,10 @@ type CommitSignalView struct {
 	AuthorName  string // nom du contributeur auteur ; vide si inconnu
 	AuthorLogin string // login de forge de l'auteur ; vide si inconnu
 	// Squash indique un commit de squash identifié (phase 8.1) : committer GitHub
-	// (aisignature.IsGitHubCommitter) ET sujet terminé par « (#n) » (conventions.IsSquashSubject). Calculé
-	// à la lecture : le message n'est lu qu'en mémoire et n'est jamais conservé dans la vue.
+	// (aisignature.IsGitHubCommitter) ET sujet terminé par « (#n) » (conventions.IsSquashSubject) ; phase
+	// 8.5 : ou merge_commit_sha d'une PR fusionnée, à un parent, dont le sujet se termine par « (#n) » de
+	// cette PR (conventions.IsIdentifiedSquash). Calculé à la lecture : le message n'est lu qu'en mémoire et
+	// n'est jamais conservé dans la vue.
 	Squash bool
 	// ConventionsSince est la date de début des conventions propre au dépôt, AAAA-MM-JJ ; vide = celle de
 	// l'espace (conventions.since).
@@ -241,9 +243,9 @@ func commitSignalView(r db.ListCommitSignalViewsRow) (CommitSignalView, error) {
 	if err != nil {
 		return CommitSignalView{}, wrapErr(i18n.T("store.diagnostic.list_all"), err)
 	}
-	// squash_message n'est renseigné que pour un committer GitHub : il ne sert qu'à ce test et n'est pas
-	// conservé.
-	squash := r.SquashMessage != "" && conventions.IsSquashSubject(r.SquashMessage)
+	// squash_message n'est renseigné que pour un committer GitHub ou le commit de fusion d'une PR : il ne
+	// sert qu'à ce test et n'est pas conservé.
+	squash := conventions.IsIdentifiedSquash(r.SquashMessage, r.GithubCommitter, int(r.MergePrNumber), int(r.ParentCount))
 	return CommitSignalView{
 		CommitSignal: model.CommitSignal{
 			RepoID: r.RepoID, SHA: r.SHA, AuthorID: r.AuthorID.Int64, AuthoredAt: authored,

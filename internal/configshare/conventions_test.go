@@ -59,6 +59,7 @@ func TestConventionsImport(t *testing.T) {
 		Commit: workspace.ConventionsCommitConfig{Types: []string{"feat", "fix"}, Scopes: []string{"api"},
 			MaxSubjectSoft: 60, MaxSubjectHard: 72, Forbidden: []string{}, Language: "fr"},
 		Branch:           workspace.DefaultConfig("x").Conventions.Branch,
+		PR:               workspace.DefaultConfig("x").Conventions.PR,
 		Tags:             workspace.DefaultConfig("x").Conventions.Tags,
 		Changelog:        workspace.DefaultConfig("x").Conventions.Changelog,
 		Readme:           workspace.DefaultConfig("x").Conventions.Readme,
@@ -280,6 +281,13 @@ func TestConventionsParseRejects(t *testing.T) {
 		`{"tags": {"prerelease_forms": "rc"}}`:            "type",
 		`{"tags": {"prerelease": ["rc"]}}`:                "prerelease",
 
+		`{"pr": {"body_sections": ["context", "closes"]}}`: `settings.conventions.pr.body_sections: entry #2 "closes" is invalid`,
+		`{"pr": {"body_sections": ["Testing"]}}`:           `settings.conventions.pr.body_sections: entry #1 "Testing" is invalid`,
+		`{"pr": {"body_sections": [""]}}`:                  "settings.conventions.pr.body_sections: entry #1 is empty",
+		`{"pr": {"body_sections": "testing"}}`:             "type",
+		`{"pr": {"require_closes": "yes"}}`:                "type",
+		`{"pr": {"min_reviews": 1}}`:                       "min_reviews",
+
 		`{"readme": {"sections": ["install", "Install"]}}`: `settings.conventions.readme.sections: entry #2 "Install" is invalid`,
 		`{"readme": {"sections": [""]}}`:                   "settings.conventions.readme.sections: entry #1 is empty",
 		`{"readme": {"min_words": "150"}}`:                 "type",
@@ -305,13 +313,14 @@ func TestConventionsPlanRejectsInvalidMerged(t *testing.T) {
 	e := newEnv(t, "licence")
 	before := readFile(t, e.ws.ConfigPath())
 	for name, settings := range map[string]string{
-		"no type":            `{"conventions": {"commit": {"types": []}}}`,
-		"soft above hard":    `{"conventions": {"commit": {"max_subject_soft": 80}}}`,
-		"zero soft length":   `{"conventions": {"commit": {"max_subject_soft": 0}}}`,
-		"zero min words":     `{"conventions": {"readme": {"min_words": 0}}}`,
-		"repeated section":   `{"conventions": {"readme": {"sections": ["run", "run"]}}}`,
-		"no prerelease form": `{"conventions": {"tags": {"prerelease_forms": []}}}`,
-		"repeated form":      `{"conventions": {"tags": {"prerelease_forms": ["rc", "rc"]}}}`,
+		"no type":             `{"conventions": {"commit": {"types": []}}}`,
+		"soft above hard":     `{"conventions": {"commit": {"max_subject_soft": 80}}}`,
+		"zero soft length":    `{"conventions": {"commit": {"max_subject_soft": 0}}}`,
+		"zero min words":      `{"conventions": {"readme": {"min_words": 0}}}`,
+		"repeated section":    `{"conventions": {"readme": {"sections": ["run", "run"]}}}`,
+		"no prerelease form":  `{"conventions": {"tags": {"prerelease_forms": []}}}`,
+		"repeated form":       `{"conventions": {"tags": {"prerelease_forms": ["rc", "rc"]}}}`,
+		"repeated PR section": `{"conventions": {"pr": {"body_sections": ["testing", "testing"]}}}`,
 	} {
 		t.Run(name, func(t *testing.T) {
 			f := mustParse(t, doc(settings, ""))
@@ -322,6 +331,47 @@ func TestConventionsPlanRejectsInvalidMerged(t *testing.T) {
 				t.Error("config.yaml changed")
 			}
 		})
+	}
+}
+
+// The expectations of the pull request body (settings.conventions.pr, PR5), phase 8.5, are read, previewed,
+// applied and exported like the other lists; an empty list expects no section.
+func TestConventionsPRBodyImport(t *testing.T) {
+	isolate(t)
+	e := newEnv(t, "licence")
+	f := mustParse(t, doc(`{"conventions": {"pr": {"body_sections": [], "require_closes": false}}}`, ""))
+	wantKeys := []string{workspace.KeyConventionsPRBodySections, workspace.KeyConventionsPRRequireCloses}
+	if keys := f.Settings.Keys(); !slices.Equal(keys, wantKeys) {
+		t.Errorf("keys = %v", keys)
+	}
+	p, err := configshare.Plan(t.Context(), e.ws, e.st, f, configshare.PlanOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(p.Settings.Changes) != 2 || p.Settings.Changes[0].Key != workspace.KeyConventionsPRBodySections ||
+		p.Settings.Changes[0].Before != `["context", "changes", "testing", "screenshots"]` || p.Settings.Changes[0].After != `[]` ||
+		p.Settings.Changes[1].Before != "true" || p.Settings.Changes[1].After != "false" {
+		t.Errorf("changes = %+v", p.Settings.Changes)
+	}
+	if _, err := configshare.Apply(t.Context(), e.ws, e.st, nil, f, configshare.ApplyOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	e.ws.Config = e.reload()
+	if got := e.ws.Config.Conventions.PR; len(got.BodySections) != 0 || got.RequireCloses {
+		t.Errorf("pr = %+v", got)
+	}
+	d, err := configshare.Export(t.Context(), e.ws, e.st, configshare.ExportOptions{Now: testNow})
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, _ := d.Marshal()
+	if !strings.Contains(string(data), `"body_sections": []`) || !strings.Contains(string(data), `"require_closes": false`) {
+		t.Errorf("export lacks conventions.pr:\n%s", data)
+	}
+	back := mustParse(t, string(data))
+	if s := back.Settings.ConventionsPRBodySections; s == nil || len(*s) != 0 ||
+		back.Settings.ConventionsPRRequireCloses == nil || *back.Settings.ConventionsPRRequireCloses {
+		t.Errorf("read back = %v / %v", s, back.Settings.ConventionsPRRequireCloses)
 	}
 }
 

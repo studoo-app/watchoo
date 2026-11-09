@@ -20,7 +20,7 @@ INSERT INTO repositories (
     ?, ?, ?, ?, ?, ?,
     ?, ?
 )
-RETURNING id, provider, provider_id, owner, name, label, default_branch, url, stars, open_issues, last_synced_at, last_commit_at, archived, flemme_after_days, dead_after_days, enabled, branch_patterns, conventions_since
+RETURNING id, provider, provider_id, owner, name, label, default_branch, url, stars, open_issues, last_synced_at, last_commit_at, archived, flemme_after_days, dead_after_days, enabled, branch_patterns, conventions_since, allow_squash_merge, allow_merge_commit, allow_rebase_merge, conventions_prs_version
 `
 
 type CreateRepositoryParams struct {
@@ -84,6 +84,10 @@ func (q *Queries) CreateRepository(ctx context.Context, arg CreateRepositoryPara
 		&i.Enabled,
 		&i.BranchPatterns,
 		&i.ConventionsSince,
+		&i.AllowSquashMerge,
+		&i.AllowMergeCommit,
+		&i.AllowRebaseMerge,
+		&i.ConventionsPrsVersion,
 	)
 	return i, err
 }
@@ -103,7 +107,7 @@ func (q *Queries) DeleteRepository(ctx context.Context, id int64) (int64, error)
 }
 
 const getRepository = `-- name: GetRepository :one
-SELECT id, provider, provider_id, owner, name, label, default_branch, url, stars, open_issues, last_synced_at, last_commit_at, archived, flemme_after_days, dead_after_days, enabled, branch_patterns, conventions_since FROM repositories
+SELECT id, provider, provider_id, owner, name, label, default_branch, url, stars, open_issues, last_synced_at, last_commit_at, archived, flemme_after_days, dead_after_days, enabled, branch_patterns, conventions_since, allow_squash_merge, allow_merge_commit, allow_rebase_merge, conventions_prs_version FROM repositories
 WHERE id = ?
 `
 
@@ -130,12 +134,16 @@ func (q *Queries) GetRepository(ctx context.Context, id int64) (Repository, erro
 		&i.Enabled,
 		&i.BranchPatterns,
 		&i.ConventionsSince,
+		&i.AllowSquashMerge,
+		&i.AllowMergeCommit,
+		&i.AllowRebaseMerge,
+		&i.ConventionsPrsVersion,
 	)
 	return i, err
 }
 
 const getRepositoryByName = `-- name: GetRepositoryByName :one
-SELECT id, provider, provider_id, owner, name, label, default_branch, url, stars, open_issues, last_synced_at, last_commit_at, archived, flemme_after_days, dead_after_days, enabled, branch_patterns, conventions_since FROM repositories
+SELECT id, provider, provider_id, owner, name, label, default_branch, url, stars, open_issues, last_synced_at, last_commit_at, archived, flemme_after_days, dead_after_days, enabled, branch_patterns, conventions_since, allow_squash_merge, allow_merge_commit, allow_rebase_merge, conventions_prs_version FROM repositories
 WHERE provider = ? AND owner = ? AND name = ?
 `
 
@@ -168,12 +176,16 @@ func (q *Queries) GetRepositoryByName(ctx context.Context, arg GetRepositoryByNa
 		&i.Enabled,
 		&i.BranchPatterns,
 		&i.ConventionsSince,
+		&i.AllowSquashMerge,
+		&i.AllowMergeCommit,
+		&i.AllowRebaseMerge,
+		&i.ConventionsPrsVersion,
 	)
 	return i, err
 }
 
 const getRepositoryByProviderID = `-- name: GetRepositoryByProviderID :one
-SELECT id, provider, provider_id, owner, name, label, default_branch, url, stars, open_issues, last_synced_at, last_commit_at, archived, flemme_after_days, dead_after_days, enabled, branch_patterns, conventions_since FROM repositories
+SELECT id, provider, provider_id, owner, name, label, default_branch, url, stars, open_issues, last_synced_at, last_commit_at, archived, flemme_after_days, dead_after_days, enabled, branch_patterns, conventions_since, allow_squash_merge, allow_merge_commit, allow_rebase_merge, conventions_prs_version FROM repositories
 WHERE provider = ? AND provider_id = ?
 `
 
@@ -205,12 +217,16 @@ func (q *Queries) GetRepositoryByProviderID(ctx context.Context, arg GetReposito
 		&i.Enabled,
 		&i.BranchPatterns,
 		&i.ConventionsSince,
+		&i.AllowSquashMerge,
+		&i.AllowMergeCommit,
+		&i.AllowRebaseMerge,
+		&i.ConventionsPrsVersion,
 	)
 	return i, err
 }
 
 const listRepositories = `-- name: ListRepositories :many
-SELECT id, provider, provider_id, owner, name, label, default_branch, url, stars, open_issues, last_synced_at, last_commit_at, archived, flemme_after_days, dead_after_days, enabled, branch_patterns, conventions_since FROM repositories
+SELECT id, provider, provider_id, owner, name, label, default_branch, url, stars, open_issues, last_synced_at, last_commit_at, archived, flemme_after_days, dead_after_days, enabled, branch_patterns, conventions_since, allow_squash_merge, allow_merge_commit, allow_rebase_merge, conventions_prs_version FROM repositories
 ORDER BY owner, name
 `
 
@@ -243,6 +259,10 @@ func (q *Queries) ListRepositories(ctx context.Context) ([]Repository, error) {
 			&i.Enabled,
 			&i.BranchPatterns,
 			&i.ConventionsSince,
+			&i.AllowSquashMerge,
+			&i.AllowMergeCommit,
+			&i.AllowRebaseMerge,
+			&i.ConventionsPrsVersion,
 		); err != nil {
 			return nil, err
 		}
@@ -257,11 +277,31 @@ func (q *Queries) ListRepositories(ctx context.Context) ([]Repository, error) {
 	return items, nil
 }
 
+const setRepositoryConventionsPRsVersion = `-- name: SetRepositoryConventionsPRsVersion :execrows
+UPDATE repositories
+SET conventions_prs_version = ?1
+WHERE id = ?2
+`
+
+type SetRepositoryConventionsPRsVersionParams struct {
+	ConventionsPrsVersion sql.NullInt64
+	ID                    int64
+}
+
+// Marque la relecture complete des PR du depot faite pour cette version des regles de PR (phase 8.5).
+func (q *Queries) SetRepositoryConventionsPRsVersion(ctx context.Context, arg SetRepositoryConventionsPRsVersionParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, setRepositoryConventionsPRsVersion, arg.ConventionsPrsVersion, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const setRepositoryConventionsSince = `-- name: SetRepositoryConventionsSince :one
 UPDATE repositories
 SET conventions_since = ?
 WHERE id = ?
-RETURNING id, provider, provider_id, owner, name, label, default_branch, url, stars, open_issues, last_synced_at, last_commit_at, archived, flemme_after_days, dead_after_days, enabled, branch_patterns, conventions_since
+RETURNING id, provider, provider_id, owner, name, label, default_branch, url, stars, open_issues, last_synced_at, last_commit_at, archived, flemme_after_days, dead_after_days, enabled, branch_patterns, conventions_since, allow_squash_merge, allow_merge_commit, allow_rebase_merge, conventions_prs_version
 `
 
 type SetRepositoryConventionsSinceParams struct {
@@ -293,6 +333,10 @@ func (q *Queries) SetRepositoryConventionsSince(ctx context.Context, arg SetRepo
 		&i.Enabled,
 		&i.BranchPatterns,
 		&i.ConventionsSince,
+		&i.AllowSquashMerge,
+		&i.AllowMergeCommit,
+		&i.AllowRebaseMerge,
+		&i.ConventionsPrsVersion,
 	)
 	return i, err
 }
@@ -338,7 +382,7 @@ const setRepositoryThresholds = `-- name: SetRepositoryThresholds :one
 UPDATE repositories
 SET flemme_after_days = ?, dead_after_days = ?
 WHERE id = ?
-RETURNING id, provider, provider_id, owner, name, label, default_branch, url, stars, open_issues, last_synced_at, last_commit_at, archived, flemme_after_days, dead_after_days, enabled, branch_patterns, conventions_since
+RETURNING id, provider, provider_id, owner, name, label, default_branch, url, stars, open_issues, last_synced_at, last_commit_at, archived, flemme_after_days, dead_after_days, enabled, branch_patterns, conventions_since, allow_squash_merge, allow_merge_commit, allow_rebase_merge, conventions_prs_version
 `
 
 type SetRepositoryThresholdsParams struct {
@@ -370,6 +414,10 @@ func (q *Queries) SetRepositoryThresholds(ctx context.Context, arg SetRepository
 		&i.Enabled,
 		&i.BranchPatterns,
 		&i.ConventionsSince,
+		&i.AllowSquashMerge,
+		&i.AllowMergeCommit,
+		&i.AllowRebaseMerge,
+		&i.ConventionsPrsVersion,
 	)
 	return i, err
 }
@@ -403,26 +451,32 @@ UPDATE repositories
 SET owner = ?1, name = ?2, default_branch = ?3,
     url = ?4, stars = ?5, open_issues = ?6,
     archived = ?7, last_synced_at = ?8,
-    provider_id = COALESCE(?9, provider_id)
-WHERE id = ?10
+    provider_id = COALESCE(?9, provider_id),
+    allow_squash_merge = ?10, allow_merge_commit = ?11,
+    allow_rebase_merge = ?12
+WHERE id = ?13
 `
 
 type UpdateRepositoryMetadataParams struct {
-	Owner         string
-	Name          string
-	DefaultBranch string
-	URL           string
-	Stars         int64
-	OpenIssues    int64
-	Archived      bool
-	LastSyncedAt  sql.NullString
-	ProviderID    sql.NullInt64
-	ID            int64
+	Owner            string
+	Name             string
+	DefaultBranch    string
+	URL              string
+	Stars            int64
+	OpenIssues       int64
+	Archived         bool
+	LastSyncedAt     sql.NullString
+	ProviderID       sql.NullInt64
+	AllowSquashMerge sql.NullInt64
+	AllowMergeCommit sql.NullInt64
+	AllowRebaseMerge sql.NullInt64
+	ID               int64
 }
 
 // Ecrit les metadonnees lues sur la forge et la date de fin de la synchro reussie. provider_id NULL
 // garde l'identifiant en base ; sinon il est ecrit (premiere synchro par l'API d'un depot ajoute
-// par clone Git local).
+// par clone Git local). Les methodes de fusion autorisees (phase 8.5) sont remplacees telles quelles :
+// NULL (inconnues, sans droit push) efface une valeur connue.
 func (q *Queries) UpdateRepositoryMetadata(ctx context.Context, arg UpdateRepositoryMetadataParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, updateRepositoryMetadata,
 		arg.Owner,
@@ -434,6 +488,9 @@ func (q *Queries) UpdateRepositoryMetadata(ctx context.Context, arg UpdateReposi
 		arg.Archived,
 		arg.LastSyncedAt,
 		arg.ProviderID,
+		arg.AllowSquashMerge,
+		arg.AllowMergeCommit,
+		arg.AllowRebaseMerge,
 		arg.ID,
 	)
 	if err != nil {
@@ -446,7 +503,7 @@ const updateRepositorySettings = `-- name: UpdateRepositorySettings :one
 UPDATE repositories
 SET label = ?, branch_patterns = ?
 WHERE id = ?
-RETURNING id, provider, provider_id, owner, name, label, default_branch, url, stars, open_issues, last_synced_at, last_commit_at, archived, flemme_after_days, dead_after_days, enabled, branch_patterns, conventions_since
+RETURNING id, provider, provider_id, owner, name, label, default_branch, url, stars, open_issues, last_synced_at, last_commit_at, archived, flemme_after_days, dead_after_days, enabled, branch_patterns, conventions_since, allow_squash_merge, allow_merge_commit, allow_rebase_merge, conventions_prs_version
 `
 
 type UpdateRepositorySettingsParams struct {
@@ -478,6 +535,10 @@ func (q *Queries) UpdateRepositorySettings(ctx context.Context, arg UpdateReposi
 		&i.Enabled,
 		&i.BranchPatterns,
 		&i.ConventionsSince,
+		&i.AllowSquashMerge,
+		&i.AllowMergeCommit,
+		&i.AllowRebaseMerge,
+		&i.ConventionsPrsVersion,
 	)
 	return i, err
 }

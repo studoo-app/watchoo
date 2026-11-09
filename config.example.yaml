@@ -93,6 +93,9 @@ name: "licence-projet"
 #   branch:
 #     pattern: ""            # RE2 expression replacing the built-in rule "<type>/<words-with-dashes>"; empty: built-in rule
 #     exclude: ["gh-pages", "dependabot/*", "renovate/*"] # branches left out (glob, the name or one of its path prefixes: "dependabot/*")
+#   pr:
+#     body_sections: ["context", "changes", "testing", "screenshots"] # expected sections of a pull request body (PR5), among: context, changes, testing, screenshots
+#     require_closes: true   # a closing keyword followed by an issue number ("Closes #12") is expected in the pull request body
 #   tags:
 #     milestones: ["v1.0.0", "v2.0.0", "v3.0.0"] # milestones "vX.Y.Z", or "vX.Y.Z@YYYY-MM-DD" with a due date
 #     prerelease_forms: ["rc", "beta", "alpha"] # compliant pre-releases "-<form>.N" (e.g. "v1.0.0-rc.1"); other forms give a warning

@@ -10,11 +10,14 @@ import (
 	"errors"
 	"slices"
 	"strings"
+	"time"
 
+	"github.com/studoo-app/watchoo/internal/conventions"
 	"github.com/studoo-app/watchoo/internal/diagnostic"
 	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/provider"
+	"github.com/studoo-app/watchoo/internal/store"
 )
 
 // Noms des listes dans les avertissements (« <liste> not synced: … »), identiques dans les deux
@@ -27,7 +30,14 @@ const (
 
 // extras est le résultat de la lecture des pull requests, releases et tags d'un dépôt.
 type extras struct {
-	pulls           []model.PullRequest
+	pulls []model.PullRequest
+	// prConventions (phase 8.5) sont les PR non modifiées depuis la synchro précédente, relues par la
+	// relecture complète unique : seuls leur commit de fusion, leur origine et le masque des sections de
+	// leur corps sont écrits.
+	prConventions []store.PullRequestConventionsWrite
+	// prsVersion (phase 8.5) : version des règles de PR à poser sur le dépôt quand la relecture complète
+	// a réussi sans être tronquée ; 0 = marqueur inchangé.
+	prsVersion      int64
 	releases        []model.Release
 	replaceReleases bool // releases lues : à remplacer en base
 	tags            []model.Tag
@@ -48,8 +58,22 @@ type extras struct {
 //     ne sont pas lues (avertissement) ;
 //   - autre erreur : avertissement, la liste suivante est tout de même lue.
 //
+// Pour chaque PR lue, la description n'est lue qu'en mémoire : outils déclarés (D2, si le diagnostic
+// est actif) et masque des sections (PR5, conventions.CheckPRBody, toujours : il ne coûte rien) ; elle
+// n'est jamais gardée ni journalisée.
+//
+// Relecture complète unique (phase 8.5, documentation/fr/13-conventions.md) : conventions actives et
+// dépôt dont repositories.conventions_prs_version est absent ou inférieur à conventions.PRRulesVersion.
+// La liste est alors demandée sans UpdatedSince (au plus provider.MaxPullRequests PR, soit 10 pages),
+// à la place de la lecture incrémentale qu'elle contient : les PR modifiées depuis la plus récente date
+// en base sont écrites en entier comme d'habitude, les autres ne reçoivent que merge_commit_sha,
+// from_fork et body_sections. Le marqueur n'est posé que si la liste a été lue sans erreur, sans PR
+// ignorée et sans atteindre le plafond ; sinon la relecture est retentée à la synchro suivante (ce qui
+// a été rempli reste).
+//
 // Erreur seulement si le contexte est terminé ou si la base ne peut être lue.
-func (s *repoSync) fetchExtras(ctx context.Context, h *halt, repoID int64) (extras, error) {
+func (s *repoSync) fetchExtras(ctx context.Context, h *halt, repo model.Repository) (extras, error) {
+	repoID := repo.ID
 	var x extras
 	if rl, ok := s.prov.LastRateLimit(); ok && QuotaLow(rl, s.e.now()) {
 		x.warn(DeferLowQuota.Text(), listPulls, listReleases, listTags)
@@ -61,24 +85,49 @@ func (s *repoSync) fetchExtras(ctx context.Context, h *halt, repoID int64) (extr
 	if err != nil {
 		return x, err
 	}
-	pulls, err := s.prov.PullRequests(ctx, s.owner, s.name, provider.PullRequestsOptions{UpdatedSince: since})
+	reread := s.e.cfg.Conventions.Enabled && repo.ConventionsPRsVersion < conventions.PRRulesVersion
+	opts := provider.PullRequestsOptions{UpdatedSince: since}
+	if reread {
+		opts.UpdatedSince = time.Time{}
+	}
+	pulls, err := s.prov.PullRequests(ctx, s.owner, s.name, opts)
 	if stop, ferr := s.extraFailed(ctx, h, &x, err, listPulls, listReleases, listTags); stop || ferr != nil {
 		return x, ferr
 	}
 	if err == nil {
+		since = since.UTC().Truncate(time.Second)
+		pullsSkipped := 0
 		for _, p := range pulls {
-			if m, ok := pullRequestModel(p); ok {
-				if s.e.diag != nil {
-					// Signal D2 : la description n'est lue qu'ici, en mémoire ; seuls les outils sont gardés.
-					m.ToolIDs = diagnostic.EncodeDeclarations(diagnostic.PullRequestDeclarations(p.Body))
-				}
-				x.pulls = append(x.pulls, m)
-			} else {
-				x.skipped++
+			m, ok := pullRequestModel(p)
+			if !ok {
+				pullsSkipped++
+				continue
 			}
+			if reread && p.UpdatedAt.UTC().Truncate(time.Second).Before(since) {
+				// Déjà en base et non modifiée : seuls les champs de la phase 8.5 sont complétés.
+				x.prConventions = append(x.prConventions, store.PullRequestConventionsWrite{
+					Number: m.Number, MergeCommitSHA: m.MergeCommitSHA, FromFork: m.FromFork,
+					BodySections: m.BodySections,
+				})
+				continue
+			}
+			if s.e.diag != nil {
+				// Signal D2 : la description n'est lue qu'ici, en mémoire ; seuls les outils sont gardés.
+				m.ToolIDs = diagnostic.EncodeDeclarations(diagnostic.PullRequestDeclarations(p.Body))
+			}
+			x.pulls = append(x.pulls, m)
 		}
-		if len(pulls) >= provider.MaxPullRequests {
+		x.skipped += pullsSkipped
+		truncated := len(pulls) >= provider.MaxPullRequests
+		if truncated {
 			s.e.logger.Warn("pull requests tronquées", "repo", s.full, "plafond", provider.MaxPullRequests)
+		}
+		if reread {
+			if !truncated && pullsSkipped == 0 {
+				x.prsVersion = conventions.PRRulesVersion
+			}
+			s.e.logger.Info("liste complète des pull requests relue (conventions)", "repo", s.full,
+				"relues", len(x.prConventions), "complète", x.prsVersion > 0)
 		}
 	}
 
@@ -175,7 +224,9 @@ func joinLists(lists []string) string {
 
 // pullRequestModel convertit une pull request de la forge ; false si elle est inexploitable (numéro,
 // état ou date de modification absents). Une date d'ouverture absente prend la date de modification ;
-// une PR mergée sans date de merge prend sa date de fermeture, sinon de modification.
+// une PR mergée sans date de merge prend sa date de fermeture, sinon de modification. Phase 8.5 : le
+// commit de fusion n'est gardé que pour une PR fusionnée et un SHA valide ; BodySections est le masque
+// conventions.CheckPRBody de la description (lue en mémoire, jamais gardée).
 func pullRequestModel(p provider.PullRequest) (model.PullRequest, bool) {
 	if p.Number <= 0 || p.UpdatedAt.IsZero() ||
 		(p.State != provider.PullRequestOpen && p.State != provider.PullRequestClosed) {
@@ -186,6 +237,11 @@ func pullRequestModel(p provider.PullRequest) (model.PullRequest, bool) {
 		created = p.UpdatedAt
 	}
 	merged, mergedAt := p.Merged || !p.MergedAt.IsZero(), p.MergedAt
+	mergeSHA := ""
+	if merged && provider.ValidateSHA(p.MergeCommitSHA) == nil {
+		mergeSHA = p.MergeCommitSHA
+	}
+	sections := conventions.CheckPRBody(p.Body)
 	if merged && mergedAt.IsZero() {
 		mergedAt = p.ClosedAt
 		if mergedAt.IsZero() {
@@ -207,6 +263,10 @@ func pullRequestModel(p provider.PullRequest) (model.PullRequest, bool) {
 		UpdatedAt:        p.UpdatedAt,
 		ClosedAt:         p.ClosedAt,
 		MergedAt:         mergedAt,
+		MergeCommitSHA:   mergeSHA,
+		FromFork:         p.FromFork.Ptr(),
+		// PR5 : la description n'est lue qu'ici, en mémoire ; seul le masque des sections est gardé.
+		BodySections: &sections,
 	}, true
 }
 

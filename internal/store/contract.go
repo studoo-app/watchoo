@@ -100,6 +100,21 @@ type RepositoryMetadata struct {
 	Stars         int    // étoiles
 	OpenIssues    int    // issues ouvertes
 	Archived      bool   // dépôt archivé
+	// AllowSquashMerge, AllowMergeCommit et AllowRebaseMerge sont les méthodes de fusion autorisées (BR5,
+	// phase 8.5) ; nil = inconnu (sans droit push), écrit NULL même sur une valeur connue. Ignorées si
+	// Partial.
+	AllowSquashMerge *bool
+	AllowMergeCommit *bool
+	AllowRebaseMerge *bool
+}
+
+// PullRequestConventionsWrite (phase 8.5) complète une pull request déjà en base lors de la relecture
+// complète de la liste des PR : commit de fusion, origine (fork) et masque des sections du corps.
+type PullRequestConventionsWrite struct {
+	Number         int    // numéro de la PR (> 0)
+	MergeCommitSHA string // commit de fusion ; vide = non fusionnée ou inconnu (écrit NULL)
+	FromFork       *bool  // nil = inconnu : la valeur connue est gardée
+	BodySections   *int64 // masque conventions.CheckPRBody (>= 0) ; nil = inconnu : la valeur connue est gardée
 }
 
 // RepoSyncWrite regroupe tout ce qu'une synchro réussie d'un dépôt écrit, appliqué par ApplyRepoSync
@@ -130,6 +145,14 @@ type RepoSyncWrite struct {
 	// PullRequests sont les pull requests lues pendant la synchro (modifiées depuis la précédente) :
 	// chacune est créée ou mise à jour en entier (RepoID ignoré). Les autres PR du dépôt ne changent pas.
 	PullRequests []model.PullRequest
+	// PullRequestConventions (phase 8.5) sont les PR déjà en base, non modifiées depuis la synchro
+	// précédente, relues lors de la relecture complète unique : seuls merge_commit_sha, from_fork et
+	// body_sections sont écrits (tool_ids et le reste inchangés) ; une PR absente de la base est ignorée.
+	PullRequestConventions []PullRequestConventionsWrite
+	// PullRequestsVersion (phase 8.5) : > 0, la relecture complète des PR est terminée (réussie, non
+	// tronquée) pour cette version des règles de PR (conventions.PRRulesVersion), écrite dans
+	// repositories.conventions_prs_version ; 0 = marqueur inchangé.
+	PullRequestsVersion int64
 	// ReplaceReleases indique que la liste des releases a été lue : celles du dépôt sont alors
 	// remplacées par Releases (liste vide = aucune ; RepoID ignoré). Faux : releases inchangées (liste
 	// non lue, en échec, ou non disponible pour cette source).

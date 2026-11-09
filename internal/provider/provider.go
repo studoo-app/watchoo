@@ -218,9 +218,16 @@ type PullRequest struct {
 	URL        string  // page web de la PR (html_url sur GitHub)
 	BaseBranch string  // branche visée
 	HeadBranch string  // branche proposée
-	// Body est la description de la PR (texte venu du dépôt : jamais dans les logs ni en base). Seul le
-	// diagnostic la lit, en mémoire, pour y reconnaître des outils déclarés (signal D2).
-	Body      string
+	// Body est la description de la PR (texte venu du dépôt : jamais dans les logs ni en base). Elle
+	// n'est lue qu'en mémoire, par la synchro : outils déclarés (signal D2 du diagnostic) et masque des
+	// sections attendues (PR5 des conventions, phase 8.5).
+	Body string
+	// MergeCommitSHA est le commit produit par la fusion (squash, merge commit ou dernier commit rebasé ;
+	// phase 8.5) ; vide si la PR n'est pas fusionnée ou si la forge ne le donne pas.
+	MergeCommitSHA string
+	// FromFork indique une PR issue d'un fork : dépôt de tête différent du dépôt de base, ou supprimé
+	// (phase 8.5) ; Unknown si la forge ne donne pas le dépôt de base.
+	FromFork  OptionalBool
 	CreatedAt time.Time // ouverture, UTC
 	UpdatedAt time.Time // dernière modification, UTC
 	ClosedAt  time.Time // fermeture, UTC ; zéro si ouverte
@@ -264,10 +271,56 @@ type Repository struct {
 	Archived      bool      // dépôt archivé
 	Private       bool      // dépôt privé (ou interne)
 	PushedAt      time.Time // dernier push, UTC ; zéro si inconnu
+	// AllowSquashMerge, AllowMergeCommit et AllowRebaseMerge sont les méthodes de fusion autorisées
+	// (BR5 des conventions, phase 8.5) ; Unknown si la forge ne les donne pas (GitHub ne les renvoie qu'à
+	// un compte qui a le droit push ; toujours Unknown pour un dépôt Partial).
+	AllowSquashMerge OptionalBool
+	AllowMergeCommit OptionalBool
+	AllowRebaseMerge OptionalBool
 	// Partial indique une source qui ne connaît du dépôt que Owner, Name, DefaultBranch et URL (clone
 	// Git local, V2) : ID vaut 0 et Stars, OpenIssues, Archived, Private et PushedAt sont inconnus.
 	// Le moteur de synchro garde alors les valeurs en base au lieu d'y écrire ces zéros.
 	Partial bool
+}
+
+// OptionalBool est un booléen qui peut être inconnu, comparable par valeur (contrairement à *bool, que
+// les comparaisons de structures compareraient par adresse). La valeur zéro est Unknown.
+type OptionalBool uint8
+
+// Valeurs d'OptionalBool.
+const (
+	Unknown OptionalBool = iota // valeur absente de la réponse de la forge
+	False
+	True
+)
+
+// KnownBool renvoie True ou False selon b.
+func KnownBool(b bool) OptionalBool {
+	if b {
+		return True
+	}
+	return False
+}
+
+// OptionalBoolOf convertit un *bool : nil → Unknown.
+func OptionalBoolOf(b *bool) OptionalBool {
+	if b == nil {
+		return Unknown
+	}
+	return KnownBool(*b)
+}
+
+// Ptr renvoie la valeur sous forme de *bool : nil si Unknown (pointeur neuf à chaque appel).
+func (o OptionalBool) Ptr() *bool {
+	switch o {
+	case True:
+		v := true
+		return &v
+	case False:
+		v := false
+		return &v
+	}
+	return nil
 }
 
 // FullName renvoie « owner/name ».

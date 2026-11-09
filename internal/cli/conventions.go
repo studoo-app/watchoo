@@ -1,7 +1,7 @@
 package cli
 
 // « watchoo conventions [owner/repo] [--commits] [--failing] [--contributor X] [--milestone vX.Y.Z] »
-// (phases 8.1 à 8.3) : taux de commits conformes aux conventions (CC1 à CC4), puis nommage des branches
+// (phases 8.1 à 8.5) : taux de commits conformes aux conventions (CC1 à CC4), puis nommage des branches
 // (BR1), titres de PR (PR1, PR2), tags et jalons (SV1, SV2), releases en information (SV6), formulation,
 // pieds et langue des commits (CC5 à CC7), CC1 par intervalle entre tags, tendance de CC3 et revue de
 // jalon, calculés par internal/conventions à la lecture ; critères de fichiers (CL, RD, DOC, TL, phase 8.3)
@@ -77,6 +77,9 @@ type conventionsRepoJSON struct {
 	Bumps              conventionsBumpsJSON       `json:"bumps"`               // SV5
 	Precedence         conventionsPrecedenceJSON  `json:"precedence"`          // SV7
 	ChangelogFreshness conventionsFreshnessJSON   `json:"changelog_freshness"` // CL10 (information)
+	// Phase 8.5 (PR5 et PR6 dans pull_requests, BR2 dans branches.reused).
+	Arrivals     conventionsArrivalsJSON     `json:"arrivals"`      // PR3 : commits arrivés hors PR
+	MergeMethods conventionsMergeMethodsJSON `json:"merge_methods"` // BR5
 }
 
 // conventionsTallyJSON est un taux n/m, ses exclusions et ses écarts.
@@ -113,6 +116,8 @@ type conventionsAuthorJSON struct {
 	Trend        conventionsTrendJSON          `json:"trend"`         // CC3 avant et depuis le dernier tag final
 	PullRequests conventionsAuthorPullsJSON    `json:"pull_requests"` // PR1, PR2 de ses PR
 	Branches     conventionsAuthorBranchesJSON `json:"branches"`      // BR1 des branches de tête de ses PR
+	// Phase 8.5.
+	Arrivals conventionsAuthorArrivalsJSON `json:"arrivals"` // PR3 : commits du premier parent dont il est l'auteur
 }
 
 // conventionsCommitJSON est un commit évalué, sans son message.
@@ -253,6 +258,8 @@ func runConventions(ctx context.Context, deps Deps, opts *options, ref string, f
 			Prereleases: newConventionsPrereleasesJSON(r.Prereleases), Bumps: newConventionsBumpsJSON(r.Bumps),
 			Precedence:         newConventionsPrecedenceJSON(r.Precedence),
 			ChangelogFreshness: newConventionsFreshnessJSON(r.Freshness),
+			Arrivals:           newConventionsArrivalsJSON(r.Arrivals),
+			MergeMethods:       newConventionsMergeMethodsJSON(r.MergeMethods),
 		})
 		if !report.Filters.Commits {
 			continue
@@ -274,6 +281,8 @@ func runConventions(ctx context.Context, deps Deps, opts *options, ref string, f
 			Traits: newConventionsTraitsJSON(c.Traits), Trend: newConventionsTrendJSON(c.Trend),
 			PullRequests: conventionsAuthorPullsJSON{Open: newPRCountJSON(c.Pulls.Open), Merged: newPRCountJSON(c.Pulls.Merged)},
 			Branches:     conventionsAuthorBranchesJSON{Checked: c.Branches.Checked, Conform: c.Branches.Conform, Review: c.Branches.Review},
+			Arrivals: conventionsAuthorArrivalsJSON{ByPR: c.Arrivals.ByPR, OutsidePR: c.Arrivals.OutsidePR,
+				Undetermined: c.Arrivals.Undetermined},
 		})
 	}
 	if opts.json {
@@ -378,12 +387,13 @@ func (s *session) conventionsText(st textStyle, res conventions.BuildReport, rep
 		for i, c := range res.Contributors {
 			rows[i] = []string{cmpOr(cmpOr(c.AuthorName, c.AuthorLogin), i18n.T("cli.conv.unknown_author")),
 				ratioText(c.Tally), rateText(c.Tally, dash), trendText(c.Trend.Before, c.Trend, dash),
-				trendText(c.Trend.Since, c.Trend, dash), authorPullsText(c.Pulls, dash), authorBranchesText(c.Branches, dash),
-				issuesText(c.Issues)}
+				trendText(c.Trend.Since, c.Trend, dash), authorPullsText(c.Pulls, dash), authorBodiesText(c.Pulls, dash),
+				authorBranchesText(c.Branches, dash), authorArrivalsText(c.Arrivals, dash), issuesText(c.Issues)}
 		}
 		b.WriteString(renderTable(st, []string{i18n.T("cli.sync.header_author"), i18n.T("cli.conv.header_conform"),
 			i18n.T("cli.conv.header_rate"), i18n.T("cli.conv.header_before_tag"), i18n.T("cli.conv.header_since_tag"),
-			i18n.T("cli.conv.header_pr_titles"), i18n.T("cli.conv.header_branches"),
+			i18n.T("cli.conv.header_pr_titles"), i18n.T("cli.conv.header_pr_bodies"), i18n.T("cli.conv.header_branches"),
+			i18n.T("cli.conv.header_outside_pr"),
 			st.pick(i18n.T("cli.conv.header_issues"), i18n.T("cli.conv.header_issues_ascii"))},
 			rows, nil))
 		b.WriteString(st.gray(i18n.T("cli.conv.contributors_note")) + "\n")

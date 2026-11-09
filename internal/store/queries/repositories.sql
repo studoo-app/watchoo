@@ -58,6 +58,12 @@ SET conventions_since = ?
 WHERE id = ?
 RETURNING *;
 
+-- name: SetRepositoryConventionsPRsVersion :execrows
+-- Marque la relecture complete des PR du depot faite pour cette version des regles de PR (phase 8.5).
+UPDATE repositories
+SET conventions_prs_version = sqlc.arg(conventions_prs_version)
+WHERE id = sqlc.arg(id);
+
 -- name: SetRepositoryEnabled :execrows
 -- Active (1) ou arrete (0) le suivi du depot, sans toucher a son historique.
 UPDATE repositories
@@ -67,12 +73,15 @@ WHERE id = ?;
 -- name: UpdateRepositoryMetadata :execrows
 -- Ecrit les metadonnees lues sur la forge et la date de fin de la synchro reussie. provider_id NULL
 -- garde l'identifiant en base ; sinon il est ecrit (premiere synchro par l'API d'un depot ajoute
--- par clone Git local).
+-- par clone Git local). Les methodes de fusion autorisees (phase 8.5) sont remplacees telles quelles :
+-- NULL (inconnues, sans droit push) efface une valeur connue.
 UPDATE repositories
 SET owner = sqlc.arg(owner), name = sqlc.arg(name), default_branch = sqlc.arg(default_branch),
     url = sqlc.arg(url), stars = sqlc.arg(stars), open_issues = sqlc.arg(open_issues),
     archived = sqlc.arg(archived), last_synced_at = sqlc.arg(last_synced_at),
-    provider_id = COALESCE(sqlc.narg(provider_id), provider_id)
+    provider_id = COALESCE(sqlc.narg(provider_id), provider_id),
+    allow_squash_merge = sqlc.narg(allow_squash_merge), allow_merge_commit = sqlc.narg(allow_merge_commit),
+    allow_rebase_merge = sqlc.narg(allow_rebase_merge)
 WHERE id = sqlc.arg(id);
 
 -- name: UpdateRepositoryLocalMetadata :execrows

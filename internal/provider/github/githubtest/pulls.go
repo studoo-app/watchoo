@@ -5,8 +5,10 @@ package githubtest
 //     sort created (default) or updated; direction desc by default with sort=created, asc otherwise
 //     (like GitHub); at equal dates, ascending number in the direction's sense; unknown value →
 //     422 "Validation Failed". Body: "pull request simple" objects (number, state, title, user,
-//     draft, html_url, base.ref, head.ref, created_at, updated_at, closed_at, merged_at; GitHub's
-//     list has no merged field);
+//     draft, html_url, body, merge_commit_sha, base.{ref, repo}, head.{ref, repo}, created_at,
+//     updated_at, closed_at, merged_at; GitHub's list has no merged field). base.repo is the
+//     repository; head.repo is the same repository by default, a distinct fork repository
+//     (PullRequest.Fork) or null (PullRequest.HeadRepoDeleted: fork deleted), phase 8.5;
 //   - GET …/releases?per_page&page: releases sorted by descending created_at (at equal dates,
 //     descending identifier), drafts included (the fake account always has write access);
 //   - GET …/tags?per_page&page: tags in the order of SetTags.
@@ -28,18 +30,23 @@ const docsPulls = "https://docs.github.com/rest/pulls/pulls#list-pull-requests"
 
 // PullRequest is a simulated pull request.
 type PullRequest struct {
-	Number    int       // number (> 0, unique in the repository)
-	Title     string    // title
-	Closed    bool      // closed ("state": "closed"); false = open
-	Draft     bool      // draft
-	Author    string    // author's login; empty = "user": null (deleted account)
-	Base      string    // target branch; empty = default branch
-	Head      string    // proposed branch; empty = "feature-<number>"
-	Body      string    // description; empty = null
-	CreatedAt time.Time // opening (not zero)
-	UpdatedAt time.Time // last update; zero = CreatedAt
-	ClosedAt  time.Time // closing; zero = null (Closed requires a date: zero = UpdatedAt)
-	MergedAt  time.Time // merge; zero = null
+	Number int    // number (> 0, unique in the repository)
+	Title  string // title
+	Closed bool   // closed ("state": "closed"); false = open
+	Draft  bool   // draft
+	Author string // author's login; empty = "user": null (deleted account)
+	Base   string // target branch; empty = default branch
+	Head   string // proposed branch; empty = "feature-<number>"
+	Body   string // description; empty = null
+	// MergeCommitSHA is "merge_commit_sha"; empty = null. Served as is, whatever the state (GitHub also
+	// fills it for an open PR: test merge commit).
+	MergeCommitSHA  string
+	Fork            bool      // head.repo is a fork (other identifier, "fork": true)
+	HeadRepoDeleted bool      // head.repo is null (fork deleted); takes precedence over Fork
+	CreatedAt       time.Time // opening (not zero)
+	UpdatedAt       time.Time // last update; zero = CreatedAt
+	ClosedAt        time.Time // closing; zero = null (Closed requires a date: zero = UpdatedAt)
+	MergedAt        time.Time // merge; zero = null
 }
 
 // Release is a simulated release.
@@ -214,27 +221,46 @@ type pullRefJSON struct {
 	Label string `json:"label"`
 	Ref   string `json:"ref"`
 	SHA   string `json:"sha"`
+	// Repo is the repository of the ref; null (no omitempty) for the head of a deleted fork.
+	Repo *pullRepoJSON `json:"repo"`
 }
+
+// pullRepoJSON is the (shortened) repository of the base or the head of a pull request.
+type pullRepoJSON struct {
+	ID       int64  `json:"id"`
+	NodeID   string `json:"node_id"`
+	Name     string `json:"name"`
+	FullName string `json:"full_name"`
+	Fork     bool   `json:"fork"`
+}
+
+// forkOwner is the owner of the simulated fork repositories.
+const forkOwner = "fork-owner"
+
+// forkIDOffset separates the identifiers of the simulated forks from the repositories'.
+const forkIDOffset = 1_000_000_000
 
 // pullJSON is a pull request ("pull request simple").
 type pullJSON struct {
-	URL       string      `json:"url"`
-	ID        int64       `json:"id"`
-	NodeID    string      `json:"node_id"`
-	HTMLURL   string      `json:"html_url"`
-	Number    int         `json:"number"`
-	State     string      `json:"state"`
-	Locked    bool        `json:"locked"`
-	Title     string      `json:"title"`
-	User      *userJSON   `json:"user"`
-	Body      *string     `json:"body"`
-	CreatedAt string      `json:"created_at"`
-	UpdatedAt string      `json:"updated_at"`
-	ClosedAt  *string     `json:"closed_at"`
-	MergedAt  *string     `json:"merged_at"`
-	Draft     bool        `json:"draft"`
-	Head      pullRefJSON `json:"head"`
-	Base      pullRefJSON `json:"base"`
+	URL       string    `json:"url"`
+	ID        int64     `json:"id"`
+	NodeID    string    `json:"node_id"`
+	HTMLURL   string    `json:"html_url"`
+	Number    int       `json:"number"`
+	State     string    `json:"state"`
+	Locked    bool      `json:"locked"`
+	Title     string    `json:"title"`
+	User      *userJSON `json:"user"`
+	Body      *string   `json:"body"`
+	CreatedAt string    `json:"created_at"`
+	UpdatedAt string    `json:"updated_at"`
+	ClosedAt  *string   `json:"closed_at"`
+	MergedAt  *string   `json:"merged_at"`
+	// MergeCommit is "merge_commit_sha" (null if unknown).
+	MergeCommit *string     `json:"merge_commit_sha"`
+	Draft       bool        `json:"draft"`
+	Head        pullRefJSON `json:"head"`
+	Base        pullRefJSON `json:"base"`
 }
 
 // pullJSON returns the pull request pr of repo.
@@ -257,23 +283,35 @@ func (s *Server) pullJSON(repo *repoState, pr PullRequest) pullJSON {
 		u := s.user(pr.Author, 0, "")
 		user = &u
 	}
+	baseRepo := &pullRepoJSON{ID: repo.ID, NodeID: "R_fake" + strconv.FormatInt(repo.ID, 10),
+		Name: repo.Name, FullName: full}
+	headRepo := baseRepo
+	switch {
+	case pr.HeadRepoDeleted:
+		headRepo = nil
+	case pr.Fork:
+		id := repo.ID + forkIDOffset
+		headRepo = &pullRepoJSON{ID: id, NodeID: "R_fake" + strconv.FormatInt(id, 10), Name: repo.Name,
+			FullName: forkOwner + "/" + repo.Name, Fork: true}
+	}
 	return pullJSON{
-		URL:       s.URL() + "repos/" + full + "/pulls/" + strconv.Itoa(pr.Number),
-		ID:        repo.ID*100000 + int64(pr.Number),
-		NodeID:    "PR_fake" + strconv.FormatInt(repo.ID, 10) + "_" + strconv.Itoa(pr.Number),
-		HTMLURL:   githubWeb + full + "/pull/" + strconv.Itoa(pr.Number),
-		Number:    pr.Number,
-		State:     state,
-		Title:     pr.Title,
-		User:      user,
-		Body:      nullableString(pr.Body),
-		CreatedAt: timeJSON(pr.CreatedAt),
-		UpdatedAt: timeJSON(pr.UpdatedAt),
-		ClosedAt:  nullableTime(pr.ClosedAt),
-		MergedAt:  nullableTime(pr.MergedAt),
-		Draft:     pr.Draft,
-		Head:      pullRefJSON{Label: repo.Owner + ":" + head, Ref: head, SHA: repo.branches[head]},
-		Base:      pullRefJSON{Label: repo.Owner + ":" + base, Ref: base, SHA: repo.branches[base]},
+		URL:         s.URL() + "repos/" + full + "/pulls/" + strconv.Itoa(pr.Number),
+		ID:          repo.ID*100000 + int64(pr.Number),
+		NodeID:      "PR_fake" + strconv.FormatInt(repo.ID, 10) + "_" + strconv.Itoa(pr.Number),
+		HTMLURL:     githubWeb + full + "/pull/" + strconv.Itoa(pr.Number),
+		Number:      pr.Number,
+		State:       state,
+		Title:       pr.Title,
+		User:        user,
+		Body:        nullableString(pr.Body),
+		CreatedAt:   timeJSON(pr.CreatedAt),
+		UpdatedAt:   timeJSON(pr.UpdatedAt),
+		ClosedAt:    nullableTime(pr.ClosedAt),
+		MergedAt:    nullableTime(pr.MergedAt),
+		MergeCommit: nullableString(pr.MergeCommitSHA),
+		Draft:       pr.Draft,
+		Head:        pullRefJSON{Label: repo.Owner + ":" + head, Ref: head, SHA: repo.branches[head], Repo: headRepo},
+		Base:        pullRefJSON{Label: repo.Owner + ":" + base, Ref: base, SHA: repo.branches[base], Repo: baseRepo},
 	}
 }
 

@@ -18,16 +18,20 @@ const (
 	PRSkipDraft  = "draft"  // brouillon
 	PRSkipBot    = "bot"    // auteur bot (aisignature.IsBot)
 	PRSkipClosed = "closed" // fermée sans fusion
+	PRSkipFork   = "fork"   // issue d'un fork (phase 8.5 : pull_requests.from_fork connu et vrai)
 )
 
 // PRCategory classe une pull request pour PR1 : « open » ou « merged », sinon le motif qui l'exclut
-// (fermée sans fusion, brouillon ouvert, auteur bot), ok faux. Une PR fusionnée n'est plus un brouillon.
+// (fermée sans fusion, brouillon ouvert, auteur bot, PR issue d'un fork), ok faux. Une PR fusionnée n'est
+// plus un brouillon ; une PR dont l'origine est inconnue (from_fork NULL) est évaluée.
 func PRCategory(pr model.PullRequest) (category string, ok bool) {
 	switch {
 	case pr.Status() == model.PullRequestStatusClosed:
 		return PRSkipClosed, false
 	case aisignature.IsBot(pr.AuthorLogin):
 		return PRSkipBot, false
+	case IsFork(pr):
+		return PRSkipFork, false
 	case pr.Status() == model.PullRequestStatusMerged:
 		return PRCategoryMerged, true
 	case pr.Draft:
@@ -66,7 +70,8 @@ func (r PRTitleResult) IsDefault() bool { return len(r.Default) > 0 }
 // CheckPRTitle analyse le titre d'une pull request : PR1 par le parseur commun, sur la seule première
 // ligne (règles d'en-tête, ni corps ni pieds), et PR2 : titre interdit, proposé par GitHub, ou égal au
 // nom de la branche de tête après normalisation (casse, « - » et « _ » en espaces). La comparaison avec le
-// sujet du seul commit de la PR n'est pas faite : la base ne relie pas les commits aux PR.
+// sujet du seul commit de la PR n'est pas faite : la base ne relie pas les commits d'une PR à la PR (il
+// faudrait une requête par PR).
 func (p *Parser) CheckPRTitle(title, headBranch string) PRTitleResult {
 	subject := Subject(title)
 	res := p.Parse(subject)

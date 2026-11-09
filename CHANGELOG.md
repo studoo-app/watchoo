@@ -37,6 +37,34 @@ PATCH (see [Skills](documentation/en/11-skills.md#versions-and-changelogmd)).
   `beta`, `alpha`; at least one, lowercase words, each once), the compliant forms `-<form>.N` of SV4,
   validated at load time, with the `WATCHOO_CONVENTIONS_TAGS_PRERELEASE_FORMS` variable, and shared under
   `settings.conventions.tags.prerelease_forms` (refused by earlier versions).
+- **Pull request body settings of the conventions** (phase 8.5): `conventions.pr.body_sections` (expected
+  sections of a pull request body among `context`, `changes`, `testing`, `screenshots`; all by default, an
+  empty list expects none) and `conventions.pr.require_closes` (default `true`: a closing keyword
+  `Closes #n` is expected), validated at load time, with the `WATCHOO_CONVENTIONS_PR_BODY_SECTIONS` and
+  `WATCHOO_CONVENTIONS_PR_REQUIRE_CLOSES` variables, and shared under `settings.conventions.pr` (refused by
+  earlier versions).
+- **Merges and pull request bodies in the database** (phase 8.5, migration `00020`): the columns
+  `pull_requests.merge_commit_sha`, `from_fork` and `body_sections` (bit mask of the recognized sections;
+  the body itself is never stored) and `repositories.allow_squash_merge`, `allow_merge_commit`,
+  `allow_rebase_merge` and `conventions_prs_version`, all nullable (`NULL` = unknown); still 19 tables.
+  The sync fills them from the `GET /pulls` and `GET /repos` responses it already requests (no extra
+  request; the body is read in memory only, never stored nor logged; the merge methods are only known
+  with push rights); when the conventions are enabled, each repository gets one full reread of its pull
+  request list (at most 10 pages) to complete the pull requests already in the database.
+- **Merges in `watchoo conventions` and the web interface** (phase 8.5): commits that reached the default
+  branch outside a pull request (PR3: first parent of the default branch of the local clone since the start
+  date, by pull request, outside a pull request or undetermined, credited to the author of the commit; on the
+  messages of GitHub in clone-only mode), pull request descriptions (PR5: expected sections and `Closes #n`),
+  merge method of the merged pull requests (PR6: squash with a conforming message), head branches merged more
+  than once (BR2) and allowed merge methods (BR5: squash only); pull requests from a fork are set aside from
+  PR1, PR2, PR5, PR6, BR1 and BR2. Text, `--json` (additive keys `arrivals`, `merge_methods`, `branches.reused`,
+  `pull_requests.methods`, `body`, `merge`, `skipped.fork`…), repository page ("Merges" block and two badges
+  per pull request), `/conventions` (columns and the PR3 criterion of the milestone review, 13 criteria) and
+  contributor page (their commits outside a pull request). No extra request; neither a description, a title
+  nor a commit message is ever shown or logged.
+- **Squash merges identified by their merge SHA in the diagnosis** (phase 8.5): with the conventions enabled,
+  the merge commit of a merged pull request, with one parent and the `(#n)` of that pull request, is also
+  excluded from A1 and A2, even without a recognized GitHub committer.
 - **History of the tags and of the default branch** (phase 8.4): when the conventions are enabled, the sync
   records the observation periods of each tag (name, target commit, first and last read, end: rewritten or
   deleted) in the new `tag_observations` table (migration `00018`), only after a successful, non-truncated

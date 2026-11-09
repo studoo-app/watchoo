@@ -454,6 +454,8 @@
             <th scope="col">{{t "web.col.contributor"}}</th>
             <th scope="col">{{t "web.conv.col_head"}}</th>
             <th scope="col">{{t "web.conv.col_codes"}}</th>
+            <th scope="col">{{t "web.conv.col_body"}}</th>
+            <th scope="col">{{t "web.conv.col_merge"}}</th>
           </tr></thead>
           <tbody>
             {{range $c.PullRows}}
@@ -462,6 +464,8 @@
               <td>{{if .Author}}{{template "contributor-link" (dict "ID" .AuthorID "Name" (truncate 30 .Author) "Class" "")}}{{else}}-{{end}}</td>
               <td class="font-mono text-sm">{{if .HeadBranch}}{{truncate 40 (clean .HeadBranch)}}{{else}}-{{end}}</td>
               <td><div class="flex flex-wrap gap-1">{{range .Codes}}{{template "conv-code" .}}{{end}}</div></td>
+              <td>{{template "conv-status" (dict "Status" .Body "Text" "")}}</td>
+              <td>{{with .Merge}}{{template "conv-status" (dict "Status" . "Text" "")}}{{else}}—{{end}}</td>
             </tr>
             {{end}}
           </tbody>
@@ -470,6 +474,51 @@
       {{end}}
       <p class="text-xs text-base-content/60">{{t "web.conv.pulls_note"}}</p>
     </div>
+
+    {{with $c.Merges}}
+    <h3 class="font-semibold">{{t "web.conv.merges_title"}}</h3>
+    <div id="repo-conventions-merges" class="space-y-2">
+      {{with .Arrivals}}
+      {{if not .Known}}
+      <p class="text-sm text-base-content/70">{{t "web.conv.arrivals_unknown" .Reason}}</p>
+      {{else}}
+      <p class="text-sm">{{t "web.conv.arrivals_line" .OutsidePR .Total .ByPR .Undetermined}}</p>
+      {{if .Note}}<p class="text-xs text-base-content/60">{{.Note}}</p>{{end}}
+      {{if .Rows}}
+      <div class="overflow-x-auto">
+        <table class="table table-sm">
+          <caption class="text-left text-sm font-medium pb-2">{{t "web.conv.arrivals_caption" (len .Rows) .RowsTotal}}</caption>
+          <thead><tr>
+            <th scope="col">SHA</th>
+            <th scope="col">{{t "web.conv.col_commit_author"}}</th>
+            <th scope="col">{{t "web.conv.col_arrival"}}</th>
+          </tr></thead>
+          <tbody>
+            {{range .Rows}}
+            <tr>
+              <td class="font-mono">{{shortSHA .SHA}}</td>
+              <td>{{if .Author}}{{template "contributor-link" (dict "ID" .AuthorID "Name" (truncate 30 .Author) "Class" "")}}{{else}}-{{end}}</td>
+              <td class="text-sm">{{.Reason}}</td>
+            </tr>
+            {{end}}
+          </tbody>
+        </table>
+      </div>
+      {{end}}
+      {{end}}
+      {{end}}
+      {{if .PullsKnown}}
+      {{if .BodyEvaluated}}<p class="text-sm">{{t "web.conv.bodies_line" .BodyConform .BodyKnown (sub .BodyEvaluated .BodyKnown)}}</p>{{end}}
+      {{if .MergedEvaluated}}<p class="text-sm">{{t "web.conv.merges_line" .MergeConform .MergedEvaluated}}{{if .Methods}} · {{range $i, $m := .Methods}}{{if $i}}, {{end}}{{$m.Label}} {{$m.Count}}{{end}}{{end}}</p>{{end}}
+      {{end}}
+      {{if .ReusedKnown}}
+      <p class="text-sm">{{if .Reused}}{{t "web.conv.reused_line" (len .Reused)}} {{range $i, $b := .Reused}}{{if $i}}, {{end}}<span class="font-mono">{{truncate 40 (clean $b.Name)}}</span> ({{range $j, $n := $b.PRs}}{{if $j}}, {{end}}#{{$n}}{{end}}){{end}}{{else}}{{t "web.conv.reused_none"}}{{end}}</p>
+      {{end}}
+      <p class="text-sm" id="repo-conventions-merge-methods">{{t "web.conv.methods_title"}}
+        {{if .MethodsKnown}}{{template "conv-status" (dict "Status" .MethodsStatus "Text" "")}} {{if .Allowed}}{{range $i, $a := .Allowed}}{{if $i}}, {{end}}{{$a}}{{end}}{{else}}{{t "web.conv.methods_none"}}{{end}}{{else}}<span class="text-base-content/70">{{t "web.conv.cell_unknown"}} ({{.MethodsReason}})</span>{{end}}</p>
+      <p class="text-xs text-base-content/60">{{t "web.conv.merges_note"}}</p>
+    </div>
+    {{end}}
 
     <h3 class="font-semibold">{{t "web.conv.tags_title"}}</h3>
     <div id="repo-conventions-tags" class="space-y-2">

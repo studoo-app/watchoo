@@ -139,6 +139,27 @@ func TestSharedSettingsFromAndValues(t *testing.T) {
 		t.Error("Values does not copy conventions.branch.exclude")
 	}
 
+	// conventions.pr.* (phase 8.5): shared, list copied and never nil.
+	cfg = DefaultConfig("x")
+	cfg.Conventions.PR.BodySections = nil
+	v = SharedSettingsFrom(cfg).Values()
+	if got := v[KeyConventionsPRBodySections]; !reflect.DeepEqual(got, []string{}) {
+		t.Errorf("conventions.pr.body_sections = %#v, empty list expected", got)
+	}
+	if v[KeyConventionsPRRequireCloses] != true {
+		t.Errorf("conventions.pr.require_closes = %v", v[KeyConventionsPRRequireCloses])
+	}
+	cfg = DefaultConfig("x")
+	s = SharedSettingsFrom(cfg)
+	cfg.Conventions.PR.BodySections[0] = "changed"
+	if (*s.ConventionsPRBodySections)[0] != "context" {
+		t.Error("conventions.pr.body_sections not copied")
+	}
+	s.Values()[KeyConventionsPRBodySections].([]string)[0] = "changed"
+	if (*s.ConventionsPRBodySections)[0] != "context" {
+		t.Error("Values does not copy conventions.pr.body_sections")
+	}
+
 	// conventions.changelog.*, readme.* and docs.* (phase 8.3): shared, lists copied and never nil.
 	cfg = DefaultConfig("x")
 	cfg.Conventions.Readme.Sections = nil
@@ -199,6 +220,8 @@ func TestSharedSettingsApplyToConventions(t *testing.T) {
 		ConventionsLanguage:        ptr("fr"),
 		ConventionsBranchPattern:   ptr("^feat/.+$"),
 		ConventionsBranchExclude:   &[]string{"gh-pages"},
+		ConventionsPRBodySections:  &[]string{"testing"},
+		ConventionsPRRequireCloses: ptr(false),
 		ConventionsMilestones:      &[]string{"v1.0.0@2026-12-18"},
 		ConventionsPrereleaseForms: &[]string{"rc"},
 		ConventionsCategoriesFR:    ptr(false),
@@ -213,6 +236,7 @@ func TestSharedSettingsApplyToConventions(t *testing.T) {
 		Commit: ConventionsCommitConfig{Types: []string{"feat", "fix"}, Scopes: []string{"api"},
 			MaxSubjectSoft: 60, MaxSubjectHard: 90, Forbidden: []string{}, Language: "fr"},
 		Branch:           ConventionsBranchConfig{Pattern: "^feat/.+$", Exclude: []string{"gh-pages"}},
+		PR:               ConventionsPRConfig{BodySections: []string{"testing"}, RequireCloses: false},
 		Tags:             ConventionsTagsConfig{Milestones: []string{"v1.0.0@2026-12-18"}, PrereleaseForms: []string{"rc"}},
 		Changelog:        ConventionsChangelogConfig{CategoriesFR: false},
 		Readme:           ConventionsReadmeConfig{Sections: []string{"install"}, MinWords: 40},
@@ -227,6 +251,10 @@ func TestSharedSettingsApplyToConventions(t *testing.T) {
 	(*s.ConventionsMilestones)[0] = "changed"
 	(*s.ConventionsPrereleaseForms)[0] = "changed"
 	(*s.ConventionsReadmeSections)[0] = "changed"
+	(*s.ConventionsPRBodySections)[0] = "changed"
+	if got.Conventions.PR.BodySections[0] != "testing" {
+		t.Error("ApplyTo does not copy conventions.pr.body_sections")
+	}
 	if got.Conventions.Commit.Types[0] != "feat" || got.Conventions.Tags.Milestones[0] != "v1.0.0@2026-12-18" ||
 		got.Conventions.Tags.PrereleaseForms[0] != "rc" ||
 		got.Conventions.Readme.Sections[0] != "install" {
@@ -241,7 +269,7 @@ func TestSharedSettingsApplyToConventions(t *testing.T) {
 	if cfg.Conventions.Since != "" || cfg.Conventions.Commit.MaxSubjectSoft != 50 {
 		t.Error("ApplyTo changed the original configuration")
 	}
-	if got := s.Keys(); !slices.Equal(got, SharedKeys[len(SharedKeys)-17:]) {
+	if got := s.Keys(); !slices.Equal(got, SharedKeys[len(SharedKeys)-19:]) {
 		t.Errorf("Keys = %v", got)
 	}
 }

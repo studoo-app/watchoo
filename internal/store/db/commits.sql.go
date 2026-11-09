@@ -270,7 +270,7 @@ func (q *Queries) ListCommitsToScanForAI(ctx context.Context, arg ListCommitsToS
 }
 
 const listConventionCommits = `-- name: ListConventionCommits :many
-SELECT c.sha, c.message, c.parent_count, c.authored_at,
+SELECT c.sha, c.message, c.parent_count, c.authored_at, c.committed_at,
        CAST(COALESCE(c.author_id, 0) AS INTEGER) AS author_id,
        CAST(COALESCE(a.name, '') AS TEXT) AS author_name,
        CAST(COALESCE(a.provider_login, '') AS TEXT) AS author_login,
@@ -302,6 +302,7 @@ type ListConventionCommitsRow struct {
 	Message         string
 	ParentCount     sql.NullInt64
 	AuthoredAt      string
+	CommittedAt     string
 	AuthorID        int64
 	AuthorName      string
 	AuthorLogin     string
@@ -314,7 +315,7 @@ type ListConventionCommitsRow struct {
 
 // Commits du depot pour les conventions (phase 8.1), du plus recent au plus ancien : message (lu en
 // memoire seulement, jamais garde), nombre de parents (NULL = inconnu), auteur et committer (logins et
-// adresses separees par des espaces), rattachement a une branche suivie et a la branche par defaut
+// adresses separees par des espaces), date du committer (phase 8.5, PR3), rattachement a une branche suivie et a la branche par defaut
 // (commit_branches, repli sans clone). author_id NULL = tous les auteurs.
 func (q *Queries) ListConventionCommits(ctx context.Context, arg ListConventionCommitsParams) ([]ListConventionCommitsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listConventionCommits, arg.RepoID, arg.AuthorID)
@@ -330,6 +331,7 @@ func (q *Queries) ListConventionCommits(ctx context.Context, arg ListConventionC
 			&i.Message,
 			&i.ParentCount,
 			&i.AuthoredAt,
+			&i.CommittedAt,
 			&i.AuthorID,
 			&i.AuthorName,
 			&i.AuthorLogin,

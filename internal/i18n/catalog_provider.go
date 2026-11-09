@@ -337,6 +337,10 @@ var providerTexts = map[string]entry{
 		"last commit touching a file from %s in %s/%s",
 		"dernier commit modifiant un fichier depuis %s dans %s/%s",
 	},
+	"provider.git.op.first_parent": {
+		"first-parent commits of %s/%s",
+		"commits du premier parent de %s/%s",
+	},
 	"provider.git.op.rev_list": {
 		"commits of the tracked branches of %s/%s",
 		"commits des branches suivies de %s/%s",

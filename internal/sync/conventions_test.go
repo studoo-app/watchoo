@@ -164,15 +164,17 @@ func TestConventionsTagsAndBranchesFromClone(t *testing.T) {
 		t.Fatalf("ReviewMilestone = %+v, %v", review, err)
 	}
 	if p := review.Repos[0]; p.Interval == nil || p.Interval.From != "v0.1.0" || p.Interval.Evaluated != 2 ||
-		p.Conform != 2 || len(p.Criteria) != len(conventions.AllCriteria) || p.Unknown != len(p.Criteria)-4 {
+		p.Conform != 2 || len(p.Criteria) != len(conventions.AllCriteria) || p.Unknown != len(p.Criteria)-5 ||
+		p.Criteria[2].ID != conventions.CriterionPR3 || p.Criteria[2].Status != conventions.CriterionNonconform {
 		t.Errorf("review: %+v", p)
 	}
+	// PR3 (phase 8.5): the commits of the default branch were pushed directly (clone, human committer).
 	// Conventions disabled in this workspace: the tags were never observed (SV3) and the file criteria of
 	// the milestone tag were never computed.
-	if c := review.Repos[0].Criteria[4]; c.ID != conventions.CriterionSV3 || c.Reason != conventions.UnknownNotObserved {
+	if c := review.Repos[0].Criteria[5]; c.ID != conventions.CriterionSV3 || c.Reason != conventions.UnknownNotObserved {
 		t.Errorf("SV3: %+v, want unknown (not observed)", c)
 	}
-	for _, c := range review.Repos[0].Criteria[5:] {
+	for _, c := range review.Repos[0].Criteria[6:] {
 		if c.Status != conventions.CriterionUnknown || c.Reason != conventions.UnknownNotComputed {
 			t.Errorf("file criterion %s: %+v, want unknown (not computed)", c.ID, c)
 		}

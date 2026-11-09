@@ -32,6 +32,10 @@ func (s *Store) ConventionCommits(ctx context.Context, repoID, authorID int64) (
 		if err != nil {
 			return nil, wrapErr(i18n.T("store.conventions.commits", repoID), err)
 		}
+		committed, err := ParseTime(r.CommittedAt)
+		if err != nil {
+			return nil, wrapErr(i18n.T("store.conventions.commits", repoID), err)
+		}
 		c := model.ConventionCommit{
 			SHA:             r.SHA,
 			Message:         r.Message,
@@ -42,6 +46,7 @@ func (s *Store) ConventionCommits(ctx context.Context, repoID, authorID int64) (
 			AuthorEmails:    strings.Fields(r.AuthorEmails),
 			CommitterLogin:  r.CommitterLogin,
 			CommitterEmails: strings.Fields(r.CommitterEmails),
+			CommittedAt:     committed,
 			OnTracked:       r.OnTracked != 0,
 			OnDefault:       r.OnDefault != 0,
 		}
@@ -77,6 +82,9 @@ func (s *Store) ConventionPullRequests(ctx context.Context, repoID int64) ([]mod
 			BaseBranch:       row.BaseBranch,
 			HeadBranch:       row.HeadBranch,
 			ToolIDs:          splitList(row.ToolIds),
+			MergeCommitSHA:   row.MergeCommitSha.String,
+			FromFork:         boolPtr(row.FromFork),
+			BodySections:     int64Ptr(row.BodySections),
 		}
 		if err := parseTimes(i18n.T("store.pulls.number", row.Number),
 			[]string{row.CreatedAt, row.UpdatedAt}, []*time.Time{&pr.CreatedAt, &pr.UpdatedAt},

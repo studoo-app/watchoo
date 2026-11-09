@@ -142,6 +142,9 @@ type PullRequest struct {
 	ClosedAt         sql.NullString
 	MergedAt         sql.NullString
 	ToolIds          string
+	MergeCommitSha   sql.NullString
+	FromFork         sql.NullInt64
+	BodySections     sql.NullInt64
 }
 
 type Release struct {
@@ -158,24 +161,28 @@ type Release struct {
 }
 
 type Repository struct {
-	ID               int64
-	Provider         string
-	ProviderID       sql.NullInt64
-	Owner            string
-	Name             string
-	Label            string
-	DefaultBranch    string
-	URL              string
-	Stars            int64
-	OpenIssues       int64
-	LastSyncedAt     sql.NullString
-	LastCommitAt     sql.NullString
-	Archived         bool
-	FlemmeAfterDays  sql.NullInt64
-	DeadAfterDays    sql.NullInt64
-	Enabled          bool
-	BranchPatterns   string
-	ConventionsSince sql.NullString
+	ID                    int64
+	Provider              string
+	ProviderID            sql.NullInt64
+	Owner                 string
+	Name                  string
+	Label                 string
+	DefaultBranch         string
+	URL                   string
+	Stars                 int64
+	OpenIssues            int64
+	LastSyncedAt          sql.NullString
+	LastCommitAt          sql.NullString
+	Archived              bool
+	FlemmeAfterDays       sql.NullInt64
+	DeadAfterDays         sql.NullInt64
+	Enabled               bool
+	BranchPatterns        string
+	ConventionsSince      sql.NullString
+	AllowSquashMerge      sql.NullInt64
+	AllowMergeCommit      sql.NullInt64
+	AllowRebaseMerge      sql.NullInt64
+	ConventionsPrsVersion sql.NullInt64
 }
 
 type RepositoryConvention struct {

@@ -58,6 +58,15 @@ type Repository struct {
 	// AAAA-MM-JJ (interprétée à minuit dans le fuseau de l'espace) ; vide = date de l'espace
 	// (conventions.since). En base : colonne conventions_since, minuit UTC de la date au format fixe.
 	ConventionsSince string
+	// AllowSquashMerge, AllowMergeCommit et AllowRebaseMerge sont les méthodes de fusion autorisées sur la
+	// forge (BR5, phase 8.5) ; nil = inconnu (GitHub ne les renvoie qu'à un compte qui a le droit push ;
+	// toujours inconnues en mode clone).
+	AllowSquashMerge *bool
+	AllowMergeCommit *bool
+	AllowRebaseMerge *bool
+	// ConventionsPRsVersion est la version des règles de PR (conventions.PRRulesVersion) pour laquelle
+	// la liste complète des PR du dépôt a été relue une fois (phase 8.5) ; 0 = jamais relue.
+	ConventionsPRsVersion int
 }
 
 // FullName renvoie « owner/name ».
@@ -180,6 +189,7 @@ type ConventionCommit struct {
 	AuthorEmails    []string  // adresses rattachées à l'auteur
 	CommitterLogin  string    // login de forge du committer ; vide si inconnu
 	CommitterEmails []string  // adresses rattachées au committer
+	CommittedAt     time.Time // date du committer, UTC ; zéro si inconnue (PR3, phase 8.5)
 	OnTracked       bool      // rattaché à une branche suivie (commit_branches)
 	OnDefault       bool      // rattaché à la branche par défaut du dépôt (commit_branches)
 }
@@ -397,6 +407,15 @@ type PullRequest struct {
 	// ToolIDs sont les outils déclarés dans la description (signal D2 du diagnostic, phase 7.2),
 	// encodés « D2:claude », triés ; vide si aucun ou non mesuré. La description n'est jamais gardée.
 	ToolIDs []string
+	// MergeCommitSHA est le commit produit par la fusion (phase 8.5 : squash, merge commit ou dernier
+	// commit rebasé) ; vide si la PR n'est pas fusionnée ou si la valeur est inconnue.
+	MergeCommitSHA string
+	// FromFork indique une PR issue d'un fork (dépôt de tête différent du dépôt de base, ou supprimé) ;
+	// nil = inconnu (phase 8.5).
+	FromFork *bool
+	// BodySections est le masque des sections reconnues dans la description (PR5, phase 8.5,
+	// conventions.CheckPRBody) ; nil = inconnu. La description n'est jamais gardée.
+	BodySections *int64
 }
 
 // Status renvoie l'état affiché : mergée, fermée sans merge ou ouverte.

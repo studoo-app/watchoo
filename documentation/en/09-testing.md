@@ -158,14 +158,20 @@ Two fakes, written in phase 2 and reused by the following phases:
 - **Pull requests, releases and tags** (V2): GitHub provider against `githubtest` (conversion, order,
   pagination and caps of 1,000, early stop `UpdatedSince` on a single page, `Limit`, free `304`s,
   empty repository, `409`, unusable response, `5xx`, `404`, invalid arguments without a request;
-  `pulls_test.go`), routes of `githubtest` (`state`, `sort`, `direction`, pagination) and fake
+  `pulls_test.go`; phase 8.5: `merge_commit_sha` of merged PRs only, fork origin from `head.repo` and
+  `base.repo`, merge methods returned only with the push right, `conventions_test.go`), routes of
+  `githubtest` (`state`, `sort`, `direction`, pagination; `merge_commit_sha`, `head.repo` of a fork or
+  null for a deleted fork, `allow_*` served with `Repo.Push`) and fake
   `providertest` (sorting, `UpdatedSince`, injected error `ErrUnsupported`, quota); schema `00003`
   (uniqueness, `CHECK`, cascades), writing by `ApplyRepoSync` (creation, update, replacement of the
   releases and tags, keeping when the list is not read again, refusal of invalid data without writing
   anything) and reads (state filters, tags dated by their commit, summary of the repositories); engine
   (`extras_test.go`: first pass then incremental, isolated failure as a warning with commits kept and
   resumption at the same point, `ErrUnsupported` without warning nor clearing, low and exhausted
-  quota, cancellation); CLI (`watchoo prs` and `watchoo releases` in text and in JSON, filters,
+  quota, cancellation; `pull_conventions_test.go`, phase 8.5: fields filled at insertion, single full
+  reread when the conventions are turned on then incremental again, marker not set after an interrupted
+  or truncated reread, merge methods back to unknown, body never in the database nor the logs, end to end
+  against `githubtest` without extra request); CLI (`watchoo prs` and `watchoo releases` in text and in JSON, filters,
   invalid options, trapped titles neutralized, warnings of `watchoo sync`); web (cards and
   `repo-pulls` fragment, escaping of a trapped title, empty states, open PRs on the dashboard); TUI
   ("Pull requests" line of the detail, warnings of the summary). The two end-to-end tests also read
@@ -570,6 +576,21 @@ See [Project conventions](13-conventions.md).
   of removed milestones deleted, no path nor tag name in the logs); the cache read by `Build` and the
   milestone review (not computed, stale, filtered); `--json` keys frozen by `json_schema_test.go`; the
   repository page and `/conventions` on a local clone.
+- Phase 8.5 (merges): pure functions of `internal/conventions`: `prbody_test.go` (PR5: headings and bold
+  labels, FR and EN synonyms, section empty or reduced to an HTML comment, closing keyword outside code,
+  mask and settings), `merges_test.go` (PR6; PR3 in API mode, list complete or not, sequence rebased by
+  GitHub recognised from its head even when `merged_at` differs by one second, non-consecutive sequence,
+  ±2 s fallback without `merge_commit_sha`, squash of a PR missing from the list kept undetermined, clone
+  only; BR2, BR5, identified squash for A1 and A2), `mergeflow_test.go` (`Build` with PR3, PR5, PR6, BR2,
+  BR5, forks set aside, degraded modes, PR3 criterion of the milestone review); `FirstParent` of the git
+  provider with `gittest`; fields read by the GitHub provider and the fake `githubtest` (`merge_commit_sha`,
+  `head.repo` fork or deleted, body, `allow_*`); the `00020` migration and the store writes (constraints,
+  `DownTo(19)`); the sync (`pull_conventions_test.go`: body never present in the database nor the WAL,
+  first pass, single full reread, interrupted or truncated without marker, merge methods);
+  `watchoo conventions` (`cli/conventions_merges_test.go`: text, `--json` with frozen keys, milestone review
+  on a local clone); web interface (`web/conventions_merges_test.go`, `web/e2e_merges_test.go`: PR badges,
+  merges block, commits outside PR, contributor page, EN and FR labels); no body, title nor commit message
+  in the outputs.
 
 ## In CI
 

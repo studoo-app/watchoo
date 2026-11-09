@@ -111,7 +111,7 @@ func TestRepoConventionsPhase82(t *testing.T) {
 		"no &#34;type/&#34; prefix", "#1, #2, #3, #4", "partial list",
 		// PR1: number and codes, never the title; the draft and the closed PR are not evaluated.
 		`id="repo-conventions-pulls"`, "open 0/1", "merged 0/1", "#1", "#3", "<code>no_type</code>",
-		"Not evaluated:", "drafts 1", "closed without merge 1", "the title is never shown",
+		"Not evaluated:", "drafts 1", "closed without merge 1", "neither the title nor the description is ever shown",
 		// SV1, SV2, SV6.
 		`id="repo-conventions-tags"`, "0/2 tags conforming", "v1.0 · not conforming", "<code>missing_component</code>",
 		"v1.0.0 · nonconforming name", "(v1.0)", "v2.0.0 · absent", "Releases (information):", "inconsistent pre-release flag",

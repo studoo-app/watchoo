@@ -250,6 +250,14 @@ type Repo struct {
 	Stars         int       // "stargazers_count"
 	OpenIssues    int       // "open_issues_count"
 	PushedAt      time.Time // "pushed_at"; zero = null
+	// Push gives the fake account the push right ("permissions.push"). Like GitHub, the merge methods
+	// below are only served to an account with this right (phase 8.5).
+	Push bool
+	// AllowSquashMerge, AllowMergeCommit and AllowRebaseMerge are "allow_squash_merge",
+	// "allow_merge_commit" and "allow_rebase_merge"; nil = absent. Served only if Push.
+	AllowSquashMerge *bool
+	AllowMergeCommit *bool
+	AllowRebaseMerge *bool
 }
 
 // Access configures the server's response for a repository.
@@ -354,6 +362,17 @@ func (s *Server) RenameRepo(id int64, newOwner, newName string) {
 	delete(s.redirects, newKey)
 	s.names[newKey] = id
 	repo.Owner, repo.Name = newOwner, newName
+}
+
+// SetMergeMethods sets the push right and the merge methods of the repository id (phase 8.5; nil =
+// absent from the response). Unknown repository: t.Fatalf.
+func (s *Server) SetMergeMethods(id int64, push bool, squash, merge, rebase *bool) {
+	s.tb.Helper()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	repo := s.repoLocked("SetMergeMethods", id)
+	repo.Push = push
+	repo.AllowSquashMerge, repo.AllowMergeCommit, repo.AllowRebaseMerge = squash, merge, rebase
 }
 
 // SetRepoAccess configures the access to the repository id (AccessGranted by default).

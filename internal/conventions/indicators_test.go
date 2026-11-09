@@ -73,7 +73,7 @@ func TestBuildPullsAndBranches(t *testing.T) {
 		pulls.Merged != (PRCount{Evaluated: 1, Conform: 0, Default: 1}) {
 		t.Errorf("pulls: %+v", pulls)
 	}
-	wantSkipped := map[string]int{PRSkipClosed: 1, PRSkipDraft: 1, PRSkipBot: 1, PRSkipBeforeSince: 1}
+	wantSkipped := map[string]int{PRSkipClosed: 1, PRSkipDraft: 1, PRSkipBot: 1, PRSkipFork: 0, PRSkipBeforeSince: 1}
 	if !reflect.DeepEqual(pulls.Skipped, wantSkipped) {
 		t.Errorf("skipped: %v", pulls.Skipped)
 	}

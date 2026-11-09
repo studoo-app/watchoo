@@ -53,6 +53,7 @@ func TestExport(t *testing.T) {
 		Commit: workspace.ConventionsCommitConfig{Types: []string{"feat", "fix"}, Scopes: nil,
 			MaxSubjectSoft: 50, MaxSubjectHard: 72, Forbidden: []string{"wip"}, Language: "any"},
 		Branch: workspace.ConventionsBranchConfig{Exclude: []string{"gh-pages", "dependabot/*", "renovate/*"}},
+		PR:     workspace.ConventionsPRConfig{BodySections: []string{"context", "testing"}, RequireCloses: true},
 		Tags: workspace.ConventionsTagsConfig{Milestones: []string{"v1.0.0", "v2.0.0", "v3.0.0"},
 			PrereleaseForms: []string{"rc", "beta", "alpha"}},
 		Changelog: workspace.ConventionsChangelogConfig{CategoriesFR: true},
@@ -118,6 +119,13 @@ func TestExport(t *testing.T) {
           "dependabot/*",
           "renovate/*"
         ]
+      },
+      "pr": {
+        "body_sections": [
+          "context",
+          "testing"
+        ],
+        "require_closes": true
       },
       "tags": {
         "milestones": [

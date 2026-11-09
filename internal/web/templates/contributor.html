@@ -105,6 +105,12 @@
     </p>
     <p class="text-sm" id="contributor-conventions-pulls">{{t "web.conv.contributor_pr_titles"}} {{if .Pulls.Evaluated}}{{template "conv-pr-counts" .Pulls}}{{else}}{{t "web.conv.contributor_pr_none"}}{{end}}</p>
     <p class="text-sm" id="contributor-conventions-trend">{{t "web.conv.contributor_trend"}} {{template "conv-trend" .Trend}}</p>
+    <div class="text-sm" id="contributor-conventions-outside-pr">
+      {{- if not .Arrivals.Known}}{{t "web.conv.contributor_outside_unknown"}}
+      {{- else}}{{t "web.conv.contributor_outside" .Arrivals.OutsidePR .Arrivals.Total}}
+      {{- if .Arrivals.Rows}} <span class="text-base-content/70">· {{range $i, $a := .Arrivals.Rows}}{{if $i}}, {{end}}<a class="link link-hover" href="{{repoPath $a.RepoID}}">{{truncate 30 $a.Repo}}</a> <span class="font-mono">{{shortSHA $a.SHA}}</span> ({{$a.Reason}}){{end}}{{if gt .Arrivals.RowsTotal (len .Arrivals.Rows)}} …{{end}}</span>{{end}}
+      {{- end}}
+    </div>
     <p class="text-xs text-base-content/60">{{t "web.conv.contributor_note" .Excluded}}</p>
     {{- end}}
     <p class="text-xs text-base-content/60">{{t "web.contributor.overview_note"}}</p>

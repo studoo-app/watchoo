@@ -128,7 +128,9 @@ func (s *Store) UnknownStatsSHAs(ctx context.Context, repoID, languagesVersion i
 //     commits et des w.Stats qui en ont (1.2.0) ; puis nombre de parents w.ParentCounts (8.1) des
 //     commits en base dont il est inconnu, SHA inconnus ignorés ;
 //  5. last_commit_at = max(committed_at) des commits liés à une branche suivie (NULL si aucun) ;
-//  6. pull requests (V2) : chaque w.PullRequests créée ou mise à jour en entier ; releases et tags
+//  6. pull requests (V2) : chaque w.PullRequests créée ou mise à jour en entier ; puis (phase 8.5)
+//     merge_commit_sha, from_fork et body_sections de chaque w.PullRequestConventions déjà en base, et
+//     repositories.conventions_prs_version = w.PullRequestsVersion s'il est positif ; releases et tags
 //     remplacés par w.Releases et w.Tags si w.ReplaceReleases / w.ReplaceTags (doublons ignorés) ;
 //  7. sync_run w.RunID clos : status « success », finished_at = w.SyncedAt, new_commits.
 //
@@ -366,7 +368,20 @@ func checkExtras(w RepoSyncWrite) error {
 			return errors.New(i18n.T("store.sync.pr_state", pr.Number, pr.State))
 		case pr.CreatedAt.IsZero() || pr.UpdatedAt.IsZero():
 			return errors.New(i18n.T("store.sync.pr_no_date", pr.Number))
+		case !validMergeSHA(pr.MergeCommitSHA) || (pr.BodySections != nil && *pr.BodySections < 0):
+			return errors.New(i18n.T("store.sync.pr_conventions", pr.Number))
 		}
+	}
+	for _, pr := range w.PullRequestConventions {
+		switch {
+		case pr.Number <= 0:
+			return errors.New(i18n.T("store.sync.pr_number", pr.Number))
+		case !validMergeSHA(pr.MergeCommitSHA) || (pr.BodySections != nil && *pr.BodySections < 0):
+			return errors.New(i18n.T("store.sync.pr_conventions", pr.Number))
+		}
+	}
+	if w.PullRequestsVersion < 0 {
+		return errors.New(i18n.T("store.sync.prs_version", w.PullRequestsVersion))
 	}
 	for _, r := range w.Releases {
 		if r.ProviderID <= 0 || r.TagName == "" || r.CreatedAt.IsZero() {
@@ -384,6 +399,23 @@ func checkExtras(w RepoSyncWrite) error {
 		}
 	}
 	return nil
+}
+
+// validMergeSHA indique un commit de fusion vide (inconnu) ou de la forme stockée : 40 ou 64 chiffres
+// hexadécimaux minuscules (contrainte CHECK de pull_requests.merge_commit_sha).
+func validMergeSHA(sha string) bool {
+	if sha == "" {
+		return true
+	}
+	if len(sha) != 40 && len(sha) != 64 {
+		return false
+	}
+	for _, c := range sha {
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
+			return false
+		}
+	}
+	return true
 }
 
 // writeExtras écrit les pull requests (créées ou mises à jour), puis remplace releases, tags et
@@ -407,8 +439,29 @@ func writeExtras(ctx context.Context, q *db.Queries, w RepoSyncWrite) error {
 			ClosedAt:         nullTime(pr.ClosedAt),
 			MergedAt:         nullTime(pr.MergedAt),
 			ToolIds:          strings.Join(pr.ToolIDs, ","),
+			MergeCommitSha:   nullSHA(pr.MergeCommitSHA),
+			FromFork:         nullBool(pr.FromFork),
+			BodySections:     nullInt64(pr.BodySections),
 		}); err != nil {
 			return wrapErr(i18n.T("store.sync.pr_record", pr.Number), err)
+		}
+	}
+	for _, pr := range w.PullRequestConventions {
+		if _, err := q.SetPullRequestConventions(ctx, db.SetPullRequestConventionsParams{
+			MergeCommitSha: nullSHA(pr.MergeCommitSHA),
+			FromFork:       nullBool(pr.FromFork),
+			BodySections:   nullInt64(pr.BodySections),
+			RepoID:         w.RepoID,
+			Number:         int64(pr.Number),
+		}); err != nil {
+			return wrapErr(i18n.T("store.sync.pr_record", pr.Number), err)
+		}
+	}
+	if w.PullRequestsVersion > 0 {
+		if _, err := q.SetRepositoryConventionsPRsVersion(ctx, db.SetRepositoryConventionsPRsVersionParams{
+			ConventionsPrsVersion: sql.NullInt64{Int64: w.PullRequestsVersion, Valid: true}, ID: w.RepoID,
+		}); err != nil {
+			return wrapErr(i18n.T("store.sync.prs_version_record"), err)
 		}
 	}
 	if w.ReplaceReleases {
@@ -484,16 +537,19 @@ func writeRepoMetadata(ctx context.Context, q *db.Queries, w RepoSyncWrite) erro
 		return nil
 	}
 	n, err := q.UpdateRepositoryMetadata(ctx, db.UpdateRepositoryMetadataParams{
-		Owner:         m.Owner,
-		Name:          m.Name,
-		DefaultBranch: m.DefaultBranch,
-		URL:           m.URL,
-		Stars:         int64(m.Stars),
-		OpenIssues:    int64(m.OpenIssues),
-		Archived:      m.Archived,
-		LastSyncedAt:  nullTime(w.SyncedAt),
-		ProviderID:    nullID(m.ProviderID),
-		ID:            w.RepoID,
+		Owner:            m.Owner,
+		Name:             m.Name,
+		DefaultBranch:    m.DefaultBranch,
+		URL:              m.URL,
+		Stars:            int64(m.Stars),
+		OpenIssues:       int64(m.OpenIssues),
+		Archived:         m.Archived,
+		LastSyncedAt:     nullTime(w.SyncedAt),
+		ProviderID:       nullID(m.ProviderID),
+		AllowSquashMerge: nullBool(m.AllowSquashMerge),
+		AllowMergeCommit: nullBool(m.AllowMergeCommit),
+		AllowRebaseMerge: nullBool(m.AllowRebaseMerge),
+		ID:               w.RepoID,
 	})
 	if err != nil {
 		if isUniqueViolation(err) {

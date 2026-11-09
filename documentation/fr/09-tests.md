@@ -157,14 +157,20 @@ Deux faux, écrits en phase 2 et réutilisés par les phases suivantes :
 - **Pull requests, releases et tags** (V2) : provider GitHub contre `githubtest` (conversion, ordre,
   pagination et plafonds de 1 000, arrêt anticipé `UpdatedSince` sur une seule page, `Limit`, `304`
   gratuits, dépôt vide, `409`, réponse inexploitable, `5xx`, `404`, arguments invalides sans requête ;
-  `pulls_test.go`), routes de `githubtest` (`state`, `sort`, `direction`, pagination) et faux
+  `pulls_test.go` ; phase 8.5 : `merge_commit_sha` des seules PR fusionnées, origine fork par `head.repo`
+  et `base.repo`, méthodes de fusion renvoyées seulement avec le droit push, `conventions_test.go`), routes
+  de `githubtest` (`state`, `sort`, `direction`, pagination ; `merge_commit_sha`, `head.repo` d'un fork ou
+  null pour un fork supprimé, `allow_*` servis avec `Repo.Push`) et faux
   `providertest` (tri, `UpdatedSince`, erreur injectée `ErrUnsupported`, quota) ; schéma `00003`
   (unicité, `CHECK`, cascades), écriture par `ApplyRepoSync` (création, mise à jour, remplacement des
   releases et tags, conservation quand la liste n'est pas relue, refus d'une donnée invalide sans rien
   écrire) et lectures (filtres d'état, tags datés par leur commit, résumé des dépôts) ; moteur
   (`extras_test.go` : premier passage puis incrémental, échec isolé en avertissement avec commits gardés
   et reprise au même point, `ErrUnsupported` sans avertissement ni effacement, quota bas et épuisé,
-  annulation) ; CLI (`watchoo prs` et `watchoo releases` en texte et en JSON, filtres, options
+  annulation ; `pull_conventions_test.go`, phase 8.5 : champs remplis à l'insertion, relecture complète
+  unique à l'activation des conventions puis retour à l'incrémental, marqueur non posé après une relecture
+  interrompue ou tronquée, méthodes de fusion revenues à inconnu, corps jamais en base ni dans les logs,
+  bout en bout contre `githubtest` sans requête de plus) ; CLI (`watchoo prs` et `watchoo releases` en texte et en JSON, filtres, options
   invalides, titres piégés neutralisés, avertissements de `watchoo sync`) ; web (cartes et fragment
   `repo-pulls`, échappement d'un titre piégé, états vides, PR ouvertes sur le tableau de bord) ; TUI
   (ligne « Pull requests » du détail, avertissements du bilan). Les deux tests de bout en bout lisent
@@ -570,6 +576,21 @@ Voir [Conventions de projet](13-conventions.md).
   changent, lignes des jalons retirés supprimées, ni chemin ni nom de tag dans les logs) ; lecture du cache
   par `Build` et la revue de jalon (non calculé, à recalculer, filtré) ; clés `--json` figées par
   `json_schema_test.go` ; page d'un dépôt et `/conventions` sur un clone local.
+- Phase 8.5 (fusions) : fonctions pures d'`internal/conventions` : `prbody_test.go` (PR5 : titres et
+  libellés en gras, synonymes FR et EN, section vide ou réduite à un commentaire HTML, mot-clé de fermeture
+  hors code, masque et réglages), `merges_test.go` (PR6 ; PR3 en mode API, liste complète ou non, suite
+  rebasée par GitHub reconnue depuis sa tête même quand `merged_at` diffère d'une seconde, suite non
+  consécutive, repli à ±2 s sans `merge_commit_sha`, squash d'une PR absente de la liste resté indéterminé,
+  clone seul ; BR2, BR5, squash identifié pour A1 et A2), `mergeflow_test.go` (`Build` avec PR3, PR5, PR6,
+  BR2, BR5, forks écartés, modes dégradés, critère PR3 de la revue de jalon) ; `FirstParent` du provider
+  git avec `gittest` ; champs lus par le provider GitHub et le faux `githubtest` (`merge_commit_sha`,
+  `head.repo` fork ou supprimé, corps, `allow_*`) ; migration `00020` et écritures du store (contraintes,
+  `DownTo(19)`) ; synchro (`pull_conventions_test.go` : corps jamais présent dans la base ni le WAL,
+  première passe, relecture complète unique, interrompue ou tronquée sans marqueur, méthodes de fusion) ;
+  `watchoo conventions` (`cli/conventions_merges_test.go` : texte, `--json` aux clés figées, revue de jalon
+  sur un clone local) ; interface web (`web/conventions_merges_test.go`, `web/e2e_merges_test.go` : badges
+  de PR, bloc des fusions, commits hors PR, page d'un contributeur, libellés EN et FR) ; ni corps, ni
+  titre, ni message de commit dans les sorties.
 
 ## En CI
 

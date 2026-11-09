@@ -169,6 +169,11 @@ func repositoryFromDB(row db.Repository) (model.Repository, error) {
 		Enabled:          row.Enabled,
 		BranchPatterns:   SplitBranchPatterns(row.BranchPatterns),
 		ConventionsSince: conventionsSince,
+		AllowSquashMerge: boolPtr(row.AllowSquashMerge),
+		AllowMergeCommit: boolPtr(row.AllowMergeCommit),
+		AllowRebaseMerge: boolPtr(row.AllowRebaseMerge),
+		// NULL : 0 (liste complète des PR jamais relue).
+		ConventionsPRsVersion: int(row.ConventionsPrsVersion.Int64),
 	}, nil
 }
 
@@ -239,6 +244,49 @@ func nullSince(date string) (sql.NullString, error) {
 		return sql.NullString{}, err
 	}
 	return sql.NullString{String: stored, Valid: true}, nil
+}
+
+// nullBool convertit un booléen facultatif (nil = inconnu) vers une colonne INTEGER nullable 0/1.
+func nullBool(p *bool) sql.NullInt64 {
+	if p == nil {
+		return sql.NullInt64{}
+	}
+	var v int64
+	if *p {
+		v = 1
+	}
+	return sql.NullInt64{Int64: v, Valid: true}
+}
+
+// boolPtr est la conversion inverse de nullBool : NULL donne nil, toute valeur non nulle true.
+func boolPtr(n sql.NullInt64) *bool {
+	if !n.Valid {
+		return nil
+	}
+	v := n.Int64 != 0
+	return &v
+}
+
+// nullInt64 convertit un entier facultatif (nil = inconnu) vers une colonne INTEGER nullable.
+func nullInt64(p *int64) sql.NullInt64 {
+	if p == nil {
+		return sql.NullInt64{}
+	}
+	return sql.NullInt64{Int64: *p, Valid: true}
+}
+
+// int64Ptr est la conversion inverse de nullInt64 : NULL donne nil.
+func int64Ptr(n sql.NullInt64) *int64 {
+	if !n.Valid {
+		return nil
+	}
+	v := n.Int64
+	return &v
+}
+
+// nullSHA convertit un SHA facultatif (vide = inconnu ou absent) vers une colonne TEXT nullable.
+func nullSHA(sha string) sql.NullString {
+	return sql.NullString{String: sha, Valid: sha != ""}
 }
 
 // intPtr est la conversion inverse de nullInt : NULL donne nil.

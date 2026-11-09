@@ -53,6 +53,12 @@ type convRepoRow struct {
 	FilesReason string
 	// Phase 8.4 : réécritures, tags réécrits, sauts sous-versionnés, pré-versions, précédence, fraîcheur.
 	History convHistorySummary
+	// Phase 8.5 : commits hors PR (PR3 ; ArrivalsReason traduit si inconnu) et méthodes de fusion
+	// autorisées (BR5 ; nil si inconnues).
+	ArrivalsKnown       bool
+	ArrivalsReason      string
+	OutsidePR, Arrivals int
+	MethodsStatus       *convStatus
 }
 
 // convContributorRow est la ligne d'un contributeur dans la vue d'ensemble.
@@ -66,6 +72,9 @@ type convContributorRow struct {
 	Pulls     convPRCounts
 	// BR1 des branches de tête de ses PR.
 	BranchesChecked, BranchesConform int
+	// Phase 8.5 : commits du premier parent de la branche par défaut dont il est l'auteur, et ceux arrivés
+	// hors PR (PR3).
+	OutsidePR, Arrivals int
 }
 
 // convReviewView est la revue d'un jalon : un tableau dépôt × critère.
@@ -96,6 +105,9 @@ type convReviewRepo struct {
 	Deadline       string
 	DeadlineDetail string
 	History        string
+	// Phase 8.5 : PR3 sur l'intervalle du jalon (HasArrivals faux si non lu).
+	HasArrivals                            bool
+	OutsidePR, ArrivalsTotal, Undetermined int
 }
 
 // convReviewCell est l'état d'un critère.
@@ -154,13 +166,21 @@ func (s *server) handleConventions(w http.ResponseWriter, r *http.Request) {
 				DeadlineDetail: s.deadlineDetail(tr, m.Deadline)})
 		}
 		row.History = newConvHistorySummary(repo)
+		row.ArrivalsKnown, row.OutsidePR, row.Arrivals = repo.Arrivals.Known, repo.Arrivals.OutsidePR, repo.Arrivals.Total()
+		if !repo.Arrivals.Known {
+			row.ArrivalsReason = tr.T("web.conv.reason." + repo.Arrivals.Reason)
+		}
+		if mv := newConvMerges(tr, repo); mv.MethodsKnown {
+			row.MethodsStatus = &mv.MethodsStatus
+		}
 		view.Repos = append(view.Repos, row)
 	}
 	for _, c := range rep.Contributors {
 		view.Contributors = append(view.Contributors, convContributorRow{ID: c.AuthorID,
 			Name: cmp.Or(c.AuthorName, c.AuthorLogin), Evaluated: c.Evaluated, Conform: c.Conform,
 			Percent: percent(c.Conform, c.Evaluated), Trend: newConvTrend(c.Trend), Pulls: newConvPRCounts(c.Pulls),
-			BranchesChecked: c.Branches.Checked, BranchesConform: c.Branches.Conform})
+			BranchesChecked: c.Branches.Checked, BranchesConform: c.Branches.Conform,
+			OutsidePR: c.Arrivals.OutsidePR, Arrivals: c.Arrivals.Total()})
 	}
 
 	if view.Milestone != "" {
@@ -186,6 +206,9 @@ func newConvReview(s *server, r *http.Request, rv conventions.MilestoneReview) *
 		}
 		if rr.Tag != nil {
 			row.Tag = rr.Tag.Name
+		}
+		if a := rr.Arrivals; a != nil && a.Known {
+			row.HasArrivals, row.OutsidePR, row.ArrivalsTotal, row.Undetermined = true, a.OutsidePR, a.Total(), a.Undetermined
 		}
 		if iv := rr.Interval; iv != nil {
 			row.HasInterval, row.From, row.To, row.Due, row.Missing = true, iv.From, iv.To, iv.Due, iv.Missing

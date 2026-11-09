@@ -177,8 +177,8 @@ var configshareTexts = map[string]entry{
 		"settings.conventions.%s : l'entrée n° %d contient un caractère de contrôle ou de l'UTF-8 invalide",
 	},
 	"configshare.v.conv_item_invalid": {
-		"settings.conventions.%s: entry #%d %s is invalid (types: lowercase letters; scopes: lowercase letters, digits, \".\", \"_\", \"/\" and \"-\"; branch exclusions: glob \"*\", \"?\", \"[...]\"; README sections: presentation, group, stack, install, run, env, tree, license)",
-		"settings.conventions.%s : l'entrée n° %d %s est invalide (types : lettres minuscules ; scopes : minuscules, chiffres, « . », « _ », « / » et « - » ; exclusions de branches : glob « * », « ? », « [...] » ; sections du README : presentation, group, stack, install, run, env, tree, license)",
+		"settings.conventions.%s: entry #%d %s is invalid (types: lowercase letters; scopes: lowercase letters, digits, \".\", \"_\", \"/\" and \"-\"; branch exclusions: glob \"*\", \"?\", \"[...]\"; README sections: presentation, group, stack, install, run, env, tree, license; PR body sections: context, changes, testing, screenshots)",
+		"settings.conventions.%s : l'entrée n° %d %s est invalide (types : lettres minuscules ; scopes : minuscules, chiffres, « . », « _ », « / » et « - » ; exclusions de branches : glob « * », « ? », « [...] » ; sections du README : presentation, group, stack, install, run, env, tree, license ; sections du corps de PR : context, changes, testing, screenshots)",
 	},
 	"configshare.v.conv_branch_pattern": {
 		`settings.conventions.branch.pattern: %s is not a valid RE2 regular expression ("" for the built-in rule)`,

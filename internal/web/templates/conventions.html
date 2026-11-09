@@ -33,6 +33,7 @@
         <th scope="col">{{t "web.conv.col_language"}}</th>
         <th scope="col">{{t "web.conv.col_files"}}</th>
         <th scope="col">{{t "web.conv.col_history"}}</th>
+        <th scope="col">{{t "web.conv.col_merges"}}</th>
       </tr></thead>
       <tbody>
         {{range $c.Repos}}
@@ -46,6 +47,7 @@
           <td class="text-sm whitespace-nowrap">{{template "conv-language" .Language}}</td>
           <td class="text-sm">{{if .FilesReason}}<span class="text-base-content/60">{{t "web.conv.cell_unknown"}} ({{.FilesReason}})</span>{{else}}<div class="flex flex-wrap gap-1">{{range .Files}}<span class="badge badge-sm badge-ghost whitespace-nowrap">{{.Label}} {{.Conform}}/{{.Total}}{{if .Unknown}} · {{t "web.conv.family_unknown" .Unknown}}{{end}}</span>{{end}}</div>{{end}}</td>
           <td class="text-sm">{{template "conv-history-summary" .History}}</td>
+          <td class="text-sm"><div class="flex flex-wrap gap-1">{{if .ArrivalsKnown}}<span class="whitespace-nowrap">{{t "web.conv.outside_pr_short" .OutsidePR .Arrivals}}</span>{{else}}<span class="text-base-content/60">{{t "web.conv.cell_unknown"}} ({{.ArrivalsReason}})</span>{{end}}{{with .MethodsStatus}}{{template "conv-status" (dict "Status" . "Text" "")}}{{end}}</div></td>
         </tr>
         {{end}}
       </tbody>
@@ -69,6 +71,7 @@
         <th scope="col">{{t "web.conv.col_trend"}}</th>
         <th scope="col">{{t "web.conv.col_pr_titles"}}</th>
         <th scope="col">{{t "web.conv.col_branches"}}</th>
+        <th scope="col">{{t "web.conv.col_outside_pr"}}</th>
       </tr></thead>
       <tbody>
         {{range $c.Contributors}}
@@ -78,6 +81,7 @@
           <td class="text-sm">{{template "conv-trend" .Trend}}</td>
           <td class="text-sm">{{if .Pulls.Evaluated}}{{template "conv-pr-counts" .Pulls}}{{else}}—{{end}}</td>
           <td class="tabular-nums whitespace-nowrap">{{if .BranchesChecked}}{{.BranchesConform}}/{{.BranchesChecked}}{{else}}—{{end}}</td>
+          <td class="tabular-nums whitespace-nowrap">{{if .Arrivals}}{{t "web.conv.outside_pr_short" .OutsidePR .Arrivals}}{{else}}—{{end}}</td>
         </tr>
         {{end}}
       </tbody>
@@ -126,6 +130,7 @@
           <td class="text-sm">{{t "web.conv.review_result" .Conform .Total .Unknown}}
             {{if .Deadline}}<div class="text-xs text-base-content/60">{{t "web.conv.review_deadline" .Deadline .DeadlineDetail}}</div>{{end}}
             {{if .History}}<div class="text-xs text-base-content/60">{{t "web.conv.review_history" .History}}</div>{{end}}
+            {{if .HasArrivals}}<div class="text-xs text-base-content/60">{{t "web.conv.review_arrivals" .OutsidePR .ArrivalsTotal .Undetermined}}</div>{{end}}
             {{if .HasInterval}}<div class="text-xs text-base-content/60">{{t "web.conv.interval_label"}} {{if .From}}{{truncate 30 (clean .From)}}{{else}}{{t "web.conv.interval_start"}}{{end}}..{{if .To}}{{truncate 30 (clean .To)}}{{else}}{{t "web.conv.due" .Due}}{{end}}{{if .Missing}} · {{t "web.conv.interval_missing" .Missing}}{{end}}</div>{{end}}
           </td>
           {{end}}

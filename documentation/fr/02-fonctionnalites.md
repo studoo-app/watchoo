@@ -157,9 +157,10 @@ outil est-il signé sur ce commit ? », jamais à « ce code a-t-il été écrit
 
 ## Conventions de projet
 
-Phases 8.1 à 8.4 (non publiées) : Watchoo mesure la conformité des messages de commit à une charte
+Phases 8.1 à 8.5 (non publiées) : Watchoo mesure la conformité des messages de commit à une charte
 Conventional Commits, puis celle des noms de branche, des titres de pull request et des tags, puis celle du
-CHANGELOG, du README, de la documentation et de l'outillage ; le détail est
+CHANGELOG, du README, de la documentation et de l'outillage, puis l'historique des tags et les fusions ; le
+détail est
 dans [Conventions de projet](13-conventions.md).
 
 - **Désactivé par défaut** (`conventions.enabled`) et **réservé au formateur** : ce sont des constats
@@ -201,10 +202,22 @@ dans [Conventions de projet](13-conventions.md).
     de version cohérent avec les commits déclarés, sous-versionnement seulement), **SV7** (précédence face à
     l'historique) et **CL10** (`feat` et `fix` depuis la dernière modification du CHANGELOG, information) ;
   - **revue de jalon** : SV3 s'ajoute après SV2, qui juge aussi l'échéance.
+- **Phase 8.5**, fusions lues sans requête de plus (migration `00020` : SHA de fusion, origine fork et
+  sections de la description d'une PR, la description elle-même n'étant lue qu'en mémoire et jamais
+  stockée ; méthodes de fusion autorisées, connues seulement avec le droit push) :
+  - **PR3** : commits arrivés sur la branche par défaut hors PR (premier parent de la branche par défaut du
+    clone local), rattachés à l'auteur du commit, jamais à qui l'a poussé ; par PR, hors PR ou
+    indéterminés ;
+  - **PR5** (sections attendues de la description, `conventions.pr.body_sections`, et mot-clé de fermeture
+    `Closes #n`, `conventions.pr.require_closes`), **PR6** (fusion squash au message conforme), **BR2**
+    (branche de tête fusionnée plus d'une fois) et **BR5** (squash seule méthode de fusion autorisée,
+    information) ; les PR issues d'un fork sont écartées de PR1, PR2, PR5, PR6, BR1 et BR2 ;
+  - **revue de jalon** : le critère **PR3 = 0** s'ajoute après BR1, sur l'intervalle du jalon.
 - **Restitution** : commande `watchoo conventions` (`--milestone vX.Y.Z` pour la revue de jalon), page
   `/conventions`, section de la page d'un dépôt et page d'un contributeur ; jamais le message de commit ni le
   titre d'une PR, seulement le SHA court, le numéro de PR, l'auteur, les noms de branche et de tag et les
   codes. Les indicateurs de dépôt (branches sans PR, tags, jalons, fichiers) ne sont attribués à personne.
 - La charte (`since`, `commit.*`, `branch.*`, `tags.milestones`, depuis la phase 8.3 `changelog.*`,
-  `readme.*`, `docs.*`, et depuis la phase 8.4 `tags.prerelease_forms`) se partage par `watchoo config export` /
+  `readme.*`, `docs.*`, depuis la phase 8.4 `tags.prerelease_forms`, et depuis la phase 8.5 `pr.body_sections`
+  et `pr.require_closes`) se partage par `watchoo config export` /
   `import`.
