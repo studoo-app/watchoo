@@ -438,9 +438,9 @@ func TestAutoSync(t *testing.T) {
 	if all, _ := syncer.counts(); all != 1 {
 		t.Errorf("SyncAll called %d times; want 1 (automatic sync)", all)
 	}
-	if n := len(l.ticksOf(30 * time.Minute)); n != 2 {
-		t.Errorf("%d automatic syncs scheduled; want 2 (the next one)", n)
-	}
+	// The next tick is scheduled by a command run in a goroutine: wait for it instead of reading
+	// the ticks right away (the end of the sync can be handled before it).
+	l.until(func(Model) bool { return len(l.ticksOf(30*time.Minute)) == 2 })
 
 	// An automatic sync during a running sync is skipped, the next one stays scheduled.
 	gate := make(chan struct{})
