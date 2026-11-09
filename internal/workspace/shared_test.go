@@ -35,6 +35,9 @@ git:
 diagnostic:
   enabled: true
   retention_days: 90
+conventions:
+  enabled: true
+  excluded_accounts: ["prof-dupont"]
 `
 
 // newCustomWorkspace creates a workspace whose config.yaml is customConfig.
@@ -73,6 +76,38 @@ func TestSharedSettingsFromAndValues(t *testing.T) {
 	if (*s.BranchesExclude)[0] != "a" {
 		t.Error("branches.exclude not copied")
 	}
+
+	// conventions.*: shared except enabled and excluded_accounts; lists copied and never nil.
+	for _, key := range []string{"conventions.enabled", "conventions.excluded_accounts"} {
+		if slices.Contains(SharedKeys, key) {
+			t.Errorf("%s must never be shared", key)
+		}
+	}
+	cfg = DefaultConfig("x")
+	cfg.Conventions.Since = "2026-09-01"
+	cfg.Conventions.Commit.Scopes = nil
+	s = SharedSettingsFrom(cfg)
+	v = s.Values()
+	if v[KeyConventionsSince] != "2026-09-01" || v[KeyConventionsMaxSubjectSoft] != 50 ||
+		v[KeyConventionsMaxSubjectHard] != 72 || v[KeyConventionsLanguage] != "any" {
+		t.Errorf("conventions values = %v", v)
+	}
+	if got := v[KeyConventionsScopes]; !reflect.DeepEqual(got, []string{}) {
+		t.Errorf("conventions.commit.scopes = %#v, empty list expected", got)
+	}
+	if !reflect.DeepEqual(v[KeyConventionsTypes], cfg.Conventions.Commit.Types) ||
+		!reflect.DeepEqual(v[KeyConventionsForbidden], cfg.Conventions.Commit.Forbidden) {
+		t.Errorf("conventions lists = %v / %v", v[KeyConventionsTypes], v[KeyConventionsForbidden])
+	}
+	cfg.Conventions.Commit.Types[0] = "changed"
+	cfg.Conventions.Commit.Forbidden[0] = "changed"
+	if (*s.ConventionsTypes)[0] != "feat" || (*s.ConventionsForbidden)[0] == "changed" {
+		t.Error("conventions lists not copied")
+	}
+	v[KeyConventionsTypes].([]string)[0] = "changed"
+	if (*s.ConventionsTypes)[0] != "feat" {
+		t.Error("Values does not copy the conventions lists")
+	}
 }
 
 func TestSharedSettingsApplyTo(t *testing.T) {
@@ -92,6 +127,45 @@ func TestSharedSettingsApplyTo(t *testing.T) {
 	}
 	if !slices.Equal(s.Keys(), []string{KeySyncInterval, KeyBranchesExclude, KeyTimezone, KeyLang}) {
 		t.Errorf("Keys = %v", s.Keys())
+	}
+}
+
+func TestSharedSettingsApplyToConventions(t *testing.T) {
+	cfg := DefaultConfig("x")
+	cfg.Conventions.Enabled = true
+	cfg.Conventions.ExcludedAccounts = []string{"prof"}
+	types := []string{"feat", "fix"}
+	s := SharedSettings{
+		ConventionsSince:          ptr("2026-09-01"),
+		ConventionsTypes:          &types,
+		ConventionsScopes:         &[]string{"api"},
+		ConventionsMaxSubjectSoft: ptr(60),
+		ConventionsMaxSubjectHard: ptr(90),
+		ConventionsForbidden:      new([]string), // nil list: becomes an empty list
+		ConventionsLanguage:       ptr("fr"),
+	}
+	got := s.ApplyTo(cfg)
+	want := ConventionsConfig{Enabled: true, Since: "2026-09-01",
+		Commit: ConventionsCommitConfig{Types: []string{"feat", "fix"}, Scopes: []string{"api"},
+			MaxSubjectSoft: 60, MaxSubjectHard: 90, Forbidden: []string{}, Language: "fr"},
+		ExcludedAccounts: []string{"prof"}}
+	if !reflect.DeepEqual(got.Conventions, want) {
+		t.Errorf("ApplyTo = %+v\nwant %+v", got.Conventions, want)
+	}
+	types[0] = "changed"
+	got.Conventions.ExcludedAccounts[0] = "changed"
+	got.Diagnostic.Exclude[0] = "changed"
+	if got.Conventions.Commit.Types[0] != "feat" {
+		t.Error("ApplyTo does not copy the provided list")
+	}
+	if cfg.Conventions.ExcludedAccounts[0] != "prof" || cfg.Diagnostic.Exclude[0] == "changed" {
+		t.Error("ApplyTo shares the lists of the original configuration")
+	}
+	if cfg.Conventions.Since != "" || cfg.Conventions.Commit.MaxSubjectSoft != 50 {
+		t.Error("ApplyTo changed the original configuration")
+	}
+	if got := s.Keys(); !slices.Equal(got, SharedKeys[len(SharedKeys)-7:]) {
+		t.Errorf("Keys = %v", got)
 	}
 }
 
@@ -134,6 +208,10 @@ func TestFileConfigAndWithEnv(t *testing.T) {
 	if fileCfg.Sync.Parallelism != 2 {
 		t.Error("WithEnv changed its argument")
 	}
+	withEnv.Conventions.ExcludedAccounts[0] = "changed"
+	if fileCfg.Conventions.ExcludedAccounts[0] != "prof-dupont" {
+		t.Error("WithEnv shares the lists of its argument")
+	}
 	t.Setenv("WATCHOO_SYNC_PARALLELISM", "beaucoup")
 	if _, err := WithEnv(fileCfg); err == nil || !strings.Contains(err.Error(), "WATCHOO_SYNC_PARALLELISM") {
 		t.Errorf("WithEnv with an unreadable variable = %v", err)
@@ -175,6 +253,10 @@ func TestWriteSharedSettingsKeepsMachineKeys(t *testing.T) {
 		BranchesExclude: &[]string{"dependabot/*", "renovate/*"},
 		Timezone:        ptr("Europe/Paris"),
 		Lang:            ptr("fr"),
+
+		ConventionsSince:     ptr("2026-09-01"),
+		ConventionsTypes:     &[]string{"feat", "fix"},
+		ConventionsForbidden: &[]string{"wip", "mise à jour", "."},
 	}
 	res, err := WriteSharedSettings(ws, s)
 	if err != nil {
@@ -210,6 +292,14 @@ func TestWriteSharedSettingsKeepsMachineKeys(t *testing.T) {
 	if !c.Diagnostic.Enabled || c.Diagnostic.RetentionDays != 90 {
 		t.Errorf("diagnostic.* settings (never shared) lost: %+v", c.Diagnostic)
 	}
+	if !c.Conventions.Enabled || !slices.Equal(c.Conventions.ExcludedAccounts, []string{"prof-dupont"}) {
+		t.Errorf("conventions.enabled / excluded_accounts (never shared) lost: %+v", c.Conventions)
+	}
+	if c.Conventions.Since != "2026-09-01" || !slices.Equal(c.Conventions.Commit.Types, []string{"feat", "fix"}) ||
+		!slices.Equal(c.Conventions.Commit.Forbidden, []string{"wip", "mise à jour", "."}) ||
+		c.Conventions.Commit.MaxSubjectSoft != 50 || c.Conventions.Commit.Language != "any" {
+		t.Errorf("imported conventions settings missing: %+v", c.Conventions)
+	}
 	if c.Sync.Parallelism != 2 {
 		t.Errorf("sync.parallelism not imported lost: %d", c.Sync.Parallelism)
 	}
@@ -228,7 +318,8 @@ func TestWriteSharedSettingsKeepsMachineKeys(t *testing.T) {
 	}
 	for _, line := range []string{"sync:\n", "  interval: 1h ", "  parallelism: 2 ", "  dead_after_days: 21 ",
 		`  exclude: ["dependabot/*", "renovate/*"]`, `timezone: "Europe/Paris"`, `lang: "fr"`, "  auth:\n", `    username: "prof"`,
-		`  gh_path: "/opt/gh/bin/gh"`, "git:\n", `  protocol: "https"`} {
+		`  gh_path: "/opt/gh/bin/gh"`, "git:\n", `  protocol: "https"`, "conventions:\n", "  enabled: true ",
+		`  since: "2026-09-01"`, "  commit:\n", `    types: ["feat", "fix"]`, `  excluded_accounts: ["prof-dupont"]`} {
 		if !strings.Contains(content, line) {
 			t.Errorf("active line %q missing:\n%s", line, content)
 		}
@@ -289,7 +380,7 @@ func TestWriteSharedSettingsNoYAMLInjection(t *testing.T) {
 	for key := range values {
 		if !slices.Contains([]string{"name", "sync.parallelism", "branches.exclude", "web.addr", "web.allowed_hosts",
 			"web.auth.username", "github.user", "github.gh_path", "git.protocol", "diagnostic.enabled",
-			"diagnostic.retention_days"}, key) {
+			"diagnostic.retention_days", "conventions.enabled", "conventions.excluded_accounts"}, key) {
 			t.Errorf("unexpected key %s in the rewritten file", key)
 		}
 	}
@@ -305,6 +396,10 @@ func TestWriteSharedSettingsInvalidChangesNothing(t *testing.T) {
 		"utf8":        {Timezone: ptr("\xff")},
 		"lang":        {Lang: ptr("de")},
 		"pattern":     {BranchesExclude: &[]string{"[a"}},
+		"since":       {ConventionsSince: ptr("1er septembre")},
+		"type":        {ConventionsTypes: &[]string{"Feat"}},
+		"lengths":     {ConventionsMaxSubjectSoft: ptr(80)},
+		"language":    {ConventionsLanguage: ptr("de")},
 	} {
 		t.Run(name, func(t *testing.T) {
 			ws := newCustomWorkspace(t)

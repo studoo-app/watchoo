@@ -530,6 +530,38 @@ fictives, dépôts `gittest`, base SQLite temporaire.
   seulement (numéros de ligne, rien cloné sans clone, aucune ligne dans les logs) ; ordre des blocs de la
   fiche et section « Lignes en cause ».
 
+## Conventions de projet (phase 8.1)
+
+Voir [Conventions de projet](13-conventions.md).
+
+- `internal/workspace` : valeurs par défaut de la charte (désactivé, 11 types, 50 et 72, sujets interdits),
+  validation de chaque règle (date `AAAA-MM-JJ`, types en minuscules, scopes, longueurs, langue, entrées
+  vides), variables `WATCHOO_CONVENTIONS_*`, date YAML sans guillemets (`since: 2026-09-01`) relue comme la
+  date écrite, modèle `config.yaml` décommenté égal aux valeurs par défaut ; `conventions.enabled` et
+  `conventions.excluded_accounts` gardés par la réécriture de `config import` et jamais ajoutés par elle ;
+  listes copiées (un import ne modifie jamais la configuration en place).
+- `internal/configshare` : export du bloc `settings.conventions` sans `enabled` ni `excluded_accounts`,
+  lecture et refus (date, type, scope, entrée vide ou avec caractère de contrôle, langue, clé inconnue),
+  aperçu (seules les valeurs différentes ; listes vides comparées comme telles, un second import ne change
+  rien), refus des réglages fusionnés incohérents sans rien écrire ; aperçu web et nombre de réglages
+  exportés par la CLI.
+- Rapport des conventions (`internal/conventions`, `Build`) : lecteur de base et clone simulés ; périmètre
+  par le clone (commits des branches suivies, branche par défaut seule, branche absente, sans branche
+  suivie), repli sur la base (pas de clone, clone illisible), date de début de l'espace ou du dépôt,
+  filtre par auteur, contributeurs tous dépôts confondus, erreurs de base et contexte terminé ;
+  `internal/provider/git` (`RevList` : branches suivies du clone existant, sans `fetch`) ;
+  `internal/sync` (`ConventionsClones`, avec `gittest` : branche réécrite par `push --force`, oubliée
+  par le clone et gardée par le repli sur la base) ; `internal/store` (`ConventionCommits` : parents,
+  auteur, committer, branches suivies et par défaut).
+- `watchoo conventions` : texte (taux, exclusions, écarts, contributeurs, `--commits`, `--failing`,
+  `--contributor`, français), `--json` (clés figées par `json_schema_test.go`, mêmes clés de premier
+  niveau avec ou sans `--commits`, espace vide), conventions désactivées, et étape du scénario de bout en
+  bout CLI (mode API : repli sur la base) ; aucun message de commit dans les sorties.
+- Interface web : section `repo-conventions` (taux, branche par défaut, exclusions, écarts, derniers
+  commits non conformes, dépôt jamais synchronisé, aucun commit évalué, fragment HTMX, désactivée),
+  ligne de la page d'un contributeur, libellés de tous les codes, motifs et gravités en anglais et en
+  français, scénario de bout en bout web avec un commit conforme et une fusion ; aucun message de commit.
+
 ## En CI
 
 À chaque push et chaque pull request :

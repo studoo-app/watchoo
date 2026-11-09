@@ -171,7 +171,7 @@ func TestSettingsExport(t *testing.T) {
 		t.Errorf("Cache-Control = %q", got)
 	}
 	body := w.Body.String()
-	for _, bad := range []string{"gh_path", `"github": `, `"web": `, ws.Root, "@example"} {
+	for _, bad := range []string{"gh_path", `"github": `, `"web": `, ws.Root, "@example", `"enabled"`, "excluded_accounts"} {
 		if strings.Contains(body, bad) {
 			t.Errorf("export with %q:\n%s", bad, body)
 		}
@@ -197,6 +197,10 @@ func TestSettingsExport(t *testing.T) {
 	if doc.Settings == nil || doc.Settings.Sync == nil || *doc.Settings.Sync.Interval != "30m" ||
 		doc.Settings.Lang == nil || *doc.Settings.Lang != "en" {
 		t.Errorf("settings: %+v", doc.Settings)
+	}
+	if c := doc.Settings.Conventions; c == nil || c.Since == nil || c.Commit == nil || c.Commit.Types == nil ||
+		(*c.Commit.Types)[0] != "feat" || *c.Commit.MaxSubjectHard != 72 {
+		t.Errorf("conventions: %+v", doc.Settings.Conventions)
 	}
 	// The exported document is read back without error.
 	if _, err := configshare.ParseBytes(w.Body.Bytes()); err != nil {
@@ -250,6 +254,24 @@ func TestSettingsImportPreview(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(ws.Dir, workspace.BackupFileName)); !os.IsNotExist(err) {
 		t.Errorf("config.yaml.bak created by the preview: %v", err)
+	}
+}
+
+// The conventions charter of a document is previewed like the other settings.
+func TestSettingsImportPreviewConventions(t *testing.T) {
+	isolateShare(t)
+	e := newTestEnv(t)
+	e.seed()
+	ws := e.withShareWorkspace()
+	before := e.snapshot(ws)
+	doc := `{"format": "watchoo-config", "version": 1, "settings": {"conventions": {"since": "2026-09-01",
+		"commit": {"types": ["feat", "fix"], "max_subject_soft": 60}}}}`
+	w := e.postMultipart("/settings/import", nil, []byte(doc), true)
+	assertStatus(t, w, http.StatusOK)
+	assertContains(t, w, "conventions.since", "2026-09-01", "conventions.commit.types",
+		"conventions.commit.max_subject_soft", "60")
+	if after := e.snapshot(ws); after != before {
+		t.Error("the preview changed the workspace")
 	}
 }
 

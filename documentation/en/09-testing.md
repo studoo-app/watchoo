@@ -530,6 +530,38 @@ See [Supervision and diagnosis](12-supervision-diagnostic.md). No external servi
   numbers, nothing cloned without a clone, no line in the logs); order of the blocks of the sheet and "Lines
   behind the signals" section.
 
+## Project conventions (phase 8.1)
+
+See [Project conventions](13-conventions.md).
+
+- `internal/workspace`: defaults of the charter (disabled, 11 types, 50 and 72, forbidden subjects),
+  validation of each rule (`YYYY-MM-DD` date, lowercase types, scopes, lengths, language, empty entries),
+  `WATCHOO_CONVENTIONS_*` variables, unquoted YAML date (`since: 2026-09-01`) read back as the written date,
+  uncommented `config.yaml` template equal to the defaults; `conventions.enabled` and
+  `conventions.excluded_accounts` kept by the rewrite of `config import` and never added by it; lists
+  copied (an import never changes the configuration in place).
+- `internal/configshare`: export of the `settings.conventions` block without `enabled` nor
+  `excluded_accounts`, reading and refusals (date, type, scope, empty entry or with a control character,
+  language, unknown key), preview (only different values; empty lists compared as such, a second import
+  changes nothing), refusal of inconsistent merged settings without writing anything; web preview and
+  number of settings exported by the CLI.
+- Conventions report (`internal/conventions`, `Build`): simulated database reader and clone; scope from
+  the clone (commits of the tracked branches, default branch alone, missing branch, no tracked branch),
+  database fallback (no clone, unreadable clone), start date of the workspace or of the repository,
+  author filter, contributors across the repositories, database errors and ended context;
+  `internal/provider/git` (`RevList`: tracked branches of the existing clone, without `fetch`);
+  `internal/sync` (`ConventionsClones`, with `gittest`: a branch rewritten by `push --force`, forgotten
+  by the clone and kept by the database fallback); `internal/store` (`ConventionCommits`: parents,
+  author, committer, tracked and default branches).
+- `watchoo conventions`: text (rates, exclusions, issues, contributors, `--commits`, `--failing`,
+  `--contributor`, French), `--json` (keys frozen by `json_schema_test.go`, same top-level keys with or
+  without `--commits`, empty workspace), conventions disabled, and a step of the CLI end-to-end scenario
+  (API mode: database fallback); no commit message in the outputs.
+- Web interface: `repo-conventions` section (rate, default branch, exclusions, issues, latest
+  non-conforming commits, repository never synced, no commit evaluated, HTMX fragment, disabled), line of
+  a contributor's page, labels of all the codes, reasons and severities in English and French, web
+  end-to-end scenario with a conforming commit and a merge; no commit message.
+
 ## In CI
 
 On every push and every pull request:

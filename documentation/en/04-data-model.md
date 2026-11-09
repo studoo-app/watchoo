@@ -10,7 +10,7 @@ migration `00005` (0.5.0) adds `contributors.profile_url` and the migration `000
 `commits.stats_known`; the migration `00007` (1.1.0) adds `repository_languages`; the migration `00008` (1.2.0)
 adds `commits.ai_rules_version` and the `commit_ai_signatures` table; the migration `00009` (1.2.0) adds
 `commits.languages_version` and the `commit_languages` table, i.e. **thirteen tables**; the migration `00010` (1.3.0)
-adds `sync_runs.warnings`. The migration `00011` (phase 7.1) adds `commit_signals`, the migration `00012` (phase 7.2) `pull_requests.tool_ids` and `repository_signals`, the migration `00013` (phase 7.4) `diagnostic_reviews`, i.e. **sixteen tables**, the migration `00014` (phase 7.5) the form columns of `commit_signals`, and the migration `00015` (phase 7.7) its measures of the absolute signals and counter-indicators (see [Supervision and diagnosis](12-supervision-diagnostic.md)). The storage is a SQLite file versioned by `goose` migrations, with **one
+adds `sync_runs.warnings`. The migration `00011` (phase 7.1) adds `commit_signals`, the migration `00012` (phase 7.2) `pull_requests.tool_ids` and `repository_signals`, the migration `00013` (phase 7.4) `diagnostic_reviews`, i.e. **sixteen tables**, the migration `00014` (phase 7.5) the form columns of `commit_signals`, and the migration `00015` (phase 7.7) its measures of the absolute signals and counter-indicators (see [Supervision and diagnosis](12-supervision-diagnostic.md)). The migration `00016` (phase 8.1) adds `commits.parent_count` and `repositories.conventions_since` (see [Project conventions](13-conventions.md) and [Migration `00016`](#migration-00016-project-conventions)). The storage is a SQLite file versioned by `goose` migrations, with **one
 database per workspace** (`.watchoo/watchoo.db`, see [Workspaces](10-workspaces.md)). The tables
 therefore do not know the notion of workspace: two workspaces never share data.
 
@@ -64,6 +64,7 @@ unique.
 | dead_after_days | Own "Dead" threshold of the repository, at least 1 (empty = global value, 15 days by default); set the same way (`--dead`, `dead` column) |
 | enabled | Actively tracked, or stopped (`repo remove --keep-history`: history kept, no more sync; `repo add` reactivates it) |
 | branch_patterns | Branches to track (`--branch`, `branches` column of the import): names and `path.Match` patterns separated by commas (`main,dev,release/*`); empty = all the branches. Added by the migration `00002` |
+| conventions_since | Start date of the conventions for this repository (`repo add --conventions-since YYYY-MM-DD`, configuration sharing), stored in the fixed format at **midnight UTC** of the calendar date (`2026-09-01T00:00:00Z`, `CHECK`); empty = date of the workspace (`conventions.since`). Read as the calendar date, at midnight in the time zone of the workspace. Added by the migration `00016` (phase 8.1) |
 
 ### `branches` — monitored branches
 
@@ -135,6 +136,7 @@ number of branches that contain it.
 | url | Link to the commit on the forge |
 | ai_rules_version | Version of the AI signature rules the commit was analyzed with; `0` = not analyzed yet. Added by the migration `00008` (1.2.0) |
 | languages_version | Version of the language rules the languages of the commit were read with in the clone; `0` = not yet. Added by the migration `00009` (1.2.0) |
+| parent_count | Number of parents of the commit: `0` = root, `1` = ordinary, `2` or more = merge; empty = unknown (`CHECK >= 0`). Written at insertion from the commit read (API or clone); the commits recorded before the migration are backfilled by the local Git clone during the sync. Added by the migration `00016` (phase 8.1) |
 
 - **Stats** (`additions`, `deletions`): computed in the **local Git clone** of the repository
   (`git diff-tree --numstat`, without quota), with or without `gh`, for **all** the commits, the first
@@ -388,6 +390,7 @@ repository. The note is personal data: the review follows `diagnostic.retention_
 | `commits(repo_id, sha) WHERE stats_known = 0` | Partial index: commits whose `+/-` lines are still to be read (migration `00006`) |
 | `commits(repo_id, ai_rules_version)` | Commits still to analyze for the AI signatures (migration `00008`) |
 | `commits(repo_id, languages_version)` | Commits whose languages are still to read from the clone (migration `00009`) |
+| `commits(repo_id, sha) WHERE parent_count IS NULL` | Partial index: commits whose number of parents is still to be read in the clone (migration `00016`) |
 | `commit_signals(repo_id, author_id, authored_at)` | Per-author sliding windows of the rhythm signals (phase 7.3) |
 | `commit_signals(authored_at)` | Purge by retention period |
 | `diagnostic_reviews(lead_date)` | Purge of the reviews by retention period |
@@ -443,6 +446,27 @@ Written by the engine (`store.RepositoryMetadata`): `ProviderID` > 0 is written 
 answer of `gh`), 0 keeps the value in the database; `Partial` (sync through local Git repositories) only writes the
 default branch (if it is known) and the sync date, never zeros instead of the URL, the
 stars, the issues, the archived state or `provider_id`.
+
+## Migration `00016`: project conventions
+
+Phase 8.1 ([Project conventions](13-conventions.md)) adds two columns with `ALTER TABLE … ADD COLUMN`,
+without rebuilding any table:
+
+- **`commits.parent_count`** (`NULL` for the commits already in the database) and the partial index
+  `commits_parent_count_unknown` on `(repo_id, sha) WHERE parent_count IS NULL`. The new commits receive
+  their number of parents at insertion (`len(Parents)` of the commit read). The commits already in the
+  database are backfilled at every sync by the local Git clone (`git rev-list --no-walk=unsorted
+  --parents`, in batches, clone read without any extra update), **whether the conventions are enabled or
+  not**; a known number is never rewritten. Without a clone, or for a SHA missing from the clone
+  (rewritten history), the value stays `NULL` (unknown, never treated as `1`) and is asked for again at
+  the next sync.
+- **`repositories.conventions_since`**: `NULL` = date of the workspace. The `CHECK` only accepts midnight
+  UTC (`YYYY-MM-DDT00:00:00Z`): only the calendar date matters, read at midnight in the time zone of the
+  workspace (`timezone`).
+
+Rolling back (`Down`): the index then the two columns are removed; the other values remain. A test
+(`internal/store/migration_conventions_test.go`) applies the migration to a database at schema `00015`,
+checks the unknown values, the index and the constraints, then the rollback.
 
 ## Renames and login changes
 

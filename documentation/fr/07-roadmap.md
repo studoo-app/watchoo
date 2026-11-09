@@ -188,8 +188,10 @@ L'import d'une organisation entière et les alertes passent en V3 (voir
   SemVer, CHANGELOG Keep a Changelog, README, `documentation/INDEX.md`) et vue « revue de jalon ».
   Constats objectifs, séparés du diagnostic, sans note globale, réservés au formateur, désactivés par défaut.
 - Sous-phases 8.0 à 8.7 : voir [Conventions de projet](13-conventions.md#10-plan-par-phases-proposition).
-- **Statut** : **décidée** (décisions du mainteneur du 8 novembre 2026) ; phase 8.1 à planifier, aucun code
-  encore. Protection de branche (BR3) reportée.
+- **Statut** : **décidée** (décisions du mainteneur du 8 novembre 2026) ; phase **8.1** (conventions de
+  commits, commande `watchoo conventions`, ajustements de A1, A2 et F4) **réalisée, non publiée** (CC1 par
+  intervalle entre tags et tendance de CC3 depuis le dernier tag reportés à 8.2) ; phases 8.2 à 8.7 à
+  planifier. Protection de branche (BR3) reportée.
 
 ## Définition de « terminé » pour chaque phase
 

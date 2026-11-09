@@ -321,6 +321,14 @@ var providerTexts = map[string]entry{
 		"statistics of commit %s in %s/%s",
 		"statistiques du commit %s de %s/%s",
 	},
+	"provider.git.op.parent_counts": {
+		"parent counts of the commits of %s/%s",
+		"nombre de parents des commits de %s/%s",
+	},
+	"provider.git.op.rev_list": {
+		"commits of the tracked branches of %s/%s",
+		"commits des branches suivies de %s/%s",
+	},
 	"provider.git.op.added_lines": {
 		"added lines of the commits of %s/%s",
 		"lignes ajoutées des commits de %s/%s",

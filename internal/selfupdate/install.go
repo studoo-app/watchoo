@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	"github.com/studoo-app/watchoo/internal/i18n"
+	"github.com/studoo-app/watchoo/internal/semver"
 )
 
 // i18nError est une erreur sentinelle dont le message vient du catalogue i18n : le texte est traduit
@@ -135,7 +136,7 @@ func (c *Client) Install(ctx context.Context, tag, exe string) error {
 // Download télécharge l'archive de la release tag et le fichier de sommes, vérifie la somme SHA-256
 // de l'archive et renvoie le binaire qu'elle contient.
 func (c *Client) Download(ctx context.Context, tag string) ([]byte, error) {
-	if v, ok := ParseVersion(tag); !ok || !v.IsFinal() || !strings.HasPrefix(tag, "v") {
+	if v, ok := semver.ParseVersion(tag); !ok || !v.IsFinal() || !strings.HasPrefix(tag, "v") {
 		return nil, errors.New(i18n.T("selfupdate.version.invalid", tag))
 	}
 	archive := ArchiveName(tag, c.goos, c.goarch)

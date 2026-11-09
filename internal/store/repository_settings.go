@@ -50,6 +50,28 @@ func (s *Store) SetRepositoryThresholds(ctx context.Context, id int64, flemme, d
 	return repositoryFromDB(row)
 }
 
+// SetRepositoryConventionsSince remplace la date de début des conventions propre au dépôt id (date
+// AAAA-MM-JJ ; vide = date de l'espace, NULL en base) et renvoie le dépôt à jour. La date est validée en
+// amont (repoimport.ParseConventionsSince) ; une date invalide est refusée ici aussi. Erreur enveloppant
+// ErrNotFound si le dépôt n'existe pas.
+func (s *Store) SetRepositoryConventionsSince(ctx context.Context, id int64, date string) (model.Repository, error) {
+	since, err := nullSince(date)
+	if err != nil {
+		return model.Repository{}, wrapErr(i18n.T("store.repo.conventions_since_set", id), err)
+	}
+	row, err := s.queries.SetRepositoryConventionsSince(ctx, db.SetRepositoryConventionsSinceParams{
+		ConventionsSince: since,
+		ID:               id,
+	})
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return model.Repository{}, wrapErr(i18n.T("store.repo.id", id), ErrNotFound)
+		}
+		return model.Repository{}, wrapErr(i18n.T("store.repo.conventions_since_set", id), err)
+	}
+	return repositoryFromDB(row)
+}
+
 // SetRepositoryEnabled active (true) ou arrête (false) le suivi du dépôt id, sans toucher à son
 // historique. Erreur enveloppant ErrNotFound si le dépôt n'existe pas.
 func (s *Store) SetRepositoryEnabled(ctx context.Context, id int64, enabled bool) error {

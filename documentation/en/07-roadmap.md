@@ -189,7 +189,9 @@ Importing a whole organization and the alerts move to V3 (see
   Objective findings, separate from the diagnosis, with no overall grade, for the trainer only, disabled by
   default.
 - Sub-phases 8.0 to 8.7: see [Project conventions](13-conventions.md#10-phase-plan-proposal).
-- **Status**: **decided** (maintainer decisions of November 8, 2026); phase 8.1 to plan, no code yet.
+- **Status**: **decided** (maintainer decisions of November 8, 2026); phase **8.1** (commit conventions,
+  `watchoo conventions` command, adjustments to A1, A2 and F4) **done, not released** (CC1 per range between
+  tags and CC3 trend since the last tag postponed to 8.2); phases 8.2 to 8.7 to plan.
   Branch protection (BR3) postponed.
 
 ## Definition of "done" for each phase

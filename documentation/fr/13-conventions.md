@@ -3,10 +3,10 @@
 [← Sommaire](README.md)
 
 **Statut** : **décision du mainteneur** (phase 8, 8 novembre 2026) ; les choix sont consignés en
-[section 11](#11-décisions-du-mainteneur). Aucun code n'est encore écrit : chaque phase commence après
-validation de son plan. L'exception au périmètre est reportée dans la [Vision](01-vision.md) ; les reprises
-dans [Fonctionnalités](02-fonctionnalites.md), [Modèle de données](04-modele-donnees.md), [CLI](05-cli.md)
-et [Interface web](06-interface-web.md) se feront phase par phase.
+[section 11](#11-décisions-du-mainteneur). Phase 8.1 réalisée, non publiée ; les phases suivantes commencent
+après validation de leur plan. L'exception au périmètre est reportée dans la [Vision](01-vision.md) ; les
+reprises dans [Fonctionnalités](02-fonctionnalites.md), [Modèle de données](04-modele-donnees.md),
+[CLI](05-cli.md) et [Interface web](06-interface-web.md) se font phase par phase.
 
 ## 1. Décision
 
@@ -94,9 +94,9 @@ forme une seconde vue, informative.
 | id | Indicateur | Règle | Granularité | Source | Mode | Fiab. | Prio |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | CC1 | Taux de commits conformes | Commits sans écart bloquant (CC2) / commits évalués (hors CC4) | dépôt, intervalle entre tags | base + clone | les deux | H | P1 |
-| CC2 | Écarts par motif | **Bloquants** : `empty`, `forbidden` (sujet entier dans la liste interdite, ou préfixe `wip`, `fixup!`, `squash!`), `github_default` (`^(Update\|Create\|Delete\|Rename) \S+$`, « Add files via upload »), `no_type`, `unknown_type`, `type_case`, `separator`, `trailing_period`, `body_separator`, `length_hard` (> 72 caractères). **Avertissements** : `desc_capitalized` (sauf sigle), `length_soft` (> 50), `footer_format`, `git_revert` (`Revert "…"` produit par Git, compté) | commit ; motif × dépôt, motif × contributeur | base | les deux | H | P1 |
+| CC2 | Écarts par motif | **Bloquants** : `empty`, `forbidden` (sujet entier dans la liste interdite, ou préfixe `wip`, `fixup!`, `squash!`, `amend!`), `github_default` (`^(Update\|Create\|Delete\|Rename) \S+$`, « Add files via upload »), `no_type`, `unknown_type`, `type_case`, `separator`, `scope` (scope mal formé, vide ou absent de `commit.scopes`), `trailing_period`, `body_separator`, `length_hard` (> 72 caractères). **Avertissements** : `desc_capitalized` (sauf sigle), `length_soft` (> 50), `footer_format`, `git_revert` (`Revert "…"` produit par Git, compté) | commit ; motif × dépôt, motif × contributeur | base | les deux | H | P1 |
 | CC3 | Taux par contributeur | CC1 sur les commits dont il est l'auteur, avec tendance depuis le dernier tag | contributeur, contributeur × dépôt | base | les deux | H | P1 |
-| CC4 | Exclusions | Hors dénominateur, comptés à part : fusions (`parent_count ≥ 2`), bots (suffixe `[bot]` et comptes du catalogue), commit racine « Initial commit » créé par GitHub ou Classroom. Les éditions web (« Update README.md ») et les comptes d'agents IA restent évalués | commit | base | les deux | H | P1 |
+| CC4 | Exclusions | Hors dénominateur, comptés à part : fusions (`parent_count ≥ 2`), bots (suffixe `[bot]` et comptes du catalogue), commit racine « Initial commit » créé par GitHub ou Classroom ; `parent_count` inconnu (NULL) : repli sur les messages de fusion par défaut et sur le sujet exact « Initial commit » avec le committer GitHub. Les éditions web (« Update README.md ») et les comptes d'agents IA restent évalués | commit | base | les deux | H | P1 |
 | CC5 | Formulation à revoir | Avertissement seulement : `past_tense` (lexique fermé de participes FR et EN), `progressive` (`-ing`), `first_person`. Aucune règle sur la seule terminaison « -é » | commit | base | les deux | M | P2 |
 | CC6 | Footers et issues | Part des commits avec un footer valide et part de ceux qui citent une issue (`(Closes\|Fixes\|Resolves\|Refs) #\d+`) ; informatif | dépôt, contributeur | base | les deux | H | P3 |
 | CC7 | Langue des messages | Mélange FR / EN dans un même dépôt, si la charte impose une langue ; informatif | dépôt | base | les deux | M | P3 |
@@ -272,17 +272,32 @@ de la [section 3](#3-référence--la-charte).
 | `changelog.categories_fr` | `true` | Admet les libellés français (catégories, H1) |
 | `readme.sections` | sections de la charte | Synonymes des sections attendues |
 | `docs.dir`, `docs.media_dir`, `docs.archives_scope` | `documentation`, `Media`, `repository` | Arborescence ; archives interdites dans tout le dépôt |
-| `excluded_accounts` | vide | Comptes exclus (formateur, bots), propres aux conventions : distincts de `diagnostic.exclude` |
+| `excluded_accounts` | vide | Comptes exclus (formateur, bots) : login, nom ou e-mail de l'auteur, casse ignorée ; propres aux conventions, distincts de `diagnostic.exclude` |
 
 Le bloc se partage par [`configshare`](02-fonctionnalites.md) (décision du mainteneur), sauf `enabled`,
 `excluded_accounts` (qui contient des logins) : partager une charte est l'usage visé. La date propre à un
 dépôt est exportée avec lui, comme ses seuils d'activité. Les clés sont ensuite figées par SemVer.
 
+**Phase 8.1** : seules `enabled`, `since`, `commit.*` et `excluded_accounts` existent ; les autres clés
+arrivent avec leur phase. Variables d'environnement : `WATCHOO_CONVENTIONS_ENABLED`,
+`WATCHOO_CONVENTIONS_SINCE`, `WATCHOO_CONVENTIONS_COMMIT_TYPES`… (listes séparées par des virgules). Règles
+vérifiées au chargement : `since` vide ou de la forme `AAAA-MM-JJ` (une date YAML sans guillemets,
+`since: 2026-09-01`, est acceptée ; une date avec heure est refusée, sauf un horodatage YAML sans
+guillemets à minuit UTC pile, `2026-09-01T00:00:00Z`, que le décodeur YAML ne distingue pas de la date
+seule et qui est lu comme `2026-09-01`), lue à minuit dans le fuseau de
+l'espace ; au moins un type, chacun en lettres minuscules ; chaque scope de la forme `[a-z0-9][a-z0-9._/-]*` ;
+`commit.max_subject_soft` au moins 1 et `commit.max_subject_hard` strictement supérieur ; aucune entrée
+vide dans `commit.forbidden` ni `excluded_accounts` ; `commit.language` parmi `fr`, `en`, `any` (sans effet
+sur l'analyse en 8.1). Dans le fichier de partage, le bloc s'écrit `settings.conventions` (`since`,
+`commit`) : voir [Partage de la configuration](05-cli.md#partage-de-la-configuration--watchoo-config).
+
 ## 9. Impact technique
 
 - **Packages** :
-  - `internal/conventions` : fonctions pures, sur le modèle d'`internal/aisignature`, qui renvoient des
-    codes stables et ne lisent ni la base ni la forge (`ParseCommit`, `CheckBranch`, `CheckPRTitle`,
+  - `internal/conventions` : le parseur et l'agrégation sont des fonctions pures, sur le modèle
+    d'`internal/aisignature`, qui renvoient des codes stables et ne lisent ni la base ni la forge ;
+    `Build` lit la base et le clone uniquement par les interfaces `Reader` et `CloneReader`, implémentées
+    par `internal/store` et `internal/provider/git`, jamais la forge (`ParseCommit`, `CheckBranch`, `CheckPRTitle`,
     `CheckPRBody`, `CheckTag`, `ExpectedBump`, `CheckChangelog`, `CheckReadme`, `CheckIndex`,
     `CheckDocsTree`, `DetectTooling`) ;
   - `internal/semver` : comparateur extrait d'`internal/selfupdate`, sans changement de surface ;
@@ -340,8 +355,8 @@ Chaque phase est livrable seule ; les phases 8.1 à 8.4 suffisent pour une revue
 | Phase | Contenu | Coût | Version |
 | --- | --- | --- | --- |
 | 8.0 | Ce document validé (fait, 8 novembre 2026) et exception reportée dans 01 ; reprises dans 02, 04, 05, 06 et 12 avec chaque phase | aucun code | — |
-| 8.1 | `internal/conventions` (parseur), `internal/semver`, réglages `conventions.*`, CC1 à CC4, `commits.parent_count` et son rattrapage, `watchoo conventions --commits`, section web et page contributeur, ajustements de A1, A2 et F4 | 0 quota, 1 migration | 1.7.0 |
-| 8.2 | À la volée : BR1, PR1, PR2, SV1, SV2 (présence), SV6 ; première revue de jalon ; CC5 à CC7 | 0 quota | 1.8.0 |
+| 8.1 | `internal/conventions` (parseur), `internal/semver`, réglages `conventions.*`, CC1 à CC4, `commits.parent_count` et son rattrapage, `watchoo conventions --commits`, section web et page contributeur, ajustements de A1, A2 et F4. **Réalisée, non publiée** (`[Unreleased]` du CHANGELOG ; code `scope` ajouté aux codes bloquants de CC2 ; CC1 par intervalle entre tags et tendance de CC3 depuis le dernier tag reportés à 8.2, avec la lecture des tags) | 0 quota, 1 migration | 1.7.0 |
+| 8.2 | À la volée : BR1, PR1, PR2, SV1, SV2 (présence), SV6 ; première revue de jalon ; CC5 à CC7 ; CC1 par intervalle entre tags, tendance de CC3 | 0 quota | 1.8.0 |
 | 8.3 | Arbre du clone : `repository_conventions`, CL1 à CL9, RD1 à RD4, DOC1 à DOC8, TL1 à TL3 ; revue de jalon sur l'arbre des tags | 0 quota, 1 migration | 1.9.0 |
 | 8.4 | Historique : `tag_observations` (SV3, échéances de SV2), `branch_rewrites` (BR4), SV4, SV5, SV7, CL10 | 0 quota, 2 migrations | 1.10.0 |
 | 8.5 | API sans requête de plus : `merge_commit_sha`, `from_fork`, `body_sections`, méthodes de fusion ; PR3 complet, PR5, PR6, BR2, BR5 | une relecture des listes de PR | 1.11.0 |

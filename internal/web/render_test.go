@@ -16,7 +16,7 @@ func TestTemplatesParseAndDefineFragments(t *testing.T) {
 	e := newTestEnv(t)
 	want := map[string][]string{
 		pageDashboard:    {"content", "dashboard-repos", "dashboard-feed"},
-		pageRepo:         {"content", "repo-commits", "scripts"},
+		pageRepo:         {"content", "repo-commits", "repo-conventions", "scripts"},
 		pageContributors: {"content", "contributors-table"},
 		pageContributor: {"content", "scripts", "contributor-overview", "contributor-repos", "contributor-pulls",
 			"contributor-commits"},

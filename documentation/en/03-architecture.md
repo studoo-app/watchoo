@@ -78,6 +78,9 @@ watchoo/
   internal/configshare/ sharing of a workspace's configuration (JSON export, validation, preview and
                        application of an import; "watchoo config", Settings page)
   internal/aisignature/ AI signatures declared in the commits (1.2.0): catalog and detection, pure functions
+  internal/conventions/ project conventions (phase 8.1): strict Conventional Commits parser, CC1 to CC4,
+                       exclusions, start date and report builder; pure functions, never a message kept
+  internal/semver/     SemVer 2.0.0 parsing and precedence (phase 8.1, taken out of selfupdate)
   internal/textclean/  cleaning of displayed texts (escape sequences, control characters), CLI and TUI
   internal/selfupdate/ Watchoo's own self-update (0.6.0): latest published release, SemVer
                        comparison, verified download and replacement of the binary, periodic
@@ -172,10 +175,13 @@ Fakes for the tests: `providertest` (in-memory Provider), `githubtest` (simulate
   `https`; V2), diagnosis (`diagnostic.enabled`, disabled by default; `diagnostic.exclude`;
   `diagnostic.retention_days`, 365 by default; `diagnostic.speed_signal`, signal R4, disabled by default;
   phases 7.1 and 7.3, see
-  [Supervision and diagnosis](12-supervision-diagnostic.md)).
+  [Supervision and diagnosis](12-supervision-diagnostic.md)), project conventions (`conventions.enabled`,
+  disabled by default; `conventions.since`; `conventions.commit.*`; `conventions.excluded_accounts`;
+  phase 8.1, see [Project conventions](13-conventions.md#8-configuration)).
 - Sharing between supervisors: `watchoo config export` / `import` (and the Settings page) exchange a
   versioned JSON file (`format: watchoo-config`, `version: 1`) with the tracked repositories and the common
-  settings, never `github.*`, `git.*`, `web.*` nor `diagnostic.*`. The core is `internal/configshare`; the rewrite of
+  settings (including the `conventions.*` charter, except `conventions.enabled` and
+  `conventions.excluded_accounts`), never `github.*`, `git.*`, `web.*` nor `diagnostic.*`. The core is `internal/configshare`; the rewrite of
   `config.yaml` is done by `internal/workspace` (`WriteSharedSettings`). See
   [Configuration sharing](05-cli.md#configuration-sharing-watchoo-config).
 
@@ -311,6 +317,11 @@ Fakes for the tests: `providertest` (in-memory Provider), `githubtest` (simulate
   (merge with no change, empty commit): it is never computed again. A commit absent from the clone (history
   rewritten between the API read and the `fetch`) stays unknown and will be picked up at the next sync.
   The statistics are written in the same transaction as the rest of the sync of the repository.
+- **Number of parents of the commits** (phase 8.1, `commits.parent_count`): written at insertion from the
+  commit read; the same pass in the clone backfills, in batches of 500 (`git rev-list --no-walk=unsorted
+  --parents`), the commits already in the database whose number is unknown (database from before the
+  migration `00016`), whether the conventions are enabled or not. A failure of this read leaves the commits
+  unknown without failing the repository; without a clone, they stay unknown.
 - **Fallback to the API** (with `gh` only): if the clone of a repository is **unavailable** (no SSH key nor
   Git credentials for it, `git` missing, clone location occupied, network…), the sync of the repository
   **does not fail**: its statistics are asked from the API as before 0.5.0, one request per commit, only

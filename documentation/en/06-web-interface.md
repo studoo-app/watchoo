@@ -209,10 +209,23 @@ signatures, no address displayed. Rules: [AI signatures](02-features.md#ai-signa
   (identifier, description, number of leads that carry it, points); the 10 latest leads (date, author,
   item linked to its review sheet, level, signals, review status) and a link to all the leads of the
   repository (`/diagnostic?repo=`). Without lead: "No reflection lead." No commit message.
+- **Conventions** (1.7.0, `repo-conventions` fragment, only when the [conventions](13-conventions.md) are
+  enabled, a section separate from the diagnosis): reminder "rates, not a grade"; **Conforming commits**
+  `n/m` and percentage, all the tracked branches (CC1); the informative view of the default branch alone;
+  the commits excluded and counted apart, by reason (merges, bots, GitHub initial commit, excluded
+  accounts: CC4); the commits written before the start date, not evaluated; the effective start date and
+  its origin (workspace or own to the repository); the table of the issues by code (code, label, severity
+  "blocking" or "warning", number of commits: CC2); the 10 latest non-conforming commits (date, author,
+  short SHA, codes). A note gives the scope: local clone (all the tracked branches, each commit once) or,
+  without a readable clone, commits attached to the tracked branches in the database, with the mention
+  "may include rewritten commits"; and the number of commits with an unknown parent count (merges
+  recognized by their message). Repository never synced: "Unknown" (not 0%); no commit evaluated: a
+  dedicated text (not "0/0"). Computed when read, nothing is stored. **No commit message**, no ranking.
 - Button **"Sync this repository"** (absent if tracking is stopped).
 - Fragments: `/repos/{id}/commits` (history); `/repos/{id}` with the `HX-Target` header
-  `repo-overview`, `repo-contributors`, `repo-languages`, `repo-pulls` or `repo-diagnostic` returns the
-  header, the contributors, the languages, the pull requests and releases or the diagnosis alone. All of them reload at the end of a sync.
+  `repo-overview`, `repo-contributors`, `repo-languages`, `repo-pulls`, `repo-diagnostic` or
+  `repo-conventions` (1.7.0) returns the header, the contributors, the languages, the pull requests and
+  releases, the diagnosis or the conventions alone. All of them reload at the end of a sync.
 
 ### 3. Contributors
 - Global ranking (commits, share of the total, lines added / removed; "—" if none of their commits has
@@ -256,6 +269,11 @@ nor the templates: the profile link is the address stored in the database (see
   it replaces the "AI signatures" card), first and last commit (relative dates). **Choice**: no Active / Slacking / Dead state for a person: these states are
   repository rules (per-repository thresholds); the page gives the age of the last commit, and the
   state of each of their repositories in the list below.
+  **Conventions** (1.7.0, only when they are enabled; absent otherwise): below the totals, the line
+  "Conforming commits 18/25 (72%)" (CC3: their commits, across all the repositories and tracked branches,
+  CC4 exclusions apart; "no commit evaluated" otherwise), followed by the issue codes received and their
+  count, and a note (number of excluded commits; "a rate, not a grade"). It is computed only for the full
+  page and the `contributor-overview` fragment, never for the paginated history.
 - **Activity over 90 days**: commits per day of the contributor, across all repositories (`daily`
   chart, like the dashboard and the repository page).
 - **Per-repository activity over 12 weeks**: the stacked `contributors-chart` chart (same template,

@@ -45,6 +45,7 @@ var jsonTopLevelKeys = map[string][]string{
 	"update":              {"current", "latest", "update_available", "release_url"},
 	"diagnostic":          {"enabled", "leads", "contexts", "histories", "notice", "filters"},
 	"diagnostic backfill": {"repositories", "measured"},
+	"conventions":         {"enabled", "rules_version", "repositories", "contributors", "commits", "notice", "filters"},
 }
 
 // pendingJSONCommands are documented in 05-cli.md but not implemented yet (none today): a command
@@ -94,6 +95,22 @@ func TestJSONSchemaAllCommands(t *testing.T) {
 	outputs["languages"] = h.run("languages", "--json").mustSucceed(t).stdout
 	outputs["status"] = h.run("status", "--json").mustSucceed(t).stdout
 	outputs["diagnostic"] = h.run("diagnostic", "--json").mustSucceed(t).stdout
+	// Conventions enabled (phase 8.1): same top-level keys with --commits, here tested on items.
+	t.Setenv("WATCHOO_CONVENTIONS_ENABLED", "true")
+	outputs["conventions"] = h.run("conventions", "--json").mustSucceed(t).stdout
+	assertJSONKeys(t, outputs["conventions"], "repositories.0", conventionsRepoKeys...)
+	assertJSONKeys(t, outputs["conventions"], "repositories.0.commits", conventionsTallyKeys...)
+	assertJSONKeys(t, outputs["conventions"], "repositories.0.commits.issues.0", "code", "severity", "count", "shas")
+	assertJSONKeys(t, outputs["conventions"], "repositories.0.commits.excluded", "merge", "bot", "initial_commit", "excluded_account")
+	assertJSONKeys(t, outputs["conventions"], "repositories.0.default_branch", "name", "evaluated", "conform", "rate")
+	assertJSONKeys(t, outputs["conventions"], "contributors.0", "author", "commits")
+	assertJSONKeys(t, outputs["conventions"], "contributors.0.commits", conventionsTallyKeys...)
+	assertJSONKeys(t, outputs["conventions"], "filters", "repository", "contributor", "commits", "failing")
+	commits := h.run("conventions", "--commits", "--json").mustSucceed(t).stdout
+	assertSingleJSONObject(t, "conventions --commits", commits)
+	assertJSONKeys(t, commits, "", jsonTopLevelKeys["conventions"]...)
+	assertJSONKeys(t, commits, "commits.0", "repository", "sha", "short_sha", "author", "date", "conform", "codes")
+	t.Setenv("WATCHOO_CONVENTIONS_ENABLED", "")
 	// Diagnosis enabled, on local clones of the tracked repositories (phase 7.3).
 	clones := gittest.NewServer(t)
 	for _, owner := range []string{"alice", "bob", "dave"} {
@@ -141,6 +158,13 @@ func TestJSONSchemaAllCommands(t *testing.T) {
 	assertJSONKeys(t, weekly, "contributors.0", contributorKeys...)
 	assertJSONKeys(t, weekly, "contributors.0.weekly.0", "week", "count")
 }
+
+// conventionsRepoKeys and conventionsTallyKeys are the keys of a repository of "conventions" and of
+// its rates (05-cli.md, JSON output).
+var (
+	conventionsRepoKeys  = []string{"repository", "source", "since", "since_origin", "commits", "before_since", "parents_unknown", "default_branch"}
+	conventionsTallyKeys = []string{"evaluated", "conform", "rate", "excluded", "issues"}
+)
 
 // contributorKeys are the keys of an item of "contributors" (05-cli.md, JSON output).
 var contributorKeys = []string{"id", "name", "login", "display_name", "avatar_url", "commits", "additions",
@@ -225,9 +249,9 @@ func TestJSONSchemaConfigImport(t *testing.T) {
 		assertJSONKeys(t, r.stdout, "repositories.0", "index", "repo", "action", "reenable", "before", "after",
 			"outcome", "error")
 		assertJSONKeys(t, r.stdout, "repositories.0.before", "label", "branches", "flemme_after_days",
-			"dead_after_days", "enabled")
+			"dead_after_days", "conventions_since", "enabled")
 		assertJSONKeys(t, r.stdout, "repositories.0.after", "label", "branches", "flemme_after_days",
-			"dead_after_days", "enabled")
+			"dead_after_days", "conventions_since", "enabled")
 		assertJSONKeys(t, r.stdout, "summary", "added", "already_tracked", "updated", "reenabled", "inaccessible",
 			"errors")
 		assertJSONKeys(t, r.stdout, "warnings.0", "code", "key", "message")
@@ -268,6 +292,7 @@ func TestJSONSchemaEmptyWorkspace(t *testing.T) {
 		{[]string{"languages"}, `"languages": []`},
 		{[]string{"sync"}, `"repositories": []`},
 		{[]string{"status"}, `"errors": []`},
+		{[]string{"conventions"}, `"repositories": []`},
 	} {
 		r := h.run(append(tt.args, "--json")...).mustSucceed(t)
 		assertSingleJSONObject(t, strings.Join(tt.args, " "), r.stdout)

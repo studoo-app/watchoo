@@ -157,3 +157,19 @@ signed on this commit?", never "was this code written by AI?".
 - **Purpose**: being able to know which tools are declared, by whom and where, not sanctioning. To know
   more, ask the contributors to keep the attribution of their tools enabled: Watchoo only sees what the
   commits declare.
+
+## Project conventions
+
+Phase 8.1 (not released): Watchoo measures the compliance of commit messages with a Conventional Commits
+charter; the details are in [Project conventions](13-conventions.md).
+
+- **Off by default** (`conventions.enabled`) and **for the trainer only**: these are objective findings,
+  separate from the [diagnosis](12-supervision-diagnostic.md), **with no grade nor overall score**.
+- **CC1**: compliant commit rate (commits without a blocking issue / evaluated commits), explained as `n/m`
+  per repository; **CC2**: issues by pattern, blocking or warnings; **CC3**: rate per contributor;
+  **CC4**: exclusions counted separately (merges, bots, root commit "Initial commit" created by GitHub,
+  accounts of `conventions.excluded_accounts`).
+- **Scope**: all the tracked branches, since the `conventions.since` date (can be overridden per repository).
+- **Output**: `watchoo conventions` command, section of a repository's page and contributor's page; never
+  the commit message, only the short SHA, the author and the codes.
+- The charter (`since`, `commit.*`) is shared through `watchoo config export` / `import`.

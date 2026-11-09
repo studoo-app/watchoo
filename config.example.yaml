@@ -77,3 +77,17 @@ name: "licence-projet"
 #   exclude: ["package-lock.json", "yarn.lock", "pnpm-lock.yaml", "go.sum", "poetry.lock", "Cargo.lock", "composer.lock", "Gemfile.lock", "vendor/", "node_modules/", "third_party/", "*.pb.go", "*_generated.*", "*.min.js", "dist/", "build/", "__snapshots__/", "*.snap"] # files left out of the measures ("vendor/": a directory; binaries always left out)
 #   retention_days: 365      # days the signals are kept, from the commit date (1 to 3650)
 #   speed_signal: false      # true: also the apparent speed signal (R4), fragile (legitimate copy-paste)
+
+# Project conventions: compliance of the commit messages with the charter, for the trainer. Disabled by
+# default. Shared by "watchoo config export", except enabled and excluded_accounts.
+# conventions:
+#   enabled: false           # true: conventions evaluated and displayed
+#   since: ""                # start date "YYYY-MM-DD" (workspace time zone); empty: from the beginning
+#   commit:
+#     types: ["feat", "fix", "docs", "style", "refactor", "perf", "test", "build", "ci", "chore", "revert"] # accepted types (lowercase)
+#     scopes: []             # accepted scopes; empty: any well-formed scope
+#     max_subject_soft: 50   # subject length beyond which a warning is given
+#     max_subject_hard: 72   # subject length beyond which the commit is not compliant
+#     forbidden: ["update", "updates", "maj", "mise à jour", "wip", "test", "tests", "modif", "modifs", "modification", "modifications", "fix", "fixes", "correction", "corrections", "commit", "save", "tmp", "temp", "misc", "dépôt 1", "depot 1", ".", "..", "...", "initial commit", "first commit", "premier commit"] # forbidden subjects (whole subject, case ignored)
+#     language: "any"        # "fr", "en" or "any" (no effect yet)
+#   excluded_accounts: []    # accounts left out (trainer, bots…): login, name or e-mail

@@ -18,6 +18,7 @@ import (
 
 	"github.com/spf13/viper"
 
+	"github.com/studoo-app/watchoo/internal/conventions"
 	"github.com/studoo-app/watchoo/internal/diagnostic"
 	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/logo"
@@ -43,7 +44,13 @@ const (
 	DefaultDiagnosticRetentionDays = 365
 	// MaxDiagnosticRetentionDays : maximum de diagnostic.retention_days (10 ans).
 	MaxDiagnosticRetentionDays = 3650
+	// DefaultConventionsLanguage : conventions.commit.language (« fr », « en » ou « any »).
+	DefaultConventionsLanguage = "any"
 )
+
+// ConventionsLanguages renvoie les valeurs admises par conventions.commit.language (sans effet sur
+// l'analyse en phase 8.1).
+func ConventionsLanguages() []string { return []string{"fr", "en", DefaultConventionsLanguage} }
 
 // Config regroupe tous les réglages d'un espace, après fusion des trois niveaux (voir Load).
 //
@@ -73,6 +80,68 @@ type Config struct {
 	// Diagnostic regroupe les réglages du diagnostic (phase 7, voir
 	// documentation/fr/12-supervision-diagnostic.md). Propres à l'espace : jamais partagés.
 	Diagnostic DiagnosticConfig `mapstructure:"diagnostic"`
+	// Conventions regroupe les réglages des conventions de projet (phase 8, voir
+	// documentation/fr/13-conventions.md). Partagés par configshare, sauf enabled et excluded_accounts.
+	Conventions ConventionsConfig `mapstructure:"conventions"`
+}
+
+// ConventionsConfig regroupe les réglages des conventions de projet (clés conventions.*). Les valeurs
+// par défaut sont celles de la charte (documentation/fr/13-conventions.md, sections 3 et 8).
+type ConventionsConfig struct {
+	// Enabled active les conventions : commande, section web et ajustements du diagnostic (défaut false).
+	// Propre à l'espace : jamais partagé.
+	Enabled bool `mapstructure:"enabled"`
+	// Since est la date de début de l'évaluation, AAAA-MM-JJ, lue à minuit dans le fuseau de l'espace ;
+	// vide (défaut) : depuis le début. Un dépôt peut avoir la sienne (colonne
+	// repositories.conventions_since).
+	Since string `mapstructure:"since"`
+	// Commit regroupe les règles des messages de commit (clés conventions.commit.*).
+	Commit ConventionsCommitConfig `mapstructure:"commit"`
+	// ExcludedAccounts liste les comptes exclus des conventions (formateur, bots…) : login, nom ou
+	// e-mail, casse ignorée ; distincts de diagnostic.*. Propre à l'espace : jamais partagé (logins).
+	ExcludedAccounts []string `mapstructure:"excluded_accounts"`
+}
+
+// ConventionsCommitConfig regroupe les règles des messages de commit (clés conventions.commit.*).
+type ConventionsCommitConfig struct {
+	// Types liste les types admis, en minuscules (défaut : conventions.DefaultTypes, ceux de la charte).
+	Types []string `mapstructure:"types"`
+	// Scopes liste les scopes admis ; vide (défaut) : tout scope bien formé.
+	Scopes []string `mapstructure:"scopes"`
+	// MaxSubjectSoft est la longueur du sujet au-delà de laquelle un avertissement est donné (défaut 50,
+	// au moins 1).
+	MaxSubjectSoft int `mapstructure:"max_subject_soft"`
+	// MaxSubjectHard est la longueur du sujet au-delà de laquelle le commit n'est pas conforme (défaut 72,
+	// strictement supérieure à MaxSubjectSoft).
+	MaxSubjectHard int `mapstructure:"max_subject_hard"`
+	// Forbidden liste les sujets interdits, comparés entiers, casse et espaces ignorés (défaut :
+	// conventions.DefaultForbidden).
+	Forbidden []string `mapstructure:"forbidden"`
+	// Language est la langue attendue des sujets : « fr », « en » ou « any » (défaut). Validé, sans
+	// effet sur l'analyse en phase 8.1.
+	Language string `mapstructure:"language"`
+}
+
+// Rules renvoie les règles du parseur de internal/conventions tirées de ces réglages (listes copiées).
+func (c ConventionsConfig) Rules() conventions.Rules {
+	return conventions.Rules{
+		Types:          slices.Clone(c.Commit.Types),
+		Scopes:         slices.Clone(c.Commit.Scopes),
+		MaxSubjectSoft: c.Commit.MaxSubjectSoft,
+		MaxSubjectHard: c.Commit.MaxSubjectHard,
+		Forbidden:      slices.Clone(c.Commit.Forbidden),
+	}
+}
+
+// BuildOptions renvoie les options du rapport des conventions (conventions.Build) tirées de ces réglages,
+// la date de début étant lue dans le fuseau loc de l'espace (listes copiées).
+func (c ConventionsConfig) BuildOptions(loc *time.Location) conventions.BuildOptions {
+	return conventions.BuildOptions{
+		Rules:            c.Rules(),
+		Since:            c.Since,
+		ExcludedAccounts: slices.Clone(c.ExcludedAccounts),
+		Location:         loc,
+	}
 }
 
 // DiagnosticConfig regroupe les réglages du diagnostic (clés diagnostic.*).
@@ -188,6 +257,9 @@ type GitConfig struct {
 //	github: {user: "", gh_path: "gh"}
 //	git: {protocol: "ssh"}
 //	diagnostic: {enabled: false, exclude: diagnostic.DefaultExclude, retention_days: 365, speed_signal: false}
+//	conventions: {enabled: false, since: "", commit: {types: conventions.DefaultTypes, scopes: [],
+//	              max_subject_soft: 50, max_subject_hard: 72, forbidden: conventions.DefaultForbidden,
+//	              language: "any"}, excluded_accounts: []}
 func DefaultConfig(name string) Config {
 	return Config{
 		Name: name,
@@ -211,6 +283,19 @@ func DefaultConfig(name string) Config {
 			Exclude:       slices.Clone(diagnostic.DefaultExclude),
 			RetentionDays: DefaultDiagnosticRetentionDays,
 		},
+		Conventions: ConventionsConfig{
+			Enabled: false,
+			Since:   "",
+			Commit: ConventionsCommitConfig{
+				Types:          conventions.DefaultTypes(),
+				Scopes:         []string{},
+				MaxSubjectSoft: conventions.DefaultMaxSubjectSoft,
+				MaxSubjectHard: conventions.DefaultMaxSubjectHard,
+				Forbidden:      conventions.DefaultForbidden(),
+				Language:       DefaultConventionsLanguage,
+			},
+			ExcludedAccounts: []string{},
+		},
 	}
 }
 
@@ -230,7 +315,15 @@ func DefaultConfig(name string) Config {
 //   - lang : « en » ou « fr » (i18n.Valid) ;
 //   - github.gh_path non vide, et soit absolu, soit un simple nom sans séparateur (cherché dans le
 //     PATH) : un chemin relatif comme « .watchoo/gh » dépendrait du répertoire courant ;
-//   - git.protocol : GitProtocolSSH ou GitProtocolHTTPS.
+//   - git.protocol : GitProtocolSSH ou GitProtocolHTTPS ;
+//   - diagnostic.exclude : motifs non vides et valides ; diagnostic.retention_days entre 1 et
+//     MaxDiagnosticRetentionDays ;
+//   - conventions.since vide ou de la forme AAAA-MM-JJ (date du calendrier valide) ;
+//   - conventions.commit.types : au moins un type, chacun en lettres minuscules ;
+//     conventions.commit.scopes : chaque scope de la forme admise par le parseur ([a-z0-9][a-z0-9._/-]*) ;
+//   - conventions.commit.max_subject_soft >= 1 et max_subject_hard > max_subject_soft ;
+//   - conventions.commit.forbidden et conventions.excluded_accounts : aucune entrée vide ;
+//   - conventions.commit.language : « fr », « en » ou « any ».
 func (c Config) Validate() error {
 	var errs []error
 	add := func(key string, args ...any) {
@@ -318,7 +411,56 @@ func (c Config) Validate() error {
 		add("workspace.validate.retention_range", d, MaxDiagnosticRetentionDays)
 	}
 
+	errs = append(errs, c.Conventions.validate()...)
+
 	return errors.Join(errs...)
+}
+
+// validate vérifie les réglages conventions.* (voir Config.Validate) et renvoie un message par problème.
+func (c ConventionsConfig) validate() []error {
+	var errs []error
+	add := func(key string, args ...any) {
+		errs = append(errs, errors.New(i18n.T(key, args...)))
+	}
+	if c.Since != "" {
+		if _, err := time.Parse(conventions.SinceInputLayout, c.Since); err != nil {
+			add("workspace.validate.conv_since_invalid", c.Since)
+		}
+	}
+	if len(c.Commit.Types) == 0 {
+		add("workspace.validate.conv_types_empty")
+	}
+	for i, t := range c.Commit.Types {
+		if !conventions.ValidType(t) {
+			add("workspace.validate.conv_type_invalid", i+1, t)
+		}
+	}
+	for i, s := range c.Commit.Scopes {
+		if !conventions.ValidScope(s) {
+			add("workspace.validate.conv_scope_invalid", i+1, s)
+		}
+	}
+	soft, hard := c.Commit.MaxSubjectSoft, c.Commit.MaxSubjectHard
+	if soft < 1 {
+		add("workspace.validate.conv_soft_min", soft)
+	}
+	if hard <= soft {
+		add("workspace.validate.conv_hard_above_soft", hard, soft)
+	}
+	for i, f := range c.Commit.Forbidden {
+		if strings.TrimSpace(f) == "" {
+			add("workspace.validate.conv_forbidden_empty", i+1)
+		}
+	}
+	if !slices.Contains(ConventionsLanguages(), c.Commit.Language) {
+		add("workspace.validate.conv_language_unknown", c.Commit.Language)
+	}
+	for i, a := range c.ExcludedAccounts {
+		if strings.TrimSpace(a) == "" {
+			add("workspace.validate.conv_account_empty", i+1)
+		}
+	}
+	return errs
 }
 
 // validHostName indique si h est un nom d'hôte (lettres, chiffres, « - » et « . », 253 caractères au
@@ -790,6 +932,16 @@ func toString(raw any) (string, error) {
 		return strconv.FormatInt(v, 10), nil
 	case uint64:
 		return strconv.FormatUint(v, 10), nil
+	case time.Time:
+		// Une date YAML sans guillemets (« since: 2026-09-01 ») est lue comme un horodatage : elle
+		// redevient la date écrite (AAAA-MM-JJ), ou l'horodatage RFC 3339 s'il porte une heure. Le
+		// décodeur YAML (viper) ne distingue pas « 2026-09-01 » de « 2026-09-01T00:00:00Z » : un
+		// horodatage sans guillemets à minuit UTC pile est donc lu comme sa date (tolérance documentée,
+		// 13-conventions §8) ; tout autre horaire ou décalage reste refusé par la validation.
+		if v.Location() == time.UTC && v.Equal(time.Date(v.Year(), v.Month(), v.Day(), 0, 0, 0, 0, time.UTC)) {
+			return v.Format(time.DateOnly), nil
+		}
+		return v.Format(time.RFC3339), nil
 	}
 	return "", errors.New(i18n.T("workspace.decode.want_string", describe(raw)))
 }
@@ -1082,6 +1234,26 @@ func renderConfig(tr *i18n.Translator, defaultName string, active map[string]any
 	setting("  ", "diagnostic.retention_days",
 		tr.T("workspace.cfg.diagnostic_retention", MaxDiagnosticRetentionDays))
 	setting("  ", "diagnostic.speed_signal", tr.T("workspace.cfg.diagnostic_speed"))
+	text(
+		"",
+		"# "+tr.T("workspace.cfg.conventions_l1"),
+		"# "+tr.T("workspace.cfg.conventions_l2"),
+	)
+	section("", "conventions")
+	setting("  ", "conventions.enabled", tr.T("workspace.cfg.conventions_enabled"))
+	setting("  ", "conventions.since", tr.T("workspace.cfg.conventions_since"))
+	if sectionActive("conventions.commit") {
+		text("  commit:")
+	} else {
+		text("#   commit:")
+	}
+	setting("    ", "conventions.commit.types", tr.T("workspace.cfg.conventions_types"))
+	setting("    ", "conventions.commit.scopes", tr.T("workspace.cfg.conventions_scopes"))
+	setting("    ", "conventions.commit.max_subject_soft", tr.T("workspace.cfg.conventions_soft"))
+	setting("    ", "conventions.commit.max_subject_hard", tr.T("workspace.cfg.conventions_hard"))
+	setting("    ", "conventions.commit.forbidden", tr.T("workspace.cfg.conventions_forbidden"))
+	setting("    ", "conventions.commit.language", tr.T("workspace.cfg.conventions_language"))
+	setting("  ", "conventions.excluded_accounts", tr.T("workspace.cfg.conventions_excluded"))
 	return b.String()
 }
 

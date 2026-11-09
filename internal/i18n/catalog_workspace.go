@@ -197,6 +197,42 @@ var workspaceTexts = map[string]entry{
 		"diagnostic.retention_days: %d is out of range (1 to %d days)",
 		"diagnostic.retention_days : %d hors limites (de 1 à %d jours)",
 	},
+	"workspace.validate.conv_since_invalid": {
+		`conventions.since: %q is not a date of the form YYYY-MM-DD (e.g. "2026-09-01"; empty: from the beginning)`,
+		"conventions.since : %q n'est pas une date de la forme AAAA-MM-JJ (ex. « 2026-09-01 » ; vide : depuis le début)",
+	},
+	"workspace.validate.conv_types_empty": {
+		"conventions.commit.types: at least one type is required",
+		"conventions.commit.types : au moins un type est requis",
+	},
+	"workspace.validate.conv_type_invalid": {
+		`conventions.commit.types: type #%d %q is invalid (lowercase letters only, e.g. "feat")`,
+		"conventions.commit.types : le type n° %d %q est invalide (lettres minuscules seulement, ex. « feat »)",
+	},
+	"workspace.validate.conv_scope_invalid": {
+		`conventions.commit.scopes: scope #%d %q is invalid (lowercase letters, digits, ".", "_", "/" and "-", e.g. "api")`,
+		"conventions.commit.scopes : le scope n° %d %q est invalide (minuscules, chiffres, « . », « _ », « / » et « - », ex. « api »)",
+	},
+	"workspace.validate.conv_soft_min": {
+		"conventions.commit.max_subject_soft: %d must be at least 1",
+		"conventions.commit.max_subject_soft : %d doit valoir au moins 1",
+	},
+	"workspace.validate.conv_hard_above_soft": {
+		"conventions.commit.max_subject_hard: %d must be strictly greater than conventions.commit.max_subject_soft (%d)",
+		"conventions.commit.max_subject_hard : %d doit être strictement supérieur à conventions.commit.max_subject_soft (%d)",
+	},
+	"workspace.validate.conv_forbidden_empty": {
+		"conventions.commit.forbidden: subject #%d is empty",
+		"conventions.commit.forbidden : le sujet n° %d est vide",
+	},
+	"workspace.validate.conv_language_unknown": {
+		`conventions.commit.language: %q is unknown (expected "fr", "en" or "any")`,
+		"conventions.commit.language : %q inconnue (attendu « fr », « en » ou « any »)",
+	},
+	"workspace.validate.conv_account_empty": {
+		"conventions.excluded_accounts: account #%d is empty",
+		"conventions.excluded_accounts : le compte n° %d est vide",
+	},
 	"workspace.validate.addr_form": {
 		`web.addr: %q is not of the form host:port (e.g. "127.0.0.1:8080")`,
 		"web.addr : %q n'est pas de la forme hôte:port (ex. « 127.0.0.1:8080 »)",
@@ -523,6 +559,50 @@ var workspaceTexts = map[string]entry{
 	"workspace.cfg.diagnostic_retention": {
 		"days the signals are kept, from the commit date (1 to %d)",
 		"jours de conservation des signaux, depuis la date du commit (1 à %d)",
+	},
+	"workspace.cfg.conventions_l1": {
+		"Project conventions: compliance of the commit messages with the charter, for the trainer. Disabled by",
+		"Conventions de projet : conformité des messages de commit à la charte, pour le formateur. Désactivées par",
+	},
+	"workspace.cfg.conventions_l2": {
+		"default. Shared by \"watchoo config export\", except enabled and excluded_accounts.",
+		"défaut. Partagées par « watchoo config export », sauf enabled et excluded_accounts.",
+	},
+	"workspace.cfg.conventions_enabled": {
+		"true: conventions evaluated and displayed",
+		"true : conventions évaluées et affichées",
+	},
+	"workspace.cfg.conventions_since": {
+		`start date "YYYY-MM-DD" (workspace time zone); empty: from the beginning`,
+		`date de début « AAAA-MM-JJ » (fuseau de l'espace) ; vide : depuis le début`,
+	},
+	"workspace.cfg.conventions_types": {
+		"accepted types (lowercase)",
+		"types admis (minuscules)",
+	},
+	"workspace.cfg.conventions_scopes": {
+		"accepted scopes; empty: any well-formed scope",
+		"scopes admis ; vide : tout scope bien formé",
+	},
+	"workspace.cfg.conventions_soft": {
+		"subject length beyond which a warning is given",
+		"longueur du sujet au-delà de laquelle un avertissement est donné",
+	},
+	"workspace.cfg.conventions_hard": {
+		"subject length beyond which the commit is not compliant",
+		"longueur du sujet au-delà de laquelle le commit n'est pas conforme",
+	},
+	"workspace.cfg.conventions_forbidden": {
+		"forbidden subjects (whole subject, case ignored)",
+		"sujets interdits (sujet entier, casse ignorée)",
+	},
+	"workspace.cfg.conventions_language": {
+		`"fr", "en" or "any" (no effect yet)`,
+		`"fr", "en" ou "any" (sans effet pour l'instant)`,
+	},
+	"workspace.cfg.conventions_excluded": {
+		"accounts left out (trainer, bots…): login, name or e-mail",
+		"comptes exclus (formateur, bots…) : login, nom ou e-mail",
 	},
 
 	// Réécriture de config.yaml par les réglages communs (shared.go).

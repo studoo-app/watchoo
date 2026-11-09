@@ -28,6 +28,7 @@ import (
 	"strings"
 
 	"github.com/studoo-app/watchoo/internal/i18n"
+	"github.com/studoo-app/watchoo/internal/semver"
 )
 
 // DefaultReleasesURL est la racine des releases de Watchoo.
@@ -203,7 +204,7 @@ func (c *Client) Latest(ctx context.Context) (tag, releaseURL string, err error)
 		return "", "", errors.New(i18n.T("selfupdate.redirect.refused", loc.Redacted()))
 	}
 	tag = path.Base(loc.Path)
-	v, ok := ParseVersion(tag)
+	v, ok := semver.ParseVersion(tag)
 	if !ok || !strings.HasPrefix(tag, "v") || !v.IsFinal() {
 		return "", "", errors.New(i18n.T("selfupdate.latest.bad_tag", tag))
 	}
@@ -237,8 +238,8 @@ func (c *Client) Check(ctx context.Context, current string) (Status, error) {
 // newStatus construit le Status de current face à la dernière version latest.
 func newStatus(current, latest, releaseURL, changelogURL string) Status {
 	st := Status{Current: current, Latest: latest, ReleaseURL: releaseURL, ChangelogURL: changelogURL}
-	cur, okCur := ParseVersion(current)
-	last, okLast := ParseVersion(latest)
+	cur, okCur := semver.ParseVersion(current)
+	last, okLast := semver.ParseVersion(latest)
 	st.UpdateAvailable = okCur && cur.IsFinal() && okLast && last.IsFinal() && last.Compare(cur) > 0
 	return st
 }

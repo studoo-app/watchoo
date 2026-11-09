@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/studoo-app/watchoo/internal/conventions"
 	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/store/db"
@@ -19,23 +20,28 @@ import (
 // Renvoie une erreur enveloppant ErrAlreadyExists si (provider, provider_id) ou (provider, owner, name)
 // existe déjà. Les dates zéro sont enregistrées à NULL.
 func (s *Store) CreateRepository(ctx context.Context, r model.Repository) (model.Repository, error) {
+	since, err := nullSince(r.ConventionsSince)
+	if err != nil {
+		return model.Repository{}, wrapErr(i18n.T("store.repo.add", r.FullName()), err)
+	}
 	row, err := s.queries.CreateRepository(ctx, db.CreateRepositoryParams{
-		Provider:        r.Provider,
-		ProviderID:      nullID(r.ProviderID),
-		Owner:           r.Owner,
-		Name:            r.Name,
-		Label:           r.Label,
-		DefaultBranch:   r.DefaultBranch,
-		URL:             r.URL,
-		Stars:           int64(r.Stars),
-		OpenIssues:      int64(r.OpenIssues),
-		LastSyncedAt:    nullTime(r.LastSyncedAt),
-		LastCommitAt:    nullTime(r.LastCommitAt),
-		Archived:        r.Archived,
-		FlemmeAfterDays: nullInt(r.FlemmeAfterDays),
-		DeadAfterDays:   nullInt(r.DeadAfterDays),
-		Enabled:         r.Enabled,
-		BranchPatterns:  JoinBranchPatterns(r.BranchPatterns),
+		Provider:         r.Provider,
+		ProviderID:       nullID(r.ProviderID),
+		Owner:            r.Owner,
+		Name:             r.Name,
+		Label:            r.Label,
+		DefaultBranch:    r.DefaultBranch,
+		URL:              r.URL,
+		Stars:            int64(r.Stars),
+		OpenIssues:       int64(r.OpenIssues),
+		LastSyncedAt:     nullTime(r.LastSyncedAt),
+		LastCommitAt:     nullTime(r.LastCommitAt),
+		Archived:         r.Archived,
+		FlemmeAfterDays:  nullInt(r.FlemmeAfterDays),
+		DeadAfterDays:    nullInt(r.DeadAfterDays),
+		Enabled:          r.Enabled,
+		BranchPatterns:   JoinBranchPatterns(r.BranchPatterns),
+		ConventionsSince: since,
 	})
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -139,24 +145,29 @@ func repositoryFromDB(row db.Repository) (model.Repository, error) {
 	if err != nil {
 		return model.Repository{}, wrapErr(i18n.T("store.repo.last_commit_at", row.ID), err)
 	}
+	conventionsSince, err := conventions.SinceDate(row.ConventionsSince.String)
+	if err != nil {
+		return model.Repository{}, wrapErr(i18n.T("store.repo.conventions_since", row.ID), err)
+	}
 	return model.Repository{
-		ID:              row.ID,
-		Provider:        row.Provider,
-		ProviderID:      row.ProviderID.Int64, // NULL : 0 (identifiant pas encore connu)
-		Owner:           row.Owner,
-		Name:            row.Name,
-		Label:           row.Label,
-		DefaultBranch:   row.DefaultBranch,
-		URL:             row.URL,
-		Stars:           int(row.Stars),
-		OpenIssues:      int(row.OpenIssues),
-		LastSyncedAt:    lastSyncedAt,
-		LastCommitAt:    lastCommitAt,
-		Archived:        row.Archived,
-		FlemmeAfterDays: intPtr(row.FlemmeAfterDays),
-		DeadAfterDays:   intPtr(row.DeadAfterDays),
-		Enabled:         row.Enabled,
-		BranchPatterns:  SplitBranchPatterns(row.BranchPatterns),
+		ID:               row.ID,
+		Provider:         row.Provider,
+		ProviderID:       row.ProviderID.Int64, // NULL : 0 (identifiant pas encore connu)
+		Owner:            row.Owner,
+		Name:             row.Name,
+		Label:            row.Label,
+		DefaultBranch:    row.DefaultBranch,
+		URL:              row.URL,
+		Stars:            int(row.Stars),
+		OpenIssues:       int(row.OpenIssues),
+		LastSyncedAt:     lastSyncedAt,
+		LastCommitAt:     lastCommitAt,
+		Archived:         row.Archived,
+		FlemmeAfterDays:  intPtr(row.FlemmeAfterDays),
+		DeadAfterDays:    intPtr(row.DeadAfterDays),
+		Enabled:          row.Enabled,
+		BranchPatterns:   SplitBranchPatterns(row.BranchPatterns),
+		ConventionsSince: conventionsSince,
 	}, nil
 }
 
@@ -217,6 +228,16 @@ func nullInt(p *int) sql.NullInt64 {
 		return sql.NullInt64{}
 	}
 	return sql.NullInt64{Int64: int64(*p), Valid: true}
+}
+
+// nullSince convertit une date de début des conventions (AAAA-MM-JJ, ou déjà au format stocké) vers la
+// colonne conventions_since : vide donne NULL, toute autre date minuit UTC au format fixe.
+func nullSince(date string) (sql.NullString, error) {
+	stored, err := conventions.NormalizeSince(date)
+	if err != nil || stored == "" {
+		return sql.NullString{}, err
+	}
+	return sql.NullString{String: stored, Valid: true}, nil
 }
 
 // intPtr est la conversion inverse de nullInt : NULL donne nil.

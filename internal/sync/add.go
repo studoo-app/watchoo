@@ -27,6 +27,10 @@ type AddRequest struct {
 	// (création : valeurs globales ; dépôt suivi : seuils gardés), 0 = revenir à la valeur globale.
 	FlemmeAfterDays *int
 	DeadAfterDays   *int
+	// ConventionsSince est la date de début des conventions propre au dépôt, AAAA-MM-JJ (phase 8.1) ;
+	// nil = non fournie (création : date de l'espace ; dépôt suivi : date gardée), "" = revenir à la
+	// date de l'espace (conventions.since).
+	ConventionsSince *string
 }
 
 // AddOutcome est le résultat de l'ajout d'un dépôt. Valeurs stables (sorties --json).
@@ -36,7 +40,7 @@ type AddOutcome string
 const (
 	OutcomeAdded          AddOutcome = "added"        // nouveau dépôt suivi
 	OutcomeAlreadyTracked AddOutcome = "already"      // déjà suivi, rien à changer
-	OutcomeUpdated        AddOutcome = "updated"      // déjà suivi : label, motifs ou seuils changés, ou suivi réactivé
+	OutcomeUpdated        AddOutcome = "updated"      // déjà suivi : label, motifs, seuils ou date des conventions changés, ou suivi réactivé
 	OutcomeInaccessible   AddOutcome = "inaccessible" // ErrNotFound, ErrForbidden (SSO compris) : dépôt introuvable ou sans accès
 	OutcomeError          AddOutcome = "error"        // autre échec (réseau, quota, base…)
 )
@@ -68,16 +72,17 @@ type AddOptions struct {
 //   - accès refusé (ErrNotFound, ErrForbidden ; ErrAccessDenied en clone Git local) :
 //     OutcomeInaccessible, sans bloquer les autres ;
 //     *RateLimitError : ce dépôt et les suivants en OutcomeError (message du quota) ;
-//   - dépôt déjà en base, cherché par provider_id puis par owner/name actuels : label, motifs et seuils
-//     d'activité mis à jour s'ils sont fournis et différents, suivi réactivé s'il était arrêté
-//     (OutcomeUpdated), sinon OutcomeAlreadyTracked ;
-//   - sinon création (store.CreateRepository) avec les métadonnées de la forge, Enabled, label, motifs
-//     et seuils fournis : OutcomeAdded ;
+//   - dépôt déjà en base, cherché par provider_id puis par owner/name actuels : label, motifs, seuils
+//     d'activité et date de début des conventions mis à jour s'ils sont fournis et différents, suivi
+//     réactivé s'il était arrêté (OutcomeUpdated), sinon OutcomeAlreadyTracked ;
+//   - sinon création (store.CreateRepository) avec les métadonnées de la forge, Enabled, label, motifs,
+//     seuils et date de début des conventions fournis : OutcomeAdded ;
 //   - DryRun : aucune écriture, les mêmes résultats sont calculés.
 //
-// Les labels et les seuils sont d'abord vérifiés (repoimport.ValidateLabel, ValidateThresholds) : une
-// valeur invalide est une erreur, avant tout appel à la forge. Aucune synchro n'est lancée. L'erreur
-// renvoyée est réservée aux échecs globaux (label ou seuil invalide, token, ctx annulé).
+// Les labels, les seuils et les dates sont d'abord vérifiés (repoimport.ValidateLabel,
+// ValidateThresholds, ParseConventionsSince) : une valeur invalide est une erreur, avant tout appel à la
+// forge. Aucune synchro n'est lancée. L'erreur renvoyée est réservée aux échecs globaux (label, seuil ou
+// date invalide, token, ctx annulé).
 func (e *Engine) AddRepositories(ctx context.Context, reqs []AddRequest, opts AddOptions) ([]AddResult, error) {
 	for _, req := range reqs {
 		if err := repoimport.ValidateLabel(req.Label); err != nil {
@@ -85,6 +90,11 @@ func (e *Engine) AddRepositories(ctx context.Context, reqs []AddRequest, opts Ad
 		}
 		if err := repoimport.ValidateThresholds(req.FlemmeAfterDays, req.DeadAfterDays); err != nil {
 			return nil, errWrapped(i18n.T("sync.add.repo", req.Ref), err)
+		}
+		if req.ConventionsSince != nil {
+			if _, err := repoimport.ParseConventionsSince(*req.ConventionsSince); err != nil {
+				return nil, errWrapped(i18n.T("sync.add.repo", req.Ref), err)
+			}
 		}
 	}
 	prov, redact, _, err := e.openProvider(ctx)
@@ -147,20 +157,21 @@ func (e *Engine) addOne(ctx context.Context, prov provider.Provider, req AddRequ
 
 	if !found {
 		repo := model.Repository{
-			Provider:        prov.Name(),
-			ProviderID:      meta.ID,
-			Owner:           meta.Owner,
-			Name:            meta.Name,
-			Label:           req.Label,
-			DefaultBranch:   meta.DefaultBranch,
-			URL:             meta.URL,
-			Stars:           meta.Stars,
-			OpenIssues:      meta.OpenIssues,
-			Archived:        meta.Archived,
-			Enabled:         true,
-			BranchPatterns:  slices.Clone(req.BranchPatterns),
-			FlemmeAfterDays: thresholdValue(req.FlemmeAfterDays, nil),
-			DeadAfterDays:   thresholdValue(req.DeadAfterDays, nil),
+			Provider:         prov.Name(),
+			ProviderID:       meta.ID,
+			Owner:            meta.Owner,
+			Name:             meta.Name,
+			Label:            req.Label,
+			DefaultBranch:    meta.DefaultBranch,
+			URL:              meta.URL,
+			Stars:            meta.Stars,
+			OpenIssues:       meta.OpenIssues,
+			Archived:         meta.Archived,
+			Enabled:          true,
+			BranchPatterns:   slices.Clone(req.BranchPatterns),
+			FlemmeAfterDays:  thresholdValue(req.FlemmeAfterDays, nil),
+			DeadAfterDays:    thresholdValue(req.DeadAfterDays, nil),
+			ConventionsSince: sinceValue(req.ConventionsSince, ""),
 		}
 		if dryRun {
 			planned[key] = repo
@@ -182,9 +193,12 @@ func (e *Engine) addOne(ctx context.Context, prov provider.Provider, req AddRequ
 	dead := thresholdValue(req.DeadAfterDays, repo.DeadAfterDays)
 	thresholdsChanged := !equalThreshold(flemme, repo.FlemmeAfterDays) || !equalThreshold(dead, repo.DeadAfterDays)
 	repo.FlemmeAfterDays, repo.DeadAfterDays = flemme, dead
+	since := sinceValue(req.ConventionsSince, repo.ConventionsSince)
+	sinceChanged := since != repo.ConventionsSince
+	repo.ConventionsSince = since
 	reenable := !repo.Enabled
 	repo.Enabled = true
-	if !settingsChanged && !thresholdsChanged && !reenable {
+	if !settingsChanged && !thresholdsChanged && !sinceChanged && !reenable {
 		return AddResult{Request: req, Outcome: OutcomeAlreadyTracked, Repo: repo}, nil
 	}
 	if dryRun {
@@ -198,6 +212,11 @@ func (e *Engine) addOne(ctx context.Context, prov provider.Provider, req AddRequ
 	}
 	if thresholdsChanged {
 		if repo, err = e.store.SetRepositoryThresholds(ctx, repo.ID, flemme, dead); err != nil {
+			return AddResult{}, err
+		}
+	}
+	if sinceChanged {
+		if repo, err = e.store.SetRepositoryConventionsSince(ctx, repo.ID, since); err != nil {
 			return AddResult{}, err
 		}
 	}
@@ -231,6 +250,20 @@ func thresholdValue(req, current *int) *int {
 		v := *req
 		return &v
 	}
+}
+
+// sinceValue renvoie la date de début des conventions après une demande : current si req est nil (non
+// fournie), sinon la date demandée sous sa forme AAAA-MM-JJ ("" = date de l'espace). req est déjà validée
+// (repoimport.ParseConventionsSince).
+func sinceValue(req *string, current string) string {
+	if req == nil {
+		return current
+	}
+	date, err := repoimport.ParseConventionsSince(*req)
+	if err != nil {
+		return current
+	}
+	return date
 }
 
 // equalThreshold compare deux seuils (nil = valeur globale).

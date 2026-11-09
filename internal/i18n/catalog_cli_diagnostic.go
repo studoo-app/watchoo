@@ -43,6 +43,9 @@ Absolute signals need no history (projects delivered in few commits):
 A1 to A4 count as rhythm signals, A5 to A7 as form signals. Traces of human work (H1 work-in-progress
 markers, H2 one-letter variables, H3 initial skeleton, H4 iterative fixes) lower "probable" to
 "to review" and never remove a lead.
+When the conventions are enabled (conventions.enabled), a squash merge made by GitHub (subject ending
+in "(#n)", GitHub committer) raises no A1, A2 counts only the other commits, and a Conventional
+Commits subject is no longer a novelty for F4 from the conventions start date (conventions.since).
 
 Level "probable": no declared signal, at least two rhythm signals and one form signal.
 Level "to review": one rhythm signal, or at least two form signals.
@@ -89,6 +92,10 @@ Les signaux absolus ne demandent pas d'historique (projets rendus en peu de comm
 A1 à A4 comptent comme des signaux de rythme, A5 à A7 comme des signaux de forme. Les traces de
 travail humain (H1 marqueurs de travail en cours, H2 variables d'une lettre, H3 squelette initial,
 H4 corrections successives) abaissent « probable » à « à regarder » et ne suppriment jamais une piste.
+Quand les conventions sont activées (conventions.enabled), une fusion en squash faite par GitHub
+(sujet terminé par « (#n) », committer GitHub) ne lève pas A1, A2 ne compte que les autres commits,
+et un sujet Conventional Commits n'est plus une nouveauté pour F4 à partir de la date de début des
+conventions (conventions.since).
 
 Niveau « probable » : aucun signal déclaré, au moins deux signaux de rythme et un signal de forme.
 Niveau « à regarder » : un signal de rythme, ou au moins deux signaux de forme.

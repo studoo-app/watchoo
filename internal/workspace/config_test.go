@@ -16,6 +16,7 @@ import (
 
 	"github.com/spf13/viper"
 
+	"github.com/studoo-app/watchoo/internal/conventions"
 	"github.com/studoo-app/watchoo/internal/diagnostic"
 	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/logo"
@@ -37,9 +38,27 @@ func TestDefaultConfig(t *testing.T) {
 		Git:      GitConfig{Protocol: "ssh"},
 		Diagnostic: DiagnosticConfig{Enabled: false, Exclude: diagnostic.DefaultExclude,
 			RetentionDays: 365, SpeedSignal: false},
+		Conventions: ConventionsConfig{Enabled: false, Since: "",
+			Commit: ConventionsCommitConfig{
+				Types:          []string{"feat", "fix", "docs", "style", "refactor", "perf", "test", "build", "ci", "chore", "revert"},
+				Scopes:         []string{},
+				MaxSubjectSoft: 50, MaxSubjectHard: 72,
+				Forbidden: conventions.DefaultForbidden(),
+				Language:  "any",
+			},
+			ExcludedAccounts: []string{}},
 	}
 	if !reflect.DeepEqual(cfg, want) {
 		t.Errorf("DefaultConfig = %+v\nwant %+v", cfg, want)
+	}
+	for _, f := range []string{"update", "maj", "wip", "test", "modif", "fix", "dépôt 1", ".", "initial commit"} {
+		if !slices.Contains(cfg.Conventions.Commit.Forbidden, f) {
+			t.Errorf("conventions.commit.forbidden lacks %q from the charter", f)
+		}
+	}
+	cfg.Conventions.Commit.Types[0] = "changed"
+	if DefaultConfig("x").Conventions.Commit.Types[0] != "feat" {
+		t.Error("DefaultConfig shares its conventions.commit.types list")
 	}
 	cfg.Diagnostic.Exclude[0] = "changed"
 	if diagnostic.DefaultExclude[0] == "changed" {
@@ -66,7 +85,9 @@ func TestSettingKeys(t *testing.T) {
 		"activity.flemme_after_days", "activity.dead_after_days", "branches.exclude",
 		"web.addr", "web.auth.username", "web.trusted_proxy", "web.allowed_hosts", "timezone", "lang", "github.user", "github.gh_path",
 		"git.protocol", "diagnostic.enabled", "diagnostic.exclude", "diagnostic.retention_days",
-		"diagnostic.speed_signal",
+		"diagnostic.speed_signal", "conventions.enabled", "conventions.since", "conventions.commit.types",
+		"conventions.commit.scopes", "conventions.commit.max_subject_soft", "conventions.commit.max_subject_hard",
+		"conventions.commit.forbidden", "conventions.commit.language", "conventions.excluded_accounts",
 	}
 	if !slices.Equal(keys, wantKeys) {
 		t.Errorf("keys = %v\nwant %v", keys, wantKeys)
@@ -77,6 +98,10 @@ func TestSettingKeys(t *testing.T) {
 		"WATCHOO_WEB_ADDR", "WATCHOO_WEB_AUTH_USERNAME", "WATCHOO_WEB_TRUSTED_PROXY", "WATCHOO_WEB_ALLOWED_HOSTS", "WATCHOO_TIMEZONE", "WATCHOO_LANG", "WATCHOO_GITHUB_USER", "WATCHOO_GITHUB_GH_PATH",
 		"WATCHOO_GIT_PROTOCOL", "WATCHOO_DIAGNOSTIC_ENABLED", "WATCHOO_DIAGNOSTIC_EXCLUDE",
 		"WATCHOO_DIAGNOSTIC_RETENTION_DAYS", "WATCHOO_DIAGNOSTIC_SPEED_SIGNAL",
+		"WATCHOO_CONVENTIONS_ENABLED", "WATCHOO_CONVENTIONS_SINCE", "WATCHOO_CONVENTIONS_COMMIT_TYPES",
+		"WATCHOO_CONVENTIONS_COMMIT_SCOPES", "WATCHOO_CONVENTIONS_COMMIT_MAX_SUBJECT_SOFT",
+		"WATCHOO_CONVENTIONS_COMMIT_MAX_SUBJECT_HARD", "WATCHOO_CONVENTIONS_COMMIT_FORBIDDEN",
+		"WATCHOO_CONVENTIONS_COMMIT_LANGUAGE", "WATCHOO_CONVENTIONS_EXCLUDED_ACCOUNTS",
 	}
 	if !slices.Equal(envs, wantEnvs) {
 		t.Errorf("variables = %v\nwant %v", envs, wantEnvs)
@@ -107,8 +132,22 @@ func TestValidateAcceptsBoundaries(t *testing.T) {
 		"diagnostic patterns": func(c *Config) {
 			c.Diagnostic.Exclude = []string{"vendor/", "*.pb.go", "web/static/*.js", "a/b/"}
 		},
-		"retention 1 day":    func(c *Config) { c.Diagnostic.RetentionDays = 1 },
-		"retention 10 years": func(c *Config) { c.Diagnostic.RetentionDays = 3650 },
+		"retention 1 day":     func(c *Config) { c.Diagnostic.RetentionDays = 1 },
+		"retention 10 years":  func(c *Config) { c.Diagnostic.RetentionDays = 3650 },
+		"conventions enabled": func(c *Config) { c.Conventions.Enabled = true },
+		"conventions since":   func(c *Config) { c.Conventions.Since = "2026-09-01" },
+		"leap day":            func(c *Config) { c.Conventions.Since = "2028-02-29" },
+		"own types and scopes": func(c *Config) {
+			c.Conventions.Commit.Types = []string{"feat", "fix", "wip"}
+			c.Conventions.Commit.Scopes = []string{"api", "web-ui", "docs/fr", "v1.2", "a_b", "0"}
+		},
+		"subject lengths 1 and 2": func(c *Config) {
+			c.Conventions.Commit.MaxSubjectSoft, c.Conventions.Commit.MaxSubjectHard = 1, 2
+		},
+		"no forbidden subject": func(c *Config) { c.Conventions.Commit.Forbidden = []string{} },
+		"french subjects":      func(c *Config) { c.Conventions.Commit.Language = "fr" },
+		"english subjects":     func(c *Config) { c.Conventions.Commit.Language = "en" },
+		"excluded accounts":    func(c *Config) { c.Conventions.ExcludedAccounts = []string{"prof-dupont", "Jean Prof"} },
 	}
 	for name, mutate := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -186,6 +225,34 @@ func TestValidateRejectsInvalidValues(t *testing.T) {
 			[]string{"github.gh_path", "relative"}},
 		{"unknown git protocol", func(c *Config) { c.Git.Protocol = "ftp" },
 			[]string{"git.protocol", `"ftp"`, "ssh", "https"}},
+		{"since in another form", func(c *Config) { c.Conventions.Since = "01/09/2026" },
+			[]string{"conventions.since", `"01/09/2026"`, "YYYY-MM-DD"}},
+		{"since with a time", func(c *Config) { c.Conventions.Since = "2026-09-01T00:00:00Z" },
+			[]string{"conventions.since", "YYYY-MM-DD"}},
+		{"impossible since", func(c *Config) { c.Conventions.Since = "2026-02-30" },
+			[]string{"conventions.since", `"2026-02-30"`}},
+		{"no type", func(c *Config) { c.Conventions.Commit.Types = []string{} },
+			[]string{"conventions.commit.types", "at least one type"}},
+		{"uppercase type", func(c *Config) { c.Conventions.Commit.Types = []string{"feat", "Fix"} },
+			[]string{"conventions.commit.types", "#2", `"Fix"`, "lowercase"}},
+		{"empty type", func(c *Config) { c.Conventions.Commit.Types = []string{""} },
+			[]string{"conventions.commit.types", "#1"}},
+		{"invalid scope", func(c *Config) { c.Conventions.Commit.Scopes = []string{"api", "API"} },
+			[]string{"conventions.commit.scopes", "#2", `"API"`}},
+		{"empty scope", func(c *Config) { c.Conventions.Commit.Scopes = []string{""} },
+			[]string{"conventions.commit.scopes", "#1"}},
+		{"zero soft length", func(c *Config) { c.Conventions.Commit.MaxSubjectSoft = 0 },
+			[]string{"conventions.commit.max_subject_soft: 0", "at least 1"}},
+		{"hard length equal to soft", func(c *Config) { c.Conventions.Commit.MaxSubjectHard = 50 },
+			[]string{"conventions.commit.max_subject_hard: 50", "strictly greater", "(50)"}},
+		{"empty forbidden subject", func(c *Config) { c.Conventions.Commit.Forbidden = []string{"wip", "  "} },
+			[]string{"conventions.commit.forbidden", "#2", "empty"}},
+		{"unknown subject language", func(c *Config) { c.Conventions.Commit.Language = "de" },
+			[]string{"conventions.commit.language", `"de"`, "any"}},
+		{"empty subject language", func(c *Config) { c.Conventions.Commit.Language = "" },
+			[]string{"conventions.commit.language", `""`}},
+		{"empty excluded account", func(c *Config) { c.Conventions.ExcludedAccounts = []string{""} },
+			[]string{"conventions.excluded_accounts", "#1", "empty"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -421,6 +488,16 @@ func TestLoadEnvironmentVariables(t *testing.T) {
 		"WATCHOO_DIAGNOSTIC_EXCLUDE":         "vendor/, *.lock",
 		"WATCHOO_DIAGNOSTIC_RETENTION_DAYS":  "30",
 		"WATCHOO_DIAGNOSTIC_SPEED_SIGNAL":    "true",
+
+		"WATCHOO_CONVENTIONS_ENABLED":                 "true",
+		"WATCHOO_CONVENTIONS_SINCE":                   "2026-09-01",
+		"WATCHOO_CONVENTIONS_COMMIT_TYPES":            "feat, fix",
+		"WATCHOO_CONVENTIONS_COMMIT_SCOPES":           "api,web",
+		"WATCHOO_CONVENTIONS_COMMIT_MAX_SUBJECT_SOFT": "60",
+		"WATCHOO_CONVENTIONS_COMMIT_MAX_SUBJECT_HARD": "100",
+		"WATCHOO_CONVENTIONS_COMMIT_FORBIDDEN":        "wip, maj",
+		"WATCHOO_CONVENTIONS_COMMIT_LANGUAGE":         "fr",
+		"WATCHOO_CONVENTIONS_EXCLUDED_ACCOUNTS":       "prof-dupont",
 	}
 	for k, v := range env {
 		t.Setenv(k, v)
@@ -440,6 +517,10 @@ func TestLoadEnvironmentVariables(t *testing.T) {
 		Git:      GitConfig{Protocol: "https"},
 		Diagnostic: DiagnosticConfig{Enabled: true, Exclude: []string{"vendor/", "*.lock"},
 			RetentionDays: 30, SpeedSignal: true},
+		Conventions: ConventionsConfig{Enabled: true, Since: "2026-09-01",
+			Commit: ConventionsCommitConfig{Types: []string{"feat", "fix"}, Scopes: []string{"api", "web"},
+				MaxSubjectSoft: 60, MaxSubjectHard: 100, Forbidden: []string{"wip", "maj"}, Language: "fr"},
+			ExcludedAccounts: []string{"prof-dupont"}},
 	}
 	if !reflect.DeepEqual(ws.Config, want) {
 		t.Errorf("Config = %+v\nwant  %+v", ws.Config, want)
@@ -520,6 +601,116 @@ branches:
 	if !reflect.DeepEqual(ws.Config, want) {
 		t.Errorf("Config = %+v\nwant  %+v", ws.Config, want)
 	}
+}
+
+// TestLoadConventions checks the conventions.* block read from config.yaml, including an unquoted
+// date (since: 2026-09-01), which YAML reads as a timestamp: it becomes the written date again.
+func TestLoadConventions(t *testing.T) {
+	t.Run("file with an unquoted date", func(t *testing.T) {
+		ws, _ := newLoadWorkspace(t)
+		writeFile(t, ws.ConfigPath(), `
+conventions:
+  enabled: true
+  since: 2026-09-01
+  commit:
+    types: [feat, fix, docs]
+    scopes: []
+    max_subject_soft: 60
+    max_subject_hard: 80
+    forbidden: ["wip", "."]
+    language: en
+  excluded_accounts: [prof-dupont]
+`)
+		if err := Load(ws); err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+		want := DefaultConfig("licence-projet")
+		want.Conventions = ConventionsConfig{Enabled: true, Since: "2026-09-01",
+			Commit: ConventionsCommitConfig{Types: []string{"feat", "fix", "docs"}, Scopes: []string{},
+				MaxSubjectSoft: 60, MaxSubjectHard: 80, Forbidden: []string{"wip", "."}, Language: "en"},
+			ExcludedAccounts: []string{"prof-dupont"}}
+		if !reflect.DeepEqual(ws.Config, want) {
+			t.Errorf("Config = %+v\nwant  %+v", ws.Config.Conventions, want.Conventions)
+		}
+		rules := ws.Config.Conventions.Rules()
+		if !slices.Equal(rules.Types, []string{"feat", "fix", "docs"}) || rules.MaxSubjectSoft != 60 ||
+			rules.MaxSubjectHard != 80 || !slices.Equal(rules.Forbidden, []string{"wip", "."}) {
+			t.Errorf("Rules = %+v", rules)
+		}
+		rules.Types[0] = "changed"
+		if ws.Config.Conventions.Commit.Types[0] != "feat" {
+			t.Error("Rules shares its lists with the configuration")
+		}
+		paris, _ := time.LoadLocation("Europe/Paris")
+		bo := ws.Config.Conventions.BuildOptions(paris)
+		if bo.Since != "2026-09-01" || bo.Location != paris || !slices.Equal(bo.Rules.Types, []string{"feat", "fix", "docs"}) ||
+			!slices.Equal(bo.ExcludedAccounts, []string{"prof-dupont"}) {
+			t.Errorf("BuildOptions = %+v", bo)
+		}
+		bo.ExcludedAccounts[0] = "changed"
+		if ws.Config.Conventions.ExcludedAccounts[0] != "prof-dupont" {
+			t.Error("BuildOptions shares its lists with the configuration")
+		}
+	})
+	t.Run("quoted date", func(t *testing.T) {
+		ws, _ := newLoadWorkspace(t)
+		writeFile(t, ws.ConfigPath(), "conventions:\n  since: \"2026-09-01\"\n")
+		if err := Load(ws); err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+		if ws.Config.Conventions.Since != "2026-09-01" {
+			t.Errorf("Since = %q", ws.Config.Conventions.Since)
+		}
+	})
+	t.Run("WATCHOO_CONVENTIONS_SINCE overrides the file", func(t *testing.T) {
+		ws, _ := newLoadWorkspace(t)
+		writeFile(t, ws.ConfigPath(), "conventions:\n  since: 2026-09-01\n")
+		t.Setenv("WATCHOO_CONVENTIONS_SINCE", "2027-01-15")
+		if err := Load(ws); err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+		if ws.Config.Conventions.Since != "2027-01-15" {
+			t.Errorf("Since = %q, want 2027-01-15", ws.Config.Conventions.Since)
+		}
+	})
+	t.Run("unquoted timestamp with a time is refused", func(t *testing.T) {
+		ws, _ := newLoadWorkspace(t)
+		writeFile(t, ws.ConfigPath(), "conventions:\n  since: 2026-09-01T08:00:00Z\n")
+		assertErrorContains(t, Load(ws), "conventions.since", `"2026-09-01T08:00:00Z"`, "YYYY-MM-DD")
+	})
+	t.Run("unquoted timestamp with an offset is refused", func(t *testing.T) {
+		ws, _ := newLoadWorkspace(t)
+		writeFile(t, ws.ConfigPath(), "conventions:\n  since: 2026-09-01T02:00:00+02:00\n")
+		assertErrorContains(t, Load(ws), "conventions.since", "YYYY-MM-DD")
+	})
+	t.Run("quoted timestamp at midnight is refused", func(t *testing.T) {
+		ws, _ := newLoadWorkspace(t)
+		writeFile(t, ws.ConfigPath(), "conventions:\n  since: \"2026-09-01T00:00:00Z\"\n")
+		assertErrorContains(t, Load(ws), "conventions.since", `"2026-09-01T00:00:00Z"`, "YYYY-MM-DD")
+	})
+	t.Run("unquoted timestamp at midnight UTC is read as its date", func(t *testing.T) {
+		// The YAML decoder gives the same value for 2026-09-01 and 2026-09-01T00:00:00Z: documented tolerance.
+		for _, raw := range []string{"2026-09-01T00:00:00Z", "2026-09-01 00:00:00"} {
+			ws, _ := newLoadWorkspace(t)
+			writeFile(t, ws.ConfigPath(), "conventions:\n  since: "+raw+"\n")
+			if err := Load(ws); err != nil {
+				t.Fatalf("Load(%s): %v", raw, err)
+			}
+			if ws.Config.Conventions.Since != "2026-09-01" {
+				t.Errorf("Since(%s) = %q, want 2026-09-01", raw, ws.Config.Conventions.Since)
+			}
+		}
+	})
+	t.Run("invalid date in WATCHOO_CONVENTIONS_SINCE", func(t *testing.T) {
+		ws, _ := newLoadWorkspace(t)
+		t.Setenv("WATCHOO_CONVENTIONS_SINCE", "septembre")
+		assertErrorContains(t, Load(ws), "conventions.since", `"septembre"`)
+	})
+	t.Run("unknown key in the block", func(t *testing.T) {
+		ws, _ := newLoadWorkspace(t)
+		writeFile(t, ws.ConfigPath(), "conventions:\n  commit:\n    type: [feat]\n")
+		assertErrorContains(t, Load(ws), "conventions.commit.type")
+	})
 }
 
 func TestLoadEmptyValuesIgnored(t *testing.T) {
@@ -878,6 +1069,26 @@ func TestDecodeSettingErrors(t *testing.T) {
 	}
 	if err := decodeSetting(new(float64), 1.0); err == nil {
 		t.Error("an unsupported field type must be reported")
+	}
+}
+
+// A YAML timestamp (unquoted date) decodes to a string: the written date, or RFC 3339 with a time.
+func TestDecodeSettingTimestamp(t *testing.T) {
+	cases := map[time.Time]string{
+		time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC):                  "2026-09-01",
+		time.Date(2026, 9, 1, 8, 30, 0, 0, time.UTC):                 "2026-09-01T08:30:00Z",
+		time.Date(2026, 9, 1, 0, 0, 0, 0, time.FixedZone("x", 3600)): "2026-09-01T00:00:00+01:00",
+	}
+	for raw, want := range cases {
+		var s string
+		if err := decodeSetting(&s, raw); err != nil || s != want {
+			t.Errorf("decodeSetting(%v) = %q, %v; want %q", raw, s, err, want)
+		}
+	}
+	var list []string
+	if err := decodeSetting(&list, []any{time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)}); err != nil ||
+		!slices.Equal(list, []string{"2026-09-01"}) {
+		t.Errorf("list of dates = %q, %v", list, err)
 	}
 }
 

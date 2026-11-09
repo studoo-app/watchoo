@@ -98,6 +98,13 @@
         <div class="stat-value text-lg">{{template "rel-time" $p.LastCommitAt}}</div>
       </div>
     </div>
+    {{- with $v.Conventions}}
+    <p class="text-sm" id="contributor-conventions">
+      {{- if .Evaluated}}{{t "web.conv.contributor_line" .Conform .Evaluated (t "web.percent" .Percent)}}{{else}}{{t "web.conv.contributor_none"}}{{end}}
+      {{- if .Issues}} <span class="text-base-content/70">· {{range $i, $is := .Issues}}{{if $i}}, {{end}}<code>{{$is.Code}}</code> {{$is.Count}}{{end}}</span>{{end}}
+    </p>
+    <p class="text-xs text-base-content/60">{{t "web.conv.contributor_note" .Excluded}}</p>
+    {{- end}}
     <p class="text-xs text-base-content/60">{{t "web.contributor.overview_note"}}</p>
     <p class="text-xs text-base-content/60">{{if $v.Diagnostic}}{{t "web.contributors.ai_score_note"}}{{else}}{{t "web.contributors.ai_score_off"}}{{end}}</p>
   </div>

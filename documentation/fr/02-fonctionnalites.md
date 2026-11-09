@@ -154,3 +154,19 @@ outil est-il signé sur ce commit ? », jamais à « ce code a-t-il été écrit
 - **Objectif** : être en mesure de savoir quels outils sont déclarés, par qui et où, pas sanctionner. Pour
   en savoir plus, demander aux contributeurs de laisser activée l'attribution de leurs outils : Watchoo
   ne voit que ce que les commits déclarent.
+
+## Conventions de projet
+
+Phase 8.1 (non publiée) : Watchoo mesure la conformité des messages de commit à une charte Conventional
+Commits ; le détail est dans [Conventions de projet](13-conventions.md).
+
+- **Désactivé par défaut** (`conventions.enabled`) et **réservé au formateur** : ce sont des constats
+  objectifs, séparés du [diagnostic](12-supervision-diagnostic.md), **sans note ni score global**.
+- **CC1** : taux de commits conformes (commits sans écart bloquant / commits évalués), expliqué en `n/m`
+  par dépôt ; **CC2** : écarts par motif, bloquants ou avertissements ; **CC3** : taux par contributeur ;
+  **CC4** : exclusions comptées à part (fusions, bots, commit racine « Initial commit » créé par GitHub,
+  comptes de `conventions.excluded_accounts`).
+- **Périmètre** : toutes les branches suivies, depuis la date `conventions.since` (surchargeable par dépôt).
+- **Restitution** : commande `watchoo conventions`, section de la page d'un dépôt et page d'un
+  contributeur ; jamais le message de commit, seulement le SHA court, l'auteur et les codes.
+- La charte (`since`, `commit.*`) se partage par `watchoo config export` / `import`.

@@ -12,10 +12,10 @@ WHERE repo_id = sqlc.arg(repo_id) AND sha IN (sqlc.slice(shas));
 -- Insere un commit ; un commit deja en base n'est jamais modifie (0 ligne inseree).
 INSERT INTO commits (
     repo_id, sha, author_id, committer_id, message, authored_at, committed_at,
-    additions, deletions, stats_known, url
+    additions, deletions, stats_known, url, parent_count
 ) VALUES (
     ?, ?, ?, ?, ?, ?, ?,
-    ?, ?, ?, ?
+    ?, ?, ?, ?, ?
 )
 ON CONFLICT (repo_id, sha) DO NOTHING;
 
@@ -33,6 +33,23 @@ WHERE repo_id = sqlc.arg(repo_id) AND sha = sqlc.arg(sha) AND stats_known = 0;
 SELECT sha FROM commits
 WHERE repo_id = sqlc.arg(repo_id)
   AND (stats_known = 0 OR languages_version < sqlc.arg(languages_version))
+  AND sha > sqlc.arg(after_sha)
+ORDER BY sha
+LIMIT sqlc.arg(row_limit);
+
+-- name: SetCommitParentCount :execrows
+-- Enregistre le nombre de parents d'un commit deja en base dont il est inconnu (un nombre connu n'est
+-- jamais reecrit).
+UPDATE commits
+SET parent_count = sqlc.arg(parent_count)
+WHERE repo_id = sqlc.arg(repo_id) AND sha = sqlc.arg(sha) AND parent_count IS NULL;
+
+-- name: ListUnknownParentSHAs :many
+-- SHA des commits du depot dont le nombre de parents est inconnu, par ordre croissant, apres after_sha
+-- (pagination ; chaine vide = depuis le debut), au plus row_limit.
+SELECT sha FROM commits
+WHERE repo_id = sqlc.arg(repo_id)
+  AND parent_count IS NULL
   AND sha > sqlc.arg(after_sha)
 ORDER BY sha
 LIMIT sqlc.arg(row_limit);
@@ -111,3 +128,29 @@ VALUES (?, ?, ?, ?);
 UPDATE commits
 SET languages_version = sqlc.arg(languages_version)
 WHERE repo_id = sqlc.arg(repo_id) AND sha = sqlc.arg(sha);
+
+-- name: ListConventionCommits :many
+-- Commits du depot pour les conventions (phase 8.1), du plus recent au plus ancien : message (lu en
+-- memoire seulement, jamais garde), nombre de parents (NULL = inconnu), auteur et committer (logins et
+-- adresses separees par des espaces), rattachement a une branche suivie et a la branche par defaut
+-- (commit_branches, repli sans clone). author_id NULL = tous les auteurs.
+SELECT c.sha, c.message, c.parent_count, c.authored_at,
+       CAST(COALESCE(c.author_id, 0) AS INTEGER) AS author_id,
+       CAST(COALESCE(a.name, '') AS TEXT) AS author_name,
+       CAST(COALESCE(a.provider_login, '') AS TEXT) AS author_login,
+       CAST(COALESCE((SELECT group_concat(ae.email, ' ') FROM contributor_emails ae
+                      WHERE ae.contributor_id = c.author_id), '') AS TEXT) AS author_emails,
+       CAST(COALESCE(cm.provider_login, '') AS TEXT) AS committer_login,
+       CAST(COALESCE((SELECT group_concat(ce.email, ' ') FROM contributor_emails ce
+                      WHERE ce.contributor_id = c.committer_id), '') AS TEXT) AS committer_emails,
+       CAST(EXISTS (SELECT 1 FROM commit_branches cb JOIN branches b ON b.id = cb.branch_id
+                    WHERE cb.repo_id = c.repo_id AND cb.sha = c.sha AND b.tracked = 1) AS INTEGER) AS on_tracked,
+       CAST(EXISTS (SELECT 1 FROM commit_branches cb JOIN branches b ON b.id = cb.branch_id
+                    JOIN repositories r ON r.id = c.repo_id
+                    WHERE cb.repo_id = c.repo_id AND cb.sha = c.sha AND b.name = r.default_branch) AS INTEGER) AS on_default
+FROM commits c
+LEFT JOIN contributors a ON a.id = c.author_id
+LEFT JOIN contributors cm ON cm.id = c.committer_id
+WHERE c.repo_id = sqlc.arg(repo_id)
+  AND (sqlc.narg(author_id) IS NULL OR c.author_id = sqlc.narg(author_id))
+ORDER BY c.authored_at DESC, c.sha;

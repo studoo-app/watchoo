@@ -45,6 +45,9 @@ type repoSync struct {
 	// clone est le clone Git local du dépôt quand il est à jour pour cette synchro (statistiques
 	// calculées par lui) ; nil sinon. Sert au contexte D4 du diagnostic (signals.go).
 	clone CloneStats
+	// parentWrites sont les nombres de parents rattrapés par le clone (commits déjà en base dont il était
+	// inconnu ; phase 8.1), écrits par ApplyRepoSync.
+	parentWrites []store.CommitParentsWrite
 }
 
 // syncRepository synchronise repo avec le sync_run run déjà ouvert (verrou pris) ; en cas de succès,
@@ -158,6 +161,7 @@ func (e *Engine) syncRepository(ctx context.Context, prov provider.Provider, cl 
 		},
 		Branches:         states,
 		Commits:          s.commits,
+		ParentCounts:     s.parentWrites,
 		Stats:            statsWrites,
 		LanguagesVersion: gitprov.LanguageRulesVersion,
 		PullRequests:     x.pulls,
@@ -302,7 +306,8 @@ func (s *repoSync) add(commits []provider.Commit, branch string) {
 	}
 }
 
-// commitWrite convertit un commit de la forge ; false si le commit n'a aucune date (le store le
+// commitWrite convertit un commit de la forge (nombre de parents compris : len(c.Parents), 0 pour une
+// racine) ; false si le commit n'a aucune date (le store le
 // refuserait et l'activité serait faussée). Une seule date manquante est remplacée par l'autre.
 func commitWrite(c provider.Commit) (store.CommitWrite, bool) {
 	authored, committed := c.AuthoredAt, c.CommittedAt
@@ -314,6 +319,7 @@ func commitWrite(c provider.Commit) (store.CommitWrite, bool) {
 	case committed.IsZero():
 		committed = authored
 	}
+	parents := len(c.Parents)
 	return store.CommitWrite{
 		SHA:         c.SHA,
 		Message:     c.Message,
@@ -322,6 +328,7 @@ func commitWrite(c provider.Commit) (store.CommitWrite, bool) {
 		Committer:   identity(c.Committer),
 		AuthoredAt:  authored,
 		CommittedAt: committed,
+		ParentCount: &parents,
 	}, true
 }
 

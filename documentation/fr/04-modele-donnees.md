@@ -9,7 +9,7 @@ facultatif (dépôts suivis par clones Git locaux) ; la migration `00005` (0.5.0
 `contributors.profile_url` et la migration `00006` (0.5.0) `commits.stats_known` ; la migration `00007` (1.1.0) ajoute `repository_languages` ; la migration `00008` (1.2.0)
 ajoute `commits.ai_rules_version` et la table `commit_ai_signatures` ; la migration `00009` (1.2.0) ajoute
 `commits.languages_version` et la table `commit_languages`, soit **treize tables** ; la migration `00010` (1.3.0)
-ajoute `sync_runs.warnings`. La migration `00011` (phase 7.1) ajoute `commit_signals`, la migration `00012` (phase 7.2) `pull_requests.tool_ids` et `repository_signals`, la migration `00013` (phase 7.4) `diagnostic_reviews`, soit **seize tables**, la migration `00014` (phase 7.5) les colonnes de forme de `commit_signals`, et la migration `00015` (phase 7.7) ses mesures des signaux absolus et des contre-indicateurs (voir [Supervision et diagnostic](12-supervision-diagnostic.md)). Le stockage est un fichier SQLite versionné par des migrations
+ajoute `sync_runs.warnings`. La migration `00011` (phase 7.1) ajoute `commit_signals`, la migration `00012` (phase 7.2) `pull_requests.tool_ids` et `repository_signals`, la migration `00013` (phase 7.4) `diagnostic_reviews`, soit **seize tables**, la migration `00014` (phase 7.5) les colonnes de forme de `commit_signals`, et la migration `00015` (phase 7.7) ses mesures des signaux absolus et des contre-indicateurs (voir [Supervision et diagnostic](12-supervision-diagnostic.md)). La migration `00016` (phase 8.1) ajoute `commits.parent_count` et `repositories.conventions_since` (voir [Conventions de projet](13-conventions.md) et [Migration `00016`](#migration-00016--conventions-de-projet)). Le stockage est un fichier SQLite versionné par des migrations
 `goose`, avec **une base par espace de supervision** (`.watchoo/watchoo.db`, voir
 [Espaces de supervision](10-espaces-de-supervision.md)). Les tables ne connaissent donc pas la notion
 d'espace : deux espaces ne partagent jamais de données.
@@ -64,6 +64,7 @@ uniques.
 | dead_after_days | Seuil « Dead » propre au dépôt, au moins 1 (vide = valeur globale, 15 j par défaut) ; réglé de même (`--dead`, colonne `dead`) |
 | enabled | Suivi actif, ou arrêté (`repo remove --keep-history` : historique gardé, plus de synchro ; `repo add` le réactive) |
 | branch_patterns | Branches à suivre (`--branch`, colonne `branches` de l'import) : noms et motifs `path.Match` séparés par des virgules (`main,dev,release/*`) ; vide = toutes les branches. Ajoutée par la migration `00002` |
+| conventions_since | Date de début des conventions propre au dépôt (`repo add --conventions-since AAAA-MM-JJ`, partage de la configuration), stockée au format fixe à **minuit UTC** de la date du calendrier (`2026-09-01T00:00:00Z`, `CHECK`) ; vide = date de l'espace (`conventions.since`). Interprétée comme la date du calendrier, à minuit dans le fuseau de l'espace. Ajoutée par la migration `00016` (phase 8.1) |
 
 ### `branches` — branches surveillées
 
@@ -134,6 +135,7 @@ soit le nombre de branches qui le contiennent.
 | url | Lien vers le commit sur la forge |
 | ai_rules_version | Version des règles de signatures d'IA avec laquelle le commit a été analysé ; `0` = pas encore analysé. Ajoutée par la migration `00008` (1.2.0) |
 | languages_version | Version des règles de langages avec laquelle les langages du commit ont été lus dans le clone ; `0` = pas encore. Ajoutée par la migration `00009` (1.2.0) |
+| parent_count | Nombre de parents du commit : `0` = racine, `1` = ordinaire, `2` ou plus = fusion ; vide = inconnu (`CHECK >= 0`). Écrit à l'insertion depuis le commit lu (API ou clone) ; les commits enregistrés avant la migration sont rattrapés par le clone Git local à la synchro. Ajoutée par la migration `00016` (phase 8.1) |
 
 - **Statistiques** (`additions`, `deletions`) : calculées dans le **clone Git local** du dépôt
   (`git diff-tree --numstat`, sans quota), avec ou sans `gh`, pour **tous** les commits, premier import
@@ -389,6 +391,7 @@ avec le dépôt. La note est une donnée personnelle : la revue suit `diagnostic
 | `commits(repo_id, sha) WHERE stats_known = 0` | Index partiel : commits dont les lignes `+/-` restent à lire (migration `00006`) |
 | `commits(repo_id, ai_rules_version)` | Commits restant à analyser pour les signatures d'IA (migration `00008`) |
 | `commits(repo_id, languages_version)` | Commits dont les langages restent à lire dans le clone (migration `00009`) |
+| `commits(repo_id, sha) WHERE parent_count IS NULL` | Index partiel : commits dont le nombre de parents reste à lire dans le clone (migration `00016`) |
 | `commit_signals(repo_id, author_id, authored_at)` | Fenêtres glissantes par auteur des signaux de rythme (phase 7.3) |
 | `commit_signals(authored_at)` | Purge par durée de conservation |
 | `diagnostic_reviews(lead_date)` | Purge des revues par durée de conservation |
@@ -442,6 +445,26 @@ procédure documentée par SQLite (nouvelle table, copie, `DROP`, renommage). Po
 retour de `gh`), 0 garde la valeur en base ; `Partial` (synchro par clones Git locaux) n'écrit que la
 branche par défaut (si elle est connue) et la date de synchro, jamais des zéros à la place de l'URL, des
 étoiles, des issues, de l'état archivé ou de `provider_id`.
+
+## Migration `00016` : conventions de projet
+
+La phase 8.1 ([Conventions de projet](13-conventions.md)) ajoute deux colonnes par `ALTER TABLE … ADD
+COLUMN`, sans reconstruire de table :
+
+- **`commits.parent_count`** (`NULL` pour les commits déjà en base) et l'index partiel
+  `commits_parent_count_unknown` sur `(repo_id, sha) WHERE parent_count IS NULL`. Les nouveaux commits
+  reçoivent leur nombre de parents à l'insertion (`len(Parents)` du commit lu). Les commits déjà en base
+  sont rattrapés à chaque synchro par le clone Git local (`git rev-list --no-walk=unsorted --parents`, par
+  paquets, clone lu sans mise à jour supplémentaire), **que les conventions soient activées ou non** ; un
+  nombre connu n'est jamais réécrit. Sans clone, ou pour un SHA absent du clone (historique réécrit), la
+  valeur reste `NULL` (inconnue, jamais traitée comme `1`) et est redemandée à la synchro suivante.
+- **`repositories.conventions_since`** : `NULL` = date de l'espace. Le `CHECK` n'accepte que minuit UTC
+  (`AAAA-MM-JJT00:00:00Z`) : seule la date du calendrier compte, interprétée à minuit dans le fuseau de
+  l'espace (`timezone`).
+
+Retour arrière (`Down`) : l'index puis les deux colonnes sont supprimés ; les autres valeurs restent. Un test
+(`internal/store/migration_conventions_test.go`) applique la migration sur une base au schéma `00015`,
+vérifie les valeurs inconnues, l'index et les contraintes, puis le retour arrière.
 
 ## Renommages et changements de login
 

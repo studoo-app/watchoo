@@ -744,6 +744,7 @@ var webTexts = map[string]entry{
 	},
 	"web.import.failed":              {"Import not possible: %s", "Import impossible : %s"},
 	"web.import.nothing_imported":    {"Nothing was imported.", "Rien n'a été importé."},
+	"web.import.conventions_since":   {"conventions since %s", "conventions depuis le %s"},
 	"web.import.action_add":          {"to add", "à ajouter"},
 	"web.import.action_resume":       {"to resume", "à reprendre"},
 	"web.import.action_update":       {"to update", "à mettre à jour"},

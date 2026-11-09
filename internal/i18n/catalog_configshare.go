@@ -164,6 +164,26 @@ var configshareTexts = map[string]entry{
 		`settings.branches.exclude: invalid pattern %s (path.Match syntax, e.g. "dependabot/*")`,
 		"settings.branches.exclude : motif %s invalide (syntaxe de path.Match, ex. « dependabot/* »)",
 	},
+	"configshare.v.conv_since": {
+		`settings.conventions.since: %s is not a date of the form YYYY-MM-DD (e.g. "2026-09-01"; "" from the beginning)`,
+		`settings.conventions.since : %s n'est pas une date de la forme AAAA-MM-JJ (ex. "2026-09-01" ; "" depuis le début)`,
+	},
+	"configshare.v.conv_item_empty": {
+		"settings.conventions.commit.%s: entry #%d is empty",
+		"settings.conventions.commit.%s : l'entrée n° %d est vide",
+	},
+	"configshare.v.conv_item_control": {
+		"settings.conventions.commit.%s: entry #%d contains a control character or invalid UTF-8",
+		"settings.conventions.commit.%s : l'entrée n° %d contient un caractère de contrôle ou de l'UTF-8 invalide",
+	},
+	"configshare.v.conv_item_invalid": {
+		"settings.conventions.commit.%s: entry #%d %s is invalid (types: lowercase letters; scopes: lowercase letters, digits, \".\", \"_\", \"/\" and \"-\")",
+		"settings.conventions.commit.%s : l'entrée n° %d %s est invalide (types : lettres minuscules ; scopes : minuscules, chiffres, « . », « _ », « / » et « - »)",
+	},
+	"configshare.v.conv_language": {
+		`settings.conventions.commit.language: unknown value %s ("fr", "en" or "any")`,
+		`settings.conventions.commit.language : valeur %s inconnue ("fr", "en" ou "any")`,
+	},
 	"configshare.v.lang": {
 		`settings.lang: unknown language %s ("en" or "fr")`,
 		`settings.lang : langue %s inconnue ("en" ou "fr")`,

@@ -15,6 +15,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/studoo-app/watchoo/internal/conventions"
 	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/repoimport"
@@ -56,6 +57,9 @@ type Entry struct {
 	// existants gardés), 0 = revenir au seuil de l'espace.
 	FlemmeAfterDays *int
 	DeadAfterDays   *int
+	// ConventionsSince est la date de début des conventions du dépôt, AAAA-MM-JJ ; nil = non fournie
+	// (date existante gardée), "" = revenir à la date de l'espace.
+	ConventionsSince *string
 }
 
 // Parse lit et valide un document (MaxFileSize octets au plus). Erreurs, toutes dans la langue du
@@ -67,7 +71,8 @@ type Entry struct {
 //     inconnue (à tout niveau, y compris github ou web dans settings), plus de MaxRepositories dépôts,
 //     provider autre que github, repo invalide (repoimport.ParseRef), doublon (sans tenir compte de la
 //     casse), label invalide (repoimport.ValidateLabel), seuils d'activité d'un dépôt invalides
-//     (repoimport.ValidateThresholds), motif de branche vide, avec virgule ou invalide,
+//     (repoimport.ValidateThresholds), date de début des conventions d'un dépôt invalide
+//     (repoimport.ParseConventionsSince), motif de branche vide, avec virgule ou invalide,
 //     durée illisible, motif de branches.exclude ou fuseau avec caractère de contrôle, langue autre
 //     que « en » ou « fr », texte informatif invalide. Les problèmes sont tous cités (20 au plus).
 //
@@ -239,8 +244,18 @@ func validate(doc *Document) (*File, error) {
 			fail("configshare.v.field", where, err)
 			continue
 		}
+		var since *string
+		if r.ConventionsSince != nil {
+			date, err := repoimport.ParseConventionsSince(*r.ConventionsSince)
+			if err != nil {
+				fail("configshare.v.field", where, err)
+				continue
+			}
+			since = &date
+		}
 		f.Repositories = append(f.Repositories, Entry{Index: idx, Ref: ref, Label: r.Label, Branches: branches,
-			FlemmeAfterDays: clonePtr(r.FlemmeAfterDays), DeadAfterDays: clonePtr(r.DeadAfterDays)})
+			FlemmeAfterDays: clonePtr(r.FlemmeAfterDays), DeadAfterDays: clonePtr(r.DeadAfterDays),
+			ConventionsSince: since})
 	}
 
 	if len(errs) > 0 {
@@ -317,7 +332,71 @@ func parseSettings(s *Settings, fail func(string, ...any)) workspace.SharedSetti
 			fail("configshare.v.lang", quote(*s.Lang))
 		}
 	}
+	if s.Conventions != nil {
+		parseConventions(s.Conventions, &out, fail)
+	}
 	return out
+}
+
+// parseConventions convertit la charte des conventions (settings.conventions) vers out. Chaque valeur
+// est vérifiée seule ; la cohérence avec l'espace (longueurs, au moins un type) l'est par Plan
+// (Config.Validate des réglages fusionnés).
+func parseConventions(c *ConventionsSettings, out *workspace.SharedSettings, fail func(string, ...any)) {
+	if c.Since != nil {
+		since := *c.Since
+		if _, err := time.Parse(conventions.SinceInputLayout, since); since != "" && err != nil {
+			fail("configshare.v.conv_since", quote(since))
+		} else {
+			out.ConventionsSince = &since
+		}
+	}
+	if c.Commit == nil {
+		return
+	}
+	cm := c.Commit
+	out.ConventionsTypes = parseConventionsList(cm.Types, "types", conventions.ValidType, fail)
+	out.ConventionsScopes = parseConventionsList(cm.Scopes, "scopes", conventions.ValidScope, fail)
+	out.ConventionsForbidden = parseConventionsList(cm.Forbidden, "forbidden", nil, fail)
+	out.ConventionsMaxSubjectSoft = cm.MaxSubjectSoft
+	out.ConventionsMaxSubjectHard = cm.MaxSubjectHard
+	if cm.Language != nil {
+		if lang := *cm.Language; slices.Contains(workspace.ConventionsLanguages(), lang) {
+			out.ConventionsLanguage = &lang
+		} else {
+			fail("configshare.v.conv_language", quote(lang))
+		}
+	}
+}
+
+// parseConventionsList valide une liste de settings.conventions.commit.<name> : chaque entrée non vide,
+// sans caractère de contrôle et, si valid n'est pas nil, de la forme attendue. nil reste nil (non
+// fourni) ; une liste refusée renvoie nil.
+func parseConventionsList(in *[]string, name string, valid func(string) bool,
+	fail func(string, ...any)) *[]string {
+	if in == nil {
+		return nil
+	}
+	list := make([]string, 0, len(*in))
+	ok := true
+	for i, v := range *in {
+		switch {
+		case strings.TrimSpace(v) == "":
+			fail("configshare.v.conv_item_empty", name, i+1)
+			ok = false
+		case !utf8.ValidString(v) || strings.ContainsFunc(v, unicode.IsControl):
+			fail("configshare.v.conv_item_control", name, i+1)
+			ok = false
+		case valid != nil && !valid(v):
+			fail("configshare.v.conv_item_invalid", name, i+1, quote(v))
+			ok = false
+		default:
+			list = append(list, v)
+		}
+	}
+	if !ok {
+		return nil
+	}
+	return &list
 }
 
 // parseBranches valide les motifs d'un dépôt : chacun non vide, sans virgule (séparateur en base),

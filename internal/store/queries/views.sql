@@ -3,7 +3,7 @@
 -- author_email doit etre deja en minuscules ; author est compare sans casse (ASCII) au login et au nom.
 -- row_limit negatif = pas de limite.
 SELECT c.repo_id, c.sha, c.author_id, c.committer_id, c.message, c.authored_at, c.committed_at,
-       c.additions, c.deletions, c.stats_known, c.url, c.ai_rules_version,
+       c.additions, c.deletions, c.stats_known, c.url, c.ai_rules_version, c.parent_count,
        CAST(COALESCE((SELECT group_concat(s.tool || ':' || s.kind, ',') FROM commit_ai_signatures s
                       WHERE s.repo_id = c.repo_id AND s.sha = c.sha), '') AS TEXT) AS ai_signatures,
        r.owner AS repo_owner, r.name AS repo_name, r.label AS repo_label,
@@ -91,7 +91,7 @@ GROUP BY repo_id;
 -- name: LastCommitByRepo :many
 -- Commit le plus recent de chaque depot sur ses branches suivies (egalite : SHA croissant), avec son auteur.
 SELECT c.repo_id, c.sha, c.author_id, c.committer_id, c.message, c.authored_at, c.committed_at,
-       c.additions, c.deletions, c.stats_known, c.url, c.ai_rules_version,
+       c.additions, c.deletions, c.stats_known, c.url, c.ai_rules_version, c.parent_count,
        CAST(COALESCE((SELECT group_concat(s.tool || ':' || s.kind, ',') FROM commit_ai_signatures s
                       WHERE s.repo_id = c.repo_id AND s.sha = c.sha), '') AS TEXT) AS ai_signatures,
        CAST(COALESCE(a.name, '') AS TEXT) AS author_name,

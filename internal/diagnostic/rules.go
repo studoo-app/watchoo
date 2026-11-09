@@ -68,12 +68,6 @@ var signaturePatterns = []toolPattern{
 // coAuthorTrailer reconnaît une ligne de trailer « Co-authored-by: valeur » (casse ignorée).
 var coAuthorTrailer = regexp.MustCompile(`(?i)^\s*co-authored-by:\s*(.+?)\s*$`)
 
-// botLogins (signal D3) sont des comptes bot connus, en minuscules, en plus de tout nom ou login
-// terminé par « [bot] ».
-var botLogins = map[string]bool{
-	"copilot-swe-agent": true,
-}
-
 // agentConfigNames (signal D4) sont les noms de fichiers de configuration d'agent (dernier élément
 // du chemin, casse respectée) ; agentConfigPrefixes, des préfixes de nom (« .aider.conf.yml ») ;
 // agentConfigPaths, des chemins complets ; agentConfigDirs, des répertoires (n'importe où dans le

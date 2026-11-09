@@ -205,10 +205,24 @@ classement sur les signatures, aucune adresse affichée. Règles :
   (identifiant, description, nombre de pistes qui le portent, points) ; les 10 dernières pistes (date, auteur,
   élément lié à sa fiche de revue, niveau, signaux, état de la revue) et un lien vers toutes les pistes du
   dépôt (`/diagnostic?repo=`). Sans piste : « Aucune piste de réflexion. » Aucun message de commit.
+- **Conventions** (1.7.0, fragment `repo-conventions`, seulement si les [conventions](13-conventions.md)
+  sont activées, section distincte du diagnostic) : rappel « des taux, pas une note » ; **Commits
+  conformes** `n/m` et pourcentage, toutes branches suivies (CC1) ; la vue informative de la seule branche
+  par défaut ; les commits exclus et comptés à part, par motif (fusions, bots, commit initial de GitHub,
+  comptes exclus : CC4) ; les commits écrits avant la date de début, non évalués ; la date de début
+  effective et son origine (espace ou propre au dépôt) ; le tableau des écarts par code (code, libellé,
+  gravité « bloquant » ou « avertissement », nombre de commits : CC2) ; les 10 derniers commits non
+  conformes (date, auteur, SHA court, codes). Une note donne le périmètre : clone local (toutes les
+  branches suivies, chaque commit une fois) ou, sans clone lisible, commits rattachés aux branches
+  suivies en base, avec la mention « peut inclure des commits réécrits » ; et le nombre de commits au
+  nombre de parents inconnu (fusions reconnues à leur message). Dépôt jamais synchronisé : « Inconnu »
+  (pas 0 %) ; aucun commit évalué : un texte dédié (pas « 0/0 »). Calcul à la lecture, rien n'est
+  stocké. **Aucun message de commit**, aucun classement.
 - Bouton **« Synchroniser ce dépôt »** (absent si le suivi est arrêté).
 - Fragments : `/repos/{id}/commits` (historique) ; `/repos/{id}` avec l'en-tête `HX-Target`
-  `repo-overview`, `repo-contributors`, `repo-languages`, `repo-pulls` ou `repo-diagnostic` renvoie l'en-tête,
-  les contributeurs, les langages, les pull requests et releases ou le diagnostic seuls. Tous se rechargent à la fin d'une synchro.
+  `repo-overview`, `repo-contributors`, `repo-languages`, `repo-pulls`, `repo-diagnostic` ou
+  `repo-conventions` (1.7.0) renvoie l'en-tête, les contributeurs, les langages, les pull requests et
+  releases, le diagnostic ou les conventions seuls. Tous se rechargent à la fin d'une synchro.
 
 ### 3. Contributeurs
 - Classement global (commits, part du total, lignes ajoutées / retirées ; « — » si aucun de ses commits
@@ -251,6 +265,11 @@ lien de profil est l'adresse enregistrée en base (voir [Liens vers les profils]
   désactivé ; il remplace la carte « Signatures d'IA »), premier et dernier commit (dates relatives). **Choix** : aucun état Actif / Flemme /
   Dead pour une personne : ces états sont des règles de dépôt (seuils par dépôt) ; la page donne
   l'ancienneté du dernier commit, et l'état de chacun de ses dépôts dans la liste ci-dessous.
+  **Conventions** (1.7.0, seulement si elles sont activées ; absente sinon) : sous les totaux, la ligne
+  « Commits conformes 18/25 (72 %) » (CC3 : ses commits, tous dépôts et toutes branches suivies
+  confondus, hors exclusions CC4 ; « aucun commit évalué » sinon), suivie des codes d'écart reçus et de
+  leur nombre, et d'une note (nombre de commits exclus ; « un taux, pas une note »). Elle n'est calculée
+  que pour la page complète et le fragment `contributor-overview`, jamais pour l'historique paginé.
 - **Activité sur 90 jours** : commits par jour du contributeur, tous dépôts confondus (graphique
   `daily`, comme le tableau de bord et la page d'un dépôt).
 - **Activité par dépôt sur 12 semaines** : le graphique empilé `contributors-chart` (même template, même

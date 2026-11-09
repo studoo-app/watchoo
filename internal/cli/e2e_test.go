@@ -185,6 +185,41 @@ func TestEndToEnd(t *testing.T) {
 		}
 	}
 
+	// 6b. conventions (1.7.0), enabled by the environment: API mode without local clone, so the scope
+	// falls back on the database; the dummy messages have no type; never a message in the output.
+	t.Setenv("WATCHOO_CONVENTIONS_ENABLED", "true")
+	convOut := h.run("conventions", "--commits", "--json").mustSucceed(t).stdout
+	var conv struct {
+		Enabled      bool `json:"enabled"`
+		Repositories []struct {
+			Source  string `json:"source"`
+			Commits struct {
+				Evaluated int `json:"evaluated"`
+				Conform   int `json:"conform"`
+			} `json:"commits"`
+		} `json:"repositories"`
+		Commits []struct {
+			Codes []string `json:"codes"`
+		} `json:"commits"`
+	}
+	decodeLoose(t, convOut, &conv)
+	evaluated := 0
+	for _, r := range conv.Repositories {
+		if r.Source != "database" || r.Commits.Conform != 0 {
+			t.Errorf("conventions of a repository: %+v", r)
+		}
+		evaluated += r.Commits.Evaluated
+	}
+	if !conv.Enabled || len(conv.Repositories) != 3 || evaluated != 5 || len(conv.Commits) != 5 {
+		t.Errorf("conventions --commits --json: %s", convOut)
+	}
+	convText := h.run("conventions", "--failing").mustSucceed(t).stdout
+	assertContains(t, "conventions --failing", convText, "0/3", "no_type", "may include rewritten commits")
+	for _, out := range []string{convOut, convText} {
+		assertNotContains(t, "conventions", out, e2eMsgAlice1, e2eMsgAlice2, e2eMsgDev, e2eMsgBob1, e2eMsgDave)
+	}
+	t.Setenv("WATCHOO_CONVENTIONS_ENABLED", "false")
+
 	// 7. repo list: Actif / Flemme / Dead states.
 	e2eAssertStates(t, h, map[string]string{"alice/projet": "active", "bob/projet": "flemme", "dave/projet": "dead"})
 	list := h.run("repo", "list").mustSucceed(t).stdout

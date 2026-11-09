@@ -16,9 +16,11 @@ import (
 	"path"
 	"strconv"
 	"strings"
+	"time"
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/studoo-app/watchoo/internal/conventions"
 	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/provider"
 )
@@ -507,6 +509,22 @@ func ValidateThresholds(flemme, dead *int) error {
 		return errors.New(i18n.T("repoimport.threshold.order", *dead, *flemme))
 	}
 	return nil
+}
+
+// ParseConventionsSince lit la date de début des conventions propre à un dépôt, quelle que soit sa source
+// (« repo add --conventions-since », partage de la configuration) : une date du calendrier AAAA-MM-JJ
+// (espaces autour ignorés), renvoyée telle quelle ; vide = revenir à la date de l'espace
+// (conventions.since). Erreur dans la langue du processus sinon (autre forme, date impossible).
+func ParseConventionsSince(s string) (string, error) {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return "", nil
+	}
+	d, err := time.Parse(conventions.SinceInputLayout, s)
+	if err != nil {
+		return "", errors.New(i18n.T("repoimport.conventions_since.parse", quote(s)))
+	}
+	return d.Format(conventions.SinceInputLayout), nil
 }
 
 // quote cite une valeur entre guillemets, tronquée à maxQuoted caractères.

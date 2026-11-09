@@ -3,10 +3,10 @@
 [← Contents](README.md)
 
 **Status**: **maintainer decision** (phase 8, November 8, 2026); the choices are recorded in
-[section 11](#11-maintainer-decisions). No code is written yet: each phase starts after its plan is
-approved. The scope exception is carried over into the [Vision](01-vision.md); the updates to
+[section 11](#11-maintainer-decisions). Phase 8.1 done, not released; the next phases start after their
+plan is approved. The scope exception is carried over into the [Vision](01-vision.md); the updates to
 [Features](02-features.md), [Data model](04-data-model.md), [CLI](05-cli.md) and
-[Web interface](06-web-interface.md) will follow phase by phase.
+[Web interface](06-web-interface.md) follow phase by phase.
 
 ## 1. Decision
 
@@ -94,9 +94,9 @@ commit and a branch are never removed). The default branch alone forms a second,
 | id | Indicator | Rule | Granularity | Source | Mode | Rel. | Prio |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | CC1 | Compliant commit rate | Commits without a blocking issue (CC2) / evaluated commits (excluding CC4) | repository, range between tags | database + clone | both | H | P1 |
-| CC2 | Issues by pattern | **Blocking**: `empty`, `forbidden` (whole subject in the forbidden list, or prefix `wip`, `fixup!`, `squash!`), `github_default` (`^(Update\|Create\|Delete\|Rename) \S+$`, "Add files via upload"), `no_type`, `unknown_type`, `type_case`, `separator`, `trailing_period`, `body_separator`, `length_hard` (> 72 characters). **Warnings**: `desc_capitalized` (except acronyms), `length_soft` (> 50), `footer_format`, `git_revert` (`Revert "…"` produced by Git, counted) | commit; pattern × repository, pattern × contributor | database | both | H | P1 |
+| CC2 | Issues by pattern | **Blocking**: `empty`, `forbidden` (whole subject in the forbidden list, or prefix `wip`, `fixup!`, `squash!`, `amend!`), `github_default` (`^(Update\|Create\|Delete\|Rename) \S+$`, "Add files via upload"), `no_type`, `unknown_type`, `type_case`, `separator`, `scope` (malformed or empty scope, or missing from `commit.scopes`), `trailing_period`, `body_separator`, `length_hard` (> 72 characters). **Warnings**: `desc_capitalized` (except acronyms), `length_soft` (> 50), `footer_format`, `git_revert` (`Revert "…"` produced by Git, counted) | commit; pattern × repository, pattern × contributor | database | both | H | P1 |
 | CC3 | Rate per contributor | CC1 on the commits they authored, with the trend since the last tag | contributor, contributor × repository | database | both | H | P1 |
-| CC4 | Exclusions | Outside the denominator, counted separately: merges (`parent_count ≥ 2`), bots (`[bot]` suffix and catalogue accounts), root commit "Initial commit" created by GitHub or Classroom. Web edits ("Update README.md") and AI agent accounts are still evaluated | commit | database | both | H | P1 |
+| CC4 | Exclusions | Outside the denominator, counted separately: merges (`parent_count ≥ 2`), bots (`[bot]` suffix and catalogue accounts), root commit "Initial commit" created by GitHub or Classroom; unknown `parent_count` (NULL): fallback on the default merge messages and on the exact subject "Initial commit" with the GitHub committer. Web edits ("Update README.md") and AI agent accounts are still evaluated | commit | database | both | H | P1 |
 | CC5 | Wording to review | Warning only: `past_tense` (closed lexicon of FR and EN participles), `progressive` (`-ing`), `first_person`. No rule on the "-é" ending alone | commit | database | both | M | P2 |
 | CC6 | Footers and issues | Share of commits with a valid footer and share of those citing an issue (`(Closes\|Fixes\|Resolves\|Refs) #\d+`); informative | repository, contributor | database | both | H | P3 |
 | CC7 | Message language | FR / EN mix within one repository, if the charter imposes a language; informative | repository | database | both | M | P3 |
@@ -271,17 +271,31 @@ charter in [section 3](#3-reference-the-charter).
 | `changelog.categories_fr` | `true` | Allows French labels (categories, H1) |
 | `readme.sections` | charter sections | Synonyms of the expected sections |
 | `docs.dir`, `docs.media_dir`, `docs.archives_scope` | `documentation`, `Media`, `repository` | Tree; archives forbidden in the whole repository |
-| `excluded_accounts` | empty | Excluded accounts (trainer, bots), specific to the conventions: separate from `diagnostic.exclude` |
+| `excluded_accounts` | empty | Excluded accounts (trainer, bots): author's login, name or e-mail, case ignored; specific to the conventions, separate from `diagnostic.exclude` |
 
 The block is shared through [`configshare`](02-features.md) (maintainer decision), except `enabled`,
 `excluded_accounts` (which contains logins): sharing a charter is the intended use. A repository's own date
 is exported with it, like its activity thresholds. The keys are then frozen by SemVer.
 
+**Phase 8.1**: only `enabled`, `since`, `commit.*` and `excluded_accounts` exist; the other keys come with
+their phase. Environment variables: `WATCHOO_CONVENTIONS_ENABLED`, `WATCHOO_CONVENTIONS_SINCE`,
+`WATCHOO_CONVENTIONS_COMMIT_TYPES`… (comma-separated lists). Rules checked at load time: `since` empty or of
+the form `YYYY-MM-DD` (an unquoted YAML date, `since: 2026-09-01`, is accepted; a date with a time is
+refused, except an unquoted YAML timestamp at exactly midnight UTC, `2026-09-01T00:00:00Z`, which the YAML
+decoder cannot tell from the date alone and which is read as `2026-09-01`), read at midnight in the workspace time zone; at least one type, each in lowercase letters; each
+scope of the form `[a-z0-9][a-z0-9._/-]*`; `commit.max_subject_soft` at least 1 and
+`commit.max_subject_hard` strictly greater; no empty entry in `commit.forbidden` nor `excluded_accounts`;
+`commit.language` among `fr`, `en`, `any` (no effect on the analysis in 8.1). In the sharing file, the
+block is written `settings.conventions` (`since`, `commit`): see
+[Configuration sharing](05-cli.md#configuration-sharing-watchoo-config).
+
 ## 9. Technical impact
 
 - **Packages**:
-  - `internal/conventions`: pure functions, modelled on `internal/aisignature`, that return stable codes
-    and read neither the database nor the forge (`ParseCommit`, `CheckBranch`, `CheckPRTitle`,
+  - `internal/conventions`: the parser and the aggregation are pure functions, modelled on
+    `internal/aisignature`, that return stable codes and read neither the database nor the forge; `Build`
+    reads the database and the clone only through the `Reader` and `CloneReader` interfaces, implemented by
+    `internal/store` and `internal/provider/git`, never the forge (`ParseCommit`, `CheckBranch`, `CheckPRTitle`,
     `CheckPRBody`, `CheckTag`, `ExpectedBump`, `CheckChangelog`, `CheckReadme`, `CheckIndex`,
     `CheckDocsTree`, `DetectTooling`);
   - `internal/semver`: comparator extracted from `internal/selfupdate`, with no change to the surface;
@@ -339,8 +353,8 @@ Each phase can be delivered alone; phases 8.1 to 8.4 are enough for a milestone 
 | Phase | Content | Cost | Version |
 | --- | --- | --- | --- |
 | 8.0 | This document approved (done, November 8, 2026) and exception carried over into 01; updates to 02, 04, 05, 06 and 12 with each phase | no code | — |
-| 8.1 | `internal/conventions` (parser), `internal/semver`, `conventions.*` settings, CC1 to CC4, `commits.parent_count` and its backfill, `watchoo conventions --commits`, web section and contributor page, adjustments to A1, A2 and F4 | 0 quota, 1 migration | 1.7.0 |
-| 8.2 | On the fly: BR1, PR1, PR2, SV1, SV2 (presence), SV6; first milestone review; CC5 to CC7 | 0 quota | 1.8.0 |
+| 8.1 | `internal/conventions` (parser), `internal/semver`, `conventions.*` settings, CC1 to CC4, `commits.parent_count` and its backfill, `watchoo conventions --commits`, web section and contributor page, adjustments to A1, A2 and F4. **Done, not released** (`[Unreleased]` of the CHANGELOG; `scope` code added to the blocking codes of CC2; CC1 per range between tags and CC3 trend since the last tag postponed to 8.2, with the reading of the tags) | 0 quota, 1 migration | 1.7.0 |
+| 8.2 | On the fly: BR1, PR1, PR2, SV1, SV2 (presence), SV6; first milestone review; CC5 to CC7; CC1 per range between tags, CC3 trend | 0 quota | 1.8.0 |
 | 8.3 | Clone tree: `repository_conventions`, CL1 to CL9, RD1 to RD4, DOC1 to DOC8, TL1 to TL3; milestone review on the tags' tree | 0 quota, 1 migration | 1.9.0 |
 | 8.4 | History: `tag_observations` (SV3, SV2 deadlines), `branch_rewrites` (BR4), SV4, SV5, SV7, CL10 | 0 quota, 2 migrations | 1.10.0 |
 | 8.5 | API with no extra request: `merge_commit_sha`, `from_fork`, `body_sections`, merge methods; full PR3, PR5, PR6, BR2, BR5 | one reread of the PR lists | 1.11.0 |

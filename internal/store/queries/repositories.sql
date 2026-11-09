@@ -3,11 +3,11 @@
 INSERT INTO repositories (
     provider, provider_id, owner, name, label, default_branch, url, stars, open_issues,
     last_synced_at, last_commit_at, archived, flemme_after_days, dead_after_days, enabled,
-    branch_patterns
+    branch_patterns, conventions_since
 ) VALUES (
     ?, ?, ?, ?, ?, ?, ?, ?, ?,
     ?, ?, ?, ?, ?, ?,
-    ?
+    ?, ?
 )
 RETURNING *;
 
@@ -47,6 +47,14 @@ RETURNING *;
 -- Remplace les seuils d'activite propres au depot (NULL = valeur globale) et renvoie la ligne a jour.
 UPDATE repositories
 SET flemme_after_days = ?, dead_after_days = ?
+WHERE id = ?
+RETURNING *;
+
+-- name: SetRepositoryConventionsSince :one
+-- Remplace la date de debut des conventions propre au depot (NULL = date de l'espace) et renvoie la
+-- ligne a jour.
+UPDATE repositories
+SET conventions_since = ?
 WHERE id = ?
 RETURNING *;
 

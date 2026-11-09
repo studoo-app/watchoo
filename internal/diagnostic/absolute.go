@@ -81,17 +81,28 @@ func isCounter(s string) bool {
 // absoluteSignals calcule A1 à A7 et H1 à H4 pour les commits d'un auteur dans un dépôt (g trié par date).
 // A2 et A7 portent sur l'ensemble de l'auteur dans le dépôt : ils sont rattachés à son commit le plus gros
 // (lignes source ajoutées), pour qu'une même piste réunisse tous les indices du dépôt rendu d'un coup.
-func absoluteSignals(g []store.CommitSignalView) map[string][]Hit {
+// Conventions actives (opts.ConventionsEnabled, phase 8.1), un commit de squash ne lève pas A1 et A2 ne
+// compte que les commits non squash (nombre, total, commit dominant) ; A7 reste calculé sur tous.
+func absoluteSignals(g []store.CommitSignalView, opts RhythmOptions) map[string][]Hit {
 	out := map[string][]Hit{}
 	add := func(sha string, h Hit) { out[sha] = append(out[sha], h) }
 
-	allKnown := true
+	allKnown := true  // A7 : forme mesurée sur tous les commits
+	allKnown2 := true // A2 : forme mesurée sur les commits non squash
 	total, wip, short := 0, 0, 0
 	biggest := -1
+	// A2 : commits, total et commit dominant hors squash quand les conventions sont actives.
+	n2, total2, biggest2 := 0, 0, -1
 	for i, c := range g {
 		f := c.Form
+		if !opts.squashIgnored(c) {
+			n2++
+		}
 		if !f.Known {
 			allKnown = false
+			if !opts.squashIgnored(c) {
+				allKnown2 = false
+			}
 			continue
 		}
 		total += f.SourceLines
@@ -100,12 +111,18 @@ func absoluteSignals(g []store.CommitSignalView) map[string][]Hit {
 		if biggest < 0 || f.SourceLines > g[biggest].Form.SourceLines {
 			biggest = i
 		}
+		if !opts.squashIgnored(c) {
+			total2 += f.SourceLines
+			if biggest2 < 0 || f.SourceLines > g[biggest2].Form.SourceLines {
+				biggest2 = i
+			}
+		}
 	}
 
 	for i, c := range g {
 		f := c.Form
 		if f.Known {
-			if f.SourceLines >= a1MinLines {
+			if f.SourceLines >= a1MinLines && !opts.squashIgnored(c) {
 				add(c.SHA, countHit(SignalMassiveCommit, f.SourceLines))
 			}
 			if i > 0 && f.SourceLines >= a3MinLines {
@@ -145,12 +162,15 @@ func absoluteSignals(g []store.CommitSignalView) map[string][]Hit {
 		}
 	}
 
+	if biggest2 >= 0 {
+		b := g[biggest2]
+		if allKnown2 && n2 <= a2MaxCommits && total2 >= a2MinLines &&
+			ratio(b.Form.SourceLines, total2) >= a2Share {
+			add(b.SHA, statHit(SignalOneGo, ratio(b.Form.SourceLines, total2), 0, 0, false, false))
+		}
+	}
 	if biggest >= 0 {
 		b := g[biggest]
-		if allKnown && len(g) <= a2MaxCommits && total >= a2MinLines &&
-			ratio(b.Form.SourceLines, total) >= a2Share {
-			add(b.SHA, statHit(SignalOneGo, ratio(b.Form.SourceLines, total), 0, 0, false, false))
-		}
 		if allKnown && total >= a7MinLines && wip == 0 && short == 0 {
 			add(b.SHA, countHit(SignalFinalState, total))
 		}

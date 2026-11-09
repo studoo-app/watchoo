@@ -25,7 +25,8 @@ const BackupFileName = ConfigFileName + ".bak"
 // Clés des réglages communs, dans l'ordre du modèle de config.yaml. Ce sont les seules qu'un import
 // peut modifier : name, github.* (compte et chemin de gh : un fichier venu d'ailleurs ne doit jamais
 // choisir le programme lancé), git.* (protocole des clones Git locaux) et web.* restent propres à la
-// machine.
+// machine. Les conventions (conventions.*) sont partagées, sauf conventions.enabled (choix de l'espace)
+// et conventions.excluded_accounts (logins), comme diagnostic.*.
 const (
 	KeySyncAuto        = "sync.auto"
 	KeySyncInterval    = "sync.interval"
@@ -35,6 +36,14 @@ const (
 	KeyBranchesExclude = "branches.exclude"
 	KeyTimezone        = "timezone"
 	KeyLang            = "lang"
+
+	KeyConventionsSince          = "conventions.since"
+	KeyConventionsTypes          = "conventions.commit.types"
+	KeyConventionsScopes         = "conventions.commit.scopes"
+	KeyConventionsMaxSubjectSoft = "conventions.commit.max_subject_soft"
+	KeyConventionsMaxSubjectHard = "conventions.commit.max_subject_hard"
+	KeyConventionsForbidden      = "conventions.commit.forbidden"
+	KeyConventionsLanguage       = "conventions.commit.language"
 )
 
 // SharedKeys liste les clés des réglages communs, dans l'ordre du modèle de config.yaml.
@@ -42,6 +51,9 @@ var SharedKeys = []string{
 	KeySyncAuto, KeySyncInterval, KeySyncParallelism,
 	KeyFlemmeAfterDays, KeyDeadAfterDays,
 	KeyBranchesExclude, KeyTimezone, KeyLang,
+	KeyConventionsSince, KeyConventionsTypes, KeyConventionsScopes,
+	KeyConventionsMaxSubjectSoft, KeyConventionsMaxSubjectHard,
+	KeyConventionsForbidden, KeyConventionsLanguage,
 }
 
 // SharedSettings regroupe des valeurs de réglages communs. Chaque champ nil veut dire « non fourni » :
@@ -55,15 +67,33 @@ type SharedSettings struct {
 	BranchesExclude *[]string // liste vide (non nil) = aucune branche exclue
 	Timezone        *string   // "" = fuseau du système
 	Lang            *string   // langue de l'interface web : « en » ou « fr »
+
+	ConventionsSince          *string   // "" = depuis le début ; sinon AAAA-MM-JJ
+	ConventionsTypes          *[]string // listes : vide (non nil) = aucune entrée
+	ConventionsScopes         *[]string // liste vide = tout scope bien formé
+	ConventionsMaxSubjectSoft *int
+	ConventionsMaxSubjectHard *int
+	ConventionsForbidden      *[]string
+	ConventionsLanguage       *string // « fr », « en » ou « any »
+}
+
+// cloneList copie une liste en la gardant non nil : nil et vide sont la même valeur pour un réglage, et
+// l'aperçu d'un import les compare avec reflect.DeepEqual.
+func cloneList(list []string) []string {
+	out := slices.Clone(list)
+	if out == nil {
+		out = []string{}
+	}
+	return out
 }
 
 // SharedSettingsFrom renvoie tous les réglages communs de c (chaque champ renseigné, listes copiées ;
-// branches.exclude vaut une liste vide plutôt que nil).
+// une liste vaut une liste vide plutôt que nil).
 func SharedSettingsFrom(c Config) SharedSettings {
-	exclude := slices.Clone(c.Branches.Exclude)
-	if exclude == nil {
-		exclude = []string{}
-	}
+	exclude := cloneList(c.Branches.Exclude)
+	types := cloneList(c.Conventions.Commit.Types)
+	scopes := cloneList(c.Conventions.Commit.Scopes)
+	forbidden := cloneList(c.Conventions.Commit.Forbidden)
 	return SharedSettings{
 		SyncAuto:        &c.Sync.Auto,
 		SyncInterval:    &c.Sync.Interval,
@@ -73,6 +103,14 @@ func SharedSettingsFrom(c Config) SharedSettings {
 		BranchesExclude: &exclude,
 		Timezone:        &c.Timezone,
 		Lang:            &c.Lang,
+
+		ConventionsSince:          &c.Conventions.Since,
+		ConventionsTypes:          &types,
+		ConventionsScopes:         &scopes,
+		ConventionsMaxSubjectSoft: &c.Conventions.Commit.MaxSubjectSoft,
+		ConventionsMaxSubjectHard: &c.Conventions.Commit.MaxSubjectHard,
+		ConventionsForbidden:      &forbidden,
+		ConventionsLanguage:       &c.Conventions.Commit.Language,
 	}
 }
 
@@ -96,17 +134,34 @@ func (s SharedSettings) Values() map[string]any {
 		out[KeyDeadAfterDays] = *s.DeadAfterDays
 	}
 	if s.BranchesExclude != nil {
-		list := slices.Clone(*s.BranchesExclude)
-		if list == nil {
-			list = []string{}
-		}
-		out[KeyBranchesExclude] = list
+		out[KeyBranchesExclude] = cloneList(*s.BranchesExclude)
 	}
 	if s.Timezone != nil {
 		out[KeyTimezone] = *s.Timezone
 	}
 	if s.Lang != nil {
 		out[KeyLang] = *s.Lang
+	}
+	if s.ConventionsSince != nil {
+		out[KeyConventionsSince] = *s.ConventionsSince
+	}
+	if s.ConventionsTypes != nil {
+		out[KeyConventionsTypes] = cloneList(*s.ConventionsTypes)
+	}
+	if s.ConventionsScopes != nil {
+		out[KeyConventionsScopes] = cloneList(*s.ConventionsScopes)
+	}
+	if s.ConventionsMaxSubjectSoft != nil {
+		out[KeyConventionsMaxSubjectSoft] = *s.ConventionsMaxSubjectSoft
+	}
+	if s.ConventionsMaxSubjectHard != nil {
+		out[KeyConventionsMaxSubjectHard] = *s.ConventionsMaxSubjectHard
+	}
+	if s.ConventionsForbidden != nil {
+		out[KeyConventionsForbidden] = cloneList(*s.ConventionsForbidden)
+	}
+	if s.ConventionsLanguage != nil {
+		out[KeyConventionsLanguage] = *s.ConventionsLanguage
 	}
 	return out
 }
@@ -131,9 +186,7 @@ func (s SharedSettings) IsZero() bool {
 // ApplyTo renvoie c avec les réglages fournis à la place des siens (listes copiées). c n'est pas
 // modifié. Le résultat n'est pas validé : appeler Validate.
 func (s SharedSettings) ApplyTo(c Config) Config {
-	out := c
-	out.Branches.Exclude = slices.Clone(c.Branches.Exclude)
-	out.Web.AllowedHosts = slices.Clone(c.Web.AllowedHosts)
+	out := cloneLists(c)
 	if s.SyncAuto != nil {
 		out.Sync.Auto = *s.SyncAuto
 	}
@@ -150,10 +203,7 @@ func (s SharedSettings) ApplyTo(c Config) Config {
 		out.Activity.DeadAfterDays = *s.DeadAfterDays
 	}
 	if s.BranchesExclude != nil {
-		out.Branches.Exclude = slices.Clone(*s.BranchesExclude)
-		if out.Branches.Exclude == nil {
-			out.Branches.Exclude = []string{}
-		}
+		out.Branches.Exclude = cloneList(*s.BranchesExclude)
 	}
 	if s.Timezone != nil {
 		out.Timezone = *s.Timezone
@@ -161,6 +211,41 @@ func (s SharedSettings) ApplyTo(c Config) Config {
 	if s.Lang != nil {
 		out.Lang = *s.Lang
 	}
+	if s.ConventionsSince != nil {
+		out.Conventions.Since = *s.ConventionsSince
+	}
+	if s.ConventionsTypes != nil {
+		out.Conventions.Commit.Types = cloneList(*s.ConventionsTypes)
+	}
+	if s.ConventionsScopes != nil {
+		out.Conventions.Commit.Scopes = cloneList(*s.ConventionsScopes)
+	}
+	if s.ConventionsMaxSubjectSoft != nil {
+		out.Conventions.Commit.MaxSubjectSoft = *s.ConventionsMaxSubjectSoft
+	}
+	if s.ConventionsMaxSubjectHard != nil {
+		out.Conventions.Commit.MaxSubjectHard = *s.ConventionsMaxSubjectHard
+	}
+	if s.ConventionsForbidden != nil {
+		out.Conventions.Commit.Forbidden = cloneList(*s.ConventionsForbidden)
+	}
+	if s.ConventionsLanguage != nil {
+		out.Conventions.Commit.Language = *s.ConventionsLanguage
+	}
+	return out
+}
+
+// cloneLists renvoie une copie de c dont les listes ([]string) ne partagent plus leur tableau avec c :
+// modifier le résultat ne modifie jamais c. Une liste nil reste nil.
+func cloneLists(c Config) Config {
+	out := c
+	out.Branches.Exclude = slices.Clone(c.Branches.Exclude)
+	out.Web.AllowedHosts = slices.Clone(c.Web.AllowedHosts)
+	out.Diagnostic.Exclude = slices.Clone(c.Diagnostic.Exclude)
+	out.Conventions.Commit.Types = slices.Clone(c.Conventions.Commit.Types)
+	out.Conventions.Commit.Scopes = slices.Clone(c.Conventions.Commit.Scopes)
+	out.Conventions.Commit.Forbidden = slices.Clone(c.Conventions.Commit.Forbidden)
+	out.Conventions.ExcludedAccounts = slices.Clone(c.Conventions.ExcludedAccounts)
 	return out
 }
 
@@ -211,9 +296,7 @@ func FileConfig(ws *Workspace) (Config, error) {
 // vides (comme Load les applique après les fichiers). c n'est pas modifié ; le résultat n'est pas
 // validé. Une variable illisible renvoie une erreur, comme Load.
 func WithEnv(c Config) (Config, error) {
-	out := c
-	out.Branches.Exclude = slices.Clone(c.Branches.Exclude)
-	out.Web.AllowedHosts = slices.Clone(c.Web.AllowedHosts)
+	out := cloneLists(c)
 	var errs []error
 	for _, f := range settingFields(&out) {
 		name := envVarName(f.key)

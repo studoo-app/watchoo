@@ -89,7 +89,9 @@ Prétraitement :
 5. Journée travaillée : seuls les jours avec au moins un commit entrent dans les médianes journalières.
 
 Limites connues : squash merges (trailers effacés), rebases (dates réécrites), personnes qui commitent
-rarement (gros commits naturels). Le signal R2 se lit à la lumière des habitudes de la personne.
+rarement (gros commits naturels). Le signal R2 se lit à la lumière des habitudes de la personne. Depuis la
+phase 8.1, quand les conventions sont activées (`conventions.enabled`, document 13), les commits de squash
+identifiés sont écartés de A1 et A2 (section 9.6).
 
 ## 5. Catalogue des signaux
 
@@ -263,8 +265,8 @@ identifiants d'outils.
 
 ```
 internal/diagnostic/       paquet métier, sans log ni dépendance vers cli, tui, web
-  rules.go                 listes D1 (trailers), D2 (signatures), D3 (bots), D4 (fichiers d'agent),
-                           motifs d'exclusion par défaut
+  rules.go                 listes D1 (trailers), D2 (signatures), D4 (fichiers d'agent), motifs
+                           d'exclusion par défaut ; D3 (bots) : aisignature.IsBot depuis la phase 8.1
   exclude.go               Excluder : motifs « nom/ » (répertoire), nom de fichier, chemin complet
   compute.go               Compute : lignes et fichiers après exclusion, outils, bot, fichier d'agent
 internal/provider/         CommitStats.Files (chemin, lignes, binaire), rempli par le clone Git seulement
@@ -405,7 +407,7 @@ revoir seulement si la calibration en montre le besoin) ; F6 reporté (section 9
 | F1 | Lignes de commentaire / lignes source ajoutées (commits d'au moins 20 lignes source) | z\* > 3,5 |
 | F2 | Définitions documentées / définitions (commentaire juste avant, docstring juste après en Python) | ≥ 3 définitions, part > 90 %, médiane personnelle < 30 % |
 | F3 | Diversité lexicale des identifiants (hors mots-clés et chaînes) : MATTR, fenêtre de 50 identifiants (Covington et McFall, 2010) | z\* < −3,5 |
-| F4 | Longueur du message (hors trailers et signatures) par rapport aux 20 messages précédents | z\* > 3,5 **et** une nouveauté absente des 20 messages : liste d'au moins 2 lignes, ou sujet Conventional Commits |
+| F4 | Longueur du message (hors trailers et signatures) par rapport aux 20 messages précédents | z\* > 3,5 **et** une nouveauté absente des 20 messages : liste d'au moins 2 lignes, ou sujet Conventional Commits (critère neutralisé quand les conventions sont activées, à partir de leur date de début ; phase 8.1) |
 | F5 | Lignes de test livrées avec au moins 20 lignes de code (fichiers `*_test.go`, `test_*.py`, `*.spec.ts`, `*Test.java`, répertoires `tests/`, `__tests__/`…) | ≥ 5 lignes de test, alors que moins de 10 % des commits de code de l'historique en ont |
 
 - **Choix de mise en œuvre** (la spécification laisse ces points ouverts) : MATTR plutôt que le simple
@@ -413,6 +415,13 @@ revoir seulement si la calibration en montre le besoin) ; F6 reporté (section 9
   exige une longueur inhabituelle **et** une nouveauté de forme, pour qu'un apprenant qui adopte
   Conventional Commits après un cours ne soit pas signalé sur ce seul changement ; F5 compare à une part
   (pas à une médiane) ; un MAD nul ne donne pas de score, comme pour R1 à R6.
+- **Conventions activées** (phase 8.1, `conventions.enabled`, document 13) : le format Conventional Commits
+  est alors demandé, il n'est plus une nouveauté. Pour les commits écrits à partir de la date de début
+  effective (`repositories.conventions_since` du dépôt, sinon `conventions.since` de l'espace, à minuit dans
+  le fuseau de l'espace ; vide = depuis le début, donc toujours), le critère « sujet Conventional Commits »
+  de F4 est neutralisé ; la nouveauté « liste d'au moins 2 lignes » reste. L'historique comparé ne change
+  pas. Rien n'est stocké : l'ajustement est fait à la lecture, et désactiver les conventions rend le
+  comportement d'avant la phase 8.
 - **Niveaux** (section 6) : « Probable » (`probable`) pour au moins 2 signaux R et 1 signal F ; « À
   regarder » pour 1 signal R ou au moins 2 signaux F ; **un signal F seul ne lève jamais de piste**. Les
   signaux F portent sur un commit : ils se combinent avec R2 à R5 du même commit, pas avec R1 et R6 (pistes
@@ -451,8 +460,8 @@ Ajoutées au `FormMeter` (même lecture des lignes ajoutées que F1 à F5) et au
 
 | ID | Signal | Déclenchement par défaut (référentiel) | Compte comme |
 | --- | --- | --- | --- |
-| A1 | Commit massif | ≥ 500 lignes source ajoutées (fichiers retenus) | R |
-| A2 | Dépôt rendu « en une fois » | L'auteur a au plus 3 commits mesurés dans le dépôt, et l'un d'eux apporte ≥ 80 % de ses lignes source ajoutées (et au moins 200) | R |
+| A1 | Commit massif | ≥ 500 lignes source ajoutées (fichiers retenus) ; pas sur un commit de squash quand les conventions sont activées (phase 8.1) | R |
+| A2 | Dépôt rendu « en une fois » | L'auteur a au plus 3 commits mesurés dans le dépôt, et l'un d'eux apporte ≥ 80 % de ses lignes source ajoutées (et au moins 200) ; conventions activées : commits de squash non comptés (phase 8.1) | R |
 | A3 | Poussée après un silence | ≥ 300 lignes source ajoutées après au moins 14 jours sans commit de l'auteur dans le dépôt | R |
 | A4 | Revert puis remplacement | Commit `Revert "…"` suivi, dans l'heure, d'un commit de l'auteur d'au moins 100 lignes source ajoutées (sans vérifier les fichiers : les chemins ne sont pas gardés) | R |
 | A5 | Commentaires décoratifs | ≥ 3 lignes décoratives dans le commit | F |
@@ -470,6 +479,16 @@ phase 7.7 n'ont pas encore ces mesures, la reprise de l'historique les complète
 commits dont la forme est mesurée ; A3 demande un commit précédent de l'auteur dans le dépôt ; H3 (squelette)
 tempère toutes les pistes de l'auteur dans le dépôt ; H4 compte les corrections des 14 jours qui précèdent le
 commit.
+
+**Commits de squash** (phase 8.1) : quand les conventions sont activées (`conventions.enabled`), un commit
+de squash identifié (sujet terminé par « (#n) » **et** committer GitHub : login `web-flow` en mode API,
+adresse `noreply@github.com` dans un clone) ne lève pas A1, et A2 ne compte que les commits non squash de
+l'auteur (nombre de commits, total des lignes et commit dominant). Une fusion en squash réunit le travail de
+toute une branche : sa taille dit la taille de la pull request, pas une écriture d'un coup. A7 (et son
+rattachement au commit le plus gros) reste calculé sur tous les commits ; A3 et A4 ne changent pas. Le
+repérage se fait à la lecture : le sujet est lu en mémoire pour ce test et n'est ni conservé, ni affiché, ni
+journalisé. Une piste déjà relue qui perd A1 ou A2 peut changer de niveau ou disparaître ; sa fiche reste en
+base. La phase 8.5 complétera le repérage par le SHA de fusion des pull requests.
 
 ### Famille H — contre-indicateurs (traces de travail humain)
 

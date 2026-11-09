@@ -519,7 +519,7 @@ func (q *Queries) CountTrackedBranchesByRepo(ctx context.Context, repoID interfa
 
 const lastCommitByRepo = `-- name: LastCommitByRepo :many
 SELECT c.repo_id, c.sha, c.author_id, c.committer_id, c.message, c.authored_at, c.committed_at,
-       c.additions, c.deletions, c.stats_known, c.url, c.ai_rules_version,
+       c.additions, c.deletions, c.stats_known, c.url, c.ai_rules_version, c.parent_count,
        CAST(COALESCE((SELECT group_concat(s.tool || ':' || s.kind, ',') FROM commit_ai_signatures s
                       WHERE s.repo_id = c.repo_id AND s.sha = c.sha), '') AS TEXT) AS ai_signatures,
        CAST(COALESCE(a.name, '') AS TEXT) AS author_name,
@@ -551,6 +551,7 @@ type LastCommitByRepoRow struct {
 	StatsKnown       bool
 	URL              string
 	AiRulesVersion   int64
+	ParentCount      sql.NullInt64
 	AiSignatures     string
 	AuthorName       string
 	AuthorLogin      string
@@ -580,6 +581,7 @@ func (q *Queries) LastCommitByRepo(ctx context.Context, repoID interface{}) ([]L
 			&i.StatsKnown,
 			&i.URL,
 			&i.AiRulesVersion,
+			&i.ParentCount,
 			&i.AiSignatures,
 			&i.AuthorName,
 			&i.AuthorLogin,
@@ -658,7 +660,7 @@ func (q *Queries) LastSyncRunByRepo(ctx context.Context, repoID interface{}) ([]
 
 const listRecentCommits = `-- name: ListRecentCommits :many
 SELECT c.repo_id, c.sha, c.author_id, c.committer_id, c.message, c.authored_at, c.committed_at,
-       c.additions, c.deletions, c.stats_known, c.url, c.ai_rules_version,
+       c.additions, c.deletions, c.stats_known, c.url, c.ai_rules_version, c.parent_count,
        CAST(COALESCE((SELECT group_concat(s.tool || ':' || s.kind, ',') FROM commit_ai_signatures s
                       WHERE s.repo_id = c.repo_id AND s.sha = c.sha), '') AS TEXT) AS ai_signatures,
        r.owner AS repo_owner, r.name AS repo_name, r.label AS repo_label,
@@ -709,6 +711,7 @@ type ListRecentCommitsRow struct {
 	StatsKnown       bool
 	URL              string
 	AiRulesVersion   int64
+	ParentCount      sql.NullInt64
 	AiSignatures     string
 	RepoOwner        string
 	RepoName         string
@@ -752,6 +755,7 @@ func (q *Queries) ListRecentCommits(ctx context.Context, arg ListRecentCommitsPa
 			&i.StatsKnown,
 			&i.URL,
 			&i.AiRulesVersion,
+			&i.ParentCount,
 			&i.AiSignatures,
 			&i.RepoOwner,
 			&i.RepoName,

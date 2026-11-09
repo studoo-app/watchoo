@@ -32,8 +32,9 @@ const (
 )
 
 // formSignals calcule F1 à F5 pour chaque commit d'un auteur (g trié par date) ; seuls les commits dont la
-// forme est mesurée comptent, pour le commit comme pour l'historique.
-func formSignals(g []store.CommitSignalView) map[string][]Hit {
+// forme est mesurée comptent, pour le commit comme pour l'historique. opts règle la neutralisation de la
+// nouveauté « Conventional Commits » de F4 (conventions actives, phase 8.1).
+func formSignals(g []store.CommitSignalView, opts RhythmOptions) map[string][]Hit {
 	out := map[string][]Hit{}
 	var known []store.CommitSignalView
 	for _, c := range g {
@@ -91,7 +92,7 @@ func formSignals(g []store.CommitSignalView) map[string][]Hit {
 				hits = append(hits, statHit(SignalLexicon, f.LexicalDiversity, r.Median, z, true, true))
 			}
 		}
-		if h, ok := messageStyleHit(known[max(0, i-f4Previous):i], c); ok {
+		if h, ok := messageStyleHit(known[max(0, i-f4Previous):i], c, opts.conventionalNoveltyOff(c)); ok {
 			hits = append(hits, h)
 		}
 		if f.SourceLines-f.TestLines >= f5MinCode && f.TestLines >= f5MinTests && codeCommits >= MinHistory {
@@ -109,8 +110,10 @@ func formSignals(g []store.CommitSignalView) map[string][]Hit {
 // messageStyleHit calcule F4 : changement brusque du style du message de c par rapport aux f4Previous
 // messages précédents (prev) : longueur au-delà du seuil du score z modifié, ET une nouveauté de forme
 // absente de tous les messages précédents (liste d'au moins f4MinBullets lignes, ou sujet au format
-// Conventional Commits).
-func messageStyleHit(prev []store.CommitSignalView, c store.CommitSignalView) (Hit, bool) {
+// Conventional Commits). noConventional neutralise ce second critère (conventions actives et commit écrit à
+// partir de leur date de début : le format est alors demandé, il n'est plus une nouveauté) ; la nouveauté
+// par liste reste.
+func messageStyleHit(prev []store.CommitSignalView, c store.CommitSignalView, noConventional bool) (Hit, bool) {
 	if len(prev) < f4Previous {
 		return Hit{}, false
 	}
@@ -121,7 +124,7 @@ func messageStyleHit(prev []store.CommitSignalView, c store.CommitSignalView) (H
 		bullets = bullets || p.Form.MessageBullets >= f4MinBullets
 		conv = conv || p.Form.MessageConventional
 	}
-	novelty := (c.Form.MessageBullets >= f4MinBullets && !bullets) || (c.Form.MessageConventional && !conv)
+	novelty := (c.Form.MessageBullets >= f4MinBullets && !bullets) || (!noConventional && c.Form.MessageConventional && !conv)
 	if !novelty {
 		return Hit{}, false
 	}

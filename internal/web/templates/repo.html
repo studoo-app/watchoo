@@ -9,6 +9,8 @@
     « repo-pulls »        : pull requests, releases et tags (V2 ; GET /repos/{id}, HX-Target: repo-pulls) ;
     « repo-diagnostic »   : score et signaux du diagnostic (1.6.0, diagnostic activé ; GET /repos/{id},
                             HX-Target: repo-diagnostic) ;
+    « repo-conventions »  : taux de commits conformes aux conventions (1.7.0, conventions activées ;
+                            GET /repos/{id}, HX-Target: repo-conventions) ;
     « repo-commits »      : filtres, historique paginé (GET /repos/{id}/commits).
   Les graphiques (activité par jour ; activité par contributeur, template « contributors-chart » de
   partials.html) ne sont pas des fragments : HTMX retire les <script> des contenus échangés, données
@@ -48,6 +50,7 @@
   {{template "repo-languages" .}}
   {{template "repo-pulls" .}}
   {{if .Content.Diagnostic}}{{template "repo-diagnostic" .}}{{end}}
+  {{if .Content.Conventions}}{{template "repo-conventions" .}}{{end}}
   {{template "repo-commits" .}}
 </div>
 {{end}}
@@ -313,6 +316,91 @@
   </div>
 </section>
 {{end}}
+
+{{/* Conventions du dépôt (1.7.0). Donnée : PageData (Content.Conventions, de type RepoConventionsView,
+     repo_conventions.go ; nil si les conventions sont désactivées : rien n'est écrit). Des taux n/m
+     expliqués, jamais une note ; aucun message de commit (SHA court, auteur et codes). */}}
+{{define "repo-conventions"}}{{with .Content.Conventions}}{{$c := .}}
+<section id="repo-conventions" class="card bg-base-100 shadow-sm min-w-0" aria-labelledby="repo-conventions-title"
+         hx-get="{{repoPath $.Content.Repo.ID}}" hx-trigger="sync-finished from:body" hx-swap="outerHTML">
+  <div class="card-body p-4 md:p-6 space-y-4">
+    <h2 id="repo-conventions-title" class="card-title text-lg">{{t "web.conv.title"}}</h2>
+    <div role="note" class="alert alert-soft text-sm"><span>{{t "web.conv.notice"}}</span></div>
+    {{if $c.Unknown}}
+    <p class="text-sm text-base-content/70">{{t "web.conv.unknown"}}</p>
+    {{else}}
+    {{if not $c.Evaluated}}
+    <p class="text-sm text-base-content/70">{{t "web.conv.none"}}</p>
+    {{else}}
+    <div class="stats stats-vertical sm:stats-horizontal bg-base-200 w-full">
+      <div class="stat">
+        <div class="stat-title">{{t "web.conv.conform"}}</div>
+        <div class="stat-value tabular-nums">{{$c.Conform}}/{{$c.Evaluated}}</div>
+        <div class="stat-desc">{{t "web.percent" $c.Percent}} · {{t "web.conv.conform_desc"}}</div>
+      </div>
+      {{if $c.DefaultBranch}}
+      <div class="stat">
+        <div class="stat-title">{{t "web.conv.default_branch" $c.DefaultBranch}}</div>
+        <div class="stat-value text-2xl tabular-nums">{{if $c.DefaultEvaluated}}{{$c.DefaultConform}}/{{$c.DefaultEvaluated}}{{else}}—{{end}}</div>
+        <div class="stat-desc">{{if $c.DefaultEvaluated}}{{t "web.percent" $c.DefaultPercent}} · {{end}}{{t "web.conv.default_desc"}}</div>
+      </div>
+      {{end}}
+    </div>
+    {{end}}
+    <ul class="text-sm space-y-1">
+      <li>{{t "web.conv.excluded" $c.Excluded}}{{if $c.Exclusions}} ({{range $i, $e := $c.Exclusions}}{{if $i}}, {{end}}{{$e.Label}} {{$e.Count}}{{end}}){{end}}</li>
+      {{if $c.BeforeSince}}<li>{{t "web.conv.before_since" $c.BeforeSince}}</li>{{end}}
+      {{if not $c.Since.IsZero}}<li>{{t "web.conv.since" (localDate $c.Since) $c.SinceOrigin}}</li>{{end}}
+    </ul>
+    {{if $c.Issues}}
+    <div class="overflow-x-auto">
+      <table class="table table-sm">
+        <caption class="text-left text-sm font-medium pb-2">{{t "web.conv.issues_caption"}}</caption>
+        <thead><tr>
+          <th scope="col">{{t "web.conv.col_code"}}</th>
+          <th scope="col">{{t "web.conv.col_severity"}}</th>
+          <th scope="col" class="text-right">{{t "web.col.commits"}}</th>
+        </tr></thead>
+        <tbody>
+          {{range $c.Issues}}
+          <tr>
+            <td><code>{{.Code}}</code> <span class="text-sm text-base-content/70">{{.Label}}</span></td>
+            <td><span class="badge badge-sm {{if .Blocking}}badge-error{{else}}badge-warning{{end}}">{{.Severity}}</span></td>
+            <td class="text-right tabular-nums">{{.Count}}</td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+    {{end}}
+    {{if $c.Failing}}
+    <div class="overflow-x-auto">
+      <table class="table table-sm">
+        <caption class="text-left text-sm font-medium pb-2">{{t "web.conv.failing_caption" (len $c.Failing) $c.FailingTotal}}</caption>
+        <thead><tr>
+          <th scope="col">Date</th>
+          <th scope="col">{{t "web.col.contributor"}}</th>
+          <th scope="col">SHA</th>
+          <th scope="col">{{t "web.conv.col_codes"}}</th>
+        </tr></thead>
+        <tbody>
+          {{range $c.Failing}}
+          <tr>
+            <td class="whitespace-nowrap"><time datetime="{{isoTime .Date}}">{{localDate .Date}}</time></td>
+            <td>{{if .Author}}{{truncate 30 .Author}}{{else}}-{{end}}</td>
+            <td class="font-mono">{{shortSHA .SHA}}</td>
+            <td class="text-sm">{{range $i, $code := .Codes}}{{if $i}}, {{end}}<code>{{$code}}</code>{{end}}</td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+    {{end}}
+    {{end}}
+    <p class="text-xs text-base-content/60">{{if $c.Database}}{{t "web.conv.source_database"}}{{else}}{{t "web.conv.source_clone"}}{{end}}{{if $c.ParentsUnknown}} {{t "web.conv.parents_unknown" $c.ParentsUnknown}}{{end}}</p>
+  </div>
+</section>
+{{end}}{{end}}
 
 {{/* Pull requests, releases et tags (V2). Donnée : PageData (Content.Pulls, de type RepoPullsView). */}}
 {{define "repo-pulls"}}{{$p := .Content.Pulls}}

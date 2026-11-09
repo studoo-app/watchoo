@@ -76,6 +76,22 @@ func existingCommitSHAs(ctx context.Context, q *db.Queries, repoID int64, shas [
 	return known, nil
 }
 
+// UnknownParentSHAs renvoie, par ordre croissant, au plus limit SHA (limit > 0) des commits du dépôt
+// repoID dont le nombre de parents est inconnu (parent_count NULL), strictement après after (vide =
+// depuis le début) : pagination du rattrapage par le clone Git local (8.1).
+func (s *Store) UnknownParentSHAs(ctx context.Context, repoID int64, after string, limit int) ([]string, error) {
+	if limit <= 0 {
+		return nil, errors.New(i18n.T("store.sync.no_parents_limit", repoID, limit))
+	}
+	shas, err := s.queries.ListUnknownParentSHAs(ctx, db.ListUnknownParentSHAsParams{
+		RepoID: repoID, AfterSha: after, RowLimit: int64(limit),
+	})
+	if err != nil {
+		return nil, wrapErr(i18n.T("store.sync.no_parents", repoID), err)
+	}
+	return shas, nil
+}
+
 // UnknownStatsSHAs renvoie, par ordre croissant, au plus limit SHA (limit > 0) des commits du dépôt
 // repoID dont les statistiques sont inconnues (stats_known = 0) ou dont les langages ont été lus avec
 // une version de règles inférieure à languagesVersion (0 : langages ignorés), strictement après after
@@ -101,7 +117,7 @@ func (s *Store) UnknownStatsSHAs(ctx context.Context, repoID, languagesVersion i
 //  2. branches : chaque w.Branches créée ou mise à jour (head_sha, tracked = 1) ; les autres branches
 //     du dépôt passent à tracked = 0 ;
 //  3. commits : chaque SHA absent de la base est inséré (INSERT … ON CONFLICT DO NOTHING : un commit
-//     déjà en base n'est jamais modifié), avec author_id / committer_id résolus selon les règles
+//     déjà en base n'est jamais modifié), parent_count compris (NULL si inconnu), avec author_id / committer_id résolus selon les règles
 //     d'identité ci-dessous, les commits étant traités par CommittedAt croissant (puis SHA) pour que
 //     le nom le plus récent l'emporte ;
 //  4. commit_branches : une ligne par (commit, branche de CommitWrite.Branches), commits déjà connus
@@ -109,7 +125,8 @@ func (s *Store) UnknownStatsSHAs(ctx context.Context, repoID, languagesVersion i
 //     w.Stats (additions, deletions, stats_known = 1) des commits en base dont elles sont inconnues,
 //     SHA inconnus ignorés ;
 //     langages (commit_languages remplacées, languages_version = w.LanguagesVersion) des nouveaux
-//     commits et des w.Stats qui en ont (1.2.0) ;
+//     commits et des w.Stats qui en ont (1.2.0) ; puis nombre de parents w.ParentCounts (8.1) des
+//     commits en base dont il est inconnu, SHA inconnus ignorés ;
 //  5. last_commit_at = max(committed_at) des commits liés à une branche suivie (NULL si aucun) ;
 //  6. pull requests (V2) : chaque w.PullRequests créée ou mise à jour en entier ; releases et tags
 //     remplacés par w.Releases et w.Tags si w.ReplaceReleases / w.ReplaceTags (doublons ignorés) ;
@@ -196,6 +213,14 @@ func (s *Store) ApplyRepoSync(ctx context.Context, w RepoSyncWrite) (RepoSyncRes
 			}
 		}
 
+		for _, pc := range w.ParentCounts {
+			if _, err := q.SetCommitParentCount(ctx, db.SetCommitParentCountParams{
+				ParentCount: sql.NullInt64{Int64: int64(pc.Parents), Valid: true}, RepoID: w.RepoID, SHA: pc.SHA,
+			}); err != nil {
+				return wrapErr(i18n.T("store.sync.commit_parents", shortSHA(pc.SHA)), err)
+			}
+		}
+
 		if err := writeExtras(ctx, q, w); err != nil {
 			return err
 		}
@@ -275,6 +300,9 @@ func prepareRepoSync(w RepoSyncWrite) ([]CommitWrite, error) {
 		if c.AuthoredAt.IsZero() || c.CommittedAt.IsZero() {
 			return nil, errors.New(i18n.T("store.sync.commit_no_date", shortSHA(c.SHA)))
 		}
+		if c.ParentCount != nil && *c.ParentCount < 0 {
+			return nil, errors.New(i18n.T("store.sync.parents_negative", shortSHA(c.SHA)))
+		}
 		for _, name := range c.Branches {
 			if !branches[name] {
 				return nil, errors.New(i18n.T("store.sync.commit_branch", shortSHA(c.SHA), name))
@@ -299,6 +327,14 @@ func prepareRepoSync(w RepoSyncWrite) ([]CommitWrite, error) {
 			return nil, errors.New(i18n.T("store.sync.stats_no_sha"))
 		case st.Additions < 0 || st.Deletions < 0:
 			return nil, errors.New(i18n.T("store.sync.stats_negative", shortSHA(st.SHA)))
+		}
+	}
+	for _, pc := range w.ParentCounts {
+		switch {
+		case pc.SHA == "":
+			return nil, errors.New(i18n.T("store.sync.parents_no_sha"))
+		case pc.Parents < 0:
+			return nil, errors.New(i18n.T("store.sync.parents_negative", shortSHA(pc.SHA)))
 		}
 	}
 	if languages && w.LanguagesVersion <= 0 {
@@ -526,6 +562,7 @@ func insertCommit(ctx context.Context, q *db.Queries, ids *identityResolver, rep
 		Deletions:   int64(c.Deletions),
 		StatsKnown:  c.StatsKnown,
 		URL:         c.URL,
+		ParentCount: nullInt(c.ParentCount),
 	})
 	if err != nil {
 		return 0, wrapErr(i18n.T("store.sync.commit_record", shortSHA(c.SHA)), err)

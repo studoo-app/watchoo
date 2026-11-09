@@ -31,7 +31,7 @@ func TestFormSignals(t *testing.T) {
 		MessageLength: 400, MessageBullets: 4, MessageConventional: true,
 	}
 	views = append(views, odd)
-	got := formSignals(views)
+	got := formSignals(views, RhythmOptions{})
 	if len(got) != 1 {
 		t.Fatalf("form signals: %+v", got)
 	}
@@ -67,7 +67,7 @@ func TestFormSignalsNeedHistoryAndKnownForm(t *testing.T) {
 	odd := view(1, "odd", day0.AddDate(0, 0, 10), 30, 2, 2)
 	odd.Form = model.CommitForm{Known: true, SourceLines: 60, CommentLines: 30, Functions: 5,
 		DocumentedFunctions: 5, TestLines: 20, MessageLength: 400, MessageConventional: true}
-	if got := formSignals(append(views, odd)); len(got) != 0 {
+	if got := formSignals(append(views, odd), RhythmOptions{}); len(got) != 0 {
 		t.Errorf("short history: %+v", got)
 	}
 
@@ -76,7 +76,7 @@ func TestFormSignalsNeedHistoryAndKnownForm(t *testing.T) {
 	for i := range views {
 		views[i].Form.Known = false
 	}
-	if got := formSignals(append(views, odd)); len(got) != 0 {
+	if got := formSignals(append(views, odd), RhythmOptions{}); len(got) != 0 {
 		t.Errorf("unknown forms counted: %+v", got)
 	}
 
@@ -84,7 +84,7 @@ func TestFormSignalsNeedHistoryAndKnownForm(t *testing.T) {
 	views = formHistory(25)
 	long := view(1, "long", day0.AddDate(0, 0, 25), 10, 2, 1)
 	long.Form = model.CommitForm{Known: true, MessageLength: 400}
-	if got := formSignals(append(views, long)); len(got) != 0 {
+	if got := formSignals(append(views, long), RhythmOptions{}); len(got) != 0 {
 		t.Errorf("long message without novelty: %+v", got)
 	}
 }

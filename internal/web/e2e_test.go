@@ -199,3 +199,65 @@ func TestWebEndToEnd(t *testing.T) {
 		}
 	}
 }
+
+// End to end with the conventions enabled (1.7.0): a repository with a conforming commit, two commits
+// without type and a merge (excluded), synced from the button through the real GitHub provider; the
+// repository section and the contributor line show the rates, never a commit message. No local clone
+// here: the scope falls back on the database.
+func TestWebEndToEndConventions(t *testing.T) {
+	srv := githubtest.NewServer(t, githubtest.Options{Now: func() time.Time { return testNow },
+		Token: authtest.FakeToken})
+	t.Cleanup(srv.Close)
+	cache, quota := github.NewCache(0, 0), github.NewQuota()
+	e := newTestEnv(t, withConventions(), withProvider(func(token string) (provider.Provider, error) {
+		return github.New(token, github.Options{BaseURL: srv.URL(), Cache: cache, Quota: quota,
+			UserAgent: "watchoo/test", Logger: slog.Default()})
+	}))
+	alice := githubtest.Person{Name: "Alice Martin", Email: "alice@example.test", Login: "alice-gh"}
+	commit := func(msg string, ago time.Duration, parents ...string) string {
+		return srv.AddCommit(1, githubtest.Commit{Message: msg, Author: alice, AuthoredAt: testNow.Add(-ago),
+			Parents: parents, Additions: 3, Deletions: 1})
+	}
+	srv.AddRepo(githubtest.Repo{ID: 1, Owner: "alice", Name: "projet", Private: true})
+	c1 := commit("e2e-premier-jet", 5*time.Hour)
+	c2 := commit("feat: e2e-ajoute la page", 4*time.Hour, c1)
+	d1 := commit("e2e-essai-dev", 3*time.Hour, c1)
+	merge := commit("Merge branch 'dev' e2e-fusion", 2*time.Hour, c2, d1)
+	srv.SetBranch(1, "main", merge)
+	srv.SetBranch(1, "dev", d1)
+
+	w := e.post("/settings/repos", url.Values{"repo": {"alice/projet"}}, false)
+	assertStatus(t, w, http.StatusSeeOther)
+	loc, err := url.Parse(w.Header().Get("Location"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	id, err := strconv.ParseInt(loc.Query().Get("repo"), 10, 64)
+	if err != nil {
+		t.Fatalf("repository identifier %q", loc.Query().Get("repo"))
+	}
+	assertStatus(t, e.post("/sync", nil, true), http.StatusOK)
+	if st := e.waitSyncIdle(); !st.HasReport || st.LastReport.NewCommits() != 4 {
+		t.Fatalf("sync report = %+v", st.LastReport)
+	}
+
+	messages := []string{"e2e-premier-jet", "e2e-ajoute", "e2e-essai-dev", "e2e-fusion"}
+	w = e.get(repoPath(id))
+	assertStatus(t, w, http.StatusOK)
+	assertContains(t, w, `id="repo-conventions"`, "1/3", "33%", "Excluded commits, counted apart: 1 (merges 1)",
+		"<code>no_type</code>", "Latest non-conforming commits (2 of 2)", "may include rewritten commits")
+	section := conventionsSection(t, w.Body.String())
+	for _, m := range messages {
+		if strings.Contains(section, m) {
+			t.Errorf("commit message %q in the conventions section", m)
+		}
+	}
+	// Refresh of the fragment after a sync.
+	w = e.htmxWith(repoPath(id), map[string]string{"HX-Target": repoConventionsID})
+	assertContains(t, w, `id="repo-conventions"`, "1/3")
+	assertNotContains(t, w, messages...)
+
+	w = e.get("/contributors/" + strconv.FormatInt(e.contributorIDs()["Alice Martin"], 10))
+	assertStatus(t, w, http.StatusOK)
+	assertContains(t, w, `id="contributor-conventions"`, "Conforming commits 1/3 (33%)", "1 excluded")
+}

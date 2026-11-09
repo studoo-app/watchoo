@@ -74,6 +74,9 @@ type ContributorView struct {
 	// liste des contributeurs : pistes de ses commits (auteur) et de ses pull requests (login).
 	Diagnostic bool
 	Diag       diagnostic.Summary
+	// Conventions : ligne « Commits conformes n/m (x %) », tous dépôts confondus (1.7.0,
+	// repo_conventions.go) ; nil si les conventions sont désactivées ou hors de la page complète.
+	Conventions *contributorConventions
 }
 
 // contributorLanguages est la carte « Langages » d'un contributeur : les contributorLanguagesShown
@@ -225,6 +228,9 @@ func (s *server) contributorView(r *http.Request, id int64, full bool) (Contribu
 		return ContributorView{}, err
 	}
 	view.Repos = s.contributorRepoRows(repos, summaries, now)
+	if view.Conventions, err = s.contributorConventionsOf(r, id); err != nil {
+		return ContributorView{}, err
+	}
 
 	// Une seule lecture pour les deux graphiques : depuis le plus ancien de leurs débuts.
 	since := activity.SeriesStart(now, activity.ChartDays, s.loc)

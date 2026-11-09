@@ -48,6 +48,9 @@ type CommitWrite struct {
 	// StatsKnown : Additions et Deletions ont été calculées (même à 0) ; faux = inconnues
 	// (commits.stats_known = 0, reprises plus tard par RepoSyncWrite.Stats).
 	StatsKnown bool
+	// ParentCount est le nombre de parents du commit (0 = racine, 2 ou plus = fusion ; 8.1) ; nil =
+	// inconnu (commits.parent_count NULL, rattrapé plus tard par RepoSyncWrite.ParentCounts).
+	ParentCount *int
 	// Languages : lignes ajoutées par langage (1.2.0), lues avec RepoSyncWrite.LanguagesVersion ; nil =
 	// inconnues (commits.languages_version = 0, reprises plus tard par RepoSyncWrite.Stats).
 	Languages map[string]int
@@ -65,6 +68,13 @@ type CommitStatsWrite struct {
 	// Languages : lignes ajoutées par langage (1.2.0), lues avec RepoSyncWrite.LanguagesVersion ; nil =
 	// non lues (langages inchangés).
 	Languages map[string]int
+}
+
+// CommitParentsWrite est le nombre de parents d'un commit déjà en base dont il était inconnu, lu dans le
+// clone Git local pendant une synchro (rattrapage des commits enregistrés avant la migration 00016).
+type CommitParentsWrite struct {
+	SHA     string // SHA complet
+	Parents int    // nombre de parents (>= 0)
 }
 
 // BranchState est une branche suivie après filtrage, avec sa tête actuelle sur la forge.
@@ -110,6 +120,10 @@ type RepoSyncWrite struct {
 	// Commits peut donc y figurer) : additions, deletions et stats_known = 1. Un SHA absent de la base
 	// est ignoré.
 	Stats []CommitStatsWrite
+	// ParentCounts sont les nombres de parents rattrapés pendant la synchro (8.1), écrits APRÈS les
+	// commits : parent_count des commits en base dont il est inconnu (un nombre connu n'est jamais
+	// réécrit) ; un SHA absent de la base est ignoré.
+	ParentCounts []CommitParentsWrite
 	// LanguagesVersion est la version des règles de langages (git.LanguageRulesVersion, > 0) avec
 	// laquelle les Languages des Commits et des Stats ont été lus ; obligatoire si l'un d'eux en a.
 	LanguagesVersion int64

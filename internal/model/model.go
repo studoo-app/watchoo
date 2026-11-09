@@ -54,6 +54,10 @@ type Repository struct {
 	// En base : colonne branch_patterns, valeurs séparées par des virgules (un motif ne contient donc
 	// jamais de virgule).
 	BranchPatterns []string
+	// ConventionsSince est la date de début des conventions propre au dépôt, date du calendrier
+	// AAAA-MM-JJ (interprétée à minuit dans le fuseau de l'espace) ; vide = date de l'espace
+	// (conventions.since). En base : colonne conventions_since, minuit UTC de la date au format fixe.
+	ConventionsSince string
 }
 
 // FullName renvoie « owner/name ».
@@ -136,6 +140,26 @@ type Commit struct {
 	Deletions   int       // lignes supprimées (0 si inconnues)
 	StatsKnown  bool      // Additions et Deletions calculées (même à 0) ; faux = inconnues
 	URL         string    // lien vers le commit sur la forge
+	// ParentCount est le nombre de parents (0 = racine, 1 = ordinaire, 2 ou plus = fusion) ; nil =
+	// inconnu (commit enregistré avant la migration 00016, pas encore rattrapé par le clone).
+	ParentCount *int
+}
+
+// ConventionCommit est un commit lu pour les conventions (phase 8.1, internal/conventions) : le message
+// n'est lu qu'en mémoire pour être analysé, jamais gardé ni affiché ni journalisé.
+type ConventionCommit struct {
+	SHA             string
+	Message         string    // message de commit (donnée personnelle)
+	ParentCount     *int      // nombre de parents ; nil = inconnu (commits.parent_count NULL)
+	AuthoredAt      time.Time // date d'écriture, UTC
+	AuthorID        int64     // auteur (contributeur) ; 0 = inconnu
+	AuthorName      string    // nom de l'auteur ; vide si inconnu
+	AuthorLogin     string    // login de forge de l'auteur ; vide si inconnu
+	AuthorEmails    []string  // adresses rattachées à l'auteur
+	CommitterLogin  string    // login de forge du committer ; vide si inconnu
+	CommitterEmails []string  // adresses rattachées au committer
+	OnTracked       bool      // rattaché à une branche suivie (commit_branches)
+	OnDefault       bool      // rattaché à la branche par défaut du dépôt (commit_branches)
 }
 
 // AISignature est une signature d'outil d'IA déclarée dans un commit (commit_ai_signatures) : elle dit

@@ -9,6 +9,45 @@ PATCH (see [Skills](documentation/en/11-skills.md#versions-and-changelogmd)).
 
 ## [Unreleased]
 
+### Added
+
+- **Project conventions settings** (phase 8.1): a `conventions:` block in `config.yaml` (`enabled`, off by
+  default; `since`, start date `YYYY-MM-DD`; `commit.types`, `commit.scopes`, `commit.max_subject_soft` and
+  `commit.max_subject_hard`, `commit.forbidden`, `commit.language`; `excluded_accounts`), with the defaults
+  of the charter and the `WATCHOO_CONVENTIONS_*` variables. The charter (`since` and `commit.*`) is shared
+  by `watchoo config export / import` and the Settings page under `settings.conventions`; `enabled` and
+  `excluded_accounts` never are. A sharing file containing this key is refused by earlier versions.
+- **Per-repository conventions start date** (phase 8.1): `watchoo repo add --conventions-since YYYY-MM-DD`
+  (`""` goes back to `conventions.since`), quoted in the report and below the `repo list` table, exposed
+  as `conventions_since` in the repository object of `--json` (`null` = date of the workspace) and in
+  `config import --json`, and shared by `watchoo config export / import` (key written only for a
+  repository that has one).
+- **`watchoo conventions [owner/repo] [--commits] [--failing] [--contributor X]`** (phase 8.1): rates of
+  commits conforming to the Conventional Commits charter, for the trainer only, when `conventions.enabled`:
+  per repository the rate `n/m` over all the tracked branches (read from the local clone with `git
+  rev-list`, otherwise from the database with the mention "may include rewritten commits"), the default
+  branch alone for information, the exclusions (merges, bots, GitHub initial commit, excluded accounts),
+  the commits before the start date and the issues by code; per contributor the rate and the codes;
+  with `--commits` / `--failing`, the evaluated commits (short SHA, author, codes). No grade, never a
+  commit message, exit code `0` whatever the rates. `--json`: `enabled`, `rules_version`,
+  `repositories`, `contributors`, `commits`, `notice`, `filters`.
+- Web interface: a **Conventions** section on the repository page (`repo-conventions` fragment: rate,
+  default branch, exclusions, issues by code, latest non-conforming commits, scope) and a line
+  "Conforming commits n/m (x%)" on a contributor's page, only when the conventions are enabled.
+- **Migration `00016`**: `commits.parent_count` (number of parents, written at insertion, backfilled for
+  the existing commits by the local Git clone at every sync, whether the conventions are enabled or not)
+  and `repositories.conventions_since`.
+
+### Changed
+
+- **Diagnosis with the conventions enabled** (phase 8.1): a squash merge made by GitHub (subject ending in
+  "(#n)", GitHub committer) no longer raises A1, and A2 only counts the author's other commits (A7
+  unchanged); a Conventional Commits subject is no longer a novelty for F4 from the conventions start date.
+  Computed when reading, nothing stored; with `conventions.enabled: false` the diagnosis is unchanged.
+- **Configuration sharing file** (phase 8.1): `settings.conventions` (the charter: `since` and `commit.*`)
+  and, per repository, `conventions_since` (only when the repository has its own date). The format stays at
+  version `1`; a file containing these keys is refused by versions 1.6.1 and earlier.
+
 ## [1.6.1] - 2026-11-04
 
 A link to the documentation, in the language of the web interface, and a link to the GitHub repository; in the

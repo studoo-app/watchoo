@@ -14,9 +14,12 @@
 //     (workspace.WriteSharedSettings), puis ajoute ou met à jour les dépôts
 //     (wsync.Engine.AddRepositories, accès vérifié). Rien n'est jamais retiré.
 //
+// Partagées : les conventions de projet (settings.conventions : date de début et règles des commits),
+// sauf conventions.enabled et conventions.excluded_accounts.
+//
 // Jamais partagés : name, github.* (dont gh_path : un fichier venu d'ailleurs ne doit jamais choisir
 // le programme lancé), git.* (protocole des clones Git locaux), web.*, token, commits, contributeurs,
-// e-mails, chemins locaux.
+// e-mails, chemins locaux, diagnostic.*, conventions.enabled, conventions.excluded_accounts (logins).
 package configshare
 
 import (
@@ -100,6 +103,25 @@ type Settings struct {
 	// Lang est la langue de l'interface web (« en » ou « fr ») ; clé facultative, ajoutée sans
 	// changer la version du format (un fichier sans elle reste valide).
 	Lang *string `json:"lang,omitempty"`
+	// Conventions est la charte des conventions de projet (conventions.*, sauf enabled et
+	// excluded_accounts) ; clé facultative, ajoutée sans changer la version du format.
+	Conventions *ConventionsSettings `json:"conventions,omitempty"`
+}
+
+// ConventionsSettings : conventions.since (AAAA-MM-JJ, "" = depuis le début) et conventions.commit.*.
+type ConventionsSettings struct {
+	Since  *string                    `json:"since,omitempty"`
+	Commit *ConventionsCommitSettings `json:"commit,omitempty"`
+}
+
+// ConventionsCommitSettings : conventions.commit.* (listes : [] = aucune entrée ; scopes vide = tous).
+type ConventionsCommitSettings struct {
+	Types          *[]string `json:"types,omitempty"`
+	Scopes         *[]string `json:"scopes,omitempty"`
+	MaxSubjectSoft *int      `json:"max_subject_soft,omitempty"`
+	MaxSubjectHard *int      `json:"max_subject_hard,omitempty"`
+	Forbidden      *[]string `json:"forbidden,omitempty"`
+	Language       *string   `json:"language,omitempty"`
 }
 
 // SyncSettings : sync.auto, sync.interval (durée Go écrite en chaîne : « 30m », « 1h30m », « 0 »),
@@ -138,6 +160,10 @@ type Repository struct {
 	// existants (nouveau dépôt : ceux de l'espace), 0 = revenir au seuil de l'espace.
 	FlemmeAfterDays *int `json:"flemme_after_days,omitempty"`
 	DeadAfterDays   *int `json:"dead_after_days,omitempty"`
+	// ConventionsSince est la date de début des conventions propre au dépôt, AAAA-MM-JJ (phase 8.1).
+	// Export ne l'écrit que pour un dépôt qui en a une, comme les seuils. À l'import, absent ou null =
+	// garder la date existante (nouveau dépôt : celle de l'espace), "" = revenir à la date de l'espace.
+	ConventionsSince *string `json:"conventions_since,omitempty"`
 }
 
 // Store est ce dont configshare a besoin de la base ; *store.Store le satisfait.
@@ -160,7 +186,8 @@ type ExportOptions struct {
 // Export renvoie le document de partage de l'espace : nom de l'espace (ws.Config.Name), réglages
 // communs EN VIGUEUR (ws.Config, après fusion des fichiers et des variables WATCHOO_*), et dépôts dont
 // le suivi est actif (Enabled), triés par owner/name sans tenir compte de la casse, avec label,
-// motifs ([] = toutes les branches) et seuils d'activité propres (s'il y en a). Aucun appel à gh ni à la forge.
+// motifs ([] = toutes les branches), seuils d'activité et date de début des conventions propres (s'il
+// y en a). Aucun appel à gh ni à la forge.
 func Export(ctx context.Context, ws *workspace.Workspace, st Store, opts ExportOptions) (*Document, error) {
 	if ws == nil || st == nil {
 		return nil, errors.New(i18n.T("configshare.export.no_workspace"))
@@ -196,14 +223,24 @@ func Export(ctx context.Context, ws *workspace.Workspace, st Store, opts ExportO
 			Label:    r.Label,
 			Branches: branches,
 			// Copies : le document ne partage rien avec les dépôts lus.
-			FlemmeAfterDays: clonePtr(r.FlemmeAfterDays),
-			DeadAfterDays:   clonePtr(r.DeadAfterDays),
+			FlemmeAfterDays:  clonePtr(r.FlemmeAfterDays),
+			DeadAfterDays:    clonePtr(r.DeadAfterDays),
+			ConventionsSince: sincePtr(r.ConventionsSince),
 		})
 	}
 	slices.SortFunc(doc.Repositories, func(a, b Repository) int {
 		return cmp.Or(strings.Compare(strings.ToLower(a.Repo), strings.ToLower(b.Repo)), strings.Compare(a.Repo, b.Repo))
 	})
 	return doc, nil
+}
+
+// sincePtr renvoie nil pour une date vide (date de l'espace : clé absente du document), sinon un
+// pointeur vers une copie.
+func sincePtr(date string) *string {
+	if date == "" {
+		return nil
+	}
+	return &date
 }
 
 // clonePtr renvoie une copie de *p, ou nil.
@@ -218,19 +255,27 @@ func clonePtr(p *int) *int {
 // settingsFromConfig renvoie tous les réglages communs de c.
 func settingsFromConfig(c workspace.Config) *Settings {
 	interval := formatDuration(c.Sync.Interval)
-	exclude := slices.Clone(c.Branches.Exclude)
-	if exclude == nil {
-		exclude = []string{}
-	}
+	shared := workspace.SharedSettingsFrom(c) // listes copiées, jamais nil
 	return &Settings{
 		Sync: &SyncSettings{Auto: &c.Sync.Auto, Interval: &interval, Parallelism: &c.Sync.Parallelism},
 		Activity: &ActivitySettings{
 			FlemmeAfterDays: &c.Activity.FlemmeAfterDays,
 			DeadAfterDays:   &c.Activity.DeadAfterDays,
 		},
-		Branches: &BranchesSettings{Exclude: &exclude},
+		Branches: &BranchesSettings{Exclude: shared.BranchesExclude},
 		Timezone: &c.Timezone,
 		Lang:     &c.Lang,
+		Conventions: &ConventionsSettings{
+			Since: shared.ConventionsSince,
+			Commit: &ConventionsCommitSettings{
+				Types:          shared.ConventionsTypes,
+				Scopes:         shared.ConventionsScopes,
+				MaxSubjectSoft: shared.ConventionsMaxSubjectSoft,
+				MaxSubjectHard: shared.ConventionsMaxSubjectHard,
+				Forbidden:      shared.ConventionsForbidden,
+				Language:       shared.ConventionsLanguage,
+			},
+		},
 	}
 }
 

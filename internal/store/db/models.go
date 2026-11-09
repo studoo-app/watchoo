@@ -30,6 +30,7 @@ type Commit struct {
 	StatsKnown       bool
 	AiRulesVersion   int64
 	LanguagesVersion int64
+	ParentCount      sql.NullInt64
 }
 
 type CommitAiSignature struct {
@@ -148,23 +149,24 @@ type Release struct {
 }
 
 type Repository struct {
-	ID              int64
-	Provider        string
-	ProviderID      sql.NullInt64
-	Owner           string
-	Name            string
-	Label           string
-	DefaultBranch   string
-	URL             string
-	Stars           int64
-	OpenIssues      int64
-	LastSyncedAt    sql.NullString
-	LastCommitAt    sql.NullString
-	Archived        bool
-	FlemmeAfterDays sql.NullInt64
-	DeadAfterDays   sql.NullInt64
-	Enabled         bool
-	BranchPatterns  string
+	ID               int64
+	Provider         string
+	ProviderID       sql.NullInt64
+	Owner            string
+	Name             string
+	Label            string
+	DefaultBranch    string
+	URL              string
+	Stars            int64
+	OpenIssues       int64
+	LastSyncedAt     sql.NullString
+	LastCommitAt     sql.NullString
+	Archived         bool
+	FlemmeAfterDays  sql.NullInt64
+	DeadAfterDays    sql.NullInt64
+	Enabled          bool
+	BranchPatterns   string
+	ConventionsSince sql.NullString
 }
 
 type RepositoryLanguage struct {

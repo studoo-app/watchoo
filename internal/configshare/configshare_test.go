@@ -48,6 +48,11 @@ func TestExport(t *testing.T) {
 	t.Setenv("WATCHOO_TIMEZONE", "UTC") // the EFFECTIVE value is exported, variable included
 	e := newEnv(t, "licence-projet")
 	e.ws.Config.Timezone = "UTC"
+	// conventions.*: shared except enabled and excluded_accounts (logins).
+	e.ws.Config.Conventions = workspace.ConventionsConfig{Enabled: true, Since: "2026-09-01",
+		Commit: workspace.ConventionsCommitConfig{Types: []string{"feat", "fix"}, Scopes: nil,
+			MaxSubjectSoft: 50, MaxSubjectHard: 72, Forbidden: []string{"wip"}, Language: "any"},
+		ExcludedAccounts: []string{"prof-secret"}}
 	e.track(1, "zoe", "projet", "Zoé Leroy")
 	e.track(2, "Alice", "projet", "Alice Martin", "main", "release/*")
 	stopped := e.track(3, "carol", "projet", "Carol")
@@ -83,7 +88,23 @@ func TestExport(t *testing.T) {
       "exclude": []
     },
     "timezone": "UTC",
-    "lang": "en"
+    "lang": "en",
+    "conventions": {
+      "since": "2026-09-01",
+      "commit": {
+        "types": [
+          "feat",
+          "fix"
+        ],
+        "scopes": [],
+        "max_subject_soft": 50,
+        "max_subject_hard": 72,
+        "forbidden": [
+          "wip"
+        ],
+        "language": "any"
+      }
+    }
   },
   "repositories": [
     {
@@ -107,7 +128,8 @@ func TestExport(t *testing.T) {
 	if string(data) != want {
 		t.Errorf("export:\n%s\nwant:\n%s", data, want)
 	}
-	for _, forbidden := range []string{"github.", "gh_path", "web", "addr", authtest.FakeToken, "@", e.ws.Root, "carol"} {
+	for _, forbidden := range []string{"github.", "gh_path", "web", "addr", authtest.FakeToken, "@", e.ws.Root, "carol",
+		"enabled", "excluded_accounts", "prof-secret", "diagnostic"} {
 		if forbidden == "github." || forbidden == "web" {
 			var m map[string]any
 			_ = json.Unmarshal(data, &m)

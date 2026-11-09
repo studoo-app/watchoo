@@ -346,6 +346,19 @@ func TestParseThreshold(t *testing.T) {
 	}
 }
 
+func TestParseConventionsSince(t *testing.T) {
+	for in, want := range map[string]string{"": "", "  ": "", "2026-09-01": "2026-09-01", " 2024-02-29 ": "2024-02-29"} {
+		if got, err := ParseConventionsSince(in); err != nil || got != want {
+			t.Errorf("ParseConventionsSince(%q) = %q, %v; want %q", in, got, err, want)
+		}
+	}
+	for _, in := range []string{"2026-9-1", "01/09/2026", "2026-02-30", "2026-09-01T00:00:00Z", "demain"} {
+		if _, err := ParseConventionsSince(in); err == nil || !strings.Contains(err.Error(), "YYYY-MM-DD") {
+			t.Errorf("ParseConventionsSince(%q): error %v", in, err)
+		}
+	}
+}
+
 func TestValidateThresholds(t *testing.T) {
 	ok := [][2]*int{{nil, nil}, {intp(3), nil}, {nil, intp(2)}, {intp(3), intp(4)}, {intp(0), intp(2)}, {intp(5), intp(0)}, {intp(0), intp(0)}}
 	for _, c := range ok {

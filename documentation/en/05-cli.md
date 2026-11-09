@@ -36,7 +36,7 @@ stars. The choice is made again at each sync (see
 | --- | --- | --- |
 | `watchoo init` | Makes the current directory a workspace: checks `gh` (without `gh`: `git`), then creates `.watchoo/` with the config and the SQLite database. Refuses if the workspace already exists | MVP (without `gh`: V2) |
 | `watchoo version` | Prints the Watchoo version, the compiled commit and its date, the Go version and the platform (`watchoo --version` does the same). Works outside a workspace and without `gh` | MVP |
-| `watchoo repo add owner/repo [--branch main,dev,release/*] [--label "Alice Martin"] [--flemme 3] [--dead 10]` | Adds a repository to watch (all its branches by default), with an optional display label and own activity thresholds | MVP (thresholds: V2) |
+| `watchoo repo add owner/repo [--branch main,dev,release/*] [--label "Alice Martin"] [--flemme 3] [--dead 10] [--conventions-since YYYY-MM-DD]` | Adds a repository to watch (all its branches by default), with an optional display label, own activity thresholds and own conventions start date | MVP (thresholds: V2; conventions date: 1.7.0) |
 | `watchoo repo import file.csv [--dry-run]` | Adds a list of repositories in one go (e.g. those of a class of students), checks access to each one and prints a summary | MVP |
 | `watchoo repo list` | Table: repository, last commit, author, state (Active / Slacking / Dead) | MVP |
 | `watchoo repo remove owner/repo [--keep-history] [--yes]` | Stops tracking and deletes the repository history (and its local Git clone) after confirmation (`--keep-history` to keep them) | MVP |
@@ -48,6 +48,7 @@ stars. The choice is made again at each sync (see
 | `watchoo languages [--repo X]` | Languages of the tracked repositories, with their percentage | 1.1.0 |
 | `watchoo diagnostic [--repo X] [--author Y] [--since 30d]` | Reflection leads of the diagnosis, **for the trainer only**: commits and pull requests that declare the use of an AI tool (level "declared": signals D1, D2, D3, D5), commits whose rhythm and form converge (level "probable": at least two R signals and one F signal), and commits or days with a rhythm or form unusual for the learner (level "to review": one signal R1 to R6, or two signals F1 to F5; an F signal alone raises nothing), absolute signals A1 to A7 for projects delivered in few commits and traces of human work H1 to H4 that lower "probable" (phase 7.7), with their signals, the D4 context of the repositories and the histories still too short. A lead is never a verdict. Diagnosis disabled: the command says so, without an error (see [Supervision and diagnosis](12-supervision-diagnostic.md)) | 7.2 (rhythm: 7.3; form: 7.5) |
 | `watchoo diagnostic backfill [--repo X]` | Measures on the local clones the history already stored without signals (commits synced before the diagnosis was enabled), and completes the form (F1 to F5) of the commits measured before phase 7.5, within the retention period, merges excluded | 7.3 |
+| `watchoo conventions [owner/repo] [--commits] [--failing] [--contributor X]` | Rates of commits conforming to the [project conventions](13-conventions.md) (CC1 to CC4), **for the trainer only**: per repository, per contributor and, with `--commits`, per commit (short SHA, author and issue codes, never the message). No overall grade. Conventions disabled: the command says so, without an error | 1.7.0 |
 | `watchoo status` | Summary: up-to-date, inactive and in-error repositories, source of the syncs (GitHub API or local Git repositories), remaining API quota, the `gh` account in use and its scopes (without showing the token) | MVP (source: V2) |
 | `watchoo serve [--addr 127.0.0.1:8080] [--interval 30m]` | Starts the web interface and the periodic sync (30 min by default, 15 min minimum) | MVP |
 | `watchoo tui [--interval 30m]` | Opens the interactive mode in the terminal | MVP |
@@ -65,10 +66,16 @@ stars. The choice is made again at each sync (see
   the repository, in days without a commit, instead of the workspace ones
   (`activity.flemme_after_days`, `activity.dead_after_days`); each one is optional and independent,
   `0` means the workspace threshold. A threshold is at most 3,650 days and, when both are given,
-  `--dead` must be strictly greater than `--flemme` (otherwise refusal before any call to GitHub). An
-  already tracked repository is not added twice: its label, its branches and its thresholds are updated
-  if they are given, and tracking resumes if it had been stopped. The report quotes the own thresholds
-  ("thresholds: flemme 3 d, dead 10 d"). Access is checked with
+  `--dead` must be strictly greater than `--flemme` (otherwise refusal before any call to GitHub).
+  `--conventions-since YYYY-MM-DD` (1.7.0) sets the **start date of the [conventions](13-conventions.md)**
+  for this repository, instead of `conventions.since`: a calendar date, read at midnight in the time zone
+  of the workspace; `--conventions-since ""` goes back to the date of the workspace; another form or an
+  impossible date is refused before any call to GitHub. An
+  already tracked repository is not added twice: its label, its branches, its thresholds and its
+  conventions start date are updated if they are given, and tracking resumes if it had been stopped. The
+  report quotes the own thresholds ("thresholds: flemme 3 d, dead 10 d") and the own date ("conventions
+  since 2026-09-01"); `repo list` adds below the table one line per repository that has its own date.
+  The import file of `repo import` has no column for this date. Access is checked with
   GitHub (one request); `repo add` does not start a sync. Without `gh` (V2), access is checked with
   `git ls-remote`, cloning nothing: a failure gives "access denied: check the SSH key or the Git credentials of this machine"; the repository is
   recorded without a GitHub ID (`provider_id` unknown, resolved at the first sync through the API) and
@@ -153,6 +160,26 @@ stars. The choice is made again at each sync (see
   `share` in JSON), relative to the commits of the ranking: with `--repo`, those of the repository; with
   `--since` or `--weeks`, those of the period. A commit without a known author does not count. The table
   of `--weeks` has no such column, the JSON does. The TUI gives this share in the detail of a repository.
+- **`conventions`** (1.7.0) evaluates the commit messages with the strict parser of the charter
+  (`conventions.commit.*` settings, see [Project conventions](13-conventions.md#51-commits-cc)). **No
+  grade**: a table per repository gives the rate `n/m` (commits without blocking issue / commits evaluated)
+  and the percentage ("—" without evaluated commit: unknown, not 0%), the informative view of the default
+  branch alone, the number of excluded commits, the effective start date and the source of the scope;
+  then, per repository, the start date and its origin (workspace or own to the repository), the exclusions
+  by reason (merges, bots, GitHub initial commit, accounts of `conventions.excluded_accounts`), the commits
+  before the start date (counted apart) and the issues by code with their label and severity (blocking or
+  warning); finally a table of the contributors (rate and codes received, sorted by name, never ranked).
+  The scope is **all the tracked branches**, each commit once, read from the existing local Git clone
+  (`git rev-list` of the tracked `origin/<branch>`, without `fetch`); without a readable clone, it falls
+  back on the commits attached to the tracked branches in the database (source "database", marked with an
+  asterisk and the mention "may include rewritten commits"). A commit whose parent count is still unknown
+  is recognized as a merge by its default message (a line says so). `owner/repo` limits to one tracked
+  repository; `--contributor` to one author (exact login, name or e-mail); `--commits` adds the list of the
+  evaluated commits (date, repository, short SHA, author, "conform" or "not conform" and codes) and
+  `--failing` limits it to the commits that do not conform (it implies `--commits`). **The commit message
+  is never shown**, neither in text nor in JSON. The exit code is `0` whatever the rates (no `--strict`
+  option). Conventions disabled (`conventions.enabled: false`, the default): a message says so; in JSON,
+  `enabled: false` and empty lists.
 - **`status`**: `gh` account and its scopes, **source** of the syncs (V2: "Source: GitHub API (gh signed
   in)" or "Source: local Git clones (repos/ in the workspace), …", with the `gh auth login` reminder),
   remaining quota (reading it is free; "not applicable: local Git clones, no quota" with the local Git
@@ -222,6 +249,7 @@ Every setting of `config.yaml` can be overridden by a `WATCHOO_<SECTION>_<KEY>` 
 | `WATCHOO_GITHUB_USER`, `WATCHOO_GITHUB_GH_PATH` | `github.*` settings |
 | `WATCHOO_GIT_PROTOCOL` | `git.protocol` setting |
 | `WATCHOO_DIAGNOSTIC_ENABLED`, `WATCHOO_DIAGNOSTIC_EXCLUDE`, `WATCHOO_DIAGNOSTIC_RETENTION_DAYS`, `WATCHOO_DIAGNOSTIC_SPEED_SIGNAL` | `diagnostic.*` settings (`exclude`: list; see [Supervision and diagnosis](12-supervision-diagnostic.md)) |
+| `WATCHOO_CONVENTIONS_ENABLED`, `WATCHOO_CONVENTIONS_SINCE`, `WATCHOO_CONVENTIONS_COMMIT_TYPES`, `WATCHOO_CONVENTIONS_COMMIT_SCOPES`, `WATCHOO_CONVENTIONS_COMMIT_MAX_SUBJECT_SOFT`, `WATCHOO_CONVENTIONS_COMMIT_MAX_SUBJECT_HARD`, `WATCHOO_CONVENTIONS_COMMIT_FORBIDDEN`, `WATCHOO_CONVENTIONS_COMMIT_LANGUAGE`, `WATCHOO_CONVENTIONS_EXCLUDED_ACCOUNTS` | `conventions.*` settings (`types`, `scopes`, `forbidden`, `excluded_accounts`: lists; `since`: `YYYY-MM-DD`; see [Project conventions](13-conventions.md#8-configuration)) |
 | `WATCHOO_DIR` | Workspace to use (like `-C`) |
 | `WATCHOO_WEB_PASSWORD` | Password of the web interface (never in a file) |
 | `WATCHOO_LOG_LEVEL` | Log level (`debug`, `info`, `warn` by default, `error`) |
@@ -283,16 +311,19 @@ Top-level keys (the list is checked by a test, `internal/cli/json_schema_test.go
 | `watchoo status` | `workspace`, `github`, `source`, `rate_limit`, `rate_limit_error`, `quota_low`, `repositories`, `errors`, `last_synced_at`, `tracked_branches` | `workspace`: `name`, `root`; `github`: `ok`, `host`, `login`, `token_source`, `scopes`, `error`; `source` (V2): `kind` (`api`, `git`, or `""` if `gh` is down) and `reason` (why the local Git repositories, or the `gh` error); `repositories`: `total`, `active`, `flemme`, `dead`, `error`, `never_synced`, `archived`, `empty`, `stopped`; each error: `repo`, `message` |
 | `watchoo diagnostic` | `enabled`, `leads`, `contexts`, `histories`, `notice`, `filters` | `enabled`: `diagnostic.enabled` setting (false: empty lists); each lead: `kind` (`commit`, `pull_request` or `day`), `level` (`declared`, `probable` or `to_review`), `repository`, `sha`, `short_sha` (empty except for a commit), `number` (0 except for a PR), `title` (PR title, empty otherwise), `url`, `author` (`name`, `login`, `display_name`), `date` (commit author date, PR opening, or start of the day), `signals` (each signal: `id` among `D1`, `D2`, `D3`, `D5`, `R1` to `R6`, `F1` to `F5`, `A1` to `A7`, `H1` to `H4` (counter-indicators, phase 7.7); `value`: tool, bot account, branch or measure; `raw`, `median`, `z`: measure, personal median (F5: usual share of commits with tests) and modified z-score of the rhythm and form signals, `null` when there is none); each context: `repository`, `agent_config_since`; each history: `repository`, `author`, `commits`, `worked_days`, `sufficient`; `notice`: translated reminder; `filters`: `repository`, `author`, `since` |
 | `watchoo diagnostic backfill` | `repositories`, `measured` | Each repository: `repository`, `measured` (commits measured), `merges` (merges set aside), `missing` (missing from the clone), `error` (empty on success); exit code `1` if a repository failed |
+| `watchoo conventions` | `enabled`, `rules_version`, `repositories`, `contributors`, `commits`, `notice`, `filters` | 1.7.0. `enabled`: `conventions.enabled` setting (false: empty lists); `rules_version`: version of the parser rules; each repository: `repository`, `source` (`clone` or `database`, a fallback that may include rewritten commits), `since` (effective start date `"YYYY-MM-DD"`, `null` = from the beginning), `since_origin` (`workspace`, `repository` or `null`), `commits` (`evaluated`, `conform`, `rate` (to the thousandth, `null` without evaluated commit), `excluded` (`merge`, `bot`, `initial_commit`, `excluded_account`), `issues` (each `code`, `severity`: `blocking` or `warning`, `count`, `shas`)), `before_since` (commits before the start date), `parents_unknown` (commits with an unknown parent count), `default_branch` (`name`, `evaluated`, `conform`, `rate`, informative view); each contributor: `author` (`name`, `login`, `display_name`), `commits` (same keys as for a repository); `commits` (`[]` without `--commits` or `--failing`): each `repository`, `sha`, `short_sha`, `author`, `date`, `conform`, `codes`, never the message; `notice`: translated reminder; `filters`: `repository`, `contributor`, `commits`, `failing` |
 | `watchoo update` | `current`, `latest`, `update_available`, `release_url` | Only with `--check` (see [Self-update](#self-update-watchoo-update)); `watchoo update --json` without `--check` is refused |
 | `watchoo config export` | `format`, `version`, `exported_at`, `watchoo_version`, `workspace`, `settings`, `repositories` | The sharing document itself (see [Configuration sharing](#configuration-sharing-watchoo-config)), with or without `--json`; with `-o`, it goes to the file and standard output only receives one confirmation line in text (nothing with `--json`) |
-| `watchoo config import` | `file`, `dry_run`, `applied`, `source`, `settings`, `repositories`, `summary`, `warnings` | `source`: `workspace_name`, `watchoo_version`, `exported_at` (as written in the file); `settings`: `changes` (each `key`, `before`, `after`, `env_var`), `rewrite`, `written`, `backup_file`; each repository: `index`, `repo`, `action` (`add`, `update`, `unchanged`, `inaccessible`, `error`), `reenable`, `before` (`label`, `branches`, `flemme_after_days`, `dead_after_days` (`null` = workspace threshold), `enabled`; `null` for an addition), `after`, `outcome` (like `repo import`, `""` as long as nothing is applied), `error`; `summary`: `added`, `already_tracked`, `updated`, `reenabled` (among `updated`), `inaccessible`, `errors` (predicted with `--dry-run`, obtained otherwise); each warning: `code` (`env_override`, `comments_lost`), `key`, `message` |
+| `watchoo config import` | `file`, `dry_run`, `applied`, `source`, `settings`, `repositories`, `summary`, `warnings` | `source`: `workspace_name`, `watchoo_version`, `exported_at` (as written in the file); `settings`: `changes` (each `key`, `before`, `after`, `env_var`), `rewrite`, `written`, `backup_file`; each repository: `index`, `repo`, `action` (`add`, `update`, `unchanged`, `inaccessible`, `error`), `reenable`, `before` (`label`, `branches`, `flemme_after_days`, `dead_after_days` (`null` = workspace threshold), `conventions_since` (1.7.0, `"YYYY-MM-DD"`, `null` = date of the workspace), `enabled`; `null` for an addition), `after`, `outcome` (like `repo import`, `""` as long as nothing is applied), `error`; `summary`: `added`, `already_tracked`, `updated`, `reenabled` (among `updated`), `inaccessible`, `errors` (predicted with `--dry-run`, obtained otherwise); each warning: `code` (`env_override`, `comments_lost`), `key`, `message` |
 
 Shared objects:
 
 - **repository**: `id`, `full_name`, `owner`, `name`, `label`, `display_name`, `url`, `default_branch`,
   `branch_patterns` (`[]` = all branches), `flemme_after_days` and `dead_after_days` (own thresholds of
   the repository, `null` = workspace threshold; the applied thresholds are in the activity object),
-  `enabled`, `archived`, `stars`, `open_issues`, `last_synced_at`, `last_commit_at`;
+  `conventions_since` (1.7.0: own conventions start date of the repository, `"YYYY-MM-DD"`, `null` =
+  date of the workspace), `enabled`, `archived`, `stars`, `open_issues`, `last_synced_at`,
+  `last_commit_at`;
 - **commit**: `repository` (`id`, `full_name`, `display_name`), `sha`, `short_sha`, `message`, `url`,
   `author` (`name`, `login`, `display_name`), `authored_at`, `committed_at`, `additions`, `deletions`,
   `stats_known` (0.5.0: `true` if `additions` and `deletions` have been computed, even at 0; `false` if
@@ -589,7 +620,18 @@ sharing student data or a machine-specific setting.
       "exclude": []
     },
     "timezone": "",
-    "lang": "en"
+    "lang": "en",
+    "conventions": {
+      "since": "2026-09-01",
+      "commit": {
+        "types": ["feat", "fix", "docs", "style", "refactor", "perf", "test", "build", "ci", "chore", "revert"],
+        "scopes": [],
+        "max_subject_soft": 50,
+        "max_subject_hard": 72,
+        "forbidden": ["update", "maj", "wip", "test", "modif", "fix", "dépôt 1", "."],
+        "language": "any"
+      }
+    }
   },
   "repositories": [
     {
@@ -608,13 +650,15 @@ sharing student data or a machine-specific setting.
 | `version` | Version of the format, `1` (required). A greater version is refused: "file created by a newer version of Watchoo" |
 | `exported_at`, `watchoo_version` | Export date (UTC, RFC 3339) and version of Watchoo that made it; informative, optional |
 | `workspace.name` | Name of the exported workspace; informative: the import never renames the workspace |
-| `settings` | Common settings, values **in effect** in the exported workspace (files and `WATCHOO_*` variables included): `sync.auto`, `sync.interval` (Go duration in quotes: `"30m"`, `"1h30m"`, `"0"`), `sync.parallelism`, `activity.flemme_after_days`, `activity.dead_after_days`, `branches.exclude`, `timezone`, `lang` (`"en"` or `"fr"`; optional key of version 1: a file without it remains valid) |
-| `repositories` | Repositories whose tracking is active (stopped repositories are not exported), sorted by `owner/repo`: `provider` (`github`), `repo` (`owner/repo`), `label` (display label, `""` without one), `branches` (tracked patterns, `[]` = all branches), and, **only for a repository that has them**, `flemme_after_days` and `dead_after_days` (own thresholds, in days). These two keys are optional in version 1 of the format: a file without own thresholds stays readable by the versions of Watchoo that do not know them |
+| `settings` | Common settings, values **in effect** in the exported workspace (files and `WATCHOO_*` variables included): `sync.auto`, `sync.interval` (Go duration in quotes: `"30m"`, `"1h30m"`, `"0"`), `sync.parallelism`, `activity.flemme_after_days`, `activity.dead_after_days`, `branches.exclude`, `timezone`, `lang` (`"en"` or `"fr"`; optional key of version 1: a file without it remains valid), `conventions` (charter of the [project conventions](13-conventions.md#8-configuration): `since`, `"YYYY-MM-DD"` or `""`, and `commit`: `types`, `scopes`, `max_subject_soft`, `max_subject_hard`, `forbidden`, `language`; optional key of version 1, added in 1.7.0: a file without it remains valid, but a file containing it is refused by earlier versions, which accept no unknown key) |
+| `repositories` | Repositories whose tracking is active (stopped repositories are not exported), sorted by `owner/repo`: `provider` (`github`), `repo` (`owner/repo`), `label` (display label, `""` without one), `branches` (tracked patterns, `[]` = all branches), and, **only for a repository that has them**, `flemme_after_days` and `dead_after_days` (own thresholds, in days) and `conventions_since` (1.7.0: own conventions start date, `"YYYY-MM-DD"`). These keys are optional in version 1 of the format: a file without own thresholds or date stays readable by the versions of Watchoo that do not know them; a file that contains `conventions_since` is refused by the versions before 1.7.0 |
 
 **Never exported**: the settings specific to the machine or to the person (`name` of the file,
 `github.*`: `gh` account and path of `gh`, which a file coming from elsewhere must never be able to
 change; `git.*`: protocol of the local Git repositories, which depends on the credentials of the machine;
-`web.*`: listen address, authentication, reverse proxy, accepted names), the token, the commits,
+`web.*`: listen address, authentication, reverse proxy, accepted names; `diagnostic.*`;
+`conventions.enabled`, a choice specific to the workspace, and `conventions.excluded_accounts`, which holds
+logins), the token, the commits,
 the contributors, the e-mails, the sync dates and any local path. The file therefore contains only
 repository names, display labels and settings; it can still reveal the list of tracked students: share
 it only with the people concerned.
@@ -638,7 +682,8 @@ The file comes from another person: it is **untrusted data**, fully validated be
    repository: `provider` absent or `github`, `repo` of the form `owner/repo` (or GitHub URL), present
    only once (case-insensitive), valid `label` (like `repo add --label`), valid branch patterns (like
    `--branch`, no comma), valid own thresholds (like `--flemme` and
-   `--dead`); settings valid once merged with those of the
+   `--dead`), valid conventions start date (like `--conventions-since`: `"YYYY-MM-DD"` or `""`);
+   settings valid once merged with those of the
    workspace (same rules as `config.yaml`, e.g. `dead_after_days` greater than `flemme_after_days`),
    including once the set `WATCHOO_*` variables are reapplied: the preview therefore refuses everything
    that the write would refuse (e.g. `WATCHOO_ACTIVITY_DEAD_AFTER_DAYS=10` and an import of
@@ -646,8 +691,9 @@ The file comes from another person: it is **untrusted data**, fully validated be
    `settings` and `repositories` are optional, each setting too: a file may contain only repositories,
    or only a time zone.
 2. **Preview**, always printed before applying:
-   - repositories **to add**, **to update** (display label, branches and own thresholds, before → after,
-     `workspace` for the workspace threshold; stopped repository **to resume**), **unchanged**;
+   - repositories **to add**, **to update** (display label, branches, own thresholds and conventions
+     start date, before → after,
+     `workspace` for the workspace threshold or date; stopped repository **to resume**), **unchanged**;
    - changed settings (key, current value → imported value); an identical setting is not listed. A
      setting masked by a set `WATCHOO_*` variable is compared with its value **in the files** (user file
      then `config.yaml`), not with the one of the variable: it is the one the import rewrites, and
@@ -666,7 +712,8 @@ The file comes from another person: it is **untrusted data**, fully validated be
 4. **Applying**, in this order:
    - **settings**: if at least one setting changes, `.watchoo/config.yaml` is **rewritten** from the
      commented template of `watchoo init`, imported settings uncommented. The machine-specific keys
-     already present in the file (`name`, `github.*`, `git.*`, `web.*`) and the common settings that the
+     already present in the file (`name`, `github.*`, `git.*`, `web.*`, `diagnostic.*`,
+     `conventions.enabled`, `conventions.excluded_accounts`) and the common settings that the
      imported file does not give are **kept as is**. The old file is copied to
      `.watchoo/config.yaml.bak` (`0600`, replaced at each import). The new file is written next to it
      (`0600`), read back and validated, and compared with the expected values before replacing the old
@@ -678,7 +725,8 @@ The file comes from another person: it is **untrusted data**, fully validated be
      tracking **resumes if it was stopped** (like `repo add`). An empty `label` keeps the existing
      display label; `branches` absent (or `null`) keeps the existing branches, `[]` means all branches;
      `flemme_after_days` or `dead_after_days` absent (or `null`) keeps the existing threshold, `0` goes
-     back to the workspace threshold.
+     back to the workspace threshold; `conventions_since` absent (or `null`) keeps the existing date,
+     `""` goes back to the date of the workspace.
      An inaccessible repository is reported without blocking the others. **No repository is ever
      removed** and no sync is started.
 5. **Summary**: settings written (and `.bak` copy), then repositories added, already tracked, updated,

@@ -53,6 +53,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/studoo-app/watchoo/internal/conventions"
 	"github.com/studoo-app/watchoo/internal/diagnostic"
 	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/model"
@@ -89,6 +90,9 @@ type RepoManager interface {
 	// CommitEvidence relit un commit sur le clone local existant et renvoie, par signal, les lignes qui
 	// déclenchent ses mesures de forme (jamais gardées ni journalisées) ; found faux sans clone.
 	CommitEvidence(ctx context.Context, repo model.Repository, sha string) (map[string]diagnostic.Evidence, bool, error)
+	// ConventionsClones donne l'accès en lecture aux clones locaux existants (périmètre des conventions,
+	// 1.7.0) ; nil sans clones (repli sur la base).
+	ConventionsClones(ctx context.Context) (conventions.CloneReader, error)
 }
 
 // UpdateSource donne la nouvelle version de Watchoo connue du processus (bandeau de toutes les pages) ;
