@@ -289,10 +289,12 @@ func (p *Provider) gitEnv(ctx context.Context) []string {
 }
 
 // repoEnv sont les variables d'environnement qui feraient travailler git sur un autre dépôt que le
-// clone désigné : retirées de l'environnement de git.
+// clone désigné, ou qui changeraient le sens des pathspecs (les pistes de la phase 8.7 écrivent leur
+// magie explicitement, « :(top,exclude,literal) ») : retirées de l'environnement de git.
 var repoEnv = []string{"GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY",
 	"GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_COMMON_DIR", "GIT_NAMESPACE", "GIT_CEILING_DIRECTORIES",
-	"GIT_DISCOVERY_ACROSS_FILESYSTEM"}
+	"GIT_DISCOVERY_ACROSS_FILESYSTEM", "GIT_LITERAL_PATHSPECS", "GIT_GLOB_PATHSPECS", "GIT_NOGLOB_PATHSPECS",
+	"GIT_ICASE_PATHSPECS"}
 
 // isRepoEnv indique si kv (« NOM=valeur ») est l'une des variables de repoEnv.
 func isRepoEnv(kv string) bool {

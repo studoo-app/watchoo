@@ -90,13 +90,37 @@ func TestParseMarkdownLinks(t *testing.T) {
 		{Target: "img/logo.png", Image: true},
 		{Target: "mon fichier.md"},
 		{Target: ""},
-		{Target: "./CHANGELOG.md", Def: true},
-		{Target: "docs/a b.md", Def: true},
+		{Target: "./CHANGELOG.md", Def: true, Label: "ref"},
+		{Target: "docs/a b.md", Def: true, Label: "autre"},
 		{Target: "a.md"},
 		{Target: "b_(1).md"},
 	}
 	if !reflect.DeepEqual(doc.Links, want) {
 		t.Errorf("liens = %+v\nattendu %+v", doc.Links, want)
+	}
+}
+
+func TestParseMarkdownFences(t *testing.T) {
+	src := "```bash\nnpm ci\n```\n# Titre\n\n## Installation\n\n~~~ Shell {.numbered}\nx\n~~~\n" +
+		"```{.mermaid}\ngraph TD\n```\n### Sous-titre\n````\n```js\n````\n<!--\n```python\n-->\n"
+	doc := parseMarkdown([]byte(src))
+	want := []mdFence{{Info: "bash", Heading: -1}, {Info: "shell", Heading: 2}, {Info: "mermaid", Heading: 2},
+		{Info: "", Heading: 4}}
+	if !reflect.DeepEqual(doc.Fences, want) {
+		t.Errorf("blocs = %+v\nattendu %+v", doc.Fences, want)
+	}
+	if doc.Lines[2].Text != "Installation" || doc.Lines[4].Text != "Sous-titre" {
+		t.Errorf("titres = %+v", doc.Lines)
+	}
+	// Les blocs n'entrent ni dans les lignes ni dans les mots.
+	if doc.Words != 4 {
+		t.Errorf("mots = %d", doc.Words)
+	}
+	if got := headingChain(doc, 4); !reflect.DeepEqual(got, []int{4, 2, 0}) {
+		t.Errorf("headingChain = %v", got)
+	}
+	if headingChain(doc, -1) != nil || headingChain(doc, 99) != nil {
+		t.Error("headingChain hors bornes")
 	}
 }
 

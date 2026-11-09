@@ -28,6 +28,10 @@ var _ conventions.HistoryReader = (*gitprov.Provider)(nil)
 // Vérifie à la compilation que le provider des clones sait lire le premier parent (phase 8.5 : PR3).
 var _ conventions.FirstParentReader = (*gitprov.Provider)(nil)
 
+// Vérifie à la compilation que le provider des clones sait lire l'historique des pistes (phase 8.7 : DOC9,
+// DOC10, TL5).
+var _ conventions.LeadHistoryReader = (*gitprov.Provider)(nil)
+
 // ConventionsClones renvoie l'accès en lecture aux clones Git locaux existants de l'espace (périmètre
 // des conventions : git rev-list des branches suivies), sans les mettre à jour ; nil si les clones sont
 // désactivés ou si le provider ne sait pas les lire (repli sur la base). Erreur seulement pour la base.
@@ -123,7 +127,7 @@ func (e *Engine) updateConventionFiles(ctx context.Context, s *repoSync, repoID 
 		if r, ok := cached[t.Kind+"/"+t.Tag]; ok && conventions.FileCacheFresh(r, t.SHA, hash) {
 			continue
 		}
-		raw, err := e.computeConventionFiles(ctx, fr, s, t, tags, rules, now)
+		raw, err := e.computeConventionFiles(ctx, fr, s, repoID, t, tags, rules, now)
 		if err != nil {
 			failed++
 			firstErr = firstError(firstErr, err)
@@ -148,17 +152,40 @@ func (e *Engine) updateConventionFiles(ctx context.Context, s *repoSync, repoID 
 	}
 }
 
-// computeConventionFiles lit l'arbre de la révision t dans le clone et en mesure les critères de fichiers ;
-// renvoie le résultat encodé (codes, états, compteurs). Les chemins et contenus ne restent qu'en mémoire.
-func (e *Engine) computeConventionFiles(ctx context.Context, fr conventions.FileReader, s *repoSync,
+// computeConventionFiles lit l'arbre de la révision t dans le clone et en mesure les critères de fichiers
+// (et, sur la tête, les pistes de l'arbre de la phase 8.7) ; renvoie le résultat encodé (codes, états,
+// compteurs). Les chemins, contenus et sujets de commit ne restent qu'en mémoire.
+func (e *Engine) computeConventionFiles(ctx context.Context, fr conventions.FileReader, s *repoSync, repoID int64,
 	t conventions.FileTarget, tags []model.Tag, rules conventions.FileRules, now time.Time) (string, error) {
 	tree, err := conventions.ReadFileTree(ctx, fr, s.owner, s.name, t.SHA, rules)
 	if err != nil {
 		return "", err
 	}
-	res, _ := conventions.CheckFiles(tree, conventions.FileOptionsFor(t, s.owner+"/"+s.name, tags, rules,
-		now.In(e.conventionsLocation())))
+	opts := conventions.FileOptionsFor(t, s.owner+"/"+s.name, tags, rules, now.In(e.conventionsLocation()))
+	if t.Kind == model.ConventionRevHead {
+		// CL12 : sujets des commits du dépôt en base (écrits juste avant par cette synchro), comparés en
+		// mémoire aux puces du CHANGELOG, jamais gardés. Seulement quand la tête est recalculée.
+		if opts.Subjects, err = e.conventionSubjects(ctx, repoID); err != nil {
+			return "", err
+		}
+	}
+	res, _ := conventions.CheckFiles(tree, opts)
 	return conventions.EncodeFileResults(res)
+}
+
+// conventionSubjects renvoie les sujets des commits du dépôt connus en base (CL12), en mémoire seulement.
+func (e *Engine) conventionSubjects(ctx context.Context, repoID int64) ([]string, error) {
+	commits, err := e.store.ConventionCommits(ctx, repoID, 0)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]string, 0, len(commits))
+	for _, c := range commits {
+		if s := conventions.Subject(c.Message); s != "" {
+			out = append(out, s)
+		}
+	}
+	return out, nil
 }
 
 // conventionsLocation renvoie le fuseau de l'espace (jour des dates futures de CL4) ; UTC s'il ne se lit pas.

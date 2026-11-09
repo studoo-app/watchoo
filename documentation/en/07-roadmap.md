@@ -199,8 +199,9 @@ Importing a whole organization and the alerts move to V3 (see
   and phase **8.5** (merges read with no extra request: merge SHA, fork origin, sections of the PR
   descriptions, merge methods; PR3, PR5, PR6, BR2, BR5, forks set aside from PR1, PR2, PR5, PR6, BR1 and BR2, PR3 in the
   milestone review) and phase **8.6** (reviews: one request per merged pull request, counters only; PR4,
-  merged without review, reviews received, PR4 in the milestone review) **done, not released**; phase 8.7
-  to plan. Branch protection (BR3) postponed.
+  merged without review, reviews received, PR4 in the milestone review) and phase **8.7** (leads that invite
+  a reread without judging, outside the grids and the rates: CL11, CL12, RD5, DOC6, DOC7, DOC9, DOC10, TL4,
+  TL5) **done, not released**: phase 8 is done, except branch protection (BR3), postponed.
 
 ## Definition of "done" for each phase
 

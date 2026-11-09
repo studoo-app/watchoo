@@ -282,6 +282,16 @@ classement sur les signatures, aucune adresse affichée. Règles :
   donne, dans `repo-conventions-reviews`, « Pull requests fusionnées relues par un autre compte : r/k (u pas
   encore lues). » puis « Fusionnées sans relecture (n) : » avec le numéro et l'auteur (lien vers sa page) de
   chacune, au plus 20. Des compteurs seulement : aucun relecteur, aucun corps de relecture, aucun titre.
+  Depuis 1.13.0 (phase 8.7), la section se termine par un **bloc replié de pistes**
+  (`repo-conventions-leads`, titre « Pistes : k à relire »), avec une note qui rappelle qu'elles invitent à
+  relire et ne jugent pas : elles n'entrent dans aucune grille, aucun taux ni aucune revue de jalon. Chaque
+  piste (CL11, CL12, RD5, DOC6, DOC7, DOC9, DOC10, TL4, TL5, voir [Conventions de
+  projet](13-conventions.md#55-changelog-cl)) a une pastille neutre (« rien à relire », « sans objet »,
+  « inconnue » avec sa raison) ou d'information (« à relire »), jamais une pastille conforme ou non
+  conforme, puis ses codes avec le nombre d'éléments, ses compteurs et, pour DOC9 et TL5, ses dates. DOC9,
+  DOC10 et TL5 et la liste des **images cassées** (DOC7, `source → cible`) sont recalculées depuis le clone
+  local pour cette page seulement, jamais stockées. Ni valeur d'en-tête, ni cellule de l'INDEX, ni sujet de
+  commit n'est affiché. `/conventions` n'affiche aucune piste.
 - Bouton **« Synchroniser ce dépôt »** (absent si le suivi est arrêté).
 - Fragments : `/repos/{id}/commits` (historique) ; `/repos/{id}` avec l'en-tête `HX-Target`
   `repo-overview`, `repo-contributors`, `repo-languages`, `repo-pulls`, `repo-diagnostic` ou

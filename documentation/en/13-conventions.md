@@ -3,8 +3,8 @@
 [← Contents](README.md)
 
 **Status**: **maintainer decision** (phase 8, November 8, 2026); the choices are recorded in
-[section 11](#11-maintainer-decisions). Phases 8.1 to 8.6 done, not released; the next phases start after their
-plan is approved. The scope exception is carried over into the [Vision](01-vision.md); the updates to
+[section 11](#11-maintainer-decisions). Phases 8.1 to 8.7 done, not released; only BR3 (branch protection) remains
+postponed. The scope exception is carried over into the [Vision](01-vision.md); the updates to
 [Features](02-features.md), [Data model](04-data-model.md), [CLI](05-cli.md) and
 [Web interface](06-web-interface.md) follow phase by phase.
 
@@ -328,8 +328,8 @@ The `CHANGELOG.md` blob is read in memory from the clone (at most 1 MiB); code b
 | CL8 | Consistent tags and sections | Tag `vX.Y.Z` without a section, dated section without a tag (`[YANKED]` exempt); date gap shown without being counted | tag | database + clone | both | H | P1 |
 | CL9 | Up to date at the tag | In `<tag>:CHANGELOG.md`, the `## [X.Y.Z]` section exists; result cached per (tag, SHA) | milestone | clone | both | H | P1 |
 | CL10 | Freshness | Number of `feat` and `fix` on the default branch since the last commit that touched the CHANGELOG; grayed out if CL9 is compliant | repository | clone + database | both | M | P2 |
-| CL11 | Comparison links | `[X]: url` definition for each heading; outside the total | repository | clone | both | M | P3 |
-| CL12 | Copy of `git log` | At least 10 bullets, of which at least 60% are identical to a commit subject, or at least 20% SHAs or "Merge"; only the percentages are stored; "to reread" | repository | clone + database | both | L | P3 |
+| CL11 | Comparison links | `[X]: url` definition for each heading; lead, outside the total | repository | clone | both | M | P3 |
+| CL12 | Copy of `git log` | At least 10 bullets, of which at least 60% are identical to a commit subject, or at least 20% SHAs or "Merge"; only the percentages and two sample sizes are stored; "to look at" lead | repository | clone + database | both | L | P3 |
 
 ### 5.6 README (RD)
 
@@ -350,13 +350,14 @@ The `CHANGELOG.md` blob is read in memory from the clone (at most 1 MiB); code b
 | DOC3 | Exhaustive INDEX | Number of `*.md` files in `documentation/` (excluding INDEX and `Media/`) that no INDEX link targets; duplicate INDEX rows | repository, tag | clone | both | H | P1 |
 | DOC4 | Dead links | Relative links of the README, the INDEX and the documents whose target does not exist; a case difference is flagged as such | repository | clone | both | H | P1 |
 | DOC5 | Naming | Folders `^\d{2}-[a-z0-9]+(-[a-z0-9]+)*$`; files in lowercase with hyphens, no space or accent (exceptions: `INDEX.md`, `README.md`, and `Media/` with its capital letter, allowed by the charter) | repository, tag | clone | both | H | P1 |
-| DOC6 | Document headers | Title, purpose, scope, author, date, version: front matter or "Key: value" lines in the first 40 lines; counters per field | repository | clone | both | M | P2 |
-| DOC7 | Diagrams and images | Relative images present or broken, external images (badges excluded), `mermaid` blocks, `Media/` folder | repository | clone | both | H | P2 |
+| DOC6 | Document headers | Title, purpose, scope, author, date, version: front matter or "Key: value" lines in the first 40 lines; counters per field, never the values; lead | repository | clone | both | M | P2 |
+| DOC7 | Diagrams and images | Relative images present or broken, external images (badges excluded), `mermaid` blocks, `Media/` folder; lead | repository | clone | both | H | P2 |
 | DOC8 | Archives | `.zip`, `.rar`, `.7z`, `.tar`, `.tar.gz`, `.tgz`, `.tar.bz2`, `.tar.xz` (case ignored) **in the whole repository** (maintainer decision); `.docx` and `.pdf` files under `documentation/` are flagged as information | repository, tag | clone | both | H | P1 |
 | DOC9 | Freshness | Dates of the last commit on `documentation/`, the INDEX, the CHANGELOG and the code; commits outside the documentation since; lead | repository | clone | both | M | P2 |
-| DOC10 | Declared dates | Date in the INDEX column compared to the document's last commit | document | clone | both | L | P3 |
+| DOC10 | Declared dates | Date in the INDEX column compared to the document's last commit; at most 50 documents; lead | document | clone | both | L | P3 |
 
-The lists of DOC3, DOC4 and DOC5 (paths) are recomputed at display time; only the counters are stored.
+The lists of DOC3, DOC4 and DOC5 (paths) and the list of broken images of DOC7 are recomputed at display
+time; only the counters are stored.
 
 ### 5.8 Tooling (TL)
 
@@ -365,8 +366,8 @@ The lists of DOC3, DOC4 and DOC5 (paths) are recomputed at display time; only th
 | TL1 | commitlint configured | Configuration file (depth ≤ 2) or `commitlint` / `@commitlint/cli` key in `package.json`; sub-state "extends config-conventional"; date of introduction | repository | clone | both | H | P2 |
 | TL2 | Versioned `commit-msg` hook | `.husky/commit-msg` (with `prepare: husky`), lefthook, pre-commit as `commit-msg`, cz, cog. Status "configured", **never "active"** | repository | clone | both | M | P2 |
 | TL3 | PR template | Locations recognised by GitHub, case ignored; number of charter sections present. Absent: "not found in the repository" (an organisation template is invisible) | repository | clone | both | H | P2 |
-| TL4 | CI checking the conventions | A workflow cites a known action (commitlint, semantic-pull-request…); only the pattern identifier is kept | repository | clone | both | M | P3 |
-| TL5 | Effect of the tooling | CC1 before and after the earliest introduction among TL1, TL2, TL4; "n/a" if a sample is smaller than 10 | repository | database + clone | both | M | P3 |
+| TL4 | CI checking the conventions | A workflow cites a known action (commitlint, semantic-pull-request…); only the pattern identifier is kept; lead | repository | clone | both | M | P3 |
+| TL5 | Effect of the tooling | CC1 before and after the earliest introduction among TL1, TL2, TL4; "n/a" if a sample is smaller than 10; lead | repository | database + clone | both | M | P3 |
 
 **Phase 8.3: details of the file criteria.** The pure functions `CheckChangelog`, `CheckReadme`, `CheckIndex`,
 `CheckDocsTree` and `DetectTooling` read the list of paths of the tree and the content of the files they ask
@@ -464,6 +465,105 @@ code keeps the same meaning from one criterion to another. A counter whose key i
   reasons when the milestone tag is absent (`no_tag`, `not_due`, `tag_absent`), then `not_computed`, `stale`,
   `no_clone`, and in a computed revision the reasons of a criterion above.
 
+**Phase 8.7: leads.** CL11, CL12, RD5, DOC6, DOC7, DOC9, DOC10, TL4 and TL5 are **leads**: they invite a
+reread and do not judge. They never count in the "k/n criteria conform" grids, nor in the milestone review,
+nor in any rate; they have no blocking code and no warning, are attributed to nobody and are shown in a
+separate "Leads" block, only when `conventions.enabled` is true. No new setting, no API request, no `fetch`.
+States (`--json`): `none` (nothing to look at), `review` (to look at), `not_applicable` (not relevant or sample
+too small) and `unknown`, with a reason.
+
+- **Where and when.** CL11, CL12, RD5, DOC6, DOC7 and TL4 are computed at sync time on the tree of the head of
+  the default branch (never on the tree of a milestone tag) and join the head's `repository_conventions`
+  cache: `FileRulesVersion` goes up to 2 and the cache only keeps identifiers, codes and counters. DOC9,
+  DOC10 and TL5 are computed when read, on the clone's history, only in the detailed view of a repository
+  (`watchoo conventions owner/repo`, repository page); their dates are never stored. Reads of the clone,
+  read-only and with `--end-of-options`: `git log -1` on paths (literal pathspecs, with exclusions),
+  `git rev-list --count` and `git log --diff-filter=A` (first addition of a file); inherited
+  `GIT_*_PATHSPECS` variables are removed from git's environment. A clone error never copies stderr nor a path; it makes the lead
+  unknown (`clone_unreadable`) without being shown or logged.
+- **CL11**: the `[Unreleased]` heading and the readable version headings are counted; a heading has its link
+  when a non-empty `[X]: url` definition carries the same label (case and `v` prefix ignored) or when the
+  heading is itself a link (`## [1.0.0](url)`). A heading without a link: `missing_link`. No version
+  heading nor `[Unreleased]`: `not_applicable` (`no_version`), nothing to compare.
+- **CL12**: the commit subjects are read from the database at sync time, in memory, never stored nor logged;
+  normalization: `(#n)` suffix removed, then case, accents and punctuation. A SHA is 7 to 40 hexadecimal
+  characters, with at least one digit and one letter; "Merge" is recognized on the normalized text. Under 10
+  bullets: `not_applicable` (`too_few`). Only numbers are stored: the two percentages, rounded down, and two
+  sample sizes (`bullets`, `subjects`), no text.
+- **RD5**: a command block is a code block without an info string or with a shell info string, under an
+  installation or launch heading (same synonyms as RD2) or under one of their subheadings. Environment
+  variables are announced by the RD2 section or by a mention of `.env` outside code (inline code
+  included), as a word of its own: `.env.example` counts, not `.envrc`, `process.env`, `import.meta.env` nor
+  a URL containing `/.env`; a `.env.example` template
+  (or `.sample`, `.dist`, `.template`, possibly `.env.<x>.example`) is looked for at a depth of at most 2.
+- **DOC6**: the documents of the DOC4 documentation folder, README and INDEX excluded (at most 300). The
+  first 40 lines are read as raw bytes, fenced code blocks (```` ``` ```` or `~~~`) skipped; recognized: a
+  level-1 heading (title field), YAML front matter (key followed by a value or a list), "Key: value" lines
+  (bold, bulleted or quoted) and table rows `| Key | value |`, with French and English keys. Only counters per
+  field are kept, **never the values** (the author is personal data).
+- **DOC7**: the DOC4 sources; `![x](y)` images, images inside a link and `<img src>`. A relative image (or a
+  URL of the same repository) that is missing, or present only up to case, is broken (`broken_image`); an
+  external image that is not a badge (known host or "badge" in the URL) is `external_image`; the `mermaid`
+  blocks and the existence of the media folder (case ignored) are counted too. The list of broken images
+  (source, target) is recomputed in the detailed view, like the DOC3 and DOC4 lists, never stored.
+- **TL4**: `.github/workflows/*.yml` and `*.yaml` workflows (no subfolder), comment lines ignored. Recognized
+  patterns, in the bit order of `ci_mask`: `commitlint`, `semantic-pull-request`, `commitizen`, `cocogitto`,
+  `conventional-commits`; only that bit is kept. No check found: `not_found`.
+- **DOC9**: the documentation is the evaluated folder (the INDEX's one, otherwise `docs.dir`), the INDEX, the
+  CHANGELOG and the README; the code is everything else. Dates shown: `docs`, `index`, `changelog`, `code`.
+  To look at (`docs_behind`) if at least 20 commits outside the documentation followed its last commit, or if
+  the last commit of the code is 30 days or more ahead. No documentation commit: unknown (`no_file`).
+- **DOC10**: the INDEX tables that have a document column and a date column (DOC2 synonyms); dates `YYYY-MM-DD` or `DD/MM/YYYY` (`-`, `/` or `.` separators accepted in both forms); a row whose date
+  cell is empty is not counted (DOC2 reports missing cells). The target document is the first link of the
+  cell, resolved and present in the tree; a document is compared once, 50 at most (`over_limit` beyond).
+  Comparison to the day, in the workspace's time zone: `declared_newer` (declared date more recent than the
+  last commit), `declared_older` (older by more than 30 days), `date_unreadable`. The cell is never kept.
+  Without a table with these two columns: `not_applicable` (`no_date_column`).
+- **TL5**: the introduction is the earliest first addition (`git log --diff-filter=A`, the earliest after a
+  deletion and re-addition) among the source files of TL1, TL2 and TL4: commitlint configuration,
+  `.husky/commit-msg`, lefthook or pre-commit with a `commit-msg` entry, `.cz*`, `cog.toml`, workflows citing a
+  known check. Commits taken into account: the evaluated commits of the scope (all tracked branches), dated
+  by the committer, otherwise by the author; CC1 rate before and since. No source: `not_applicable`
+  (`no_tooling`); no dated source: unknown (`introduction_unknown`); a sample under 10: `not_applicable`
+  (`too_few`), counters given; rate after not higher than before: `no_gain`. Nothing is attributed to a
+  person.
+- **Lead-specific reasons**: `detail_only` (DOC9, DOC10 and TL5 outside the detailed view), `too_few`, `no_version`
+  (CL11), `introduction_unknown`, `no_tooling`, `no_date_column`; plus the reasons of the file criteria
+  (`not_computed`, `stale`, `no_clone`, `clone_unreadable`, `filtered`, `no_file`…). A tree lead missing from
+  the cache takes its family's reason, otherwise `stale`.
+
+| Lead | Codes | Counters | Dates |
+| --- | --- | --- | --- |
+| CL11 | `missing_link` | `titles`, `linked`, `missing_link` | — |
+| CL12 | `copied_subjects`, `sha_or_merge` | `bullets`, `subjects`, `subject_percent`, `sha_merge_percent` | — |
+| RD5 | `no_install_section`, `no_command_block`, `no_env_example` | `command_blocks`, `env_announced`, `env_example` (1 or 0) | — |
+| DOC6 | `missing_headers` | `documents`, `complete`, `header_<field>` (`title`, `objective`, `scope`, `author`, `date`, `version`), `missing_headers`, `unread` | — |
+| DOC7 | `broken_image`, `external_image` | `sources`, `images`, `badges`, `mermaid`, `media_dir` (1 or 0), `broken_image`, `external_image`, `unread` | — |
+| DOC9 | `docs_behind` | `commits_since`, `days_behind` | `docs`, `index`, `changelog`, `code` |
+| DOC10 | `declared_newer`, `declared_older`, `date_unreadable` | `rows`, `compared`, `unresolved`, `over_limit`; one counter per code | — |
+| TL4 | `not_found` | `workflows`, `ci_mask`, `unread` | — |
+| TL5 | `no_gain` | `sources`, `undated_sources`, `before`, `before_conform`, `after`, `after_conform`, `before_percent`, `after_percent` | `introduced` |
+
+**Approximations of phase 8.7.**
+
+1. **DOC9, DOC10 and TL5 only in the detailed view**: they need the head's tree and history when read;
+   elsewhere (`watchoo conventions` without a repository, contributor filter) they are "unknown"
+   (`detail_only`, `filtered`).
+2. **TL5 introduction date**: it can only be measured for a file. A key of `package.json` or `pyproject.toml`
+   is not dated (`undated_sources`); for a workflow or a lefthook file, the date is the file's first
+   addition, so the earliest possible one (the check may have been added later).
+3. **CL12 computed at sync time**: the subjects come from the database; if the default branch is not tracked,
+   subjects are missing and the percentages are underestimated. The value is frozen until the head moves again. Likewise, when the default branch is not tracked, DOC9,
+   DOC10 and TL5 take as head the commit whose tree the sync measured (the cached one); without a cached
+   result, they are "not computed yet" (`not_computed`).
+4. **`FileRulesVersion` bump**: after the update, all CL, RD, DOC and TL grids of a workspace become "to
+   recompute" (`stale`) until the next sync. The milestone tags' results share this version: the file
+   criteria of the milestone review (CL9, CL8, RD1 to RD3, DOC1, DOC3) are also "to recompute" until the
+   next sync, although tags get no leads.
+5. **No lead counter in `/conventions`**: DOC9, DOC10 and TL5 would always be `detail_only` there, a total
+   would be misleading; leads are only on a repository's page and in `watchoo conventions owner/repo` (title,
+   leads to look at and a pointer to the detailed view in the overview).
+
 ## 6. What cannot be measured
 
 | Requirement | Why | What Watchoo shows |
@@ -484,7 +584,8 @@ code keeps the same meaning from one criterion to another. A counter whose key i
 
 **No overall grade.** Each family shows an explained `n/m` rate (denominator and exclusions). A checklist
 counts **criteria** ("7/9 criteria compliant, 1 unknown"); it always opens the details and neither sorts
-nor ranks anything.
+nor ranks anything. The phase 8.7 leads (CL11, CL12, RD5, DOC6, DOC7, DOC9, DOC10, TL4, TL5) enter no grid
+and no rate: they form a separate "Leads" block.
 
 - **Per repository**: CC1, BR1, PR1, PR3, PR4, SV1, SV2, then the CHANGELOG (CL1 to CL8; CL9 on the tag of
   a milestone), README (RD1 to RD4), documentation (DOC1 to DOC5, DOC8) and tooling (TL1 to TL3) grids.
@@ -626,6 +727,14 @@ absent from the tree counts once (RD1 or DOC1 not conform), the criteria that re
   repository page); they are neither stored nor logged. CLI and web display the same codes, with a label
   shared by both (`conv.*` keys of the catalog). The overview of `/conventions` gives one summary badge per
   family; the repository page gives the grids and, folded, the path lists.
+- **Phase 8.7: leads.** The repository page adds, after the files, a collapsed "Leads" block (`details`)
+  that recalls they invite a reread without judging: a neutral badge per lead (`badge-ghost`, or
+  `badge-info` for "to look at", never the compliance colors), its codes, counters and dates, then the list
+  of broken images. `/conventions` and a contributor's page show no lead. `watchoo conventions owner/repo`
+  gives a full "Leads" section; without a repository, only the leads to look at and a pointer to the detailed
+  view; nothing with `--contributor`. The JSON only adds the `leads` key per repository (`to_review`,
+  `items[{id,status,reason,codes,counts,dates}]`, `broken_images[]`, empty outside the detailed view);
+  details in [05-cli.md](05-cli.md#json-output) and [06-web-interface.md](06-web-interface.md).
 - All texts go through `internal/i18n`, in English and in French.
 
 ## 8. Configuration
@@ -942,7 +1051,7 @@ Each phase can be delivered alone; phases 8.1 to 8.4 are enough for a milestone 
 | 8.4 | History: `tag_observations` (SV3, SV2 deadlines), `branch_rewrites` (BR4), SV4, SV5, SV7, CL10. **Done, not released** (`[Unreleased]` of the CHANGELOG; migrations `00018` and `00019`; setting `tags.prerelease_forms`; SV3 in the milestone review; approximations listed in [5.4](#54-tags-and-semver-sv): proof of a read of the tags by the dates of `tag_observations`, "late" only on a read made after the deadline, rewrite of an annotated tag on the same commit invisible, BR4 partial in API mode alone; SV4, SV5, SV7 and CL10 computed at read time, not stored) | 0 quota, 2 migrations | 1.10.0 |
 | 8.5 | API with no extra request: `merge_commit_sha`, `from_fork`, `body_sections`, merge methods; full PR3, PR5, PR6, BR2, BR5. **Done, not released** (`[Unreleased]` of the CHANGELOG; migration `00020`; settings `pr.body_sections` and `pr.require_closes`; PR3 in the milestone review; forks set aside from PR1, PR2, PR5, PR6, BR1 and BR2; approximations listed in [5.3](#53-pull-requests-pr): PR3 filtered on the committer date, `unmatched` until the PR list has been reread, PR6 "rebase" for a squash with a rewritten subject, BR5 unknown without push access, repository of 1,000 PRs or more reread at each sync; comparison of PR2 with the only commit not measured) | one reread of the PR lists | 1.11.0 |
 | 8.6 | Reviews: PR4, "merged without review", reviews received. **Done, not released** (`[Unreleased]` of the CHANGELOG; migration `00021`; settings `pr.min_reviews` and `pr.reviewer_must_contribute`, applied at read time; PR4 in the milestone review; no reviewer login stored: counters only, `excluded_accounts` applied to the PRs read afterwards; approximations listed in [5.3](#53-pull-requests-pr) and [7.1](#71-milestone-review-rj): merged PR read before its merge "unknown" until the next read, reviewer without an account never counted, `DISMISSED` dated from the submission of the review and not from its dismissal, contributing reviewer recognized by login or by account identifier, milestone interval bounded by the dates of the commits targeted by the tags) | 1 request per merged PR | 1.12.0 |
-| 8.7 | Optional leads: CL11, CL12, RD5, DOC6, DOC7, DOC9, DOC10, TL4, TL5 | 0 quota | MINOR |
+| 8.7 | Optional leads: CL11, CL12, RD5, DOC6, DOC7, DOC9, DOC10, TL4, TL5. **Done, not released** (`[Unreleased]` of the CHANGELOG; no migration, no setting; `FileRulesVersion` goes up to 2; leads outside the grids, the milestone review and the rates; CL11, CL12, RD5, DOC6, DOC7 and TL4 cached at sync time, DOC9, DOC10 and TL5 when read; approximations listed in [5.8](#58-tooling-tl): DOC9, DOC10 and TL5 only in the detailed view, TL5 introduction dated per file only, CL12 underestimated if the default branch is not tracked, grids "to recompute" until the next sync, no lead counter in `/conventions`) | 0 quota | 1.13.0 |
 
 ## 11. Maintainer decisions
 
@@ -970,7 +1079,8 @@ Decisions of November 8, 2026.
 ### 11.1 Points still to check
 
 - **Thresholds** to validate on real repositories before display: 80% for SV5, 150 words for RD4, CL8 date
-  gap, CL12 and DOC9 thresholds.
+  gap, thresholds of CL12 (10 bullets, 60%, 20%), DOC9 (20 commits, 30 days), DOC10 (30 days) and TL5 (10
+  commits on each side).
 - **Phase 8.6**: does a review update the PR's `updated_at`? Still not verified on GitHub, and no longer
   needed for the merged PRs: one read after the merge is enough (the reviews submitted after `merged_at` do
   not count), and a PR read while open is read again once merged. It only matters for the display of the

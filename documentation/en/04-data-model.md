@@ -407,7 +407,7 @@ configured milestone (see [Project conventions](13-conventions.md), sections 5.5
 | rev_sha | Measured commit (complete SHA, 40 or 64 lowercase hexadecimal characters) |
 | rules_version | Version of the rules of the file criteria (`conventions.FileRulesVersion`) |
 | config_hash | Stable fingerprint (SHA-256) of the settings `conventions.changelog.*`, `conventions.readme.*`, `conventions.docs.*`, of the repository (`owner/name`, case ignored: RD3, DOC3 and DOC4 recognize its URLs) and of the names of the tags that designate a version (CL8) |
-| results | JSON object (`CHECK json_type = 'object'`): criterion identifiers, states, reasons, codes and **counters** only; never a path, a file content, an INDEX cell or a person's name |
+| results | JSON object (`CHECK json_type = 'object'`): criterion identifiers, states, reasons, codes and **counters** only; never a path, a file content, an INDEX cell or a person's name. Since phase 8.7 (`rules_version` 2), the head row adds `leads`: the CL11, CL12, RD5, DOC6, DOC7 and TL4 leads, with the same limits (percentages and counters, never a header value nor a commit subject) |
 | computed_at | Date of the computation |
 
 A row whose `rev_sha`, `rules_version` or `config_hash` no longer matches is recomputed at the next sync;

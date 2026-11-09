@@ -349,6 +349,18 @@ var providerTexts = map[string]entry{
 		"last commit touching a file from %s in %s/%s",
 		"dernier commit modifiant un fichier depuis %s dans %s/%s",
 	},
+	"provider.git.op.last_commit": {
+		"last commit touching paths from %s in %s/%s",
+		"dernier commit modifiant des chemins depuis %s dans %s/%s",
+	},
+	"provider.git.op.count_commits": {
+		"commits between %s and %s in %s/%s",
+		"commits entre %s et %s dans %s/%s",
+	},
+	"provider.git.op.first_add": {
+		"first addition of a file from %s in %s/%s",
+		"premier ajout d'un fichier depuis %s dans %s/%s",
+	},
 	"provider.git.op.first_parent": {
 		"first-parent commits of %s/%s",
 		"commits du premier parent de %s/%s",

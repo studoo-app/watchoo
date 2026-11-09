@@ -5,6 +5,7 @@ package sync_test
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -80,10 +81,12 @@ func cachedFiles(t *testing.T, e *env, repoID int64) map[string]model.Repository
 	return out
 }
 
-// assertNoFileLeak checks that neither a path, a file content nor a tag name reached the logs.
+// assertNoFileLeak checks that neither a path, a file content, a tag name, a commit subject, an author nor
+// an image name (phase 8.7 leads) reached the logs.
 func assertNoFileLeak(t *testing.T, e *env) {
 	t.Helper()
-	for _, leak := range []string{"CHANGELOG", "README", "INDEX", "documentation", "secret", "v1.0.0", "pwned", "Première"} {
+	for _, leak := range []string{"CHANGELOG", "README", "INDEX", "documentation", "secret", "v1.0.0", "pwned", "Première",
+		"workflows", "commitlint", ".env", "écran", "Alice", ".png"} {
 		if strings.Contains(e.logs.String(), leak) {
 			t.Errorf("logs contain %q:\n%s", leak, e.logs.String())
 		}
@@ -182,6 +185,74 @@ func TestConventionFilesCache(t *testing.T) {
 	}
 	if rows := cachedFiles(t, e, repo.ID); len(rows) != 0 {
 		t.Errorf("after losing the default branch: %+v", rows)
+	}
+	assertNoFileLeak(t, e)
+}
+
+// Phase 8.7: the tree leads are measured with the file criteria at the head only, and cached with them;
+// CL12 compares the CHANGELOG bullets with the commit subjects read from the database, in memory only.
+func TestConventionFilesLeads(t *testing.T) {
+	srv := gittest.NewServer(t)
+	r := srv.Create(testOwner, "projet", "main")
+	var log strings.Builder
+	log.WriteString("# Changelog\n\n## [Unreleased]\n\n### Added\n\n")
+	for i := range 10 {
+		subject := fmt.Sprintf("feat: ajoute l'écran secret %d", i)
+		r.Commit("main", fmt.Sprintf("src/ecran%d.txt", i), "x", subject, secretAuthor, epoch.Add(time.Duration(i)*time.Minute))
+		log.WriteString("- " + subject + "\n")
+	}
+	r.Commit("main", "CHANGELOG.md", log.String(), "docs: changelog", secretAuthor, epoch.Add(time.Hour))
+	r.Commit("main", ".github/workflows/ci.yml", "steps:\n  - uses: wagoid/commitlint-github-action@v6\n",
+		"ci: commitlint", secretAuthor, epoch.Add(2*time.Hour))
+	r.Commit("main", "documentation/a.md", "Auteur : Alice\n\n![x](Media/absent-secret.png)\n", "docs: a",
+		secretAuthor, epoch.Add(3*time.Hour))
+	c := r.Commit("main", "README.md", "# P\n\n## Installation\n\nCopier .env puis lancer.\n", "docs: readme",
+		secretAuthor, epoch.Add(4*time.Hour))
+	r.Tag("v1.0.0", c, "")
+
+	e := newEnv(t, withGit(srv.URL), withConventions("v1.0.0"))
+	e.auth.SetTokenErr(auth.ErrNotLoggedIn)
+	res, err := e.eng.AddRepositories(t.Context(), []wsync.AddRequest{{Ref: repoimport.Ref{Owner: testOwner, Name: "projet"}}},
+		wsync.AddOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rep := e.syncAll(); rep.Repos[0].Status != wsync.StatusSuccess {
+		t.Fatalf("sync: %+v", rep.Repos)
+	}
+	rows := cachedFiles(t, e, res[0].Repo.ID)
+	head, err := conventions.DecodeFileResults(rows["head/"].Results)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]string{
+		conventions.CriterionCL11: conventions.LeadReview, // [Unreleased] without a comparison link
+		conventions.CriterionCL12: conventions.LeadReview, // 100 % of the bullets are commit subjects
+		conventions.CriterionRD5:  conventions.LeadReview, // no command block, .env announced without a model
+		conventions.CriterionDOC6: conventions.LeadReview,
+		conventions.CriterionDOC7: conventions.LeadReview, // broken image
+		conventions.CriterionTL4:  conventions.LeadNone,   // commitlint in a workflow
+	}
+	if len(head.Leads) != len(want) {
+		t.Fatalf("leads at the head: %+v", head.Leads)
+	}
+	for id, status := range want {
+		if l, ok := conventions.FindLead(head.Leads, id); !ok || l.Status != status {
+			t.Errorf("%s: %+v, want %s", id, l, status)
+		}
+	}
+	if l, _ := conventions.FindLead(head.Leads, conventions.CriterionCL12); l.Counts[conventions.CountSubjectPercent] != 100 ||
+		l.Counts[conventions.CountBullets] != 10 {
+		t.Errorf("CL12 counts: %v", l.Counts)
+	}
+	tag, err := conventions.DecodeFileResults(rows["tag/v1.0.0"].Results)
+	if err != nil || tag.Leads != nil {
+		t.Errorf("leads on the milestone tag: %+v, %v", tag.Leads, err)
+	}
+	for _, leak := range []string{"écran", "secret", "Alice", "png", "commitlint-github-action", "Media"} {
+		if strings.Contains(rows["head/"].Results, leak) {
+			t.Errorf("cached results contain %q: %s", leak, rows["head/"].Results)
+		}
 	}
 	assertNoFileLeak(t, e)
 }

@@ -3,8 +3,8 @@
 [← Sommaire](README.md)
 
 **Statut** : **décision du mainteneur** (phase 8, 8 novembre 2026) ; les choix sont consignés en
-[section 11](#11-décisions-du-mainteneur). Phases 8.1 à 8.6 réalisées, non publiées ; les phases suivantes commencent
-après validation de leur plan. L'exception au périmètre est reportée dans la [Vision](01-vision.md) ; les
+[section 11](#11-décisions-du-mainteneur). Phases 8.1 à 8.7 réalisées, non publiées ; seul BR3 (protection de branche) reste
+reporté. L'exception au périmètre est reportée dans la [Vision](01-vision.md) ; les
 reprises dans [Fonctionnalités](02-fonctionnalites.md), [Modèle de données](04-modele-donnees.md),
 [CLI](05-cli.md) et [Interface web](06-interface-web.md) se font phase par phase.
 
@@ -330,8 +330,8 @@ Le blob `CHANGELOG.md` est lu en mémoire depuis le clone (au plus 1 Mio) ; les 
 | CL8 | Tags et sections cohérents | Tag `vX.Y.Z` sans section, section datée sans tag (`[YANKED]` exempté) ; écart de date affiché sans être compté | tag | base + clone | les deux | H | P1 |
 | CL9 | À jour au tag | Dans `<tag>:CHANGELOG.md`, la section `## [X.Y.Z]` existe ; résultat en cache par (tag, SHA) | jalon | clone | les deux | H | P1 |
 | CL10 | Fraîcheur | Nombre de `feat` et `fix` sur la branche par défaut depuis le dernier commit qui a touché le CHANGELOG ; grisé si CL9 est conforme | dépôt | clone + base | les deux | M | P2 |
-| CL11 | Liens de comparaison | Définition `[X]: url` pour chaque titre ; hors total | dépôt | clone | les deux | M | P3 |
-| CL12 | Recopie de `git log` | Au moins 10 puces, dont au moins 60 % identiques à un sujet de commit, ou au moins 20 % de SHA ou de « Merge » ; seuls les pourcentages sont stockés ; « à relire » | dépôt | clone + base | les deux | F | P3 |
+| CL11 | Liens de comparaison | Définition `[X]: url` pour chaque titre ; piste, hors total | dépôt | clone | les deux | M | P3 |
+| CL12 | Recopie de `git log` | Au moins 10 puces, dont au moins 60 % identiques à un sujet de commit, ou au moins 20 % de SHA ou de « Merge » ; seuls les pourcentages et deux effectifs sont stockés ; piste « à relire » | dépôt | clone + base | les deux | F | P3 |
 
 ### 5.6 README (RD)
 
@@ -352,13 +352,14 @@ Le blob `CHANGELOG.md` est lu en mémoire depuis le clone (au plus 1 Mio) ; les 
 | DOC3 | INDEX exhaustif | Nombre de `*.md` de `documentation/` (hors INDEX et `Media/`) qu'aucun lien de l'INDEX ne vise ; lignes de l'INDEX en double | dépôt, tag | clone | les deux | H | P1 |
 | DOC4 | Liens morts | Liens relatifs du README, de l'INDEX et des documents dont la cible n'existe pas ; différence de casse signalée comme telle | dépôt | clone | les deux | H | P1 |
 | DOC5 | Nommage | Dossiers `^\d{2}-[a-z0-9]+(-[a-z0-9]+)*$` ; fichiers en minuscules à tirets, sans espace ni accent (exceptions : `INDEX.md`, `README.md`, et `Media/` avec sa majuscule, admis par la charte) | dépôt, tag | clone | les deux | H | P1 |
-| DOC6 | En-têtes de document | Titre, objectif, périmètre, auteur, date, version : front matter ou lignes « Clé : valeur » dans les 40 premières lignes ; compteurs par champ | dépôt | clone | les deux | M | P2 |
-| DOC7 | Schémas et images | Images relatives présentes ou cassées, images externes (badges exclus), blocs `mermaid`, dossier `Media/` | dépôt | clone | les deux | H | P2 |
+| DOC6 | En-têtes de document | Titre, objectif, périmètre, auteur, date, version : front matter ou lignes « Clé : valeur » dans les 40 premières lignes ; compteurs par champ, jamais les valeurs ; piste | dépôt | clone | les deux | M | P2 |
+| DOC7 | Schémas et images | Images relatives présentes ou cassées, images externes (badges exclus), blocs `mermaid`, dossier `Media/` ; piste | dépôt | clone | les deux | H | P2 |
 | DOC8 | Archives | `.zip`, `.rar`, `.7z`, `.tar`, `.tar.gz`, `.tgz`, `.tar.bz2`, `.tar.xz` (casse ignorée) **dans tout le dépôt** (décision du mainteneur) ; les `.docx` et `.pdf` sous `documentation/` sont signalés en information | dépôt, tag | clone | les deux | H | P1 |
 | DOC9 | Fraîcheur | Dates du dernier commit sur `documentation/`, l'INDEX, le CHANGELOG et le code ; commits hors documentation depuis ; piste | dépôt | clone | les deux | M | P2 |
-| DOC10 | Dates déclarées | Date de la colonne de l'INDEX comparée au dernier commit du document | document | clone | les deux | F | P3 |
+| DOC10 | Dates déclarées | Date de la colonne de l'INDEX comparée au dernier commit du document ; au plus 50 documents ; piste | document | clone | les deux | F | P3 |
 
-Les listes de DOC3, DOC4 et DOC5 (chemins) sont recalculées à l'affichage ; seuls les compteurs sont stockés.
+Les listes de DOC3, DOC4 et DOC5 (chemins) et celle des images cassées de DOC7 sont recalculées à
+l'affichage ; seuls les compteurs sont stockés.
 
 ### 5.8 Outillage (TL)
 
@@ -367,8 +368,8 @@ Les listes de DOC3, DOC4 et DOC5 (chemins) sont recalculées à l'affichage ; se
 | TL1 | commitlint configuré | Fichier de configuration (profondeur ≤ 2) ou clé `commitlint` / `@commitlint/cli` dans `package.json` ; sous-état « étend config-conventional » ; date d'introduction | dépôt | clone | les deux | H | P2 |
 | TL2 | Hook `commit-msg` versionné | `.husky/commit-msg` (avec `prepare: husky`), lefthook, pre-commit en `commit-msg`, cz, cog. Statut « configuré », **jamais « actif »** | dépôt | clone | les deux | M | P2 |
 | TL3 | Gabarit de PR | Emplacements reconnus par GitHub, casse ignorée ; nombre de sections de la charte présentes. Absent : « non trouvé dans le dépôt » (un gabarit d'organisation est invisible) | dépôt | clone | les deux | H | P2 |
-| TL4 | CI vérifiant les conventions | Un workflow cite une action connue (commitlint, semantic-pull-request…) ; seul l'identifiant du motif est gardé | dépôt | clone | les deux | M | P3 |
-| TL5 | Effet de l'outillage | CC1 avant et après la plus ancienne introduction parmi TL1, TL2, TL4 ; « n/a » si un effectif est inférieur à 10 | dépôt | base + clone | les deux | M | P3 |
+| TL4 | CI vérifiant les conventions | Un workflow cite une action connue (commitlint, semantic-pull-request…) ; seul l'identifiant du motif est gardé ; piste | dépôt | clone | les deux | M | P3 |
+| TL5 | Effet de l'outillage | CC1 avant et après la plus ancienne introduction parmi TL1, TL2, TL4 ; « n/a » si un effectif est inférieur à 10 ; piste | dépôt | base + clone | les deux | M | P3 |
 
 **Phase 8.3 : précisions des critères de fichiers.** Les fonctions pures `CheckChangelog`, `CheckReadme`,
 `CheckIndex`, `CheckDocsTree` et `DetectTooling` lisent la liste des chemins de l'arbre et le contenu des seuls
@@ -467,6 +468,111 @@ code compte les éléments (versions, catégories, puces, liens, chemins) qui po
   raisons de SV1 quand le tag du jalon est absent (`no_tag`, `not_due`, `tag_absent`), puis `not_computed`,
   `stale`, `no_clone`, et dans une révision calculée les raisons d'un critère ci-dessus.
 
+**Phase 8.7 : pistes.** CL11, CL12, RD5, DOC6, DOC7, DOC9, DOC10, TL4 et TL5 sont des **pistes** : elles
+invitent à relire et ne jugent pas. Elles ne comptent jamais dans les grilles « k/n critères conformes », ni
+dans la revue de jalon, ni dans aucun taux ; elles n'ont ni code bloquant ni avertissement, ne sont attribuées
+à personne et s'affichent dans un bloc « Pistes » séparé, seulement quand `conventions.enabled` est vrai.
+Aucun réglage nouveau, aucune requête API, aucun `fetch`. États (`--json`) : `none` (rien à relire), `review`
+(à relire), `not_applicable` (sans objet ou effectif trop petit) et `unknown`, avec une raison.
+
+- **Où et quand.** CL11, CL12, RD5, DOC6, DOC7 et TL4 sont calculées à la synchro sur l'arbre de la tête de
+  la branche par défaut (jamais sur l'arbre d'un tag de jalon) et rejoignent le cache `repository_conventions`
+  de la tête : `FileRulesVersion` passe à 2 et le cache ne garde que des identifiants, des codes et des
+  compteurs. DOC9, DOC10 et TL5 sont calculées à la lecture sur l'historique du clone, seulement dans la vue
+  détaillée d'un dépôt (`watchoo conventions owner/repo`, page du dépôt) ; leurs dates ne sont jamais
+  stockées. Lectures du clone, en lecture seule et avec `--end-of-options` : `git log -1` sur des chemins
+  (pathspecs littéraux, avec exclusions), `git rev-list --count` et `git log --diff-filter=A` (premier ajout
+  d'un fichier) ; les variables `GIT_*_PATHSPECS` héritées sont retirées de l'environnement de git. Une erreur du clone ne recopie jamais stderr ni un chemin ; elle rend la piste inconnue
+  (`clone_unreadable`) sans être affichée ni journalisée.
+- **CL11** : sont comptés les titres `[Unreleased]` et les titres de version lisibles ; un titre a son lien
+  quand une définition `[X]: url` non vide porte le même libellé (casse et préfixe `v` ignorés) ou quand le
+  titre est lui-même un lien (`## [1.0.0](url)`). Un titre sans lien : `missing_link`. Aucun titre de
+  version ni `[Unreleased]` : `not_applicable` (`no_version`), rien à comparer.
+- **CL12** : les sujets de commit sont lus dans la base à la synchro, en mémoire, jamais stockés ni
+  journalisés ; normalisation : suffixe `(#n)` retiré, puis casse, accents et ponctuation. Un SHA fait 7 à 40
+  caractères hexadécimaux, avec au moins un chiffre et une lettre ; « Merge » est reconnu sur le texte
+  normalisé. Sous 10 puces : `not_applicable` (`too_few`). Seuls des nombres sont stockés : les deux
+  pourcentages, arrondis à l'entier inférieur, et deux effectifs (`bullets`, `subjects`), aucun texte.
+- **RD5** : un bloc de commandes est un bloc de code sans info-string ou d'info-string shell, sous un titre
+  installation ou lancement (mêmes synonymes que RD2) ou sous l'un de leurs sous-titres. Des variables
+  d'environnement sont annoncées par la section de RD2 ou par la mention de `.env` hors code (code en ligne
+  compris), comme mot à part : `.env.example` compte, pas `.envrc`, `process.env`, `import.meta.env` ni une
+  URL qui contient `/.env` ; un modèle
+  `.env.example` (ou `.sample`, `.dist`, `.template`, éventuellement `.env.<x>.example`) est cherché à une
+  profondeur d'au plus 2.
+- **DOC6** : documents du dossier de documentation de DOC4, hors README et INDEX (au plus 300). Les 40
+  premières lignes sont lues en octets bruts, hors blocs de code clôturés (```` ``` ```` ou `~~~`) ; sont
+  reconnus un titre de niveau 1 (champ titre), le front matter YAML (clé suivie d'une valeur ou d'une liste),
+  les lignes « Clé : valeur » (en gras, en puce ou en citation) et les lignes de tableau `| Clé | valeur |`,
+  avec des clés françaises et anglaises. Seuls des compteurs par champ sont gardés, **jamais les valeurs**
+  (l'auteur est une donnée personnelle).
+- **DOC7** : sources de DOC4 ; images `![x](y)`, images incluses dans un lien et `<img src>`. Une image
+  relative (ou une URL du même dépôt) absente, ou présente à la casse près, est cassée (`broken_image`) ; une
+  image externe qui n'est pas un badge (hôte connu ou « badge » dans l'URL) est `external_image` ; sont
+  comptés aussi les blocs `mermaid` et l'existence du dossier des médias (casse ignorée). La liste des images
+  cassées (source, cible) est recalculée en vue détaillée, comme les listes de DOC3 et DOC4, jamais stockée.
+- **TL4** : workflows `.github/workflows/*.yml` et `*.yaml` (sans sous-dossier), lignes de commentaire
+  ignorées. Motifs reconnus, dans l'ordre des bits de `ci_mask` : `commitlint`, `semantic-pull-request`,
+  `commitizen`, `cocogitto`, `conventional-commits` ; seul ce bit est gardé. Aucune vérification trouvée :
+  `not_found`.
+- **DOC9** : la documentation comprend le dossier évalué (celui de l'INDEX, sinon `docs.dir`), l'INDEX, le
+  CHANGELOG et le README ; le code est tout le reste. Dates gardées à l'affichage : `docs`, `index`,
+  `changelog`, `code`. À relire (`docs_behind`) si au moins 20 commits hors documentation ont suivi son
+  dernier commit, ou si le dernier commit du code a 30 jours d'avance ou plus. Aucun commit de documentation :
+  inconnu (`no_file`).
+- **DOC10** : tableaux de l'INDEX qui ont une colonne document et une colonne date (synonymes de DOC2) ;
+  dates `AAAA-MM-JJ` ou `JJ/MM/AAAA` (séparateurs `-`, `/` ou `.` admis dans les deux formes) ; une ligne
+  dont la cellule date est vide n'est pas comptée (DOC2 relève les cellules manquantes). Le document visé est le premier lien de
+  la cellule, résolu et présent dans l'arbre ; un document n'est comparé qu'une fois, 50 au plus
+  (`over_limit` au-delà). Comparaison au jour près, dans le fuseau de l'espace : `declared_newer` (date
+  déclarée plus récente que le dernier commit), `declared_older` (plus ancienne de plus de 30 jours),
+  `date_unreadable`. La cellule n'est jamais gardée. Sans tableau à ces deux colonnes : `not_applicable`
+  (`no_date_column`).
+- **TL5** : l'introduction est le plus ancien premier ajout (`git log --diff-filter=A`, le plus ancien en
+  cas de suppression puis de réajout) parmi les fichiers sources de TL1, TL2 et TL4 : configuration
+  commitlint, `.husky/commit-msg`, lefthook ou pre-commit avec une entrée `commit-msg`, `.cz*`, `cog.toml`,
+  workflows qui citent une vérification connue. Commits pris en compte : les commits évalués du périmètre
+  (toutes les branches suivies), datés par le committer, à défaut par l'auteur ; taux CC1 avant et depuis.
+  Aucune source : `not_applicable` (`no_tooling`) ; aucune source datée : inconnu (`introduction_unknown`) ;
+  un effectif sous 10 : `not_applicable` (`too_few`), compteurs donnés ; taux après pas plus haut qu'avant :
+  `no_gain`. Rien n'est attribué à une personne.
+- **Raisons propres aux pistes** : `detail_only` (DOC9, DOC10 et TL5 hors vue détaillée), `too_few`, `no_version`
+  (CL11), `introduction_unknown`, `no_tooling`, `no_date_column` ; s'y ajoutent les raisons des critères de fichiers
+  (`not_computed`, `stale`, `no_clone`, `clone_unreadable`, `filtered`, `no_file`…). Une piste de l'arbre
+  absente du cache prend la raison de sa famille, sinon `stale`.
+
+| Piste | Codes | Compteurs | Dates |
+| --- | --- | --- | --- |
+| CL11 | `missing_link` | `titles`, `linked`, `missing_link` | — |
+| CL12 | `copied_subjects`, `sha_or_merge` | `bullets`, `subjects`, `subject_percent`, `sha_merge_percent` | — |
+| RD5 | `no_install_section`, `no_command_block`, `no_env_example` | `command_blocks`, `env_announced`, `env_example` (1 ou 0) | — |
+| DOC6 | `missing_headers` | `documents`, `complete`, `header_<champ>` (`title`, `objective`, `scope`, `author`, `date`, `version`), `missing_headers`, `unread` | — |
+| DOC7 | `broken_image`, `external_image` | `sources`, `images`, `badges`, `mermaid`, `media_dir` (1 ou 0), `broken_image`, `external_image`, `unread` | — |
+| DOC9 | `docs_behind` | `commits_since`, `days_behind` | `docs`, `index`, `changelog`, `code` |
+| DOC10 | `declared_newer`, `declared_older`, `date_unreadable` | `rows`, `compared`, `unresolved`, `over_limit` ; un compteur par code | — |
+| TL4 | `not_found` | `workflows`, `ci_mask`, `unread` | — |
+| TL5 | `no_gain` | `sources`, `undated_sources`, `before`, `before_conform`, `after`, `after_conform`, `before_percent`, `after_percent` | `introduced` |
+
+**Approximations de la phase 8.7.**
+
+1. **DOC9, DOC10 et TL5 seulement en vue détaillée** : elles demandent l'arbre et l'historique de la tête au
+   moment de la lecture ; ailleurs (`watchoo conventions` sans dépôt, filtre contributeur) elles valent
+   « inconnu » (`detail_only`, `filtered`).
+2. **Date d'introduction de TL5** : elle ne se mesure que pour un fichier. Une clé de `package.json` ou de
+   `pyproject.toml` n'est pas datée (`undated_sources`) ; pour un workflow ou un fichier lefthook, la date est
+   celle du premier ajout du fichier, donc au plus tôt (la vérification a pu être ajoutée plus tard).
+3. **CL12 calculé à la synchro** : les sujets viennent de la base ; si la branche par défaut n'est pas suivie,
+   des sujets manquent et les pourcentages sont sous-estimés. La valeur est figée jusqu'au prochain mouvement de la tête. De même, branche par défaut non suivie, DOC9,
+   DOC10 et TL5 prennent pour tête le commit dont la synchro a mesuré l'arbre (celui du cache) ; sans
+   résultat en cache, elles valent « pas encore calculé » (`not_computed`).
+4. **Montée de `FileRulesVersion`** : après la mise à jour, toutes les grilles CL, RD, DOC et TL d'un espace
+   passent à « à recalculer » (`stale`) jusqu'à la synchro suivante. Les résultats des tags de jalon partagent
+   cette version : les critères de fichiers de la revue de jalon (CL9, CL8, RD1 à RD3, DOC1, DOC3) sont
+   aussi « à recalculer » jusqu'à la synchro suivante, bien que les tags n'aient pas de pistes.
+5. **Pas de compteur de pistes dans `/conventions`** : DOC9, DOC10 et TL5 y vaudraient toujours
+   `detail_only`, un total serait trompeur ; les pistes ne sont que sur la page d'un dépôt et dans
+   `watchoo conventions owner/repo` (titre, pistes à relire et renvoi vers la vue détaillée en vue d'ensemble).
+
 ## 6. Ce qui n'est pas mesurable
 
 | Exigence | Pourquoi | Ce que Watchoo montre |
@@ -487,7 +593,8 @@ code compte les éléments (versions, catégories, puces, liens, chemins) qui po
 
 **Pas de note globale.** Chaque famille affiche un taux `n/m` expliqué (dénominateur et exclusions). Une
 liste de contrôle compte des **critères** (« 7/9 critères conformes, 1 inconnu ») ; elle ouvre toujours le
-détail et ne trie ni ne classe rien.
+détail et ne trie ni ne classe rien. Les pistes de la phase 8.7 (CL11, CL12, RD5, DOC6, DOC7, DOC9, DOC10,
+TL4, TL5) n'entrent dans aucune grille ni aucun taux : elles forment un bloc « Pistes » à part.
 
 - **Par dépôt** : CC1, BR1, PR1, PR3, PR4, SV1, SV2, puis les grilles CHANGELOG (CL1 à CL8 ; CL9 sur le tag
   d'un jalon), README (RD1 à RD4), documentation (DOC1 à DOC5, DOC8) et outillage (TL1 à TL3).
@@ -630,6 +737,15 @@ absent de l'arbre compte une fois (RD1 ou DOC1 non conforme), les critères qui 
   journalisées. CLI et web affichent les mêmes codes, avec un libellé commun (clés `conv.*` du catalogue).
   La vue d'ensemble de `/conventions` donne une pastille de synthèse par famille ; la page du dépôt donne
   les grilles et, repliées, les listes de chemins.
+- **Phase 8.7 : pistes.** La page du dépôt ajoute, après les fichiers, un bloc « Pistes » replié (`details`)
+  qui rappelle qu'elles invitent à relire sans juger : une pastille neutre par piste (`badge-ghost`, ou
+  `badge-info` pour « à relire », jamais les couleurs de conformité), ses codes, ses compteurs et ses dates,
+  puis la liste des images cassées. `/conventions` et la page d'un contributeur n'affichent aucune piste.
+  `watchoo conventions owner/repo` donne une section « Pistes » complète ; sans dépôt, seules les pistes à
+  relire et un renvoi vers la vue détaillée ; rien avec `--contributor`. Le JSON ne fait qu'ajouter la clé
+  `leads` par dépôt (`to_review`, `items[{id,status,reason,codes,counts,dates}]`, `broken_images[]`, vide
+  hors vue détaillée) ; détail dans [05-cli.md](05-cli.md#sortie-json) et
+  [06-interface-web.md](06-interface-web.md).
 - Tous les textes passent par `internal/i18n`, en anglais et en français.
 
 ## 8. Configuration
@@ -953,7 +1069,7 @@ Chaque phase est livrable seule ; les phases 8.1 à 8.4 suffisent pour une revue
 | 8.4 | Historique : `tag_observations` (SV3, échéances de SV2), `branch_rewrites` (BR4), SV4, SV5, SV7, CL10. **Réalisée, non publiée** (`[Unreleased]` du CHANGELOG ; migrations `00018` et `00019` ; réglage `tags.prerelease_forms` ; SV3 dans la revue de jalon ; approximations listées en [5.4](#54-tags-et-semver-sv) : preuve d'une lecture des tags par les dates de `tag_observations`, « en retard » seulement sur une lecture faite après l'échéance, réécriture d'un tag annoté sur le même commit invisible, BR4 en mode API seul partiel ; SV4, SV5, SV7 et CL10 calculés à la lecture, non stockés) | 0 quota, 2 migrations | 1.10.0 |
 | 8.5 | API sans requête de plus : `merge_commit_sha`, `from_fork`, `body_sections`, méthodes de fusion ; PR3 complet, PR5, PR6, BR2, BR5. **Réalisée, non publiée** (`[Unreleased]` du CHANGELOG ; migration `00020` ; réglages `pr.body_sections` et `pr.require_closes` ; PR3 dans la revue de jalon ; forks écartés de PR1, PR2, PR5, PR6, BR1 et BR2 ; approximations listées en [5.3](#53-pull-requests-pr) : PR3 filtré par la date du committer, `unmatched` tant que la liste des PR n'a pas été relue, PR6 « rebase » pour un squash au sujet réécrit, BR5 inconnu sans droit push, dépôt de 1 000 PR ou plus relu à chaque synchro ; comparaison de PR2 avec le seul commit non mesurée) | une relecture des listes de PR | 1.11.0 |
 | 8.6 | Relectures : PR4, « fusionnées sans relecture », relectures reçues. **Réalisée, non publiée** (`[Unreleased]` du CHANGELOG ; migration `00021` ; réglages `pr.min_reviews` et `pr.reviewer_must_contribute`, appliqués à la lecture ; PR4 dans la revue de jalon ; aucun login de relecteur stocké : des compteurs seulement, `excluded_accounts` appliqué aux PR lues ensuite ; approximations listées en [5.3](#53-pull-requests-pr) et [7.1](#71-revue-de-jalon-rj) : PR fusionnée lue avant sa fusion « inconnue » jusqu'à la lecture suivante, relecteur sans compte jamais compté, `DISMISSED` daté du dépôt de la relecture et non de son retrait, relecteur contributeur reconnu par login ou par identifiant de compte, intervalle du jalon borné par les dates des commits visés par les tags) | 1 requête par PR fusionnée | 1.12.0 |
-| 8.7 | Pistes facultatives : CL11, CL12, RD5, DOC6, DOC7, DOC9, DOC10, TL4, TL5 | 0 quota | MINOR |
+| 8.7 | Pistes facultatives : CL11, CL12, RD5, DOC6, DOC7, DOC9, DOC10, TL4, TL5. **Réalisée, non publiée** (`[Unreleased]` du CHANGELOG ; aucune migration, aucun réglage ; `FileRulesVersion` passe à 2 ; pistes hors grilles, hors revue de jalon et hors taux ; CL11, CL12, RD5, DOC6, DOC7 et TL4 en cache à la synchro, DOC9, DOC10 et TL5 à la lecture ; approximations listées en [5.8](#58-outillage-tl) : DOC9, DOC10 et TL5 seulement en vue détaillée, introduction de TL5 datée par fichier seulement, CL12 sous-estimé si la branche par défaut n'est pas suivie, grilles « à recalculer » jusqu'à la synchro suivante, aucun compteur de pistes dans `/conventions`) | 0 quota | 1.13.0 |
 
 ## 11. Décisions du mainteneur
 
@@ -981,7 +1097,8 @@ Décisions du 8 novembre 2026.
 ### 11.1 Points restant à vérifier
 
 - **Seuils** à valider sur des dépôts réels avant affichage : 80 % pour SV5, 150 mots pour RD4, écart de
-  date de CL8, seuils de CL12 et DOC9.
+  date de CL8, seuils de CL12 (10 puces, 60 %, 20 %), de DOC9 (20 commits, 30 jours), de DOC10 (30 jours)
+  et de TL5 (10 commits de chaque côté).
 - **Phase 8.6** : une relecture met-elle à jour `updated_at` de la PR ? Toujours pas vérifié sur GitHub, et
   plus nécessaire pour les PR fusionnées : une lecture après la fusion suffit (les relectures déposées après
   `merged_at` ne comptent pas), et une PR lue quand elle était ouverte est relue une fois fusionnée. Seul

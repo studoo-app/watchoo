@@ -165,6 +165,9 @@ type RepoReport struct {
 	// Phase 8.5 (PR5 et PR6 : Pulls ; BR2 : Branches.Reused).
 	Arrivals     ArrivalReport      // PR3 : commits arrivés sur la branche par défaut hors PR
 	MergeMethods MergeMethodsReport // BR5 : méthodes de fusion autorisées
+
+	// Phase 8.7.
+	Leads LeadReport // pistes : invitent à relire, ne jugent pas ; hors de toute grille et de tout taux
 }
 
 // ContributorReport est le taux CC3 d'un contributeur, tous dépôts du rapport confondus.

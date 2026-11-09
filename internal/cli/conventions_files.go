@@ -200,13 +200,7 @@ func docListLines(f conventions.FileReport) []string {
 		}
 		return []string{i18n.T("cli.conv.lists_unavailable", i18n.T("cli.conv.reason."+f.ListsReason))}
 	}
-	dead := make([]string, len(l.DeadLinks))
-	for i, d := range l.DeadLinks {
-		dead[i] = d.Source + " → " + d.Target
-		if d.CaseMismatch {
-			dead[i] += " (" + i18n.T("cli.conv.dead_link_case") + ")"
-		}
-	}
+	dead := deadLinkTexts(l.DeadLinks)
 	var lines []string
 	for _, list := range []struct {
 		key   string
@@ -218,18 +212,24 @@ func docListLines(f conventions.FileReport) []string {
 		if len(list.paths) == 0 {
 			continue
 		}
-		shown := list.paths[:min(len(list.paths), maxListText)]
-		clean := make([]string, len(shown))
-		for i, p := range shown {
-			clean[i] = textclean.Clean(p)
-		}
-		text := strings.Join(clean, ", ")
-		if more := len(list.paths) - len(shown); more > 0 {
-			text += ", " + i18n.T("cli.conv.list_more", more)
-		}
-		lines = append(lines, i18n.T("cli.conv.list."+list.key, len(list.paths), text))
+		lines = append(lines, pathListLine(list.key, list.paths))
 	}
 	return lines
+}
+
+// pathListLine écrit une liste de chemins non vide de la vue détaillée (cli.conv.list.<key>) : chemins
+// nettoyés, au plus maxListText, puis le nombre des autres.
+func pathListLine(key string, paths []string) string {
+	shown := paths[:min(len(paths), maxListText)]
+	clean := make([]string, len(shown))
+	for i, p := range shown {
+		clean[i] = textclean.Clean(p)
+	}
+	text := strings.Join(clean, ", ")
+	if more := len(paths) - len(shown); more > 0 {
+		text += ", " + i18n.T("cli.conv.list_more", more)
+	}
+	return i18n.T("cli.conv.list."+key, len(paths), text)
 }
 
 // milestoneFileDetail précise un critère de fichiers de la revue : pour RD2 (section installation), les

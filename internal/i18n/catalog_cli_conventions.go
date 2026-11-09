@@ -500,7 +500,29 @@ Options :
 		"reviews of merged pull requests not read yet, run watchoo sync",
 		"relectures de pull requests fusionnées pas encore lues, lancez watchoo sync",
 	},
-	"cli.conv.reason.no_merged_pr": {"no merged pull request", "aucune pull request fusionnée"},
+	// Phase 8.7 : pistes.
+	"cli.conv.leads_title": {
+		"Leads (they invite to reread, they do not judge): %d to look at",
+		"Pistes (elles invitent à relire, elles ne jugent pas) : %d à relire",
+	},
+	"cli.conv.lead_line":    {"%s %s — %s", "%s %s — %s"},
+	"cli.conv.lead_codes":   {": %s", " : %s"},
+	"cli.conv.lead_unknown": {"%s unknown — %s (%s)", "%s inconnue — %s (%s)"},
+	"cli.conv.lead_more": {
+		"details of every lead: watchoo conventions %s",
+		"détail de chaque piste : watchoo conventions %s",
+	},
+	"cli.conv.list.broken_images": {"Broken images (DOC7, %d): %s", "Images cassées (DOC7, %d) : %s"},
+	"cli.conv.reason.detail_only": {
+		"only in the detailed view of a repository",
+		"seulement dans la vue détaillée d'un dépôt",
+	},
+	"cli.conv.reason.too_few":              {"sample too small", "effectif trop petit"},
+	"cli.conv.reason.no_version":           {"no version heading", "aucun titre de version"},
+	"cli.conv.reason.introduction_unknown": {"introduction date of the tooling not measurable", "date d'introduction de l'outillage non mesurable"},
+	"cli.conv.reason.no_tooling":           {"no commit tooling found", "aucun outillage des commits trouvé"},
+	"cli.conv.reason.no_date_column":       {"no INDEX table with a document and a date column", "aucun tableau de l'INDEX avec une colonne document et une colonne date"},
+	"cli.conv.reason.no_merged_pr":         {"no merged pull request", "aucune pull request fusionnée"},
 	"cli.conv.reason.no_tag_date": {
 		"date of a tag commit not in the database",
 		"date du commit d'un tag absente de la base",

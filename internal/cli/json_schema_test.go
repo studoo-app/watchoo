@@ -168,6 +168,10 @@ func TestJSONSchemaAllCommands(t *testing.T) {
 	assertJSONKeys(t, outputs["conventions"], "repositories.0.branches.reused", "known", "reason", "items")
 	assertJSONKeys(t, outputs["conventions"], "repositories.0.merge_methods", "known", "reason", "squash", "merge",
 		"rebase", "conform")
+	// Phase 8.7: leads, outside every grid and every rate.
+	assertJSONKeys(t, outputs["conventions"], "repositories.0.leads", "to_review", "items", "broken_images")
+	assertJSONKeys(t, outputs["conventions"], "repositories.0.leads.items.0", "id", "status", "reason", "codes", "counts",
+		"dates")
 	assertJSONKeys(t, outputs["conventions"], "contributors.0.arrivals", "by_pr", "outside_pr", "undetermined")
 	assertJSONKeys(t, outputs["conventions"], "contributors.0.traits", "evaluated", "wording", "footer", "issue_reference")
 	assertJSONKeys(t, outputs["conventions"], "contributors.0.trend", "known", "repositories", "unmeasured", "before", "since")
@@ -252,7 +256,7 @@ var (
 		"default_branch", "traits", "language", "branches", "pull_requests", "tags", "intervals",
 		"changelog", "readme", "docs", "tooling",
 		"rewrites", "tag_history", "prereleases", "bumps", "precedence", "changelog_freshness",
-		"arrivals", "merge_methods"}
+		"arrivals", "merge_methods", "leads"}
 	conventionsFilesKeys = []string{"state", "reason", "sha", "computed_at", "conform", "unknown", "total", "criteria"}
 	conventionsTallyKeys = []string{"evaluated", "conform", "rate", "excluded", "issues"}
 )

@@ -257,6 +257,9 @@ type RepoConventionsView struct {
 
 	// Phase 8.5 : commits hors PR, corps et fusion des PR, branches réutilisées, méthodes de fusion.
 	Merges convMergesView
+
+	// Phase 8.7 : pistes, hors de toute grille et de tout taux.
+	Leads convLeadsView
 }
 
 // conventionsInputs renvoie l'accès aux clones (lus sans mise à jour, sinon repli sur la base) et les
@@ -425,6 +428,7 @@ func (s *server) repoConventions(r *http.Request, id int64) (*RepoConventionsVie
 	v.Files = newConvFiles(tr, repo.Files)
 	v.History = newConvHistory(tr, repo)
 	v.Merges = newConvMerges(tr, repo)
+	v.Leads = s.newConvLeads(tr, repo)
 	return v, nil
 }
 

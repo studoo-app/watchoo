@@ -24,8 +24,9 @@ import (
 // FileRulesVersion est la version des règles des critères de fichiers. Elle est distincte de RulesVersion
 // (règles des commits, calculées à la lecture) : seuls les résultats de fichiers sont mis en cache
 // (repository_conventions), et un changement des règles de commit ne doit pas les invalider. Elle change
-// quand un même arbre peut recevoir d'autres états, codes ou compteurs.
-const FileRulesVersion = 1
+// quand un même arbre peut recevoir d'autres états, codes ou compteurs. Version 2 (phase 8.7) : pistes de
+// l'arbre (FileResults.Leads).
+const FileRulesVersion = 2
 
 // Critères de fichiers (clés --json), dans leur ordre d'affichage.
 const (
@@ -365,6 +366,9 @@ type FileOptions struct {
 	Version string
 	// Now situe les dates futures de CL4 (zéro : maintenant) ; le jour est lu dans son fuseau.
 	Now time.Time
+	// Subjects sont les sujets des commits du dépôt connus en base (CL12, tête seulement), lus en mémoire
+	// par la synchro : jamais encodés, stockés ni journalisés. nil : aucun sujet comparé.
+	Subjects []string
 }
 
 // FileCheck est l'état d'un critère de fichiers. Il ne porte ni chemin ni contenu.
@@ -384,6 +388,9 @@ type FileResults struct {
 	Readme       []FileCheck `json:"readme"`
 	Docs         []FileCheck `json:"docs"`
 	Tooling      []FileCheck `json:"tooling"`
+	// Leads sont les pistes de l'arbre (phase 8.7, TreeLeadCriteria), mesurées sur la tête seulement : nil
+	// pour le tag d'un jalon. Elles n'entrent ni dans Find, ni dans Families, ni dans aucune grille.
+	Leads []LeadCheck `json:"leads,omitempty"`
 }
 
 // Find renvoie le critère id ; faux s'il n'a pas été mesuré.
@@ -426,23 +433,29 @@ type FileLists struct {
 	BadNames        []string   // DOC5 : dossiers (terminés par « / ») et fichiers mal nommés
 	Archives        []string   // DOC8 : archives
 	OfficeDocuments []string   // DOC8 : .docx et .pdf sous la documentation (information)
+	BrokenImages    []DeadLink // DOC7 (piste, phase 8.7) : images relatives introuvables ; tête seulement
 }
 
-// CheckFiles mesure tous les critères de fichiers d'une révision.
+// CheckFiles mesure tous les critères de fichiers d'une révision et, sur la tête (opts.Version vide), les
+// pistes de l'arbre (phase 8.7).
 func CheckFiles(tree FileTree, opts FileOptions) (FileResults, FileLists) {
 	docs, lists := CheckDocs(tree, opts)
-	return FileResults{
+	res := FileResults{
 		RulesVersion: FileRulesVersion,
 		Changelog:    CheckChangelog(tree, opts),
 		Readme:       CheckReadme(tree, opts),
 		Docs:         docs,
 		Tooling:      DetectTooling(tree, opts),
-	}, lists
+	}
+	if opts.Version == "" {
+		res.Leads, lists.BrokenImages = CheckLeads(tree, opts)
+	}
+	return res, lists
 }
 
 // FileBlobPaths renvoie, triés et sans doublon, les chemins de paths dont les critères lisent le contenu :
-// CHANGELOG, README, INDEX, documents .md de la documentation (au plus MaxDocuments), fichiers d'outillage
-// et gabarits de pull request.
+// CHANGELOG, README, INDEX, documents .md de la documentation (au plus MaxDocuments), fichiers d'outillage,
+// gabarits de pull request et workflows (TL4, phase 8.7).
 func FileBlobPaths(paths []string, rules FileRules) []string {
 	rules = rules.normalized()
 	idx := newTreeIndex(paths)
@@ -458,6 +471,7 @@ func FileBlobPaths(paths []string, rules FileRules) []string {
 	add(index.path)
 	out = append(out, docDocuments(idx, docsRoot(index, rules), rules, index.path, MaxDocuments)...)
 	out = append(out, toolingBlobs(idx)...)
+	out = append(out, leadBlobs(idx)...)
 	slices.Sort(out)
 	return slices.Compact(out)
 }

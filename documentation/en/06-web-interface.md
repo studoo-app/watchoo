@@ -283,6 +283,15 @@ signatures, no address displayed. Rules: [AI signatures](02-features.md#ai-signa
   "Merged pull requests reviewed by another account: r/k (u not read yet)." then "Merged without review
   (n):" with the number and the author (link to their page) of each one, at most 20. Counters only: no
   reviewer, no review body, no title.
+  Since 1.13.0 (phase 8.7), the section ends with a **folded block of leads** (`repo-conventions-leads`,
+  title "Leads: k to look at"), with a note that recalls that they invite to reread and do not judge: they
+  count in no grid, no rate and no milestone review. Each lead (CL11, CL12, RD5, DOC6, DOC7, DOC9, DOC10,
+  TL4, TL5, see [Project conventions](13-conventions.md#55-changelog-cl)) has a neutral badge ("nothing to
+  look at", "not applicable", "unknown" with its reason) or an information badge ("to look at"), never a
+  conform or not conform badge, then its codes with the number of items, its counters and, for DOC9 and
+  TL5, its dates. DOC9, DOC10 and TL5 and the list of **broken images** (DOC7, `source → target`) are
+  recomputed from the local clone for this page only, never stored. Neither a header value, an INDEX cell
+  nor a commit subject is shown. `/conventions` shows no lead.
 - Button **"Sync this repository"** (absent if tracking is stopped).
 - Fragments: `/repos/{id}/commits` (history); `/repos/{id}` with the `HX-Target` header
   `repo-overview`, `repo-contributors`, `repo-languages`, `repo-pulls`, `repo-diagnostic` or

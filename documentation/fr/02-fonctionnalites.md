@@ -157,10 +157,10 @@ outil est-il signé sur ce commit ? », jamais à « ce code a-t-il été écrit
 
 ## Conventions de projet
 
-Phases 8.1 à 8.6 (non publiées) : Watchoo mesure la conformité des messages de commit à une charte
+Phases 8.1 à 8.7 (non publiées) : Watchoo mesure la conformité des messages de commit à une charte
 Conventional Commits, puis celle des noms de branche, des titres de pull request et des tags, puis celle du
 CHANGELOG, du README, de la documentation et de l'outillage, puis l'historique des tags, les fusions et les
-relectures ; le détail est
+relectures, et enfin des pistes à relire ; le détail est
 dans [Conventions de projet](13-conventions.md).
 
 - **Désactivé par défaut** (`conventions.enabled`) et **réservé au formateur** : ce sont des constats
@@ -223,6 +223,16 @@ dans [Conventions de projet](13-conventions.md).
     ses pull requests (les relectures données ne sont pas comptées) ;
   - **revue de jalon** : le critère **PR4** s'ajoute après PR3, sur les pull requests fusionnées dans
     l'intervalle du jalon.
+- **Phase 8.7**, pistes (sans migration, sans réglage, sans requête API) : elles invitent à relire et ne
+  jugent jamais, ne comptent dans aucune grille, aucun taux ni dans la revue de jalon ; affichées dans un
+  bloc « Pistes » séparé :
+  - sur l'arbre de la tête, en cache de la synchro : **CL11** (liens de comparaison), **CL12** (recopie
+    probable de `git log`, pourcentages seulement), **RD5** (bloc de commandes de l'installation,
+    `.env.example`), **DOC6** (en-têtes de document, compteurs par champ, jamais les valeurs), **DOC7**
+    (images, blocs `mermaid`, dossier des médias), **TL4** (CI qui vérifie les conventions) ;
+  - sur l'historique du clone, dans le détail d'un dépôt seulement : **DOC9** (fraîcheur de la
+    documentation par rapport au code), **DOC10** (dates déclarées dans l'INDEX) et **TL5** (CC1 avant et
+    après l'outillage, « n/a » sous 10 commits d'un côté).
 - **Restitution** : commande `watchoo conventions` (`--milestone vX.Y.Z` pour la revue de jalon), page
   `/conventions`, section de la page d'un dépôt et page d'un contributeur ; jamais le message de commit ni le
   titre d'une PR, seulement le SHA court, le numéro de PR, l'auteur, les noms de branche et de tag et les

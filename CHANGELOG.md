@@ -86,6 +86,17 @@ PATCH (see [Skills](documentation/en/11-skills.md#versions-and-changelogmd)).
   `milestone.repositories[].reviews`), repository page (review badge and lines of the "Merges" block),
   `/conventions` (columns and the PR4 criterion) and contributor page. Counters only: no reviewer, no review
   body and no title is ever shown or logged.
+- **Leads of the conventions** (phase 8.7): nine optional leads that invite a reread and never judge, kept
+  out of every grid, every rate and the milestone review: comparison links of the CHANGELOG (CL11), probable
+  copy of `git log` (CL12, percentages only), command block of the installation and `.env.example` (RD5),
+  document headers (DOC6, counters per field, never the values), images, `mermaid` blocks and media folder
+  (DOC7), CI checking the conventions (TL4, pattern identifier only), freshness of the documentation (DOC9),
+  dates declared in the INDEX (DOC10) and CC1 before and after the tooling (TL5). CL11, CL12, RD5, DOC6, DOC7
+  and TL4 are cached at sync time from the head of the default branch; DOC9, DOC10 and TL5 are read from the
+  clone's history (read-only, no fetch) in the detailed view of a repository only. Text and `--json`
+  (additive key `leads` per repository, with `broken_images` in the detailed view), collapsed "Leads" block
+  on the repository page; nothing in `/conventions` nor on a contributor's page. No new setting, no API
+  request, no migration; no path, header value, bullet or commit subject stored or logged.
 - **Squash merges identified by their merge SHA in the diagnosis** (phase 8.5): with the conventions enabled,
   the merge commit of a merged pull request, with one parent and the `(#n)` of that pull request, is also
   excluded from A1 and A2, even without a recognized GitHub committer.
@@ -173,6 +184,9 @@ PATCH (see [Skills](documentation/en/11-skills.md#versions-and-changelogmd)).
   "(#n)", GitHub committer) no longer raises A1, and A2 only counts the author's other commits (A7
   unchanged); a Conventional Commits subject is no longer a novelty for F4 from the conventions start date.
   Computed when reading, nothing stored; with `conventions.enabled: false` the diagnosis is unchanged.
+- **Cache of the file criteria of the conventions** (phase 8.7): the version of the file rules goes up to
+  2, so after the update the CHANGELOG, README, documentation and tooling grids show "to recompute" until
+  the next `watchoo sync`.
 - **Configuration sharing file** (phase 8.1): `settings.conventions` (the charter: `since` and `commit.*`)
   and, per repository, `conventions_since` (only when the repository has its own date). The format stays at
   version `1`; a file containing these keys is refused by versions 1.6.1 and earlier.

@@ -54,15 +54,18 @@ func headCriteria(ids []string) []string {
 }
 
 // UnknownFileResults renvoie les critères de fichiers d'une révision, tous inconnus pour la raison donnée ;
-// milestone : révision du tag d'un jalon (CL9 compris).
+// milestone : révision du tag d'un jalon (CL9 compris, sans pistes). Sur la tête, les pistes de l'arbre
+// sont inconnues pour la même raison.
 func UnknownFileResults(reason string, milestone bool) FileResults {
 	cl := ChangelogCriteria
+	var leads []LeadCheck
 	if !milestone {
 		cl = headCriteria(cl)
+		leads = UnknownLeads(TreeLeadCriteria, reason)
 	}
 	return FileResults{RulesVersion: FileRulesVersion, Changelog: unknownAll(cl, reason),
 		Readme: unknownAll(ReadmeCriteria, reason), Docs: unknownAll(DocsCriteria, reason),
-		Tooling: unknownAll(ToolingCriteria, reason)}
+		Tooling: unknownAll(ToolingCriteria, reason), Leads: leads}
 }
 
 // cachedFiles cherche le résultat en cache de la révision (kind, tag) d'un dépôt et le juge : à jour
@@ -99,11 +102,19 @@ func hasClone(clones CloneReader, repo model.Repository) bool {
 	return clones != nil && clones.HasClone(repo.Owner, repo.Name)
 }
 
+// detailTree est l'arbre lu par buildFiles pour la vue détaillée, à la révision sha, réutilisé par les
+// pistes de l'historique (buildLeads) ; jamais gardé au-delà du calcul du rapport.
+type detailTree struct {
+	sha  string
+	tree FileTree
+}
+
 // buildFiles lit les critères de fichiers du dépôt en cache (tête de la branche par défaut). Rapport
 // restreint à des contributeurs : non lus (indicateurs de dépôt, attribués à personne). Vue détaillée :
-// recalcule les listes de chemins depuis le clone, à la révision du résultat en cache.
+// recalcule les listes de chemins depuis le clone, à la révision du résultat en cache, et garde l'arbre lu
+// dans keep (nil : non gardé).
 func buildFiles(ctx context.Context, r Reader, clones CloneReader, repo model.Repository, filtered bool,
-	tags []model.Tag, opts BuildOptions) (FileReport, error) {
+	tags []model.Tag, opts BuildOptions, keep *detailTree) (FileReport, error) {
 	if filtered {
 		return FileReport{Reason: UnknownFiltered, Results: UnknownFileResults(UnknownFiltered, false)}, nil
 	}
@@ -137,13 +148,18 @@ func buildFiles(ctx context.Context, r Reader, clones CloneReader, repo model.Re
 	if cerr := ctx.Err(); cerr != nil {
 		return FileReport{}, cerr
 	}
+	if err == nil && keep != nil {
+		*keep = detailTree{sha: row.RevSHA, tree: tree}
+	}
 	switch {
 	case err != nil:
 		out.ListsReason = UnknownCloneUnreadable
 	case tree.Truncated:
 		out.ListsReason = UnknownTreeTruncated
 	default:
-		_, lists := CheckDocs(tree, FileOptions{Rules: opts.Files, Repo: repo.FullName(), Tags: repoTagNames(tags)})
+		fopts := FileOptions{Rules: opts.Files, Repo: repo.FullName(), Tags: repoTagNames(tags)}
+		_, lists := CheckDocs(tree, fopts)
+		lists.BrokenImages = BrokenImages(tree, fopts)
 		out.Lists = &lists
 	}
 	return out, nil

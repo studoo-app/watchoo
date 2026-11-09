@@ -408,7 +408,7 @@ qui désigne un jalon configuré (voir [Conventions de projet](13-conventions.md
 | rev_sha | Commit mesuré (SHA complet, 40 ou 64 caractères hexadécimaux en minuscules) |
 | rules_version | Version des règles des critères de fichiers (`conventions.FileRulesVersion`) |
 | config_hash | Empreinte stable (SHA-256) des réglages `conventions.changelog.*`, `conventions.readme.*`, `conventions.docs.*`, du dépôt (`owner/name`, sans casse : RD3, DOC3 et DOC4 reconnaissent ses URL) et des noms des tags qui désignent une version (CL8) |
-| results | Objet JSON (`CHECK json_type = 'object'`) : identifiants de critères, états, raisons, codes et **compteurs** seulement ; jamais un chemin, un contenu de fichier, une cellule d'INDEX ni un nom de personne |
+| results | Objet JSON (`CHECK json_type = 'object'`) : identifiants de critères, états, raisons, codes et **compteurs** seulement ; jamais un chemin, un contenu de fichier, une cellule d'INDEX ni un nom de personne. Depuis la phase 8.7 (`rules_version` 2), la ligne de la tête ajoute `leads` : les pistes CL11, CL12, RD5, DOC6, DOC7 et TL4, avec les mêmes limites (pourcentages et compteurs, jamais une valeur d'en-tête ni un sujet de commit) |
 | computed_at | Date du calcul |
 
 Une ligne dont `rev_sha`, `rules_version` ou `config_hash` ne correspond plus est recalculée à la synchro

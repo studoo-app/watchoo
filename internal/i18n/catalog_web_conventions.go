@@ -361,8 +361,26 @@ var webConventionsTexts = map[string]entry{
 		"Repository indicators, credited to nobody, read from the cache of the sync; the paths are recomputed from the local clone for this page only.",
 		"Indicateurs de dépôt, attribués à personne, lus dans le cache de la synchro ; les chemins sont recalculés depuis le clone local pour cette page seulement.",
 	},
-	"web.conv.col_files":      {"Files", "Fichiers"},
-	"web.conv.family_unknown": {"%d unknown", "%d inconnus"},
+	// Phase 8.7 : pistes, repliées dans la section du dépôt.
+	"web.conv.leads_title": {"Leads: %d to look at", "Pistes : %d à relire"},
+	"web.conv.leads_note": {
+		"Leads invite to reread, they do not judge: they count in no grid, no rate and no milestone review. Repository indicators, credited to nobody; the history leads (DOC9, DOC10, TL5) and the broken images are recomputed from the local clone for this page only.",
+		"Les pistes invitent à relire, elles ne jugent pas : elles n'entrent dans aucune grille, aucun taux ni aucune revue de jalon. Indicateurs de dépôt, attribués à personne ; les pistes de l'historique (DOC9, DOC10, TL5) et les images cassées sont recalculées depuis le clone local pour cette page seulement.",
+	},
+	"web.conv.lead_count.one":     {"%d item", "%d élément"},
+	"web.conv.lead_count.other":   {"%d items", "%d éléments"},
+	"web.conv.list.broken_images": {"Broken images (DOC7): %d", "Images cassées (DOC7) : %d"},
+	"web.conv.reason.detail_only": {
+		"only on a repository's page",
+		"seulement sur la page d'un dépôt",
+	},
+	"web.conv.reason.too_few":              {"sample too small", "effectif trop petit"},
+	"web.conv.reason.no_version":           {"no version heading", "aucun titre de version"},
+	"web.conv.reason.introduction_unknown": {"introduction date of the tooling not measurable", "date d'introduction de l'outillage non mesurable"},
+	"web.conv.reason.no_tooling":           {"no commit tooling found", "aucun outillage des commits trouvé"},
+	"web.conv.reason.no_date_column":       {"no INDEX table with a document and a date column", "aucun tableau de l'INDEX avec une colonne document et une colonne date"},
+	"web.conv.col_files":                   {"Files", "Fichiers"},
+	"web.conv.family_unknown":              {"%d unknown", "%d inconnus"},
 
 	// Phase 8.4 : historique et versions (libellés des codes et états : clés « conv. » communes avec la CLI).
 	"web.conv.col_history":   {"History and versions", "Historique et versions"},

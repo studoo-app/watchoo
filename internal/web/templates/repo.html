@@ -658,6 +658,29 @@
       {{end}}
       <p class="text-xs text-base-content/60">{{t "web.conv.files_note"}}</p>
     </div>
+
+    {{/* Phase 8.7 : pistes, repliées ; elles invitent à relire, elles ne jugent pas. */}}
+    {{with $c.Leads}}
+    <details class="collapse collapse-arrow bg-base-200/40 rounded-box" id="repo-conventions-leads">
+      <summary class="collapse-title text-sm font-medium min-h-0 py-2">{{t "web.conv.leads_title" .ToReview}}</summary>
+      <div class="collapse-content overflow-x-auto space-y-2">
+        <p class="text-xs text-base-content/60">{{t "web.conv.leads_note"}}</p>
+        <ul class="text-sm space-y-1">
+          {{range .Items}}
+          <li id="repo-conventions-lead-{{.ID}}">{{template "conv-status" (dict "Status" .Status "Text" "")}} <span class="font-mono">{{.ID}}</span> {{.Label}}{{if .Reason}} <span class="text-xs text-base-content/60">({{.Reason}})</span>{{end}}{{if .Detail}} <span class="text-xs text-base-content/60">· {{.Detail}}</span>{{end}}
+            {{if .Codes}}<div class="flex flex-wrap gap-1 mt-1">{{range .Codes}}<span class="badge badge-sm badge-ghost whitespace-nowrap"><code>{{.Code}}</code> {{.Label}}</span>{{end}}</div>{{end}}
+          </li>
+          {{end}}
+        </ul>
+        {{with .BrokenImages}}
+        <div id="repo-conventions-list-{{.Key}}">
+          <p class="text-sm font-medium">{{.Label}}</p>
+          <ul class="list-disc pl-5 text-sm font-mono space-y-1">{{range .Paths}}<li class="break-all">{{clean .}}</li>{{end}}</ul>
+        </div>
+        {{end}}
+      </div>
+    </details>
+    {{end}}
     {{end}}
     <p class="text-xs text-base-content/60">{{if $c.Database}}{{t "web.conv.source_database"}}{{else}}{{t "web.conv.source_clone"}}{{end}}{{if $c.ParentsUnknown}} {{t "web.conv.parents_unknown" $c.ParentsUnknown}}{{end}}</p>
   </div>

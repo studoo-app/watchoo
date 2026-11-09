@@ -80,6 +80,8 @@ type conventionsRepoJSON struct {
 	// Phase 8.5 (PR5 et PR6 dans pull_requests, BR2 dans branches.reused).
 	Arrivals     conventionsArrivalsJSON     `json:"arrivals"`      // PR3 : commits arrivés hors PR
 	MergeMethods conventionsMergeMethodsJSON `json:"merge_methods"` // BR5
+	// Phase 8.7 : pistes (hors de toute grille et de tout taux).
+	Leads conventionsLeadsJSON `json:"leads"`
 }
 
 // conventionsTallyJSON est un taux n/m, ses exclusions et ses écarts.
@@ -260,6 +262,7 @@ func runConventions(ctx context.Context, deps Deps, opts *options, ref string, f
 			ChangelogFreshness: newConventionsFreshnessJSON(r.Freshness),
 			Arrivals:           newConventionsArrivalsJSON(r.Arrivals),
 			MergeMethods:       newConventionsMergeMethodsJSON(r.MergeMethods),
+			Leads:              newConventionsLeadsJSON(r.Leads, r.Files),
 		})
 		if !report.Filters.Commits {
 			continue
@@ -371,6 +374,7 @@ func (s *session) conventionsText(st textStyle, res conventions.BuildReport, rep
 		lines = append(lines, s.fileLines(r.Files, report.Filters.Repository != "")...)
 		if report.Filters.Contributor == "" {
 			lines = append(lines, historyLines(r, s.loc)...)
+			lines = append(lines, s.leadLines(r, report.Filters.Repository != "")...)
 		}
 		if len(lines) == 0 {
 			continue

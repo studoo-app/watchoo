@@ -86,6 +86,8 @@ type clSection struct {
 	unreleased bool
 	french     bool // [Unreleased] écrit en français
 	bracketed  bool
+	label      string // libellé du titre tel qu'écrit (« Unreleased », « 1.2.0 », « v1.2.0 ») ; CL11
+	inlineLink bool   // titre « [1.0.0](https://…) » : lien écrit dans le titre (CL11)
 	version    semver.Version
 	hasVersion bool
 	date       time.Time
@@ -175,6 +177,7 @@ func parseSectionHeading(text string, rules FileRules, today string) clSection {
 			// « [1.0.0](https://…) » : le lien du titre est ignoré.
 			if strings.HasPrefix(rest, "(") {
 				if c := strings.Index(rest, ")"); c >= 0 {
+					s.inlineLink = c > 1
 					rest = rest[c+1:]
 				}
 			}
@@ -183,6 +186,7 @@ func parseSectionHeading(text string, rules FileRules, today string) clSection {
 		label, rest, _ = strings.Cut(t, " ")
 	}
 	label = strings.TrimSpace(label)
+	s.label = label
 	n := normalizeText(label)
 	if !s.bracketed && n != "unreleased" {
 		// Sans crochets, le titre entier est le libellé (« ## Non publié »).

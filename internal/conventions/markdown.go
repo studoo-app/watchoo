@@ -37,6 +37,14 @@ type mdLink struct {
 	Target string // cible telle qu'écrite, sans chevrons ni titre
 	Image  bool   // ![alt](cible)
 	Def    bool   // définition « [réf]: cible »
+	Label  string // libellé d'une définition (« réf »), tel qu'écrit ; vide sinon (CL11, phase 8.7)
+}
+
+// mdFence est un bloc de code clôturé (phase 8.7 : RD5, DOC7) : son info-string et le titre sous lequel il
+// est écrit. Son contenu n'est pas gardé ; il n'entre ni dans Lines ni dans Words.
+type mdFence struct {
+	Info    string // premier mot de l'info-string, en minuscules (« bash », « mermaid ») ; vide sans info
+	Heading int    // indice dans Lines du dernier titre qui le précède ; -1 avant tout titre
 }
 
 // mdTable est un tableau GFM : la ligne d'en-tête et les lignes de données, cellules sans les « | » de bord.
@@ -50,7 +58,10 @@ type mdDoc struct {
 	Lines  []mdLine
 	Links  []mdLink
 	Tables []mdTable
-	Words  int // mots hors code (blocs et code en ligne), hors cibles de liens et balises HTML
+	Fences []mdFence // blocs de code clôturés, dans l'ordre (phase 8.7)
+	Words  int       // mots hors code (blocs et code en ligne), hors cibles de liens et balises HTML
+
+	lastHeading int // indice dans Lines du dernier titre lu ; -1 avant tout titre
 }
 
 var (
@@ -74,7 +85,7 @@ func parseMarkdown(src []byte) mdDoc {
 	}
 	text = strings.TrimPrefix(text, "\uFEFF")
 	raw := strings.Split(strings.ReplaceAll(text, "\r\n", "\n"), "\n")
-	var doc mdDoc
+	doc := mdDoc{lastHeading: -1}
 	var fence string // clôture ouverte (caractère répété), vide hors bloc
 	inComment := false
 	for i := 0; i < len(raw); i++ {
@@ -102,6 +113,7 @@ func parseMarkdown(src []byte) mdDoc {
 		if m := mdFenceRe.FindStringSubmatch(line); m != nil {
 			if m[1][0] != '`' || !strings.Contains(m[2], "`") {
 				fence = m[1]
+				doc.Fences = append(doc.Fences, mdFence{Info: fenceInfo(m[2]), Heading: doc.lastHeading})
 				continue
 			}
 		}
@@ -125,6 +137,16 @@ func parseMarkdown(src []byte) mdDoc {
 		doc.addLine(line)
 	}
 	return doc
+}
+
+// fenceInfo renvoie le premier mot de l'info-string d'une clôture, en minuscules, sans accolades ni point
+// (« ```{.mermaid} » donne « mermaid »).
+func fenceInfo(s string) string {
+	fields := strings.FieldsFunc(s, func(r rune) bool { return unicode.IsSpace(r) || r == ',' })
+	if len(fields) == 0 {
+		return ""
+	}
+	return strings.ToLower(strings.Trim(fields[0], "{}."))
 }
 
 // isFenceClose indique une ligne qui ferme le bloc ouvert par fence.
@@ -178,12 +200,13 @@ func (d *mdDoc) addLine(line string) {
 	}
 	if lvl, txt, ok := atxHeading(line); ok {
 		d.Lines = append(d.Lines, mdLine{Kind: mdHeading, Level: lvl, Text: txt})
+		d.lastHeading = len(d.Lines) - 1
 		d.scan(txt)
 		return
 	}
 	if m := mdLinkDefRe.FindStringSubmatch(line); m != nil {
 		d.Lines = append(d.Lines, mdLine{Kind: mdLinkDef, Text: line})
-		d.Links = append(d.Links, mdLink{Target: unbracket(m[2]), Def: true})
+		d.Links = append(d.Links, mdLink{Target: unbracket(m[2]), Def: true, Label: m[1]})
 		return
 	}
 	if m := mdBulletRe.FindStringSubmatch(line); m != nil {

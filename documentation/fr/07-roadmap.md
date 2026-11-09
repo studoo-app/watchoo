@@ -198,8 +198,10 @@ L'import d'une organisation entière et les alertes passent en V3 (voir
   et phase **8.5** (fusions lues sans requête de plus : SHA de fusion, origine fork, sections des
   descriptions de PR, méthodes de fusion ; PR3, PR5, PR6, BR2, BR5, forks écartés de PR1, PR2, PR5, PR6, BR1 et BR2, PR3 dans la
   revue de jalon) et phase **8.6** (relectures : une requête par pull request fusionnée, des compteurs
-  seulement ; PR4, fusionnées sans relecture, relectures reçues, PR4 dans la revue de jalon) **réalisées, non
-  publiées** ; phase 8.7 à planifier. Protection de branche (BR3) reportée.
+  seulement ; PR4, fusionnées sans relecture, relectures reçues, PR4 dans la revue de jalon) et phase **8.7**
+  (pistes qui invitent à relire sans juger, hors grilles et hors taux : CL11, CL12, RD5, DOC6, DOC7, DOC9,
+  DOC10, TL4, TL5) **réalisées, non publiées** : la phase 8 est réalisée, sauf la protection de branche (BR3),
+  reportée.
 
 ## Définition de « terminé » pour chaque phase
 

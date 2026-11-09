@@ -160,9 +160,9 @@ signed on this commit?", never "was this code written by AI?".
 
 ## Project conventions
 
-Phases 8.1 to 8.6 (not released): Watchoo measures the compliance of commit messages with a Conventional
+Phases 8.1 to 8.7 (not released): Watchoo measures the compliance of commit messages with a Conventional
 Commits charter, then that of branch names, pull request titles and tags, then that of the CHANGELOG, the
-README, the documentation and the tooling, then the history of the tags, the merges and the reviews; the
+README, the documentation and the tooling, then the history of the tags, the merges and the reviews, and finally leads to reread; the
 details are in
 [Project conventions](13-conventions.md).
 
@@ -223,6 +223,15 @@ details are in
     pull requests (the reviews given are not counted);
   - **milestone review**: the **PR4** criterion is added after PR3, on the pull requests merged in the
     interval of the milestone.
+- **Phase 8.7**, leads (no migration, no setting, no API request): they invite a reread and never judge,
+  and count in no grid, no rate and not in the milestone review; shown in a separate "Leads" block:
+  - from the tree of the head, cached by the sync: **CL11** (comparison links), **CL12** (probable copy of
+    `git log`, percentages only), **RD5** (command block of the installation, `.env.example`), **DOC6**
+    (document headers, counters per field, never the values), **DOC7** (images, `mermaid` blocks, media
+    folder), **TL4** (CI checking the conventions);
+  - from the clone's history, in the detail of a repository only: **DOC9** (freshness of the documentation
+    against the code), **DOC10** (dates declared in the INDEX) and **TL5** (CC1 before and after the
+    tooling, "n/a" under 10 commits on either side).
 - **Output**: `watchoo conventions` command (`--milestone vX.Y.Z` for the milestone review), `/conventions`
   page, section of a repository's page and contributor's page; never the commit message nor a pull request
   title, only the short SHA, the pull request number, the author, the branch and tag names and the codes.
