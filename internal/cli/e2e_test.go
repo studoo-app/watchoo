@@ -217,10 +217,12 @@ func TestEndToEnd(t *testing.T) {
 	assertContains(t, "conventions --failing", convText, "0/3", "no_type", "may include rewritten commits",
 		// Phase 8.2: the pull requests by number and codes, the head branch, the tag and the milestone.
 		"pull requests: conventional titles open 0/1, merged 0/1", "(login): no_type", "tags: 0/1 conform",
-		"milestones: v1.0.0 nonconforming name (v1.0)")
+		"milestones: v1.0.0 nonconforming name (v1.0)",
+		// Phase 8.3: file criteria unknown without a local clone (no repository content read by the API).
+		"File criteria (CHANGELOG, README, documentation, tooling): unknown (")
 	t.Setenv("WATCHOO_CONVENTIONS_SINCE", "2020-01-01")
 	convReview := h.run("conventions", "--milestone", "v1.0.0").mustSucceed(t).stdout
-	assertContains(t, "conventions --milestone", convReview, "Milestone review v1.0.0", "Alice Martin: 0/4 criteria conform")
+	assertContains(t, "conventions --milestone", convReview, "Milestone review v1.0.0", "Alice Martin: 0/11 criteria conform", "CL9  unknown (")
 	convReviewJSON := h.run("conventions", "--milestone", "v1.0.0", "--json").mustSucceed(t).stdout
 	t.Setenv("WATCHOO_CONVENTIONS_SINCE", "")
 	// Neither a commit message nor a pull request title, whatever the options.

@@ -174,6 +174,7 @@ type conventionsMilestoneRepoJSON struct {
 	TagCodes   []string                          `json:"tag_codes"` // SV1 du tag ; [] sans tag
 	Interval   *conventionsMilestoneIntervalJSON `json:"interval"`  // null si non mesuré
 	Branches   conventionsAuthorBranchesJSON     `json:"branches"`  // BR1, état courant
+	Files      *conventionsMilestoneFilesJSON    `json:"files"`     // critères de fichiers au tag (8.3) ; null si non évaluable
 	Criteria   []conventionsCriterionJSON        `json:"criteria"`
 	Conform    int                               `json:"conform"`
 	Unknown    int                               `json:"unknown"`
@@ -299,7 +300,7 @@ func newConventionsMilestoneJSON(rv conventions.MilestoneReview) *conventionsMil
 			Status: r.Milestone.Status, Tag: optionalString(r.Milestone.Tag), TagCodes: []string{},
 			Branches: conventionsAuthorBranchesJSON{Checked: r.Branches.Checked, Conform: r.Branches.Conform, Review: r.Branches.Review},
 			Criteria: make([]conventionsCriterionJSON, 0, len(r.Criteria)), Conform: r.Conform, Unknown: r.Unknown,
-			Total: len(r.Criteria),
+			Total: len(r.Criteria), Files: newConventionsMilestoneFilesJSON(r.Files),
 		}
 		if r.Tag != nil {
 			item.TagCodes = nonNil(r.Tag.Codes)

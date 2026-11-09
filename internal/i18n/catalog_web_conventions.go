@@ -150,7 +150,15 @@ var webConventionsTexts = map[string]entry{
 	"web.conv.criterion.BR1":   {"branch names", "noms de branche"},
 	"web.conv.criterion.SV1":   {"name of the tag", "nom du tag"},
 	"web.conv.criterion.SV2":   {"milestone present", "jalon présent"},
-	"web.conv.not_evaluable":   {"Not evaluable: %s.", "Non évaluable : %s."},
+	// Phase 8.3 : critères de fichiers de la revue, sur l'arbre du tag du jalon.
+	"web.conv.criterion.CL9":  {"CHANGELOG section of the milestone", "section du jalon dans le CHANGELOG"},
+	"web.conv.criterion.CL8":  {"tags and CHANGELOG sections", "tags et sections du CHANGELOG"},
+	"web.conv.criterion.RD1":  {"README present", "README présent"},
+	"web.conv.criterion.RD2":  {"installation section of the README", "section installation du README"},
+	"web.conv.criterion.RD3":  {"README links", "liens du README"},
+	"web.conv.criterion.DOC1": {"INDEX present", "INDEX présent"},
+	"web.conv.criterion.DOC3": {"INDEX exhaustive", "INDEX exhaustif"},
+	"web.conv.not_evaluable":  {"Not evaluable: %s.", "Non évaluable : %s."},
 	"web.conv.review_result": {
 		"%d/%d criteria conforming, %d unknown",
 		"%d/%d critères conformes, %d inconnus",
@@ -159,8 +167,8 @@ var webConventionsTexts = map[string]entry{
 	"web.conv.interval_start":   {"start", "début"},
 	"web.conv.interval_missing": {"%d commits not in the database", "%d commits absents de la base"},
 	"web.conv.review_note": {
-		"Criteria measured since phase 8.2; the files (CHANGELOG, README, documentation) arrive with phase 8.3, the rewritten tags with phase 8.4, the pull request reviews with phases 8.5 and 8.6.",
-		"Critères mesurés depuis la phase 8.2 ; les fichiers (CHANGELOG, README, documentation) arrivent avec la phase 8.3, les tags réécrits avec la phase 8.4, les relectures de pull request avec les phases 8.5 et 8.6.",
+		"The file criteria (CL, RD, DOC) are measured by the sync on the tree of the milestone tag; RD2 judges only the installation section here. The rewritten tags arrive with phase 8.4, the pull request reviews with phases 8.5 and 8.6.",
+		"Les critères de fichiers (CL, RD, DOC) sont mesurés par la synchro sur l'arbre du tag du jalon ; RD2 ne juge ici que la section installation. Les tags réécrits arrivent avec la phase 8.4, les relectures de pull request avec les phases 8.5 et 8.6.",
 	},
 	"web.conv.bad_milestone": {
 		"Milestone %q is not configured (conventions.tags.milestones).",
@@ -290,6 +298,58 @@ var webConventionsTexts = map[string]entry{
 	"web.conv.reason.no_commits":                      {"no evaluated commit", "aucun commit évalué"},
 	"web.conv.reason.partial":                         {"commits not in the database", "commits absents de la base"},
 	"web.conv.reason.no_branch":                       {"no branch to evaluate", "aucune branche à évaluer"},
+	"web.conv.reason.empty_repository":                {"empty repository", "dépôt vide"},
+	"web.conv.reason.tree_truncated":                  {"too many files, list truncated", "trop de fichiers, liste tronquée"},
+	"web.conv.reason.no_file":                         {"file absent", "fichier absent"},
+	"web.conv.reason.blob_too_large":                  {"file too large to be read", "fichier trop gros pour être lu"},
+	"web.conv.reason.blob_unreadable":                 {"file not read", "fichier non lu"},
+	"web.conv.reason.no_docs_dir":                     {"no documentation folder", "pas de dossier de documentation"},
+	"web.conv.reason.unread_documents":                {"documents not read", "documents non lus"},
+	"web.conv.reason.not_computed":                    {"not computed yet, run watchoo sync", "pas encore calculé, lancez watchoo sync"},
+	"web.conv.reason.stale": {
+		"to recompute (rules, settings or revision changed), run watchoo sync",
+		"à recalculer (règles, réglages ou révision changés), lancez watchoo sync",
+	},
+
+	// Phase 8.3 : critères de fichiers de la section du dépôt et de la vue d'ensemble.
+	"web.conv.files_title":   {"Files: CHANGELOG, README, documentation, tooling", "Fichiers : CHANGELOG, README, documentation, outillage"},
+	"web.conv.files_unknown": {"File criteria unknown: %s.", "Critères de fichiers inconnus : %s."},
+	"web.conv.files_measured": {
+		"Measured by the sync on the commit %s of the default branch, on %s.",
+		"Mesurés par la synchro sur le commit %s de la branche par défaut, le %s.",
+	},
+	"web.conv.family_line":    {"%d/%d criteria conform, %d unknown", "%d/%d critères conformes, %d inconnus"},
+	"web.conv.file_count":     {"%d items", "%d éléments"},
+	"web.conv.file_sections":  {"sections found %d/%d", "sections trouvées %d/%d"},
+	"web.conv.file_words":     {"%d words (minimum %d)", "%d mots (minimum %d)"},
+	"web.conv.dead_link_case": {"case only", "casse seulement"},
+	"web.conv.lists_title":    {"Paths to look at", "Chemins à examiner"},
+	"web.conv.lists_unavailable": {
+		"Path lists unavailable: %s.",
+		"Listes de chemins indisponibles : %s.",
+	},
+	"web.conv.lists_none": {"No path to list.", "Aucun chemin à lister."},
+	"web.conv.list.unreferenced": {
+		"Documents not referenced by the INDEX (DOC3): %d",
+		"Documents non référencés par l'INDEX (DOC3) : %d",
+	},
+	"web.conv.list.duplicate_rows": {
+		"Documents listed by several INDEX rows (DOC3): %d",
+		"Documents cités par plusieurs lignes de l'INDEX (DOC3) : %d",
+	},
+	"web.conv.list.dead_links": {"Dead links (DOC4): %d", "Liens morts (DOC4) : %d"},
+	"web.conv.list.bad_names":  {"Badly named (DOC5): %d", "Mal nommés (DOC5) : %d"},
+	"web.conv.list.archives":   {"Archives (DOC8): %d", "Archives (DOC8) : %d"},
+	"web.conv.list.office_documents": {
+		"Office documents under the documentation (DOC8, information): %d",
+		"Documents bureautiques sous la documentation (DOC8, information) : %d",
+	},
+	"web.conv.files_note": {
+		"Repository indicators, credited to nobody, read from the cache of the sync; the paths are recomputed from the local clone for this page only.",
+		"Indicateurs de dépôt, attribués à personne, lus dans le cache de la synchro ; les chemins sont recalculés depuis le clone local pour cette page seulement.",
+	},
+	"web.conv.col_files":      {"Files", "Fichiers"},
+	"web.conv.family_unknown": {"%d unknown", "%d inconnus"},
 }
 
 func init() {

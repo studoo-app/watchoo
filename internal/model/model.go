@@ -145,6 +145,28 @@ type Commit struct {
 	ParentCount *int
 }
 
+// Révisions mesurées par les critères de fichiers des conventions (phase 8.3) : la tête de la branche
+// par défaut, ou un tag qui désigne un jalon.
+const (
+	ConventionRevHead = "head"
+	ConventionRevTag  = "tag"
+)
+
+// RepositoryConventions est le résultat en cache des critères de fichiers des conventions (phase 8.3)
+// pour une révision d'un dépôt. Results est l'objet JSON de internal/conventions (FileResults) :
+// identifiants de critères, états, codes et compteurs seulement, jamais un chemin, un contenu de
+// fichier ni un nom de personne ; il est décodé par internal/conventions.
+type RepositoryConventions struct {
+	RepoID       int64
+	RevKind      string    // ConventionRevHead ou ConventionRevTag
+	TagName      string    // nom du tag (ConventionRevTag) ; vide pour la tête
+	RevSHA       string    // commit mesuré
+	RulesVersion int       // version des règles des critères de fichiers
+	ConfigHash   string    // empreinte des réglages et des tags de version qui influencent les critères
+	Results      string    // objet JSON
+	ComputedAt   time.Time // date du calcul, UTC
+}
+
 // ConventionCommit est un commit lu pour les conventions (phase 8.1, internal/conventions) : le message
 // n'est lu qu'en mémoire pour être analysé, jamais gardé ni affiché ni journalisé.
 type ConventionCommit struct {

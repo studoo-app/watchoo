@@ -112,7 +112,8 @@ func (s *Store) ListRepositories(ctx context.Context) ([]model.Repository, error
 }
 
 // DeleteRepository supprime le dépôt d'identifiant id et, par cascade, ses branches, commits,
-// appartenances commit/branche et journaux de synchro. Renvoie une erreur enveloppant ErrNotFound si
+// appartenances commit/branche, journaux de synchro et autres données du dépôt (signaux, revues,
+// critères de fichiers des conventions…). Renvoie une erreur enveloppant ErrNotFound si
 // aucun dépôt n'a cet identifiant.
 func (s *Store) DeleteRepository(ctx context.Context, id int64) error {
 	n, err := s.queries.DeleteRepository(ctx, id)

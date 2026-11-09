@@ -140,6 +140,10 @@ var providerTexts = map[string]entry{
 		"branch name %s is invalid",
 		"nom de branche %s invalide",
 	},
+	"provider.validate.path": {
+		"file path is invalid",
+		"chemin de fichier invalide",
+	},
 	"provider.validate.id": {
 		"repository ID %d is invalid",
 		"identifiant de dépôt %d invalide",
@@ -340,6 +344,10 @@ var providerTexts = map[string]entry{
 	"provider.git.op.first_added": {
 		"date of the first agent configuration file of %s/%s",
 		"date du premier fichier de configuration d'agent de %s/%s",
+	},
+	"provider.git.op.files": {
+		"files of %s/%s",
+		"fichiers de %s/%s",
 	},
 	"provider.git.op.languages": {
 		"languages of %s/%s",

@@ -182,6 +182,18 @@ func sharedKeysOf(doc *configshare.Document) []string {
 		if tg := c.Tags; tg != nil {
 			add(tg.Milestones != nil, workspace.KeyConventionsMilestones)
 		}
+		if cl := c.Changelog; cl != nil {
+			add(cl.CategoriesFR != nil, workspace.KeyConventionsCategoriesFR)
+		}
+		if rd := c.Readme; rd != nil {
+			add(rd.Sections != nil, workspace.KeyConventionsReadmeSections)
+			add(rd.MinWords != nil, workspace.KeyConventionsReadmeMinWords)
+		}
+		if dc := c.Docs; dc != nil {
+			add(dc.Dir != nil, workspace.KeyConventionsDocsDir)
+			add(dc.MediaDir != nil, workspace.KeyConventionsDocsMediaDir)
+			add(dc.ArchivesScope != nil, workspace.KeyConventionsArchivesScope)
+		}
 	}
 	return keys
 }

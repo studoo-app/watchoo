@@ -25,6 +25,31 @@ PATCH (see [Skills](documentation/en/11-skills.md#versions-and-changelogmd)).
   date), validated at load time, with the `WATCHOO_CONVENTIONS_BRANCH_PATTERN`, `_BRANCH_EXCLUDE` and
   `_TAGS_MILESTONES` variables, and shared under `settings.conventions.branch` and
   `settings.conventions.tags` (refused by earlier versions).
+- **CHANGELOG, README and documentation settings of the conventions** (phase 8.3):
+  `conventions.changelog.categories_fr` (default `true`: French labels accepted with a warning),
+  `conventions.readme.sections` (expected sections among `presentation`, `group`, `stack`, `install`, `run`,
+  `env`, `tree`, `license`; all by default), `conventions.readme.min_words` (default 150, at least 1),
+  `conventions.docs.dir` (default `documentation`), `conventions.docs.media_dir` (default `Media`) and
+  `conventions.docs.archives_scope` (`repository` by default, or `documentation`), validated at load time,
+  with the matching `WATCHOO_CONVENTIONS_*` variables, and shared under `settings.conventions.changelog`,
+  `settings.conventions.readme` and `settings.conventions.docs` (refused by earlier versions).
+- **File criteria of the conventions measured at sync time** (phase 8.3): when the conventions are enabled,
+  the sync reads the CHANGELOG, the README, the documentation and the tooling files of the head of the
+  default branch and of every milestone tag in the updated local Git clone, through its Git objects only
+  (no API request, no extra fetch), and caches codes, states and counters only in the new
+  `repository_conventions` table (migration `00017`, 17 tables); recomputed only when the commit, the rules
+  or the settings change.
+- **`watchoo conventions`, file criteria** (phase 8.3), read from the cache of the sync: per repository
+  one grid per family, CHANGELOG (CL1 to CL8), README (RD1 to RD4), documentation (DOC1 to DOC5, DOC8)
+  and tooling (TL1 to TL3), "k/n criteria conform, u unknown", with the codes of each criterion; "not
+  computed yet, run watchoo sync" or "to recompute" otherwise. `watchoo conventions owner/repo` adds the
+  path lists recomputed from the clone (documents not referenced by the INDEX, dead links, badly named
+  paths, archives), never stored nor logged. The milestone review adds CL9, CL8, RD1, RD2 (installation
+  section), RD3, DOC1 and DOC3 on the tree of the milestone tag. `--json`: additive keys `changelog`,
+  `readme`, `docs` (with `lists`) and `tooling` per repository, `files` per repository of `milestone`.
+- Web interface, phase 8.3: the Conventions section of the repository page ends with the file grids and,
+  folded, the paths to look at; `/conventions` adds a Files column (one badge per family) and the file
+  criteria to the milestone review. Repository indicators, credited to nobody.
 - **Per-repository conventions start date** (phase 8.1): `watchoo repo add --conventions-since YYYY-MM-DD`
   (`""` goes back to `conventions.since`), quoted in the report and below the `repo list` table, exposed
   as `conventions_since` in the repository object of `--json` (`null` = date of the workspace) and in

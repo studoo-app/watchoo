@@ -2,8 +2,9 @@ package conventions
 
 // Revue de jalon (RJ, phase 8.2) : pour un jalon configuré, une liste de critères par dépôt, sans note
 // globale (« k/n critères conformes, u inconnus »). Phase 8.2 : CC1 sur l'intervalle du jalon, BR1 (état
-// courant), SV1 et SV2 du jalon ; les critères de fichiers (CL, RD, DOC) arrivent avec la phase 8.3, PR3
-// avec la phase 8.5, PR4 avec la phase 8.6. Indicateurs de dépôt : rien n'est attribué à une personne.
+// courant), SV1 et SV2 du jalon ; phase 8.3 : critères de fichiers sur l'arbre du tag du jalon (CL9, CL8,
+// RD1, section installation de RD2, RD3, DOC1, DOC3), lus dans le cache de la synchro ; PR3 avec la phase
+// 8.5, PR4 avec la phase 8.6. Indicateurs de dépôt : rien n'est attribué à une personne.
 
 import (
 	"context"
@@ -17,7 +18,8 @@ import (
 // ErrUnknownMilestone signale un jalon absent de conventions.tags.milestones.
 var ErrUnknownMilestone = errors.New("conventions: milestone not configured")
 
-// Critères de la revue de jalon en phase 8.2 (clés --json), dans leur ordre d'affichage.
+// Critères de la revue de jalon de la phase 8.2 (clés --json) ; ceux de fichiers (phase 8.3) sont
+// déclarés dans files.go.
 const (
 	CriterionCC1 = "CC1" // 100 % de commits conformes sur l'intervalle du jalon
 	CriterionBR1 = "BR1" // noms de branche conformes (état courant)
@@ -25,8 +27,11 @@ const (
 	CriterionSV2 = "SV2" // jalon présent
 )
 
-// AllCriteria liste les critères de la revue de jalon de la phase 8.2.
-var AllCriteria = []string{CriterionCC1, CriterionBR1, CriterionSV1, CriterionSV2}
+// AllCriteria liste les critères de la revue de jalon, dans leur ordre d'affichage : CC1, BR1, SV1 et SV2
+// (phase 8.2), puis les critères de fichiers mesurés sur l'arbre du tag du jalon (phase 8.3). Dans la
+// revue, RD2 ne juge que la section installation du README.
+var AllCriteria = []string{CriterionCC1, CriterionBR1, CriterionSV1, CriterionSV2, CriterionCL9, CriterionCL8,
+	CriterionRD1, CriterionRD2, CriterionRD3, CriterionDOC1, CriterionDOC3}
 
 // États d'un critère (clés --json).
 const (
@@ -74,6 +79,7 @@ type RepoMilestoneReview struct {
 	Tag       *TagResult         // SV1 du tag qui désigne le jalon ; nil si absent
 	Interval  *MilestoneInterval // CC1 de l'intervalle ; nil si non mesuré
 	Branches  BranchReport       // BR1, état courant
+	Files     *MilestoneFiles    // critères de fichiers sur l'arbre du tag (phase 8.3) ; nil si non évaluable
 	Criteria  []Criterion        // dans l'ordre d'AllCriteria ; vide non nil si non évaluable
 	Conform   int                // critères conformes
 	Unknown   int                // critères inconnus
@@ -187,7 +193,12 @@ func reviewRepo(ctx context.Context, r Reader, clones CloneReader, repo model.Re
 			sv2.Status, sv2.Reason = CriterionUnknown, UnknownNotDue
 		}
 	}
-	out.Criteria = []Criterion{cc1, br1, sv1, sv2}
+	files, mf, err := reviewFiles(ctx, r, clones, repo, out.Milestone, tags, sv1.Reason, opts)
+	if err != nil {
+		return out, err
+	}
+	out.Files = mf
+	out.Criteria = append([]Criterion{cc1, br1, sv1, sv2}, files...)
 	for _, c := range out.Criteria {
 		switch c.Status {
 		case CriterionConform:

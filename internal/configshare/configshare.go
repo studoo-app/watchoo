@@ -15,7 +15,7 @@
 //     (wsync.Engine.AddRepositories, accès vérifié). Rien n'est jamais retiré.
 //
 // Partagées : les conventions de projet (settings.conventions : date de début, règles des commits,
-// nommage des branches et jalons des tags),
+// nommage des branches, jalons des tags, règles du CHANGELOG, du README et de la documentation),
 // sauf conventions.enabled et conventions.excluded_accounts.
 //
 // Jamais partagés : name, github.* (dont gh_path : un fichier venu d'ailleurs ne doit jamais choisir
@@ -110,13 +110,35 @@ type Settings struct {
 }
 
 // ConventionsSettings : conventions.since (AAAA-MM-JJ, "" = depuis le début), conventions.commit.*,
-// conventions.branch.* et conventions.tags.* (ces deux blocs depuis la phase 8.2, clés facultatives
-// ajoutées sans changer la version du format).
+// conventions.branch.* et conventions.tags.* (ces deux blocs depuis la phase 8.2), conventions.changelog.*,
+// conventions.readme.* et conventions.docs.* (phase 8.3) ; blocs facultatifs ajoutés sans changer la
+// version du format.
 type ConventionsSettings struct {
-	Since  *string                    `json:"since,omitempty"`
-	Commit *ConventionsCommitSettings `json:"commit,omitempty"`
-	Branch *ConventionsBranchSettings `json:"branch,omitempty"`
-	Tags   *ConventionsTagsSettings   `json:"tags,omitempty"`
+	Since     *string                       `json:"since,omitempty"`
+	Commit    *ConventionsCommitSettings    `json:"commit,omitempty"`
+	Branch    *ConventionsBranchSettings    `json:"branch,omitempty"`
+	Tags      *ConventionsTagsSettings      `json:"tags,omitempty"`
+	Changelog *ConventionsChangelogSettings `json:"changelog,omitempty"`
+	Readme    *ConventionsReadmeSettings    `json:"readme,omitempty"`
+	Docs      *ConventionsDocsSettings      `json:"docs,omitempty"`
+}
+
+// ConventionsChangelogSettings : conventions.changelog.* (phase 8.3).
+type ConventionsChangelogSettings struct {
+	CategoriesFR *bool `json:"categories_fr,omitempty"`
+}
+
+// ConventionsReadmeSettings : conventions.readme.* (sections [] = aucune section attendue ; phase 8.3).
+type ConventionsReadmeSettings struct {
+	Sections *[]string `json:"sections,omitempty"`
+	MinWords *int      `json:"min_words,omitempty"`
+}
+
+// ConventionsDocsSettings : conventions.docs.* (phase 8.3).
+type ConventionsDocsSettings struct {
+	Dir           *string `json:"dir,omitempty"`
+	MediaDir      *string `json:"media_dir,omitempty"`
+	ArchivesScope *string `json:"archives_scope,omitempty"`
 }
 
 // ConventionsBranchSettings : conventions.branch.* (pattern "" = règle intégrée ; exclude [] = aucune).
@@ -295,7 +317,17 @@ func settingsFromConfig(c workspace.Config) *Settings {
 				Pattern: shared.ConventionsBranchPattern,
 				Exclude: shared.ConventionsBranchExclude,
 			},
-			Tags: &ConventionsTagsSettings{Milestones: shared.ConventionsMilestones},
+			Tags:      &ConventionsTagsSettings{Milestones: shared.ConventionsMilestones},
+			Changelog: &ConventionsChangelogSettings{CategoriesFR: shared.ConventionsCategoriesFR},
+			Readme: &ConventionsReadmeSettings{
+				Sections: shared.ConventionsReadmeSections,
+				MinWords: shared.ConventionsReadmeMinWords,
+			},
+			Docs: &ConventionsDocsSettings{
+				Dir:           shared.ConventionsDocsDir,
+				MediaDir:      shared.ConventionsDocsMediaDir,
+				ArchivesScope: shared.ConventionsArchivesScope,
+			},
 		},
 	}
 }

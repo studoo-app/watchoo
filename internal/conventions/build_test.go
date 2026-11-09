@@ -19,12 +19,14 @@ type fakeReader struct {
 	pulls       map[int64][]model.ConventionPullRequest
 	tags        map[int64][]model.Tag
 	releases    map[int64][]model.Release
+	files       map[int64][]model.RepositoryConventions
 	errRepos    error
 	errBranches error
 	errCommits  error
 	errPulls    error
 	errTags     error
 	errReleases error
+	errFiles    error
 	calls       []int64 // authorID of each ConventionCommits call
 }
 
@@ -38,6 +40,10 @@ func (f *fakeReader) ConventionTags(_ context.Context, id int64) ([]model.Tag, e
 
 func (f *fakeReader) ConventionReleases(_ context.Context, id int64) ([]model.Release, error) {
 	return f.releases[id], f.errReleases
+}
+
+func (f *fakeReader) RepositoryConventions(_ context.Context, id int64) ([]model.RepositoryConventions, error) {
+	return f.files[id], f.errFiles
 }
 
 func (f *fakeReader) ListRepositories(context.Context) ([]model.Repository, error) {

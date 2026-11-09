@@ -46,8 +46,12 @@ func TestDefaultConfig(t *testing.T) {
 				Forbidden: conventions.DefaultForbidden(),
 				Language:  "any",
 			},
-			Branch:           ConventionsBranchConfig{Pattern: "", Exclude: []string{"gh-pages", "dependabot/*", "renovate/*"}},
-			Tags:             ConventionsTagsConfig{Milestones: []string{"v1.0.0", "v2.0.0", "v3.0.0"}},
+			Branch:    ConventionsBranchConfig{Pattern: "", Exclude: []string{"gh-pages", "dependabot/*", "renovate/*"}},
+			Tags:      ConventionsTagsConfig{Milestones: []string{"v1.0.0", "v2.0.0", "v3.0.0"}},
+			Changelog: ConventionsChangelogConfig{CategoriesFR: true},
+			Readme: ConventionsReadmeConfig{MinWords: 150, Sections: []string{"presentation", "group", "stack",
+				"install", "run", "env", "tree", "license"}},
+			Docs:             ConventionsDocsConfig{Dir: "documentation", MediaDir: "Media", ArchivesScope: "repository"},
 			ExcludedAccounts: []string{}},
 	}
 	if !reflect.DeepEqual(cfg, want) {
@@ -90,7 +94,9 @@ func TestSettingKeys(t *testing.T) {
 		"diagnostic.speed_signal", "conventions.enabled", "conventions.since", "conventions.commit.types",
 		"conventions.commit.scopes", "conventions.commit.max_subject_soft", "conventions.commit.max_subject_hard",
 		"conventions.commit.forbidden", "conventions.commit.language", "conventions.branch.pattern",
-		"conventions.branch.exclude", "conventions.tags.milestones", "conventions.excluded_accounts",
+		"conventions.branch.exclude", "conventions.tags.milestones", "conventions.changelog.categories_fr",
+		"conventions.readme.sections", "conventions.readme.min_words", "conventions.docs.dir",
+		"conventions.docs.media_dir", "conventions.docs.archives_scope", "conventions.excluded_accounts",
 	}
 	if !slices.Equal(keys, wantKeys) {
 		t.Errorf("keys = %v\nwant %v", keys, wantKeys)
@@ -106,6 +112,9 @@ func TestSettingKeys(t *testing.T) {
 		"WATCHOO_CONVENTIONS_COMMIT_MAX_SUBJECT_HARD", "WATCHOO_CONVENTIONS_COMMIT_FORBIDDEN",
 		"WATCHOO_CONVENTIONS_COMMIT_LANGUAGE", "WATCHOO_CONVENTIONS_BRANCH_PATTERN",
 		"WATCHOO_CONVENTIONS_BRANCH_EXCLUDE", "WATCHOO_CONVENTIONS_TAGS_MILESTONES",
+		"WATCHOO_CONVENTIONS_CHANGELOG_CATEGORIES_FR", "WATCHOO_CONVENTIONS_README_SECTIONS",
+		"WATCHOO_CONVENTIONS_README_MIN_WORDS", "WATCHOO_CONVENTIONS_DOCS_DIR",
+		"WATCHOO_CONVENTIONS_DOCS_MEDIA_DIR", "WATCHOO_CONVENTIONS_DOCS_ARCHIVES_SCOPE",
 		"WATCHOO_CONVENTIONS_EXCLUDED_ACCOUNTS",
 	}
 	if !slices.Equal(envs, wantEnvs) {
@@ -149,10 +158,17 @@ func TestValidateAcceptsBoundaries(t *testing.T) {
 		"subject lengths 1 and 2": func(c *Config) {
 			c.Conventions.Commit.MaxSubjectSoft, c.Conventions.Commit.MaxSubjectHard = 1, 2
 		},
-		"no forbidden subject": func(c *Config) { c.Conventions.Commit.Forbidden = []string{} },
-		"french subjects":      func(c *Config) { c.Conventions.Commit.Language = "fr" },
-		"english subjects":     func(c *Config) { c.Conventions.Commit.Language = "en" },
-		"excluded accounts":    func(c *Config) { c.Conventions.ExcludedAccounts = []string{"prof-dupont", "Jean Prof"} },
+		"no forbidden subject":  func(c *Config) { c.Conventions.Commit.Forbidden = []string{} },
+		"french subjects":       func(c *Config) { c.Conventions.Commit.Language = "fr" },
+		"english subjects":      func(c *Config) { c.Conventions.Commit.Language = "en" },
+		"excluded accounts":     func(c *Config) { c.Conventions.ExcludedAccounts = []string{"prof-dupont", "Jean Prof"} },
+		"no README section":     func(c *Config) { c.Conventions.Readme.Sections = []string{} },
+		"some README sections":  func(c *Config) { c.Conventions.Readme.Sections = []string{"license", "install"} },
+		"README min words 1":    func(c *Config) { c.Conventions.Readme.MinWords = 1 },
+		"French labels refused": func(c *Config) { c.Conventions.Changelog.CategoriesFR = false },
+		"nested docs dir":       func(c *Config) { c.Conventions.Docs.Dir = "docs/projet" },
+		"own media dir":         func(c *Config) { c.Conventions.Docs.MediaDir = "images" },
+		"archives in the docs":  func(c *Config) { c.Conventions.Docs.ArchivesScope = "documentation" },
 	}
 	for name, mutate := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -287,6 +303,24 @@ func TestValidateRejectsInvalidValues(t *testing.T) {
 		{"repeated milestone", func(c *Config) {
 			c.Conventions.Tags.Milestones = []string{"v1.0.0", "v2.0.0", "v1.0.0@2026-12-18"}
 		}, []string{"conventions.tags.milestones", "#3", "v1.0.0"}},
+		{"unknown README section", func(c *Config) { c.Conventions.Readme.Sections = []string{"install", "Install"} },
+			[]string{"conventions.readme.sections", "#2", `"Install"`, "presentation, group"}},
+		{"repeated README section", func(c *Config) { c.Conventions.Readme.Sections = []string{"run", "env", "run"} },
+			[]string{"conventions.readme.sections", "#3", "run"}},
+		{"README min words 0", func(c *Config) { c.Conventions.Readme.MinWords = 0 },
+			[]string{"conventions.readme.min_words", "at least 1", "0"}},
+		{"empty docs dir", func(c *Config) { c.Conventions.Docs.Dir = "" },
+			[]string{"conventions.docs.dir", `""`}},
+		{"absolute docs dir", func(c *Config) { c.Conventions.Docs.Dir = "/documentation" },
+			[]string{"conventions.docs.dir", `"/documentation"`}},
+		{"docs dir going up", func(c *Config) { c.Conventions.Docs.Dir = "docs/../.." },
+			[]string{"conventions.docs.dir", `"docs/../.."`}},
+		{"media dir with a slash", func(c *Config) { c.Conventions.Docs.MediaDir = "a/b" },
+			[]string{"conventions.docs.media_dir", `"a/b"`}},
+		{"empty media dir", func(c *Config) { c.Conventions.Docs.MediaDir = "" },
+			[]string{"conventions.docs.media_dir", `""`}},
+		{"unknown archives scope", func(c *Config) { c.Conventions.Docs.ArchivesScope = "docs" },
+			[]string{"conventions.docs.archives_scope", `"docs"`, `"repository"`, `"documentation"`}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -534,6 +568,12 @@ func TestLoadEnvironmentVariables(t *testing.T) {
 		"WATCHOO_CONVENTIONS_BRANCH_PATTERN":          "^(feat|fix)/[a-z0-9-]{2,40}$",
 		"WATCHOO_CONVENTIONS_BRANCH_EXCLUDE":          "gh-pages, release/*",
 		"WATCHOO_CONVENTIONS_TAGS_MILESTONES":         "v1.0.0@2026-12-18, v2.0.0",
+		"WATCHOO_CONVENTIONS_CHANGELOG_CATEGORIES_FR": "false",
+		"WATCHOO_CONVENTIONS_README_SECTIONS":         "install, run",
+		"WATCHOO_CONVENTIONS_README_MIN_WORDS":        "80",
+		"WATCHOO_CONVENTIONS_DOCS_DIR":                "docs/projet",
+		"WATCHOO_CONVENTIONS_DOCS_MEDIA_DIR":          "images",
+		"WATCHOO_CONVENTIONS_DOCS_ARCHIVES_SCOPE":     "documentation",
 		"WATCHOO_CONVENTIONS_EXCLUDED_ACCOUNTS":       "prof-dupont",
 	}
 	for k, v := range env {
@@ -560,6 +600,9 @@ func TestLoadEnvironmentVariables(t *testing.T) {
 			Branch: ConventionsBranchConfig{Pattern: "^(feat|fix)/[a-z0-9-]{2,40}$",
 				Exclude: []string{"gh-pages", "release/*"}},
 			Tags:             ConventionsTagsConfig{Milestones: []string{"v1.0.0@2026-12-18", "v2.0.0"}},
+			Changelog:        ConventionsChangelogConfig{CategoriesFR: false},
+			Readme:           ConventionsReadmeConfig{Sections: []string{"install", "run"}, MinWords: 80},
+			Docs:             ConventionsDocsConfig{Dir: "docs/projet", MediaDir: "images", ArchivesScope: "documentation"},
 			ExcludedAccounts: []string{"prof-dupont"}},
 	}
 	if !reflect.DeepEqual(ws.Config, want) {
@@ -664,6 +707,15 @@ conventions:
     exclude: [gh-pages]
   tags:
     milestones: [v1.0.0@2026-12-18, "v2.0.0"]
+  changelog:
+    categories_fr: false
+  readme:
+    sections: [presentation, install]
+    min_words: 60
+  docs:
+    dir: docs
+    media_dir: img
+    archives_scope: documentation
   excluded_accounts: [prof-dupont]
 `)
 		if err := Load(ws); err != nil {
@@ -675,6 +727,9 @@ conventions:
 				MaxSubjectSoft: 60, MaxSubjectHard: 80, Forbidden: []string{"wip", "."}, Language: "en"},
 			Branch:           ConventionsBranchConfig{Pattern: "^(feat|fix)/[a-z]+$", Exclude: []string{"gh-pages"}},
 			Tags:             ConventionsTagsConfig{Milestones: []string{"v1.0.0@2026-12-18", "v2.0.0"}},
+			Changelog:        ConventionsChangelogConfig{CategoriesFR: false},
+			Readme:           ConventionsReadmeConfig{Sections: []string{"presentation", "install"}, MinWords: 60},
+			Docs:             ConventionsDocsConfig{Dir: "docs", MediaDir: "img", ArchivesScope: "documentation"},
 			ExcludedAccounts: []string{"prof-dupont"}}
 		if !reflect.DeepEqual(ws.Config, want) {
 			t.Errorf("Config = %+v\nwant  %+v", ws.Config.Conventions, want.Conventions)
@@ -704,6 +759,18 @@ conventions:
 		bo.ExcludedAccounts[0] = "changed"
 		if ws.Config.Conventions.ExcludedAccounts[0] != "prof-dupont" {
 			t.Error("BuildOptions shares its lists with the configuration")
+		}
+		wantFiles := conventions.FileRules{CategoriesFR: false, ReadmeSections: []string{"presentation", "install"},
+			ReadmeMinWords: 60, DocsDir: "docs", MediaDir: "img", ArchivesScope: "documentation"}
+		if !reflect.DeepEqual(bo.Files, wantFiles) {
+			t.Errorf("BuildOptions.Files = %+v\nwant %+v", bo.Files, wantFiles)
+		}
+		bo.Files.ReadmeSections[0] = "changed"
+		if ws.Config.Conventions.Readme.Sections[0] != "presentation" {
+			t.Error("FileRules shares its lists with the configuration")
+		}
+		if d := DefaultConfig("x").Conventions.FileRules(); !reflect.DeepEqual(d, conventions.DefaultFileRules()) {
+			t.Errorf("default FileRules = %+v\nwant the charter %+v", d, conventions.DefaultFileRules())
 		}
 		br := ws.Config.Conventions.BranchRules()
 		if br.Pattern != "^(feat|fix)/[a-z]+$" || !slices.Equal(br.Types, []string{"feat", "fix", "docs"}) ||

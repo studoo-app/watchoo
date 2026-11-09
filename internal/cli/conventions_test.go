@@ -146,10 +146,10 @@ func TestConventionsMilestone(t *testing.T) {
 	t.Setenv("WATCHOO_CONVENTIONS_SINCE", "2020-01-01")
 	out = h.run("conventions", "--milestone", "v1.0.0").mustSucceed(t).stdout
 	assertContains(t, "--milestone", out,
-		"alice/projet: 0/4 criteria conform, 1 unknown",
+		"alice/projet: 0/11 criteria conform, 8 unknown", "CL9  unknown (no local clone)",
 		"CC1  unknown (no local clone)", "BR1  not conform — 0/3 branches conform",
 		"SV1  not conform — v1.0 (missing_component)", "SV2  not conform — v1.0.0 nonconforming name (v1.0)",
-		"bob/projet: 0/4 criteria conform, 3 unknown", "CC1  unknown (milestone tag missing, no due date)",
+		"bob/projet: 0/11 criteria conform, 10 unknown", "DOC3  unknown (milestone tag missing, no due date)", "CC1  unknown (milestone tag missing, no due date)",
 		"BR1  unknown (no branch to evaluate)", "SV2  not conform — v1.0.0 absent")
 	assertNotContains(t, "--milestone", out, conventionMessages...)
 	assertNotContains(t, "--milestone", out, "Contributors:", "Rates n/m")
@@ -166,9 +166,10 @@ func TestConventionsMilestone(t *testing.T) {
 	}
 	a := m.Repositories[0]
 	if !a.Evaluable || a.Reason != nil || a.Status != "nonconforming_name" || a.Tag == nil || *a.Tag != "v1.0" ||
-		len(a.TagCodes) != 1 || a.Interval != nil || a.Conform != 0 || a.Unknown != 1 || a.Total != 4 || len(a.Criteria) != 4 ||
+		len(a.TagCodes) != 1 || a.Interval != nil || a.Conform != 0 || a.Unknown != 8 || a.Total != 11 || len(a.Criteria) != 11 ||
 		a.Criteria[0].ID != "CC1" || a.Criteria[0].Status != "unknown" || *a.Criteria[0].Reason != "no_clone" ||
-		a.Criteria[1].Status != "nonconform" || a.Criteria[1].Reason != nil {
+		a.Criteria[1].Status != "nonconform" || a.Criteria[1].Reason != nil || a.Criteria[4].ID != "CL9" ||
+		*a.Criteria[4].Reason != "no_clone" || a.Files == nil || a.Files.State != "unknown" || *a.Files.Reason != "no_clone" {
 		t.Errorf("milestone of alice/projet: %+v", a)
 	}
 	// Without --milestone: the same keys, milestone null.
@@ -185,7 +186,7 @@ func TestConventionsMilestone(t *testing.T) {
 		t.Errorf("--milestone 1.0.0 (fr): %+v", r)
 	}
 	fr := h.run("conventions", "--milestone", "v1.0.0").mustSucceed(t).stdout
-	assertContains(t, "--milestone (fr)", fr, "Revue du jalon v1.0.0", "alice/projet : 0/4 critères conformes, 1 inconnus",
+	assertContains(t, "--milestone (fr)", fr, "Revue du jalon v1.0.0", "alice/projet : 0/11 critères conformes, 8 inconnus",
 		"CC1  inconnu (pas de clone local)", "BR1  non conforme — 0/3 branches conformes")
 }
 
@@ -247,9 +248,12 @@ func TestConventionsLocalClone(t *testing.T) {
 	review := h.run("conventions", "--milestone", "v1.0.0", "--json").mustSucceed(t).stdout
 	assertJSONKeys(t, review, "milestone.repositories.0.interval", "from", "to", "due", "commits", "before_since", "missing")
 	ms := h.run("conventions", "--milestone", "v1.0.0").mustSucceed(t).stdout
-	assertContains(t, "--milestone (clone)", ms, "alice/projet: 3/4 criteria conform, 0 unknown",
+	// Phase 8.3: no CHANGELOG, README nor INDEX at the tag; the absence counts once (RD1, DOC1), the
+	// criteria that read the file are unknown.
+	assertContains(t, "--milestone (clone)", ms, "alice/projet: 3/11 criteria conform, 5 unknown",
 		"CC1  conform — v0.1.0→v1.0.0 1/1 100%", "BR1  not conform — 1/2 branches conform", "SV1  conform — v1.0.0",
-		"SV2  conform — v1.0.0 present")
+		"SV2  conform — v1.0.0 present", "CL9  unknown (file absent)", "RD1  not conform", "DOC1  not conform",
+		"RD2  unknown (file absent)\n")
 }
 
 func TestConventionsJSON(t *testing.T) {
@@ -317,4 +321,111 @@ func TestConventionsNoRepository(t *testing.T) {
 	h := newWorkspace(t)
 	t.Setenv("WATCHOO_CONVENTIONS_ENABLED", "true")
 	assertContains(t, "conventions (empty)", h.run("conventions").mustSucceed(t).stdout, "No tracked repository.")
+}
+
+// filesRepo creates alice/projet on srv: CHANGELOG, README and documentation conforming at the tag
+// v1.0.0, then, on the head only, an unreferenced document with a dead link and a badly named one.
+func filesRepo(srv *gittest.Server) {
+	r := srv.Create("alice", "projet", "main")
+	who := gittest.Author{Name: "Alice Martin", Email: "alice@example.test"}
+	at := func(h int) time.Time { return testNow.Add(-time.Duration(h) * time.Hour) }
+	r.Commit("main", "CHANGELOG.md", "# Changelog\n\nThe format is based on [Keep a Changelog]"+
+		"(https://keepachangelog.com/en/1.1.0/) and this project adheres to [Semantic Versioning]"+
+		"(https://semver.org/spec/v2.0.0.html).\n\n## [Unreleased]\n\n## [1.0.0] - 2026-10-01\n\n### Added\n\n"+
+		"- Première version.\n", "docs: ajoute le changelog", who, at(60))
+	r.Commit("main", "README.md", "# Projet\n\n## Présentation\n\n"+strings.Repeat("Un texte de présentation. ", 40)+
+		"\n\n## Groupe\n\nÉquipe A.\n\n## Stack et prérequis\n\nGo.\n\n## Installation\n\n`make build`\n\n"+
+		"## Lancement\n\nLancer.\n\n## Variables d'environnement\n\n`PORT`.\n\n## Arborescence\n\nsrc.\n\n"+
+		"## Licence\n\nPrivé.\n\n[documentation](documentation/INDEX.md), [journal](CHANGELOG.md)\n",
+		"docs: ajoute le readme", who, at(59))
+	r.Commit("main", "documentation/INDEX.md", "# Index\n\n| Document | Thème | Version | Dernière mise à jour | Responsable |\n"+
+		"|---|---|---|---|---|\n| [Vision](01-cadrage/vision.md) | Cadrage | 1.0 | 2026-10-01 | Alice Martin |\n",
+		"docs: ajoute l'index", who, at(58))
+	r.Commit("main", "documentation/01-cadrage/vision.md", "# Vision\n", "docs: ajoute la vision", who, at(57))
+	r.Tag("v1.0.0", "main", "")
+	r.Commit("main", "documentation/03-annexes/oubli.md", "# Oubli\n\n[mort](absent.md)\n", "docs: ajoute une annexe", who, at(50))
+	r.Commit("main", "documentation/03-annexes/Plan Final.md", "# Plan\n", "docs: ajoute le plan", who, at(49))
+}
+
+// File criteria (phase 8.3): computed by the sync on the local clone, read from the cache by the report,
+// path lists in the detailed view of a repository only, file criteria of the milestone review on the
+// tree of the tag.
+func TestConventionsFilesLocalClone(t *testing.T) {
+	srv := gittest.NewServer(t)
+	filesRepo(srv)
+	h := newWorkspace(t)
+	h.Client = authtest.NewLoggedOut()
+	h.GitURL = srv.URL
+	t.Setenv("WATCHOO_CONVENTIONS_SINCE", "2020-01-01")
+	h.run("repo", "add", "alice/projet").mustSucceed(t)
+	// Conventions disabled during the sync: nothing computed.
+	h.run("sync").mustSucceed(t)
+	t.Setenv("WATCHOO_CONVENTIONS_ENABLED", "true")
+	out := h.run("conventions").mustSucceed(t).stdout
+	assertContains(t, "conventions (not computed)", out,
+		"File criteria (CHANGELOG, README, documentation, tooling): unknown (not computed yet, run watchoo sync)")
+	var rep conventionsReport
+	decodeStrict(t, h.run("conventions", "--json").mustSucceed(t).stdout, &rep)
+	if a := rep.Repositories[0]; a.Changelog.State != "unknown" || *a.Changelog.Reason != "not_computed" ||
+		a.Changelog.Total != 8 || a.Changelog.Unknown != 8 || a.Docs.Lists.Computed {
+		t.Errorf("not computed: %+v", a.Changelog)
+	}
+
+	h.run("sync").mustSucceed(t)
+	out = h.run("conventions").mustSucceed(t).stdout
+	assertContains(t, "conventions (files)", out, "File criteria measured on ",
+		"CHANGELOG: 8/8 criteria conform, 0 unknown", "README: 4/4 criteria conform, 0 unknown",
+		"Documentation: 3/6 criteria conform, 0 unknown",
+		"DOC3 not conform — INDEX exhaustive: unreferenced (document not referenced by the INDEX, 2)",
+		"DOC4 not conform — Dead links: dead_link (dead relative link, 1)",
+		"Tooling: 0/3 criteria conform, 0 unknown", "TL1 not conform — commitlint configured: not_found")
+	// The overview gives no path.
+	assertNotContains(t, "conventions (files)", out, "oubli.md", "Plan Final")
+
+	js := h.run("conventions", "--json").mustSucceed(t).stdout
+	decodeStrict(t, js, &rep)
+	a := rep.Repositories[0]
+	if a.Changelog.State != "computed" || a.Changelog.Reason != nil || a.Changelog.SHA == nil || a.Changelog.ComputedAt == nil ||
+		a.Readme.Conform != 4 || a.Docs.Conform != 3 || a.Docs.Lists.Computed || len(a.Docs.Lists.Unreferenced) != 0 ||
+		a.Tooling.Total != 3 {
+		t.Errorf("files --json: %+v %+v", a.Changelog, a.Docs)
+	}
+	if c := a.Docs.Criteria[2]; c.ID != "DOC3" || c.Status != "nonconform" || c.Counts["unreferenced"] != 2 ||
+		c.Counts["documents"] != 3 {
+		t.Errorf("DOC3: %+v", c)
+	}
+	assertNotContains(t, "conventions --json (files)", js, "oubli.md", "Plan Final", "Alice Martin |")
+
+	// Detailed view of the repository: path lists recomputed from the clone.
+	detail := h.run("conventions", "alice/projet").mustSucceed(t).stdout
+	assertContains(t, "conventions alice/projet", detail,
+		"Documents not referenced by the INDEX (DOC3, 2): documentation/03-annexes/Plan Final.md, documentation/03-annexes/oubli.md",
+		"Dead links (DOC4, 1): documentation/03-annexes/oubli.md → absent.md",
+		"Badly named (DOC5, 1): documentation/03-annexes/Plan Final.md")
+	decodeStrict(t, h.run("conventions", "alice/projet", "--json").mustSucceed(t).stdout, &rep)
+	if l := rep.Repositories[0].Docs.Lists; !l.Computed || len(l.Unreferenced) != 2 || len(l.DeadLinks) != 1 ||
+		l.DeadLinks[0].Target != "absent.md" || l.DeadLinks[0].Source != "documentation/03-annexes/oubli.md" {
+		t.Errorf("lists: %+v", l)
+	}
+
+	// Milestone review: file criteria on the tree of the tag v1.0.0, where the INDEX is exhaustive.
+	ms := h.run("conventions", "--milestone", "v1.0.0").mustSucceed(t).stdout
+	assertContains(t, "--milestone (files)", ms, "CL9  conform", "CL8  conform", "RD1  conform",
+		"RD2  conform — README sections at the tag: presentation, group, stack and prerequisites, installation",
+		"RD3  conform", "DOC1  conform", "DOC3  conform")
+	var mrep conventionsReport
+	decodeStrict(t, h.run("conventions", "--milestone", "v1.0.0", "--json").mustSucceed(t).stdout, &mrep)
+	if f := mrep.Milestone.Repositories[0].Files; f == nil || f.State != "computed" || len(f.ReadmeFound) != 8 {
+		t.Errorf("milestone files: %+v", f)
+	}
+	// Absent tag: the reason of SV1.
+	ms = h.run("conventions", "--milestone", "v3.0.0").mustSucceed(t).stdout
+	assertContains(t, "--milestone v3.0.0", ms, "CL9  unknown (milestone tag missing, no due date)")
+
+	defer i18n.SetProcessForTest(i18n.French)()
+	fr := h.run("conventions", "alice/projet").mustSucceed(t).stdout
+	assertContains(t, "conventions (files, fr)", fr, "Critères de fichiers mesurés sur ",
+		"CHANGELOG : 8/8 critères conformes, 0 inconnus", "Outillage : 0/3 critères conformes, 0 inconnus",
+		"DOC3 non conforme — INDEX exhaustif : unreferenced (document non référencé par l'INDEX, 2)",
+		"Liens morts (DOC4, 1) : documentation/03-annexes/oubli.md → absent.md")
 }

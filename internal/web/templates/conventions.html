@@ -31,6 +31,7 @@
         <th scope="col">{{t "web.conv.col_tags"}}</th>
         <th scope="col">{{t "web.conv.col_milestones"}}</th>
         <th scope="col">{{t "web.conv.col_language"}}</th>
+        <th scope="col">{{t "web.conv.col_files"}}</th>
       </tr></thead>
       <tbody>
         {{range $c.Repos}}
@@ -42,6 +43,7 @@
           <td class="tabular-nums whitespace-nowrap">{{if .TagsChecked}}{{.TagsConform}}/{{.TagsChecked}}{{else}}—{{end}}</td>
           <td><div class="flex flex-wrap gap-1">{{range .Milestones}}{{template "conv-status" (dict "Status" .Status "Text" .Name)}}{{end}}</div></td>
           <td class="text-sm whitespace-nowrap">{{template "conv-language" .Language}}</td>
+          <td class="text-sm">{{if .FilesReason}}<span class="text-base-content/60">{{t "web.conv.cell_unknown"}} ({{.FilesReason}})</span>{{else}}<div class="flex flex-wrap gap-1">{{range .Files}}<span class="badge badge-sm badge-ghost whitespace-nowrap">{{.Label}} {{.Conform}}/{{.Total}}{{if .Unknown}} · {{t "web.conv.family_unknown" .Unknown}}{{end}}</span>{{end}}</div>{{end}}</td>
         </tr>
         {{end}}
       </tbody>

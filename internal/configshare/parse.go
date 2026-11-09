@@ -356,6 +356,7 @@ func parseConventions(c *ConventionsSettings, out *workspace.SharedSettings, fai
 	if c.Tags != nil && c.Tags.Milestones != nil {
 		out.ConventionsMilestones = parseMilestones(*c.Tags.Milestones, fail)
 	}
+	parseConventionsFiles(c, out, fail)
 	if c.Commit == nil {
 		return
 	}
@@ -392,6 +393,42 @@ func parseConventionsBranch(b *ConventionsBranchSettings, out *workspace.SharedS
 	}
 	valid := func(g string) bool { return conventions.ValidBranchExclude(g) == nil }
 	out.ConventionsBranchExclude = parseConventionsList(b.Exclude, "branch.exclude", valid, fail)
+}
+
+// parseConventionsFiles convertit settings.conventions.changelog, readme et docs (phase 8.3) : sections
+// connues (conventions.ValidReadmeSection), dossiers relatifs sans « . » ni « .. » (conventions.ValidDocsDir,
+// conventions.ValidMediaDir), portée des archives admise. Le minimum de mots et les doublons de sections
+// sont vérifiés par Plan (Config.Validate des réglages fusionnés).
+func parseConventionsFiles(c *ConventionsSettings, out *workspace.SharedSettings, fail func(string, ...any)) {
+	if c.Changelog != nil {
+		out.ConventionsCategoriesFR = c.Changelog.CategoriesFR
+	}
+	if c.Readme != nil {
+		out.ConventionsReadmeSections = parseConventionsList(c.Readme.Sections, "readme.sections",
+			conventions.ValidReadmeSection, fail)
+		out.ConventionsReadmeMinWords = c.Readme.MinWords
+	}
+	if c.Docs == nil {
+		return
+	}
+	text := func(v *string, name string, valid func(string) bool) *string {
+		if v == nil {
+			return nil
+		}
+		s := *v
+		if msg := checkText(s); msg != "" {
+			fail("configshare.v.field", "settings.conventions."+name, msg)
+			return nil
+		}
+		if !valid(s) {
+			fail("configshare.v.conv_docs", name, quote(s))
+			return nil
+		}
+		return &s
+	}
+	out.ConventionsDocsDir = text(c.Docs.Dir, "docs.dir", conventions.ValidDocsDir)
+	out.ConventionsDocsMediaDir = text(c.Docs.MediaDir, "docs.media_dir", conventions.ValidMediaDir)
+	out.ConventionsArchivesScope = text(c.Docs.ArchivesScope, "docs.archives_scope", conventions.ValidArchivesScope)
 }
 
 // parseMilestones valide settings.conventions.tags.milestones : chaque entrée lue par

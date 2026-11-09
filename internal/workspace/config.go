@@ -101,6 +101,13 @@ type ConventionsConfig struct {
 	Branch ConventionsBranchConfig `mapstructure:"branch"`
 	// Tags regroupe les jalons des tags, SV2 et revue de jalon (clés conventions.tags.*, phase 8.2).
 	Tags ConventionsTagsConfig `mapstructure:"tags"`
+	// Changelog regroupe les règles du CHANGELOG, CL1 à CL9 (clés conventions.changelog.*, phase 8.3).
+	Changelog ConventionsChangelogConfig `mapstructure:"changelog"`
+	// Readme regroupe les règles du README, RD1 à RD4 (clés conventions.readme.*, phase 8.3).
+	Readme ConventionsReadmeConfig `mapstructure:"readme"`
+	// Docs regroupe les règles du dossier de documentation, DOC1 à DOC5 et DOC8 (clés conventions.docs.*,
+	// phase 8.3).
+	Docs ConventionsDocsConfig `mapstructure:"docs"`
 	// ExcludedAccounts liste les comptes exclus des conventions (formateur, bots…) : login, nom ou
 	// e-mail, casse ignorée ; distincts de diagnostic.*. Propre à l'espace : jamais partagé (logins).
 	ExcludedAccounts []string `mapstructure:"excluded_accounts"`
@@ -143,6 +150,48 @@ type ConventionsTagsConfig struct {
 	// Milestones liste les jalons, « vX.Y.Z » ou « vX.Y.Z@AAAA-MM-JJ » pour une échéance (version
 	// finale conforme, date valide, chaque version une seule fois) ; défaut : conventions.DefaultMilestones.
 	Milestones []string `mapstructure:"milestones"`
+}
+
+// ConventionsChangelogConfig regroupe les règles du CHANGELOG (clés conventions.changelog.*).
+type ConventionsChangelogConfig struct {
+	// CategoriesFR admet les libellés français (Ajouté, Modifié… et [Non publié]) avec un simple
+	// avertissement (défaut true) ; false : ces libellés sont des écarts.
+	CategoriesFR bool `mapstructure:"categories_fr"`
+}
+
+// ConventionsReadmeConfig regroupe les règles du README (clés conventions.readme.*).
+type ConventionsReadmeConfig struct {
+	// Sections liste les clés des sections attendues (RD2), parmi conventions.AllReadmeSections :
+	// presentation, group, stack, install, run, env, tree, license ; défaut : toutes. Vide : RD2 n'attend
+	// aucune section.
+	Sections []string `mapstructure:"sections"`
+	// MinWords est le nombre de mots en deçà duquel le README est jugé trop court (RD4, défaut 150, au
+	// moins 1).
+	MinWords int `mapstructure:"min_words"`
+}
+
+// ConventionsDocsConfig regroupe les règles du dossier de documentation (clés conventions.docs.*).
+type ConventionsDocsConfig struct {
+	// Dir est le dossier de la documentation, relatif à la racine du dépôt (défaut « documentation »).
+	Dir string `mapstructure:"dir"`
+	// MediaDir est le dossier des médias, un seul segment sous Dir (défaut « Media »).
+	MediaDir string `mapstructure:"media_dir"`
+	// ArchivesScope est la portée de l'interdiction des archives (DOC8) : « repository » (défaut, tout le
+	// dépôt) ou « documentation » (sous Dir seulement).
+	ArchivesScope string `mapstructure:"archives_scope"`
+}
+
+// FileRules renvoie les règles des critères de fichiers (CL, RD, DOC) tirées de ces réglages (listes
+// copiées).
+func (c ConventionsConfig) FileRules() conventions.FileRules {
+	return conventions.FileRules{
+		CategoriesFR:   c.Changelog.CategoriesFR,
+		ReadmeSections: slices.Clone(c.Readme.Sections),
+		ReadmeMinWords: c.Readme.MinWords,
+		DocsDir:        c.Docs.Dir,
+		MediaDir:       c.Docs.MediaDir,
+		ArchivesScope:  c.Docs.ArchivesScope,
+	}
 }
 
 // BranchRules renvoie les règles BR1 tirées de ces réglages (listes copiées) : types de
@@ -190,6 +239,7 @@ func (c ConventionsConfig) BuildOptions(loc *time.Location) conventions.BuildOpt
 		Branch:           c.BranchRules(),
 		Milestones:       ms,
 		Language:         c.Commit.Language,
+		Files:            c.FileRules(),
 	}
 }
 
@@ -309,7 +359,10 @@ type GitConfig struct {
 //	conventions: {enabled: false, since: "", commit: {types: conventions.DefaultTypes, scopes: [],
 //	              max_subject_soft: 50, max_subject_hard: 72, forbidden: conventions.DefaultForbidden,
 //	              language: "any"}, branch: {pattern: "", exclude: conventions.DefaultBranchExclude},
-//	              tags: {milestones: conventions.DefaultMilestones}, excluded_accounts: []}
+//	              tags: {milestones: conventions.DefaultMilestones}, changelog: {categories_fr: true},
+//	              readme: {sections: conventions.AllReadmeSections, min_words: 150},
+//	              docs: {dir: "documentation", media_dir: "Media", archives_scope: "repository"},
+//	              excluded_accounts: []}
 func DefaultConfig(name string) Config {
 	return Config{
 		Name: name,
@@ -348,7 +401,17 @@ func DefaultConfig(name string) Config {
 				Pattern: "",
 				Exclude: conventions.DefaultBranchExclude(),
 			},
-			Tags:             ConventionsTagsConfig{Milestones: conventions.DefaultMilestones()},
+			Tags:      ConventionsTagsConfig{Milestones: conventions.DefaultMilestones()},
+			Changelog: ConventionsChangelogConfig{CategoriesFR: true},
+			Readme: ConventionsReadmeConfig{
+				Sections: conventions.AllReadmeSections(),
+				MinWords: conventions.DefaultReadmeMinWords,
+			},
+			Docs: ConventionsDocsConfig{
+				Dir:           conventions.DefaultDocsDir,
+				MediaDir:      conventions.DefaultMediaDir,
+				ArchivesScope: conventions.ArchivesScopeRepository,
+			},
 			ExcludedAccounts: []string{},
 		},
 	}
@@ -382,7 +445,12 @@ func DefaultConfig(name string) Config {
 //   - conventions.branch.pattern vide ou expression RE2 valide ; conventions.branch.exclude : chaque
 //     motif non vide et valide pour path.Match ;
 //   - conventions.tags.milestones : chaque entrée « vX.Y.Z » (version finale conforme, sans pré-version
-//     ni build) suivie au besoin de « @AAAA-MM-JJ » (date valide), chaque version une seule fois.
+//     ni build) suivie au besoin de « @AAAA-MM-JJ » (date valide), chaque version une seule fois ;
+//   - conventions.readme.sections : chaque clé parmi conventions.AllReadmeSections, une seule fois ;
+//     conventions.readme.min_words >= 1 ;
+//   - conventions.docs.dir : chemin relatif à la racine, sans « . » ni « .. » (conventions.ValidDocsDir) ;
+//     conventions.docs.media_dir : un seul segment (conventions.ValidMediaDir) ;
+//     conventions.docs.archives_scope : « repository » ou « documentation ».
 func (c Config) Validate() error {
 	var errs []error
 	add := func(key string, args ...any) {
@@ -537,6 +605,30 @@ func (c ConventionsConfig) validate() []error {
 		default:
 			seen[m.Name] = true
 		}
+	}
+	sections := map[string]bool{}
+	for i, k := range c.Readme.Sections {
+		switch {
+		case !conventions.ValidReadmeSection(k):
+			add("workspace.validate.conv_readme_section_invalid", i+1, k, strings.Join(conventions.AllReadmeSections(), ", "))
+		case sections[k]:
+			add("workspace.validate.conv_readme_section_duplicate", i+1, k)
+		default:
+			sections[k] = true
+		}
+	}
+	if c.Readme.MinWords < 1 {
+		add("workspace.validate.conv_readme_min_words", c.Readme.MinWords)
+	}
+	if !conventions.ValidDocsDir(c.Docs.Dir) {
+		add("workspace.validate.conv_docs_dir_invalid", c.Docs.Dir)
+	}
+	if !conventions.ValidMediaDir(c.Docs.MediaDir) {
+		add("workspace.validate.conv_docs_media_invalid", c.Docs.MediaDir)
+	}
+	if !conventions.ValidArchivesScope(c.Docs.ArchivesScope) {
+		add("workspace.validate.conv_docs_archives_invalid", c.Docs.ArchivesScope,
+			conventions.ArchivesScopeRepository, conventions.ArchivesScopeDocumentation)
 	}
 	for i, a := range c.ExcludedAccounts {
 		if strings.TrimSpace(a) == "" {
@@ -1349,6 +1441,28 @@ func renderConfig(tr *i18n.Translator, defaultName string, active map[string]any
 		text("#   tags:")
 	}
 	setting("    ", "conventions.tags.milestones", tr.T("workspace.cfg.conventions_milestones"))
+	if sectionActive("conventions.changelog") {
+		text("  changelog:")
+	} else {
+		text("#   changelog:")
+	}
+	setting("    ", "conventions.changelog.categories_fr", tr.T("workspace.cfg.conventions_categories_fr"))
+	if sectionActive("conventions.readme") {
+		text("  readme:")
+	} else {
+		text("#   readme:")
+	}
+	setting("    ", "conventions.readme.sections",
+		tr.T("workspace.cfg.conventions_readme_sections", strings.Join(conventions.AllReadmeSections(), ", ")))
+	setting("    ", "conventions.readme.min_words", tr.T("workspace.cfg.conventions_readme_min_words"))
+	if sectionActive("conventions.docs") {
+		text("  docs:")
+	} else {
+		text("#   docs:")
+	}
+	setting("    ", "conventions.docs.dir", tr.T("workspace.cfg.conventions_docs_dir"))
+	setting("    ", "conventions.docs.media_dir", tr.T("workspace.cfg.conventions_docs_media_dir"))
+	setting("    ", "conventions.docs.archives_scope", tr.T("workspace.cfg.conventions_docs_archives"))
 	setting("  ", "conventions.excluded_accounts", tr.T("workspace.cfg.conventions_excluded"))
 	return b.String()
 }

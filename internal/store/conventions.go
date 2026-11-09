@@ -2,7 +2,8 @@ package store
 
 // Lectures pour les conventions (phases 8.1 et 8.2) : commits, pull requests, tags et releases. Le calcul
 // est fait par internal/conventions, à la lecture ; rien n'est stocké. Le message de commit et le titre de
-// PR ne sont lus qu'en mémoire et ne sont jamais journalisés.
+// PR ne sont lus qu'en mémoire et ne sont jamais journalisés. Phase 8.3 : cache des critères de fichiers
+// (table repository_conventions), écrit par la synchro : codes, états et compteurs seulement.
 
 import (
 	"context"
@@ -114,4 +115,70 @@ func (s *Store) ConventionReleases(ctx context.Context, repoID int64) ([]model.R
 		out = append(out, v.Release)
 	}
 	return out, nil
+}
+
+// SaveRepositoryConventions enregistre le résultat des critères de fichiers d'une révision de dépôt
+// (phase 8.3) ; il remplace celui de la même révision (tête, ou tag du même nom). La base refuse un type
+// de révision inconnu, un SHA mal formé ou un résultat qui n'est pas un objet JSON.
+func (s *Store) SaveRepositoryConventions(ctx context.Context, r model.RepositoryConventions) error {
+	err := s.queries.UpsertRepositoryConventions(ctx, db.UpsertRepositoryConventionsParams{
+		RepoID: r.RepoID, RevKind: r.RevKind, TagName: r.TagName, RevSha: r.RevSHA,
+		RulesVersion: int64(r.RulesVersion), ConfigHash: r.ConfigHash, Results: r.Results,
+		ComputedAt: FormatTime(r.ComputedAt),
+	})
+	if err != nil {
+		return wrapErr(i18n.T("store.conventions.files", r.RepoID), err)
+	}
+	return nil
+}
+
+// RepositoryConventions renvoie les résultats en cache des critères de fichiers du dépôt repoID (0 = tous
+// les dépôts), par dépôt, la tête avant les tags, les tags par nom ; liste vide non nil si aucun.
+func (s *Store) RepositoryConventions(ctx context.Context, repoID int64) ([]model.RepositoryConventions, error) {
+	rows, err := s.queries.ListRepositoryConventions(ctx, optionalID(repoID))
+	if err != nil {
+		return nil, wrapErr(i18n.T("store.conventions.files", repoID), err)
+	}
+	out := make([]model.RepositoryConventions, 0, len(rows))
+	for _, r := range rows {
+		at, err := ParseTime(r.ComputedAt)
+		if err != nil {
+			return nil, wrapErr(i18n.T("store.conventions.files", r.RepoID), err)
+		}
+		out = append(out, model.RepositoryConventions{
+			RepoID: r.RepoID, RevKind: r.RevKind, TagName: r.TagName, RevSHA: r.RevSha,
+			RulesVersion: int(r.RulesVersion), ConfigHash: r.ConfigHash, Results: r.Results, ComputedAt: at,
+		})
+	}
+	return out, nil
+}
+
+// DeleteRepositoryConventionTags supprime les résultats des tags du dépôt repoID qui ne sont pas dans
+// keep (tags disparus, jalons retirés) ; keep vide : tous les tags. La ligne de la tête reste. Renvoie
+// le nombre de lignes supprimées.
+func (s *Store) DeleteRepositoryConventionTags(ctx context.Context, repoID int64, keep []string) (int, error) {
+	var (
+		n   int64
+		err error
+	)
+	if len(keep) == 0 {
+		n, err = s.queries.DeleteRepositoryConventionTags(ctx, repoID)
+	} else {
+		n, err = s.queries.DeleteRepositoryConventionTagsExcept(ctx, db.DeleteRepositoryConventionTagsExceptParams{
+			RepoID: repoID, Keep: keep})
+	}
+	if err != nil {
+		return 0, wrapErr(i18n.T("store.conventions.files", repoID), err)
+	}
+	return int(n), nil
+}
+
+// DeleteRepositoryConventionHead supprime le résultat de la tête du dépôt repoID (branche par défaut
+// absente ou dépôt vide : le résultat précédent ne vaut plus). Renvoie le nombre de lignes supprimées.
+func (s *Store) DeleteRepositoryConventionHead(ctx context.Context, repoID int64) (int, error) {
+	n, err := s.queries.DeleteRepositoryConventionHead(ctx, repoID)
+	if err != nil {
+		return 0, wrapErr(i18n.T("store.conventions.files", repoID), err)
+	}
+	return int(n), nil
 }

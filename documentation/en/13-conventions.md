@@ -3,7 +3,7 @@
 [← Contents](README.md)
 
 **Status**: **maintainer decision** (phase 8, November 8, 2026); the choices are recorded in
-[section 11](#11-maintainer-decisions). Phases 8.1 and 8.2 done, not released; the next phases start after their
+[section 11](#11-maintainer-decisions). Phases 8.1 to 8.3 done, not released; the next phases start after their
 plan is approved. The scope exception is carried over into the [Vision](01-vision.md); the updates to
 [Features](02-features.md), [Data model](04-data-model.md), [CLI](05-cli.md) and
 [Web interface](06-web-interface.md) follow phase by phase.
@@ -61,7 +61,7 @@ Default values of the configuration ([section 8](#8-configuration)); each traine
 | Source | What is read | Mode |
 | --- | --- | --- |
 | Database (already synced) | `commits.message`, `commit_branches`, `branches`, `pull_requests` (title, branches, states, dates), `tags`, `releases` | both |
-| Local clone, **through git objects** | `git rev-list` (first parent, ranges between tags), `git for-each-ref refs/remotes/origin/` (all the remote's branches), `git ls-tree` and `git cat-file blob` on `origin/<default>` or on a tag, `git merge-base --is-ancestor` | both (the clone exists with or without `gh`) |
+| Local clone, **through git objects** | `git rev-list` (first parent, ranges between tags), `git for-each-ref refs/remotes/origin/` (all the remote's branches), `git ls-tree -r -l -z` on the full SHA of the head of the default branch (branch list of the sync source) or of a tag's commit (read from the database); never a branch or tag name, then `git cat-file --batch` on object ids (see [section 9](#9-technical-impact)), `git merge-base --is-ancestor` | both (the clone exists with or without `gh`) |
 | API, no extra request | `merge_commit_sha` (merged PRs only), PR body (in memory) and source repository in `GET /pulls`; `allow_squash_merge`, `allow_merge_commit`, `allow_rebase_merge` in `GET /repos` | API |
 | API, extra request | `GET /repos/{o}/{r}/pulls/{n}/reviews` | API |
 
@@ -214,7 +214,7 @@ The `CHANGELOG.md` blob is read in memory from the clone (at most 1 MiB); code b
 | DOC5 | Naming | Folders `^\d{2}-[a-z0-9]+(-[a-z0-9]+)*$`; files in lowercase with hyphens, no space or accent (exceptions: `INDEX.md`, `README.md`, and `Media/` with its capital letter, allowed by the charter) | repository, tag | clone | both | H | P1 |
 | DOC6 | Document headers | Title, purpose, scope, author, date, version: front matter or "Key: value" lines in the first 40 lines; counters per field | repository | clone | both | M | P2 |
 | DOC7 | Diagrams and images | Relative images present or broken, external images (badges excluded), `mermaid` blocks, `Media/` folder | repository | clone | both | H | P2 |
-| DOC8 | Archives | `.zip`, `.rar`, `.7z`, `.tar(.gz)` **in the whole repository** (maintainer decision); `.docx` and `.pdf` files under `documentation/` are flagged as information | repository, tag | clone | both | H | P1 |
+| DOC8 | Archives | `.zip`, `.rar`, `.7z`, `.tar`, `.tar.gz`, `.tgz`, `.tar.bz2`, `.tar.xz` (case ignored) **in the whole repository** (maintainer decision); `.docx` and `.pdf` files under `documentation/` are flagged as information | repository, tag | clone | both | H | P1 |
 | DOC9 | Freshness | Dates of the last commit on `documentation/`, the INDEX, the CHANGELOG and the code; commits outside the documentation since; lead | repository | clone | both | M | P2 |
 | DOC10 | Declared dates | Date in the INDEX column compared to the document's last commit | document | clone | both | L | P3 |
 
@@ -229,6 +229,102 @@ The lists of DOC3, DOC4 and DOC5 (paths) are recomputed at display time; only th
 | TL3 | PR template | Locations recognised by GitHub, case ignored; number of charter sections present. Absent: "not found in the repository" (an organisation template is invisible) | repository | clone | both | H | P2 |
 | TL4 | CI checking the conventions | A workflow cites a known action (commitlint, semantic-pull-request…); only the pattern identifier is kept | repository | clone | both | M | P3 |
 | TL5 | Effect of the tooling | CC1 before and after the earliest introduction among TL1, TL2, TL4; "n/a" if a sample is smaller than 10 | repository | database + clone | both | M | P3 |
+
+**Phase 8.3: details of the file criteria.** The pure functions `CheckChangelog`, `CheckReadme`, `CheckIndex`,
+`CheckDocsTree` and `DetectTooling` read the list of paths of the tree and the content of the files they ask
+for only (CHANGELOG, README, INDEX, `.md` documents of the documentation, at most 300 for DOC4, tooling files
+and PR templates). A result keeps only identifiers, states, codes and counters; the path lists (DOC3, DOC4,
+DOC5, DOC8) are returned apart. Their rules version, `FileRulesVersion`, is separate from the one of the
+commits: a change of the commit rules does not invalidate the cache of the files. Detailed choices:
+
+- **Missing file**: the presence criterion (CL1, RD1, DOC1) is nonconforming and the criteria that read the
+  file are "unknown" (`no_file`), so that the absence counts once. A misnamed or misplaced file (`misnamed`,
+  `elsewhere`) is still analyzed. Tree truncated at the cap or empty repository: all the criteria are
+  "unknown"; a file over the read cap or not read: "unknown" too.
+- **Markdown analysis**: ATX headings only (no underlined headings), outside fenced code blocks and HTML
+  comments; links `[x](y)`, definitions `[x]: y` and GFM tables (delimiter row with as many columns as the
+  header). Headings are compared after normalization (case, accents, punctuation, leading numbering) with
+  French and English synonyms versioned with `FileRulesVersion`.
+- **CL6**: the order of the categories is a **warning** (`category_order`), not an issue: Watchoo's own
+  CHANGELOG, the conforming case of the tests, has an old version with its categories in another order, and
+  Keep a Changelog does not require it. Unknown categories, duplicates and bullets outside a category stay
+  issues. French labels (categories, H1, `[Non publié]`) give the `french_label` warning when
+  `changelog.categories_fr` is true, an issue otherwise; `[v1.2.0]` gives the `v_prefix` warning.
+- **CL7**: `[Unreleased]` is not evaluated at all (empty category or "TODO" included).
+- **CL8**: only the names of the tags are read (a tag that designates a final version, even under a
+  nonconforming name); the date gap between a tag and its section is not shown yet. As the tags change
+  without the head changing, their names enter the fingerprint of the settings of the cache. On the tree of a
+  milestone, only the tags and sections of lower or equal precedence count.
+- **CL4**: a future date is future relative to the day of the computation; the cached result is reviewed
+  only at the next computation.
+- **CL9** is measured on the tree of the tag of a milestone only (the section is searched by its version,
+  whatever the form of the heading, judged by CL4).
+- **RD2**: a licence file at the root counts as the license section (`license_file`): `LICENSE`, `LICENCE` or
+  `COPYING`, case ignored, without extension or with the `.md` or `.txt` extension. Only a
+  mask of the sections found and numbers are kept.
+- **RD3**: a link to an `index.md` at the root or in a `doc`, `docs` or `documentation` folder counts as a
+  link to the INDEX; a link that matches the target only when ignoring case is dead (GitHub is case
+  sensitive). A URL of the same repository is `https://github.com/<owner>/<name>` (repository page) or
+  `…/blob|tree|raw/<ref>/<path>` (single-segment reference), compared with the current name of the
+  repository, case ignored: documented exception to the rule "nothing specific to GitHub outside
+  `internal/provider/`" (text comparison, no access to the forge), like the catalog of `internal/aisignature`.
+- **DOC3**: duplicate rows are counted in the complete tables only (the five columns of DOC2). Without an
+  INDEX at the expected place, the evaluated documentation is the folder of the INDEX found.
+- **DOC4**: images (`![x](y)`) belong to DOC7, not DOC4. No dead link among the files read, but files not
+  read: "unknown" (`unread_documents`).
+- **DOC5**: every subfolder of the documentation follows `NN-topic`, except the media folder (case ignored)
+  and its content; the files of the media folder follow the rule of the files. Hidden files are exempt.
+- **TL1**: depth at most 2 folders, outside `node_modules/` and `vendor/`; the introduction date (which needs
+  the history) is not measured yet. **TL2**: `.husky/commit-msg` without a `prepare` script installing husky
+  gives the `husky_no_prepare` warning. **TL3**: only `.md` files are recognized.
+
+**Codes, counters and reasons of the file criteria (`--json`).** Full list, fixed by `FileRulesVersion`; a
+code keeps the same meaning from one criterion to another. A counter whose key is a code counts the elements
+(versions, categories, bullets, links, paths) that carry this code.
+
+| Criterion | Blocking codes | Warnings | Counters |
+| --- | --- | --- | --- |
+| CL1 | `absent`, `misnamed` (other case or extension at the root), `elsewhere` (elsewhere in the repository) | — | — |
+| CL2 | `no_h1`, `h1_title` (level-1 heading other than "Changelog"), `no_keepachangelog`, `no_semver` | `french_label` | — |
+| CL3 | `unreleased_absent`, `unreleased_misplaced`, `unreleased_duplicate`, `unreleased_no_brackets` | `french_label` | — |
+| CL4 | `no_brackets`, `date_fr`, `no_date`, `invalid_date`, `future_date`, `invalid_version` | `v_prefix` | `versions`; one counter per code |
+| CL5 | `version_order`, `date_order` | — | `versions`, `version_order`, `date_order` |
+| CL6 | `unknown_category`, `duplicate_category`, `bullet_outside_category` | `french_label`, `category_order` | `sections`; one counter per code |
+| CL7 | `empty_version`, `empty_category`, `empty_bullet` | — | `versions`; one counter per code |
+| CL8 | `tag_without_section`, `section_without_tag` | — | `tags`, `tag_without_section`, `section_without_tag` |
+| CL9 | `version_missing` | — | — |
+| RD1 | `absent`, `misnamed`, `elsewhere` | `translation_only` | `translations` |
+| RD2 | `missing_section` | — | `expected`, `found`, `expected_mask`, `found_mask`, `license_file` (1 if a licence file is at the root), `missing_section` |
+| RD3 | `index_link_absent`, `index_link_dead`, `index_link_folder`, `changelog_link_absent`, `changelog_link_dead` | — | — |
+| RD4 | `too_short` | — | `words`, `min_words` |
+| DOC1 | `absent`, `misnamed`, `elsewhere` | — | — |
+| DOC2 | `no_table`, `missing_column`, `no_rows` | — | `tables`, `rows`, `columns`, `missing_column` |
+| DOC3 | `unreferenced`, `duplicate_row` | — | `documents`, `unreferenced`, `duplicate_row` |
+| DOC4 | `dead_link`, `case_mismatch` | — | `links`, `sources`, `unread`, `dead_link`, `case_mismatch` |
+| DOC5 | `dir_name`, `file_name` | — | `dirs`, `files`, `dir_name`, `file_name` |
+| DOC8 | `archive` | `office_document` | `archive`, `office_document` |
+| TL1 | `not_found` | — | `configs`, `extends_conventional` (1 if a configuration extends config-conventional), `unread` |
+| TL2 | `not_found` | `husky_no_prepare` | `tools_mask`, `unread` |
+| TL3 | `not_found` | — | `templates`, `expected`, `sections` (the largest number of charter sections found in one template), `unread` |
+
+- **Masks**: bit `i` (value `1 << i`) for the `i`-th element, from 0. `expected_mask` and `found_mask` follow
+  the order of the README sections: `presentation`, `group`, `stack`, `install`, `run`, `env`, `tree`,
+  `license`. `tools_mask` follows the order of the TL2 tools: `husky`, `lefthook`, `pre-commit`,
+  `commitizen`, `cocogitto`.
+- **Reasons of a family** (`reason` of `changelog`, `readme`, `docs`, `tooling`, repeated by all its
+  criteria): `not_computed` (not computed yet: run `watchoo sync`), `stale` (computed for another revision,
+  another version of the rules or other settings: to recompute), `no_clone`, `filtered` (report restricted to
+  contributors).
+- **Reasons of a criterion** in a computed family: `empty_repository` (empty repository), `tree_truncated`
+  (list of paths truncated at the cap), `no_file` (the file read by the criterion is absent, its absence is
+  counted by CL1, RD1 or DOC1), `blob_too_large` (file beyond 1 MiB), `blob_unreadable` (file listed but not
+  read), `no_docs_dir` (documentation folder absent), `unread_documents` (DOC4: no dead link among the files
+  read, others not read).
+- **Reasons of the lists** (`docs.lists.reason`, detailed view of a repository): `not_computed`, `stale`,
+  `no_clone`, `clone_unreadable` (tree unreadable in the clone), `tree_truncated`.
+- **Milestone review** (`milestone.repositories[].files.reason` and `reason` of its file criteria): the SV1
+  reasons when the milestone tag is absent (`no_tag`, `not_due`, `tag_absent`), then `not_computed`, `stale`,
+  `no_clone`, and in a computed revision the reasons of a criterion above.
 
 ## 6. What cannot be measured
 
@@ -252,8 +348,8 @@ The lists of DOC3, DOC4 and DOC5 (paths) are recomputed at display time; only th
 counts **criteria** ("7/9 criteria compliant, 1 unknown"); it always opens the details and neither sorts
 nor ranks anything.
 
-- **Per repository**: CC1, BR1, PR1, PR3, PR4, SV1, SV2, then the CHANGELOG (CL1 to CL9), README (RD1 to
-  RD3), documentation (DOC1 to DOC5, DOC8) and tooling grids.
+- **Per repository**: CC1, BR1, PR1, PR3, PR4, SV1, SV2, then the CHANGELOG (CL1 to CL8; CL9 on the tag of
+  a milestone), README (RD1 to RD4), documentation (DOC1 to DOC5, DOC8) and tooling (TL1 to TL3) grids.
 - **Per contributor**: CC3 and its main patterns, PR titles (PR1), commits that arrived outside a PR that
   they authored (PR3), reviews received on their PRs (PR4; the reviews given are not counted, since the
   reviewers are not stored). No repository indicator (CL, RD, DOC, SV) is attributed to a person.
@@ -293,8 +389,19 @@ measured in 8.2 appear:
   "unknown".
 
 Without a start date (`conventions.since` of the workspace or of the repository), the repository is "not
-evaluable: missing start date". PR3 and PR4 are added with phases 8.5 and 8.6, SV3 with phase 8.4, CL, RD
-and DOC with phase 8.3.
+evaluable: missing start date". PR3 and PR4 are added with phases 8.5 and 8.6, SV3 with phase 8.4.
+
+**Phase 8.3: file criteria of the review.** Seven criteria follow SV2, read from the cache of the sync for
+the **tree of the tag** that designates the milestone (same rule as SV1: exact name, else the first
+nonconforming name): **CL9** and **CL8** ("CHANGELOG up to date at the milestone"), **RD1**, **RD2** and
+**RD3** ("README with installation"; in the review, RD2 judges **only the installation section**: conform
+when its heading is found; the other sections found are given for information, as `readme_found`), **DOC1**
+and **DOC3** ("INDEX exhaustive"). Tag absent: the seven criteria are "unknown" with the reason of SV1
+(`no_tag`, `not_due`, `tag_absent`). No result for the tag: "unknown" (`not_computed`: not computed yet,
+run `watchoo sync`; `no_clone` without a local clone); a result of another commit (tag moved), of another
+`FileRulesVersion` or of another fingerprint of the settings: "unknown" (`stale`, to recompute). A file
+absent from the tree counts once (RD1 or DOC1 not conform), the criteria that read it being "unknown"
+(`no_file`).
 
 ### 7.2 Interfaces
 
@@ -322,6 +429,23 @@ and DOC with phase 8.3.
   `releases` at first. Phase 8.2 adds keys only (`traits`, `language`, `branches`, `pull_requests`, `tags`,
   `intervals` per repository; `traits`, `trend`, `pull_requests`, `branches` per contributor; top-level
   `milestone`, `null` without `--milestone`), the same top-level keys whatever the options.
+  Phase 8.3 adds keys only: `changelog`, `readme`, `docs` and `tooling` per repository (`state`, `reason`,
+  `sha`, `computed_at`, `conform`, `unknown`, `total`, `criteria[{id,status,reason,codes,counts}]`; `docs`
+  adds `lists`, filled only in the detailed view of a repository and empty otherwise, so that the keys stay
+  the same) and `files` per repository of the milestone review.
+- **Phase 8.3: reading of the file criteria.** `Build` and `ReviewMilestone` only read the cache of the
+  sync (`repository_conventions`), never the clone, except for the path lists. The head of the default
+  branch is compared with the last known commit of the branch in the database, a milestone tag with its
+  commit in the database; a result is used only for the same commit, the same `FileRulesVersion` and the
+  same `config_hash`, otherwise "to recompute" (`stale`); no row: "not computed yet, run watchoo sync"
+  (`not_computed`), or "no local clone" (`no_clone`). There is no score: one grid per family, "k/n criteria
+  conform, u unknown", credited to nobody (with `--contributor`, they are "unknown" with `filtered`; a
+  contributor's page does not show them). The path lists (DOC3 unreferenced documents and duplicate rows, DOC4 dead
+  links, DOC5 badly named paths, DOC8 archives and office documents) are recomputed from the clone, at the
+  commit of the cached result, only in the detailed view of a repository (`watchoo conventions owner/repo`,
+  repository page); they are neither stored nor logged. CLI and web display the same codes, with a label
+  shared by both (`conv.*` keys of the catalog). The overview of `/conventions` gives one summary badge per
+  family; the repository page gives the grids and, folded, the path lists.
 - All texts go through `internal/i18n`, in English and in French.
 
 ## 8. Configuration
@@ -343,9 +467,10 @@ charter in [section 3](#3-reference-the-charter).
 | `pr.min_reviews`, `pr.reviewer_must_contribute` | 1, `false` | Reviews; another account is enough, unless the reviewer must be a contributor |
 | `tags.milestones` | `v1.0.0`, `v2.0.0`, `v3.0.0` (no deadline) | Milestones (SV2, milestone review): each entry `vX.Y.Z`, or `vX.Y.Z@YYYY-MM-DD` for a deadline |
 | `tags.prerelease_forms` | `rc`, `beta`, `alpha` | Compliant pre-releases; the other forms give a warning (SV4, phase 8.4; not read yet in 8.2) |
-| `changelog.categories_fr` | `true` | Allows French labels (categories, H1) |
-| `readme.sections` | charter sections | Synonyms of the expected sections |
-| `docs.dir`, `docs.media_dir`, `docs.archives_scope` | `documentation`, `Media`, `repository` | Tree; archives forbidden in the whole repository |
+| `changelog.categories_fr` | `true` | Allows French labels (categories, H1, `[Non publié]`) with a warning; `false`: they are deviations (CL2, CL3, CL5) |
+| `readme.sections` | the eight charter sections | Expected README sections (RD2): keys among `presentation`, `group`, `stack`, `install`, `run`, `env`, `tree`, `license`; their FR and EN synonyms are built in and versioned |
+| `readme.min_words` | 150 | Number of words below which the README is too short (RD4), at least 1 |
+| `docs.dir`, `docs.media_dir`, `docs.archives_scope` | `documentation`, `Media`, `repository` | Documentation folder (relative to the root), media folder (a single segment under `docs.dir`); archives forbidden in the whole repository (`repository`) or under `docs.dir` only (`documentation`) |
 | `excluded_accounts` | empty | Excluded accounts (trainer, bots): author's login, name or e-mail, case ignored; specific to the conventions, separate from `diagnostic.exclude` |
 
 The block is shared through [`configshare`](02-features.md) (maintainer decision), except `enabled`,
@@ -393,6 +518,45 @@ In the sharing file, these keys are written `settings.conventions.branch` (`patt
 `settings.conventions.tags` (`milestones`); a file that contains them is refused by the versions before
 1.8.0, which accept no unknown key.
 
+**Phase 8.3**: `changelog.categories_fr`, `readme.sections`, `readme.min_words`, `docs.dir`,
+`docs.media_dir` and `docs.archives_scope` are added (1.9.0), shared like `commit.*`. Exact syntax:
+
+```yaml
+conventions:
+  changelog:
+    categories_fr: true          # boolean
+  readme:
+    sections: ["presentation", "group", "stack", "install", "run", "env", "tree", "license"]
+    min_words: 150               # integer, at least 1
+  docs:
+    dir: "documentation"         # path relative to the repository root
+    media_dir: "Media"           # a single folder name, under docs.dir
+    archives_scope: "repository" # "repository" or "documentation"
+```
+
+Environment variables: `WATCHOO_CONVENTIONS_CHANGELOG_CATEGORIES_FR`, `WATCHOO_CONVENTIONS_README_SECTIONS`
+(comma-separated list), `WATCHOO_CONVENTIONS_README_MIN_WORDS`, `WATCHOO_CONVENTIONS_DOCS_DIR`,
+`WATCHOO_CONVENTIONS_DOCS_MEDIA_DIR` and `WATCHOO_CONVENTIONS_DOCS_ARCHIVES_SCOPE`. Rules checked at load
+time:
+
+- `readme.sections`: each key among the eight above (lowercase, as is), only once; an empty list expects
+  no section (RD2 is then compliant by default). The synonyms recognized for each key ("Installation",
+  "Getting started"…) cannot be set: they are built into the binary and versioned with the rules;
+- `readme.min_words`: an integer of at least 1;
+- `docs.dir`: a path relative to the root, non-empty segments separated by `/`, without a leading or
+  trailing `/`, without a `.` or `..` segment, without a space at the start or end of a segment, without `\` or a
+  control character, at most 255 bytes
+  (`documentation`, `docs/project`);
+- `docs.media_dir`: a single segment of the same form (`Media`, `images`), looked for under `docs.dir`;
+- `docs.archives_scope`: `repository` (archives forbidden in the whole repository, default) or
+  `documentation` (under `docs.dir` only).
+
+These settings are part of the fingerprint of the cached results (`config_hash`): changing one of them
+recomputes the file criteria at the next sync. In the sharing file, they are written
+`settings.conventions.changelog` (`categories_fr`), `settings.conventions.readme` (`sections`, `min_words`)
+and `settings.conventions.docs` (`dir`, `media_dir`, `archives_scope`); a file that contains them is refused
+by the versions before 1.9.0, which accept no unknown key (as is a `config.yaml` that contains them).
+
 ## 9. Technical impact
 
 - **Packages**:
@@ -411,6 +575,33 @@ In the sharing file, these keys are written `settings.conventions.branch` (`patt
   `PullRequestReviews` (GET; `ErrUnsupported` with a clone). The computation is only rerun if the head of
   the default branch, `RulesVersion` or the configuration fingerprint has changed. Failures logged at
   Debug level, without message or path.
+- **Sync, done in phase 8.3** (file criteria):
+  - the computation only runs if `conventions.enabled` and if the clone was updated during this sync
+    (otherwise the previous result stays); no API request, no extra fetch;
+  - measured revisions: the head of the default branch (SHA read in the branch list of the sync source)
+    and, for every configured milestone, the tag that designates it (same rule as the milestone review:
+    exact name, otherwise the first non-conforming name), whose SHA is read **in the database**; no tag
+    name is passed to git. In API mode, if the tag list was not reread (low quota), the tags already in
+    the database are used: an accepted approximation, consistent with the milestone review;
+  - reading through the Git objects only: `git ls-tree -r -l -z --end-of-options <sha>` (at most 20,000
+    files; beyond, the list is "truncated" and the criteria unknown), then `git cat-file --batch` on the
+    **object identifiers** (never the paths), without filter or conversion: a file over 1 MiB is "too
+    large" (unknown), at most 32 MiB read per revision (beyond, files "unreadable"). Symbolic links and
+    submodules are ignored; an LFS file is read as its pointer; a path that is not valid UTF-8 or that
+    contains a control character is ignored;
+  - recomputed only if the measured commit, `FileRulesVersion` (version of the file rules, separate from
+    the `RulesVersion` of the commit messages) or `config_hash` changed; `config_hash` covers the settings
+    `conventions.changelog.*`, `conventions.readme.*`, `conventions.docs.*` **and** the names of the tags
+    that designate a version (CL8 compares them to the sections): a new version tag therefore triggers a
+    recomputation. The repository (`owner/name`, case ignored) is covered too: RD3, DOC3 and DOC4 recognize
+    the URLs of the same repository, so a rename or a transfer triggers a recomputation;
+  - rows of the tags that no longer designate a configured milestone (milestone removed, tag deleted from
+    the repository) are deleted; the head row stays, unless the source no longer has a default branch
+    (emptied repository, `HEAD` on a missing branch): it is then deleted too;
+  - failure: logged at Debug level with the repository, the number of revisions and the reason (without
+    path, tag name or content), the repository sync succeeds; a database access failure (reading or writing the cache, reading the
+    tags) is logged at Debug level as well;
+  - a "future" date (CL4) is judged on the day of the computation, in the time zone of the workspace.
 - **Data** (migrations from `00016`, described first in [Data model](04-data-model.md)):
   - `commits.parent_count`, written at sync time from `Commit.Parents`; existing rows are backfilled by an
     `UPDATE` from `git rev-list --parents` (insertion never modifies a commit already in the database);
@@ -459,7 +650,7 @@ Each phase can be delivered alone; phases 8.1 to 8.4 are enough for a milestone 
 | 8.0 | This document approved (done, November 8, 2026) and exception carried over into 01; updates to 02, 04, 05, 06 and 12 with each phase | no code | — |
 | 8.1 | `internal/conventions` (parser), `internal/semver`, `conventions.*` settings, CC1 to CC4, `commits.parent_count` and its backfill, `watchoo conventions --commits`, web section and contributor page, adjustments to A1, A2 and F4. **Done, not released** (`[Unreleased]` of the CHANGELOG; `scope` code added to the blocking codes of CC2; CC1 per range between tags and CC3 trend since the last tag postponed to 8.2, with the reading of the tags) | 0 quota, 1 migration | 1.7.0 |
 | 8.2 | On the fly: BR1, PR1, PR2, SV1, SV2 (presence), SV6; first milestone review; CC5 to CC7; CC1 per range between tags, CC3 trend. **Done, not released** (`[Unreleased]` of the CHANGELOG; `branch.pattern`, `branch.exclude` and `tags.milestones` settings; `/conventions` route; approximations listed in [5.4](#54-tags-and-semver-sv): forks included until 8.5, PR2 comparison with the only commit not measured, API mode inferred; compact dot on the dashboard postponed) | 0 quota | 1.8.0 |
-| 8.3 | Clone tree: `repository_conventions`, CL1 to CL9, RD1 to RD4, DOC1 to DOC8, TL1 to TL3; milestone review on the tags' tree | 0 quota, 1 migration | 1.9.0 |
+| 8.3 | Clone tree: `repository_conventions`, CL1 to CL9, RD1 to RD4, DOC1 to DOC8, TL1 to TL3; milestone review on the tags' tree. **Done, not released** (`[Unreleased]` of the CHANGELOG; migration `00017`; `changelog.categories_fr`, `readme.sections`, `readme.min_words`, `docs.dir`, `docs.media_dir`, `docs.archives_scope` settings; deviations: DOC6 and DOC7 postponed to 8.7, CL10 to 8.4; `FileRulesVersion` separate from `RulesVersion`; `config_hash` also covers the names of the version tags (CL8); category order (CL6) as a warning; date gap between tag and section (CL8) not measured; TL1 without introduction date; DOC4 reads at most 300 documents; path lists only on a repository's page and in `watchoo conventions owner/repo`, not in `/conventions`; in API mode, milestone tags read from the database, see [section 9](#9-technical-impact)) | 0 quota, 1 migration | 1.9.0 |
 | 8.4 | History: `tag_observations` (SV3, SV2 deadlines), `branch_rewrites` (BR4), SV4, SV5, SV7, CL10 | 0 quota, 2 migrations | 1.10.0 |
 | 8.5 | API with no extra request: `merge_commit_sha`, `from_fork`, `body_sections`, merge methods; full PR3, PR5, PR6, BR2, BR5 | one reread of the PR lists | 1.11.0 |
 | 8.6 | Reviews: PR4, "merged without review", reviews received | 1 request per merged PR | 1.12.0 |

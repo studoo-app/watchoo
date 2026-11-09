@@ -227,6 +227,9 @@ type RepoConventionsView struct {
 	SinceLastEval    int
 	SinceLastConform int
 	SinceLastPercent int
+
+	// Phase 8.3 : CHANGELOG, README, documentation et outillage (cache de la synchro), listes de chemins.
+	Files convFilesView
 }
 
 // conventionsInputs renvoie l'accès aux clones (lus sans mise à jour, sinon repli sur la base) et les
@@ -245,12 +248,14 @@ func (s *server) conventionsInputs(r *http.Request) (conventions.CloneReader, co
 	return clones, opts, nil
 }
 
-// conventionsReport calcule le rapport des conventions pour f.
+// conventionsReport calcule le rapport des conventions pour f ; pour un seul dépôt (section de la page du
+// dépôt), les listes de chemins des critères de fichiers sont recalculées depuis le clone.
 func (s *server) conventionsReport(r *http.Request, f conventions.Filter) (conventions.BuildReport, error) {
 	clones, opts, err := s.conventionsInputs(r)
 	if err != nil {
 		return conventions.BuildReport{}, err
 	}
+	opts.FileDetail = f.RepoID != 0 && f.AuthorIDs == nil
 	return conventions.Build(r.Context(), s.store, clones, f, opts)
 }
 
@@ -390,6 +395,7 @@ func (s *server) repoConventions(r *http.Request, id int64) (*RepoConventionsVie
 	s.repoConventionsPulls(tr, repo, v)
 	s.repoConventionsTags(tr, repo, v)
 	s.repoConventionsIntervals(tr, repo, v)
+	v.Files = newConvFiles(tr, repo.Files)
 	return v, nil
 }
 

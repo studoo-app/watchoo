@@ -94,6 +94,8 @@ type testEnv struct {
 	// updates and updateDocker: new version banner (0.6.0).
 	updates      UpdateSource
 	updateDocker bool
+	// gitURL is the base URL of the local Git clones (gittest server); empty: an empty "server".
+	gitURL string
 }
 
 // envOption changes the environment before the construction of the handler.
@@ -130,6 +132,9 @@ func withProvider(f func(token string) (provider.Provider, error)) envOption {
 	return func(e *testEnv) { e.newProvider = f }
 }
 
+// withGitURL plugs the local Git clones on a gittest server (synced without gh).
+func withGitURL(url string) envOption { return func(e *testEnv) { e.gitURL = url } }
+
 // withUpdates plugs the source of the new version banner (docker: Docker image text).
 func withUpdates(src UpdateSource, docker bool) envOption {
 	return func(e *testEnv) { e.updates, e.updateDocker = src, docker }
@@ -163,6 +168,10 @@ func newTestEnv(t *testing.T, opts ...envOption) *testEnv {
 		t.Fatalf("Migrate: %v", err)
 	}
 	e.store = st
+	reposDir, gitURL := filepath.Join(t.TempDir(), "repos"), e.gitURL
+	if gitURL == "" {
+		gitURL = "file://" + filepath.ToSlash(t.TempDir())
+	}
 	newProvider := e.newProvider
 	if newProvider == nil {
 		newProvider = func(string) (provider.Provider, error) { return e.fake, nil }
@@ -172,10 +181,10 @@ func newTestEnv(t *testing.T, opts ...envOption) *testEnv {
 		Auth:        e.auth,
 		Config:      e.cfg,
 		NewProvider: newProvider,
-		// Without gh: local Git clones to an empty "server" (no network, access refused).
+		// Without gh: local Git clones to an empty "server" (no network, access refused), or to the gittest
+		// server of withGitURL; the same clone directory for the sync and the reading of the clones.
 		NewGitProvider: func(repos []gitprov.Ref) (provider.Provider, error) {
-			return gitprov.New(gitprov.Options{Dir: filepath.Join(t.TempDir(), "repos"), Repos: repos,
-				BaseURL: "file://" + filepath.ToSlash(t.TempDir()), Logger: logger})
+			return gitprov.New(gitprov.Options{Dir: reposDir, Repos: repos, BaseURL: gitURL, Logger: logger})
 		},
 		Now:    clock,
 		Logger: logger,

@@ -192,8 +192,9 @@ Importing a whole organization and the alerts move to V3 (see
 - **Status**: **decided** (maintainer decisions of November 8, 2026); phase **8.1** (commit conventions,
   `watchoo conventions` command, adjustments to A1, A2 and F4) and phase **8.2** (branches, pull request
   titles, tags and milestones, releases as information, CC5 to CC7, CC1 per range between tags, CC3 trend,
-  first milestone review `--milestone` and `/conventions` page) **done, not released**; phases 8.3 to 8.7
-  to plan. Branch protection (BR3) postponed.
+  first milestone review `--milestone` and `/conventions` page) and phase **8.3** (CHANGELOG, README,
+  documentation and tooling read from the tree of the clone and cached, milestone review on the tags' tree)
+  **done, not released**; phases 8.4 to 8.7 to plan. Branch protection (BR3) postponed.
 
 ## Definition of "done" for each phase
 

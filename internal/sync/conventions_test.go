@@ -164,8 +164,14 @@ func TestConventionsTagsAndBranchesFromClone(t *testing.T) {
 		t.Fatalf("ReviewMilestone = %+v, %v", review, err)
 	}
 	if p := review.Repos[0]; p.Interval == nil || p.Interval.From != "v0.1.0" || p.Interval.Evaluated != 2 ||
-		p.Conform != 2 || len(p.Criteria) != 4 {
+		p.Conform != 2 || len(p.Criteria) != len(conventions.AllCriteria) || p.Unknown != len(p.Criteria)-4 {
 		t.Errorf("review: %+v", p)
+	}
+	// Conventions disabled in this workspace: the file criteria of the milestone tag were never computed.
+	for _, c := range review.Repos[0].Criteria[4:] {
+		if c.Status != conventions.CriterionUnknown || c.Reason != conventions.UnknownNotComputed {
+			t.Errorf("file criterion %s: %+v, want unknown (not computed)", c.ID, c)
+		}
 	}
 	if strings.Contains(e.logs.String(), "wip") || strings.Contains(e.logs.String(), "corrige") {
 		t.Errorf("commit message in the logs:\n%s", e.logs.String())

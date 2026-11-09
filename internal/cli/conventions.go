@@ -1,10 +1,11 @@
 package cli
 
 // « watchoo conventions [owner/repo] [--commits] [--failing] [--contributor X] [--milestone vX.Y.Z] »
-// (phases 8.1 et 8.2) : taux de commits conformes aux conventions (CC1 à CC4), puis nommage des branches
+// (phases 8.1 à 8.3) : taux de commits conformes aux conventions (CC1 à CC4), puis nommage des branches
 // (BR1), titres de PR (PR1, PR2), tags et jalons (SV1, SV2), releases en information (SV6), formulation,
 // pieds et langue des commits (CC5 à CC7), CC1 par intervalle entre tags, tendance de CC3 et revue de
-// jalon, calculés par internal/conventions à la lecture. Aucune note globale : des taux n/m expliqués
+// jalon, calculés par internal/conventions à la lecture ; critères de fichiers (CL, RD, DOC, TL, phase 8.3)
+// lus dans le cache de la synchro, avec les listes de chemins en vue détaillée d'un dépôt. Aucune note globale : des taux n/m expliqués
 // (dénominateur et exclusions), réservés au formateur. Ni message de commit ni titre de PR n'est affiché :
 // SHA court, numéro de PR, auteur, noms de branche et de tag, et codes d'écart seulement.
 
@@ -64,6 +65,11 @@ type conventionsRepoJSON struct {
 	PullRequests conventionsPullsJSON     `json:"pull_requests"` // PR1, PR2 (numéros et codes, jamais le titre)
 	Tags         conventionsTagsJSON      `json:"tags"`          // SV1, SV2, SV6
 	Intervals    conventionsIntervalsJSON `json:"intervals"`     // CC1 par intervalle entre tags finals
+	// Phase 8.3 : critères de fichiers sur la tête de la branche par défaut (cache de la synchro).
+	Changelog conventionsFilesJSON `json:"changelog"` // CL1 à CL8
+	Readme    conventionsFilesJSON `json:"readme"`    // RD1 à RD4
+	Docs      conventionsDocsJSON  `json:"docs"`      // DOC1 à DOC5, DOC8 ; listes en vue détaillée
+	Tooling   conventionsFilesJSON `json:"tooling"`   // TL1 à TL3
 }
 
 // conventionsTallyJSON est un taux n/m, ses exclusions et ses écarts.
@@ -179,6 +185,8 @@ func runConventions(ctx context.Context, deps Deps, opts *options, ref string, f
 		}
 		filter.RepoID = repo.ID
 		report.Filters.Repository = repo.FullName()
+		// Vue détaillée d'un dépôt : listes de chemins des critères de fichiers, recalculées depuis le clone.
+		bopts.FileDetail = true
 	}
 	if !report.Enabled {
 		if opts.json {
@@ -230,6 +238,10 @@ func runConventions(ctx context.Context, deps Deps, opts *options, ref string, f
 			Traits: newConventionsTraitsJSON(r.Traits), Language: newConventionsLanguageJSON(r.Language),
 			Branches: newConventionsBranchesJSON(r.Branches), PullRequests: newConventionsPullsJSON(r.Pulls),
 			Tags: newConventionsTagsJSON(r.Tags), Intervals: newConventionsIntervalsJSON(r.Intervals),
+			Changelog: newConventionsFilesJSON(r.Files, r.Files.Results.Changelog),
+			Readme:    newConventionsFilesJSON(r.Files, r.Files.Results.Readme),
+			Docs:      newConventionsDocsJSON(r.Files),
+			Tooling:   newConventionsFilesJSON(r.Files, r.Files.Results.Tooling),
 		})
 		if !report.Filters.Commits {
 			continue
@@ -336,6 +348,7 @@ func (s *session) conventionsText(st textStyle, res conventions.BuildReport, rep
 
 	for _, r := range res.Repos {
 		lines := append(conventionsDetail(r), conventionsMoreDetail(r, dash)...)
+		lines = append(lines, s.fileLines(r.Files, report.Filters.Repository != "")...)
 		if len(lines) == 0 {
 			continue
 		}

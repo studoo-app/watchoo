@@ -88,6 +88,21 @@ func ValidateBranch(branch string) error {
 	return nil
 }
 
+// MaxPathBytes est la longueur maximale d'un chemin de fichier accepté, en octets.
+const MaxPathBytes = 4096
+
+// ValidatePath vérifie un chemin de fichier d'un dépôt (relatif à la racine, séparé par « / ») : non
+// vide, UTF-8 valide, au plus MaxPathBytes octets, sans caractère de contrôle (NUL et fin de ligne
+// compris). Le message d'erreur ne cite jamais le chemin (il vient d'un dépôt privé). Erreur enveloppant
+// ErrInvalidRef sinon.
+func ValidatePath(path string) error {
+	if path == "" || len(path) > MaxPathBytes || !utf8.ValidString(path) ||
+		strings.IndexFunc(path, unicode.IsControl) >= 0 {
+		return errInvalidRef("provider.validate.path")
+	}
+	return nil
+}
+
 // ValidateID vérifie un identifiant numérique de dépôt (strictement positif). Erreur enveloppant
 // ErrInvalidRef sinon.
 func ValidateID(id int64) error {

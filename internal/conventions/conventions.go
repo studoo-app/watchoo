@@ -4,7 +4,9 @@
 // rien n'y journalise. Les messages lus restent en mémoire : un résultat ne porte que des codes stables, des
 // compteurs et des SHA, jamais le texte d'un message.
 //
-// Phase 8.1 : parseur strict des messages de commit (CC2) et agrégation CC1 à CC4.
+// Phase 8.1 : parseur strict des messages de commit (CC2) et agrégation CC1 à CC4. Phase 8.3 : critères de
+// fichiers sur l'arbre d'une révision (files.go : CL, RD, DOC, TL), sur une analyse Markdown minimale
+// (markdown.go).
 package conventions
 
 import (

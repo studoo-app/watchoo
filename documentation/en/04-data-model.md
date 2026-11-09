@@ -10,7 +10,7 @@ migration `00005` (0.5.0) adds `contributors.profile_url` and the migration `000
 `commits.stats_known`; the migration `00007` (1.1.0) adds `repository_languages`; the migration `00008` (1.2.0)
 adds `commits.ai_rules_version` and the `commit_ai_signatures` table; the migration `00009` (1.2.0) adds
 `commits.languages_version` and the `commit_languages` table, i.e. **thirteen tables**; the migration `00010` (1.3.0)
-adds `sync_runs.warnings`. The migration `00011` (phase 7.1) adds `commit_signals`, the migration `00012` (phase 7.2) `pull_requests.tool_ids` and `repository_signals`, the migration `00013` (phase 7.4) `diagnostic_reviews`, i.e. **sixteen tables**, the migration `00014` (phase 7.5) the form columns of `commit_signals`, and the migration `00015` (phase 7.7) its measures of the absolute signals and counter-indicators (see [Supervision and diagnosis](12-supervision-diagnostic.md)). The migration `00016` (phase 8.1) adds `commits.parent_count` and `repositories.conventions_since` (see [Project conventions](13-conventions.md) and [Migration `00016`](#migration-00016-project-conventions)). The storage is a SQLite file versioned by `goose` migrations, with **one
+adds `sync_runs.warnings`. The migration `00011` (phase 7.1) adds `commit_signals`, the migration `00012` (phase 7.2) `pull_requests.tool_ids` and `repository_signals`, the migration `00013` (phase 7.4) `diagnostic_reviews`, i.e. **sixteen tables**, the migration `00014` (phase 7.5) the form columns of `commit_signals`, and the migration `00015` (phase 7.7) its measures of the absolute signals and counter-indicators (see [Supervision and diagnosis](12-supervision-diagnostic.md)). The migration `00016` (phase 8.1) adds `commits.parent_count` and `repositories.conventions_since` (see [Project conventions](13-conventions.md) and [Migration `00016`](#migration-00016-project-conventions)), and the migration `00017` (phase 8.3) the cache `repository_conventions` of the file criteria of the conventions, i.e. **seventeen tables** (see [Migration `00017`](#migration-00017-cache-of-the-file-criteria)). The storage is a SQLite file versioned by `goose` migrations, with **one
 database per workspace** (`.watchoo/watchoo.db`, see [Workspaces](10-workspaces.md)). The tables
 therefore do not know the notion of workspace: two workspaces never share data.
 
@@ -31,6 +31,7 @@ erDiagram
     commits ||--o| commit_signals : "measured by"
     repositories ||--o| repository_signals : "context"
     repositories ||--o{ diagnostic_reviews : "reviews"
+    repositories ||--o{ repository_conventions : "file criteria"
     branches ||--o{ commit_branches : "contains"
     contributors ||--o{ contributor_emails : "uses"
     contributors ||--o{ commits : "author"
@@ -377,6 +378,29 @@ repository. The note is personal data: the review follows `diagnostic.retention_
 | reviewer | Reviewer: web interface account, otherwise workspace name |
 | reviewed_at | Date of the review |
 
+### `repository_conventions` — cache of the file criteria of the conventions (phase 8.3)
+
+Primary key: **`(repo_id, rev_kind, tag_name)`**; one row per measured revision, replaced when it is
+recomputed; deleted with the repository. Written by the sync only when the conventions are enabled, after
+the update of the local Git clone, for the head of the default branch and for every tag that designates a
+configured milestone (see [Project conventions](13-conventions.md), sections 5.5 to 5.8 and 9).
+
+| Column | Description |
+| --- | --- |
+| repo_id | Repository |
+| rev_kind | `head` (head of the default branch) or `tag` (tag of a milestone) |
+| tag_name | Name of the tag for `tag`; empty for `head` (`CHECK`) |
+| rev_sha | Measured commit (complete SHA, 40 or 64 lowercase hexadecimal characters) |
+| rules_version | Version of the rules of the file criteria (`conventions.FileRulesVersion`) |
+| config_hash | Stable fingerprint (SHA-256) of the settings `conventions.changelog.*`, `conventions.readme.*`, `conventions.docs.*`, of the repository (`owner/name`, case ignored: RD3, DOC3 and DOC4 recognize its URLs) and of the names of the tags that designate a version (CL8) |
+| results | JSON object (`CHECK json_type = 'object'`): criterion identifiers, states, reasons, codes and **counters** only; never a path, a file content, an INDEX cell or a person's name |
+| computed_at | Date of the computation |
+
+A row whose `rev_sha`, `rules_version` or `config_hash` no longer matches is recomputed at the next sync;
+the rows of the tags that no longer designate a configured milestone (tag gone, milestone removed) are
+deleted, and the head row when the source no longer has a default branch. The lists of paths (DOC3, DOC4, DOC5, DOC8) are not stored: they are recomputed from the clone
+for the detailed view of a repository.
+
 ## Index
 
 | Index | Usage |
@@ -467,6 +491,18 @@ without rebuilding any table:
 Rolling back (`Down`): the index then the two columns are removed; the other values remain. A test
 (`internal/store/migration_conventions_test.go`) applies the migration to a database at schema `00015`,
 checks the unknown values, the index and the constraints, then the rollback.
+
+## Migration `00017`: cache of the file criteria
+
+Phase 8.3 ([Project conventions](13-conventions.md)) creates the table `repository_conventions` (see
+above), without touching the other tables. Its constraints: `rev_kind IN ('head', 'tag')`, `tag_name`
+empty if and only if `rev_kind = 'head'`, `rev_sha` of 40 or 64 lowercase hexadecimal characters,
+`rules_version >= 1`, `config_hash` not empty, `results` a valid JSON object, `computed_at` in the fixed
+date format, foreign key on `repositories` with `ON DELETE CASCADE`. The table starts empty: the first
+sync with the conventions enabled fills it.
+
+Rolling back (`Down`): the table is removed. A test (`internal/store/migration_conventions_files_test.go`)
+applies the migration to a database at schema `00016`, checks the constraints, then the rollback.
 
 ## Renames and login changes
 

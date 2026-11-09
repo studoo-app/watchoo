@@ -253,6 +253,30 @@ var workspaceTexts = map[string]entry{
 		"conventions.tags.milestones: entry #%d repeats the milestone %s",
 		"conventions.tags.milestones : l'entrée n° %d répète le jalon %s",
 	},
+	"workspace.validate.conv_readme_section_invalid": {
+		"conventions.readme.sections: entry #%d %q is not a known section (expected one of: %s)",
+		"conventions.readme.sections : l'entrée n° %d %q n'est pas une section connue (attendu l'une de : %s)",
+	},
+	"workspace.validate.conv_readme_section_duplicate": {
+		"conventions.readme.sections: entry #%d repeats the section %s",
+		"conventions.readme.sections : l'entrée n° %d répète la section %s",
+	},
+	"workspace.validate.conv_readme_min_words": {
+		"conventions.readme.min_words: must be at least 1 (received %d)",
+		"conventions.readme.min_words : doit valoir au moins 1 (reçu %d)",
+	},
+	"workspace.validate.conv_docs_dir_invalid": {
+		`conventions.docs.dir: %q is not a relative folder of the repository (segments separated by "/", without "." nor "..", e.g. "documentation")`,
+		"conventions.docs.dir : %q n'est pas un dossier relatif du dépôt (segments séparés par « / », sans « . » ni « .. », ex. « documentation »)",
+	},
+	"workspace.validate.conv_docs_media_invalid": {
+		`conventions.docs.media_dir: %q is not a folder name (a single segment, without "/", e.g. "Media")`,
+		"conventions.docs.media_dir : %q n'est pas un nom de dossier (un seul segment, sans « / », ex. « Media »)",
+	},
+	"workspace.validate.conv_docs_archives_invalid": {
+		`conventions.docs.archives_scope: %q is not accepted (expected %q or %q)`,
+		"conventions.docs.archives_scope : %q n'est pas admis (attendu %q ou %q)",
+	},
 	"workspace.validate.conv_account_empty": {
 		"conventions.excluded_accounts: account #%d is empty",
 		"conventions.excluded_accounts : le compte n° %d est vide",
@@ -635,6 +659,30 @@ var workspaceTexts = map[string]entry{
 	"workspace.cfg.conventions_milestones": {
 		`milestones "vX.Y.Z", or "vX.Y.Z@YYYY-MM-DD" with a due date`,
 		`jalons « vX.Y.Z », ou « vX.Y.Z@AAAA-MM-JJ » avec une échéance`,
+	},
+	"workspace.cfg.conventions_categories_fr": {
+		"French CHANGELOG labels (Ajouté, [Non publié]…) accepted with a warning; false: deviations",
+		"libellés français du CHANGELOG (Ajouté, [Non publié]…) admis avec un avertissement ; false : écarts",
+	},
+	"workspace.cfg.conventions_readme_sections": {
+		"expected README sections, among: %s",
+		"sections attendues du README, parmi : %s",
+	},
+	"workspace.cfg.conventions_readme_min_words": {
+		"number of words below which the README is too short",
+		"nombre de mots en deçà duquel le README est trop court",
+	},
+	"workspace.cfg.conventions_docs_dir": {
+		"documentation folder, relative to the repository root",
+		"dossier de la documentation, relatif à la racine du dépôt",
+	},
+	"workspace.cfg.conventions_docs_media_dir": {
+		"media folder, under the documentation folder",
+		"dossier des médias, sous le dossier de la documentation",
+	},
+	"workspace.cfg.conventions_docs_archives": {
+		`where archives are forbidden: "repository" (anywhere) or "documentation" (documentation folder only)`,
+		`où les archives sont interdites : "repository" (partout) ou "documentation" (dossier de la documentation seulement)`,
 	},
 	"workspace.cfg.conventions_excluded": {
 		"accounts left out (trainer, bots…): login, name or e-mail",

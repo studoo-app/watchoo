@@ -179,6 +179,13 @@ func (r *Repo) Tag(name, rev, message string) {
 	r.Push()
 }
 
+// DeleteTag deletes the tag name (locally and on the remote).
+func (r *Repo) DeleteTag(name string) {
+	r.s.t.Helper()
+	r.git(r.work, "tag", "--delete", name)
+	r.Push()
+}
+
 // SetDefaultBranch changes the default branch (HEAD) of the remote repository.
 func (r *Repo) SetDefaultBranch(branch string) {
 	r.s.t.Helper()

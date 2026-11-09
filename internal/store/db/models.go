@@ -169,6 +169,17 @@ type Repository struct {
 	ConventionsSince sql.NullString
 }
 
+type RepositoryConvention struct {
+	RepoID       int64
+	RevKind      string
+	TagName      string
+	RevSha       string
+	RulesVersion int64
+	ConfigHash   string
+	Results      string
+	ComputedAt   string
+}
+
 type RepositoryLanguage struct {
 	RepoID   int64
 	Language string

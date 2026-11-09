@@ -126,6 +126,14 @@ func TestJSONSchemaAllCommands(t *testing.T) {
 	assertJSONKeys(t, outputs["conventions"], "repositories.0.tags.releases", "known", "reason", "notes")
 	assertJSONKeys(t, outputs["conventions"], "repositories.0.tags.releases.notes.0", "code", "tag")
 	assertJSONKeys(t, outputs["conventions"], "repositories.0.intervals", "known", "reason", "last_tag", "items", "since_last_tag")
+	// Phase 8.3: file criteria (cache of the sync; none here: every criterion unknown, "not computed").
+	for _, fam := range []string{"changelog", "readme", "tooling"} {
+		assertJSONKeys(t, outputs["conventions"], "repositories.0."+fam, conventionsFilesKeys...)
+		assertJSONKeys(t, outputs["conventions"], "repositories.0."+fam+".criteria.0", "id", "status", "reason", "codes", "counts")
+	}
+	assertJSONKeys(t, outputs["conventions"], "repositories.0.docs", append(conventionsFilesKeys, "lists")...)
+	assertJSONKeys(t, outputs["conventions"], "repositories.0.docs.lists", "computed", "reason", "unreferenced",
+		"duplicate_rows", "dead_links", "bad_names", "archives", "office_documents")
 	assertJSONKeys(t, outputs["conventions"], "contributors.0.traits", "evaluated", "wording", "footer", "issue_reference")
 	assertJSONKeys(t, outputs["conventions"], "contributors.0.trend", "known", "repositories", "unmeasured", "before", "since")
 	assertJSONKeys(t, outputs["conventions"], "contributors.0.trend.before", conventionsTallyKeys...)
@@ -138,8 +146,10 @@ func TestJSONSchemaAllCommands(t *testing.T) {
 	assertJSONKeys(t, review, "", jsonTopLevelKeys["conventions"]...)
 	assertJSONKeys(t, review, "milestone", "name", "due", "criteria", "repositories")
 	assertJSONKeys(t, review, "milestone.repositories.0", "repository", "evaluable", "reason", "since", "status", "tag",
-		"tag_codes", "interval", "branches", "criteria", "conform", "unknown", "total")
+		"tag_codes", "interval", "branches", "files", "criteria", "conform", "unknown", "total")
 	assertJSONKeys(t, review, "milestone.repositories.0.criteria.0", "id", "status", "reason")
+	assertJSONKeys(t, review, "milestone.repositories.0.files", "state", "reason", "sha", "computed_at",
+		"readme_expected", "readme_found")
 	t.Setenv("WATCHOO_CONVENTIONS_SINCE", "")
 	commits := h.run("conventions", "--commits", "--json").mustSucceed(t).stdout
 	assertSingleJSONObject(t, "conventions --commits", commits)
@@ -198,7 +208,9 @@ func TestJSONSchemaAllCommands(t *testing.T) {
 // its rates (05-cli.md, JSON output).
 var (
 	conventionsRepoKeys = []string{"repository", "source", "since", "since_origin", "commits", "before_since", "parents_unknown",
-		"default_branch", "traits", "language", "branches", "pull_requests", "tags", "intervals"}
+		"default_branch", "traits", "language", "branches", "pull_requests", "tags", "intervals",
+		"changelog", "readme", "docs", "tooling"}
+	conventionsFilesKeys = []string{"state", "reason", "sha", "computed_at", "conform", "unknown", "total", "criteria"}
 	conventionsTallyKeys = []string{"evaluated", "conform", "rate", "excluded", "issues"}
 )
 

@@ -191,8 +191,9 @@ L'import d'une organisation entière et les alertes passent en V3 (voir
 - **Statut** : **décidée** (décisions du mainteneur du 8 novembre 2026) ; phase **8.1** (conventions de
   commits, commande `watchoo conventions`, ajustements de A1, A2 et F4) et phase **8.2** (branches, titres
   de PR, tags et jalons, releases en information, CC5 à CC7, CC1 par intervalle entre tags, tendance de CC3,
-  première revue de jalon `--milestone` et page `/conventions`) **réalisées, non publiées** ; phases 8.3 à
-  8.7 à planifier. Protection de branche (BR3) reportée.
+  première revue de jalon `--milestone` et page `/conventions`) et phase **8.3** (CHANGELOG, README,
+  documentation et outillage lus dans l'arbre du clone et mis en cache, revue de jalon sur l'arbre des tags)
+  **réalisées, non publiées** ; phases 8.4 à 8.7 à planifier. Protection de branche (BR3) reportée.
 
 ## Définition de « terminé » pour chaque phase
 

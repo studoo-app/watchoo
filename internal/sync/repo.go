@@ -43,7 +43,8 @@ type repoSync struct {
 	// le diagnostic est activé (Engine.diag) : la synchro en calcule les signaux (signals.go).
 	files map[string][]provider.CommitFile
 	// clone est le clone Git local du dépôt quand il est à jour pour cette synchro (statistiques
-	// calculées par lui) ; nil sinon. Sert au contexte D4 du diagnostic (signals.go).
+	// calculées par lui) ; nil sinon. Sert au contexte D4 du diagnostic (signals.go) et aux critères de
+	// fichiers des conventions (conventions.go).
 	clone CloneStats
 	// parentWrites sont les nombres de parents rattrapés par le clone (commits déjà en base dont il était
 	// inconnu ; phase 8.1), écrits par ApplyRepoSync.
@@ -187,12 +188,24 @@ func (e *Engine) syncRepository(ctx context.Context, prov provider.Provider, cl 
 		x.warnings = append(x.warnings, w)
 	}
 	e.updateAgentContext(ctx, s, repo.ID)
+	e.updateConventionFiles(ctx, s, repo.ID, defaultHead(all, meta.DefaultBranch))
 	display := repo.Label
 	if display == "" {
 		display = s.full
 	}
 	return repoOutcome{fullName: s.full, displayName: display, result: res, stats: stats,
 		pulls: len(x.pulls), warnings: x.warnings}, nil
+}
+
+// defaultHead renvoie le SHA de la tête de la branche par défaut parmi les branches de la forge ; vide si
+// elle est absente (dépôt vide).
+func defaultHead(all []provider.Branch, defaultBranch string) string {
+	for _, b := range all {
+		if b.Name == defaultBranch {
+			return b.HeadSHA
+		}
+	}
+	return ""
 }
 
 // lookupRepository lit les métadonnées actuelles du dépôt, par son identifiant de forge (suit

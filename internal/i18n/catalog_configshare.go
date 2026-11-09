@@ -177,8 +177,8 @@ var configshareTexts = map[string]entry{
 		"settings.conventions.%s : l'entrée n° %d contient un caractère de contrôle ou de l'UTF-8 invalide",
 	},
 	"configshare.v.conv_item_invalid": {
-		"settings.conventions.%s: entry #%d %s is invalid (types: lowercase letters; scopes: lowercase letters, digits, \".\", \"_\", \"/\" and \"-\"; branch exclusions: glob \"*\", \"?\", \"[...]\")",
-		"settings.conventions.%s : l'entrée n° %d %s est invalide (types : lettres minuscules ; scopes : minuscules, chiffres, « . », « _ », « / » et « - » ; exclusions de branches : glob « * », « ? », « [...] »)",
+		"settings.conventions.%s: entry #%d %s is invalid (types: lowercase letters; scopes: lowercase letters, digits, \".\", \"_\", \"/\" and \"-\"; branch exclusions: glob \"*\", \"?\", \"[...]\"; README sections: presentation, group, stack, install, run, env, tree, license)",
+		"settings.conventions.%s : l'entrée n° %d %s est invalide (types : lettres minuscules ; scopes : minuscules, chiffres, « . », « _ », « / » et « - » ; exclusions de branches : glob « * », « ? », « [...] » ; sections du README : presentation, group, stack, install, run, env, tree, license)",
 	},
 	"configshare.v.conv_branch_pattern": {
 		`settings.conventions.branch.pattern: %s is not a valid RE2 regular expression ("" for the built-in rule)`,
@@ -195,6 +195,10 @@ var configshareTexts = map[string]entry{
 	"configshare.v.conv_milestone_duplicate": {
 		"settings.conventions.tags.milestones: entry #%d repeats the milestone %s",
 		"settings.conventions.tags.milestones : l'entrée n° %d répète le jalon %s",
+	},
+	"configshare.v.conv_docs": {
+		`settings.conventions.%s: %s is invalid (dir: relative folder without "." nor "..", e.g. "documentation"; media_dir: a single folder name, e.g. "Media"; archives_scope: "repository" or "documentation")`,
+		`settings.conventions.%s : %s est invalide (dir : dossier relatif sans « . » ni « .. », ex. "documentation" ; media_dir : un seul nom de dossier, ex. "Media" ; archives_scope : "repository" ou "documentation")`,
 	},
 	"configshare.v.conv_language": {
 		`settings.conventions.commit.language: unknown value %s ("fr", "en" or "any")`,

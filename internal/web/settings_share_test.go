@@ -199,7 +199,8 @@ func TestSettingsExport(t *testing.T) {
 		t.Errorf("settings: %+v", doc.Settings)
 	}
 	if c := doc.Settings.Conventions; c == nil || c.Since == nil || c.Commit == nil || c.Commit.Types == nil ||
-		(*c.Commit.Types)[0] != "feat" || *c.Commit.MaxSubjectHard != 72 {
+		(*c.Commit.Types)[0] != "feat" || *c.Commit.MaxSubjectHard != 72 || c.Docs == nil ||
+		*c.Docs.Dir != "documentation" || c.Readme == nil || *c.Readme.MinWords != 150 {
 		t.Errorf("conventions: %+v", doc.Settings.Conventions)
 	}
 	// The exported document is read back without error.
@@ -266,12 +267,14 @@ func TestSettingsImportPreviewConventions(t *testing.T) {
 	before := e.snapshot(ws)
 	doc := `{"format": "watchoo-config", "version": 1, "settings": {"conventions": {"since": "2026-09-01",
 		"commit": {"types": ["feat", "fix"], "max_subject_soft": 60}, "branch": {"exclude": ["gh-pages"]},
-		"tags": {"milestones": ["v1.0.0@2026-12-18"]}}}}`
+		"tags": {"milestones": ["v1.0.0@2026-12-18"]}, "readme": {"min_words": 80},
+		"docs": {"archives_scope": "documentation"}}}}`
 	w := e.postMultipart("/settings/import", nil, []byte(doc), true)
 	assertStatus(t, w, http.StatusOK)
 	assertContains(t, w, "conventions.since", "2026-09-01", "conventions.commit.types",
 		"conventions.commit.max_subject_soft", "60", "conventions.branch.exclude", "conventions.tags.milestones",
-		"v1.0.0@2026-12-18")
+		"v1.0.0@2026-12-18", "conventions.readme.min_words", "80", "conventions.docs.archives_scope",
+		"documentation")
 	if after := e.snapshot(ws); after != before {
 		t.Error("the preview changed the workspace")
 	}

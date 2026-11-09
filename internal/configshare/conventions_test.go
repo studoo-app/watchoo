@@ -60,6 +60,9 @@ func TestConventionsImport(t *testing.T) {
 			MaxSubjectSoft: 60, MaxSubjectHard: 72, Forbidden: []string{}, Language: "fr"},
 		Branch:           workspace.DefaultConfig("x").Conventions.Branch,
 		Tags:             workspace.DefaultConfig("x").Conventions.Tags,
+		Changelog:        workspace.DefaultConfig("x").Conventions.Changelog,
+		Readme:           workspace.DefaultConfig("x").Conventions.Readme,
+		Docs:             workspace.DefaultConfig("x").Conventions.Docs,
 		ExcludedAccounts: []string{"prof-dupont"}}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("conventions = %+v\nwant %+v", got, want)
@@ -132,6 +135,62 @@ func TestConventionsBranchTagsImport(t *testing.T) {
 	}
 }
 
+// The file criteria settings (settings.conventions.changelog, readme and docs), phase 8.3, are read,
+// previewed and applied like the other conventions; false and empty lists stay explicit on export.
+func TestConventionsFilesImport(t *testing.T) {
+	isolate(t)
+	e := newEnv(t, "licence")
+	f := mustParse(t, doc(`{"conventions": {"changelog": {"categories_fr": false},
+		"readme": {"sections": ["install", "run"], "min_words": 80},
+		"docs": {"dir": "docs/projet", "media_dir": "images", "archives_scope": "documentation"}}}`, ""))
+	wantKeys := []string{workspace.KeyConventionsCategoriesFR, workspace.KeyConventionsReadmeSections,
+		workspace.KeyConventionsReadmeMinWords, workspace.KeyConventionsDocsDir, workspace.KeyConventionsDocsMediaDir,
+		workspace.KeyConventionsArchivesScope}
+	if keys := f.Settings.Keys(); !slices.Equal(keys, wantKeys) {
+		t.Errorf("keys = %v", keys)
+	}
+	p, err := configshare.Plan(t.Context(), e.ws, e.st, f, configshare.PlanOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var changed []string
+	for _, c := range p.Settings.Changes {
+		changed = append(changed, c.Key)
+	}
+	if !slices.Equal(changed, wantKeys) {
+		t.Errorf("changes = %v\nwant %v", changed, wantKeys)
+	}
+	if c := p.Settings.Changes[1]; c.After != `["install", "run"]` {
+		t.Errorf("sections change = %+v", c)
+	}
+	if _, err := configshare.Apply(t.Context(), e.ws, e.st, nil, f, configshare.ApplyOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	got := e.reload().Conventions
+	if got.Changelog.CategoriesFR || !slices.Equal(got.Readme.Sections, []string{"install", "run"}) ||
+		got.Readme.MinWords != 80 || got.Docs.Dir != "docs/projet" || got.Docs.MediaDir != "images" ||
+		got.Docs.ArchivesScope != "documentation" {
+		t.Errorf("conventions = %+v", got)
+	}
+
+	e.ws.Config = e.reload()
+	e.ws.Config.Conventions.Readme.Sections = []string{}
+	d, err := configshare.Export(t.Context(), e.ws, e.st, configshare.ExportOptions{Now: testNow})
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, _ := d.Marshal()
+	for _, want := range []string{`"categories_fr": false`, `"sections": []`, `"dir": "docs/projet"`} {
+		if !strings.Contains(string(data), want) {
+			t.Errorf("export lacks %s:\n%s", want, data)
+		}
+	}
+	back := mustParse(t, string(data))
+	if *back.Settings.ConventionsCategoriesFR || len(*back.Settings.ConventionsReadmeSections) != 0 {
+		t.Errorf("read back = %v / %v", *back.Settings.ConventionsCategoriesFR, *back.Settings.ConventionsReadmeSections)
+	}
+}
+
 // Optional keys: an empty since (from the beginning), a block without commit, null values.
 func TestConventionsParseAccepts(t *testing.T) {
 	f := mustParse(t, doc(`{"conventions": {"since": ""}}`, ""))
@@ -176,6 +235,17 @@ func TestConventionsParseRejects(t *testing.T) {
 		`{"tags": {"milestones": ["v1.0.0", "v1.0.0"]}}`:  "settings.conventions.tags.milestones: entry #2 repeats the milestone v1.0.0",
 		`{"tags": {"milestones": ["v1\u0007"]}}`:          "settings.conventions.tags.milestones: entry #1 contains a control character",
 		`{"tags": {"prerelease_forms": ["rc"]}}`:          "prerelease_forms",
+
+		`{"readme": {"sections": ["install", "Install"]}}`: `settings.conventions.readme.sections: entry #2 "Install" is invalid`,
+		`{"readme": {"sections": [""]}}`:                   "settings.conventions.readme.sections: entry #1 is empty",
+		`{"readme": {"min_words": "150"}}`:                 "type",
+		`{"readme": {"titles": ["Install"]}}`:              "titles",
+		`{"changelog": {"categories_fr": "yes"}}`:          "type",
+		`{"docs": {"dir": "../docs"}}`:                     `settings.conventions.docs.dir: "../docs" is invalid`,
+		`{"docs": {"dir": "/documentation"}}`:              `settings.conventions.docs.dir: "/documentation" is invalid`,
+		`{"docs": {"dir": "a\u0007"}}`:                     "settings.conventions.docs.dir",
+		`{"docs": {"media_dir": "a/b"}}`:                   `settings.conventions.docs.media_dir: "a/b" is invalid`,
+		`{"docs": {"archives_scope": "docs"}}`:             `settings.conventions.docs.archives_scope: "docs" is invalid`,
 	} {
 		_, err := configshare.Parse(strings.NewReader(doc(`{"conventions": `+in+`}`, "")))
 		if !errors.Is(err, configshare.ErrInvalid) || !strings.Contains(err.Error(), want) {
@@ -194,6 +264,8 @@ func TestConventionsPlanRejectsInvalidMerged(t *testing.T) {
 		"no type":          `{"conventions": {"commit": {"types": []}}}`,
 		"soft above hard":  `{"conventions": {"commit": {"max_subject_soft": 80}}}`,
 		"zero soft length": `{"conventions": {"commit": {"max_subject_soft": 0}}}`,
+		"zero min words":   `{"conventions": {"readme": {"min_words": 0}}}`,
+		"repeated section": `{"conventions": {"readme": {"sections": ["run", "run"]}}}`,
 	} {
 		t.Run(name, func(t *testing.T) {
 			f := mustParse(t, doc(settings, ""))

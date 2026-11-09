@@ -561,6 +561,15 @@ Voir [Conventions de projet](13-conventions.md).
   commits non conformes, dépôt jamais synchronisé, aucun commit évalué, fragment HTMX, désactivée),
   ligne de la page d'un contributeur, libellés de tous les codes, motifs et gravités en anglais et en
   français, scénario de bout en bout web avec un commit conforme et une fusion ; aucun message de commit.
+- Phase 8.3 (critères de fichiers) : fonctions pures d'`internal/conventions` (lecteur Markdown minimal,
+  CL1 à CL9 avec le `CHANGELOG.md` de Watchoo comme cas conforme, RD1 à RD4, DOC1 à DOC5 et DOC8, TL1 à
+  TL3 ; un résultat sérialisé ne contient ni chemin, ni contenu, ni nom) ; `TreePaths` et `ReadBlobs` du
+  provider git avec `gittest` (sans clone, objet absent, arbre tronqué, blob trop gros, entrée invalide,
+  aucun fetch) ; migration `00017` et requêtes de `repository_conventions` (contraintes, cascade, upsert,
+  lignes périmées) ; calcul dans la synchro (recalcul seulement si le commit, les règles ou l'empreinte
+  changent, lignes des jalons retirés supprimées, ni chemin ni nom de tag dans les logs) ; lecture du cache
+  par `Build` et la revue de jalon (non calculé, à recalculer, filtré) ; clés `--json` figées par
+  `json_schema_test.go` ; page d'un dépôt et `/conventions` sur un clone local.
 
 ## En CI
 

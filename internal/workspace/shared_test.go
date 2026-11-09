@@ -131,6 +131,30 @@ func TestSharedSettingsFromAndValues(t *testing.T) {
 	if (*s.ConventionsBranchExclude)[0] != "gh-pages" {
 		t.Error("Values does not copy conventions.branch.exclude")
 	}
+
+	// conventions.changelog.*, readme.* and docs.* (phase 8.3): shared, lists copied and never nil.
+	cfg = DefaultConfig("x")
+	cfg.Conventions.Readme.Sections = nil
+	s = SharedSettingsFrom(cfg)
+	v = s.Values()
+	if v[KeyConventionsCategoriesFR] != true || v[KeyConventionsReadmeMinWords] != 150 ||
+		v[KeyConventionsDocsDir] != "documentation" || v[KeyConventionsDocsMediaDir] != "Media" ||
+		v[KeyConventionsArchivesScope] != "repository" {
+		t.Errorf("file conventions values = %v", v)
+	}
+	if got := v[KeyConventionsReadmeSections]; !reflect.DeepEqual(got, []string{}) {
+		t.Errorf("conventions.readme.sections = %#v, empty list expected", got)
+	}
+	cfg = DefaultConfig("x")
+	s = SharedSettingsFrom(cfg)
+	cfg.Conventions.Readme.Sections[0] = "changed"
+	if (*s.ConventionsReadmeSections)[0] != "presentation" {
+		t.Error("conventions.readme.sections not copied")
+	}
+	s.Values()[KeyConventionsReadmeSections].([]string)[0] = "changed"
+	if (*s.ConventionsReadmeSections)[0] != "presentation" {
+		t.Error("Values does not copy conventions.readme.sections")
+	}
 }
 
 func TestSharedSettingsApplyTo(t *testing.T) {
@@ -169,6 +193,12 @@ func TestSharedSettingsApplyToConventions(t *testing.T) {
 		ConventionsBranchPattern:  ptr("^feat/.+$"),
 		ConventionsBranchExclude:  &[]string{"gh-pages"},
 		ConventionsMilestones:     &[]string{"v1.0.0@2026-12-18"},
+		ConventionsCategoriesFR:   ptr(false),
+		ConventionsReadmeSections: &[]string{"install"},
+		ConventionsReadmeMinWords: ptr(40),
+		ConventionsDocsDir:        ptr("docs"),
+		ConventionsDocsMediaDir:   ptr("img"),
+		ConventionsArchivesScope:  ptr("documentation"),
 	}
 	got := s.ApplyTo(cfg)
 	want := ConventionsConfig{Enabled: true, Since: "2026-09-01",
@@ -176,6 +206,9 @@ func TestSharedSettingsApplyToConventions(t *testing.T) {
 			MaxSubjectSoft: 60, MaxSubjectHard: 90, Forbidden: []string{}, Language: "fr"},
 		Branch:           ConventionsBranchConfig{Pattern: "^feat/.+$", Exclude: []string{"gh-pages"}},
 		Tags:             ConventionsTagsConfig{Milestones: []string{"v1.0.0@2026-12-18"}},
+		Changelog:        ConventionsChangelogConfig{CategoriesFR: false},
+		Readme:           ConventionsReadmeConfig{Sections: []string{"install"}, MinWords: 40},
+		Docs:             ConventionsDocsConfig{Dir: "docs", MediaDir: "img", ArchivesScope: "documentation"},
 		ExcludedAccounts: []string{"prof"}}
 	if !reflect.DeepEqual(got.Conventions, want) {
 		t.Errorf("ApplyTo = %+v\nwant %+v", got.Conventions, want)
@@ -184,18 +217,21 @@ func TestSharedSettingsApplyToConventions(t *testing.T) {
 	got.Conventions.ExcludedAccounts[0] = "changed"
 	got.Diagnostic.Exclude[0] = "changed"
 	(*s.ConventionsMilestones)[0] = "changed"
-	if got.Conventions.Commit.Types[0] != "feat" || got.Conventions.Tags.Milestones[0] != "v1.0.0@2026-12-18" {
+	(*s.ConventionsReadmeSections)[0] = "changed"
+	if got.Conventions.Commit.Types[0] != "feat" || got.Conventions.Tags.Milestones[0] != "v1.0.0@2026-12-18" ||
+		got.Conventions.Readme.Sections[0] != "install" {
 		t.Error("ApplyTo does not copy the provided list")
 	}
 	got.Conventions.Branch.Exclude[0] = "changed"
+	got.Conventions.Readme.Sections = append(got.Conventions.Readme.Sections[:0], "changed")
 	if cfg.Conventions.ExcludedAccounts[0] != "prof" || cfg.Diagnostic.Exclude[0] == "changed" ||
-		cfg.Conventions.Branch.Exclude[0] != "gh-pages" {
+		cfg.Conventions.Branch.Exclude[0] != "gh-pages" || cfg.Conventions.Readme.Sections[0] != "presentation" {
 		t.Error("ApplyTo shares the lists of the original configuration")
 	}
 	if cfg.Conventions.Since != "" || cfg.Conventions.Commit.MaxSubjectSoft != 50 {
 		t.Error("ApplyTo changed the original configuration")
 	}
-	if got := s.Keys(); !slices.Equal(got, SharedKeys[len(SharedKeys)-10:]) {
+	if got := s.Keys(); !slices.Equal(got, SharedKeys[len(SharedKeys)-16:]) {
 		t.Errorf("Keys = %v", got)
 	}
 }
@@ -285,10 +321,13 @@ func TestWriteSharedSettingsKeepsMachineKeys(t *testing.T) {
 		Timezone:        ptr("Europe/Paris"),
 		Lang:            ptr("fr"),
 
-		ConventionsSince:      ptr("2026-09-01"),
-		ConventionsTypes:      &[]string{"feat", "fix"},
-		ConventionsForbidden:  &[]string{"wip", "mise à jour", "."},
-		ConventionsMilestones: &[]string{"v1.0.0@2026-12-18", "v2.0.0"},
+		ConventionsSince:          ptr("2026-09-01"),
+		ConventionsTypes:          &[]string{"feat", "fix"},
+		ConventionsForbidden:      &[]string{"wip", "mise à jour", "."},
+		ConventionsMilestones:     &[]string{"v1.0.0@2026-12-18", "v2.0.0"},
+		ConventionsCategoriesFR:   ptr(false),
+		ConventionsReadmeSections: &[]string{"install", "run"},
+		ConventionsDocsDir:        ptr("docs"),
 	}
 	res, err := WriteSharedSettings(ws, s)
 	if err != nil {
@@ -331,7 +370,9 @@ func TestWriteSharedSettingsKeepsMachineKeys(t *testing.T) {
 		!slices.Equal(c.Conventions.Commit.Forbidden, []string{"wip", "mise à jour", "."}) ||
 		c.Conventions.Commit.MaxSubjectSoft != 50 || c.Conventions.Commit.Language != "any" ||
 		!slices.Equal(c.Conventions.Tags.Milestones, []string{"v1.0.0@2026-12-18", "v2.0.0"}) ||
-		!slices.Equal(c.Conventions.Branch.Exclude, conventions.DefaultBranchExclude()) {
+		!slices.Equal(c.Conventions.Branch.Exclude, conventions.DefaultBranchExclude()) ||
+		c.Conventions.Changelog.CategoriesFR || !slices.Equal(c.Conventions.Readme.Sections, []string{"install", "run"}) ||
+		c.Conventions.Readme.MinWords != 150 || c.Conventions.Docs.Dir != "docs" || c.Conventions.Docs.MediaDir != "Media" {
 		t.Errorf("imported conventions settings missing: %+v", c.Conventions)
 	}
 	if c.Sync.Parallelism != 2 {
@@ -345,7 +386,8 @@ func TestWriteSharedSettingsKeepsMachineKeys(t *testing.T) {
 		t.Errorf("WriteResult.Config = %+v, read back %+v", res.Config, c)
 	}
 	// The settings not provided and absent from the file stay in comments.
-	for _, line := range []string{"#   auto: true", "#   flemme_after_days: 5", "#   branch:\n", `#     pattern: ""`} {
+	for _, line := range []string{"#   auto: true", "#   flemme_after_days: 5", "#   branch:\n", `#     pattern: ""`,
+		"#     min_words: 150", `#     media_dir: "Media"`} {
 		if !strings.Contains(content, line) {
 			t.Errorf("commented line %q missing:\n%s", line, content)
 		}
@@ -354,7 +396,9 @@ func TestWriteSharedSettingsKeepsMachineKeys(t *testing.T) {
 		`  exclude: ["dependabot/*", "renovate/*"]`, `timezone: "Europe/Paris"`, `lang: "fr"`, "  auth:\n", `    username: "prof"`,
 		`  gh_path: "/opt/gh/bin/gh"`, "git:\n", `  protocol: "https"`, "conventions:\n", "  enabled: true ",
 		`  since: "2026-09-01"`, "  commit:\n", `    types: ["feat", "fix"]`, "  tags:\n",
-		`    milestones: ["v1.0.0@2026-12-18", "v2.0.0"]`, `  excluded_accounts: ["prof-dupont"]`} {
+		`    milestones: ["v1.0.0@2026-12-18", "v2.0.0"]`, "  changelog:\n", "    categories_fr: false",
+		"  readme:\n", `    sections: ["install", "run"]`, "  docs:\n", `    dir: "docs"`,
+		`  excluded_accounts: ["prof-dupont"]`} {
 		if !strings.Contains(content, line) {
 			t.Errorf("active line %q missing:\n%s", line, content)
 		}

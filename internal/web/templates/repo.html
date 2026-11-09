@@ -517,6 +517,49 @@
       </div>
       {{end}}
     </div>
+
+    {{/* Phase 8.3 : critères de fichiers (cache de la synchro), listes de chemins repliées. */}}
+    <h3 class="font-semibold">{{t "web.conv.files_title"}}</h3>
+    <div id="repo-conventions-files" class="space-y-2">
+      {{with $c.Files}}
+      {{if not .Known}}
+      <p class="text-sm text-base-content/70">{{t "web.conv.files_unknown" .Reason}}</p>
+      {{else}}
+      <p class="text-xs text-base-content/60">{{t "web.conv.files_measured" (shortSHA .SHA) (localDate .ComputedAt)}}</p>
+      {{end}}
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-2">
+        {{range .Families}}
+        <div class="rounded-box bg-base-200/40 p-3 space-y-1" id="repo-conventions-{{.Name}}">
+          <p class="text-sm font-medium">{{.Label}} · {{t "web.conv.family_line" .Conform .Total .Unknown}}</p>
+          <ul class="text-sm space-y-1">
+            {{range .Checks}}
+            <li>{{template "conv-status" (dict "Status" .Status "Text" "")}} <span class="font-mono">{{.ID}}</span> {{.Label}}{{if .Reason}} <span class="text-xs text-base-content/60">({{.Reason}})</span>{{end}}{{if .Detail}} <span class="text-xs text-base-content/60">· {{.Detail}}</span>{{end}}
+              {{if .Codes}}<div class="flex flex-wrap gap-1 mt-1">{{range .Codes}}{{template "conv-code" .}}{{end}}</div>{{end}}
+            </li>
+            {{end}}
+          </ul>
+        </div>
+        {{end}}
+      </div>
+      {{if .Known}}
+      {{if .ListsReason}}<p class="text-sm text-base-content/70">{{t "web.conv.lists_unavailable" .ListsReason}}</p>
+      {{else if .Lists}}
+      <p class="text-sm font-medium">{{t "web.conv.lists_title"}}</p>
+      {{range .Lists}}
+      <details class="collapse collapse-arrow bg-base-200/40 rounded-box" id="repo-conventions-list-{{.Key}}">
+        <summary class="collapse-title text-sm font-medium min-h-0 py-2">{{.Label}}</summary>
+        <div class="collapse-content overflow-x-auto">
+          <ul class="list-disc pl-5 text-sm font-mono space-y-1">{{range .Paths}}<li class="break-all">{{clean .}}</li>{{end}}</ul>
+        </div>
+      </details>
+      {{end}}
+      {{else}}
+      <p class="text-sm text-base-content/70">{{t "web.conv.lists_none"}}</p>
+      {{end}}
+      {{end}}
+      {{end}}
+      <p class="text-xs text-base-content/60">{{t "web.conv.files_note"}}</p>
+    </div>
     {{end}}
     <p class="text-xs text-base-content/60">{{if $c.Database}}{{t "web.conv.source_database"}}{{else}}{{t "web.conv.source_clone"}}{{end}}{{if $c.ParentsUnknown}} {{t "web.conv.parents_unknown" $c.ParentsUnknown}}{{end}}</p>
   </div>

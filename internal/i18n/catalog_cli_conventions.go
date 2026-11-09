@@ -1,4 +1,4 @@
-// Textes du paquet internal/cli pour « watchoo conventions » (phases 8.1 et 8.2) : aide, rappel, tableaux
+// Textes du paquet internal/cli pour « watchoo conventions » (phases 8.1 à 8.3) : aide, rappel, tableaux
 // des dépôts, des contributeurs et des commits, libellés des codes d'écart (CC2) et des motifs d'exclusion
 // (CC4), puis lignes de branches (BR1), PR (PR1, PR2), tags et jalons (SV1, SV2), releases (SV6),
 // formulation, pieds et langue (CC5 à CC7), intervalles entre tags et revue de jalon. Préfixe des clés : « cli.conv. ». Les clés et valeurs JSON (codes, motifs, sources) ne passent
@@ -39,8 +39,14 @@ issue references (CC6) and the language of the subjects (CC7), then CC1 per inte
 tags (read in the clone). Per contributor: the rates before and since the last final tag (CC3
 trend), the conforming pull request titles and branches.
 
+File criteria, measured by "watchoo sync" on the local clone and read from its cache: CHANGELOG
+(CL1-CL8), README (RD1-RD4), documentation (DOC1-DOC5, DOC8) and tooling (TL1-TL3), one grid per
+family. With a repository (watchoo conventions owner/repo), the path lists are recomputed from the
+clone: documents not referenced by the INDEX, dead links, badly named paths, archives.
+
 --milestone vX.Y.Z shows the review of a configured milestone, repository by repository: CC1 on the
-milestone interval, BR1, SV1 and SV2, each conform, not conform or unknown ("k/n criteria conform,
+milestone interval, BR1, SV1 and SV2, then CL9, CL8, RD1, RD2 (installation section), RD3, DOC1 and
+DOC3 on the tree of the milestone tag, each conform, not conform or unknown ("k/n criteria conform,
 u unknown"), never an overall grade. It requires a start date (conventions.since).
 
 Commit messages and pull request titles are never shown: short SHA, pull request number, author,
@@ -79,9 +85,16 @@ mode API seulement), les noms de tag (SV1, SemVer avec un « v » minuscule), le
 par intervalle entre tags finals (lu dans le clone). Par contributeur : les taux avant et depuis le
 dernier tag final (tendance de CC3), les titres de pull request et branches conformes.
 
+Critères de fichiers, mesurés par « watchoo sync » sur le clone local et lus dans son cache :
+CHANGELOG (CL1-CL8), README (RD1-RD4), documentation (DOC1-DOC5, DOC8) et outillage (TL1-TL3), une
+grille par famille. Avec un dépôt (watchoo conventions owner/repo), les listes de chemins sont
+recalculées depuis le clone : documents non référencés par l'INDEX, liens morts, chemins mal nommés,
+archives.
+
 --milestone vX.Y.Z affiche la revue d'un jalon configuré, dépôt par dépôt : CC1 sur l'intervalle du
-jalon, BR1, SV1 et SV2, chacun conforme, non conforme ou inconnu (« k/n critères conformes, u
-inconnus »), jamais de note globale. Elle exige une date de début (conventions.since).
+jalon, BR1, SV1 et SV2, puis CL9, CL8, RD1, RD2 (section installation), RD3, DOC1 et DOC3 sur l'arbre
+du tag du jalon, chacun conforme, non conforme ou inconnu (« k/n critères conformes, u inconnus »),
+jamais de note globale. Elle exige une date de début (conventions.since).
 
 Ni message de commit ni titre de pull request n'est affiché : SHA court, numéro de pull request,
 auteur, noms de branche et de tag et codes seulement. Les conventions doivent être activées dans
@@ -283,6 +296,65 @@ Options :
 	"cli.conv.reason.no_commits":       {"no evaluated commit", "aucun commit évalué"},
 	"cli.conv.reason.partial":          {"commits not in the database", "commits absents de la base"},
 	"cli.conv.reason.no_branch":        {"no branch to evaluate", "aucune branche à évaluer"},
+
+	// Phase 8.3 : critères de fichiers (CHANGELOG, README, documentation, outillage).
+	"cli.conv.reason.empty_repository": {"empty repository", "dépôt vide"},
+	"cli.conv.reason.tree_truncated":   {"too many files, list truncated", "trop de fichiers, liste tronquée"},
+	"cli.conv.reason.no_file":          {"file absent", "fichier absent"},
+	"cli.conv.reason.blob_too_large":   {"file too large to be read", "fichier trop gros pour être lu"},
+	"cli.conv.reason.blob_unreadable":  {"file not read", "fichier non lu"},
+	"cli.conv.reason.no_docs_dir":      {"no documentation folder", "pas de dossier de documentation"},
+	"cli.conv.reason.unread_documents": {"documents not read", "documents non lus"},
+	"cli.conv.reason.not_computed": {
+		"not computed yet, run watchoo sync",
+		"pas encore calculé, lancez watchoo sync",
+	},
+	"cli.conv.reason.stale": {
+		"to recompute (rules, settings or revision changed), run watchoo sync",
+		"à recalculer (règles, réglages ou révision changés), lancez watchoo sync",
+	},
+	"cli.conv.files_unknown": {
+		"File criteria (CHANGELOG, README, documentation, tooling): unknown (%s)",
+		"Critères de fichiers (CHANGELOG, README, documentation, outillage) : inconnus (%s)",
+	},
+	"cli.conv.files_measured": {
+		"File criteria measured on %s, computed %s",
+		"Critères de fichiers mesurés sur %s, calculés le %s",
+	},
+	"cli.conv.files_line": {
+		"%s: %d/%d criteria conform, %d unknown",
+		"%s : %d/%d critères conformes, %d inconnus",
+	},
+	"cli.conv.file_criterion": {"%s %s — %s: %s", "%s %s — %s : %s"},
+	"cli.conv.file_unknown":   {"%s unknown — %s (%s)", "%s inconnu — %s (%s)"},
+	"cli.conv.file_counts":    {"words %d (minimum %d)", "mots %d (minimum %d)"},
+	"cli.conv.file_sections":  {"sections found %d/%d", "sections trouvées %d/%d"},
+	"cli.conv.lists_unavailable": {
+		"Path lists unavailable (%s)",
+		"Listes de chemins indisponibles (%s)",
+	},
+	"cli.conv.list.unreferenced": {
+		"Documents not referenced by the INDEX (DOC3, %d): %s",
+		"Documents non référencés par l'INDEX (DOC3, %d) : %s",
+	},
+	"cli.conv.list.duplicate_rows": {
+		"Documents listed by several INDEX rows (DOC3, %d): %s",
+		"Documents cités par plusieurs lignes de l'INDEX (DOC3, %d) : %s",
+	},
+	"cli.conv.list.dead_links": {"Dead links (DOC4, %d): %s", "Liens morts (DOC4, %d) : %s"},
+	"cli.conv.list.bad_names":  {"Badly named (DOC5, %d): %s", "Mal nommés (DOC5, %d) : %s"},
+	"cli.conv.list.archives":   {"Archives (DOC8, %d): %s", "Archives (DOC8, %d) : %s"},
+	"cli.conv.list.office_documents": {
+		"Office documents under the documentation (DOC8, information, %d): %s",
+		"Documents bureautiques sous la documentation (DOC8, information, %d) : %s",
+	},
+	"cli.conv.list_more":      {"… and %d more", "… et %d de plus"},
+	"cli.conv.dead_link_case": {"case only", "casse seulement"},
+	"cli.conv.milestone_readme": {
+		"README sections at the tag: %s",
+		"Sections du README au tag : %s",
+	},
+	"cli.conv.milestone_readme_none": {"none found", "aucune trouvée"},
 }
 
 func init() {

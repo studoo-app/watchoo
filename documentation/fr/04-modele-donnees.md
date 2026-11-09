@@ -9,7 +9,7 @@ facultatif (dépôts suivis par clones Git locaux) ; la migration `00005` (0.5.0
 `contributors.profile_url` et la migration `00006` (0.5.0) `commits.stats_known` ; la migration `00007` (1.1.0) ajoute `repository_languages` ; la migration `00008` (1.2.0)
 ajoute `commits.ai_rules_version` et la table `commit_ai_signatures` ; la migration `00009` (1.2.0) ajoute
 `commits.languages_version` et la table `commit_languages`, soit **treize tables** ; la migration `00010` (1.3.0)
-ajoute `sync_runs.warnings`. La migration `00011` (phase 7.1) ajoute `commit_signals`, la migration `00012` (phase 7.2) `pull_requests.tool_ids` et `repository_signals`, la migration `00013` (phase 7.4) `diagnostic_reviews`, soit **seize tables**, la migration `00014` (phase 7.5) les colonnes de forme de `commit_signals`, et la migration `00015` (phase 7.7) ses mesures des signaux absolus et des contre-indicateurs (voir [Supervision et diagnostic](12-supervision-diagnostic.md)). La migration `00016` (phase 8.1) ajoute `commits.parent_count` et `repositories.conventions_since` (voir [Conventions de projet](13-conventions.md) et [Migration `00016`](#migration-00016--conventions-de-projet)). Le stockage est un fichier SQLite versionné par des migrations
+ajoute `sync_runs.warnings`. La migration `00011` (phase 7.1) ajoute `commit_signals`, la migration `00012` (phase 7.2) `pull_requests.tool_ids` et `repository_signals`, la migration `00013` (phase 7.4) `diagnostic_reviews`, soit **seize tables**, la migration `00014` (phase 7.5) les colonnes de forme de `commit_signals`, et la migration `00015` (phase 7.7) ses mesures des signaux absolus et des contre-indicateurs (voir [Supervision et diagnostic](12-supervision-diagnostic.md)). La migration `00016` (phase 8.1) ajoute `commits.parent_count` et `repositories.conventions_since` (voir [Conventions de projet](13-conventions.md) et [Migration `00016`](#migration-00016--conventions-de-projet)), et la migration `00017` (phase 8.3) le cache `repository_conventions` des critères de fichiers des conventions, soit **dix-sept tables** (voir [Migration `00017`](#migration-00017--cache-des-critères-de-fichiers)). Le stockage est un fichier SQLite versionné par des migrations
 `goose`, avec **une base par espace de supervision** (`.watchoo/watchoo.db`, voir
 [Espaces de supervision](10-espaces-de-supervision.md)). Les tables ne connaissent donc pas la notion
 d'espace : deux espaces ne partagent jamais de données.
@@ -31,6 +31,7 @@ erDiagram
     commits ||--o| commit_signals : "mesuré par"
     repositories ||--o| repository_signals : "contexte"
     repositories ||--o{ diagnostic_reviews : "revues"
+    repositories ||--o{ repository_conventions : "critères de fichiers"
     branches ||--o{ commit_branches : "contient"
     contributors ||--o{ contributor_emails : "utilise"
     contributors ||--o{ commits : "auteur"
@@ -378,6 +379,29 @@ avec le dépôt. La note est une donnée personnelle : la revue suit `diagnostic
 | reviewer | Relecteur : compte de l'interface web, sinon nom de l'espace |
 | reviewed_at | Date de la revue |
 
+### `repository_conventions` — cache des critères de fichiers des conventions (phase 8.3)
+
+Clé primaire : **`(repo_id, rev_kind, tag_name)`** ; une ligne par révision mesurée, remplacée quand elle
+est recalculée ; supprimée avec le dépôt. Écrite par la synchro seulement quand les conventions sont
+activées, après la mise à jour du clone Git local, pour la tête de la branche par défaut et pour chaque tag
+qui désigne un jalon configuré (voir [Conventions de projet](13-conventions.md), sections 5.5 à 5.8 et 9).
+
+| Colonne | Description |
+| --- | --- |
+| repo_id | Dépôt |
+| rev_kind | `head` (tête de la branche par défaut) ou `tag` (tag d'un jalon) |
+| tag_name | Nom du tag pour `tag` ; vide pour `head` (`CHECK`) |
+| rev_sha | Commit mesuré (SHA complet, 40 ou 64 caractères hexadécimaux en minuscules) |
+| rules_version | Version des règles des critères de fichiers (`conventions.FileRulesVersion`) |
+| config_hash | Empreinte stable (SHA-256) des réglages `conventions.changelog.*`, `conventions.readme.*`, `conventions.docs.*`, du dépôt (`owner/name`, sans casse : RD3, DOC3 et DOC4 reconnaissent ses URL) et des noms des tags qui désignent une version (CL8) |
+| results | Objet JSON (`CHECK json_type = 'object'`) : identifiants de critères, états, raisons, codes et **compteurs** seulement ; jamais un chemin, un contenu de fichier, une cellule d'INDEX ni un nom de personne |
+| computed_at | Date du calcul |
+
+Une ligne dont `rev_sha`, `rules_version` ou `config_hash` ne correspond plus est recalculée à la synchro
+suivante ; les lignes des tags qui ne désignent plus de jalon configuré (tag disparu, jalon retiré) sont
+supprimées, et la ligne de la tête quand la source n'a plus de branche par défaut. Les listes de chemins (DOC3, DOC4, DOC5, DOC8) ne sont pas stockées : elles sont recalculées
+depuis le clone pour la vue détaillée d'un dépôt.
+
 ## Index
 
 | Index | Usage |
@@ -465,6 +489,18 @@ COLUMN`, sans reconstruire de table :
 Retour arrière (`Down`) : l'index puis les deux colonnes sont supprimés ; les autres valeurs restent. Un test
 (`internal/store/migration_conventions_test.go`) applique la migration sur une base au schéma `00015`,
 vérifie les valeurs inconnues, l'index et les contraintes, puis le retour arrière.
+
+## Migration `00017` : cache des critères de fichiers
+
+La phase 8.3 ([Conventions de projet](13-conventions.md)) crée la table `repository_conventions` (voir
+plus haut), sans toucher aux autres tables. Ses contraintes : `rev_kind IN ('head', 'tag')`, `tag_name`
+vide si et seulement si `rev_kind = 'head'`, `rev_sha` de 40 ou 64 caractères hexadécimaux en minuscules,
+`rules_version >= 1`, `config_hash` non vide, `results` objet JSON valide, `computed_at` au format de date
+fixe, clé étrangère sur `repositories` avec `ON DELETE CASCADE`. La table part vide : la première synchro
+avec les conventions activées la remplit.
+
+Retour arrière (`Down`) : la table est supprimée. Un test (`internal/store/migration_conventions_files_test.go`)
+applique la migration à une base au schéma `00016`, vérifie les contraintes, puis le retour arrière.
 
 ## Renommages et changements de login
 

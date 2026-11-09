@@ -157,8 +157,9 @@ outil est-il signé sur ce commit ? », jamais à « ce code a-t-il été écrit
 
 ## Conventions de projet
 
-Phases 8.1 et 8.2 (non publiées) : Watchoo mesure la conformité des messages de commit à une charte
-Conventional Commits, puis celle des noms de branche, des titres de pull request et des tags ; le détail est
+Phases 8.1 à 8.3 (non publiées) : Watchoo mesure la conformité des messages de commit à une charte
+Conventional Commits, puis celle des noms de branche, des titres de pull request et des tags, puis celle du
+CHANGELOG, du README, de la documentation et de l'outillage ; le détail est
 dans [Conventions de projet](13-conventions.md).
 
 - **Désactivé par défaut** (`conventions.enabled`) et **réservé au formateur** : ce sont des constats
@@ -181,9 +182,18 @@ dans [Conventions de projet](13-conventions.md).
   - **revue de jalon** : critères (CC1 sur l'intervalle, BR1, SV1, SV2) conformes, non conformes ou inconnus
     (`conform`, `nonconform`, `unknown` en `--json`), « k/n critères conformes, u inconnus », sans note ;
     exige une date de début.
+- **Phase 8.3**, mesurée par la synchro sur l'arbre du clone local, par ses objets Git (sans requête à l'API
+  ni fetch de plus), et mise en cache (table `repository_conventions`, migration `00017`) :
+  - **fichiers** : CHANGELOG (CL1 à CL9), README (RD1 à RD4), documentation (DOC1 à DOC5, DOC8) et
+    outillage (TL1 à TL3), pour la tête de la branche par défaut et le tag de chaque jalon ; une grille par
+    famille (« k/n critères conformes, u inconnus »), listes de chemins dans le détail d'un dépôt seulement,
+    recalculées depuis le clone et jamais stockées ;
+  - **revue de jalon** : s'ajoutent CL9, CL8, RD1, RD2 (section installation), RD3, DOC1 et DOC3, sur
+    l'arbre du tag du jalon.
 - **Restitution** : commande `watchoo conventions` (`--milestone vX.Y.Z` pour la revue de jalon), page
   `/conventions`, section de la page d'un dépôt et page d'un contributeur ; jamais le message de commit ni le
   titre d'une PR, seulement le SHA court, le numéro de PR, l'auteur, les noms de branche et de tag et les
-  codes. Les indicateurs de dépôt (branches sans PR, tags, jalons) ne sont attribués à personne.
-- La charte (`since`, `commit.*`, `branch.*`, `tags.milestones`) se partage par `watchoo config export` /
+  codes. Les indicateurs de dépôt (branches sans PR, tags, jalons, fichiers) ne sont attribués à personne.
+- La charte (`since`, `commit.*`, `branch.*`, `tags.milestones` et, depuis la phase 8.3, `changelog.*`,
+  `readme.*`, `docs.*`) se partage par `watchoo config export` /
   `import`.

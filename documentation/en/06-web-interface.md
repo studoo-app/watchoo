@@ -239,6 +239,17 @@ signatures, no address displayed. Rules: [AI signatures](02-features.md#ai-signa
   without tag, inconsistent pre-release flag; "unknown" without API data); the **commits between tags**
   (CC1 per interval between final tags, most recent first, and since the last final tag; "Unknown"
   without a local clone or without a conforming final tag). Every badge carries a text next to its icon.
+  Since 1.9.0 (phase 8.3), the section ends with the **files** (`repo-conventions-files`): the revision
+  measured by the sync on the default branch (short SHA, date of the computation), then one grid per
+  family, **CHANGELOG** (CL1 to CL8), **README** (RD1 to RD4), **documentation** (DOC1 to DOC5, DOC8) and
+  **tooling** (TL1 to TL3), each "k/n criteria conform, u unknown" with, per criterion, a badge and its
+  text, the reason of an unknown criterion and the codes with their label (blocking or warning, number of
+  elements; sections found for RD2, words for RD4). Read from the cache of the sync: "unknown: not
+  computed yet, run watchoo sync", "to recompute" when the settings, the rules or the revision changed,
+  "no local clone". Below, folded (`details`), the **paths to look at**, recomputed from the local clone for
+  this page only and never stored: documents not referenced by the INDEX (DOC3), dead links `source →
+  target` (DOC4), badly named paths (DOC5), archives and office documents (DOC8); without a readable
+  clone, "Path lists unavailable". Never a cell of the INDEX nor a file content.
 - Button **"Sync this repository"** (absent if tracking is stopped).
 - Fragments: `/repos/{id}/commits` (history); `/repos/{id}` with the `HX-Target` header
   `repo-overview`, `repo-contributors`, `repo-languages`, `repo-pulls`, `repo-diagnostic` or
@@ -507,17 +518,20 @@ For the trainer only; "Conventions" navigation entry only when the conventions a
 - **By repository**: in the order of the workspace, never sorted by conformity: conforming commits (CC1),
   conforming branches (BR1) and the number to review, conforming pull request titles (open and merged
   apart, default titles; "unknown" without API data), conforming tags (SV1), a badge per configured
-  milestone (SV2) and the language of the subjects (CC7).
+  milestone (SV2) and the language of the subjects (CC7); since 1.9.0, a **Files** column, one badge per
+  family ("CHANGELOG 6/8 · 1 unknown"), or "unknown" with its reason (phase 8.3).
 - **By contributor**: by name, never sorted by conformity: conforming commits (CC3), the trend (before /
   since the last final tag), conforming pull request titles and branches (head branches of their pull
   requests only). Tags, milestones and branches without a pull request are never attributed to a person.
 - **Milestone review** (`?milestone=vX.Y.Z`, first configured milestone by default; a milestone that is not
   in `conventions.tags.milestones`: 400): a repository × criterion table (CC1 on the interval of the
-  milestone, BR1, SV1, SV2), each cell "conforming", "not conforming" or "unknown" with its reason, then
+  milestone, BR1, SV1, SV2; since 1.9.0 CL9, CL8, RD1, RD2 installation section, RD3, DOC1 and DOC3, read on
+  the tree of the milestone tag; tag absent: "unknown" with the reason of SV1), each cell "conforming", "not conforming" or "unknown" with its reason, then
   "k/n criteria conforming, u unknown" and the interval read; no global grade. Without a start date:
   "Not evaluable: missing start date". No milestone configured: a dedicated text.
 - The workspace syncs from the clones only: a note says that pull requests and releases are unknown.
-- No commit message, no pull request title; computed when read, nothing is stored.
+- No commit message, no pull request title; computed when read, nothing is stored, except the file
+  criteria, computed by the sync and kept in a cache (codes, states and counters only).
 
 ## Navigation
 

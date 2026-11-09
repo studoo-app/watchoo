@@ -1,10 +1,11 @@
 package conventions
 
-// Lecture et rapport des conventions (phases 8.1 et 8.2) : Build lit les commits, pull requests, tags et
+// Lecture et rapport des conventions (phases 8.1 à 8.3) : Build lit les commits, pull requests, tags et
 // releases d'un dépôt dans la base (Reader, implémenté par *store.Store) et, quand le clone Git local
 // existe, le périmètre précis des commits, les branches du distant et les intervalles entre tags
 // (CloneReader, implémenté par le provider des clones, lu sans mise à jour), puis calcule les indicateurs.
-// Le calcul est fait à la lecture : rien n'est stocké. Le message de commit et le titre de PR ne sont lus
+// Le calcul est fait à la lecture : rien n'est stocké, sauf les critères de fichiers (phase 8.3), mis en
+// cache par la synchro et seulement relus ici. Le message de commit et le titre de PR ne sont lus
 // qu'en mémoire ; aucun résultat ne les recopie et rien n'est journalisé.
 
 import (
@@ -49,6 +50,9 @@ type Reader interface {
 	ConventionTags(ctx context.Context, repoID int64) ([]model.Tag, error)
 	// ConventionReleases renvoie les releases du dépôt, brouillons compris.
 	ConventionReleases(ctx context.Context, repoID int64) ([]model.Release, error)
+	// RepositoryConventions renvoie les résultats en cache des critères de fichiers du dépôt (phase 8.3),
+	// écrits par la synchro.
+	RepositoryConventions(ctx context.Context, repoID int64) ([]model.RepositoryConventions, error)
 }
 
 // CloneReader lit les clones Git locaux existants, sans les mettre à jour ; le provider des clones
@@ -81,9 +85,14 @@ type BuildOptions struct {
 	Branch           BranchRules    // conventions.commit.types et conventions.branch.* (BR1)
 	Milestones       []Milestone    // conventions.tags.milestones (SV2, SV6, revue de jalon)
 	Language         string         // conventions.commit.language : fr, en ou any (CC7, information)
+	Files            FileRules      // conventions.changelog.*, readme.* et docs.* (CL, RD, DOC, phase 8.3)
 	// LocalOnly indique un espace synchronisé sans l'API (clone seul) : les pull requests et releases en
 	// base ne sont plus mises à jour, PR1, PR2 et SV6 sont « inconnus ».
 	LocalOnly bool
+	// FileDetail demande la vue détaillée d'un dépôt (Filter.RepoID non nul) : les listes de chemins des
+	// critères de fichiers (DOC3, DOC4, DOC5, DOC8) sont recalculées depuis le clone, sans être stockées.
+	// Sans effet sur un rapport de tous les dépôts.
+	FileDetail bool
 }
 
 // CommitLine est le résultat d'un commit du périmètre, sans son message.
@@ -130,6 +139,9 @@ type RepoReport struct {
 	Pulls     PullReport      // PR1, PR2
 	Tags      TagReport       // SV1, SV2 (présence), SV6 (information)
 	Intervals IntervalReport  // CC1 par intervalle entre tags finals, et depuis le dernier
+
+	// Phase 8.3.
+	Files FileReport // CL, RD, DOC et TL sur la tête de la branche par défaut (cache de la synchro)
 }
 
 // ContributorReport est le taux CC3 d'un contributeur, tous dépôts du rapport confondus.
@@ -174,6 +186,9 @@ func Build(ctx context.Context, r Reader, clones CloneReader, f Filter, opts Bui
 	repos, err := r.ListRepositories(ctx)
 	if err != nil {
 		return out, err
+	}
+	if f.RepoID == 0 {
+		opts.FileDetail = false
 	}
 	env, err := newBuildEnv(opts)
 	if err != nil {

@@ -160,8 +160,9 @@ signed on this commit?", never "was this code written by AI?".
 
 ## Project conventions
 
-Phases 8.1 and 8.2 (not released): Watchoo measures the compliance of commit messages with a Conventional
-Commits charter, then that of branch names, pull request titles and tags; the details are in
+Phases 8.1 to 8.3 (not released): Watchoo measures the compliance of commit messages with a Conventional
+Commits charter, then that of branch names, pull request titles and tags, then that of the CHANGELOG, the
+README, the documentation and the tooling; the details are in
 [Project conventions](13-conventions.md).
 
 - **Off by default** (`conventions.enabled`) and **for the trainer only**: these are objective findings,
@@ -184,9 +185,18 @@ Commits charter, then that of branch names, pull request titles and tags; the de
   - **milestone review**: criteria (CC1 on the range, BR1, SV1, SV2) conform, not conform or unknown
     (`conform`, `nonconform`, `unknown` in `--json`), "k/n criteria conform, u unknown", no grade; requires
     a start date.
+- **Phase 8.3**, measured by the sync on the tree of the local clone, through its Git objects (no API request
+  nor extra fetch), and cached (`repository_conventions` table, migration `00017`):
+  - **files**: CHANGELOG (CL1 to CL9), README (RD1 to RD4), documentation (DOC1 to DOC5, DOC8) and tooling
+    (TL1 to TL3), for the head of the default branch and the tag of each milestone; one grid per family ("k/n
+    criteria conform, u unknown"), path lists in the detail of a repository only, recomputed from the clone
+    and never stored;
+  - **milestone review**: CL9, CL8, RD1, RD2 (installation section), RD3, DOC1 and DOC3 are added, on the
+    tree of the milestone tag.
 - **Output**: `watchoo conventions` command (`--milestone vX.Y.Z` for the milestone review), `/conventions`
   page, section of a repository's page and contributor's page; never the commit message nor a pull request
   title, only the short SHA, the pull request number, the author, the branch and tag names and the codes.
-  Repository indicators (branches without a pull request, tags, milestones) are attributed to no one.
-- The charter (`since`, `commit.*`, `branch.*`, `tags.milestones`) is shared through `watchoo config export` /
+  Repository indicators (branches without a pull request, tags, milestones, files) are attributed to no one.
+- The charter (`since`, `commit.*`, `branch.*`, `tags.milestones`, and since phase 8.3 `changelog.*`,
+  `readme.*`, `docs.*`) is shared through `watchoo config export` /
   `import`.

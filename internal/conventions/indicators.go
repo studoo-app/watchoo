@@ -202,7 +202,11 @@ func buildExtras(ctx context.Context, r Reader, clones CloneReader, repo model.R
 	if rep.Tags, err = buildTags(ctx, r, repo, tags, opts); err != nil {
 		return err
 	}
-	return buildIntervals(ctx, clones, repo, authorIDs, rows, results, tags, opts, rep)
+	if err := buildIntervals(ctx, clones, repo, authorIDs, rows, results, tags, opts, rep); err != nil {
+		return err
+	}
+	rep.Files, err = buildFiles(ctx, r, clones, repo, authorIDs != nil, tags, opts)
+	return err
 }
 
 // pullsOf garde les PR des contributeurs authorIDs (nil : toutes) : un rapport restreint à des personnes

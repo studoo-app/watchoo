@@ -237,6 +237,18 @@ classement sur les signatures, aucune adresse affichée. Règles :
   incohérent ; « inconnu » sans données de l'API) ; les **commits entre tags** (CC1 par intervalle entre
   tags finals, du plus récent au plus ancien, et depuis le dernier tag final ; « Inconnu » sans clone local
   ou sans tag final conforme). Chaque pastille porte un texte à côté de son icône.
+  Depuis 1.9.0 (phase 8.3), la section se termine par les **fichiers** (`repo-conventions-files`) : la
+  révision mesurée par la synchro sur la branche par défaut (SHA court, date du calcul), puis une grille par
+  famille, **CHANGELOG** (CL1 à CL8), **README** (RD1 à RD4), **documentation** (DOC1 à DOC5, DOC8) et
+  **outillage** (TL1 à TL3), chacune « k/n critères conformes, u inconnus » avec, par critère, une pastille
+  et son texte, la raison d'un critère inconnu et les codes avec leur libellé (bloquant ou avertissement,
+  nombre d'éléments ; sections trouvées pour RD2, mots pour RD4). Lu dans le cache de la synchro :
+  « inconnus : pas encore calculé, lancez watchoo sync », « à recalculer » quand les réglages, les règles
+  ou la révision ont changé, « pas de clone local ». En dessous, repliés (`details`), les **chemins à
+  examiner**, recalculés depuis le clone local pour cette page seulement et jamais stockés : documents non
+  référencés par l'INDEX (DOC3), liens morts `source → cible` (DOC4), chemins mal nommés (DOC5), archives et
+  documents bureautiques (DOC8) ; sans clone lisible, « Listes de chemins indisponibles ». Jamais une
+  cellule de l'INDEX ni un contenu de fichier.
 - Bouton **« Synchroniser ce dépôt »** (absent si le suivi est arrêté).
 - Fragments : `/repos/{id}/commits` (historique) ; `/repos/{id}` avec l'en-tête `HX-Target`
   `repo-overview`, `repo-contributors`, `repo-languages`, `repo-pulls`, `repo-diagnostic` ou
@@ -508,18 +520,21 @@ activées (`conventions.enabled`). Désactivées : la page explique comment les 
 - **Par dépôt** : dans l'ordre de l'espace, jamais triés par conformité : commits conformes (CC1), branches
   conformes (BR1) et nombre à revoir, titres de pull request conformes (ouvertes et fusionnées à part,
   titres par défaut ; « inconnu » sans données de l'API), tags conformes (SV1), une pastille par jalon
-  configuré (SV2) et la langue des sujets (CC7).
+  configuré (SV2) et la langue des sujets (CC7) ; depuis 1.9.0, une colonne **Fichiers**, une pastille
+  par famille (« CHANGELOG 6/8 · 1 inconnus »), ou « inconnu » avec sa raison (phase 8.3).
 - **Par contributeur** : par nom, jamais triés par conformité : commits conformes (CC3), tendance (avant /
   depuis le dernier tag final), titres de pull request et branches conformes (seulement les branches de tête
   de ses pull requests). Tags, jalons et branches sans pull request ne sont attribués à personne.
 - **Revue de jalon** (`?milestone=vX.Y.Z`, premier jalon configuré par défaut ; jalon absent de
   `conventions.tags.milestones` : 400) : un tableau dépôt × critère (CC1 sur l'intervalle du jalon, BR1,
-  SV1, SV2), chaque case « conforme », « non conforme » ou « inconnu » avec sa raison, puis « k/n critères
+  SV1, SV2 ; depuis 1.9.0 CL9, CL8, RD1, RD2 section installation, RD3, DOC1 et DOC3, lus sur l'arbre du tag
+  du jalon ; tag absent : « inconnu » avec la raison de SV1), chaque case « conforme », « non conforme » ou « inconnu » avec sa raison, puis « k/n critères
   conformes, u inconnus » et l'intervalle lu ; aucune note globale. Sans date de début : « Non évaluable :
   date de début manquante ». Aucun jalon configuré : un texte dédié.
 - L'espace se synchronise par les clones seuls : une note indique que pull requests et releases sont
   inconnues.
-- Aucun message de commit, aucun titre de pull request ; calcul à la lecture, rien n'est stocké.
+- Aucun message de commit, aucun titre de pull request ; calcul à la lecture, rien n'est stocké, sauf les
+  critères de fichiers, calculés par la synchro et gardés en cache (codes, états et compteurs seulement).
 
 ## Navigation
 
@@ -552,7 +567,7 @@ nouvel onglet, sans en-tête `Referer`.
 Le logo est un hibou (« watch-hoo ») pixelisé, dessiné comme les versions texte : une tête pleine aux
 oreilles pointues, deux yeux carrés magenta aux pupilles vertes et un bec découpé dans la forme. Le nom
 « WATCHOO » est en lettres géométriques (aucune police requise), les deux « OO » en vert, comme les
-pupilles. Les fichiers sont dans [`assets/logo/`](../assets/logo/) ; les trois `watchoo-logo-final*.svg`
+pupilles. Les fichiers sont dans [`assets/logo/`](../../assets/logo/) ; les trois `watchoo-logo-final*.svg`
 sont la référence, tous les autres en sont tirés :
 
 | Fichier | Usage |

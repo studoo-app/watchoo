@@ -13,9 +13,9 @@
 //
 // Le binaire git est lancé par os/exec, avec des tableaux d'arguments (jamais de shell), « -- » avant
 // les URL et les références quand git l'accepte, et seulement des commandes de lecture du dépôt
-// distant (ls-remote, fetch) ou du clone (for-each-ref, log, rev-parse, diff…), plus la création du
-// clone (init) et la remise de sa copie de travail sur la branche par défaut (symbolic-ref, checkout,
-// reset). Jamais de push, jamais de commande dans un dépôt de l'utilisateur : seuls les clones signés
+// distant (ls-remote, fetch) ou du clone (for-each-ref, log, rev-parse, diff, ls-tree, cat-file…),
+// plus la création du clone (init) et la remise de sa copie de travail sur la branche par défaut
+// (symbolic-ref, checkout, reset). Jamais de push, jamais de commande dans un dépôt de l'utilisateur : seuls les clones signés
 // par Watchoo dans Options.Dir sont touchés, désignés par --git-dir (et --work-tree), sans recherche
 // du dépôt depuis le répertoire courant.
 //

@@ -48,6 +48,9 @@ type convRepoRow struct {
 	// CC6, CC7.
 	Footer, Issue int
 	Language      convLanguage
+	// Critères de fichiers (phase 8.3) : synthèse par famille ; FilesReason traduit si inconnus.
+	Files       []convFamilySummary
+	FilesReason string
 }
 
 // convContributorRow est la ligne d'un contributeur dans la vue d'ensemble.
@@ -138,6 +141,7 @@ func (s *server) handleConventions(w http.ResponseWriter, r *http.Request) {
 		if !repo.Pulls.Known {
 			row.PullsReason = tr.T("web.conv.reason." + repo.Pulls.Reason)
 		}
+		row.Files, row.FilesReason = convFilesSummary(tr, repo.Files)
 		for _, m := range repo.Tags.Milestones {
 			row.Milestones = append(row.Milestones, convMilestoneRow{Name: m.Name, Due: m.Due,
 				Status: milestoneStatus(tr, m.Status)})

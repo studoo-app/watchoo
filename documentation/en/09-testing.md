@@ -561,6 +561,15 @@ See [Project conventions](13-conventions.md).
   non-conforming commits, repository never synced, no commit evaluated, HTMX fragment, disabled), line of
   a contributor's page, labels of all the codes, reasons and severities in English and French, web
   end-to-end scenario with a conforming commit and a merge; no commit message.
+- Phase 8.3 (file criteria): pure functions of `internal/conventions` (minimal Markdown reader, CL1 to CL9
+  with Watchoo's own `CHANGELOG.md` as the conforming case, RD1 to RD4, DOC1 to DOC5 and DOC8, TL1 to TL3;
+  a serialized result holds no path, content nor name); `TreePaths` and `ReadBlobs` of the git provider
+  with `gittest` (no clone, missing object, truncated tree, blob too large, invalid input, no fetch); the
+  `00017` migration and the `repository_conventions` queries (constraints, cascade, upsert, stale rows);
+  the computation in the sync (recomputed only when the commit, the rules or the fingerprint change, rows
+  of removed milestones deleted, no path nor tag name in the logs); the cache read by `Build` and the
+  milestone review (not computed, stale, filtered); `--json` keys frozen by `json_schema_test.go`; the
+  repository page and `/conventions` on a local clone.
 
 ## In CI
 

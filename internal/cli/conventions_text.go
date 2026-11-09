@@ -254,7 +254,7 @@ func milestoneText(st textStyle, rv conventions.MilestoneReview) string {
 }
 
 // criterionDetail précise un critère de la revue : intervalle et taux (CC1), branches (BR1), tag (SV1,
-// SV2).
+// SV2), sections du README au tag (RD2, phase 8.3).
 func criterionDetail(r conventions.RepoMilestoneReview, id, dash string) string {
 	switch id {
 	case conventions.CriterionCC1:
@@ -292,7 +292,7 @@ func criterionDetail(r conventions.RepoMilestoneReview, id, dash string) string 
 	case conventions.CriterionSV2:
 		return " — " + milestoneStatusText(r.Milestone)
 	}
-	return ""
+	return milestoneFileDetail(r, id)
 }
 
 // milestoneNames liste les jalons configurés (« v1.0.0, v2.0.0 ») ; « — » sans jalon.
