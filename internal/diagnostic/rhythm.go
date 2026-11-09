@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/studoo-app/watchoo/internal/conventions"
 	"github.com/studoo-app/watchoo/internal/store"
 )
 
@@ -42,6 +43,41 @@ type RhythmOptions struct {
 	// RetentionCutoff : aucune piste datée d'avant (durée de conservation, diagnostic.retention_days) ;
 	// zéro = pas de borne. Vaut aussi pour les pistes de PR, dont la branche (D5) reste en base.
 	RetentionCutoff time.Time
+	// ConventionsEnabled applique les ajustements des conventions (phase 8.1, réglage conventions.enabled) :
+	// pas de A1 sur un commit de squash, A2 compté sur les seuls commits non squash, et nouveauté
+	// « sujet Conventional Commits » de F4 neutralisée à partir de la date de début. Faux : comportement
+	// d'avant la phase 8.
+	ConventionsEnabled bool
+	// ConventionsSince est la date de début des conventions de l'espace (conventions.since, AAAA-MM-JJ ;
+	// vide = depuis le début), remplacée par celle du dépôt quand il en a une ; lue à minuit dans Location.
+	ConventionsSince string
+}
+
+// location renvoie le fuseau des jours (UTC par défaut).
+func (o RhythmOptions) location() *time.Location {
+	if o.Location == nil {
+		return time.UTC
+	}
+	return o.Location
+}
+
+// squashIgnored indique si le commit c, repéré comme squash, est écarté de A1 et A2 (conventions actives).
+func (o RhythmOptions) squashIgnored(c store.CommitSignalView) bool {
+	return o.ConventionsEnabled && c.Squash
+}
+
+// conventionalNoveltyOff indique si le critère « nouveauté : sujet Conventional Commits » de F4 est
+// neutralisé pour le commit c : conventions actives et commit écrit à partir de la date de début effective
+// (celle du dépôt, sinon celle de l'espace ; vide ou illisible = depuis le début, donc toujours).
+func (o RhythmOptions) conventionalNoveltyOff(c store.CommitSignalView) bool {
+	if !o.ConventionsEnabled {
+		return false
+	}
+	since, err := conventions.EffectiveSinceAt(o.ConventionsSince, c.ConventionsSince, o.location())
+	if err != nil {
+		return true
+	}
+	return !c.AuthoredAt.Before(since)
 }
 
 // AuthorHistory résume l'historique d'un auteur dans un dépôt.
@@ -74,10 +110,7 @@ type dayRhythm struct {
 // rhythm calcule les signaux de rythme de commits (triés ou non) : par commit (R2 à R5) et par jour
 // (R1, R6), et l'historique de chaque auteur. Les commits sans auteur connu sont ignorés.
 func rhythm(views []store.CommitSignalView, opts RhythmOptions) ([]commitRhythm, []dayRhythm, []*AuthorHistory) {
-	loc := opts.Location
-	if loc == nil {
-		loc = time.UTC
-	}
+	loc := opts.location()
 	type key struct{ repo, author int64 }
 	groups := map[key][]store.CommitSignalView{}
 	var keys []key
@@ -104,8 +137,8 @@ func rhythm(views []store.CommitSignalView, opts RhythmOptions) ([]commitRhythm,
 		h := &AuthorHistory{RepoID: k.repo, RepoRef: g[0].RepoRef, AuthorID: k.author,
 			AuthorName: g[0].AuthorName, AuthorLogin: g[0].AuthorLogin, Commits: len(g)}
 		cs := commitSignals(g, loc, opts.SpeedSignal, h)
-		cs = withHits(cs, g, formSignals(g))
-		cs = withHits(cs, g, absoluteSignals(g))
+		cs = withHits(cs, g, formSignals(g, opts))
+		cs = withHits(cs, g, absoluteSignals(g, opts))
 		commits = append(commits, cs...)
 		ds, worked := daySignals(g, loc, h)
 		days = append(days, ds...)

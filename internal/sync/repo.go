@@ -43,8 +43,16 @@ type repoSync struct {
 	// le diagnostic est activé (Engine.diag) : la synchro en calcule les signaux (signals.go).
 	files map[string][]provider.CommitFile
 	// clone est le clone Git local du dépôt quand il est à jour pour cette synchro (statistiques
-	// calculées par lui) ; nil sinon. Sert au contexte D4 du diagnostic (signals.go).
+	// calculées par lui) ; nil sinon. Sert au contexte D4 du diagnostic (signals.go) et aux critères de
+	// fichiers des conventions (conventions.go).
 	clone CloneStats
+	// parentWrites sont les nombres de parents rattrapés par le clone (commits déjà en base dont il était
+	// inconnu ; phase 8.1), écrits par ApplyRepoSync.
+	parentWrites []store.CommitParentsWrite
+	// unknownBase sont les branches dont l'ancienne tête est restée introuvable à la comparaison
+	// (provider.ErrUnknownBase) : signal de réécriture de la branche par défaut en mode API (BR4, phase
+	// 8.4, branchRewrites).
+	unknownBase map[string]bool
 }
 
 // syncRepository synchronise repo avec le sync_run run déjà ouvert (verrou pris) ; en cas de succès,
@@ -59,7 +67,8 @@ func (e *Engine) syncRepository(ctx context.Context, prov provider.Provider, cl 
 		e: e, prov: prov,
 		owner: meta.Owner, name: meta.Name, full: meta.FullName(),
 		index: make(map[string]int), merges: make(map[string]bool),
-		files: make(map[string][]provider.CommitFile),
+		files:       make(map[string][]provider.CommitFile),
+		unknownBase: make(map[string]bool),
 	}
 	if s.full != repo.FullName() {
 		e.logger.Info("dépôt renommé ou transféré", "repo", repo.FullName(), "nouveau_nom", s.full)
@@ -116,7 +125,7 @@ func (e *Engine) syncRepository(ctx context.Context, prov provider.Provider, cl 
 		return repoOutcome{}, err
 	}
 
-	x, err := s.fetchExtras(ctx, h, repo.ID)
+	x, err := s.fetchExtras(ctx, h, repo)
 	if err != nil {
 		return repoOutcome{}, err
 	}
@@ -155,19 +164,28 @@ func (e *Engine) syncRepository(ctx context.Context, prov provider.Provider, cl 
 			Stars:         meta.Stars,
 			OpenIssues:    meta.OpenIssues,
 			Archived:      meta.Archived,
+			// Méthodes de fusion (BR5, phase 8.5) : lues dans la réponse GET /repos déjà demandée.
+			AllowSquashMerge: meta.AllowSquashMerge.Ptr(),
+			AllowMergeCommit: meta.AllowMergeCommit.Ptr(),
+			AllowRebaseMerge: meta.AllowRebaseMerge.Ptr(),
 		},
-		Branches:         states,
-		Commits:          s.commits,
-		Stats:            statsWrites,
-		LanguagesVersion: gitprov.LanguageRulesVersion,
-		PullRequests:     x.pulls,
-		ReplaceReleases:  x.replaceReleases,
-		Releases:         x.releases,
-		ReplaceTags:      x.replaceTags,
-		Tags:             x.tags,
-		ReplaceLanguages: replaceLangs,
-		Languages:        langs,
-		SyncedAt:         e.now().UTC(),
+		Branches:               states,
+		Commits:                s.commits,
+		ParentCounts:           s.parentWrites,
+		Stats:                  statsWrites,
+		LanguagesVersion:       gitprov.LanguageRulesVersion,
+		PullRequests:           x.pulls,
+		PullRequestConventions: x.prConventions,
+		PullRequestsVersion:    x.prsVersion,
+		ReplaceReleases:        x.replaceReleases,
+		Releases:               x.releases,
+		ReplaceTags:            x.replaceTags,
+		Tags:                   x.tags,
+		ObserveTags:            e.observeTags(x),
+		BranchRewrites:         e.branchRewrites(ctx, s, src, headChange(repo, known, meta.DefaultBranch, tracked)),
+		ReplaceLanguages:       replaceLangs,
+		Languages:              langs,
+		SyncedAt:               e.now().UTC(),
 	})
 	if err != nil {
 		return repoOutcome{}, err
@@ -183,12 +201,25 @@ func (e *Engine) syncRepository(ctx context.Context, prov provider.Provider, cl 
 		x.warnings = append(x.warnings, w)
 	}
 	e.updateAgentContext(ctx, s, repo.ID)
+	e.updateConventionFiles(ctx, s, repo.ID, defaultHead(all, meta.DefaultBranch))
+	e.updatePullRequestReviews(ctx, s, h, src, repo)
 	display := repo.Label
 	if display == "" {
 		display = s.full
 	}
 	return repoOutcome{fullName: s.full, displayName: display, result: res, stats: stats,
 		pulls: len(x.pulls), warnings: x.warnings}, nil
+}
+
+// defaultHead renvoie le SHA de la tête de la branche par défaut parmi les branches de la forge ; vide si
+// elle est absente (dépôt vide).
+func defaultHead(all []provider.Branch, defaultBranch string) string {
+	for _, b := range all {
+		if b.Name == defaultBranch {
+			return b.HeadSHA
+		}
+	}
+	return ""
 }
 
 // lookupRepository lit les métadonnées actuelles du dépôt, par son identifiant de forge (suit
@@ -230,6 +261,7 @@ func (s *repoSync) fetchBranch(ctx context.Context, isRef, fullList bool, b prov
 	case hasPrev && prev.HeadSHA != "":
 		commits, err = s.compare(ctx, prev.HeadSHA, b.HeadSHA)
 		if errors.Is(err, provider.ErrUnknownBase) {
+			s.unknownBase[b.Name] = true
 			s.e.logger.Debug("ancienne tête introuvable (historique réécrit ?), repli", "repo", s.full,
 				"base", provider.ShortSHA(prev.HeadSHA), "tete", provider.ShortSHA(b.HeadSHA))
 			base := refHead
@@ -302,7 +334,8 @@ func (s *repoSync) add(commits []provider.Commit, branch string) {
 	}
 }
 
-// commitWrite convertit un commit de la forge ; false si le commit n'a aucune date (le store le
+// commitWrite convertit un commit de la forge (nombre de parents compris : len(c.Parents), 0 pour une
+// racine) ; false si le commit n'a aucune date (le store le
 // refuserait et l'activité serait faussée). Une seule date manquante est remplacée par l'autre.
 func commitWrite(c provider.Commit) (store.CommitWrite, bool) {
 	authored, committed := c.AuthoredAt, c.CommittedAt
@@ -314,6 +347,7 @@ func commitWrite(c provider.Commit) (store.CommitWrite, bool) {
 	case committed.IsZero():
 		committed = authored
 	}
+	parents := len(c.Parents)
 	return store.CommitWrite{
 		SHA:         c.SHA,
 		Message:     c.Message,
@@ -322,6 +356,7 @@ func commitWrite(c provider.Commit) (store.CommitWrite, bool) {
 		Committer:   identity(c.Committer),
 		AuthoredAt:  authored,
 		CommittedAt: committed,
+		ParentCount: &parents,
 	}, true
 }
 

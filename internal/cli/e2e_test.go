@@ -185,6 +185,53 @@ func TestEndToEnd(t *testing.T) {
 		}
 	}
 
+	// 6b. conventions (1.7.0), enabled by the environment: API mode without local clone, so the scope
+	// falls back on the database; the dummy messages have no type; never a message in the output.
+	t.Setenv("WATCHOO_CONVENTIONS_ENABLED", "true")
+	convOut := h.run("conventions", "--commits", "--json").mustSucceed(t).stdout
+	var conv struct {
+		Enabled      bool `json:"enabled"`
+		Repositories []struct {
+			Source  string `json:"source"`
+			Commits struct {
+				Evaluated int `json:"evaluated"`
+				Conform   int `json:"conform"`
+			} `json:"commits"`
+		} `json:"repositories"`
+		Commits []struct {
+			Codes []string `json:"codes"`
+		} `json:"commits"`
+	}
+	decodeLoose(t, convOut, &conv)
+	evaluated := 0
+	for _, r := range conv.Repositories {
+		if r.Source != "database" || r.Commits.Conform != 0 {
+			t.Errorf("conventions of a repository: %+v", r)
+		}
+		evaluated += r.Commits.Evaluated
+	}
+	if !conv.Enabled || len(conv.Repositories) != 3 || evaluated != 5 || len(conv.Commits) != 5 {
+		t.Errorf("conventions --commits --json: %s", convOut)
+	}
+	convText := h.run("conventions", "--failing").mustSucceed(t).stdout
+	assertContains(t, "conventions --failing", convText, "0/3", "no_type", "may include rewritten commits",
+		// Phase 8.2: the pull requests by number and codes, the head branch, the tag and the milestone.
+		"pull requests: conventional titles open 0/1, merged 0/1", "(login): no_type", "tags: 0/1 conform",
+		"milestones: v1.0.0 nonconforming name (v1.0)",
+		// Phase 8.3: file criteria unknown without a local clone (no repository content read by the API).
+		"File criteria (CHANGELOG, README, documentation, tooling): unknown (")
+	t.Setenv("WATCHOO_CONVENTIONS_SINCE", "2020-01-01")
+	convReview := h.run("conventions", "--milestone", "v1.0.0").mustSucceed(t).stdout
+	assertContains(t, "conventions --milestone", convReview, "Milestone review v1.0.0", "Alice Martin: 0/14 criteria conform", "CL9  unknown (")
+	convReviewJSON := h.run("conventions", "--milestone", "v1.0.0", "--json").mustSucceed(t).stdout
+	t.Setenv("WATCHOO_CONVENTIONS_SINCE", "")
+	// Neither a commit message nor a pull request title, whatever the options.
+	for _, out := range []string{convOut, convText, convReview, convReviewJSON} {
+		assertNotContains(t, "conventions", out, e2eMsgAlice1, e2eMsgAlice2, e2eMsgDev, e2eMsgBob1, e2eMsgDave,
+			e2eTitlePR, "fusionnée")
+	}
+	t.Setenv("WATCHOO_CONVENTIONS_ENABLED", "false")
+
 	// 7. repo list: Actif / Flemme / Dead states.
 	e2eAssertStates(t, h, map[string]string{"alice/projet": "active", "bob/projet": "flemme", "dave/projet": "dead"})
 	list := h.run("repo", "list").mustSucceed(t).stdout

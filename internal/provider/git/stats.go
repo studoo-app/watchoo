@@ -146,22 +146,13 @@ func (p *Provider) statsBatch(ctx context.Context, owner, name, path string, sha
 // clone path : une ligne « commit premier-parent » (« commit » pour une racine) par commit, nil si aucun ;
 // et les commits de fusion parmi eux.
 func (p *Provider) firstParents(ctx context.Context, op, path string, shas []string) ([]byte, []string, error) {
-	input := []byte(strings.Join(shas, "\n") + "\n")
-	res, err := p.runInput(ctx, p.localTimeout, gitDir(path), "rev-list", input,
-		"rev-list", "--no-walk=unsorted", "--parents", "--ignore-missing", "--stdin")
+	commits, err := p.revListParents(ctx, op, path, shas)
 	if err != nil {
-		return nil, nil, &provider.APIError{Op: op, Err: err}
-	}
-	if res.exitCode != 0 {
-		return nil, nil, localError(op, res)
+		return nil, nil, err
 	}
 	var lines bytes.Buffer
 	var merges []string
-	for line := range strings.SplitSeq(string(res.stdout), "\n") {
-		fields := strings.Fields(line)
-		if len(fields) == 0 || provider.ValidateSHA(fields[0]) != nil {
-			continue
-		}
+	for _, fields := range commits {
 		if len(fields) > 2 {
 			merges = append(merges, fields[0])
 		}
@@ -175,6 +166,30 @@ func (p *Provider) firstParents(ctx context.Context, op, path string, shas []str
 		return nil, merges, nil
 	}
 	return lines.Bytes(), merges, nil
+}
+
+// revListParents lance « git rev-list --no-walk=unsorted --parents --ignore-missing --stdin » sur les
+// commits shas (validés) du clone path et renvoie, pour chaque commit présent, ses champs : le SHA du
+// commit puis ceux de ses parents (aucun pour une racine). Un SHA absent du clone est omis.
+func (p *Provider) revListParents(ctx context.Context, op, path string, shas []string) ([][]string, error) {
+	input := []byte(strings.Join(shas, "\n") + "\n")
+	res, err := p.runInput(ctx, p.localTimeout, gitDir(path), "rev-list", input,
+		"rev-list", "--no-walk=unsorted", "--parents", "--ignore-missing", "--stdin")
+	if err != nil {
+		return nil, &provider.APIError{Op: op, Err: err}
+	}
+	if res.exitCode != 0 {
+		return nil, localError(op, res)
+	}
+	var commits [][]string
+	for line := range strings.SplitSeq(string(res.stdout), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) == 0 || provider.ValidateSHA(fields[0]) != nil {
+			continue
+		}
+		commits = append(commits, fields)
+	}
+	return commits, nil
 }
 
 // parseBatchNumstat lit la sortie de « diff-tree --stdin --always -z --numstat -M » : pour chaque

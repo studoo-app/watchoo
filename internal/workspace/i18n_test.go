@@ -29,6 +29,11 @@ func TestMessagesInFrench(t *testing.T) {
 	cfg.Sync.Interval = 10 * time.Minute
 	assertErrorContains(t, cfg.Validate(),
 		"sync.interval : 10m0s est inférieur au minimum de 15 min (0 pour la synchro manuelle seule)")
+	cfg = DefaultConfig("espace")
+	cfg.Conventions.Readme.MinWords = 0
+	cfg.Conventions.Docs.ArchivesScope = "docs"
+	assertErrorContains(t, cfg.Validate(), "conventions.readme.min_words : doit valoir au moins 1 (reçu 0)",
+		`conventions.docs.archives_scope : "docs" n'est pas admis (attendu "repository" ou "documentation")`)
 
 	// French punctuation: a space before ":" and ";".
 	if got := i18n.T("workspace.err.sep"); got != " : " {
@@ -44,6 +49,7 @@ func TestMessagesInFrench(t *testing.T) {
 		"#   auto: true               # false : synchro manuelle seule",
 		"#   interval: 30m            # durée (15m, 1h…), au moins 15m ; 0 : synchro manuelle seule",
 		`name: "licence-projet"`,
+		"#     min_words: 150         # nombre de mots en deçà duquel le README est trop court",
 	} {
 		if !strings.Contains(tpl, part) {
 			t.Errorf("the French template does not contain %q:\n%s", part, tpl)

@@ -126,3 +126,19 @@ func TestSettingsImportPreviewThresholds(t *testing.T) {
 	assertStatus(t, w, http.StatusOK)
 	assertContains(t, w, "<th>Thresholds</th>", "Slacking workspace · Dead 20 d</span> → Slacking 3 d · Dead workspace")
 }
+
+// Import preview: the per-repository conventions start date follows the thresholds (before → after).
+func TestSettingsImportPreviewConventionsSince(t *testing.T) {
+	isolateShare(t)
+	e := newTestEnv(t)
+	ids := e.seed()
+	e.withShareWorkspace()
+	if _, err := e.store.SetRepositoryConventionsSince(t.Context(), ids.Bob, "2026-09-01"); err != nil {
+		t.Fatal(err)
+	}
+	doc := `{"format":"watchoo-config","version":1,
+	  "repositories":[{"repo":"promo/bob","conventions_since":"2027-01-04"}]}`
+	w := e.postMultipart("/settings/import", nil, []byte(doc), true)
+	assertStatus(t, w, http.StatusOK)
+	assertContains(t, w, "workspace · conventions since 2026-09-01</span> → workspace · conventions since 2027-01-04")
+}

@@ -16,15 +16,17 @@ func TestTemplatesParseAndDefineFragments(t *testing.T) {
 	e := newTestEnv(t)
 	want := map[string][]string{
 		pageDashboard:    {"content", "dashboard-repos", "dashboard-feed"},
-		pageRepo:         {"content", "repo-commits", "scripts"},
+		pageRepo:         {"content", "repo-commits", "repo-conventions", "scripts"},
 		pageContributors: {"content", "contributors-table"},
 		pageContributor: {"content", "scripts", "contributor-overview", "contributor-repos", "contributor-pulls",
 			"contributor-commits"},
-		pageSettings: {"content", "settings-quota"},
-		pageErrors:   {"content", "error-alert"},
+		pageSettings:    {"content", "settings-quota"},
+		pageErrors:      {"content", "error-alert"},
+		pageConventions: {"content"},
 	}
 	common := []string{"layout", "state-badge", "rel-time", "csrf-field", "avatar", "flash", "sync-status",
-		"sync-all-button", "sync-repo-button", "profile-link", "contributor-link", "commit-item"}
+		"sync-all-button", "sync-repo-button", "profile-link", "contributor-link", "commit-item",
+		"conv-status", "conv-code", "conv-pr-counts", "conv-language", "conv-trend"}
 	for _, lang := range langs {
 		for page, names := range want {
 			set, ok := e.server.pages[lang][page]

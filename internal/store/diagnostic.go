@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/studoo-app/watchoo/internal/aisignature"
+	"github.com/studoo-app/watchoo/internal/conventions"
 	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/store/db"
@@ -188,6 +190,15 @@ type CommitSignalView struct {
 	URL         string // page du commit sur la forge
 	AuthorName  string // nom du contributeur auteur ; vide si inconnu
 	AuthorLogin string // login de forge de l'auteur ; vide si inconnu
+	// Squash indique un commit de squash identifié (phase 8.1) : committer GitHub
+	// (aisignature.IsGitHubCommitter) ET sujet terminé par « (#n) » (conventions.IsSquashSubject) ; phase
+	// 8.5 : ou merge_commit_sha d'une PR fusionnée, à un parent, dont le sujet se termine par « (#n) » de
+	// cette PR (conventions.IsIdentifiedSquash). Calculé à la lecture : le message n'est lu qu'en mémoire et
+	// n'est jamais conservé dans la vue.
+	Squash bool
+	// ConventionsSince est la date de début des conventions propre au dépôt, AAAA-MM-JJ ; vide = celle de
+	// l'espace (conventions.since).
+	ConventionsSince string
 }
 
 // AgentConfigContext est le contexte D4 d'un dépôt : date du premier ajout d'un fichier de
@@ -201,7 +212,9 @@ type AgentConfigContext struct {
 // CommitSignalViews renvoie les signaux de tous les commits mesurés du dépôt repoID (0 = tous), du plus
 // ancien au plus récent : historique des signaux de rythme. Liste vide non nil si aucun.
 func (s *Store) CommitSignalViews(ctx context.Context, repoID int64) ([]CommitSignalView, error) {
-	rows, err := s.queries.ListCommitSignalViews(ctx, optionalID(repoID))
+	rows, err := s.queries.ListCommitSignalViews(ctx, db.ListCommitSignalViewsParams{
+		GithubLogin: aisignature.GitHubCommitterLogin, GithubEmail: aisignature.GitHubCommitterEmail,
+		RepoID: optionalID(repoID)})
 	if err != nil {
 		return nil, wrapErr(i18n.T("store.diagnostic.list", repoID), err)
 	}
@@ -226,6 +239,13 @@ func commitSignalView(r db.ListCommitSignalViewsRow) (CommitSignalView, error) {
 	if err != nil {
 		return CommitSignalView{}, wrapErr(i18n.T("store.diagnostic.list_all"), err)
 	}
+	since, err := conventions.SinceDate(r.ConventionsSince)
+	if err != nil {
+		return CommitSignalView{}, wrapErr(i18n.T("store.diagnostic.list_all"), err)
+	}
+	// squash_message n'est renseigné que pour un committer GitHub ou le commit de fusion d'une PR : il ne
+	// sert qu'à ce test et n'est pas conservé.
+	squash := conventions.IsIdentifiedSquash(r.SquashMessage, r.GithubCommitter, int(r.MergePrNumber), int(r.ParentCount))
 	return CommitSignalView{
 		CommitSignal: model.CommitSignal{
 			RepoID: r.RepoID, SHA: r.SHA, AuthorID: r.AuthorID.Int64, AuthoredAt: authored,
@@ -238,10 +258,12 @@ func commitSignalView(r db.ListCommitSignalViewsRow) (CommitSignalView, error) {
 				r.MessageConventional).with77(r.DecorativeLines, r.FrWords, r.FrWordsUnaccented, r.WipMarkers,
 				r.ShortIdentifiers, r.PrivateDefs, r.MessageRevert, r.MessageFix),
 		},
-		RepoRef:     RepoRef{RepoOwner: r.RepoOwner, RepoName: r.RepoName, RepoLabel: r.RepoLabel},
-		URL:         r.URL,
-		AuthorName:  r.AuthorName,
-		AuthorLogin: r.AuthorLogin,
+		RepoRef:          RepoRef{RepoOwner: r.RepoOwner, RepoName: r.RepoName, RepoLabel: r.RepoLabel},
+		URL:              r.URL,
+		AuthorName:       r.AuthorName,
+		AuthorLogin:      r.AuthorLogin,
+		Squash:           squash,
+		ConventionsSince: since,
 	}, nil
 }
 

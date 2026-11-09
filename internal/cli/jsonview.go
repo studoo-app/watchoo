@@ -27,14 +27,17 @@ type repositoryJSON struct {
 	BranchPatterns []string `json:"branch_patterns"`
 	// FlemmeAfterDays et DeadAfterDays sont les seuils propres au dépôt (repo add --flemme / --dead) ;
 	// null = seuil de l'espace. Les seuils appliqués sont dans l'objet activité.
-	FlemmeAfterDays *int       `json:"flemme_after_days"`
-	DeadAfterDays   *int       `json:"dead_after_days"`
-	Enabled         bool       `json:"enabled"` // faux = suivi arrêté (repo remove --keep-history)
-	Archived        bool       `json:"archived"`
-	Stars           int        `json:"stars"`
-	OpenIssues      int        `json:"open_issues"`
-	LastSyncedAt    *time.Time `json:"last_synced_at"`
-	LastCommitAt    *time.Time `json:"last_commit_at"`
+	FlemmeAfterDays *int `json:"flemme_after_days"`
+	DeadAfterDays   *int `json:"dead_after_days"`
+	// ConventionsSince est la date de début des conventions propre au dépôt (repo add
+	// --conventions-since), AAAA-MM-JJ ; null = date de l'espace (conventions.since).
+	ConventionsSince *string    `json:"conventions_since"`
+	Enabled          bool       `json:"enabled"` // faux = suivi arrêté (repo remove --keep-history)
+	Archived         bool       `json:"archived"`
+	Stars            int        `json:"stars"`
+	OpenIssues       int        `json:"open_issues"`
+	LastSyncedAt     *time.Time `json:"last_synced_at"`
+	LastCommitAt     *time.Time `json:"last_commit_at"`
 }
 
 // newRepositoryJSON convertit un dépôt.
@@ -44,24 +47,33 @@ func newRepositoryJSON(r model.Repository) repositoryJSON {
 		patterns = []string{}
 	}
 	return repositoryJSON{
-		ID:              r.ID,
-		FullName:        r.FullName(),
-		Owner:           r.Owner,
-		Name:            r.Name,
-		Label:           r.Label,
-		DisplayName:     r.DisplayName(),
-		URL:             r.URL,
-		DefaultBranch:   r.DefaultBranch,
-		BranchPatterns:  append([]string{}, patterns...),
-		FlemmeAfterDays: r.FlemmeAfterDays,
-		DeadAfterDays:   r.DeadAfterDays,
-		Enabled:         r.Enabled,
-		Archived:        r.Archived,
-		Stars:           r.Stars,
-		OpenIssues:      r.OpenIssues,
-		LastSyncedAt:    timeJSON(r.LastSyncedAt),
-		LastCommitAt:    timeJSON(r.LastCommitAt),
+		ID:               r.ID,
+		FullName:         r.FullName(),
+		Owner:            r.Owner,
+		Name:             r.Name,
+		Label:            r.Label,
+		DisplayName:      r.DisplayName(),
+		URL:              r.URL,
+		DefaultBranch:    r.DefaultBranch,
+		BranchPatterns:   append([]string{}, patterns...),
+		FlemmeAfterDays:  r.FlemmeAfterDays,
+		DeadAfterDays:    r.DeadAfterDays,
+		ConventionsSince: optionalString(r.ConventionsSince),
+		Enabled:          r.Enabled,
+		Archived:         r.Archived,
+		Stars:            r.Stars,
+		OpenIssues:       r.OpenIssues,
+		LastSyncedAt:     timeJSON(r.LastSyncedAt),
+		LastCommitAt:     timeJSON(r.LastCommitAt),
 	}
+}
+
+// optionalString renvoie nil pour une chaîne vide (null en JSON), sinon un pointeur vers une copie.
+func optionalString(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
 }
 
 // repoRefJSON désigne le dépôt d'un commit.

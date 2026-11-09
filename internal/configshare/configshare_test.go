@@ -48,6 +48,20 @@ func TestExport(t *testing.T) {
 	t.Setenv("WATCHOO_TIMEZONE", "UTC") // the EFFECTIVE value is exported, variable included
 	e := newEnv(t, "licence-projet")
 	e.ws.Config.Timezone = "UTC"
+	// conventions.*: shared except enabled and excluded_accounts (logins).
+	e.ws.Config.Conventions = workspace.ConventionsConfig{Enabled: true, Since: "2026-09-01",
+		Commit: workspace.ConventionsCommitConfig{Types: []string{"feat", "fix"}, Scopes: nil,
+			MaxSubjectSoft: 50, MaxSubjectHard: 72, Forbidden: []string{"wip"}, Language: "any"},
+		Branch: workspace.ConventionsBranchConfig{Exclude: []string{"gh-pages", "dependabot/*", "renovate/*"}},
+		PR: workspace.ConventionsPRConfig{BodySections: []string{"context", "testing"}, RequireCloses: true,
+			MinReviews: 1},
+		Tags: workspace.ConventionsTagsConfig{Milestones: []string{"v1.0.0", "v2.0.0", "v3.0.0"},
+			PrereleaseForms: []string{"rc", "beta", "alpha"}},
+		Changelog: workspace.ConventionsChangelogConfig{CategoriesFR: true},
+		Readme:    workspace.ConventionsReadmeConfig{Sections: []string{"install", "run"}, MinWords: 150},
+		Docs: workspace.ConventionsDocsConfig{Dir: "documentation", MediaDir: "Media",
+			ArchivesScope: "repository"},
+		ExcludedAccounts: []string{"prof-secret"}}
 	e.track(1, "zoe", "projet", "Zoé Leroy")
 	e.track(2, "Alice", "projet", "Alice Martin", "main", "release/*")
 	stopped := e.track(3, "carol", "projet", "Carol")
@@ -83,7 +97,67 @@ func TestExport(t *testing.T) {
       "exclude": []
     },
     "timezone": "UTC",
-    "lang": "en"
+    "lang": "en",
+    "conventions": {
+      "since": "2026-09-01",
+      "commit": {
+        "types": [
+          "feat",
+          "fix"
+        ],
+        "scopes": [],
+        "max_subject_soft": 50,
+        "max_subject_hard": 72,
+        "forbidden": [
+          "wip"
+        ],
+        "language": "any"
+      },
+      "branch": {
+        "pattern": "",
+        "exclude": [
+          "gh-pages",
+          "dependabot/*",
+          "renovate/*"
+        ]
+      },
+      "pr": {
+        "body_sections": [
+          "context",
+          "testing"
+        ],
+        "require_closes": true,
+        "min_reviews": 1,
+        "reviewer_must_contribute": false
+      },
+      "tags": {
+        "milestones": [
+          "v1.0.0",
+          "v2.0.0",
+          "v3.0.0"
+        ],
+        "prerelease_forms": [
+          "rc",
+          "beta",
+          "alpha"
+        ]
+      },
+      "changelog": {
+        "categories_fr": true
+      },
+      "readme": {
+        "sections": [
+          "install",
+          "run"
+        ],
+        "min_words": 150
+      },
+      "docs": {
+        "dir": "documentation",
+        "media_dir": "Media",
+        "archives_scope": "repository"
+      }
+    }
   },
   "repositories": [
     {
@@ -107,7 +181,8 @@ func TestExport(t *testing.T) {
 	if string(data) != want {
 		t.Errorf("export:\n%s\nwant:\n%s", data, want)
 	}
-	for _, forbidden := range []string{"github.", "gh_path", "web", "addr", authtest.FakeToken, "@", e.ws.Root, "carol"} {
+	for _, forbidden := range []string{"github.", "gh_path", "web", "addr", authtest.FakeToken, "@", e.ws.Root, "carol",
+		"enabled", "excluded_accounts", "prof-secret", "diagnostic"} {
 		if forbidden == "github." || forbidden == "web" {
 			var m map[string]any
 			_ = json.Unmarshal(data, &m)

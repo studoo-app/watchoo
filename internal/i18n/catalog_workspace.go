@@ -197,6 +197,114 @@ var workspaceTexts = map[string]entry{
 		"diagnostic.retention_days: %d is out of range (1 to %d days)",
 		"diagnostic.retention_days : %d hors limites (de 1 à %d jours)",
 	},
+	"workspace.validate.conv_since_invalid": {
+		`conventions.since: %q is not a date of the form YYYY-MM-DD (e.g. "2026-09-01"; empty: from the beginning)`,
+		"conventions.since : %q n'est pas une date de la forme AAAA-MM-JJ (ex. « 2026-09-01 » ; vide : depuis le début)",
+	},
+	"workspace.validate.conv_types_empty": {
+		"conventions.commit.types: at least one type is required",
+		"conventions.commit.types : au moins un type est requis",
+	},
+	"workspace.validate.conv_type_invalid": {
+		`conventions.commit.types: type #%d %q is invalid (lowercase letters only, e.g. "feat")`,
+		"conventions.commit.types : le type n° %d %q est invalide (lettres minuscules seulement, ex. « feat »)",
+	},
+	"workspace.validate.conv_scope_invalid": {
+		`conventions.commit.scopes: scope #%d %q is invalid (lowercase letters, digits, ".", "_", "/" and "-", e.g. "api")`,
+		"conventions.commit.scopes : le scope n° %d %q est invalide (minuscules, chiffres, « . », « _ », « / » et « - », ex. « api »)",
+	},
+	"workspace.validate.conv_soft_min": {
+		"conventions.commit.max_subject_soft: %d must be at least 1",
+		"conventions.commit.max_subject_soft : %d doit valoir au moins 1",
+	},
+	"workspace.validate.conv_hard_above_soft": {
+		"conventions.commit.max_subject_hard: %d must be strictly greater than conventions.commit.max_subject_soft (%d)",
+		"conventions.commit.max_subject_hard : %d doit être strictement supérieur à conventions.commit.max_subject_soft (%d)",
+	},
+	"workspace.validate.conv_forbidden_empty": {
+		"conventions.commit.forbidden: subject #%d is empty",
+		"conventions.commit.forbidden : le sujet n° %d est vide",
+	},
+	"workspace.validate.conv_language_unknown": {
+		`conventions.commit.language: %q is unknown (expected "fr", "en" or "any")`,
+		"conventions.commit.language : %q inconnue (attendu « fr », « en » ou « any »)",
+	},
+	"workspace.validate.conv_branch_pattern_invalid": {
+		`conventions.branch.pattern: %q is not a valid RE2 regular expression (empty: built-in rule <type>/<words-with-dashes>)`,
+		"conventions.branch.pattern : %q n'est pas une expression régulière RE2 valide (vide : règle intégrée <type>/<mots-avec-tirets>)",
+	},
+	"workspace.validate.conv_branch_exclude_empty": {
+		"conventions.branch.exclude: pattern #%d is empty",
+		"conventions.branch.exclude : le motif n° %d est vide",
+	},
+	"workspace.validate.conv_branch_exclude_invalid": {
+		`conventions.branch.exclude: pattern #%d %q is invalid (glob "*", "?", "[...]", e.g. "dependabot/*")`,
+		"conventions.branch.exclude : le motif n° %d %q est invalide (glob « * », « ? », « [...] », ex. « dependabot/* »)",
+	},
+	"workspace.validate.conv_milestone_invalid": {
+		`conventions.tags.milestones: entry #%d %q is not a final version "vX.Y.Z" (lowercase "v", no pre-release nor build, e.g. "v1.0.0" or "v1.0.0@2026-12-18")`,
+		"conventions.tags.milestones : l'entrée n° %d %q n'est pas une version finale « vX.Y.Z » (« v » minuscule, sans pré-version ni build, ex. « v1.0.0 » ou « v1.0.0@2026-12-18 »)",
+	},
+	"workspace.validate.conv_milestone_due_invalid": {
+		`conventions.tags.milestones: entry #%d %q has an invalid due date (expected "vX.Y.Z@YYYY-MM-DD", e.g. "v1.0.0@2026-12-18")`,
+		"conventions.tags.milestones : l'entrée n° %d %q a une échéance invalide (attendu « vX.Y.Z@AAAA-MM-JJ », ex. « v1.0.0@2026-12-18 »)",
+	},
+	"workspace.validate.conv_milestone_duplicate": {
+		"conventions.tags.milestones: entry #%d repeats the milestone %s",
+		"conventions.tags.milestones : l'entrée n° %d répète le jalon %s",
+	},
+	"workspace.validate.conv_pr_section_invalid": {
+		"conventions.pr.body_sections: entry #%d %q is not a known section (expected one of: %s)",
+		"conventions.pr.body_sections : l'entrée n° %d %q n'est pas une section connue (attendu l'une de : %s)",
+	},
+	"workspace.validate.conv_pr_section_duplicate": {
+		"conventions.pr.body_sections: entry #%d repeats the section %s",
+		"conventions.pr.body_sections : l'entrée n° %d répète la section %s",
+	},
+	"workspace.validate.conv_pr_min_reviews": {
+		"conventions.pr.min_reviews: must be at least 1 (received %d)",
+		"conventions.pr.min_reviews : doit valoir au moins 1 (reçu %d)",
+	},
+	"workspace.validate.conv_prerelease_forms_empty": {
+		`conventions.tags.prerelease_forms: at least one form is required (e.g. "rc")`,
+		"conventions.tags.prerelease_forms : au moins une forme est requise (ex. « rc »)",
+	},
+	"workspace.validate.conv_prerelease_form_invalid": {
+		`conventions.tags.prerelease_forms: form #%d %q is invalid (1 to 32 lowercase letters, e.g. "rc")`,
+		"conventions.tags.prerelease_forms : la forme n° %d %q est invalide (1 à 32 lettres minuscules, ex. « rc »)",
+	},
+	"workspace.validate.conv_prerelease_form_duplicate": {
+		"conventions.tags.prerelease_forms: form #%d repeats %q",
+		"conventions.tags.prerelease_forms : la forme n° %d répète %q",
+	},
+	"workspace.validate.conv_readme_section_invalid": {
+		"conventions.readme.sections: entry #%d %q is not a known section (expected one of: %s)",
+		"conventions.readme.sections : l'entrée n° %d %q n'est pas une section connue (attendu l'une de : %s)",
+	},
+	"workspace.validate.conv_readme_section_duplicate": {
+		"conventions.readme.sections: entry #%d repeats the section %s",
+		"conventions.readme.sections : l'entrée n° %d répète la section %s",
+	},
+	"workspace.validate.conv_readme_min_words": {
+		"conventions.readme.min_words: must be at least 1 (received %d)",
+		"conventions.readme.min_words : doit valoir au moins 1 (reçu %d)",
+	},
+	"workspace.validate.conv_docs_dir_invalid": {
+		`conventions.docs.dir: %q is not a relative folder of the repository (segments separated by "/", without "." nor "..", e.g. "documentation")`,
+		"conventions.docs.dir : %q n'est pas un dossier relatif du dépôt (segments séparés par « / », sans « . » ni « .. », ex. « documentation »)",
+	},
+	"workspace.validate.conv_docs_media_invalid": {
+		`conventions.docs.media_dir: %q is not a folder name (a single segment, without "/", e.g. "Media")`,
+		"conventions.docs.media_dir : %q n'est pas un nom de dossier (un seul segment, sans « / », ex. « Media »)",
+	},
+	"workspace.validate.conv_docs_archives_invalid": {
+		`conventions.docs.archives_scope: %q is not accepted (expected %q or %q)`,
+		"conventions.docs.archives_scope : %q n'est pas admis (attendu %q ou %q)",
+	},
+	"workspace.validate.conv_account_empty": {
+		"conventions.excluded_accounts: account #%d is empty",
+		"conventions.excluded_accounts : le compte n° %d est vide",
+	},
 	"workspace.validate.addr_form": {
 		`web.addr: %q is not of the form host:port (e.g. "127.0.0.1:8080")`,
 		"web.addr : %q n'est pas de la forme hôte:port (ex. « 127.0.0.1:8080 »)",
@@ -523,6 +631,106 @@ var workspaceTexts = map[string]entry{
 	"workspace.cfg.diagnostic_retention": {
 		"days the signals are kept, from the commit date (1 to %d)",
 		"jours de conservation des signaux, depuis la date du commit (1 à %d)",
+	},
+	"workspace.cfg.conventions_l1": {
+		"Project conventions: compliance with the charter (commits, branches, pull requests, tags). Disabled by",
+		"Conventions de projet : conformité à la charte (commits, branches, pull requests, tags). Désactivées par",
+	},
+	"workspace.cfg.conventions_l2": {
+		"default. Shared by \"watchoo config export\", except enabled and excluded_accounts.",
+		"défaut. Partagées par « watchoo config export », sauf enabled et excluded_accounts.",
+	},
+	"workspace.cfg.conventions_enabled": {
+		"true: conventions evaluated and displayed",
+		"true : conventions évaluées et affichées",
+	},
+	"workspace.cfg.conventions_since": {
+		`start date "YYYY-MM-DD" (workspace time zone); empty: from the beginning`,
+		`date de début « AAAA-MM-JJ » (fuseau de l'espace) ; vide : depuis le début`,
+	},
+	"workspace.cfg.conventions_types": {
+		"accepted types (lowercase)",
+		"types admis (minuscules)",
+	},
+	"workspace.cfg.conventions_scopes": {
+		"accepted scopes; empty: any well-formed scope",
+		"scopes admis ; vide : tout scope bien formé",
+	},
+	"workspace.cfg.conventions_soft": {
+		"subject length beyond which a warning is given",
+		"longueur du sujet au-delà de laquelle un avertissement est donné",
+	},
+	"workspace.cfg.conventions_hard": {
+		"subject length beyond which the commit is not compliant",
+		"longueur du sujet au-delà de laquelle le commit n'est pas conforme",
+	},
+	"workspace.cfg.conventions_forbidden": {
+		"forbidden subjects (whole subject, case ignored)",
+		"sujets interdits (sujet entier, casse ignorée)",
+	},
+	"workspace.cfg.conventions_language": {
+		`expected language of the subjects, "fr", "en" or "any" (information only)`,
+		`langue attendue des sujets, "fr", "en" ou "any" (information seulement)`,
+	},
+	"workspace.cfg.conventions_branch_pattern": {
+		`RE2 expression replacing the built-in rule "<type>/<words-with-dashes>"; empty: built-in rule`,
+		`expression RE2 qui remplace la règle intégrée « <type>/<mots-avec-tirets> » ; vide : règle intégrée`,
+	},
+	"workspace.cfg.conventions_branch_exclude": {
+		`branches left out (glob, the name or one of its path prefixes: "dependabot/*")`,
+		`branches hors évaluation (glob, le nom ou l'un de ses préfixes de chemin : « dependabot/* »)`,
+	},
+	"workspace.cfg.conventions_milestones": {
+		`milestones "vX.Y.Z", or "vX.Y.Z@YYYY-MM-DD" with a due date`,
+		`jalons « vX.Y.Z », ou « vX.Y.Z@AAAA-MM-JJ » avec une échéance`,
+	},
+	"workspace.cfg.conventions_pr_body_sections": {
+		"expected sections of a pull request body (PR5), among: %s",
+		"sections attendues du corps d'une pull request (PR5), parmi : %s",
+	},
+	"workspace.cfg.conventions_pr_require_closes": {
+		`a closing keyword followed by an issue number ("Closes #12") is expected in the pull request body`,
+		`un mot-clé de fermeture suivi d'un numéro d'issue (« Closes #12 ») est attendu dans le corps de la pull request`,
+	},
+	"workspace.cfg.conventions_pr_min_reviews": {
+		"distinct reviewers, other than the author and not excluded, whose approval is expected when a pull request is merged (at least 1)",
+		"relecteurs distincts, autres que l'auteur et non exclus, dont l'approbation est attendue à la fusion d'une pull request (au moins 1)",
+	},
+	"workspace.cfg.conventions_pr_reviewer_must_contribute": {
+		"these reviewers must also be authors of at least one commit of the repository (false: another account is enough)",
+		"ces relecteurs doivent aussi être auteurs d'au moins un commit du dépôt (false : un autre compte suffit)",
+	},
+	"workspace.cfg.conventions_prerelease_forms": {
+		`compliant pre-releases "-<form>.N" (e.g. "v1.0.0-rc.1"); other forms give a warning`,
+		`pré-versions conformes « -<forme>.N » (ex. « v1.0.0-rc.1 ») ; les autres formes donnent un avertissement`,
+	},
+	"workspace.cfg.conventions_categories_fr": {
+		"French CHANGELOG labels (Ajouté, [Non publié]…) accepted with a warning; false: deviations",
+		"libellés français du CHANGELOG (Ajouté, [Non publié]…) admis avec un avertissement ; false : écarts",
+	},
+	"workspace.cfg.conventions_readme_sections": {
+		"expected README sections, among: %s",
+		"sections attendues du README, parmi : %s",
+	},
+	"workspace.cfg.conventions_readme_min_words": {
+		"number of words below which the README is too short",
+		"nombre de mots en deçà duquel le README est trop court",
+	},
+	"workspace.cfg.conventions_docs_dir": {
+		"documentation folder, relative to the repository root",
+		"dossier de la documentation, relatif à la racine du dépôt",
+	},
+	"workspace.cfg.conventions_docs_media_dir": {
+		"media folder, under the documentation folder",
+		"dossier des médias, sous le dossier de la documentation",
+	},
+	"workspace.cfg.conventions_docs_archives": {
+		`where archives are forbidden: "repository" (anywhere) or "documentation" (documentation folder only)`,
+		`où les archives sont interdites : "repository" (partout) ou "documentation" (dossier de la documentation seulement)`,
+	},
+	"workspace.cfg.conventions_excluded": {
+		"accounts left out (trainer, bots…): login, name or e-mail",
+		"comptes exclus (formateur, bots…) : login, nom ou e-mail",
 	},
 
 	// Réécriture de config.yaml par les réglages communs (shared.go).

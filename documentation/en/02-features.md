@@ -157,3 +157,86 @@ signed on this commit?", never "was this code written by AI?".
 - **Purpose**: being able to know which tools are declared, by whom and where, not sanctioning. To know
   more, ask the contributors to keep the attribution of their tools enabled: Watchoo only sees what the
   commits declare.
+
+## Project conventions
+
+Phases 8.1 to 8.7 (not released): Watchoo measures the compliance of commit messages with a Conventional
+Commits charter, then that of branch names, pull request titles and tags, then that of the CHANGELOG, the
+README, the documentation and the tooling, then the history of the tags, the merges and the reviews, and finally leads to reread; the
+details are in
+[Project conventions](13-conventions.md).
+
+- **Off by default** (`conventions.enabled`) and **for the trainer only**: these are objective findings,
+  separate from the [diagnosis](12-supervision-diagnostic.md), **with no grade nor overall score**.
+- **CC1**: compliant commit rate (commits without a blocking issue / evaluated commits), explained as `n/m`
+  per repository; **CC2**: issues by pattern, blocking or warnings; **CC3**: rate per contributor;
+  **CC4**: exclusions counted separately (merges, bots, root commit "Initial commit" created by GitHub,
+  accounts of `conventions.excluded_accounts`).
+- **Scope**: all the tracked branches, since the `conventions.since` date (can be overridden per repository).
+- **Phase 8.2**, computed when reading (no migration, no extra request):
+  - **BR1**: names of the remote branches and of the pull request head branches (`<type>/<words-with-dashes>`
+    or `conventions.branch.pattern`, except `conventions.branch.exclude` and the default branch);
+  - **PR1** and **PR2**: titles of the open and merged pull requests (same parser, header only), default
+    titles; API mode only, "unknown" in clone-only mode;
+  - **SV1**: `vX.Y.Z` tags conforming to SemVer 2.0.0; **SV2**: presence of the milestones of
+    `conventions.tags.milestones`; **SV6**: releases, as information only;
+  - **CC5** (wording warnings), **CC6** (footers, cited issues) and **CC7** (language of the subjects), as
+    information;
+  - **CC1 per range** between final tags and **CC3 trend** (before and since the last final tag);
+  - **milestone review**: criteria (CC1 on the range, BR1, SV1, SV2) conform, not conform or unknown
+    (`conform`, `nonconform`, `unknown` in `--json`), "k/n criteria conform, u unknown", no grade; requires
+    a start date.
+- **Phase 8.3**, measured by the sync on the tree of the local clone, through its Git objects (no API request
+  nor extra fetch), and cached (`repository_conventions` table, migration `00017`):
+  - **files**: CHANGELOG (CL1 to CL9), README (RD1 to RD4), documentation (DOC1 to DOC5, DOC8) and tooling
+    (TL1 to TL3), for the head of the default branch and the tag of each milestone; one grid per family ("k/n
+    criteria conform, u unknown"), path lists in the detail of a repository only, recomputed from the clone
+    and never stored;
+  - **milestone review**: CL9, CL8, RD1, RD2 (installation section), RD3, DOC1 and DOC3 are added, on the
+    tree of the milestone tag.
+- **Phase 8.4**, history observed by the sync while the conventions are enabled (`tag_observations` and
+  `branch_rewrites` tables, migrations `00018` and `00019`), versions read from the clone:
+  - **BR4**: rewrites of the default branch observed (dated events, old and new SHA), never attributed;
+  - **SV3**: tags rewritten or deleted, "no rewrite observed since …", never "never rewritten"; **SV2**: due
+    date of a milestone compared to the first observation of its tag (on time, late, undetermined);
+  - **SV4** (pre-release forms of `conventions.tags.prerelease_forms`, warnings), **SV5** (version bump
+    consistent with the declared commits, under-versioning only), **SV7** (precedence against the history)
+    and **CL10** (`feat` and `fix` since the last change of the CHANGELOG, information);
+  - **milestone review**: SV3 is added after SV2, which also judges the due date.
+- **Phase 8.5**, merges read with no extra request (migration `00020`: merge SHA, fork origin and sections
+  of the description of a pull request, the description itself being read in memory only and never stored;
+  allowed merge methods, known only with push rights):
+  - **PR3**: commits that reached the default branch outside a pull request (first parent of the default
+    branch of the local clone), credited to the author of the commit, never to whoever pushed it; by pull
+    request, outside a pull request or undetermined;
+  - **PR5** (expected sections of the description, `conventions.pr.body_sections`, and closing keyword
+    `Closes #n`, `conventions.pr.require_closes`), **PR6** (squash merge with a conforming message),
+    **BR2** (head branch merged more than once) and **BR5** (squash as the only allowed merge method,
+    information); pull requests from a fork are set aside from PR1, PR2, PR5, PR6, BR1 and BR2;
+  - **milestone review**: the **PR3 = 0** criterion is added after BR1, on the interval of the milestone.
+- **Phase 8.6**, reviews (migration `00021`: three counters and the read date per pull request, never a reviewer login; one
+  request per merged pull request, API mode only, at most 100 per repository and per sync):
+  - **PR4**: merged pull request reviewed by another account (at least `conventions.pr.min_reviews`
+    distinct reviewers, neither the author, a bot nor an excluded account, whose last decisive review before
+    the merge is an approval; contributors only with `conventions.pr.reviewer_must_contribute`), the merged
+    pull requests without review (number and author) and, per contributor, the reviews received on their
+    pull requests (the reviews given are not counted);
+  - **milestone review**: the **PR4** criterion is added after PR3, on the pull requests merged in the
+    interval of the milestone.
+- **Phase 8.7**, leads (no migration, no setting, no API request): they invite a reread and never judge,
+  and count in no grid, no rate and not in the milestone review; shown in a separate "Leads" block:
+  - from the tree of the head, cached by the sync: **CL11** (comparison links), **CL12** (probable copy of
+    `git log`, percentages only), **RD5** (command block of the installation, `.env.example`), **DOC6**
+    (document headers, counters per field, never the values), **DOC7** (images, `mermaid` blocks, media
+    folder), **TL4** (CI checking the conventions);
+  - from the clone's history, in the detail of a repository only: **DOC9** (freshness of the documentation
+    against the code), **DOC10** (dates declared in the INDEX) and **TL5** (CC1 before and after the
+    tooling, "n/a" under 10 commits on either side).
+- **Output**: `watchoo conventions` command (`--milestone vX.Y.Z` for the milestone review), `/conventions`
+  page, section of a repository's page and contributor's page; never the commit message nor a pull request
+  title, only the short SHA, the pull request number, the author, the branch and tag names and the codes.
+  Repository indicators (branches without a pull request, tags, milestones, files) are attributed to no one.
+- The charter (`since`, `commit.*`, `branch.*`, `tags.milestones`, since phase 8.3 `changelog.*`,
+  `readme.*`, `docs.*`, since phase 8.4 `tags.prerelease_forms`, since phase 8.5 `pr.body_sections`
+  and `pr.require_closes`, and since phase 8.6 `pr.min_reviews` and `pr.reviewer_must_contribute`) is shared through `watchoo config export` /
+  `import`.

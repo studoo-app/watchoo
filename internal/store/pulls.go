@@ -67,10 +67,18 @@ func (s *Store) ListPullRequests(ctx context.Context, f PullRequestFilter) ([]Pu
 			BaseBranch:       row.BaseBranch,
 			HeadBranch:       row.HeadBranch,
 			ToolIDs:          splitList(row.ToolIds),
+			MergeCommitSHA:   row.MergeCommitSha.String,
+			FromFork:         boolPtr(row.FromFork),
+			BodySections:     int64Ptr(row.BodySections),
+
+			ReviewsByOthers:         int64Ptr(row.ReviewsByOthers),
+			ApprovalsByOthers:       int64Ptr(row.ApprovalsByOthers),
+			ApprovalsByContributors: int64Ptr(row.ApprovalsByContributors),
 		}
 		if err := parseTimes(i18n.T("store.pulls.number", row.Number),
 			[]string{row.CreatedAt, row.UpdatedAt}, []*time.Time{&pr.CreatedAt, &pr.UpdatedAt},
-			[]sql.NullString{row.ClosedAt, row.MergedAt}, []*time.Time{&pr.ClosedAt, &pr.MergedAt}); err != nil {
+			[]sql.NullString{row.ClosedAt, row.MergedAt, row.ReviewsCheckedAt},
+			[]*time.Time{&pr.ClosedAt, &pr.MergedAt, &pr.ReviewsCheckedAt}); err != nil {
 			return nil, err
 		}
 		views = append(views, PullRequestView{

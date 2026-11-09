@@ -88,6 +88,10 @@ var repoimportTexts = map[string]entry{
 	},
 
 	// Seuils d'activité.
+	"repoimport.conventions_since.parse": {
+		"%s: date expected in the form YYYY-MM-DD (empty = date of the workspace)",
+		"%s : date attendue sous la forme AAAA-MM-JJ (vide = date de l'espace)",
+	},
 	"repoimport.threshold.parse": {
 		"%s: whole number of days expected, from 1 to %d (0 = global value)",
 		"%s : nombre entier de jours attendu, de 1 à %d (0 = valeur globale)",

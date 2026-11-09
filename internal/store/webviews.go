@@ -93,6 +93,7 @@ func commitViewsFromRows(rows []db.ListRecentCommitsRow) ([]CommitView, error) {
 			RepoID: row.RepoID, SHA: row.SHA, AuthorID: row.AuthorID, CommitterID: row.CommitterID,
 			Message: row.Message, AuthoredAt: row.AuthoredAt, CommittedAt: row.CommittedAt,
 			Additions: row.Additions, Deletions: row.Deletions, StatsKnown: row.StatsKnown, URL: row.URL,
+			ParentCount: row.ParentCount,
 		})
 		if err != nil {
 			return nil, err

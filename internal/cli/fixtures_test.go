@@ -178,7 +178,7 @@ func assertJSONKeys(t *testing.T, stdout string, path string, want ...string) {
 
 // repositoryKeys are the keys of repositoryJSON.
 var repositoryKeys = []string{"id", "full_name", "owner", "name", "label", "display_name", "url",
-	"default_branch", "branch_patterns", "flemme_after_days", "dead_after_days", "enabled", "archived", "stars", "open_issues", "last_synced_at",
+	"default_branch", "branch_patterns", "flemme_after_days", "dead_after_days", "conventions_since", "enabled", "archived", "stars", "open_issues", "last_synced_at",
 	"last_commit_at"}
 
 // assertContains checks that s contains each of the excerpts.

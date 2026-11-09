@@ -158,11 +158,16 @@ var cliRepoTexts = map[string]entry{
 	"cli.repo.write_output":      {"writing output", "écriture de la sortie"},
 
 	// Seuils propres d'un dépôt (repo.go, config_cmd.go).
-	"cli.repo.days.flemme":    {"flemme %d d", "flemme %d j"},
-	"cli.repo.days.dead":      {"dead %d d", "dead %d j"},
-	"cli.repo.days.prefix":    {"thresholds: ", "seuils : "},
-	"cli.repo.days.value":     {"%d d", "%d j"},
-	"cli.repo.days.workspace": {"workspace", "espace"},
+	"cli.repo.days.flemme":       {"flemme %d d", "flemme %d j"},
+	"cli.repo.days.dead":         {"dead %d d", "dead %d j"},
+	"cli.repo.days.prefix":       {"thresholds: ", "seuils : "},
+	"cli.repo.days.value":        {"%d d", "%d j"},
+	"cli.repo.days.workspace":    {"workspace", "espace"},
+	"cli.repo.conventions_since": {"conventions since %s", "conventions depuis le %s"},
+	"cli.repo.list.conventions_since": {
+		"Own conventions start date: %s since %s\n",
+		"Date de début des conventions propre : %s depuis le %s\n",
+	},
 
 	// repo list (repo.go).
 	"cli.repo.list.empty": {
@@ -340,13 +345,14 @@ var cliRepoTexts = map[string]entry{
 	},
 
 	// Détail d'un changement de dépôt dans l'aperçu (config_cmd.go).
-	"cli.repo.change.label":        {"label: %s → %s", "nom : %s → %s"},
-	"cli.repo.change.branches":     {"branches: %s → %s", "branches : %s → %s"},
-	"cli.repo.change.flemme":       {"flemme: %s → %s", "flemme : %s → %s"},
-	"cli.repo.change.dead":         {"dead: %s → %s", "dead : %s → %s"},
-	"cli.repo.change.all_branches": {"all", "toutes"},
-	"cli.repo.change.no_label":     {"none", "aucun"},
-	"cli.repo.change.label_quoted": {"%q", "« %s »"},
+	"cli.repo.change.label":             {"label: %s → %s", "nom : %s → %s"},
+	"cli.repo.change.branches":          {"branches: %s → %s", "branches : %s → %s"},
+	"cli.repo.change.flemme":            {"flemme: %s → %s", "flemme : %s → %s"},
+	"cli.repo.change.dead":              {"dead: %s → %s", "dead : %s → %s"},
+	"cli.repo.change.conventions_since": {"conventions since: %s → %s", "conventions depuis : %s → %s"},
+	"cli.repo.change.all_branches":      {"all", "toutes"},
+	"cli.repo.change.no_label":          {"none", "aucun"},
+	"cli.repo.change.label_quoted":      {"%q", "« %s »"},
 	"cli.repo.change.failure_detail": {
 		"  repository #%d  %s: %s",
 		"  dépôt n° %d  %s : %s",
@@ -423,8 +429,12 @@ a commit, instead of those of the workspace (activity.*); 0 goes back to the
 threshold of the workspace. When both are given, --dead must be greater than
 --flemme.
 
-A repository already tracked is not added twice: its label, branches and thresholds
-are updated if they are given, and its tracking resumes if it had been stopped. No
+--conventions-since sets, as YYYY-MM-DD, the date from which the commits of this
+repository are evaluated against the conventions (conventions.*), instead of
+conventions.since; "" goes back to the date of the workspace.
+
+A repository already tracked is not added twice: its label, branches, thresholds and
+conventions start date are updated if they are given, and its tracking resumes if it had been stopped. No
 sync is started: follow up with "watchoo sync".`,
 		`Ajoute un dépôt à surveiller, après avoir vérifié auprès de GitHub que le compte gh y a
 accès (sans gh installé et connecté : que git peut le lire, par « git ls-remote », avec la
@@ -439,8 +449,12 @@ exemple) ; --branch "" revient à toutes les branches.
 place de ceux de l'espace (activity.*) ; 0 revient au seuil de l'espace. Quand les deux
 sont donnés, --dead doit être plus grand que --flemme.
 
-Un dépôt déjà suivi n'est pas ajouté en double : son label, ses branches et ses seuils
-sont mis à jour s'ils sont donnés, et son suivi reprend s'il avait été arrêté. Aucune synchro
+--conventions-since fixe, en AAAA-MM-JJ, la date à partir de laquelle les commits de ce
+dépôt sont évalués au regard des conventions (conventions.*), à la place de
+conventions.since ; "" revient à la date de l'espace.
+
+Un dépôt déjà suivi n'est pas ajouté en double : son label, ses branches, ses seuils et sa
+date de début des conventions sont mis à jour s'ils sont donnés, et son suivi reprend s'il avait été arrêté. Aucune synchro
 n'est lancée : enchaînez avec « watchoo sync ».`,
 	},
 	"cli.repo.help.add_flag_branch": {
@@ -458,6 +472,10 @@ n'est lancée : enchaînez avec « watchoo sync ».`,
 	"cli.repo.help.add_flag_dead": {
 		"Dead threshold of this repository, in `days` without a commit, greater than --flemme (0 = threshold of the workspace)",
 		"seuil Dead de ce dépôt, en `jours` sans commit, plus grand que --flemme (0 = seuil de l'espace)",
+	},
+	"cli.repo.help.add_flag_conventions_since": {
+		"start `date` (YYYY-MM-DD) of the conventions for this repository (\"\" = date of the workspace)",
+		"`date` de début (AAAA-MM-JJ) des conventions pour ce dépôt (\"\" = date de l'espace)",
 	},
 	"cli.repo.help.list_short": {
 		"Lists the tracked repositories: last commit, author, state",

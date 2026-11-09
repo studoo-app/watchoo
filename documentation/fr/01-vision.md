@@ -54,7 +54,10 @@ mélangent jamais. Voir [Espaces de supervision](10-espaces-de-supervision.md).
   le style des messages si l'IA a été utilisée : hors diagnostic, Watchoo lit seulement les
   [signatures déclarées dans les commits](02-fonctionnalites.md#signatures-dia). Les signaux de forme et de
   rythme (usage d'IA) relèvent de la [supervision et diagnostic](12-supervision-diagnostic.md), désactivée
-  par défaut, réservée au formateur et soumise à ses garde-fous.
+  par défaut, réservée au formateur et soumise à ses garde-fous. Exception décidée le 8 novembre 2026 : les
+  [conventions de projet](13-conventions.md) lisent en mémoire, sans en garder le contenu, le README, le
+  CHANGELOG, `documentation/` et les fichiers d'outillage, et jugent la forme des messages contre une charte
+  connue des étudiants, jamais pour en tirer un soupçon d'usage de l'IA.
 - Écriture sur GitHub : Watchoo est **en lecture seule**.
 
 ## Utilisateurs cibles

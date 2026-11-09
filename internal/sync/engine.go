@@ -53,6 +53,9 @@ const (
 	// MaxStatsPerRepo : nombre maximum d'appels CommitStats par dépôt et par synchro (repli sur l'API
 	// quand le clone Git local est indisponible ; le clone n'a pas de plafond).
 	MaxStatsPerRepo = 100
+	// MaxReviewsPerRepo : nombre maximum d'appels PullRequestReviews par dépôt et par synchro (PR4 des
+	// conventions, phase 8.6) ; les PR restantes sont lues aux synchros suivantes.
+	MaxReviewsPerRepo = 100
 )
 
 // ProviderFactory construit un Provider authentifié par token. Le moteur l'appelle au début de chaque

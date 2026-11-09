@@ -37,6 +37,7 @@ définir impose la langue partout, sauf dans un navigateur qui a choisi une lang
 | Page d'un contributeur (0.5.0) | `/contributors/{id}` (`?page=`) | `/contributors/{id}/commits` |
 | Réglages | `/settings` | `/fragments/quota` |
 | Diagnostic (7.4, diagnostic activé) | `/diagnostic` (`?repo=`), `/diagnostic/lead` (`?repo=`, `?key=`) | — |
+| Conventions (1.8.0, conventions activées) | `/conventions` (`?milestone=`) | — |
 
 ### Routes
 
@@ -70,6 +71,7 @@ ne modifie quoi que ce soit ; tout `POST` passe par le contrôle CSRF.
 | `GET` | `/diagnostic/lead` | Fiche de revue d'une piste (404 si le diagnostic est désactivé ou la piste inconnue) |
 | `POST` | `/diagnostic/review` | Enregistre la revue d'une piste |
 | `POST` | `/diagnostic/backfill` | Lance la reprise de l'historique en arrière-plan (une à la fois) |
+| `GET` | `/conventions` | Vue d'ensemble des conventions et revue de jalon (1.8.0 ; contenu seulement si les conventions sont activées ; 400 pour un jalon non configuré) |
 | `POST` | `/lang` | Langue du navigateur (`lang` : `en` ou `fr` ; retour au chemin local `return`, sans query, sinon `/` ; 400 si inconnue) |
 | `GET` | `/static/*`, `/favicon.ico`, `/apple-touch-icon.png`, `/manifest.webmanifest` | Fichiers statiques embarqués |
 
@@ -229,10 +231,96 @@ classement sur les signatures, aucune adresse affichée. Règles :
   (identifiant, description, nombre de pistes qui le portent, points) ; les 10 dernières pistes (date, auteur,
   élément lié à sa fiche de revue, niveau, signaux, état de la revue) et un lien vers toutes les pistes du
   dépôt (`/diagnostic?repo=`). Sans piste : « Aucune piste de réflexion. » Aucun message de commit.
+- **Conventions** (1.7.0, fragment `repo-conventions`, seulement si les [conventions](13-conventions.md)
+  sont activées, section distincte du diagnostic) : rappel « des taux, pas une note » ; **Commits
+  conformes** `n/m` et pourcentage, toutes branches suivies (CC1) ; la vue informative de la seule branche
+  par défaut ; les commits exclus et comptés à part, par motif (fusions, bots, commit initial de GitHub,
+  comptes exclus : CC4) ; les commits écrits avant la date de début, non évalués ; la date de début
+  effective et son origine (espace ou propre au dépôt) ; le tableau des écarts par code (code, libellé,
+  gravité « bloquant » ou « avertissement », nombre de commits : CC2) ; les 10 derniers commits non
+  conformes (date, auteur, SHA court, codes). Une note donne le périmètre : clone local (toutes les
+  branches suivies, chaque commit une fois) ou, sans clone lisible, commits rattachés aux branches
+  suivies en base, avec la mention « peut inclure des commits réécrits » ; et le nombre de commits au
+  nombre de parents inconnu (fusions reconnues à leur message). Dépôt jamais synchronisé : « Inconnu »
+  (pas 0 %) ; aucun commit évalué : un texte dédié (pas « 0/0 »). Calcul à la lecture, rien n'est
+  stocké. **Aucun message de commit**, aucun classement.
+  Depuis 1.8.0 (phase 8.2), la section ajoute : les avertissements de **formulation** (CC5 : passé, forme
+  en « -ing », première personne), les commits avec un pied de message valide et ceux qui citent une issue
+  (CC6) et la **langue des sujets** (CC7 : français, anglais, inconnue ; badge « mélange » ; commits hors de
+  la langue réglée par `conventions.commit.language`), le tout pour information ; les **noms de branche**
+  (BR1 : `n/m` conformes, nombre « à revoir », tableau des branches non conformes et à revoir avec leurs
+  codes et les pull requests dont elles sont la branche de tête, 20 au plus ; une note donne la source :
+  branches du distant du clone local, ou seulement les branches suivies de la base, liste partielle) ; les
+  **titres de pull request** (PR1 et PR2 : ouvertes et fusionnées comptées à part, les pull requests non
+  évaluées par motif, et un tableau des titres non conformes ou par défaut qui donne le **numéro**, l'auteur,
+  la branche de tête et les codes, **jamais le titre** ; « Inconnu » quand l'espace se synchronise par les
+  clones seuls ou que le dépôt n'a jamais été vu par l'API) ; les **tags** (SV1 : une pastille par tag,
+  « conforme », « conforme, avertissement » ou « non conforme », avec ses codes), les **jalons** configurés
+  (SV2 : « présent », « nom non conforme » avec le tag, ou « absent » ; présence seulement) et les
+  **releases** pour information (SV6 : jalon sans release, release sans tag, drapeau de pré-version
+  incohérent ; « inconnu » sans données de l'API) ; les **commits entre tags** (CC1 par intervalle entre
+  tags finals, du plus récent au plus ancien, et depuis le dernier tag final ; « Inconnu » sans clone local
+  ou sans tag final conforme). Chaque pastille porte un texte à côté de son icône.
+  Depuis 1.9.0 (phase 8.3), la section se termine par les **fichiers** (`repo-conventions-files`) : la
+  révision mesurée par la synchro sur la branche par défaut (SHA court, date du calcul), puis une grille par
+  famille, **CHANGELOG** (CL1 à CL8), **README** (RD1 à RD4), **documentation** (DOC1 à DOC5, DOC8) et
+  **outillage** (TL1 à TL3), chacune « k/n critères conformes, u inconnus » avec, par critère, une pastille
+  et son texte, la raison d'un critère inconnu et les codes avec leur libellé (bloquant ou avertissement,
+  nombre d'éléments ; sections trouvées pour RD2, mots pour RD4). Lu dans le cache de la synchro :
+  « inconnus : pas encore calculé, lancez watchoo sync », « à recalculer » quand les réglages, les règles
+  ou la révision ont changé, « pas de clone local ». En dessous, repliés (`details`), les **chemins à
+  examiner**, recalculés depuis le clone local pour cette page seulement et jamais stockés : documents non
+  référencés par l'INDEX (DOC3), liens morts `source → cible` (DOC4), chemins mal nommés (DOC5), archives et
+  documents bureautiques (DOC8) ; sans clone lisible, « Listes de chemins indisponibles ». Jamais une
+  cellule de l'INDEX ni un contenu de fichier.
+  Depuis 1.10.0 (phase 8.4), chaque jalon reçoit aussi une pastille d'**échéance** (SV2 : « à l'heure »,
+  « en retard », « indéterminé ») avec la première observation de son tag, ou « posé entre le X et le Y » ;
+  et la section ajoute **Historique des tags et de la branche par défaut, versions**
+  (`repo-conventions-history`), observé par les synchros quand les conventions sont activées et attribué à
+  personne : les **réécritures de la branche par défaut** (BR4 : nombre, date de la dernière, chaque
+  événement avec sa date et les SHA courts ancien et nouveau ; sinon « aucune réécriture de la branche par
+  défaut observée »), l'**historique des tags** (SV3 : « n sans réécriture observée depuis le <date>, r
+  réécrit(s), d supprimé(s), p supprimé(s) puis reposé(s) sur le même commit », ces
+  derniers non conformes, une pastille par tag, ceux qui ont changé d'abord ; jamais « jamais réécrit »), les **pré-versions** (SV4 : avertissements seulement), la **précédence** des versions finales
+  (SV7 ; incrément sauté en information), les **sauts de version** (SV5 : décomptes, puis chaque paire qui
+  n'est pas cohérente avec le saut attendu ou la raison) et la **fraîcheur du CHANGELOG** (CL10 : `feat` et
+  `fix` depuis le dernier commit qui a touché le CHANGELOG, grisée quand le CHANGELOG du dernier jalon est à
+  jour). SV5 et CL10 sont lus dans le clone local (« inconnu (pas de clone local) » sans clone) ; sans
+  clone, SV4 juge la pose d'une pré-version par la première observation des tags et SV7 ne garde que
+  l'incrément sauté (information).
+  Depuis 1.11.0 (phase 8.5), le tableau des pull requests liste celles dont le titre, la **description** ou
+  la **fusion** est à regarder, avec deux pastilles : la description (PR5 : « complète », « manque : … » avec
+  les sections attendues et « Closes #n », ou « inconnue ») et, pour une pull request fusionnée, la fusion
+  (PR6 : « squash », « squash, message non conforme », « merge commit », « rebase », « fusion inconnue ») ;
+  les pull requests issues d'un fork sont écartées (« issues d'un fork »). Un bloc **Fusions**
+  (`repo-conventions-merges`) donne les commits arrivés sur la branche par défaut hors pull request (PR3 :
+  « n sur m (par pull request p, indéterminés u) », puis chaque commit par SHA court, **auteur du commit**
+  (lien vers sa page) et raison, jamais « poussé par » ; clone seul, ou liste des pull requests pas encore
+  relue en entier : une note), les descriptions des pull requests (conformes sur celles lues), les fusions
+  en squash au message conforme par méthode, les branches de tête fusionnées plus d'une fois (BR2) et les
+  méthodes de fusion autorisées (BR5 : pastille « squash seul » ou « pas seulement le squash », « inconnu »
+  avec sa raison sans droit push). Ni description, ni titre, ni message de commit n'est jamais affiché.
+  Depuis 1.12.0 (phase 8.6, mode API), le tableau des pull requests liste aussi les pull requests
+  **fusionnées sans relecture**, avec une troisième pastille, la relecture d'une pull request fusionnée
+  (PR4 : « relue », « fusionnée sans relecture », « relectures pas encore lues »), et le bloc **Fusions**
+  donne, dans `repo-conventions-reviews`, « Pull requests fusionnées relues par un autre compte : r/k (u pas
+  encore lues). » puis « Fusionnées sans relecture (n) : » avec le numéro et l'auteur (lien vers sa page) de
+  chacune, au plus 20. Des compteurs seulement : aucun relecteur, aucun corps de relecture, aucun titre.
+  Depuis 1.13.0 (phase 8.7), la section se termine par un **bloc replié de pistes**
+  (`repo-conventions-leads`, titre « Pistes : k à relire »), avec une note qui rappelle qu'elles invitent à
+  relire et ne jugent pas : elles n'entrent dans aucune grille, aucun taux ni aucune revue de jalon. Chaque
+  piste (CL11, CL12, RD5, DOC6, DOC7, DOC9, DOC10, TL4, TL5, voir [Conventions de
+  projet](13-conventions.md#55-changelog-cl)) a une pastille neutre (« rien à relire », « sans objet »,
+  « inconnue » avec sa raison) ou d'information (« à relire »), jamais une pastille conforme ou non
+  conforme, puis ses codes avec le nombre d'éléments, ses compteurs et, pour DOC9 et TL5, ses dates. DOC9,
+  DOC10 et TL5 et la liste des **images cassées** (DOC7, `source → cible`) sont recalculées depuis le clone
+  local pour cette page seulement, jamais stockées. Ni valeur d'en-tête, ni cellule de l'INDEX, ni sujet de
+  commit n'est affiché. `/conventions` n'affiche aucune piste.
 - Bouton **« Synchroniser ce dépôt »** (absent si le suivi est arrêté).
 - Fragments : `/repos/{id}/commits` (historique) ; `/repos/{id}` avec l'en-tête `HX-Target`
-  `repo-overview`, `repo-contributors`, `repo-languages`, `repo-pulls` ou `repo-diagnostic` renvoie l'en-tête,
-  les contributeurs, les langages, les pull requests et releases ou le diagnostic seuls. Tous se rechargent à la fin d'une synchro.
+  `repo-overview`, `repo-contributors`, `repo-languages`, `repo-pulls`, `repo-diagnostic` ou
+  `repo-conventions` (1.7.0) renvoie l'en-tête, les contributeurs, les langages, les pull requests et
+  releases, le diagnostic ou les conventions seuls. Tous se rechargent à la fin d'une synchro.
 
 ### 3. Contributeurs
 - Classement global (commits, part du total, lignes ajoutées / retirées ; « — » si aucun de ses commits
@@ -275,6 +363,20 @@ lien de profil est l'adresse enregistrée en base (voir [Liens vers les profils]
   désactivé ; il remplace la carte « Signatures d'IA »), premier et dernier commit (dates relatives). **Choix** : aucun état Actif / Flemme /
   Dead pour une personne : ces états sont des règles de dépôt (seuils par dépôt) ; la page donne
   l'ancienneté du dernier commit, et l'état de chacun de ses dépôts dans la liste ci-dessous.
+  **Conventions** (1.7.0, seulement si elles sont activées ; absente sinon) : sous les totaux, la ligne
+  « Commits conformes 18/25 (72 %) » (CC3 : ses commits, tous dépôts et toutes branches suivies
+  confondus, hors exclusions CC4 ; « aucun commit évalué » sinon), suivie des codes d'écart reçus et de
+  leur nombre, et d'une note (nombre de commits exclus ; « un taux, pas une note »). Elle n'est calculée
+  que pour la page complète et le fragment `contributor-overview`, jamais pour l'historique paginé. Depuis
+  1.8.0 : la ligne « Titres de pull request conformes » (ouvertes et fusionnées à part, pull requests dont
+  l'auteur est le compte de forge de la personne, rapprochées par le compte ; « aucune pull request évaluée »
+  sinon) et la **tendance** de CC3 : deux taux, avant et depuis le dernier tag final de chaque dépôt, sans
+  flèche (« inconnue » sans clone local ni tag final). Depuis 1.11.0 (`contributor-conventions-outside-pr`) :
+  les commits de la branche par défaut dont la personne est l'auteur arrivés hors pull request (« n sur
+  m », puis chacun par dépôt, SHA court et raison, au plus 20 ; « inconnu » sans clone local lisible).
+  Depuis 1.12.0 (`contributor-conventions-reviews`) : ses pull requests fusionnées relues par un autre compte
+  et les relectures reçues sur ses pull requests (« r/k ; … : n » ; les relectures reçues seules, sans « 0/0 », tant qu'aucune pull request fusionnée n'a ses relectures lues ; « aucune lue » sans aucune pull request lue) ; les relectures
+  qu'il a données ne sont pas comptées, faute de garder les relecteurs.
 - **Activité sur 90 jours** : commits par jour du contributeur, tous dépôts confondus (graphique
   `daily`, comme le tableau de bord et la page d'un dépôt).
 - **Activité par dépôt sur 12 semaines** : le graphique empilé `contributors-chart` (même template, même
@@ -480,6 +582,45 @@ diagnostic est activé (`diagnostic.enabled`). Détail : [Supervision et diagnos
   au plus). Une saisie refusée est réaffichée avec l'erreur (400) ; une revue enregistrée renvoie sur la
   fiche (303) avec « Revue enregistrée » et le relecteur (compte de l'interface web, sinon nom de l'espace).
 
+### 7. Conventions (1.8.0, phase 8.2)
+
+Réservé au formateur ; entrée « Conventions » de la navigation seulement quand les conventions sont
+activées (`conventions.enabled`). Désactivées : la page explique comment les activer
+(`conventions.enabled`, `conventions.since`, relance) et n'affiche aucune donnée. Détail :
+[Conventions de projet](13-conventions.md#72-interfaces).
+
+- **Par dépôt** : dans l'ordre de l'espace, jamais triés par conformité : commits conformes (CC1), branches
+  conformes (BR1) et nombre à revoir, titres de pull request conformes (ouvertes et fusionnées à part,
+  titres par défaut ; « inconnu » sans données de l'API), tags conformes (SV1), une pastille par jalon
+  configuré (SV2) et la langue des sujets (CC7) ; depuis 1.9.0, une colonne **Fichiers**, une pastille
+  par famille (« CHANGELOG 6/8 · 1 inconnus »), ou « inconnu » avec sa raison (phase 8.3) ; depuis 1.10.0,
+  la pastille d'un jalon avec échéance est suivie de sa pastille d'échéance (à l'heure, en retard,
+  indéterminé), et une colonne **Historique et versions** donne les réécritures de la branche par défaut,
+  les tags réécrits ou supprimés, les sauts sous-versionnés, les avertissements de pré-version et de
+  précédence et les commits `feat`/`fix` depuis le CHANGELOG (phase 8.4) ; depuis 1.11.0, une colonne
+  **Hors PR, méthodes de fusion** : commits hors pull request sur ceux du premier parent de la branche par
+  défaut (PR3) et la pastille des méthodes de fusion autorisées (BR5) ; depuis 1.12.0, une colonne **PR
+  fusionnées relues** : « r/k relues · u pas encore lues » (PR4).
+- **Par contributeur** : par nom, jamais triés par conformité : commits conformes (CC3), tendance (avant /
+  depuis le dernier tag final), titres de pull request et branches conformes (seulement les branches de tête
+  de ses pull requests), et depuis 1.11.0 les commits dont la personne est l'auteur arrivés hors pull
+  request (PR3) ; depuis 1.12.0, **Relectures reçues** : « r/k relues · n reçues » (PR4 de ses pull requests
+  fusionnées et relectures reçues sur ses pull requests ; « n reçues » seul sans pull request fusionnée lue, « — » sans aucune pull request lue ; les relectures données ne sont pas comptées). Tags, jalons et branches sans pull request ne sont attribués à personne.
+- **Revue de jalon** (`?milestone=vX.Y.Z`, premier jalon configuré par défaut ; jalon absent de
+  `conventions.tags.milestones` : 400) : un tableau dépôt × critère (CC1 sur l'intervalle du jalon, BR1,
+  SV1, SV2 ; depuis 1.9.0 CL9, CL8, RD1, RD2 section installation, RD3, DOC1 et DOC3, lus sur l'arbre du tag
+  du jalon ; tag absent : « inconnu » avec la raison de SV1 ; depuis 1.10.0 SV3 après SV2, et SV2 juge
+  l'échéance ; depuis 1.11.0 PR3 après BR1, avec « PR3 : n hors pull request sur m commits (u indéterminés) » sous le
+  résultat ; depuis 1.12.0 PR4 après PR3, avec « PR4 : r/m pull requests fusionnées relues (u pas encore
+  lues) (#n, …) » sous le résultat), chaque case « conforme », « non conforme » ou « inconnu » avec sa raison, puis « k/n critères
+  conformes, u inconnus », l'échéance et l'historique du tag (1.10.0) et l'intervalle lu ; aucune note
+  globale. Sans date de début : « Non évaluable :
+  date de début manquante ». Aucun jalon configuré : un texte dédié.
+- L'espace se synchronise par les clones seuls : une note indique que pull requests et releases sont
+  inconnues.
+- Aucun message de commit, aucun titre ni description de pull request ; calcul à la lecture, rien n'est stocké, sauf les
+  critères de fichiers, calculés par la synchro et gardés en cache (codes, états et compteurs seulement).
+
 ## Navigation
 
 ```mermaid
@@ -495,6 +636,9 @@ flowchart LR
     PERSON --> REPO
     DASH --> DIAG["Diagnostic (si activé)"]
     DIAG --> LEAD["Fiche de revue"]
+    DASH --> CONV["Conventions (si activées)"]
+    CONV --> REPO
+    CONV --> PERSON
 ```
 
 Le pied de chaque page porte un lien **Documentation** (1.6.1) vers le sommaire de la documentation en
@@ -508,7 +652,7 @@ nouvel onglet, sans en-tête `Referer`.
 Le logo est un hibou (« watch-hoo ») pixelisé, dessiné comme les versions texte : une tête pleine aux
 oreilles pointues, deux yeux carrés magenta aux pupilles vertes et un bec découpé dans la forme. Le nom
 « WATCHOO » est en lettres géométriques (aucune police requise), les deux « OO » en vert, comme les
-pupilles. Les fichiers sont dans [`assets/logo/`](../assets/logo/) ; les trois `watchoo-logo-final*.svg`
+pupilles. Les fichiers sont dans [`assets/logo/`](../../assets/logo/) ; les trois `watchoo-logo-final*.svg`
 sont la référence, tous les autres en sont tirés :
 
 | Fichier | Usage |

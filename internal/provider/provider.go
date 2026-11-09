@@ -39,6 +39,8 @@ const (
 	MaxReleases = 1000
 	// MaxTags est le nombre maximum de tags renvoyés par Tags.
 	MaxTags = 1000
+	// MaxPullRequestReviews est le nombre maximum de relectures renvoyées par PullRequestReviews.
+	MaxPullRequestReviews = 1000
 )
 
 // États d'une pull request (PullRequest.State), comme sur la forge. Une PR mergée est fermée
@@ -46,6 +48,15 @@ const (
 const (
 	PullRequestOpen   = "open"
 	PullRequestClosed = "closed"
+)
+
+// États d'une relecture de pull request (PullRequestReview.State), comme sur la forge.
+const (
+	ReviewApproved         = "APPROVED"
+	ReviewChangesRequested = "CHANGES_REQUESTED"
+	ReviewCommented        = "COMMENTED"
+	ReviewDismissed        = "DISMISSED"
+	ReviewPending          = "PENDING"
 )
 
 // Provider est l'accès en lecture seule à une forge. Les implémentations sont sûres pour un usage
@@ -67,8 +78,8 @@ const (
 //   - ErrUnavailable : forge injoignable, délai dépassé, erreur serveur (5xx) ;
 //   - ErrUnexpected : réponse illisible ou code HTTP imprévu ;
 //   - ErrWriteForbidden : une requête en écriture a été bloquée (ne doit jamais arriver) ;
-//   - ErrUnsupported : la source ne connaît pas cette notion (PullRequests, Releases, RepositoryByID
-//     ou RateLimit d'une source qui n'en a pas, comme un clone Git local) ; aucune requête n'est
+//   - ErrUnsupported : la source ne connaît pas cette notion (PullRequests, PullRequestReviews,
+//     Releases, RepositoryByID ou RateLimit d'une source qui n'en a pas, comme un clone Git local) ; aucune requête n'est
 //     partie. Le moteur de synchro la traite comme « non disponible », pas comme un échec ;
 //   - ErrAccessDenied : accès refusé par une source sans code HTTP (clone Git local : clé SSH ou
 //     identifiants Git absents ou refusés, dépôt introuvable).
@@ -137,6 +148,13 @@ type Provider interface {
 	// et la limite (Limit, au plus MaxPullRequests). Un dépôt vide renvoie une liste vide sans erreur.
 	// Une source sans pull requests renvoie une erreur enveloppant ErrUnsupported.
 	PullRequests(ctx context.Context, owner, name string, opts PullRequestsOptions) ([]PullRequest, error)
+
+	// PullRequestReviews renvoie les relectures de la pull request number (> 0, sinon ErrInvalidRef) du
+	// dépôt, dans l'ordre de la forge (chronologique), toutes les pages comprises (au plus
+	// MaxPullRequestReviews) : relecteur, état et date de dépôt, jamais le corps (phase 8.6, PR4 des
+	// conventions). PR inconnue : ErrNotFound. Une source sans pull requests renvoie une erreur
+	// enveloppant ErrUnsupported.
+	PullRequestReviews(ctx context.Context, owner, name string, number int) ([]PullRequestReview, error)
 
 	// Releases renvoie les releases du dépôt, de la plus récente à la plus ancienne (ordre de la
 	// forge), toutes les pages comprises (au plus MaxReleases). Sur GitHub, les brouillons ne sont
@@ -218,13 +236,29 @@ type PullRequest struct {
 	URL        string  // page web de la PR (html_url sur GitHub)
 	BaseBranch string  // branche visée
 	HeadBranch string  // branche proposée
-	// Body est la description de la PR (texte venu du dépôt : jamais dans les logs ni en base). Seul le
-	// diagnostic la lit, en mémoire, pour y reconnaître des outils déclarés (signal D2).
-	Body      string
+	// Body est la description de la PR (texte venu du dépôt : jamais dans les logs ni en base). Elle
+	// n'est lue qu'en mémoire, par la synchro : outils déclarés (signal D2 du diagnostic) et masque des
+	// sections attendues (PR5 des conventions, phase 8.5).
+	Body string
+	// MergeCommitSHA est le commit produit par la fusion (squash, merge commit ou dernier commit rebasé ;
+	// phase 8.5) ; vide si la PR n'est pas fusionnée ou si la forge ne le donne pas.
+	MergeCommitSHA string
+	// FromFork indique une PR issue d'un fork : dépôt de tête différent du dépôt de base, ou supprimé
+	// (phase 8.5) ; Unknown si la forge ne donne pas le dépôt de base.
+	FromFork  OptionalBool
 	CreatedAt time.Time // ouverture, UTC
 	UpdatedAt time.Time // dernière modification, UTC
 	ClosedAt  time.Time // fermeture, UTC ; zéro si ouverte
 	MergedAt  time.Time // merge, UTC ; zéro si non mergée
+}
+
+// PullRequestReview est une relecture d'une pull request (phase 8.6). Le corps de la relecture n'est
+// jamais lu ; le login du relecteur n'est ni journalisé ni stocké (seuls des compteurs le sont).
+type PullRequestReview struct {
+	ID          int64     // identifiant de la relecture sur la forge (> 0)
+	Reviewer    Account   // relecteur ; valeur zéro si le compte a été supprimé
+	State       string    // l'un des états Review* (un autre état est transmis tel quel)
+	SubmittedAt time.Time // dépôt, UTC ; zéro pour une relecture en attente (PENDING)
 }
 
 // Release est une release d'un dépôt.
@@ -264,10 +298,56 @@ type Repository struct {
 	Archived      bool      // dépôt archivé
 	Private       bool      // dépôt privé (ou interne)
 	PushedAt      time.Time // dernier push, UTC ; zéro si inconnu
+	// AllowSquashMerge, AllowMergeCommit et AllowRebaseMerge sont les méthodes de fusion autorisées
+	// (BR5 des conventions, phase 8.5) ; Unknown si la forge ne les donne pas (GitHub ne les renvoie qu'à
+	// un compte qui a le droit push ; toujours Unknown pour un dépôt Partial).
+	AllowSquashMerge OptionalBool
+	AllowMergeCommit OptionalBool
+	AllowRebaseMerge OptionalBool
 	// Partial indique une source qui ne connaît du dépôt que Owner, Name, DefaultBranch et URL (clone
 	// Git local, V2) : ID vaut 0 et Stars, OpenIssues, Archived, Private et PushedAt sont inconnus.
 	// Le moteur de synchro garde alors les valeurs en base au lieu d'y écrire ces zéros.
 	Partial bool
+}
+
+// OptionalBool est un booléen qui peut être inconnu, comparable par valeur (contrairement à *bool, que
+// les comparaisons de structures compareraient par adresse). La valeur zéro est Unknown.
+type OptionalBool uint8
+
+// Valeurs d'OptionalBool.
+const (
+	Unknown OptionalBool = iota // valeur absente de la réponse de la forge
+	False
+	True
+)
+
+// KnownBool renvoie True ou False selon b.
+func KnownBool(b bool) OptionalBool {
+	if b {
+		return True
+	}
+	return False
+}
+
+// OptionalBoolOf convertit un *bool : nil → Unknown.
+func OptionalBoolOf(b *bool) OptionalBool {
+	if b == nil {
+		return Unknown
+	}
+	return KnownBool(*b)
+}
+
+// Ptr renvoie la valeur sous forme de *bool : nil si Unknown (pointeur neuf à chaque appel).
+func (o OptionalBool) Ptr() *bool {
+	switch o {
+	case True:
+		v := true
+		return &v
+	case False:
+		v := false
+		return &v
+	}
+	return nil
 }
 
 // FullName renvoie « owner/name ».

@@ -107,6 +107,17 @@ func (r *Repo) Commit(branch, file, content, message string, who Author, when ti
 	return r.Head(branch)
 }
 
+// RemoveFile adds to the branch branch a commit that deletes file, publishes the branch and returns its
+// SHA.
+func (r *Repo) RemoveFile(branch, file, message string, who Author, when time.Time) string {
+	r.s.t.Helper()
+	r.checkout(branch)
+	r.git(r.work, "rm", "--quiet", "--", file)
+	r.commitEnv(who, when, "commit", "--quiet", "--no-verify", "-m", message)
+	r.Push()
+	return r.Head(branch)
+}
+
 // EmptyCommit adds to the branch branch a commit without any change ("--allow-empty"), publishes
 // the branch and returns its SHA: a commit really at +0 −0.
 func (r *Repo) EmptyCommit(branch, message string, who Author, when time.Time) string {
@@ -176,6 +187,13 @@ func (r *Repo) Tag(name, rev, message string) {
 		r.commitEnv(Author{Name: "Tagueur", Email: "tag@example.test"}, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
 			"tag", "-a", "-m", message, name, rev)
 	}
+	r.Push()
+}
+
+// DeleteTag deletes the tag name (locally and on the remote).
+func (r *Repo) DeleteTag(name string) {
+	r.s.t.Helper()
+	r.git(r.work, "tag", "--delete", name)
 	r.Push()
 }
 

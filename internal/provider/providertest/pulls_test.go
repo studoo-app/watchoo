@@ -94,3 +94,54 @@ func TestPullRequestsReleasesTags(t *testing.T) {
 		}()
 	}
 }
+
+// Phase 8.6: PullRequestReviews (order kept, dates to the second, call log with the number, unknown PR,
+// invalid number, injected error).
+func TestPullRequestReviews(t *testing.T) {
+	f := New()
+	f.AddRepository(provider.Repository{ID: 102, Owner: "alice", Name: "projet"})
+	f.SetPullRequests(102, provider.PullRequest{Number: 5, State: provider.PullRequestClosed, Merged: true, UpdatedAt: t0})
+	f.SetPullRequestReviews(102, 5,
+		provider.PullRequestReview{ID: 2, Reviewer: provider.Account{Login: "bob", ID: 7}, State: provider.ReviewApproved,
+			SubmittedAt: t0.Add(500 * time.Millisecond)},
+		provider.PullRequestReview{ID: 1, State: provider.ReviewPending},
+	)
+	got, err := f.PullRequestReviews(ctx, "Alice", "projet", 5)
+	if err != nil || len(got) != 2 || got[0].ID != 2 || got[1].ID != 1 || !got[0].SubmittedAt.Equal(t0) {
+		t.Fatalf("PullRequestReviews: %+v, %v", got, err)
+	}
+	if log := f.CallLog(); log[len(log)-1].Method != MethodPullReviews || log[len(log)-1].Number != 5 {
+		t.Errorf("log: %+v", log[len(log)-1])
+	}
+	f.SetPullRequests(102, provider.PullRequest{Number: 6, State: provider.PullRequestOpen, UpdatedAt: t0})
+	if got, err := f.PullRequestReviews(ctx, "alice", "projet", 6); err != nil || got == nil || len(got) != 0 {
+		t.Errorf("PR without reviews: %+v, %v", got, err)
+	}
+	if _, err := f.PullRequestReviews(ctx, "alice", "projet", 9); !errors.Is(err, provider.ErrNotFound) {
+		t.Errorf("unknown PR: %v", err)
+	}
+	if _, err := f.PullRequestReviews(ctx, "alice", "projet", 0); !errors.Is(err, provider.ErrInvalidRef) {
+		t.Errorf("number 0: %v", err)
+	}
+	f.FailNext(MethodPullReviews, provider.ErrUnavailable)
+	if _, err := f.PullRequestReviews(ctx, "alice", "projet", 5); !errors.Is(err, provider.ErrUnavailable) {
+		t.Errorf("injected error: %v", err)
+	}
+	if n := f.Calls(MethodPullReviews); n != 5 {
+		t.Errorf("%d calls, want 5", n)
+	}
+	for name, fn := range map[string]func(){
+		"unknown PR": func() { f.SetPullRequestReviews(102, 9, provider.PullRequestReview{ID: 1, State: "APPROVED"}) },
+		"no ID":      func() { f.SetPullRequestReviews(102, 5, provider.PullRequestReview{State: "APPROVED"}) },
+		"no state":   func() { f.SetPullRequestReviews(102, 5, provider.PullRequestReview{ID: 1}) },
+	} {
+		func() {
+			defer func() {
+				if recover() == nil {
+					t.Errorf("%s: no panic", name)
+				}
+			}()
+			fn()
+		}()
+	}
+}

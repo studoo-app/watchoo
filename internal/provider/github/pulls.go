@@ -19,6 +19,7 @@ const (
 	maxPullPages    = provider.MaxPullRequests/PerPage + 1
 	maxReleasePages = provider.MaxReleases/PerPage + 1
 	maxTagPages     = provider.MaxTags/PerPage + 1
+	maxReviewPages  = provider.MaxPullRequestReviews/PerPage + 1
 )
 
 // stopUpdatedBefore : raison d'arrêt de la liste des pull requests à la première PR modifiée avant
@@ -40,8 +41,12 @@ const stopUpdatedBefore = "PR plus ancienne"
 // Conversion (toPullRequest) : Number = number ; Title = title ; State = state (« open » ou
 // « closed ») ; MergedAt = merged_at ; Merged = merged, ou merged_at non nul (la liste de l'API ne
 // donne pas le champ merged) ; Draft = draft ; Author = user.{login, id, avatar_url} ; URL = html_url ;
-// BaseBranch = base.ref ; HeadBranch = head.ref ; dates en UTC. Une PR sans numéro positif, d'état
-// inconnu ou sans updated_at → p.unexpected.
+// BaseBranch = base.ref ; HeadBranch = head.ref ; Body = body (lu en mémoire par la synchro, jamais
+// journalisé) ; MergeCommitSHA = merge_commit_sha, gardé seulement pour une PR fusionnée et un SHA
+// complet (GitHub le remplit aussi pour une PR ouverte : commit de fusion d'essai) ; FromFork (phase
+// 8.5) : base.repo absent → Unknown, head.repo null (fork supprimé) ou d'un autre id que base.repo →
+// True, sinon False ; dates en UTC. Une PR sans numéro positif, d'état inconnu ou sans updated_at →
+// p.unexpected.
 func (p *Provider) PullRequests(ctx context.Context, owner, name string, opts provider.PullRequestsOptions) ([]provider.PullRequest, error) {
 	if err := provider.ValidateRepo(owner, name); err != nil {
 		return nil, err
@@ -112,22 +117,99 @@ func toPullRequest(pr *gogithub.PullRequest) (provider.PullRequest, bool) {
 		return provider.PullRequest{}, false
 	}
 	mergedAt := utc(pr.GetMergedAt())
+	merged := pr.GetMerged() || !mergedAt.IsZero()
+	mergeSHA := ""
+	if sha := pr.GetMergeCommitSHA(); merged && provider.ValidateSHA(sha) == nil {
+		mergeSHA = sha
+	}
 	return provider.PullRequest{
-		Number:     pr.GetNumber(),
-		Title:      pr.GetTitle(),
-		State:      state,
-		Merged:     pr.GetMerged() || !mergedAt.IsZero(),
-		Draft:      pr.GetDraft(),
-		Author:     toAccount(pr.GetUser()),
-		URL:        pr.GetHTMLURL(),
-		BaseBranch: pr.GetBase().GetRef(),
-		HeadBranch: pr.GetHead().GetRef(),
-		Body:       pr.GetBody(),
-		CreatedAt:  utc(pr.GetCreatedAt()),
-		UpdatedAt:  utc(pr.GetUpdatedAt()),
-		ClosedAt:   utc(pr.GetClosedAt()),
-		MergedAt:   mergedAt,
+		Number:         pr.GetNumber(),
+		Title:          pr.GetTitle(),
+		State:          state,
+		Merged:         merged,
+		Draft:          pr.GetDraft(),
+		Author:         toAccount(pr.GetUser()),
+		URL:            pr.GetHTMLURL(),
+		BaseBranch:     pr.GetBase().GetRef(),
+		HeadBranch:     pr.GetHead().GetRef(),
+		Body:           pr.GetBody(),
+		MergeCommitSHA: mergeSHA,
+		FromFork:       fromFork(pr),
+		CreatedAt:      utc(pr.GetCreatedAt()),
+		UpdatedAt:      utc(pr.GetUpdatedAt()),
+		ClosedAt:       utc(pr.GetClosedAt()),
+		MergedAt:       mergedAt,
 	}, true
+}
+
+// fromFork dit si la PR vient d'un fork : Unknown sans dépôt de base identifié ; True si le dépôt de
+// tête est null (fork supprimé) ou d'un autre identifiant ; Unknown si son identifiant manque.
+func fromFork(pr *gogithub.PullRequest) provider.OptionalBool {
+	baseID := pr.GetBase().GetRepo().GetID()
+	if baseID <= 0 {
+		return provider.Unknown
+	}
+	head := pr.GetHead().GetRepo()
+	switch {
+	case head == nil:
+		return provider.True
+	case head.GetID() <= 0:
+		return provider.Unknown
+	}
+	return provider.KnownBool(head.GetID() != baseID)
+}
+
+// PullRequestReviews implémente provider.Provider : GET /repos/{owner}/{name}/pulls/{number}/reviews
+// ?per_page=100&page=n (PullRequestsService.ListReviews), après provider.ValidateRepo et
+// provider.ValidateNumber, toutes les pages, au plus provider.MaxPullRequestReviews, dans l'ordre de
+// l'API (chronologique). Le cache ETag du transport s'applique (une réponse 304 ne consomme pas de
+// quota).
+//
+// Conversion : ID = id ; Reviewer = user.{login, id, avatar_url} (user null, compte supprimé : valeur
+// zéro) ; State = state ; SubmittedAt = submitted_at (absent pour PENDING : zéro). Le corps (body) n'est
+// jamais lu. Une relecture sans identifiant positif ou sans état → p.unexpected.
+func (p *Provider) PullRequestReviews(ctx context.Context, owner, name string, number int) ([]provider.PullRequestReview, error) {
+	if err := provider.ValidateRepo(owner, name); err != nil {
+		return nil, err
+	}
+	if err := provider.ValidateNumber(number); err != nil {
+		return nil, err
+	}
+	op := i18n.T("provider.github.op.reviews", number, owner, name)
+	lo := &gogithub.ListOptions{PerPage: PerPage, Page: 1}
+	reviews := make([]provider.PullRequestReview, 0)
+	pages, stop := 0, stopLastPage
+pagination:
+	for {
+		list, resp, err := p.client.PullRequests.ListReviews(ctx, owner, name, number, lo)
+		pages++
+		if err != nil {
+			return nil, p.convertError(ctx, op, resp, err)
+		}
+		for _, r := range list {
+			if r == nil || r.GetID() <= 0 || r.GetState() == "" {
+				return nil, p.unexpected(op, resp)
+			}
+			reviews = append(reviews, provider.PullRequestReview{
+				ID:          r.GetID(),
+				Reviewer:    toAccount(r.GetUser()),
+				State:       r.GetState(),
+				SubmittedAt: utc(r.GetSubmittedAt()),
+			})
+			if len(reviews) >= provider.MaxPullRequestReviews {
+				stop = stopCap
+				break pagination
+			}
+		}
+		next, reason := nextPage(resp, lo.Page, pages, len(list), maxReviewPages)
+		if next == 0 {
+			stop = reason
+			break
+		}
+		lo.Page = next
+	}
+	p.logList(ctx, "relectures listées", owner, name, pages, len(reviews), stop)
+	return reviews, nil
 }
 
 // toAccount convertit le compte d'un auteur (nil : compte inconnu, valeur zéro).

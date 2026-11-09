@@ -37,4 +37,5 @@ Watchoo watches GitHub repositories, mostly private ones, and answers three ques
 | 10 | [Espaces de supervision](fr/10-espaces-de-supervision.md) | [Workspaces](en/10-workspaces.md) |
 | 11 | [Skills des agents de code](fr/11-skills.md) | [Coding agent skills](en/11-skills.md) |
 | 12 | [Supervision et diagnostic](fr/12-supervision-diagnostic.md) | [Supervision and diagnosis](en/12-supervision-diagnostic.md) |
+| 13 | [Conventions de projet](fr/13-conventions.md) | [Project conventions](en/13-conventions.md) |
 | — | [Glossaire](fr/glossaire.md) | [Glossary](en/glossary.md) |

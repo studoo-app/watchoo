@@ -14,9 +14,13 @@
 //     (workspace.WriteSharedSettings), puis ajoute ou met à jour les dépôts
 //     (wsync.Engine.AddRepositories, accès vérifié). Rien n'est jamais retiré.
 //
+// Partagées : les conventions de projet (settings.conventions : date de début, règles des commits,
+// nommage des branches, jalons des tags, règles du CHANGELOG, du README et de la documentation),
+// sauf conventions.enabled et conventions.excluded_accounts.
+//
 // Jamais partagés : name, github.* (dont gh_path : un fichier venu d'ailleurs ne doit jamais choisir
 // le programme lancé), git.* (protocole des clones Git locaux), web.*, token, commits, contributeurs,
-// e-mails, chemins locaux.
+// e-mails, chemins locaux, diagnostic.*, conventions.enabled, conventions.excluded_accounts (logins).
 package configshare
 
 import (
@@ -100,6 +104,74 @@ type Settings struct {
 	// Lang est la langue de l'interface web (« en » ou « fr ») ; clé facultative, ajoutée sans
 	// changer la version du format (un fichier sans elle reste valide).
 	Lang *string `json:"lang,omitempty"`
+	// Conventions est la charte des conventions de projet (conventions.*, sauf enabled et
+	// excluded_accounts) ; clé facultative, ajoutée sans changer la version du format.
+	Conventions *ConventionsSettings `json:"conventions,omitempty"`
+}
+
+// ConventionsSettings : conventions.since (AAAA-MM-JJ, "" = depuis le début), conventions.commit.*,
+// conventions.branch.* et conventions.tags.* (ces deux blocs depuis la phase 8.2), conventions.changelog.*,
+// conventions.readme.* et conventions.docs.* (phase 8.3), conventions.pr.* (phase 8.5) ; blocs facultatifs ajoutés sans changer la
+// version du format.
+type ConventionsSettings struct {
+	Since     *string                       `json:"since,omitempty"`
+	Commit    *ConventionsCommitSettings    `json:"commit,omitempty"`
+	Branch    *ConventionsBranchSettings    `json:"branch,omitempty"`
+	PR        *ConventionsPRSettings        `json:"pr,omitempty"`
+	Tags      *ConventionsTagsSettings      `json:"tags,omitempty"`
+	Changelog *ConventionsChangelogSettings `json:"changelog,omitempty"`
+	Readme    *ConventionsReadmeSettings    `json:"readme,omitempty"`
+	Docs      *ConventionsDocsSettings      `json:"docs,omitempty"`
+}
+
+// ConventionsChangelogSettings : conventions.changelog.* (phase 8.3).
+type ConventionsChangelogSettings struct {
+	CategoriesFR *bool `json:"categories_fr,omitempty"`
+}
+
+// ConventionsReadmeSettings : conventions.readme.* (sections [] = aucune section attendue ; phase 8.3).
+type ConventionsReadmeSettings struct {
+	Sections *[]string `json:"sections,omitempty"`
+	MinWords *int      `json:"min_words,omitempty"`
+}
+
+// ConventionsDocsSettings : conventions.docs.* (phase 8.3).
+type ConventionsDocsSettings struct {
+	Dir           *string `json:"dir,omitempty"`
+	MediaDir      *string `json:"media_dir,omitempty"`
+	ArchivesScope *string `json:"archives_scope,omitempty"`
+}
+
+// ConventionsBranchSettings : conventions.branch.* (pattern "" = règle intégrée ; exclude [] = aucune).
+type ConventionsBranchSettings struct {
+	Pattern *string   `json:"pattern,omitempty"`
+	Exclude *[]string `json:"exclude,omitempty"`
+}
+
+// ConventionsPRSettings : conventions.pr.* (body_sections [] = aucune section attendue ; phase 8.5 ;
+// min_reviews, au moins 1, et reviewer_must_contribute : phase 8.6).
+type ConventionsPRSettings struct {
+	BodySections           *[]string `json:"body_sections,omitempty"`
+	RequireCloses          *bool     `json:"require_closes,omitempty"`
+	MinReviews             *int      `json:"min_reviews,omitempty"`
+	ReviewerMustContribute *bool     `json:"reviewer_must_contribute,omitempty"`
+}
+
+// ConventionsTagsSettings : conventions.tags.* (milestones [] = aucun jalon).
+type ConventionsTagsSettings struct {
+	Milestones *[]string `json:"milestones,omitempty"`
+	// PrereleaseForms : formes de pré-version conformes (SV4, phase 8.4) ; au moins une.
+	PrereleaseForms *[]string `json:"prerelease_forms,omitempty"`
+}
+
+// ConventionsCommitSettings : conventions.commit.* (listes : [] = aucune entrée ; scopes vide = tous).
+type ConventionsCommitSettings struct {
+	Types          *[]string `json:"types,omitempty"`
+	Scopes         *[]string `json:"scopes,omitempty"`
+	MaxSubjectSoft *int      `json:"max_subject_soft,omitempty"`
+	MaxSubjectHard *int      `json:"max_subject_hard,omitempty"`
+	Forbidden      *[]string `json:"forbidden,omitempty"`
+	Language       *string   `json:"language,omitempty"`
 }
 
 // SyncSettings : sync.auto, sync.interval (durée Go écrite en chaîne : « 30m », « 1h30m », « 0 »),
@@ -138,6 +210,10 @@ type Repository struct {
 	// existants (nouveau dépôt : ceux de l'espace), 0 = revenir au seuil de l'espace.
 	FlemmeAfterDays *int `json:"flemme_after_days,omitempty"`
 	DeadAfterDays   *int `json:"dead_after_days,omitempty"`
+	// ConventionsSince est la date de début des conventions propre au dépôt, AAAA-MM-JJ (phase 8.1).
+	// Export ne l'écrit que pour un dépôt qui en a une, comme les seuils. À l'import, absent ou null =
+	// garder la date existante (nouveau dépôt : celle de l'espace), "" = revenir à la date de l'espace.
+	ConventionsSince *string `json:"conventions_since,omitempty"`
 }
 
 // Store est ce dont configshare a besoin de la base ; *store.Store le satisfait.
@@ -160,7 +236,8 @@ type ExportOptions struct {
 // Export renvoie le document de partage de l'espace : nom de l'espace (ws.Config.Name), réglages
 // communs EN VIGUEUR (ws.Config, après fusion des fichiers et des variables WATCHOO_*), et dépôts dont
 // le suivi est actif (Enabled), triés par owner/name sans tenir compte de la casse, avec label,
-// motifs ([] = toutes les branches) et seuils d'activité propres (s'il y en a). Aucun appel à gh ni à la forge.
+// motifs ([] = toutes les branches), seuils d'activité et date de début des conventions propres (s'il
+// y en a). Aucun appel à gh ni à la forge.
 func Export(ctx context.Context, ws *workspace.Workspace, st Store, opts ExportOptions) (*Document, error) {
 	if ws == nil || st == nil {
 		return nil, errors.New(i18n.T("configshare.export.no_workspace"))
@@ -196,14 +273,24 @@ func Export(ctx context.Context, ws *workspace.Workspace, st Store, opts ExportO
 			Label:    r.Label,
 			Branches: branches,
 			// Copies : le document ne partage rien avec les dépôts lus.
-			FlemmeAfterDays: clonePtr(r.FlemmeAfterDays),
-			DeadAfterDays:   clonePtr(r.DeadAfterDays),
+			FlemmeAfterDays:  clonePtr(r.FlemmeAfterDays),
+			DeadAfterDays:    clonePtr(r.DeadAfterDays),
+			ConventionsSince: sincePtr(r.ConventionsSince),
 		})
 	}
 	slices.SortFunc(doc.Repositories, func(a, b Repository) int {
 		return cmp.Or(strings.Compare(strings.ToLower(a.Repo), strings.ToLower(b.Repo)), strings.Compare(a.Repo, b.Repo))
 	})
 	return doc, nil
+}
+
+// sincePtr renvoie nil pour une date vide (date de l'espace : clé absente du document), sinon un
+// pointeur vers une copie.
+func sincePtr(date string) *string {
+	if date == "" {
+		return nil
+	}
+	return &date
 }
 
 // clonePtr renvoie une copie de *p, ou nil.
@@ -218,19 +305,49 @@ func clonePtr(p *int) *int {
 // settingsFromConfig renvoie tous les réglages communs de c.
 func settingsFromConfig(c workspace.Config) *Settings {
 	interval := formatDuration(c.Sync.Interval)
-	exclude := slices.Clone(c.Branches.Exclude)
-	if exclude == nil {
-		exclude = []string{}
-	}
+	shared := workspace.SharedSettingsFrom(c) // listes copiées, jamais nil
 	return &Settings{
 		Sync: &SyncSettings{Auto: &c.Sync.Auto, Interval: &interval, Parallelism: &c.Sync.Parallelism},
 		Activity: &ActivitySettings{
 			FlemmeAfterDays: &c.Activity.FlemmeAfterDays,
 			DeadAfterDays:   &c.Activity.DeadAfterDays,
 		},
-		Branches: &BranchesSettings{Exclude: &exclude},
+		Branches: &BranchesSettings{Exclude: shared.BranchesExclude},
 		Timezone: &c.Timezone,
 		Lang:     &c.Lang,
+		Conventions: &ConventionsSettings{
+			Since: shared.ConventionsSince,
+			Commit: &ConventionsCommitSettings{
+				Types:          shared.ConventionsTypes,
+				Scopes:         shared.ConventionsScopes,
+				MaxSubjectSoft: shared.ConventionsMaxSubjectSoft,
+				MaxSubjectHard: shared.ConventionsMaxSubjectHard,
+				Forbidden:      shared.ConventionsForbidden,
+				Language:       shared.ConventionsLanguage,
+			},
+			Branch: &ConventionsBranchSettings{
+				Pattern: shared.ConventionsBranchPattern,
+				Exclude: shared.ConventionsBranchExclude,
+			},
+			PR: &ConventionsPRSettings{
+				BodySections:           shared.ConventionsPRBodySections,
+				RequireCloses:          shared.ConventionsPRRequireCloses,
+				MinReviews:             shared.ConventionsPRMinReviews,
+				ReviewerMustContribute: shared.ConventionsPRReviewerMustContribute,
+			},
+			Tags: &ConventionsTagsSettings{Milestones: shared.ConventionsMilestones,
+				PrereleaseForms: shared.ConventionsPrereleaseForms},
+			Changelog: &ConventionsChangelogSettings{CategoriesFR: shared.ConventionsCategoriesFR},
+			Readme: &ConventionsReadmeSettings{
+				Sections: shared.ConventionsReadmeSections,
+				MinWords: shared.ConventionsReadmeMinWords,
+			},
+			Docs: &ConventionsDocsSettings{
+				Dir:           shared.ConventionsDocsDir,
+				MediaDir:      shared.ConventionsDocsMediaDir,
+				ArchivesScope: shared.ConventionsArchivesScope,
+			},
+		},
 	}
 }
 

@@ -106,3 +106,142 @@ func TestReleasesAndTagsRoutes(t *testing.T) {
 	expectFatal(t, rec, "release without tag", func() { bad.SetReleases(1, Release{ID: 1, CreatedAt: t0}) })
 	expectFatal(t, rec, "malformed tag", func() { bad.SetTags(1, Tag{Name: "v1", SHA: "abc"}) })
 }
+
+// Phase 8.5: merge_commit_sha, base.repo and head.repo (same repository by default, fork, deleted fork).
+func TestPullRequestsConventionFields(t *testing.T) {
+	s := NewServer(t, Options{})
+	s.AddRepo(Repo{ID: 1, Owner: "alice", Name: "projet"})
+	sha := FakeSHA("m")
+	s.SetPullRequests(1,
+		PullRequest{Number: 1, CreatedAt: t0, Closed: true, MergedAt: t0, MergeCommitSHA: sha},
+		PullRequest{Number: 2, CreatedAt: t0, Fork: true},
+		PullRequest{Number: 3, CreatedAt: t0, Fork: true, HeadRepoDeleted: true},
+	)
+	type ref struct {
+		Repo *struct {
+			ID       int64  `json:"id"`
+			FullName string `json:"full_name"`
+			Fork     bool   `json:"fork"`
+		} `json:"repo"`
+	}
+	var list []struct {
+		Number      int     `json:"number"`
+		MergeCommit *string `json:"merge_commit_sha"`
+		Base        ref     `json:"base"`
+		Head        ref     `json:"head"`
+	}
+	r := get(t, s, "/repos/alice/projet/pulls?state=all")
+	wantStatus(t, "pulls", r, http.StatusOK)
+	decode(t, r, &list)
+	if len(list) != 3 {
+		t.Fatalf("%d PRs, want 3", len(list))
+	}
+	for _, pr := range list {
+		if pr.Base.Repo == nil || pr.Base.Repo.ID != 1 || pr.Base.Repo.FullName != "alice/projet" {
+			t.Errorf("PR %d: base.repo = %+v", pr.Number, pr.Base.Repo)
+		}
+		switch pr.Number {
+		case 1:
+			if pr.MergeCommit == nil || *pr.MergeCommit != sha || pr.Head.Repo == nil || pr.Head.Repo.ID != 1 {
+				t.Errorf("PR 1: merge_commit_sha %v, head.repo %+v", pr.MergeCommit, pr.Head.Repo)
+			}
+		case 2:
+			if pr.MergeCommit != nil || pr.Head.Repo == nil || pr.Head.Repo.ID == 1 || !pr.Head.Repo.Fork {
+				t.Errorf("PR 2 (fork): merge_commit_sha %v, head.repo %+v", pr.MergeCommit, pr.Head.Repo)
+			}
+		case 3:
+			if pr.Head.Repo != nil {
+				t.Errorf("PR 3 (deleted fork): head.repo %+v, want null", pr.Head.Repo)
+			}
+		}
+	}
+}
+
+// Phase 8.5: the merge methods are only served to an account with the push right.
+func TestRepoMergeMethods(t *testing.T) {
+	s := NewServer(t, Options{})
+	yes, no := true, false
+	s.AddRepo(Repo{ID: 1, Owner: "alice", Name: "projet", AllowSquashMerge: &yes, AllowMergeCommit: &no})
+	type repo struct {
+		Permissions struct {
+			Push bool `json:"push"`
+		} `json:"permissions"`
+		Squash *bool `json:"allow_squash_merge"`
+		Merge  *bool `json:"allow_merge_commit"`
+		Rebase *bool `json:"allow_rebase_merge"`
+	}
+	var got repo
+	r := get(t, s, "/repos/alice/projet")
+	wantStatus(t, "repo", r, http.StatusOK)
+	decode(t, r, &got)
+	if got.Permissions.Push || got.Squash != nil || got.Merge != nil || got.Rebase != nil {
+		t.Errorf("without push: %+v", got)
+	}
+	s.SetMergeMethods(1, true, &yes, &no, nil)
+	got = repo{}
+	r = get(t, s, "/repos/alice/projet")
+	decode(t, r, &got)
+	if !got.Permissions.Push || got.Squash == nil || !*got.Squash || got.Merge == nil || *got.Merge || got.Rebase != nil {
+		t.Errorf("with push: %+v", got)
+	}
+}
+
+// Phase 8.6: GET …/pulls/{n}/reviews (order kept, deleted account, bot, PENDING without date, body
+// served, pagination, unknown PR).
+func TestReviewsRoute(t *testing.T) {
+	s := NewServer(t, Options{})
+	s.AddRepo(Repo{ID: 1, Owner: "alice", Name: "projet"})
+	s.SetPullRequests(1, PullRequest{Number: 4, Author: "alice", CreatedAt: t0})
+	s.SetReviews(1, 4,
+		Review{ID: 10, Reviewer: "bob", State: "CHANGES_REQUESTED", SubmittedAt: t0.Add(time.Hour), Body: "corps"},
+		Review{ID: 11, Reviewer: "renovate[bot]", Bot: true, State: "COMMENTED", SubmittedAt: t0.Add(2 * time.Hour)},
+		Review{ID: 12, State: "APPROVED", SubmittedAt: t0.Add(3 * time.Hour)},
+		Review{ID: 13, Reviewer: "carol", State: "PENDING"},
+	)
+	r := get(t, s, "/repos/alice/projet/pulls/4/reviews")
+	wantStatus(t, "reviews", r, http.StatusOK)
+	var list []struct {
+		ID   int64 `json:"id"`
+		User *struct {
+			Login string `json:"login"`
+			ID    int64  `json:"id"`
+			Type  string `json:"type"`
+		} `json:"user"`
+		Body        string  `json:"body"`
+		State       string  `json:"state"`
+		SubmittedAt *string `json:"submitted_at"`
+	}
+	decode(t, r, &list)
+	if len(list) != 4 {
+		t.Fatalf("reviews = %+v", list)
+	}
+	if list[0].ID != 10 || list[0].User == nil || list[0].User.Login != "bob" || list[0].User.ID != accountID("bob") ||
+		list[0].Body != "corps" || list[0].State != "CHANGES_REQUESTED" || list[0].SubmittedAt == nil {
+		t.Errorf("review 10 = %+v", list[0])
+	}
+	if list[1].User == nil || list[1].User.Type != "Bot" {
+		t.Errorf("bot review = %+v", list[1])
+	}
+	if list[2].User != nil {
+		t.Errorf("deleted account: user = %+v", list[2].User)
+	}
+	if list[3].SubmittedAt != nil || list[3].State != "PENDING" {
+		t.Errorf("pending review = %+v", list[3])
+	}
+	r = get(t, s, "/repos/alice/projet/pulls/4/reviews?per_page=1&page=2")
+	wantStatus(t, "reviews page 2", r, http.StatusOK)
+	decode(t, r, &list)
+	if len(list) != 1 || list[0].ID != 11 || r.header.Get("Link") == "" {
+		t.Errorf("page 2 = %+v (Link %q)", list, r.header.Get("Link"))
+	}
+	wantStatus(t, "unknown PR", get(t, s, "/repos/alice/projet/pulls/5/reviews"), http.StatusNotFound)
+	wantStatus(t, "malformed number", get(t, s, "/repos/alice/projet/pulls/x/reviews"), http.StatusNotFound)
+
+	rec := &recordTB{TB: t}
+	bad := NewServer(rec, Options{})
+	bad.AddRepo(Repo{ID: 1, Owner: "a", Name: "b"})
+	expectFatal(t, rec, "reviews of an unknown PR", func() { bad.SetReviews(1, 1, Review{ID: 1, State: "APPROVED"}) })
+	bad.SetPullRequests(1, PullRequest{Number: 1, CreatedAt: t0})
+	expectFatal(t, rec, "review without identifier", func() { bad.SetReviews(1, 1, Review{State: "APPROVED"}) })
+	expectFatal(t, rec, "review without state", func() { bad.SetReviews(1, 1, Review{ID: 1}) })
+}

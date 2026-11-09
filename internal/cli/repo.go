@@ -86,9 +86,9 @@ type repoAddReport struct {
 }
 
 // newRepoAddCmd construit « watchoo repo add owner/repo [--branch main,dev,release/*] [--label X]
-// [--flemme N] [--dead N] ».
+// [--flemme N] [--dead N] [--conventions-since AAAA-MM-JJ] ».
 func newRepoAddCmd(deps Deps, opts *options) *cobra.Command {
-	var branch, label string
+	var branch, label, conventionsSince string
 	var flemme, dead int
 	cmd := &cobra.Command{
 		Use:   "add owner/repo",
@@ -96,7 +96,8 @@ func newRepoAddCmd(deps Deps, opts *options) *cobra.Command {
 		Long:  i18n.T("cli.repo.help.add_long"),
 		Example: `  watchoo repo add alice/projet-licence --label "Alice Martin"
   watchoo repo add https://github.com/mon-org/site-web --branch main,dev,release/*
-  watchoo repo add alice/projet-licence --flemme 3 --dead 10`,
+  watchoo repo add alice/projet-licence --flemme 3 --dead 10
+  watchoo repo add alice/projet-licence --conventions-since 2026-09-01`,
 		Args: exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ref, err := repoimport.ParseRef(args[0])
@@ -126,6 +127,13 @@ func newRepoAddCmd(deps Deps, opts *options) *cobra.Command {
 			if err := repoimport.ValidateThresholds(req.FlemmeAfterDays, req.DeadAfterDays); err != nil {
 				return fmt.Errorf("--%w", err)
 			}
+			if cmd.Flags().Changed("conventions-since") {
+				date, err := repoimport.ParseConventionsSince(conventionsSince)
+				if err != nil {
+					return fmt.Errorf("--conventions-since: %w", err)
+				}
+				req.ConventionsSince = &date
+			}
 			return runRepoAdd(cmd.Context(), deps, opts, req)
 		},
 	}
@@ -136,6 +144,8 @@ func newRepoAddCmd(deps Deps, opts *options) *cobra.Command {
 		i18n.T("cli.repo.help.add_flag_flemme"))
 	cmd.Flags().IntVar(&dead, "dead", 0,
 		i18n.T("cli.repo.help.add_flag_dead"))
+	cmd.Flags().StringVar(&conventionsSince, "conventions-since", "",
+		i18n.T("cli.repo.help.add_flag_conventions_since"))
 	return cmd
 }
 
@@ -180,6 +190,9 @@ func repoAddText(res wsync.AddResult) string {
 	details = append(details, branchesText(repo.BranchPatterns))
 	if t := thresholdsText(repo.FlemmeAfterDays, repo.DeadAfterDays); t != "" {
 		details = append(details, t)
+	}
+	if repo.ConventionsSince != "" {
+		details = append(details, i18n.T("cli.repo.conventions_since", repo.ConventionsSince))
 	}
 	var b strings.Builder
 	switch res.Outcome {
@@ -309,7 +322,13 @@ func runRepoList(ctx context.Context, deps Deps, opts *options) (err error) {
 		i18n.T("cli.repo.list.header_author"),
 		st.pick(i18n.T("cli.repo.list.header_state"), i18n.T("cli.repo.list.header_state_ascii")),
 	}
-	return writeText(deps.Stdout, renderTable(st, headers, rows, func(row int) bool { return states[row].State.Gray() }))
+	out := renderTable(st, headers, rows, func(row int) bool { return states[row].State.Gray() })
+	for _, sum := range summaries {
+		if sum.ConventionsSince != "" {
+			out += fmt.Sprintf(i18n.T("cli.repo.list.conventions_since"), sum.DisplayName(), sum.ConventionsSince)
+		}
+	}
+	return writeText(deps.Stdout, out)
 }
 
 // repoRemoveReport est la sortie JSON de « watchoo repo remove ».

@@ -9,6 +9,8 @@
     « repo-pulls »        : pull requests, releases et tags (V2 ; GET /repos/{id}, HX-Target: repo-pulls) ;
     « repo-diagnostic »   : score et signaux du diagnostic (1.6.0, diagnostic activé ; GET /repos/{id},
                             HX-Target: repo-diagnostic) ;
+    « repo-conventions »  : taux de commits conformes aux conventions (1.7.0, conventions activées ;
+                            GET /repos/{id}, HX-Target: repo-conventions) ;
     « repo-commits »      : filtres, historique paginé (GET /repos/{id}/commits).
   Les graphiques (activité par jour ; activité par contributeur, template « contributors-chart » de
   partials.html) ne sont pas des fragments : HTMX retire les <script> des contenus échangés, données
@@ -48,6 +50,7 @@
   {{template "repo-languages" .}}
   {{template "repo-pulls" .}}
   {{if .Content.Diagnostic}}{{template "repo-diagnostic" .}}{{end}}
+  {{if .Content.Conventions}}{{template "repo-conventions" .}}{{end}}
   {{template "repo-commits" .}}
 </div>
 {{end}}
@@ -313,6 +316,376 @@
   </div>
 </section>
 {{end}}
+
+{{/* Conventions du dépôt (1.7.0). Donnée : PageData (Content.Conventions, de type RepoConventionsView,
+     repo_conventions.go ; nil si les conventions sont désactivées : rien n'est écrit). Des taux n/m
+     expliqués, jamais une note ; aucun message de commit (SHA court, auteur et codes). */}}
+{{define "repo-conventions"}}{{with .Content.Conventions}}{{$c := .}}
+<section id="repo-conventions" class="card bg-base-100 shadow-sm min-w-0" aria-labelledby="repo-conventions-title"
+         hx-get="{{repoPath $.Content.Repo.ID}}" hx-trigger="sync-finished from:body" hx-swap="outerHTML">
+  <div class="card-body p-4 md:p-6 space-y-4">
+    <h2 id="repo-conventions-title" class="card-title text-lg">{{t "web.conv.title"}}</h2>
+    <div role="note" class="alert alert-soft text-sm"><span>{{t "web.conv.notice"}}</span></div>
+    {{if $c.Unknown}}
+    <p class="text-sm text-base-content/70">{{t "web.conv.unknown"}}</p>
+    {{else}}
+    {{if not $c.Evaluated}}
+    <p class="text-sm text-base-content/70">{{t "web.conv.none"}}</p>
+    {{else}}
+    <div class="stats stats-vertical sm:stats-horizontal bg-base-200 w-full">
+      <div class="stat">
+        <div class="stat-title">{{t "web.conv.conform"}}</div>
+        <div class="stat-value tabular-nums">{{$c.Conform}}/{{$c.Evaluated}}</div>
+        <div class="stat-desc">{{t "web.percent" $c.Percent}} · {{t "web.conv.conform_desc"}}</div>
+      </div>
+      {{if $c.DefaultBranch}}
+      <div class="stat">
+        <div class="stat-title">{{t "web.conv.default_branch" $c.DefaultBranch}}</div>
+        <div class="stat-value text-2xl tabular-nums">{{if $c.DefaultEvaluated}}{{$c.DefaultConform}}/{{$c.DefaultEvaluated}}{{else}}—{{end}}</div>
+        <div class="stat-desc">{{if $c.DefaultEvaluated}}{{t "web.percent" $c.DefaultPercent}} · {{end}}{{t "web.conv.default_desc"}}</div>
+      </div>
+      {{end}}
+    </div>
+    {{end}}
+    <ul class="text-sm space-y-1">
+      <li>{{t "web.conv.excluded" $c.Excluded}}{{if $c.Exclusions}} ({{range $i, $e := $c.Exclusions}}{{if $i}}, {{end}}{{$e.Label}} {{$e.Count}}{{end}}){{end}}</li>
+      {{if $c.BeforeSince}}<li>{{t "web.conv.before_since" $c.BeforeSince}}</li>{{end}}
+      {{if not $c.Since.IsZero}}<li>{{t "web.conv.since" (localDate $c.Since) $c.SinceOrigin}}</li>{{end}}
+    </ul>
+    {{if $c.Issues}}
+    <div class="overflow-x-auto">
+      <table class="table table-sm">
+        <caption class="text-left text-sm font-medium pb-2">{{t "web.conv.issues_caption"}}</caption>
+        <thead><tr>
+          <th scope="col">{{t "web.conv.col_code"}}</th>
+          <th scope="col">{{t "web.conv.col_severity"}}</th>
+          <th scope="col" class="text-right">{{t "web.col.commits"}}</th>
+        </tr></thead>
+        <tbody>
+          {{range $c.Issues}}
+          <tr>
+            <td><code>{{.Code}}</code> <span class="text-sm text-base-content/70">{{.Label}}</span></td>
+            <td><span class="badge badge-sm {{if .Blocking}}badge-error{{else}}badge-warning{{end}}">{{.Severity}}</span></td>
+            <td class="text-right tabular-nums">{{.Count}}</td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+    {{end}}
+    {{if $c.Failing}}
+    <div class="overflow-x-auto">
+      <table class="table table-sm">
+        <caption class="text-left text-sm font-medium pb-2">{{t "web.conv.failing_caption" (len $c.Failing) $c.FailingTotal}}</caption>
+        <thead><tr>
+          <th scope="col">Date</th>
+          <th scope="col">{{t "web.col.contributor"}}</th>
+          <th scope="col">SHA</th>
+          <th scope="col">{{t "web.conv.col_codes"}}</th>
+        </tr></thead>
+        <tbody>
+          {{range $c.Failing}}
+          <tr>
+            <td class="whitespace-nowrap"><time datetime="{{isoTime .Date}}">{{localDate .Date}}</time></td>
+            <td>{{if .Author}}{{truncate 30 .Author}}{{else}}-{{end}}</td>
+            <td class="font-mono">{{shortSHA .SHA}}</td>
+            <td class="text-sm">{{range $i, $code := .Codes}}{{if $i}}, {{end}}<code>{{$code}}</code>{{end}}</td>
+          </tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+    {{end}}
+    {{if $c.Evaluated}}
+    <ul class="text-sm space-y-1" id="repo-conventions-traits">
+      <li>{{t "web.conv.wording_title"}} {{if $c.Wording}}{{range $i, $w := $c.Wording}}{{if $i}}, {{end}}<code>{{$w.Code}}</code> {{$w.Label}} {{$w.Count}}{{end}}{{else}}{{t "web.conv.nothing"}}{{end}}</li>
+      <li>{{t "web.conv.footers_line" $c.Footer $c.Evaluated $c.Issue}}</li>
+      <li>{{t "web.conv.language_title"}} {{template "conv-language" $c.Language}}</li>
+    </ul>
+    {{end}}
+
+    <h3 class="font-semibold">{{t "web.conv.branches_title"}}</h3>
+    <div id="repo-conventions-branches" class="space-y-2">
+      {{if $c.BranchesChecked}}
+      <p class="text-sm">{{t "web.conv.branches_line" $c.BranchesConform $c.BranchesChecked}}{{if $c.BranchesReview}} · {{t "web.conv.to_review" $c.BranchesReview}}{{end}}</p>
+      {{else}}
+      <p class="text-sm text-base-content/70">{{t "web.conv.branches_none"}}</p>
+      {{end}}
+      {{if $c.BranchRows}}
+      <div class="overflow-x-auto">
+        <table class="table table-sm">
+          <caption class="text-left text-sm font-medium pb-2">{{t "web.conv.branches_caption" (len $c.BranchRows) $c.BranchRowsTotal}}</caption>
+          <thead><tr>
+            <th scope="col">{{t "web.conv.col_branch"}}</th>
+            <th scope="col">{{t "web.conv.col_codes"}}</th>
+            <th scope="col">{{t "web.conv.col_prs"}}</th>
+          </tr></thead>
+          <tbody>
+            {{range $c.BranchRows}}
+            <tr>
+              <td class="font-mono text-sm">{{truncate 60 (clean .Name)}}</td>
+              <td><div class="flex flex-wrap gap-1">{{range .Codes}}{{template "conv-code" .}}{{end}}</div></td>
+              <td class="text-sm tabular-nums">{{range $i, $n := .PRs}}{{if $i}}, {{end}}#{{$n}}{{else}}—{{end}}</td>
+            </tr>
+            {{end}}
+          </tbody>
+        </table>
+      </div>
+      {{end}}
+      <p class="text-xs text-base-content/60">{{if $c.BranchesDatabase}}{{t "web.conv.branches_database"}}{{else}}{{t "web.conv.branches_clone"}}{{end}}</p>
+    </div>
+
+    <h3 class="font-semibold">{{t "web.conv.pulls_title"}}</h3>
+    <div id="repo-conventions-pulls" class="space-y-2">
+      {{if not $c.PullsKnown}}
+      <p class="text-sm text-base-content/70">{{t "web.conv.pulls_unknown" $c.PullsReason}}</p>
+      {{else if not $c.Pulls.Evaluated}}
+      <p class="text-sm text-base-content/70">{{t "web.conv.pulls_none"}}</p>
+      {{else}}
+      <p class="text-sm">{{template "conv-pr-counts" $c.Pulls}}</p>
+      {{end}}
+      {{if $c.PullsSkipped}}<p class="text-xs text-base-content/60">{{t "web.conv.pulls_skipped"}} {{range $i, $k := $c.PullsSkipped}}{{if $i}}, {{end}}{{$k.Label}} {{$k.Count}}{{end}}</p>{{end}}
+      {{if $c.PullRows}}
+      <div class="overflow-x-auto">
+        <table class="table table-sm">
+          <caption class="text-left text-sm font-medium pb-2">{{t "web.conv.pulls_caption" (len $c.PullRows) $c.PullRowsTotal}}</caption>
+          <thead><tr>
+            <th scope="col">{{t "web.conv.col_pr"}}</th>
+            <th scope="col">{{t "web.col.contributor"}}</th>
+            <th scope="col">{{t "web.conv.col_head"}}</th>
+            <th scope="col">{{t "web.conv.col_codes"}}</th>
+            <th scope="col">{{t "web.conv.col_body"}}</th>
+            <th scope="col">{{t "web.conv.col_merge"}}</th>
+            <th scope="col">{{t "web.conv.col_review"}}</th>
+          </tr></thead>
+          <tbody>
+            {{range $c.PullRows}}
+            <tr>
+              <td class="tabular-nums whitespace-nowrap">#{{.Number}} <span class="text-xs text-base-content/60">{{if .Merged}}{{t "web.conv.pr_merged_short"}}{{else}}{{t "web.conv.pr_open_short"}}{{end}}</span></td>
+              <td>{{if .Author}}{{template "contributor-link" (dict "ID" .AuthorID "Name" (truncate 30 .Author) "Class" "")}}{{else}}-{{end}}</td>
+              <td class="font-mono text-sm">{{if .HeadBranch}}{{truncate 40 (clean .HeadBranch)}}{{else}}-{{end}}</td>
+              <td><div class="flex flex-wrap gap-1">{{range .Codes}}{{template "conv-code" .}}{{end}}</div></td>
+              <td>{{template "conv-status" (dict "Status" .Body "Text" "")}}</td>
+              <td>{{with .Merge}}{{template "conv-status" (dict "Status" . "Text" "")}}{{else}}—{{end}}</td>
+              <td>{{with .Review}}{{template "conv-status" (dict "Status" . "Text" "")}}{{else}}—{{end}}</td>
+            </tr>
+            {{end}}
+          </tbody>
+        </table>
+      </div>
+      {{end}}
+      <p class="text-xs text-base-content/60">{{t "web.conv.pulls_note"}}</p>
+    </div>
+
+    {{with $c.Merges}}
+    <h3 class="font-semibold">{{t "web.conv.merges_title"}}</h3>
+    <div id="repo-conventions-merges" class="space-y-2">
+      {{with .Arrivals}}
+      {{if not .Known}}
+      <p class="text-sm text-base-content/70">{{t "web.conv.arrivals_unknown" .Reason}}</p>
+      {{else}}
+      <p class="text-sm">{{t "web.conv.arrivals_line" .OutsidePR .Total .ByPR .Undetermined}}</p>
+      {{if .Note}}<p class="text-xs text-base-content/60">{{.Note}}</p>{{end}}
+      {{if .Rows}}
+      <div class="overflow-x-auto">
+        <table class="table table-sm">
+          <caption class="text-left text-sm font-medium pb-2">{{t "web.conv.arrivals_caption" (len .Rows) .RowsTotal}}</caption>
+          <thead><tr>
+            <th scope="col">SHA</th>
+            <th scope="col">{{t "web.conv.col_commit_author"}}</th>
+            <th scope="col">{{t "web.conv.col_arrival"}}</th>
+          </tr></thead>
+          <tbody>
+            {{range .Rows}}
+            <tr>
+              <td class="font-mono">{{shortSHA .SHA}}</td>
+              <td>{{if .Author}}{{template "contributor-link" (dict "ID" .AuthorID "Name" (truncate 30 .Author) "Class" "")}}{{else}}-{{end}}</td>
+              <td class="text-sm">{{.Reason}}</td>
+            </tr>
+            {{end}}
+          </tbody>
+        </table>
+      </div>
+      {{end}}
+      {{end}}
+      {{end}}
+      {{if .PullsKnown}}
+      {{if .BodyEvaluated}}<p class="text-sm">{{t "web.conv.bodies_line" .BodyConform .BodyKnown (sub .BodyEvaluated .BodyKnown)}}</p>{{end}}
+      {{if .MergedEvaluated}}<p class="text-sm">{{t "web.conv.merges_line" .MergeConform .MergedEvaluated}}{{if .Methods}} · {{range $i, $m := .Methods}}{{if $i}}, {{end}}{{$m.Label}} {{$m.Count}}{{end}}{{end}}</p>{{end}}
+      {{with .Reviews}}{{if .Merged}}
+      <div class="text-sm" id="repo-conventions-reviews">
+        <p>{{t "web.conv.reviews_line" .Reviewed .Known .Unread}}</p>
+        {{if .Rows}}<p>{{t "web.conv.reviews_missing" .RowsTotal}} {{range $i, $u := .Rows}}{{if $i}}, {{end}}#{{$u.Number}} ({{if $u.Author}}{{template "contributor-link" (dict "ID" $u.AuthorID "Name" (truncate 30 $u.Author) "Class" "")}}{{else}}-{{end}}){{end}}{{if gt .RowsTotal (len .Rows)}} …{{end}}</p>{{end}}
+        <p class="text-xs text-base-content/60">{{t "web.conv.reviews_note"}}</p>
+      </div>
+      {{end}}{{end}}
+      {{end}}
+      {{if .ReusedKnown}}
+      <p class="text-sm">{{if .Reused}}{{t "web.conv.reused_line" (len .Reused)}} {{range $i, $b := .Reused}}{{if $i}}, {{end}}<span class="font-mono">{{truncate 40 (clean $b.Name)}}</span> ({{range $j, $n := $b.PRs}}{{if $j}}, {{end}}#{{$n}}{{end}}){{end}}{{else}}{{t "web.conv.reused_none"}}{{end}}</p>
+      {{end}}
+      <p class="text-sm" id="repo-conventions-merge-methods">{{t "web.conv.methods_title"}}
+        {{if .MethodsKnown}}{{template "conv-status" (dict "Status" .MethodsStatus "Text" "")}} {{if .Allowed}}{{range $i, $a := .Allowed}}{{if $i}}, {{end}}{{$a}}{{end}}{{else}}{{t "web.conv.methods_none"}}{{end}}{{else}}<span class="text-base-content/70">{{t "web.conv.cell_unknown"}} ({{.MethodsReason}})</span>{{end}}</p>
+      <p class="text-xs text-base-content/60">{{t "web.conv.merges_note"}}</p>
+    </div>
+    {{end}}
+
+    <h3 class="font-semibold">{{t "web.conv.tags_title"}}</h3>
+    <div id="repo-conventions-tags" class="space-y-2">
+      {{if $c.TagsChecked}}
+      <p class="text-sm">{{t "web.conv.tags_line" $c.TagsConform $c.TagsChecked}}</p>
+      <div class="flex flex-wrap gap-1">{{range $c.Tags}}{{template "conv-status" (dict "Status" .Status "Text" (truncate 40 .Name))}}{{end}}</div>
+      {{if gt $c.TagsTotal (len $c.Tags)}}<p class="text-xs text-base-content/60">{{t "web.conv.tags_more" (len $c.Tags) $c.TagsTotal}}</p>{{end}}
+      {{range $c.Tags}}{{if .Codes}}<p class="text-xs"><span class="font-mono">{{truncate 40 (clean .Name)}}</span> — {{range $i, $code := .Codes}}{{if $i}}, {{end}}<code>{{$code.Code}}</code> {{$code.Label}}{{end}}</p>{{end}}{{end}}
+      {{else}}
+      <p class="text-sm text-base-content/70">{{t "web.conv.tags_none"}}</p>
+      {{end}}
+      {{if $c.Milestones}}
+      <p class="text-sm">{{t "web.conv.milestones_title"}}</p>
+      <div class="flex flex-wrap gap-1">{{range $c.Milestones}}{{template "conv-status" (dict "Status" .Status "Text" .Name)}}{{if .Tag}} <span class="text-xs text-base-content/60">({{truncate 40 (clean .Tag)}})</span>{{end}}{{with .Deadline}}{{template "conv-status" (dict "Status" . "Text" "")}}{{end}}{{if .DeadlineDetail}} <span class="text-xs text-base-content/60">{{.DeadlineDetail}}</span>{{end}}{{end}}</div>
+      {{end}}
+      <p class="text-sm">{{t "web.conv.releases_title"}}
+        {{if not $c.ReleasesKnown}}<span class="text-base-content/70">{{t "web.conv.releases_unknown" $c.ReleasesReason}}</span>
+        {{else if not $c.Releases}}<span class="text-base-content/70">{{t "web.conv.releases_none"}}</span>
+        {{else}}{{range $i, $n := $c.Releases}}{{if $i}}, {{end}}{{$n.Label}} <span class="font-mono">{{truncate 40 (clean $n.Tag)}}</span>{{end}}{{end}}
+      </p>
+    </div>
+
+    <h3 class="font-semibold">{{t "web.conv.intervals_title"}}</h3>
+    <div id="repo-conventions-intervals" class="space-y-2">
+      {{if not $c.IntervalsKnown}}
+      <p class="text-sm text-base-content/70">{{t "web.conv.intervals_unknown" $c.IntervalsReason}}</p>
+      {{else}}
+      <p class="text-sm">{{t "web.conv.interval_since" (clean $c.LastTag)}} {{if $c.SinceLastEval}}{{$c.SinceLastConform}}/{{$c.SinceLastEval}} ({{t "web.percent" $c.SinceLastPercent}}){{else}}—{{end}}</p>
+      <div class="overflow-x-auto">
+        <table class="table table-sm">
+          <caption class="text-left text-sm font-medium pb-2">{{t "web.conv.intervals_caption"}}</caption>
+          <thead><tr>
+            <th scope="col">{{t "web.conv.col_interval"}}</th>
+            <th scope="col" class="text-right">{{t "web.conv.col_commits"}}</th>
+          </tr></thead>
+          <tbody>
+            {{range $c.Intervals}}
+            <tr>
+              <td class="font-mono text-sm">{{if .From}}{{truncate 30 (clean .From)}}{{else}}{{t "web.conv.interval_start"}}{{end}}..{{truncate 30 (clean .To)}}</td>
+              <td class="text-right tabular-nums">{{if not .Known}}<span class="text-base-content/60">{{t "web.conv.cell_unknown"}}</span>{{else if .Evaluated}}{{.Conform}}/{{.Evaluated}} ({{t "web.percent" .Percent}}){{else}}—{{end}}{{if .Missing}} <span class="text-xs text-base-content/60">· {{t "web.conv.interval_missing" .Missing}}</span>{{end}}</td>
+            </tr>
+            {{end}}
+          </tbody>
+        </table>
+      </div>
+      {{end}}
+    </div>
+
+    {{/* Phase 8.4 : réécritures de la branche par défaut (BR4), historique des tags (SV3), pré-versions (SV4),
+         précédence (SV7), sauts de version (SV5), fraîcheur du CHANGELOG (CL10). Attribués à personne. */}}
+    <h3 class="font-semibold">{{t "web.conv.history_title"}}</h3>
+    <div id="repo-conventions-history" class="space-y-2">{{with $c.History}}
+      <p class="text-sm" id="repo-conventions-rewrites">{{t "web.conv.hist_label" (t "conv.indicator.BR4")}}
+        {{if not .RewritesKnown}}<span class="text-base-content/70">{{t "web.conv.cell_unknown"}} ({{.RewritesReason}})</span>
+        {{else if not .RewritesTotal}}<span class="text-base-content/70">{{t "conv.rewrites.none"}}</span>
+        {{else}}{{t "conv.rewrites.count" .RewritesTotal (localDate .RewritesLast)}}{{end}}
+      </p>
+      {{if .Rewrites}}<ul class="text-xs space-y-1 pl-5 list-disc">{{range .Rewrites}}<li>{{localDate .ObservedAt}} · <span class="font-mono">{{truncate 40 (clean .Branch)}}</span> · <span class="badge badge-sm badge-ghost font-mono">{{shortSHA .OldSHA}}</span> → <span class="badge badge-sm badge-ghost font-mono">{{shortSHA .NewSHA}}</span></li>{{end}}</ul>{{end}}
+      <p class="text-sm" id="repo-conventions-tag-history">{{t "web.conv.hist_label" (t "conv.indicator.SV3")}}
+        {{if not .TagsObserved}}<span class="text-base-content/70">{{t "web.conv.cell_unknown"}} ({{.TagsReason}})</span>
+        {{else}}{{t "web.conv.hist_line" .TagsStable (localDate .TagsSince) .TagsRewritten .TagsDeleted .TagsRestored}}{{end}}
+      </p>
+      {{if .TagHistory}}<div class="flex flex-wrap gap-1">{{range .TagHistory}}{{template "conv-status" (dict "Status" .Status "Text" (truncate 40 .Name))}}{{end}}</div>
+      {{if .TagHistoryMore}}<p class="text-xs text-base-content/60">{{t "web.conv.hist_more" .TagHistoryMore}}</p>{{end}}{{end}}
+      <p class="text-sm" id="repo-conventions-prereleases">{{t "web.conv.hist_label" (t "conv.indicator.SV4")}}
+        {{if not .PreKnown}}<span class="text-base-content/70">{{t "web.conv.cell_unknown"}} ({{.PreReason}})</span>
+        {{else if not .PreChecked}}<span class="text-base-content/70">{{t "conv.prereleases.none"}}</span>
+        {{else}}{{t "conv.prereleases.line" .PreConform .PreChecked}}{{end}}
+      </p>
+      {{if .PreNotes}}<div class="flex flex-wrap gap-1">{{range .PreNotes}}{{template "conv-status" (dict "Status" .Status "Text" (truncate 40 .Tag))}}{{if .Other}} <span class="text-xs text-base-content/60">({{truncate 40 (clean .Other)}})</span>{{end}}{{end}}</div>{{end}}
+      <p class="text-sm" id="repo-conventions-precedence">{{t "web.conv.hist_label" (t "conv.indicator.SV7")}}
+        {{if .PrecReason}}<span class="text-base-content/70">{{t "web.conv.cell_unknown"}} ({{.PrecReason}})</span>{{end}}
+        {{if .PrecKnown}}{{t "conv.precedence.line" .PrecPairs}}{{if .PrecConsistent}} · {{t "conv.precedence.consistent"}}{{end}}{{if .PrecUnknown}} · {{t "conv.precedence.unread" .PrecUnknown}}{{end}}{{end}}
+      </p>
+      {{if .PrecNotes}}<div class="flex flex-wrap gap-1">{{range .PrecNotes}}{{template "conv-status" (dict "Status" .Status "Text" (truncate 40 .Tag))}}{{if .Other}} <span class="text-xs text-base-content/60">({{truncate 40 (clean .Other)}})</span>{{end}}{{end}}</div>{{end}}
+      <p class="text-sm" id="repo-conventions-bumps">{{t "web.conv.hist_label" (t "conv.indicator.SV5")}}
+        {{if not .BumpsKnown}}<span class="text-base-content/70">{{t "web.conv.cell_unknown"}} ({{.BumpsReason}})</span>
+        {{else if not .BumpsTotal}}<span class="text-base-content/70">{{t "conv.bumps.none"}}</span>
+        {{else}}{{t "conv.bumps.line" .BumpsConsistent .BumpsUnder .BumpsUndet .BumpsUnread}}{{end}}
+      </p>
+      {{if .Bumps}}<ul class="text-xs space-y-1 pl-5 list-disc">{{range .Bumps}}<li><span class="font-mono">{{if .Other}}{{truncate 30 (clean .Other)}}{{else}}?{{end}}..{{truncate 30 (clean .Tag)}}</span> {{template "conv-status" (dict "Status" .Status "Text" "")}}{{if .Detail}} {{.Detail}}{{end}}</li>{{end}}</ul>{{end}}
+      <p class="text-sm{{if .FreshGrayed}} text-base-content/60{{end}}" id="repo-conventions-freshness">{{t "web.conv.hist_label" (t "conv.indicator.CL10")}}
+        {{if not .FreshKnown}}<span class="text-base-content/70">{{t "web.conv.cell_unknown"}} ({{.FreshReason}})</span>
+        {{else}}{{t "conv.freshness.line" .FreshFeat .FreshFix (shortSHA .FreshSince)}}{{if .FreshMissing}} · {{t "conv.freshness.missing" .FreshMissing}}{{end}}{{if .FreshGrayed}} · {{t "conv.freshness.grayed"}}{{end}}{{end}}
+      </p>
+      <p class="text-xs text-base-content/60">{{t "web.conv.history_note"}}</p>
+    {{end}}</div>
+
+    {{/* Phase 8.3 : critères de fichiers (cache de la synchro), listes de chemins repliées. */}}
+    <h3 class="font-semibold">{{t "web.conv.files_title"}}</h3>
+    <div id="repo-conventions-files" class="space-y-2">
+      {{with $c.Files}}
+      {{if not .Known}}
+      <p class="text-sm text-base-content/70">{{t "web.conv.files_unknown" .Reason}}</p>
+      {{else}}
+      <p class="text-xs text-base-content/60">{{t "web.conv.files_measured" (shortSHA .SHA) (localDate .ComputedAt)}}</p>
+      {{end}}
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-2">
+        {{range .Families}}
+        <div class="rounded-box bg-base-200/40 p-3 space-y-1" id="repo-conventions-{{.Name}}">
+          <p class="text-sm font-medium">{{.Label}} · {{t "web.conv.family_line" .Conform .Total .Unknown}}</p>
+          <ul class="text-sm space-y-1">
+            {{range .Checks}}
+            <li>{{template "conv-status" (dict "Status" .Status "Text" "")}} <span class="font-mono">{{.ID}}</span> {{.Label}}{{if .Reason}} <span class="text-xs text-base-content/60">({{.Reason}})</span>{{end}}{{if .Detail}} <span class="text-xs text-base-content/60">· {{.Detail}}</span>{{end}}
+              {{if .Codes}}<div class="flex flex-wrap gap-1 mt-1">{{range .Codes}}{{template "conv-code" .}}{{end}}</div>{{end}}
+            </li>
+            {{end}}
+          </ul>
+        </div>
+        {{end}}
+      </div>
+      {{if .Known}}
+      {{if .ListsReason}}<p class="text-sm text-base-content/70">{{t "web.conv.lists_unavailable" .ListsReason}}</p>
+      {{else if .Lists}}
+      <p class="text-sm font-medium">{{t "web.conv.lists_title"}}</p>
+      {{range .Lists}}
+      <details class="collapse collapse-arrow bg-base-200/40 rounded-box" id="repo-conventions-list-{{.Key}}">
+        <summary class="collapse-title text-sm font-medium min-h-0 py-2">{{.Label}}</summary>
+        <div class="collapse-content overflow-x-auto">
+          <ul class="list-disc pl-5 text-sm font-mono space-y-1">{{range .Paths}}<li class="break-all">{{clean .}}</li>{{end}}</ul>
+        </div>
+      </details>
+      {{end}}
+      {{else}}
+      <p class="text-sm text-base-content/70">{{t "web.conv.lists_none"}}</p>
+      {{end}}
+      {{end}}
+      {{end}}
+      <p class="text-xs text-base-content/60">{{t "web.conv.files_note"}}</p>
+    </div>
+
+    {{/* Phase 8.7 : pistes, repliées ; elles invitent à relire, elles ne jugent pas. */}}
+    {{with $c.Leads}}
+    <details class="collapse collapse-arrow bg-base-200/40 rounded-box" id="repo-conventions-leads">
+      <summary class="collapse-title text-sm font-medium min-h-0 py-2">{{t "web.conv.leads_title" .ToReview}}</summary>
+      <div class="collapse-content overflow-x-auto space-y-2">
+        <p class="text-xs text-base-content/60">{{t "web.conv.leads_note"}}</p>
+        <ul class="text-sm space-y-1">
+          {{range .Items}}
+          <li id="repo-conventions-lead-{{.ID}}">{{template "conv-status" (dict "Status" .Status "Text" "")}} <span class="font-mono">{{.ID}}</span> {{.Label}}{{if .Reason}} <span class="text-xs text-base-content/60">({{.Reason}})</span>{{end}}{{if .Detail}} <span class="text-xs text-base-content/60">· {{.Detail}}</span>{{end}}
+            {{if .Codes}}<div class="flex flex-wrap gap-1 mt-1">{{range .Codes}}<span class="badge badge-sm badge-ghost whitespace-nowrap"><code>{{.Code}}</code> {{.Label}}</span>{{end}}</div>{{end}}
+          </li>
+          {{end}}
+        </ul>
+        {{with .BrokenImages}}
+        <div id="repo-conventions-list-{{.Key}}">
+          <p class="text-sm font-medium">{{.Label}}</p>
+          <ul class="list-disc pl-5 text-sm font-mono space-y-1">{{range .Paths}}<li class="break-all">{{clean .}}</li>{{end}}</ul>
+        </div>
+        {{end}}
+      </div>
+    </details>
+    {{end}}
+    {{end}}
+    <p class="text-xs text-base-content/60">{{if $c.Database}}{{t "web.conv.source_database"}}{{else}}{{t "web.conv.source_clone"}}{{end}}{{if $c.ParentsUnknown}} {{t "web.conv.parents_unknown" $c.ParentsUnknown}}{{end}}</p>
+  </div>
+</section>
+{{end}}{{end}}
 
 {{/* Pull requests, releases et tags (V2). Donnée : PageData (Content.Pulls, de type RepoPullsView). */}}
 {{define "repo-pulls"}}{{$p := .Content.Pulls}}

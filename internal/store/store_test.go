@@ -17,13 +17,17 @@ import (
 	"github.com/studoo-app/watchoo/internal/store/migrations"
 )
 
-// expectedTables are the 13 tables of the data model (documentation/en/04-data-model.md): the 7
+// expectedTables are the 19 tables of the data model (documentation/en/04-data-model.md): the 7
 // of the MVP, the 3 of V2 (migration 00003), the languages (migration 00007), the AI signatures
-// (migration 00008) and the languages of the commits (migration 00009).
+// (migration 00008), the languages of the commits (migration 00009), the diagnosis (migrations 00011
+// to 00013), the cache of the file criteria of the conventions (migration 00017), the tag observations
+// (migration 00018) and the rewrites of the default branch (migration 00019). Migrations 00020 and
+// 00021 only add columns (pull_requests, repositories).
 var expectedTables = []string{
 	"repositories", "branches", "contributors", "contributor_emails", "commits", "commit_branches",
 	"sync_runs", "pull_requests", "releases", "tags", "repository_languages", "commit_ai_signatures",
 	"commit_languages", "commit_signals", "repository_signals", "diagnostic_reviews",
+	"repository_conventions", "tag_observations", "branch_rewrites",
 }
 
 // expectedIndexes are the indexes created explicitly by the migrations.
@@ -37,6 +41,9 @@ var expectedIndexes = []string{
 	"commit_signals_author_date",
 	"commit_signals_date",
 	"diagnostic_reviews_lead_date",
+	"tag_observations_open",
+	"tag_observations_repo_id_name",
+	"branch_rewrites_repo_id_observed_at",
 }
 
 func TestDSN(t *testing.T) {

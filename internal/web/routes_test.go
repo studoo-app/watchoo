@@ -15,6 +15,7 @@ func TestHeadAcceptedWhereGetIs(t *testing.T) {
 		repoPath(ids.Alice), repoPath(ids.Alice) + "/commits",
 		"/contributors", "/fragments/contributors", "/contributors/1", "/contributors/1/commits",
 		"/settings", "/settings" + repoPath(ids.Alice) + "/remove", "/fragments/quota", "/fragments/sync",
+		"/conventions",
 		"/static/app.js", "/favicon.ico", "/apple-touch-icon.png", "/manifest.webmanifest",
 	}
 	for _, target := range targets {

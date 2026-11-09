@@ -373,6 +373,8 @@ func (s *Server) repoRoute(repo *repoState, rest, escRest []string, r *http.Requ
 		return s.commitReply(repo, rest[1], now)
 	case len(rest) == 1 && rest[0] == "pulls":
 		return s.pullsReply(repo, q, linkBase, now)
+	case len(rest) == 3 && rest[0] == "pulls" && rest[2] == "reviews":
+		return s.reviewsReply(repo, rest[1], q, linkBase, now)
 	case len(rest) == 1 && rest[0] == "releases":
 		return s.releasesReply(repo, q, linkBase, now)
 	case len(rest) == 1 && rest[0] == "tags":

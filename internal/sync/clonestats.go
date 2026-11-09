@@ -207,5 +207,60 @@ func (s *repoSync) cloneStats(ctx context.Context, repoID int64, defaultBranch s
 	if computed > 0 {
 		s.e.logger.Debug("statistiques calculées par le clone", "repo", s.full, "commits", computed)
 	}
+	if err := s.backfillParents(ctx, repoID, cs); err != nil {
+		return 0, nil, err
+	}
 	return computed, writes, nil
+}
+
+// parentCounter est la lecture facultative du nombre de parents dans le clone (implémentée par
+// *git.Provider) : SHA absents du clone omis du résultat, clone lu sans mise à jour.
+type parentCounter interface {
+	ParentCounts(ctx context.Context, owner, name string, shas []string) (map[string]int, error)
+}
+
+// backfillParents rattrape le nombre de parents des commits déjà en base dont il est inconnu (base
+// d'avant la migration 00016 ; phase 8.1), page par page, dans le clone qui vient d'être préparé : les
+// valeurs lues vont dans s.parentWrites, écrites par ApplyRepoSync. Indépendant de conventions.enabled.
+// Un clone qui ne sait pas lire les parents, ou un échec de lecture, laisse les commits inconnus
+// (journalisé en Debug, sans chemin) ; erreur seulement si la base échoue (storeError) ou si le contexte
+// est terminé.
+func (s *repoSync) backfillParents(ctx context.Context, repoID int64, cs CloneStats) error {
+	pc, ok := cs.(parentCounter)
+	if !ok {
+		return nil
+	}
+	var writes []store.CommitParentsWrite
+	after := ""
+	for {
+		page, err := s.e.store.UnknownParentSHAs(ctx, repoID, after, unknownStatsPage)
+		if err != nil {
+			return &storeError{err}
+		}
+		if len(page) == 0 {
+			break
+		}
+		got, err := pc.ParentCounts(ctx, s.owner, s.name, page)
+		if err != nil {
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return ctxErr
+			}
+			s.e.logger.Debug("nombre de parents non lu", "repo", s.full, "erreur", errorMessage(err))
+			return nil
+		}
+		for _, sha := range page {
+			if n, ok := got[sha]; ok {
+				writes = append(writes, store.CommitParentsWrite{SHA: sha, Parents: n})
+			}
+		}
+		if len(page) < unknownStatsPage {
+			break
+		}
+		after = page[len(page)-1]
+	}
+	if len(writes) > 0 {
+		s.e.logger.Debug("nombre de parents rattrapé par le clone", "repo", s.full, "commits", len(writes))
+	}
+	s.parentWrites = writes
+	return nil
 }

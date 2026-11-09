@@ -142,7 +142,8 @@ func (s *server) reviewer() string {
 
 // rhythmOptions renvoie les options des signaux de rythme de l'espace.
 func (s *server) rhythmOptions() diagnostic.RhythmOptions {
-	opts := diagnostic.RhythmOptions{Location: s.loc, SpeedSignal: s.cfg.Diagnostic.SpeedSignal}
+	opts := diagnostic.RhythmOptions{Location: s.loc, SpeedSignal: s.cfg.Diagnostic.SpeedSignal,
+		ConventionsEnabled: s.cfg.Conventions.Enabled, ConventionsSince: s.cfg.Conventions.Since}
 	if days := s.cfg.Diagnostic.RetentionDays; days > 0 {
 		opts.RetentionCutoff = s.now().UTC().Add(-time.Duration(days) * 24 * time.Hour)
 	}

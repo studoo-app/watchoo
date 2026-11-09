@@ -45,6 +45,7 @@ var jsonTopLevelKeys = map[string][]string{
 	"update":              {"current", "latest", "update_available", "release_url"},
 	"diagnostic":          {"enabled", "leads", "contexts", "histories", "notice", "filters"},
 	"diagnostic backfill": {"repositories", "measured"},
+	"conventions":         {"enabled", "rules_version", "repositories", "contributors", "commits", "notice", "filters", "milestone"},
 }
 
 // pendingJSONCommands are documented in 05-cli.md but not implemented yet (none today): a command
@@ -94,6 +95,112 @@ func TestJSONSchemaAllCommands(t *testing.T) {
 	outputs["languages"] = h.run("languages", "--json").mustSucceed(t).stdout
 	outputs["status"] = h.run("status", "--json").mustSucceed(t).stdout
 	outputs["diagnostic"] = h.run("diagnostic", "--json").mustSucceed(t).stdout
+	// Conventions enabled (phase 8.1): same top-level keys with --commits, here tested on items.
+	t.Setenv("WATCHOO_CONVENTIONS_ENABLED", "true")
+	// A sync with the conventions enabled observes the tags (phase 8.4, tag_history).
+	h.run("sync").mustSucceed(t)
+	// Milestone v0.1.0, present as v0.1 without a release: a SV6 note.
+	t.Setenv("WATCHOO_CONVENTIONS_TAGS_MILESTONES", "v0.1.0,v1.0.0")
+	outputs["conventions"] = h.run("conventions", "--json").mustSucceed(t).stdout
+	assertJSONKeys(t, outputs["conventions"], "repositories.0", conventionsRepoKeys...)
+	assertJSONKeys(t, outputs["conventions"], "repositories.0.commits", conventionsTallyKeys...)
+	assertJSONKeys(t, outputs["conventions"], "repositories.0.commits.issues.0", "code", "severity", "count", "shas")
+	assertJSONKeys(t, outputs["conventions"], "repositories.0.commits.excluded", "merge", "bot", "initial_commit", "excluded_account")
+	assertJSONKeys(t, outputs["conventions"], "repositories.0.default_branch", "name", "evaluated", "conform", "rate")
+	assertJSONKeys(t, outputs["conventions"], "contributors.0", "author", "commits", "traits", "trend", "pull_requests", "branches",
+		"arrivals")
+	assertJSONKeys(t, outputs["conventions"], "contributors.0.commits", conventionsTallyKeys...)
+	assertJSONKeys(t, outputs["conventions"], "filters", "repository", "contributor", "commits", "failing", "milestone")
+	// Phase 8.2: branches, pull requests, tags, milestones, releases, traits, language, intervals, trend.
+	assertJSONKeys(t, outputs["conventions"], "repositories.0.traits", "evaluated", "wording", "footer", "issue_reference")
+	assertJSONKeys(t, outputs["conventions"], "repositories.0.traits.wording", "past_tense", "progressive", "first_person")
+	assertJSONKeys(t, outputs["conventions"], "repositories.0.language", "expected", "fr", "en", "unknown", "other", "mixed")
+	assertJSONKeys(t, outputs["conventions"], "repositories.0.branches", "source", "checked", "conform", "review", "items",
+		"reused")
+	assertJSONKeys(t, outputs["conventions"], "repositories.0.branches.items.0", "name", "codes", "conform", "review",
+		"in_source", "pull_requests", "authors")
+	assertJSONKeys(t, outputs["conventions"], "repositories.0.pull_requests", "known", "reason", "open", "merged", "skipped", "items",
+		"methods", "merged_without_review")
+	assertJSONKeys(t, outputs["conventions"], "repositories.0.pull_requests.open", "evaluated", "conform", "default",
+		"body_known", "body_conform", "merge_known", "squash", "merge_conform", "review_known", "reviewed", "reviews_received")
+	assertJSONKeys(t, outputs["conventions"], "repositories.0.pull_requests.skipped", "closed", "draft", "bot", "fork", "before_since")
+	assertJSONKeys(t, outputs["conventions"], "repositories.0.pull_requests.methods", "squash", "merge", "rebase", "unknown")
+	assertJSONKeys(t, outputs["conventions"], "repositories.0.pull_requests.items.0", "number", "category", "author",
+		"head_branch", "codes", "default_codes", "conform", "body", "merge", "review")
+	assertJSONKeys(t, outputs["conventions"], "repositories.0.pull_requests.items.0.review", "known", "reviews", "approvals",
+		"reviewed")
+	assertJSONKeys(t, outputs["conventions"], "repositories.0.pull_requests.items.0.body", "known", "found", "missing",
+		"closes", "conform")
+	assertJSONKeys(t, outputs["conventions"], "repositories.0.tags", "checked", "conform", "items", "milestones", "releases")
+	assertJSONKeys(t, outputs["conventions"], "repositories.0.tags.items.0", "name", "codes", "conform", "final")
+	assertJSONKeys(t, outputs["conventions"], "repositories.0.tags.milestones.0", "name", "due", "status", "tag", "others",
+		"deadline")
+	assertJSONKeys(t, outputs["conventions"], "repositories.0.tags.releases", "known", "reason", "notes")
+	assertJSONKeys(t, outputs["conventions"], "repositories.0.tags.releases.notes.0", "code", "tag")
+	assertJSONKeys(t, outputs["conventions"], "repositories.0.intervals", "known", "reason", "last_tag", "items", "since_last_tag")
+	// Phase 8.3: file criteria (cache of the sync; none here: every criterion unknown, "not computed").
+	for _, fam := range []string{"changelog", "readme", "tooling"} {
+		assertJSONKeys(t, outputs["conventions"], "repositories.0."+fam, conventionsFilesKeys...)
+		assertJSONKeys(t, outputs["conventions"], "repositories.0."+fam+".criteria.0", "id", "status", "reason", "codes", "counts")
+	}
+	assertJSONKeys(t, outputs["conventions"], "repositories.0.docs", append(conventionsFilesKeys, "lists")...)
+	assertJSONKeys(t, outputs["conventions"], "repositories.0.docs.lists", "computed", "reason", "unreferenced",
+		"duplicate_rows", "dead_links", "bad_names", "archives", "office_documents")
+	// Phase 8.4: history of the tags and of the default branch, versions, freshness of the CHANGELOG.
+	assertJSONKeys(t, outputs["conventions"], "repositories.0.rewrites", "known", "reason", "count", "last", "events")
+	assertJSONKeys(t, outputs["conventions"], "repositories.0.tag_history", "known", "reason", "since", "counts", "items")
+	assertJSONKeys(t, outputs["conventions"], "repositories.0.tag_history.counts", "stable", "restored", "rewritten", "deleted")
+	assertJSONKeys(t, outputs["conventions"], "repositories.0.tag_history.items.0", "name", "status", "sha",
+		"first_seen_at", "rewrites", "deletions")
+	assertJSONKeys(t, outputs["conventions"], "repositories.0.prereleases", "known", "reason", "checked", "conform", "notes")
+	assertJSONKeys(t, outputs["conventions"], "repositories.0.bumps", "known", "reason", "counts", "items")
+	assertJSONKeys(t, outputs["conventions"], "repositories.0.bumps.counts", "consistent", "under", "undetermined", "unknown")
+	assertJSONKeys(t, outputs["conventions"], "repositories.0.precedence", "known", "reason", "pairs", "unknown",
+		"conform", "notes")
+	assertJSONKeys(t, outputs["conventions"], "repositories.0.changelog_freshness", "known", "reason", "since", "feat",
+		"fix", "missing", "grayed")
+	// Phase 8.5: commits outside a pull request, reused branches, allowed merge methods.
+	assertJSONKeys(t, outputs["conventions"], "repositories.0.arrivals", "known", "reason", "mode", "complete", "by_pr",
+		"outside_pr", "undetermined", "reasons", "outside")
+	assertJSONKeys(t, outputs["conventions"], "repositories.0.arrivals.reasons", "merge_commit_sha", "rebase_run",
+		"github_merge", "squash_suffix", "human_committer", "local_merge", "web_edit", "not_in_db", "committer_unknown",
+		"unmatched", "clone_only")
+	assertJSONKeys(t, outputs["conventions"], "repositories.0.branches.reused", "known", "reason", "items")
+	assertJSONKeys(t, outputs["conventions"], "repositories.0.merge_methods", "known", "reason", "squash", "merge",
+		"rebase", "conform")
+	// Phase 8.7: leads, outside every grid and every rate.
+	assertJSONKeys(t, outputs["conventions"], "repositories.0.leads", "to_review", "items", "broken_images")
+	assertJSONKeys(t, outputs["conventions"], "repositories.0.leads.items.0", "id", "status", "reason", "codes", "counts",
+		"dates")
+	assertJSONKeys(t, outputs["conventions"], "contributors.0.arrivals", "by_pr", "outside_pr", "undetermined")
+	assertJSONKeys(t, outputs["conventions"], "contributors.0.traits", "evaluated", "wording", "footer", "issue_reference")
+	assertJSONKeys(t, outputs["conventions"], "contributors.0.trend", "known", "repositories", "unmeasured", "before", "since")
+	assertJSONKeys(t, outputs["conventions"], "contributors.0.trend.before", conventionsTallyKeys...)
+	assertJSONKeys(t, outputs["conventions"], "contributors.0.trend.since", conventionsTallyKeys...)
+	assertJSONKeys(t, outputs["conventions"], "contributors.0.pull_requests", "open", "merged")
+	for _, state := range []string{"open", "merged"} {
+		assertJSONKeys(t, outputs["conventions"], "contributors.0.pull_requests."+state, "evaluated", "conform", "default",
+			"body_known", "body_conform", "merge_known", "squash", "merge_conform", "review_known", "reviewed",
+			"reviews_received")
+	}
+	assertJSONKeys(t, outputs["conventions"], "contributors.0.branches", "checked", "conform", "review")
+	t.Setenv("WATCHOO_CONVENTIONS_SINCE", "2020-01-01")
+	review := h.run("conventions", "--milestone", "v1.0.0", "--json").mustSucceed(t).stdout
+	assertSingleJSONObject(t, "conventions --milestone", review)
+	assertJSONKeys(t, review, "", jsonTopLevelKeys["conventions"]...)
+	assertJSONKeys(t, review, "milestone", "name", "due", "criteria", "repositories")
+	assertJSONKeys(t, review, "milestone.repositories.0", "repository", "evaluable", "reason", "since", "status", "tag",
+		"tag_codes", "interval", "branches", "files", "deadline", "tag_history", "arrivals", "reviews", "criteria", "conform",
+		"unknown", "total")
+	assertJSONKeys(t, review, "milestone.repositories.0.criteria.0", "id", "status", "reason")
+	assertJSONKeys(t, review, "milestone.repositories.0.files", "state", "reason", "sha", "computed_at",
+		"readme_expected", "readme_found")
+	t.Setenv("WATCHOO_CONVENTIONS_SINCE", "")
+	commits := h.run("conventions", "--commits", "--json").mustSucceed(t).stdout
+	assertSingleJSONObject(t, "conventions --commits", commits)
+	assertJSONKeys(t, commits, "", jsonTopLevelKeys["conventions"]...)
+	assertJSONKeys(t, commits, "commits.0", "repository", "sha", "short_sha", "author", "date", "conform", "codes")
+	t.Setenv("WATCHOO_CONVENTIONS_ENABLED", "")
 	// Diagnosis enabled, on local clones of the tracked repositories (phase 7.3).
 	clones := gittest.NewServer(t)
 	for _, owner := range []string{"alice", "bob", "dave"} {
@@ -141,6 +248,18 @@ func TestJSONSchemaAllCommands(t *testing.T) {
 	assertJSONKeys(t, weekly, "contributors.0", contributorKeys...)
 	assertJSONKeys(t, weekly, "contributors.0.weekly.0", "week", "count")
 }
+
+// conventionsRepoKeys and conventionsTallyKeys are the keys of a repository of "conventions" and of
+// its rates (05-cli.md, JSON output).
+var (
+	conventionsRepoKeys = []string{"repository", "source", "since", "since_origin", "commits", "before_since", "parents_unknown",
+		"default_branch", "traits", "language", "branches", "pull_requests", "tags", "intervals",
+		"changelog", "readme", "docs", "tooling",
+		"rewrites", "tag_history", "prereleases", "bumps", "precedence", "changelog_freshness",
+		"arrivals", "merge_methods", "leads"}
+	conventionsFilesKeys = []string{"state", "reason", "sha", "computed_at", "conform", "unknown", "total", "criteria"}
+	conventionsTallyKeys = []string{"evaluated", "conform", "rate", "excluded", "issues"}
+)
 
 // contributorKeys are the keys of an item of "contributors" (05-cli.md, JSON output).
 var contributorKeys = []string{"id", "name", "login", "display_name", "avatar_url", "commits", "additions",
@@ -225,9 +344,9 @@ func TestJSONSchemaConfigImport(t *testing.T) {
 		assertJSONKeys(t, r.stdout, "repositories.0", "index", "repo", "action", "reenable", "before", "after",
 			"outcome", "error")
 		assertJSONKeys(t, r.stdout, "repositories.0.before", "label", "branches", "flemme_after_days",
-			"dead_after_days", "enabled")
+			"dead_after_days", "conventions_since", "enabled")
 		assertJSONKeys(t, r.stdout, "repositories.0.after", "label", "branches", "flemme_after_days",
-			"dead_after_days", "enabled")
+			"dead_after_days", "conventions_since", "enabled")
 		assertJSONKeys(t, r.stdout, "summary", "added", "already_tracked", "updated", "reenabled", "inaccessible",
 			"errors")
 		assertJSONKeys(t, r.stdout, "warnings.0", "code", "key", "message")
@@ -268,6 +387,7 @@ func TestJSONSchemaEmptyWorkspace(t *testing.T) {
 		{[]string{"languages"}, `"languages": []`},
 		{[]string{"sync"}, `"repositories": []`},
 		{[]string{"status"}, `"errors": []`},
+		{[]string{"conventions"}, `"repositories": []`},
 	} {
 		r := h.run(append(tt.args, "--json")...).mustSucceed(t)
 		assertSingleJSONObject(t, strings.Join(tt.args, " "), r.stdout)

@@ -1,7 +1,8 @@
 package github
 
 // Appels d'API sur les dépôts et les branches. Règles communes aux trois fichiers :
-//   - valider les arguments (provider.ValidateRepo, ValidateSHA, ValidateBranch, ValidateID) AVANT
+//   - valider les arguments (provider.ValidateRepo, ValidateSHA, ValidateBranch, ValidateID,
+//     ValidateNumber) AVANT
 //     tout appel ; l'erreur de validation est renvoyée telle quelle (elle enveloppe ErrInvalidRef) ;
 //   - appeler go-github par p.client ; toute erreur de go-github passe par
 //     p.convertError(ctx, op, resp, err), avec le contexte de l'appelant (pas de classement local, sauf
@@ -9,8 +10,8 @@ package github
 //     CommitStats), une réponse inexploitable par p.unexpected(op, resp) ;
 //   - op : « lecture du dépôt alice/projet », « lecture du dépôt n° 123 », « liste des branches de
 //     alice/projet », « liste des commits de alice/projet », « comparaison 1a2b3c4...5d6e7f8 dans
-//     alice/projet », « statistiques du commit 1a2b3c4 de alice/projet », « lecture du quota de
-//     l'API » (SHA courts : provider.ShortSHA) ;
+//     alice/projet », « statistiques du commit 1a2b3c4 de alice/projet », « liste des relectures de la
+//     pull request n° 7 de alice/projet », « lecture du quota de l'API » (SHA courts : provider.ShortSHA) ;
 //   - pagination : ListOptions{PerPage: PerPage, Page: n}, page suivante = resp.NextPage ; arrêt quand
 //     NextPage vaut 0, quand NextPage <= page courante (garde-fou), au plafond (provider.MaxCommits,
 //     provider.MaxBranches), ou au plus tard après plafond/PerPage + 1 pages ;
@@ -55,7 +56,9 @@ const (
 // Conversion (toRepository, utilisée aussi par RepositoryByID) : ID = id ; Owner = owner.login ;
 // Name = name ; DefaultBranch = default_branch ; URL = html_url ; Stars = stargazers_count ;
 // OpenIssues = open_issues_count ; Archived = archived ; Private = private ; PushedAt = pushed_at en
-// UTC (zéro si absent). Un dépôt sans id, sans owner.login ou sans name → p.unexpected.
+// UTC (zéro si absent) ; AllowSquashMerge, AllowMergeCommit, AllowRebaseMerge = allow_squash_merge,
+// allow_merge_commit, allow_rebase_merge (phase 8.5), Unknown si absents (GitHub ne les renvoie qu'à un
+// compte qui a le droit push). Un dépôt sans id, sans owner.login ou sans name → p.unexpected.
 func (p *Provider) Repository(ctx context.Context, owner, name string) (provider.Repository, error) {
 	if err := provider.ValidateRepo(owner, name); err != nil {
 		return provider.Repository{}, err
@@ -99,6 +102,10 @@ func (p *Provider) toRepository(op string, resp *gogithub.Response, r *gogithub.
 		Archived:      r.GetArchived(),
 		Private:       r.GetPrivate(),
 		PushedAt:      utc(r.GetPushedAt()),
+		// Les pointeurs, pas GetAllow…() : un champ absent est inconnu, pas faux.
+		AllowSquashMerge: provider.OptionalBoolOf(r.AllowSquashMerge),
+		AllowMergeCommit: provider.OptionalBoolOf(r.AllowMergeCommit),
+		AllowRebaseMerge: provider.OptionalBoolOf(r.AllowRebaseMerge),
 	}, nil
 }
 

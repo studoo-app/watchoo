@@ -170,9 +170,107 @@ func (q *Queries) LatestReleaseByRepo(ctx context.Context, repoID interface{}) (
 	return items, nil
 }
 
+const listConventionPullRequests = `-- name: ListConventionPullRequests :many
+SELECT p.repo_id, p.number, p.title, p.state, p.merged, p.draft, p.author_login, p.author_provider_id,
+       p.url, p.base_branch, p.head_branch, p.created_at, p.updated_at, p.closed_at, p.merged_at, p.tool_ids,
+       p.merge_commit_sha, p.from_fork, p.body_sections,
+       p.reviews_by_others, p.approvals_by_others, p.approvals_by_contributors, p.reviews_checked_at,
+       CAST(COALESCE(c.id, 0) AS INTEGER) AS author_id,
+       CAST(COALESCE(c.name, '') AS TEXT) AS author_name
+FROM pull_requests p
+JOIN repositories r ON r.id = p.repo_id
+LEFT JOIN contributors c ON p.author_provider_id <> 0 AND c.provider = r.provider
+                          AND c.provider_user_id = p.author_provider_id
+WHERE p.repo_id = ?
+ORDER BY p.number DESC
+`
+
+type ListConventionPullRequestsRow struct {
+	RepoID                  int64
+	Number                  int64
+	Title                   string
+	State                   string
+	Merged                  bool
+	Draft                   bool
+	AuthorLogin             string
+	AuthorProviderID        int64
+	URL                     string
+	BaseBranch              string
+	HeadBranch              string
+	CreatedAt               string
+	UpdatedAt               string
+	ClosedAt                sql.NullString
+	MergedAt                sql.NullString
+	ToolIds                 string
+	MergeCommitSha          sql.NullString
+	FromFork                sql.NullInt64
+	BodySections            sql.NullInt64
+	ReviewsByOthers         sql.NullInt64
+	ApprovalsByOthers       sql.NullInt64
+	ApprovalsByContributors sql.NullInt64
+	ReviewsCheckedAt        sql.NullString
+	AuthorID                int64
+	AuthorName              string
+}
+
+// Pull requests du depot pour les conventions (phase 8.2), numero decroissant : titre (lu en memoire
+// seulement, jamais garde), etat, brouillon, auteur et branche de tete, commit de fusion, origine (fork)
+// et masque des sections du corps (phase 8.5) ; author_id = contributeur du
+// meme compte de forge (0 si aucun).
+func (q *Queries) ListConventionPullRequests(ctx context.Context, repoID int64) ([]ListConventionPullRequestsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listConventionPullRequests, repoID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListConventionPullRequestsRow{}
+	for rows.Next() {
+		var i ListConventionPullRequestsRow
+		if err := rows.Scan(
+			&i.RepoID,
+			&i.Number,
+			&i.Title,
+			&i.State,
+			&i.Merged,
+			&i.Draft,
+			&i.AuthorLogin,
+			&i.AuthorProviderID,
+			&i.URL,
+			&i.BaseBranch,
+			&i.HeadBranch,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ClosedAt,
+			&i.MergedAt,
+			&i.ToolIds,
+			&i.MergeCommitSha,
+			&i.FromFork,
+			&i.BodySections,
+			&i.ReviewsByOthers,
+			&i.ApprovalsByOthers,
+			&i.ApprovalsByContributors,
+			&i.ReviewsCheckedAt,
+			&i.AuthorID,
+			&i.AuthorName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listPullRequests = `-- name: ListPullRequests :many
 SELECT p.repo_id, p.number, p.title, p.state, p.merged, p.draft, p.author_login, p.author_provider_id,
        p.url, p.base_branch, p.head_branch, p.created_at, p.updated_at, p.closed_at, p.merged_at, p.tool_ids,
+       p.merge_commit_sha, p.from_fork, p.body_sections,
+       p.reviews_by_others, p.approvals_by_others, p.approvals_by_contributors, p.reviews_checked_at,
        r.owner AS repo_owner, r.name AS repo_name, r.label AS repo_label
 FROM pull_requests p
 JOIN repositories r ON r.id = p.repo_id
@@ -193,25 +291,32 @@ type ListPullRequestsParams struct {
 }
 
 type ListPullRequestsRow struct {
-	RepoID           int64
-	Number           int64
-	Title            string
-	State            string
-	Merged           bool
-	Draft            bool
-	AuthorLogin      string
-	AuthorProviderID int64
-	URL              string
-	BaseBranch       string
-	HeadBranch       string
-	CreatedAt        string
-	UpdatedAt        string
-	ClosedAt         sql.NullString
-	MergedAt         sql.NullString
-	ToolIds          string
-	RepoOwner        string
-	RepoName         string
-	RepoLabel        string
+	RepoID                  int64
+	Number                  int64
+	Title                   string
+	State                   string
+	Merged                  bool
+	Draft                   bool
+	AuthorLogin             string
+	AuthorProviderID        int64
+	URL                     string
+	BaseBranch              string
+	HeadBranch              string
+	CreatedAt               string
+	UpdatedAt               string
+	ClosedAt                sql.NullString
+	MergedAt                sql.NullString
+	ToolIds                 string
+	MergeCommitSha          sql.NullString
+	FromFork                sql.NullInt64
+	BodySections            sql.NullInt64
+	ReviewsByOthers         sql.NullInt64
+	ApprovalsByOthers       sql.NullInt64
+	ApprovalsByContributors sql.NullInt64
+	ReviewsCheckedAt        sql.NullString
+	RepoOwner               string
+	RepoName                string
+	RepoLabel               string
 }
 
 // Pull requests filtrees (depot, etat, merge, compte de l'auteur), de la plus recemment modifiee a la plus ancienne.
@@ -248,9 +353,75 @@ func (q *Queries) ListPullRequests(ctx context.Context, arg ListPullRequestsPara
 			&i.ClosedAt,
 			&i.MergedAt,
 			&i.ToolIds,
+			&i.MergeCommitSha,
+			&i.FromFork,
+			&i.BodySections,
+			&i.ReviewsByOthers,
+			&i.ApprovalsByOthers,
+			&i.ApprovalsByContributors,
+			&i.ReviewsCheckedAt,
 			&i.RepoOwner,
 			&i.RepoName,
 			&i.RepoLabel,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPullRequestsToReview = `-- name: ListPullRequestsToReview :many
+SELECT p.number, p.merged, p.merged_at, p.created_at, p.updated_at, p.author_login, p.author_provider_id
+FROM pull_requests p
+WHERE p.repo_id = ?
+  AND (p.from_fork IS NULL OR p.from_fork = 0)
+  AND ((p.merged = 1 AND p.merged_at IS NOT NULL
+        AND (p.reviews_checked_at IS NULL OR p.reviews_checked_at < p.merged_at))
+    OR (p.merged = 0 AND p.state = 'open' AND p.draft = 0
+        AND (p.reviews_checked_at IS NULL OR p.reviews_checked_at < p.updated_at)))
+ORDER BY p.merged DESC, p.merged_at DESC, p.updated_at DESC, p.number DESC
+`
+
+type ListPullRequestsToReviewRow struct {
+	Number           int64
+	Merged           bool
+	MergedAt         sql.NullString
+	CreatedAt        string
+	UpdatedAt        string
+	AuthorLogin      string
+	AuthorProviderID int64
+}
+
+// PR dont les relectures sont a lire (phase 8.6) : fusionnees jamais relues depuis leur fusion
+// (reviews_checked_at NULL ou anterieur a merged_at : une seule lecture apres la fusion suffit), puis
+// ouvertes hors brouillons modifiees depuis la derniere lecture ; jamais les PR issues d'un fork
+// (from_fork = 1). Fusionnees d'abord (fusion la plus recente d'abord), puis ouvertes (modification la
+// plus recente d'abord). L'appelant ecarte les auteurs bots, les PR ouvertes avant la date de debut des
+// conventions (created_at) et applique le plafond.
+func (q *Queries) ListPullRequestsToReview(ctx context.Context, repoID int64) ([]ListPullRequestsToReviewRow, error) {
+	rows, err := q.db.QueryContext(ctx, listPullRequestsToReview, repoID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListPullRequestsToReviewRow{}
+	for rows.Next() {
+		var i ListPullRequestsToReviewRow
+		if err := rows.Scan(
+			&i.Number,
+			&i.Merged,
+			&i.MergedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.AuthorLogin,
+			&i.AuthorProviderID,
 		); err != nil {
 			return nil, err
 		}
@@ -436,10 +607,79 @@ func (q *Queries) PullRequestCounts(ctx context.Context, repoID int64) (PullRequ
 	return i, err
 }
 
+const setPullRequestConventions = `-- name: SetPullRequestConventions :execrows
+UPDATE pull_requests
+SET merge_commit_sha = ?1,
+    from_fork = COALESCE(?2, from_fork),
+    body_sections = COALESCE(?3, body_sections)
+WHERE repo_id = ?4 AND number = ?5
+`
+
+type SetPullRequestConventionsParams struct {
+	MergeCommitSha sql.NullString
+	FromFork       sql.NullInt64
+	BodySections   sql.NullInt64
+	RepoID         int64
+	Number         int64
+}
+
+// Relecture complete des PR (phase 8.5) : ecrit le commit de fusion, l'origine (fork) et le masque des
+// sections du corps d'une PR deja en base, sans toucher aux autres colonnes (tool_ids compris) ; from_fork
+// et body_sections inconnus (NULL) gardent la valeur connue. 0 ligne : PR absente.
+func (q *Queries) SetPullRequestConventions(ctx context.Context, arg SetPullRequestConventionsParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, setPullRequestConventions,
+		arg.MergeCommitSha,
+		arg.FromFork,
+		arg.BodySections,
+		arg.RepoID,
+		arg.Number,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const setPullRequestReviews = `-- name: SetPullRequestReviews :execrows
+UPDATE pull_requests
+SET reviews_by_others = ?1,
+    approvals_by_others = ?2,
+    approvals_by_contributors = ?3,
+    reviews_checked_at = ?4
+WHERE repo_id = ?5 AND number = ?6
+`
+
+type SetPullRequestReviewsParams struct {
+	ReviewsByOthers         sql.NullInt64
+	ApprovalsByOthers       sql.NullInt64
+	ApprovalsByContributors sql.NullInt64
+	ReviewsCheckedAt        sql.NullString
+	RepoID                  int64
+	Number                  int64
+}
+
+// Relectures d'une PR deja en base (phase 8.6, PR4) : compteurs seulement, jamais de login de relecteur
+// ni de corps ; reviews_checked_at = date de la lecture. 0 ligne : PR absente.
+func (q *Queries) SetPullRequestReviews(ctx context.Context, arg SetPullRequestReviewsParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, setPullRequestReviews,
+		arg.ReviewsByOthers,
+		arg.ApprovalsByOthers,
+		arg.ApprovalsByContributors,
+		arg.ReviewsCheckedAt,
+		arg.RepoID,
+		arg.Number,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const upsertPullRequest = `-- name: UpsertPullRequest :exec
 INSERT INTO pull_requests (repo_id, number, title, state, merged, draft, author_login, author_provider_id,
-                           url, base_branch, head_branch, created_at, updated_at, closed_at, merged_at, tool_ids)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                           url, base_branch, head_branch, created_at, updated_at, closed_at, merged_at, tool_ids,
+                           merge_commit_sha, from_fork, body_sections)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT (repo_id, number) DO UPDATE SET
     title = excluded.title,
     state = excluded.state,
@@ -454,7 +694,10 @@ ON CONFLICT (repo_id, number) DO UPDATE SET
     updated_at = excluded.updated_at,
     closed_at = excluded.closed_at,
     merged_at = excluded.merged_at,
-    tool_ids = excluded.tool_ids
+    tool_ids = excluded.tool_ids,
+    merge_commit_sha = excluded.merge_commit_sha,
+    from_fork = COALESCE(excluded.from_fork, pull_requests.from_fork),
+    body_sections = COALESCE(excluded.body_sections, pull_requests.body_sections)
 `
 
 type UpsertPullRequestParams struct {
@@ -474,9 +717,13 @@ type UpsertPullRequestParams struct {
 	ClosedAt         sql.NullString
 	MergedAt         sql.NullString
 	ToolIds          string
+	MergeCommitSha   sql.NullString
+	FromFork         sql.NullInt64
+	BodySections     sql.NullInt64
 }
 
-// Cree la pull request (repo_id, number) ou la met a jour en entier.
+// Cree la pull request (repo_id, number) ou la met a jour en entier. merge_commit_sha est remplace
+// (NULL : non fusionnee) ; from_fork et body_sections inconnus (NULL) gardent la valeur connue.
 func (q *Queries) UpsertPullRequest(ctx context.Context, arg UpsertPullRequestParams) error {
 	_, err := q.db.ExecContext(ctx, upsertPullRequest,
 		arg.RepoID,
@@ -495,6 +742,9 @@ func (q *Queries) UpsertPullRequest(ctx context.Context, arg UpsertPullRequestPa
 		arg.ClosedAt,
 		arg.MergedAt,
 		arg.ToolIds,
+		arg.MergeCommitSha,
+		arg.FromFork,
+		arg.BodySections,
 	)
 	return err
 }

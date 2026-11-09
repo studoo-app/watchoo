@@ -104,10 +104,10 @@ func (q *Queries) ExistingCommitSHAs(ctx context.Context, arg ExistingCommitSHAs
 const insertCommit = `-- name: InsertCommit :execrows
 INSERT INTO commits (
     repo_id, sha, author_id, committer_id, message, authored_at, committed_at,
-    additions, deletions, stats_known, url
+    additions, deletions, stats_known, url, parent_count
 ) VALUES (
     ?, ?, ?, ?, ?, ?, ?,
-    ?, ?, ?, ?
+    ?, ?, ?, ?, ?
 )
 ON CONFLICT (repo_id, sha) DO NOTHING
 `
@@ -124,6 +124,7 @@ type InsertCommitParams struct {
 	Deletions   int64
 	StatsKnown  bool
 	URL         string
+	ParentCount sql.NullInt64
 }
 
 // Insere un commit ; un commit deja en base n'est jamais modifie (0 ligne inseree).
@@ -140,6 +141,7 @@ func (q *Queries) InsertCommit(ctx context.Context, arg InsertCommitParams) (int
 		arg.Deletions,
 		arg.StatsKnown,
 		arg.URL,
+		arg.ParentCount,
 	)
 	if err != nil {
 		return 0, err
@@ -257,6 +259,131 @@ func (q *Queries) ListCommitsToScanForAI(ctx context.Context, arg ListCommitsToS
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listConventionCommits = `-- name: ListConventionCommits :many
+SELECT c.sha, c.message, c.parent_count, c.authored_at, c.committed_at,
+       CAST(COALESCE(c.author_id, 0) AS INTEGER) AS author_id,
+       CAST(COALESCE(a.name, '') AS TEXT) AS author_name,
+       CAST(COALESCE(a.provider_login, '') AS TEXT) AS author_login,
+       CAST(COALESCE((SELECT group_concat(ae.email, ' ') FROM contributor_emails ae
+                      WHERE ae.contributor_id = c.author_id), '') AS TEXT) AS author_emails,
+       CAST(COALESCE(cm.provider_login, '') AS TEXT) AS committer_login,
+       CAST(COALESCE((SELECT group_concat(ce.email, ' ') FROM contributor_emails ce
+                      WHERE ce.contributor_id = c.committer_id), '') AS TEXT) AS committer_emails,
+       CAST(EXISTS (SELECT 1 FROM commit_branches cb JOIN branches b ON b.id = cb.branch_id
+                    WHERE cb.repo_id = c.repo_id AND cb.sha = c.sha AND b.tracked = 1) AS INTEGER) AS on_tracked,
+       CAST(EXISTS (SELECT 1 FROM commit_branches cb JOIN branches b ON b.id = cb.branch_id
+                    JOIN repositories r ON r.id = c.repo_id
+                    WHERE cb.repo_id = c.repo_id AND cb.sha = c.sha AND b.name = r.default_branch) AS INTEGER) AS on_default
+FROM commits c
+LEFT JOIN contributors a ON a.id = c.author_id
+LEFT JOIN contributors cm ON cm.id = c.committer_id
+WHERE c.repo_id = ?1
+  AND (?2 IS NULL OR c.author_id = ?2)
+ORDER BY c.authored_at DESC, c.sha
+`
+
+type ListConventionCommitsParams struct {
+	RepoID   int64
+	AuthorID interface{}
+}
+
+type ListConventionCommitsRow struct {
+	SHA             string
+	Message         string
+	ParentCount     sql.NullInt64
+	AuthoredAt      string
+	CommittedAt     string
+	AuthorID        int64
+	AuthorName      string
+	AuthorLogin     string
+	AuthorEmails    string
+	CommitterLogin  string
+	CommitterEmails string
+	OnTracked       int64
+	OnDefault       int64
+}
+
+// Commits du depot pour les conventions (phase 8.1), du plus recent au plus ancien : message (lu en
+// memoire seulement, jamais garde), nombre de parents (NULL = inconnu), auteur et committer (logins et
+// adresses separees par des espaces), date du committer (phase 8.5, PR3), rattachement a une branche suivie et a la branche par defaut
+// (commit_branches, repli sans clone). author_id NULL = tous les auteurs.
+func (q *Queries) ListConventionCommits(ctx context.Context, arg ListConventionCommitsParams) ([]ListConventionCommitsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listConventionCommits, arg.RepoID, arg.AuthorID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListConventionCommitsRow{}
+	for rows.Next() {
+		var i ListConventionCommitsRow
+		if err := rows.Scan(
+			&i.SHA,
+			&i.Message,
+			&i.ParentCount,
+			&i.AuthoredAt,
+			&i.CommittedAt,
+			&i.AuthorID,
+			&i.AuthorName,
+			&i.AuthorLogin,
+			&i.AuthorEmails,
+			&i.CommitterLogin,
+			&i.CommitterEmails,
+			&i.OnTracked,
+			&i.OnDefault,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listUnknownParentSHAs = `-- name: ListUnknownParentSHAs :many
+SELECT sha FROM commits
+WHERE repo_id = ?1
+  AND parent_count IS NULL
+  AND sha > ?2
+ORDER BY sha
+LIMIT ?3
+`
+
+type ListUnknownParentSHAsParams struct {
+	RepoID   int64
+	AfterSha string
+	RowLimit int64
+}
+
+// SHA des commits du depot dont le nombre de parents est inconnu, par ordre croissant, apres after_sha
+// (pagination ; chaine vide = depuis le debut), au plus row_limit.
+func (q *Queries) ListUnknownParentSHAs(ctx context.Context, arg ListUnknownParentSHAsParams) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, listUnknownParentSHAs, arg.RepoID, arg.AfterSha, arg.RowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var sha string
+		if err := rows.Scan(&sha); err != nil {
+			return nil, err
+		}
+		items = append(items, sha)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err
@@ -400,6 +527,28 @@ type SetCommitLanguagesVersionParams struct {
 // Marque les langages d'un commit lus avec cette version de regles (0 ligne : commit absent).
 func (q *Queries) SetCommitLanguagesVersion(ctx context.Context, arg SetCommitLanguagesVersionParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, setCommitLanguagesVersion, arg.LanguagesVersion, arg.RepoID, arg.SHA)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const setCommitParentCount = `-- name: SetCommitParentCount :execrows
+UPDATE commits
+SET parent_count = ?1
+WHERE repo_id = ?2 AND sha = ?3 AND parent_count IS NULL
+`
+
+type SetCommitParentCountParams struct {
+	ParentCount sql.NullInt64
+	RepoID      int64
+	SHA         string
+}
+
+// Enregistre le nombre de parents d'un commit deja en base dont il est inconnu (un nombre connu n'est
+// jamais reecrit).
+func (q *Queries) SetCommitParentCount(ctx context.Context, arg SetCommitParentCountParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, setCommitParentCount, arg.ParentCount, arg.RepoID, arg.SHA)
 	if err != nil {
 		return 0, err
 	}

@@ -13,9 +13,9 @@
 //
 // Le binaire git est lancé par os/exec, avec des tableaux d'arguments (jamais de shell), « -- » avant
 // les URL et les références quand git l'accepte, et seulement des commandes de lecture du dépôt
-// distant (ls-remote, fetch) ou du clone (for-each-ref, log, rev-parse, diff…), plus la création du
-// clone (init) et la remise de sa copie de travail sur la branche par défaut (symbolic-ref, checkout,
-// reset). Jamais de push, jamais de commande dans un dépôt de l'utilisateur : seuls les clones signés
+// distant (ls-remote, fetch) ou du clone (for-each-ref, log, rev-parse, diff, ls-tree, cat-file…),
+// plus la création du clone (init) et la remise de sa copie de travail sur la branche par défaut
+// (symbolic-ref, checkout, reset). Jamais de push, jamais de commande dans un dépôt de l'utilisateur : seuls les clones signés
 // par Watchoo dans Options.Dir sont touchés, désignés par --git-dir (et --work-tree), sans recherche
 // du dépôt depuis le répertoire courant.
 //
@@ -43,7 +43,7 @@
 //
 // Ni identifiant numérique de dépôt (RepositoryByID : ErrUnsupported), ni login GitHub des auteurs
 // (nom et e-mail Git seulement), ni étoiles, issues, état archivé (Repository.Partial), ni pull
-// requests, ni releases (ErrUnsupported), ni quota (RateLimit : ErrUnsupported ; LastRateLimit :
+// requests ni leurs relectures, ni releases (ErrUnsupported), ni quota (RateLimit : ErrUnsupported ; LastRateLimit :
 // false). Les tags et les statistiques des commits (« --numstat ») sont disponibles.
 //
 // # Statistiques avec ou sans gh
@@ -289,10 +289,12 @@ func (p *Provider) gitEnv(ctx context.Context) []string {
 }
 
 // repoEnv sont les variables d'environnement qui feraient travailler git sur un autre dépôt que le
-// clone désigné : retirées de l'environnement de git.
+// clone désigné, ou qui changeraient le sens des pathspecs (les pistes de la phase 8.7 écrivent leur
+// magie explicitement, « :(top,exclude,literal) ») : retirées de l'environnement de git.
 var repoEnv = []string{"GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY",
 	"GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_COMMON_DIR", "GIT_NAMESPACE", "GIT_CEILING_DIRECTORIES",
-	"GIT_DISCOVERY_ACROSS_FILESYSTEM"}
+	"GIT_DISCOVERY_ACROSS_FILESYSTEM", "GIT_LITERAL_PATHSPECS", "GIT_GLOB_PATHSPECS", "GIT_NOGLOB_PATHSPECS",
+	"GIT_ICASE_PATHSPECS"}
 
 // isRepoEnv indique si kv (« NOM=valeur ») est l'une des variables de repoEnv.
 func isRepoEnv(kv string) bool {
@@ -524,6 +526,17 @@ func (p *Provider) PullRequests(_ context.Context, owner, name string, _ provide
 		return nil, err
 	}
 	return nil, unsupported(i18n.T("provider.git.op.pulls", owner, name))
+}
+
+// PullRequestReviews : pas de relectures de pull requests dans un clone Git (ErrUnsupported).
+func (p *Provider) PullRequestReviews(_ context.Context, owner, name string, number int) ([]provider.PullRequestReview, error) {
+	if err := provider.ValidateRepo(owner, name); err != nil {
+		return nil, err
+	}
+	if err := provider.ValidateNumber(number); err != nil {
+		return nil, err
+	}
+	return nil, unsupported(i18n.T("provider.git.op.reviews", number, owner, name))
 }
 
 // Releases : pas de releases dans un clone Git (ErrUnsupported).

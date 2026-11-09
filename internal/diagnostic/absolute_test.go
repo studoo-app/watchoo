@@ -34,7 +34,7 @@ func TestAbsoluteSignalsOneGo(t *testing.T) {
 		measured("init", day0, 1, 10, model.CommitForm{ShortIdentifiers: 0}),
 		measured("dump", day0.Add(time.Hour), 12, 900, model.CommitForm{DecorativeLines: 6, FrWords: 20, FrWordsUnaccented: 19}),
 	}
-	got := absoluteSignals(g)
+	got := absoluteSignals(g, RhythmOptions{})
 	if ids := hitsOf(t, got, "dump"); !slices.Equal(ids, []string{"A1", "A2", "A5", "A6", "A7"}) {
 		t.Fatalf("signals of the dump commit: %v", ids)
 	}
@@ -55,7 +55,7 @@ func TestAbsoluteSignalsSilenceRevertAndCounters(t *testing.T) {
 		measured("d", day0.Add(150*time.Minute), 2, 150, model.CommitForm{WIPMarkers: 2, ShortIdentifiers: 4}),
 		measured("e", day0.AddDate(0, 0, 20), 5, 350, model.CommitForm{}),
 	}
-	got := absoluteSignals(g)
+	got := absoluteSignals(g, RhythmOptions{})
 	if ids := hitsOf(t, got, "d"); !slices.Equal(ids, []string{"A4", "H1", "H2", "H4"}) {
 		t.Errorf("revert then replacement: %v", ids)
 	}
@@ -78,7 +78,7 @@ func TestAbsoluteSignalsSkeleton(t *testing.T) {
 		measured("skel", day0, 8, 8, model.CommitForm{}),
 		measured("big", day0.Add(time.Hour), 3, 600, model.CommitForm{}),
 	}
-	got := absoluteSignals(g)
+	got := absoluteSignals(g, RhythmOptions{})
 	if ids := hitsOf(t, got, "big"); !slices.Equal(ids, []string{"A1", "A2", "H3"}) {
 		t.Errorf("signals with an initial skeleton: %v", ids)
 	}
@@ -86,7 +86,7 @@ func TestAbsoluteSignalsSkeleton(t *testing.T) {
 
 func TestAbsoluteSignalsNeedMeasuredForm(t *testing.T) {
 	v := view(1, "x", day0, 900, 0, 10) // form not measured (row from before phase 7.7)
-	if got := absoluteSignals([]store.CommitSignalView{v}); len(got) != 0 {
+	if got := absoluteSignals([]store.CommitSignalView{v}, RhythmOptions{}); len(got) != 0 {
 		t.Errorf("unmeasured form: %v", got)
 	}
 }

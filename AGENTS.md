@@ -9,12 +9,12 @@ three questions: what moved, when, and who did it. It offers a CLI, an interacti
 (`watchoo tui`) and a local web interface (`watchoo serve`). Every monitored group (e.g. a class's
 projects) lives in its own directory, initialized by `watchoo init`.
 
-**Current state: v1.6.1, stable release (phases 1 to 6 of the [roadmap](documentation/en/07-roadmap.md) in place: MVP, configuration sharing and V2, then the per-contributor page, updating Watchoo, the bilingual interface — English by default, French —, the stabilization of the public surface, then the languages and the share of the contributors, then the AI signatures and the languages of the contributors, then the sync warnings per repository in the web interface, in v1.3.1 a dedicated message for an unknown SSH host key, then in v1.4.0 the supervision and diagnosis, phases 7.1 to 7.5: declared, rhythm and form signals, reflection leads and human review, off by default, then in v1.5.0 phase 7.7: absolute signals and counter-indicators, then in v1.6.0 the EN / FR language selector of the web interface and phase 7.8 of the diagnosis: lines behind the signals on the review sheet, read when shown, and a diagnosis score per repository and per contributor, then in v1.6.1 the link to the documentation in the language of the web interface, the icons of the AI score, the AI score and the leads of the commits on a contributor's page). Since 1.0.0, an incompatible change to the public surface (commands, flags, exit codes, `--json` keys, settings, `WATCHOO_*` variables, database schema, web routes) requires a MAJOR version.**
+**Current state: v1.7.0, stable release (phases 1 to 6 of the [roadmap](documentation/en/07-roadmap.md) in place: MVP, configuration sharing and V2, then the per-contributor page, updating Watchoo, the bilingual interface — English by default, French —, the stabilization of the public surface, then the languages and the share of the contributors, then the AI signatures and the languages of the contributors, then the sync warnings per repository in the web interface, in v1.3.1 a dedicated message for an unknown SSH host key, then in v1.4.0 the supervision and diagnosis, phases 7.1 to 7.5: declared, rhythm and form signals, reflection leads and human review, off by default, then in v1.5.0 phase 7.7: absolute signals and counter-indicators, then in v1.6.0 the EN / FR language selector of the web interface and phase 7.8 of the diagnosis: lines behind the signals on the review sheet, read when shown, and a diagnosis score per repository and per contributor, then in v1.6.1 the link to the documentation in the language of the web interface, the icons of the AI score, the AI score and the leads of the commits on a contributor's page, then in v1.7.0 phase 8 of the project conventions, phase 8.1: compliance of the commits with the Conventional Commits charter, `watchoo conventions`, off by default, and the A1, A2 and F4 adjustments of the diagnosis when it is on, then phase 8.2: branch names, pull request titles, tags and milestones, releases as information, CC5 to CC7, CC1 per range between tags, CC3 trend, first milestone review `watchoo conventions --milestone` and the `/conventions` web page, computed when reading without migration, then phase 8.3: CHANGELOG, README, documentation and tooling criteria read by the sync from the Git objects of the local clone (head of the default branch and milestone tags) and cached in `repository_conventions`, migration 00017, with the file criteria of the milestone review, then phase 8.4: tag observations and rewrites of the default branch recorded by the sync when the conventions are on (`tag_observations`, `branch_rewrites`, migrations 00018 and 00019, 19 tables), due dates of the milestones, tag history SV3, pre-releases SV4 (`conventions.tags.prerelease_forms`), version bumps SV5, precedence SV7 and CHANGELOG freshness CL10 computed when reading, SV3 in the milestone review, then phase 8.5: merge SHA, fork origin and sections of the pull request descriptions (the description read in memory only, never stored) and allowed merge methods read from the `GET /pulls` and `GET /repos` responses already requested, migration 00020 (still 19 tables), one full reread of the pull request list per repository when the conventions are on, commits outside a pull request PR3 (first parent of the default branch of the clone, credited to the commit author), PR5 (`conventions.pr.body_sections`, `conventions.pr.require_closes`), PR6, BR2, BR5, forks set aside from PR1, PR2, PR5, PR6, BR1 and BR2, PR3 in the milestone review, then phase 8.6: pull request reviews read by the sync when the conventions are on in API mode (`PullRequestReviews`, `GET /pulls/{n}/reviews`, once per merged pull request, at most 100 per repository and per sync, under the quota reserve), reduced to counters, migration 00021 (still 19 tables, no reviewer login stored), PR4 (`conventions.pr.min_reviews`, `conventions.pr.reviewer_must_contribute`, applied when reading), merged without review, reviews received per contributor, PR4 in the milestone review, then phase 8.7: leads that invite a reread without judging, outside every grid, rate and the milestone review, CL11, CL12, RD5, DOC6, DOC7 and TL4 cached by the sync from the tree of the head (`FileRulesVersion` 2), DOC9, DOC10 and TL5 read from the clone's history in the detailed view of a repository only, `leads` key in `--json`, collapsed "Leads" block on the repository page, no migration nor setting; phase 8 done, except branch protection BR3, postponed; and the sorting and filters of the dashboard). Since 1.0.0, an incompatible change to the public surface (commands, flags, exit codes, `--json` keys, settings, `WATCHOO_*` variables, database schema, web routes) requires a MAJOR version.**
 `watchoo init` creates a workspace; `repo add / import / list / remove`, `sync`, `log`,
-`contributors`, `languages`, `prs`, `releases`, `status`, `version`, `update` and `diagnostic` work in text and `--json` (stable schema, documented in
+`contributors`, `languages`, `prs`, `releases`, `status`, `version`, `update`, `diagnostic` and `conventions` work in text and `--json` (stable schema, documented in
 [05-cli.md](documentation/en/05-cli.md#json-output) and verified by `internal/cli/json_schema_test.go`);
 `watchoo tui` opens the interactive mode; `watchoo serve` serves the local web interface (dashboard and
-contributors with activity charts, repository detail, a contributor's page, settings) and syncs in the background. The
+contributors with activity charts, repository detail, a contributor's page, settings, and `/conventions` when the conventions are on) and syncs in the background. The
 business core is in `internal/sync` (engine: incremental sync, lock, quota, repository addition;
 `Coordinator`: a single sync at a time in a long-running process), `internal/activity` (Actif /
 Flemme / Dead and gray states, activity series by day and by week) and `internal/repoimport` (refs,
@@ -43,7 +43,7 @@ the same numbering; the index is [INDEX.md](documentation/INDEX.md).
 | Vision, scope | [01-vision.md](documentation/en/01-vision.md) |
 | Features and rules (Actif / Flemme / Dead states…) | [02-features.md](documentation/en/02-features.md) |
 | Architecture, stack, technical decisions | [03-architecture.md](documentation/en/03-architecture.md) |
-| Data model (16 tables) | [04-data-model.md](documentation/en/04-data-model.md) |
+| Data model (19 tables) | [04-data-model.md](documentation/en/04-data-model.md) |
 | CLI, TUI, bulk import | [05-cli.md](documentation/en/05-cli.md) |
 | Web interface | [06-web-interface.md](documentation/en/06-web-interface.md) |
 | Roadmap by phases | [07-roadmap.md](documentation/en/07-roadmap.md) |
@@ -51,6 +51,7 @@ the same numbering; the index is [INDEX.md](documentation/INDEX.md).
 | Workspaces (`watchoo init`) | [10-workspaces.md](documentation/en/10-workspaces.md) |
 | Skills | [11-skills.md](documentation/en/11-skills.md) |
 | Supervision and diagnosis (signals, guardrails, phase 7) | [12-supervision-diagnostic.md](documentation/en/12-supervision-diagnostic.md) |
+| Project conventions (compliance indicators, milestone review, phase 8) | [13-conventions.md](documentation/en/13-conventions.md) |
 
 A decision that changes what is documented is made **in the documentation first**, with the
 maintainer's approval, then in the code.
@@ -92,7 +93,18 @@ internal/diagnostic/  diagnosis (phase 7): per-commit signals (file exclusions, 
                       "probable", "to review"); keeps neither message, PR description, path nor code
 internal/repoimport/  repository refs, --branch patterns, import files
 internal/configshare/ configuration sharing (JSON export, validation, preview, import)
-internal/aisignature/ AI signatures declared in the commits (catalog, detection, pure functions)
+internal/aisignature/ AI signatures declared in the commits (catalog, detection, pure functions), bot
+                      accounts (IsBot) and GitHub committer (web-flow, noreply@github.com)
+internal/conventions/ project conventions (phase 8): strict Conventional Commits parser (CC2 codes),
+                      exclusions and aggregation (CC1-CC4), start date, report builder (pure functions,
+                      branches BR1, pull request titles PR1-PR2, tags SV1-SV2-SV6, CC5-CC7, milestone review;
+                      file criteria CL/RD/DOC/TL from a tree and blobs, minimal Markdown reader;
+                      history BR4-SV3, due dates of SV2, SV4-SV5-SV7, CL10 (phase 8.4);
+                      merges PR3-PR5-PR6-BR2-BR5 (phase 8.5); review counters and PR4 (phase 8.6);
+                      leads CL11-CL12-RD5-DOC6-DOC7-TL4 (tree) and DOC9-DOC10-TL5 (history) (phase 8.7);
+                      Reader / CloneReader / HistoryReader / LeadHistoryReader interfaces); never keeps nor
+                      displays a commit message
+internal/semver/      SemVer 2.0.0 parsing and precedence (selfupdate, phase 8)
 internal/textclean/   cleaning of displayed texts (escape sequences), CLI and TUI
 internal/selfupdate/  updating Watchoo itself: latest release (redirection of /releases/latest),
                       verified download (SHA-256), binary replacement; selfupdatetest/ (fake server)
@@ -135,7 +147,10 @@ make docker           # local Docker image (IMAGE=watchoo:dev), never pushed
   `internal/provider/github/` (the only package importing go-github) and `internal/provider/git/` (clone
   and page URLs of github.com repositories). Exceptions: `internal/selfupdate/` reads the public
   pages of Watchoo's own releases (standard library, no token and no GitHub API); the catalog of
-  `internal/aisignature/` compares account names and no-reply addresses, with no access to the forge.
+  `internal/aisignature/` compares account names and no-reply addresses, with no access to the forge;
+  `internal/conventions/` recognizes the github.com URLs of the same repository
+  (`github.com/<owner>/<name>/blob|tree|raw/<ref>/…`) in the Markdown links (RD3, DOC3, DOC4), as text,
+  with no access to the forge.
 - Types generated by sqlc never leave `internal/store/`; they are converted to `internal/model`.
 - Web handlers stay plain `http.Handler`.
 - **Incremental** sync: never re-download a commit already in the database; use ETags;

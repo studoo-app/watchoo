@@ -26,6 +26,7 @@ interactif dans le terminal (`watchoo tui`) ou via une interface web locale serv
 | 10 | [Espaces de supervision](10-espaces-de-supervision.md) | `watchoo init`, un répertoire par groupe supervisé, scénario « étudiants de licence » |
 | 11 | [Skills des agents de code](11-skills.md) | Skills installés via skills.sh, organisation dans le dépôt, règles |
 | 12 | [Supervision et diagnostic](12-supervision-diagnostic.md) | Détection de signaux à revoir, garde-fous, plan par phases (proposition) |
+| 13 | [Conventions de projet](13-conventions.md) | Indicateurs de conformité à une charte (commits, branches, PR, SemVer, CHANGELOG, README, INDEX), revue de jalon, décisions |
 | — | [Glossaire](glossaire.md) | Vocabulaire du projet |
 
 ## En une image

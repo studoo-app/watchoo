@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/studoo-app/watchoo/internal/conventions"
 	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/model"
 	"github.com/studoo-app/watchoo/internal/store/db"
@@ -19,23 +20,28 @@ import (
 // Renvoie une erreur enveloppant ErrAlreadyExists si (provider, provider_id) ou (provider, owner, name)
 // existe déjà. Les dates zéro sont enregistrées à NULL.
 func (s *Store) CreateRepository(ctx context.Context, r model.Repository) (model.Repository, error) {
+	since, err := nullSince(r.ConventionsSince)
+	if err != nil {
+		return model.Repository{}, wrapErr(i18n.T("store.repo.add", r.FullName()), err)
+	}
 	row, err := s.queries.CreateRepository(ctx, db.CreateRepositoryParams{
-		Provider:        r.Provider,
-		ProviderID:      nullID(r.ProviderID),
-		Owner:           r.Owner,
-		Name:            r.Name,
-		Label:           r.Label,
-		DefaultBranch:   r.DefaultBranch,
-		URL:             r.URL,
-		Stars:           int64(r.Stars),
-		OpenIssues:      int64(r.OpenIssues),
-		LastSyncedAt:    nullTime(r.LastSyncedAt),
-		LastCommitAt:    nullTime(r.LastCommitAt),
-		Archived:        r.Archived,
-		FlemmeAfterDays: nullInt(r.FlemmeAfterDays),
-		DeadAfterDays:   nullInt(r.DeadAfterDays),
-		Enabled:         r.Enabled,
-		BranchPatterns:  JoinBranchPatterns(r.BranchPatterns),
+		Provider:         r.Provider,
+		ProviderID:       nullID(r.ProviderID),
+		Owner:            r.Owner,
+		Name:             r.Name,
+		Label:            r.Label,
+		DefaultBranch:    r.DefaultBranch,
+		URL:              r.URL,
+		Stars:            int64(r.Stars),
+		OpenIssues:       int64(r.OpenIssues),
+		LastSyncedAt:     nullTime(r.LastSyncedAt),
+		LastCommitAt:     nullTime(r.LastCommitAt),
+		Archived:         r.Archived,
+		FlemmeAfterDays:  nullInt(r.FlemmeAfterDays),
+		DeadAfterDays:    nullInt(r.DeadAfterDays),
+		Enabled:          r.Enabled,
+		BranchPatterns:   JoinBranchPatterns(r.BranchPatterns),
+		ConventionsSince: since,
 	})
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -106,7 +112,8 @@ func (s *Store) ListRepositories(ctx context.Context) ([]model.Repository, error
 }
 
 // DeleteRepository supprime le dépôt d'identifiant id et, par cascade, ses branches, commits,
-// appartenances commit/branche et journaux de synchro. Renvoie une erreur enveloppant ErrNotFound si
+// appartenances commit/branche, journaux de synchro et autres données du dépôt (signaux, revues,
+// critères de fichiers des conventions…). Renvoie une erreur enveloppant ErrNotFound si
 // aucun dépôt n'a cet identifiant.
 func (s *Store) DeleteRepository(ctx context.Context, id int64) error {
 	n, err := s.queries.DeleteRepository(ctx, id)
@@ -139,24 +146,34 @@ func repositoryFromDB(row db.Repository) (model.Repository, error) {
 	if err != nil {
 		return model.Repository{}, wrapErr(i18n.T("store.repo.last_commit_at", row.ID), err)
 	}
+	conventionsSince, err := conventions.SinceDate(row.ConventionsSince.String)
+	if err != nil {
+		return model.Repository{}, wrapErr(i18n.T("store.repo.conventions_since", row.ID), err)
+	}
 	return model.Repository{
-		ID:              row.ID,
-		Provider:        row.Provider,
-		ProviderID:      row.ProviderID.Int64, // NULL : 0 (identifiant pas encore connu)
-		Owner:           row.Owner,
-		Name:            row.Name,
-		Label:           row.Label,
-		DefaultBranch:   row.DefaultBranch,
-		URL:             row.URL,
-		Stars:           int(row.Stars),
-		OpenIssues:      int(row.OpenIssues),
-		LastSyncedAt:    lastSyncedAt,
-		LastCommitAt:    lastCommitAt,
-		Archived:        row.Archived,
-		FlemmeAfterDays: intPtr(row.FlemmeAfterDays),
-		DeadAfterDays:   intPtr(row.DeadAfterDays),
-		Enabled:         row.Enabled,
-		BranchPatterns:  SplitBranchPatterns(row.BranchPatterns),
+		ID:               row.ID,
+		Provider:         row.Provider,
+		ProviderID:       row.ProviderID.Int64, // NULL : 0 (identifiant pas encore connu)
+		Owner:            row.Owner,
+		Name:             row.Name,
+		Label:            row.Label,
+		DefaultBranch:    row.DefaultBranch,
+		URL:              row.URL,
+		Stars:            int(row.Stars),
+		OpenIssues:       int(row.OpenIssues),
+		LastSyncedAt:     lastSyncedAt,
+		LastCommitAt:     lastCommitAt,
+		Archived:         row.Archived,
+		FlemmeAfterDays:  intPtr(row.FlemmeAfterDays),
+		DeadAfterDays:    intPtr(row.DeadAfterDays),
+		Enabled:          row.Enabled,
+		BranchPatterns:   SplitBranchPatterns(row.BranchPatterns),
+		ConventionsSince: conventionsSince,
+		AllowSquashMerge: boolPtr(row.AllowSquashMerge),
+		AllowMergeCommit: boolPtr(row.AllowMergeCommit),
+		AllowRebaseMerge: boolPtr(row.AllowRebaseMerge),
+		// NULL : 0 (liste complète des PR jamais relue).
+		ConventionsPRsVersion: int(row.ConventionsPrsVersion.Int64),
 	}, nil
 }
 
@@ -217,6 +234,59 @@ func nullInt(p *int) sql.NullInt64 {
 		return sql.NullInt64{}
 	}
 	return sql.NullInt64{Int64: int64(*p), Valid: true}
+}
+
+// nullSince convertit une date de début des conventions (AAAA-MM-JJ, ou déjà au format stocké) vers la
+// colonne conventions_since : vide donne NULL, toute autre date minuit UTC au format fixe.
+func nullSince(date string) (sql.NullString, error) {
+	stored, err := conventions.NormalizeSince(date)
+	if err != nil || stored == "" {
+		return sql.NullString{}, err
+	}
+	return sql.NullString{String: stored, Valid: true}, nil
+}
+
+// nullBool convertit un booléen facultatif (nil = inconnu) vers une colonne INTEGER nullable 0/1.
+func nullBool(p *bool) sql.NullInt64 {
+	if p == nil {
+		return sql.NullInt64{}
+	}
+	var v int64
+	if *p {
+		v = 1
+	}
+	return sql.NullInt64{Int64: v, Valid: true}
+}
+
+// boolPtr est la conversion inverse de nullBool : NULL donne nil, toute valeur non nulle true.
+func boolPtr(n sql.NullInt64) *bool {
+	if !n.Valid {
+		return nil
+	}
+	v := n.Int64 != 0
+	return &v
+}
+
+// nullInt64 convertit un entier facultatif (nil = inconnu) vers une colonne INTEGER nullable.
+func nullInt64(p *int64) sql.NullInt64 {
+	if p == nil {
+		return sql.NullInt64{}
+	}
+	return sql.NullInt64{Int64: *p, Valid: true}
+}
+
+// int64Ptr est la conversion inverse de nullInt64 : NULL donne nil.
+func int64Ptr(n sql.NullInt64) *int64 {
+	if !n.Valid {
+		return nil
+	}
+	v := n.Int64
+	return &v
+}
+
+// nullSHA convertit un SHA facultatif (vide = inconnu ou absent) vers une colonne TEXT nullable.
+func nullSHA(sha string) sql.NullString {
+	return sql.NullString{String: sha, Valid: sha != ""}
 }
 
 // intPtr est la conversion inverse de nullInt : NULL donne nil.

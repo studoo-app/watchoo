@@ -9,8 +9,182 @@ PATCH (see [Skills](documentation/en/11-skills.md#versions-and-changelogmd)).
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-11-09
+
+Project conventions (phase 8, sub-phases 8.1 to 8.7; branch protection BR3 postponed), off by default:
+compliance of the commits, branches, pull requests, tags, CHANGELOG, README, documentation and tooling with a
+conventions charter, the `watchoo conventions` command and the `/conventions` web route, migrations 00016 to
+00021 (still 19 tables); and the sorting and filters of the dashboard. Additive surface, no incompatible change;
+a sharing file that contains the new `conventions.*` keys is refused by 1.6.1 and earlier.
+
 ### Added
 
+- **Project conventions settings** (phase 8.1): a `conventions:` block in `config.yaml` (`enabled`, off by
+  default; `since`, start date `YYYY-MM-DD`; `commit.types`, `commit.scopes`, `commit.max_subject_soft` and
+  `commit.max_subject_hard`, `commit.forbidden`, `commit.language`; `excluded_accounts`), with the defaults
+  of the charter and the `WATCHOO_CONVENTIONS_*` variables. The charter (`since` and `commit.*`) is shared
+  by `watchoo config export / import` and the Settings page under `settings.conventions`; `enabled` and
+  `excluded_accounts` never are. A sharing file containing this key is refused by earlier versions.
+- **Branch and milestone settings of the conventions** (phase 8.2): `conventions.branch.pattern` (RE2
+  expression replacing the built-in rule `<type>/<words-with-dashes>`, empty by default),
+  `conventions.branch.exclude` (default `gh-pages`, `dependabot/*`, `renovate/*`; a pattern also matches
+  the path prefixes of a name, so `dependabot/*` covers `dependabot/npm_and_yarn/x`) and
+  `conventions.tags.milestones` (default `v1.0.0`, `v2.0.0`, `v3.0.0`; `vX.Y.Z@YYYY-MM-DD` for a due
+  date), validated at load time, with the `WATCHOO_CONVENTIONS_BRANCH_PATTERN`, `_BRANCH_EXCLUDE` and
+  `_TAGS_MILESTONES` variables, and shared under `settings.conventions.branch` and
+  `settings.conventions.tags` (refused by earlier versions).
+- **CHANGELOG, README and documentation settings of the conventions** (phase 8.3):
+  `conventions.changelog.categories_fr` (default `true`: French labels accepted with a warning),
+  `conventions.readme.sections` (expected sections among `presentation`, `group`, `stack`, `install`, `run`,
+  `env`, `tree`, `license`; all by default), `conventions.readme.min_words` (default 150, at least 1),
+  `conventions.docs.dir` (default `documentation`), `conventions.docs.media_dir` (default `Media`) and
+  `conventions.docs.archives_scope` (`repository` by default, or `documentation`), validated at load time,
+  with the matching `WATCHOO_CONVENTIONS_*` variables, and shared under `settings.conventions.changelog`,
+  `settings.conventions.readme` and `settings.conventions.docs` (refused by earlier versions).
+- **Pre-release forms of the conventions** (phase 8.4): `conventions.tags.prerelease_forms` (default `rc`,
+  `beta`, `alpha`; at least one, lowercase words, each once), the compliant forms `-<form>.N` of SV4,
+  validated at load time, with the `WATCHOO_CONVENTIONS_TAGS_PRERELEASE_FORMS` variable, and shared under
+  `settings.conventions.tags.prerelease_forms` (refused by earlier versions).
+- **Pull request body settings of the conventions** (phase 8.5): `conventions.pr.body_sections` (expected
+  sections of a pull request body among `context`, `changes`, `testing`, `screenshots`; all by default, an
+  empty list expects none) and `conventions.pr.require_closes` (default `true`: a closing keyword
+  `Closes #n` is expected), validated at load time, with the `WATCHOO_CONVENTIONS_PR_BODY_SECTIONS` and
+  `WATCHOO_CONVENTIONS_PR_REQUIRE_CLOSES` variables, and shared under `settings.conventions.pr` (refused by
+  earlier versions).
+- **Review settings of the conventions** (phase 8.6): `conventions.pr.min_reviews` (default 1, at least 1:
+  distinct reviewers, other than the author and not excluded, approving at the merge) and
+  `conventions.pr.reviewer_must_contribute` (default `false`: another account is enough), validated at load
+  time, with the `WATCHOO_CONVENTIONS_PR_MIN_REVIEWS` and `WATCHOO_CONVENTIONS_PR_REVIEWER_MUST_CONTRIBUTE` variables, and
+  shared under `settings.conventions.pr` (refused by earlier versions).
+- **Merges and pull request bodies in the database** (phase 8.5, migration `00020`): the columns
+  `pull_requests.merge_commit_sha`, `from_fork` and `body_sections` (bit mask of the recognized sections;
+  the body itself is never stored) and `repositories.allow_squash_merge`, `allow_merge_commit`,
+  `allow_rebase_merge` and `conventions_prs_version`, all nullable (`NULL` = unknown); still 19 tables.
+  The sync fills them from the `GET /pulls` and `GET /repos` responses it already requests (no extra
+  request; the body is read in memory only, never stored nor logged; the merge methods are only known
+  with push rights); when the conventions are enabled, each repository gets one full reread of its pull
+  request list (at most 10 pages) to complete the pull requests already in the database.
+- **Merges in `watchoo conventions` and the web interface** (phase 8.5): commits that reached the default
+  branch outside a pull request (PR3: first parent of the default branch of the local clone since the start
+  date, by pull request, outside a pull request or undetermined, credited to the author of the commit; on the
+  messages of GitHub in clone-only mode), pull request descriptions (PR5: expected sections and `Closes #n`),
+  merge method of the merged pull requests (PR6: squash with a conforming message), head branches merged more
+  than once (BR2) and allowed merge methods (BR5: squash only); pull requests from a fork are set aside from
+  PR1, PR2, PR5, PR6, BR1 and BR2. Text, `--json` (additive keys `arrivals`, `merge_methods`, `branches.reused`,
+  `pull_requests.methods`, `body`, `merge`, `skipped.fork`…), repository page ("Merges" block and two badges
+  per pull request), `/conventions` (columns and the PR3 criterion of the milestone review, 13 criteria) and
+  contributor page (their commits outside a pull request). No extra request; neither a description, a title
+  nor a commit message is ever shown or logged.
+- **Pull request reviews in the database** (phase 8.6, migration `00021`): the columns
+  `pull_requests.reviews_by_others`, `approvals_by_others`, `approvals_by_contributors` and
+  `reviews_checked_at`, all nullable (`NULL` = reviews never read); still 19 tables, no reviewer login
+  stored. When the conventions are enabled in API mode, the sync reads `GET /pulls/{n}/reviews` once per
+  merged pull request (again if it was read before its merge) and for the open pull requests updated since
+  their last read, at most 100 pull requests per repository and per sync, stopped under the quota reserve
+  (the rest at the following sync); the reviews are reduced in memory to counters, their body is never read,
+  and a failure is logged at Debug level without login nor content, never failing the sync. A change of
+  `conventions.excluded_accounts` only applies to the pull requests read afterwards.
+- **Reviews in `watchoo conventions` and the web interface** (phase 8.6): merged pull requests reviewed by
+  another account (PR4: at least `conventions.pr.min_reviews` distinct reviewers, neither the author, a bot
+  nor an excluded account, whose last decisive review before the merge is an approval; contributors only
+  with `conventions.pr.reviewer_must_contribute`; both settings applied at read time), the merged pull
+  requests without review (number and author), the reviews received per contributor (the reviews given are
+  not counted), and PR4 in the milestone review (pull requests merged in the interval, 14 criteria). Text,
+  `--json` (additive keys `review`, `review_known`, `reviewed`, `reviews_received`, `merged_without_review`,
+  `milestone.repositories[].reviews`), repository page (review badge and lines of the "Merges" block),
+  `/conventions` (columns and the PR4 criterion) and contributor page. Counters only: no reviewer, no review
+  body and no title is ever shown or logged.
+- **Leads of the conventions** (phase 8.7): nine optional leads that invite a reread and never judge, kept
+  out of every grid, every rate and the milestone review: comparison links of the CHANGELOG (CL11), probable
+  copy of `git log` (CL12, percentages only), command block of the installation and `.env.example` (RD5),
+  document headers (DOC6, counters per field, never the values), images, `mermaid` blocks and media folder
+  (DOC7), CI checking the conventions (TL4, pattern identifier only), freshness of the documentation (DOC9),
+  dates declared in the INDEX (DOC10) and CC1 before and after the tooling (TL5). CL11, CL12, RD5, DOC6, DOC7
+  and TL4 are cached at sync time from the head of the default branch; DOC9, DOC10 and TL5 are read from the
+  clone's history (read-only, no fetch) in the detailed view of a repository only. Text and `--json`
+  (additive key `leads` per repository, with `broken_images` in the detailed view), collapsed "Leads" block
+  on the repository page; nothing in `/conventions` nor on a contributor's page. No new setting, no API
+  request, no migration; no path, header value, bullet or commit subject stored or logged.
+- **Squash merges identified by their merge SHA in the diagnosis** (phase 8.5): with the conventions enabled,
+  the merge commit of a merged pull request, with one parent and the `(#n)` of that pull request, is also
+  excluded from A1 and A2, even without a recognized GitHub committer.
+- **History of the tags and of the default branch** (phase 8.4): when the conventions are enabled, the sync
+  records the observation periods of each tag (name, target commit, first and last read, end: rewritten or
+  deleted) in the new `tag_observations` table (migration `00018`), only after a successful, non-truncated
+  read of the tags, and the observed rewrites of the default branch in the new `branch_rewrites` table
+  (migration `00019`); 19 tables. Nothing is attributed to a person.
+- **File criteria of the conventions measured at sync time** (phase 8.3): when the conventions are enabled,
+  the sync reads the CHANGELOG, the README, the documentation and the tooling files of the head of the
+  default branch and of every milestone tag in the updated local Git clone, through its Git objects only
+  (no API request, no extra fetch), and caches codes, states and counters only in the new
+  `repository_conventions` table (migration `00017`, 17 tables); recomputed only when the commit, the rules
+  or the settings change.
+- **`watchoo conventions`, file criteria** (phase 8.3), read from the cache of the sync: per repository
+  one grid per family, CHANGELOG (CL1 to CL8), README (RD1 to RD4), documentation (DOC1 to DOC5, DOC8)
+  and tooling (TL1 to TL3), "k/n criteria conform, u unknown", with the codes of each criterion; "not
+  computed yet, run watchoo sync" or "to recompute" otherwise. `watchoo conventions owner/repo` adds the
+  path lists recomputed from the clone (documents not referenced by the INDEX, dead links, badly named
+  paths, archives), never stored nor logged. The milestone review adds CL9, CL8, RD1, RD2 (installation
+  section), RD3, DOC1 and DOC3 on the tree of the milestone tag. `--json`: additive keys `changelog`,
+  `readme`, `docs` (with `lists`) and `tooling` per repository, `files` per repository of `milestone`.
+- Web interface, phase 8.3: the Conventions section of the repository page ends with the file grids and,
+  folded, the paths to look at; `/conventions` adds a Files column (one badge per family) and the file
+  criteria to the milestone review. Repository indicators, credited to nobody.
+- **Per-repository conventions start date** (phase 8.1): `watchoo repo add --conventions-since YYYY-MM-DD`
+  (`""` goes back to `conventions.since`), quoted in the report and below the `repo list` table, exposed
+  as `conventions_since` in the repository object of `--json` (`null` = date of the workspace) and in
+  `config import --json`, and shared by `watchoo config export / import` (key written only for a
+  repository that has one).
+- **`watchoo conventions [owner/repo] [--commits] [--failing] [--contributor X]`** (phase 8.1): rates of
+  commits conforming to the Conventional Commits charter, for the trainer only, when `conventions.enabled`:
+  per repository the rate `n/m` over all the tracked branches (read from the local clone with `git
+  rev-list`, otherwise from the database with the mention "may include rewritten commits"), the default
+  branch alone for information, the exclusions (merges, bots, GitHub initial commit, excluded accounts),
+  the commits before the start date and the issues by code; per contributor the rate and the codes;
+  with `--commits` / `--failing`, the evaluated commits (short SHA, author, codes). No grade, never a
+  commit message, exit code `0` whatever the rates. `--json`: `enabled`, `rules_version`,
+  `repositories`, `contributors`, `commits`, `notice`, `filters`.
+- **`watchoo conventions`, phase 8.2 indicators**, computed when reading (no migration, no extra
+  request): per repository the branch names (BR1, remote branches of the clone and pull request head
+  branches), the pull request titles (PR1 and PR2, open and merged apart, shown by number, author, head
+  branch and codes, never the title; API mode only), the tags (SV1), the configured milestones (SV2,
+  presence) and the releases as information (SV6), the wording of the subjects (CC5 warnings), the footers
+  and issue references (CC6), the language of the subjects (CC7) and CC1 per interval between final tags;
+  per contributor the CC3 trend (rates up to and since the last final tag), the conforming pull request
+  titles and branches; with `--contributor`, only the pull requests and head branches of the selected
+  contributors are listed. **`--milestone vX.Y.Z`**: milestone review per repository (CC1 on the milestone
+  interval, BR1, SV1, SV2; "k/n criteria conform, u unknown", no grade; a milestone that is not configured
+  is a usage error). `--json`: additive keys `traits`, `language`, `branches`, `pull_requests`, `tags`,
+  `intervals` per repository, `traits`, `trend`, `pull_requests`, `branches` per contributor, `filters.milestone`
+  and top-level `milestone` (`null` without `--milestone`).
+- Web interface: a **Conventions** section on the repository page (`repo-conventions` fragment: rate,
+  default branch, exclusions, issues by code, latest non-conforming commits, scope) and a line
+  "Conforming commits n/m (x%)" on a contributor's page, only when the conventions are enabled.
+- Web interface, phase 8.2: a **`/conventions`** page (navigation entry only when the conventions are
+  enabled; disabled, it explains how to enable them, without data): overview by repository and by
+  contributor, never sorted by conformity, and a **milestone review** with a milestone selector
+  (`?milestone=vX.Y.Z`, 400 for a milestone that is not configured). The repository section adds the
+  non-conforming branches, a badge per pull request (number and codes, never the title), a dot per tag,
+  the milestones, the releases (information), CC1 per interval between tags, the wording, footers and
+  language of the subjects; the contributor's page adds the conforming pull request titles and the CC3
+  trend (before and since the last final tag). Every icon comes with a text.
+- **`watchoo conventions`, phase 8.4 indicators (history and versions)**: per repository the observed
+  rewrites of the default branch (BR4: count, dates, old and new short SHAs, never attributed), the tag
+  history (SV3: "no rewrite observed since …", rewritten, deleted), the due date of each milestone compared
+  to the first observation of its tag (SV2: on time, late, or undetermined "set between X and Y"), the
+  pre-release forms (SV4, warnings), the version bumps compared to the declared commits (SV5,
+  under-versioning only, undetermined below 80% of conforming commits), the precedence against the
+  history (SV7) and the `feat`/`fix` commits since the last change of the CHANGELOG (CL10, information);
+  SV4, SV5, SV7 and CL10 computed at read time, never stored (SV5 and CL10 unknown without a local clone;
+  SV4 then falls back on the first observation of the tags, SV7 only keeps the skipped increment). The milestone review adds
+  SV3 after SV2 (12 criteria) and judges the due date in SV2. `--json`: additive keys `rewrites`,
+  `tag_history`, `prereleases`, `bumps`, `precedence`, `changelog_freshness` per repository, `deadline` per
+  milestone, `deadline` and `tag_history` per repository of the review. Web: a "History of the tags and of
+  the default branch, versions" block on the repository page, due-date badges, a "History and versions"
+  column and the SV3 column of the review in `/conventions`.
+- **Migration `00016`**: `commits.parent_count` (number of parents, written at insertion, backfilled for
+  the existing commits by the local Git clone at every sync, whether the conventions are enabled or not)
+  and `repositories.conventions_since`.
 - **Dashboard, sorting and filters**: a list chooses the order of the repository cards (needs attention, the
   default and former order; name, with numbers compared as numbers, "GR2" before "GR10"; last commit; commits;
   lines added), filters keep only a state (Active, Slacking, Dead, Other), the repositories whose label or
@@ -18,6 +192,19 @@ PATCH (see [Skills](documentation/en/11-skills.md#versions-and-changelogmd)).
   counter filters on that state. The choices are in the page address (`/?sort=`, `?state=`, `?q=`,
   `?warnings=`, `?prs=`), so a view can be bookmarked and survives the refresh at the end of a sync; the
   counters still cover the whole workspace. No sorting by AI score: the score never ranks the repositories.
+
+### Changed
+
+- **Diagnosis with the conventions enabled** (phase 8.1): a squash merge made by GitHub (subject ending in
+  "(#n)", GitHub committer) no longer raises A1, and A2 only counts the author's other commits (A7
+  unchanged); a Conventional Commits subject is no longer a novelty for F4 from the conventions start date.
+  Computed when reading, nothing stored; with `conventions.enabled: false` the diagnosis is unchanged.
+- **Cache of the file criteria of the conventions** (phase 8.7): the version of the file rules goes up to
+  2, so after the update the CHANGELOG, README, documentation and tooling grids show "to recompute" until
+  the next `watchoo sync`.
+- **Configuration sharing file** (phase 8.1): `settings.conventions` (the charter: `since` and `commit.*`)
+  and, per repository, `conventions_since` (only when the repository has its own date). The format stays at
+  version `1`; a file containing these keys is refused by versions 1.6.1 and earlier.
 
 ## [1.6.1] - 2026-11-04
 
@@ -558,7 +745,8 @@ First published release: the MVP (phases 1 to 5 of the [roadmap](documentation/e
   `gh` is the official binary verified by SHA-256; base images and GitHub actions pinned by
   digest.
 
-[Unreleased]: https://github.com/studoo-app/watchoo/compare/v1.6.1...HEAD
+[Unreleased]: https://github.com/studoo-app/watchoo/compare/v1.7.0...HEAD
+[1.7.0]: https://github.com/studoo-app/watchoo/compare/v1.6.1...v1.7.0
 [1.6.1]: https://github.com/studoo-app/watchoo/compare/v1.6.0...v1.6.1
 [1.6.0]: https://github.com/studoo-app/watchoo/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/studoo-app/watchoo/compare/v1.4.0...v1.5.0

@@ -89,14 +89,18 @@ type RepoChange struct {
 	Error string
 }
 
-// RepoState est le nom affiché, les branches, les seuils d'activité et le suivi d'un dépôt.
+// RepoState est le nom affiché, les branches, les seuils d'activité, la date de début des conventions et
+// le suivi d'un dépôt.
 type RepoState struct {
 	Label    string   // "" = pas de nom affiché
 	Branches []string // jamais nil ; vide = toutes les branches
 	// FlemmeAfterDays et DeadAfterDays sont les seuils propres au dépôt ; nil = seuil de l'espace.
 	FlemmeAfterDays *int
 	DeadAfterDays   *int
-	Enabled         bool // suivi actif
+	// ConventionsSince est la date de début des conventions propre au dépôt, AAAA-MM-JJ ; "" = date de
+	// l'espace.
+	ConventionsSince string
+	Enabled          bool // suivi actif
 }
 
 // Summary compte les dépôts par résultat (prévu dans un aperçu, obtenu après Apply). Mêmes clés que
@@ -196,7 +200,8 @@ func Plan(ctx context.Context, ws *workspace.Workspace, st Store, f *File, opts 
 		} else {
 			c.Action = ActionAdd
 			c.After = RepoState{Label: e.Label, Branches: nonNil(e.Branches), Enabled: true,
-				FlemmeAfterDays: threshold(e.FlemmeAfterDays, nil), DeadAfterDays: threshold(e.DeadAfterDays, nil)}
+				FlemmeAfterDays: threshold(e.FlemmeAfterDays, nil), DeadAfterDays: threshold(e.DeadAfterDays, nil),
+				ConventionsSince: since(e.ConventionsSince, "")}
 		}
 		p.Repositories = append(p.Repositories, c)
 	}
@@ -231,6 +236,7 @@ func planExisting(c *RepoChange, r model.Repository, e Entry) {
 	}
 	after.FlemmeAfterDays = threshold(e.FlemmeAfterDays, before.FlemmeAfterDays)
 	after.DeadAfterDays = threshold(e.DeadAfterDays, before.DeadAfterDays)
+	after.ConventionsSince = since(e.ConventionsSince, before.ConventionsSince)
 	after.Enabled = true
 	c.Before, c.After = &before, after
 	c.Reenable = !before.Enabled
@@ -407,6 +413,10 @@ func addRequests(f *File) []wsync.AddRequest {
 	for i, e := range f.Repositories {
 		reqs[i] = wsync.AddRequest{Line: e.Index, Ref: e.Ref, Label: e.Label, BranchPatterns: slices.Clone(e.Branches),
 			FlemmeAfterDays: clonePtr(e.FlemmeAfterDays), DeadAfterDays: clonePtr(e.DeadAfterDays)}
+		if e.ConventionsSince != nil {
+			date := *e.ConventionsSince
+			reqs[i].ConventionsSince = &date
+		}
 		if e.Branches != nil && reqs[i].BranchPatterns == nil {
 			reqs[i].BranchPatterns = []string{}
 		}
@@ -437,10 +447,11 @@ func summarize(changes []RepoChange) Summary {
 	return s
 }
 
-// stateOf renvoie l'état (label, branches, seuils, suivi) d'un dépôt.
+// stateOf renvoie l'état (label, branches, seuils, date des conventions, suivi) d'un dépôt.
 func stateOf(r model.Repository) RepoState {
 	return RepoState{Label: r.Label, Branches: nonNil(r.BranchPatterns), Enabled: r.Enabled,
-		FlemmeAfterDays: clonePtr(r.FlemmeAfterDays), DeadAfterDays: clonePtr(r.DeadAfterDays)}
+		FlemmeAfterDays: clonePtr(r.FlemmeAfterDays), DeadAfterDays: clonePtr(r.DeadAfterDays),
+		ConventionsSince: r.ConventionsSince}
 }
 
 // threshold renvoie un seuil après l'import : current si le document ne le donne pas (nil), nil
@@ -455,6 +466,15 @@ func threshold(doc, current *int) *int {
 	default:
 		return clonePtr(doc)
 	}
+}
+
+// since renvoie la date de début des conventions après l'import : current si le document ne la donne
+// pas (nil), sinon celle du document ("" = date de l'espace). Même règle que wsync.AddRepositories.
+func since(doc *string, current string) string {
+	if doc == nil {
+		return current
+	}
+	return *doc
 }
 
 // nonNil renvoie une copie de list, vide plutôt que nil.

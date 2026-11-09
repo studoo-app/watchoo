@@ -194,18 +194,20 @@ gestionnaire d'identifiants de Git).
 
 `watchoo config export` et `watchoo config import` (CLI) ou la page Réglages (web) partagent les dépôts
 suivis et les **réglages communs** d'un espace : `sync.auto`, `sync.interval`, `sync.parallelism`,
-`activity.flemme_after_days`, `activity.dead_after_days`, `branches.exclude`, `timezone` et `lang`
-(anglais par défaut, voir [Interface web](06-interface-web.md#langue-de-linterface)). Les réglages
+`activity.flemme_after_days`, `activity.dead_after_days`, `branches.exclude`, `timezone`, `lang`
+(anglais par défaut, voir [Interface web](06-interface-web.md#langue-de-linterface)) et la charte des
+[conventions de projet](13-conventions.md#8-configuration) (`conventions.since`, `conventions.commit.*`, `conventions.branch.*`, `conventions.tags.*`, `conventions.changelog.*`, `conventions.readme.*` et `conventions.docs.*`). Les réglages
 propres à la machine ou à la personne ne sont **jamais** partagés : `name`, `github.*` (compte `gh`,
 chemin de `gh` : un fichier venu d'ailleurs ne doit jamais choisir le programme lancé), `git.*`
 (protocole des clones, lié aux identifiants de la machine), `web.*` et `diagnostic.*` (l'activation du
-diagnostic suppose l'information des personnes de cet espace : elle ne vient jamais d'un fichier importé).
+diagnostic suppose l'information des personnes de cet espace : elle ne vient jamais d'un fichier importé),
+ainsi que `conventions.enabled` (choix de l'espace) et `conventions.excluded_accounts` (des logins).
 Détail : [Partage de la configuration](05-cli.md#partage-de-la-configuration--watchoo-config).
 
 Quand un import change au moins un réglage commun, `.watchoo/config.yaml` est **réécrit** à partir du
 modèle de `watchoo init` (mêmes commentaires), les réglages importés décommentés :
 
-- `name`, `github.*`, `git.*`, `web.*` et `diagnostic.*` déjà présents dans le fichier sont gardés tels quels, ainsi que les
+- `name`, `github.*`, `git.*`, `web.*`, `diagnostic.*`, `conventions.enabled` et `conventions.excluded_accounts` déjà présents dans le fichier sont gardés tels quels, ainsi que les
   réglages communs que l'import ne donne pas ;
 - les commentaires personnels sont perdus ; l'ancien fichier est copié dans `.watchoo/config.yaml.bak`
   (`0600`, remplacé à chaque import) ;

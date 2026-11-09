@@ -16,6 +16,15 @@ type Branch struct {
 	Tracked bool
 }
 
+type BranchRewrite struct {
+	ID         int64
+	RepoID     int64
+	Branch     string
+	OldSha     string
+	NewSha     string
+	ObservedAt string
+}
+
 type Commit struct {
 	RepoID           int64
 	SHA              string
@@ -30,6 +39,7 @@ type Commit struct {
 	StatsKnown       bool
 	AiRulesVersion   int64
 	LanguagesVersion int64
+	ParentCount      sql.NullInt64
 }
 
 type CommitAiSignature struct {
@@ -116,22 +126,29 @@ type DiagnosticReview struct {
 }
 
 type PullRequest struct {
-	RepoID           int64
-	Number           int64
-	Title            string
-	State            string
-	Merged           bool
-	Draft            bool
-	AuthorLogin      string
-	AuthorProviderID int64
-	URL              string
-	BaseBranch       string
-	HeadBranch       string
-	CreatedAt        string
-	UpdatedAt        string
-	ClosedAt         sql.NullString
-	MergedAt         sql.NullString
-	ToolIds          string
+	RepoID                  int64
+	Number                  int64
+	Title                   string
+	State                   string
+	Merged                  bool
+	Draft                   bool
+	AuthorLogin             string
+	AuthorProviderID        int64
+	URL                     string
+	BaseBranch              string
+	HeadBranch              string
+	CreatedAt               string
+	UpdatedAt               string
+	ClosedAt                sql.NullString
+	MergedAt                sql.NullString
+	ToolIds                 string
+	MergeCommitSha          sql.NullString
+	FromFork                sql.NullInt64
+	BodySections            sql.NullInt64
+	ReviewsByOthers         sql.NullInt64
+	ApprovalsByOthers       sql.NullInt64
+	ApprovalsByContributors sql.NullInt64
+	ReviewsCheckedAt        sql.NullString
 }
 
 type Release struct {
@@ -148,23 +165,39 @@ type Release struct {
 }
 
 type Repository struct {
-	ID              int64
-	Provider        string
-	ProviderID      sql.NullInt64
-	Owner           string
-	Name            string
-	Label           string
-	DefaultBranch   string
-	URL             string
-	Stars           int64
-	OpenIssues      int64
-	LastSyncedAt    sql.NullString
-	LastCommitAt    sql.NullString
-	Archived        bool
-	FlemmeAfterDays sql.NullInt64
-	DeadAfterDays   sql.NullInt64
-	Enabled         bool
-	BranchPatterns  string
+	ID                    int64
+	Provider              string
+	ProviderID            sql.NullInt64
+	Owner                 string
+	Name                  string
+	Label                 string
+	DefaultBranch         string
+	URL                   string
+	Stars                 int64
+	OpenIssues            int64
+	LastSyncedAt          sql.NullString
+	LastCommitAt          sql.NullString
+	Archived              bool
+	FlemmeAfterDays       sql.NullInt64
+	DeadAfterDays         sql.NullInt64
+	Enabled               bool
+	BranchPatterns        string
+	ConventionsSince      sql.NullString
+	AllowSquashMerge      sql.NullInt64
+	AllowMergeCommit      sql.NullInt64
+	AllowRebaseMerge      sql.NullInt64
+	ConventionsPrsVersion sql.NullInt64
+}
+
+type RepositoryConvention struct {
+	RepoID       int64
+	RevKind      string
+	TagName      string
+	RevSha       string
+	RulesVersion int64
+	ConfigHash   string
+	Results      string
+	ComputedAt   string
 }
 
 type RepositoryLanguage struct {
@@ -194,4 +227,15 @@ type Tag struct {
 	RepoID int64
 	Name   string
 	SHA    string
+}
+
+type TagObservation struct {
+	ID          int64
+	RepoID      int64
+	Name        string
+	SHA         string
+	FirstSeenAt string
+	LastSeenAt  string
+	EndedAt     sql.NullString
+	EndReason   sql.NullString
 }

@@ -220,6 +220,47 @@ func (q *Queries) ListContributorsWithoutProfileURL(ctx context.Context, provide
 	return items, nil
 }
 
+const listRepoCommitAuthorAccounts = `-- name: ListRepoCommitAuthorAccounts :many
+SELECT DISTINCT
+       CAST(CASE WHEN c.provider = r.provider THEN COALESCE(c.provider_user_id, 0) ELSE 0 END AS INTEGER) AS provider_user_id,
+       CAST(lower(c.provider_login) AS TEXT) AS login
+FROM commits m
+JOIN repositories r ON r.id = m.repo_id
+JOIN contributors c ON c.id = m.author_id
+WHERE m.repo_id = ?
+`
+
+type ListRepoCommitAuthorAccountsRow struct {
+	ProviderUserID int64
+	Login          string
+}
+
+// Comptes de forge des auteurs d'au moins un commit du depot (phase 8.6, conventions.pr.reviewer_must_contribute) :
+// identifiant (0 si inconnu, pour un contributeur d'une autre forge ou sans compte) et login en minuscules
+// (vide si inconnu). Lus en memoire seulement, jamais journalises.
+func (q *Queries) ListRepoCommitAuthorAccounts(ctx context.Context, repoID int64) ([]ListRepoCommitAuthorAccountsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listRepoCommitAuthorAccounts, repoID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListRepoCommitAuthorAccountsRow{}
+	for rows.Next() {
+		var i ListRepoCommitAuthorAccountsRow
+		if err := rows.Scan(&i.ProviderUserID, &i.Login); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const moveContributorEmails = `-- name: MoveContributorEmails :exec
 UPDATE contributor_emails
 SET contributor_id = ?1

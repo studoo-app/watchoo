@@ -219,6 +219,7 @@ func (s *Store) repositorySummaries(ctx context.Context, id int64) ([]Repository
 					RepoID: c.RepoID, SHA: c.SHA, AuthorID: c.AuthorID, CommitterID: c.CommitterID,
 					Message: c.Message, AuthoredAt: c.AuthoredAt, CommittedAt: c.CommittedAt,
 					Additions: c.Additions, Deletions: c.Deletions, StatsKnown: c.StatsKnown, URL: c.URL,
+					ParentCount: c.ParentCount,
 				})
 				if err != nil {
 					return err
@@ -272,6 +273,7 @@ func commitFromDB(row db.Commit) (model.Commit, error) {
 		Deletions:   int(row.Deletions),
 		StatsKnown:  row.StatsKnown,
 		URL:         row.URL,
+		ParentCount: intPtr(row.ParentCount),
 	}, nil
 }
 

@@ -261,6 +261,7 @@ func newRootCmd(deps Deps) (*cobra.Command, *noticeSlot) {
 		newContributorsCmd(deps, opts),
 		newPRsCmd(deps, opts),
 		newDiagnosticCmd(deps, opts),
+		newConventionsCmd(deps, opts),
 		newReleasesCmd(deps, opts),
 		newLanguagesCmd(deps, opts),
 		newStatusCmd(deps, opts),

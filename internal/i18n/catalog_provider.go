@@ -140,9 +140,17 @@ var providerTexts = map[string]entry{
 		"branch name %s is invalid",
 		"nom de branche %s invalide",
 	},
+	"provider.validate.path": {
+		"file path is invalid",
+		"chemin de fichier invalide",
+	},
 	"provider.validate.id": {
 		"repository ID %d is invalid",
 		"identifiant de dépôt %d invalide",
+	},
+	"provider.validate.number": {
+		"pull request number %d is invalid",
+		"numéro de pull request %d invalide",
 	},
 
 	// Construction du client GitHub (internal/provider/github/client.go).
@@ -263,6 +271,10 @@ var providerTexts = map[string]entry{
 		"listing pull requests of %s/%s",
 		"liste des pull requests de %s/%s",
 	},
+	"provider.github.op.reviews": {
+		"listing reviews of pull request #%d of %s/%s",
+		"liste des relectures de la pull request n° %d de %s/%s",
+	},
 	"provider.github.op.releases": {
 		"listing releases of %s/%s",
 		"liste des releases de %s/%s",
@@ -297,6 +309,10 @@ var providerTexts = map[string]entry{
 		"listing pull requests of %s/%s",
 		"lecture des pull requests de %s/%s",
 	},
+	"provider.git.op.reviews": {
+		"listing reviews of pull request #%d of %s/%s",
+		"lecture des relectures de la pull request n° %d de %s/%s",
+	},
 	"provider.git.op.releases": {
 		"listing releases of %s/%s",
 		"lecture des releases de %s/%s",
@@ -321,6 +337,38 @@ var providerTexts = map[string]entry{
 		"statistics of commit %s in %s/%s",
 		"statistiques du commit %s de %s/%s",
 	},
+	"provider.git.op.parent_counts": {
+		"parent counts of the commits of %s/%s",
+		"nombre de parents des commits de %s/%s",
+	},
+	"provider.git.op.ancestry": {
+		"ancestry of %s and %s in %s/%s",
+		"ascendance de %s et %s dans %s/%s",
+	},
+	"provider.git.op.last_touch": {
+		"last commit touching a file from %s in %s/%s",
+		"dernier commit modifiant un fichier depuis %s dans %s/%s",
+	},
+	"provider.git.op.last_commit": {
+		"last commit touching paths from %s in %s/%s",
+		"dernier commit modifiant des chemins depuis %s dans %s/%s",
+	},
+	"provider.git.op.count_commits": {
+		"commits between %s and %s in %s/%s",
+		"commits entre %s et %s dans %s/%s",
+	},
+	"provider.git.op.first_add": {
+		"first addition of a file from %s in %s/%s",
+		"premier ajout d'un fichier depuis %s dans %s/%s",
+	},
+	"provider.git.op.first_parent": {
+		"first-parent commits of %s/%s",
+		"commits du premier parent de %s/%s",
+	},
+	"provider.git.op.rev_list": {
+		"commits of the tracked branches of %s/%s",
+		"commits des branches suivies de %s/%s",
+	},
 	"provider.git.op.added_lines": {
 		"added lines of the commits of %s/%s",
 		"lignes ajoutées des commits de %s/%s",
@@ -332,6 +380,10 @@ var providerTexts = map[string]entry{
 	"provider.git.op.first_added": {
 		"date of the first agent configuration file of %s/%s",
 		"date du premier fichier de configuration d'agent de %s/%s",
+	},
+	"provider.git.op.files": {
+		"files of %s/%s",
+		"fichiers de %s/%s",
 	},
 	"provider.git.op.languages": {
 		"languages of %s/%s",

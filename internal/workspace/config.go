@@ -18,6 +18,7 @@ import (
 
 	"github.com/spf13/viper"
 
+	"github.com/studoo-app/watchoo/internal/conventions"
 	"github.com/studoo-app/watchoo/internal/diagnostic"
 	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/logo"
@@ -43,7 +44,13 @@ const (
 	DefaultDiagnosticRetentionDays = 365
 	// MaxDiagnosticRetentionDays : maximum de diagnostic.retention_days (10 ans).
 	MaxDiagnosticRetentionDays = 3650
+	// DefaultConventionsLanguage : conventions.commit.language (« fr », « en » ou « any »).
+	DefaultConventionsLanguage = "any"
 )
+
+// ConventionsLanguages renvoie les valeurs admises par conventions.commit.language (information
+// seulement : CC7, sans effet sur la conformité).
+func ConventionsLanguages() []string { return []string{"fr", "en", DefaultConventionsLanguage} }
 
 // Config regroupe tous les réglages d'un espace, après fusion des trois niveaux (voir Load).
 //
@@ -73,6 +80,205 @@ type Config struct {
 	// Diagnostic regroupe les réglages du diagnostic (phase 7, voir
 	// documentation/fr/12-supervision-diagnostic.md). Propres à l'espace : jamais partagés.
 	Diagnostic DiagnosticConfig `mapstructure:"diagnostic"`
+	// Conventions regroupe les réglages des conventions de projet (phase 8, voir
+	// documentation/fr/13-conventions.md). Partagés par configshare, sauf enabled et excluded_accounts.
+	Conventions ConventionsConfig `mapstructure:"conventions"`
+}
+
+// ConventionsConfig regroupe les réglages des conventions de projet (clés conventions.*). Les valeurs
+// par défaut sont celles de la charte (documentation/fr/13-conventions.md, sections 3 et 8).
+type ConventionsConfig struct {
+	// Enabled active les conventions : commande, section web et ajustements du diagnostic (défaut false).
+	// Propre à l'espace : jamais partagé.
+	Enabled bool `mapstructure:"enabled"`
+	// Since est la date de début de l'évaluation, AAAA-MM-JJ, lue à minuit dans le fuseau de l'espace ;
+	// vide (défaut) : depuis le début. Un dépôt peut avoir la sienne (colonne
+	// repositories.conventions_since).
+	Since string `mapstructure:"since"`
+	// Commit regroupe les règles des messages de commit (clés conventions.commit.*).
+	Commit ConventionsCommitConfig `mapstructure:"commit"`
+	// Branch regroupe les règles du nommage des branches, BR1 (clés conventions.branch.*, phase 8.2).
+	Branch ConventionsBranchConfig `mapstructure:"branch"`
+	// PR regroupe les attentes du corps des pull requests, PR5 (clés conventions.pr.*, phase 8.5).
+	PR ConventionsPRConfig `mapstructure:"pr"`
+	// Tags regroupe les jalons des tags, SV2 et revue de jalon (clés conventions.tags.*, phase 8.2), et les
+	// formes de pré-version, SV4 (phase 8.4).
+	Tags ConventionsTagsConfig `mapstructure:"tags"`
+	// Changelog regroupe les règles du CHANGELOG, CL1 à CL9 (clés conventions.changelog.*, phase 8.3).
+	Changelog ConventionsChangelogConfig `mapstructure:"changelog"`
+	// Readme regroupe les règles du README, RD1 à RD4 (clés conventions.readme.*, phase 8.3).
+	Readme ConventionsReadmeConfig `mapstructure:"readme"`
+	// Docs regroupe les règles du dossier de documentation, DOC1 à DOC5 et DOC8 (clés conventions.docs.*,
+	// phase 8.3).
+	Docs ConventionsDocsConfig `mapstructure:"docs"`
+	// ExcludedAccounts liste les comptes exclus des conventions (formateur, bots…) : login, nom ou
+	// e-mail, casse ignorée ; distincts de diagnostic.*. Propre à l'espace : jamais partagé (logins).
+	ExcludedAccounts []string `mapstructure:"excluded_accounts"`
+}
+
+// ConventionsCommitConfig regroupe les règles des messages de commit (clés conventions.commit.*).
+type ConventionsCommitConfig struct {
+	// Types liste les types admis, en minuscules (défaut : conventions.DefaultTypes, ceux de la charte).
+	Types []string `mapstructure:"types"`
+	// Scopes liste les scopes admis ; vide (défaut) : tout scope bien formé.
+	Scopes []string `mapstructure:"scopes"`
+	// MaxSubjectSoft est la longueur du sujet au-delà de laquelle un avertissement est donné (défaut 50,
+	// au moins 1).
+	MaxSubjectSoft int `mapstructure:"max_subject_soft"`
+	// MaxSubjectHard est la longueur du sujet au-delà de laquelle le commit n'est pas conforme (défaut 72,
+	// strictement supérieure à MaxSubjectSoft).
+	MaxSubjectHard int `mapstructure:"max_subject_hard"`
+	// Forbidden liste les sujets interdits, comparés entiers, casse et espaces ignorés (défaut :
+	// conventions.DefaultForbidden).
+	Forbidden []string `mapstructure:"forbidden"`
+	// Language est la langue attendue des sujets : « fr », « en » ou « any » (défaut). Information
+	// seulement (CC7, phase 8.2) : sans effet sur la conformité.
+	Language string `mapstructure:"language"`
+}
+
+// ConventionsBranchConfig regroupe les règles du nommage des branches (clés conventions.branch.*).
+type ConventionsBranchConfig struct {
+	// Pattern est une expression RE2 qui remplace la règle intégrée
+	// ^(<types>)/[a-z0-9]+(-[a-z0-9]+)+$ (construite depuis conventions.commit.types) ; vide (défaut) :
+	// règle intégrée.
+	Pattern string `mapstructure:"pattern"`
+	// Exclude liste les branches hors évaluation : motifs path.Match, chacun désignant le nom lui-même ou
+	// l'un de ses préfixes de chemin (« dependabot/* » exclut « dependabot/npm_and_yarn/x ») ; défaut :
+	// conventions.DefaultBranchExclude. La branche par défaut du dépôt est toujours hors évaluation.
+	Exclude []string `mapstructure:"exclude"`
+}
+
+// ConventionsPRConfig regroupe les attentes des pull requests (clés conventions.pr.*) : corps (PR5) et
+// relectures (PR4).
+type ConventionsPRConfig struct {
+	// BodySections liste les clés des sections attendues dans le corps d'une PR, parmi
+	// conventions.AllPRBodySections : context, changes, testing, screenshots ; défaut : toutes. Vide : PR5
+	// n'attend aucune section.
+	BodySections []string `mapstructure:"body_sections"`
+	// RequireCloses exige un mot-clé de fermeture suivi d'un numéro d'issue (« Closes #12 ») dans le corps
+	// (défaut true).
+	RequireCloses bool `mapstructure:"require_closes"`
+	// MinReviews est le nombre de relecteurs distincts, autres que l'auteur et non exclus, dont
+	// l'approbation est exigée à la fusion (PR4, défaut conventions.DefaultMinReviews, au moins 1).
+	MinReviews int `mapstructure:"min_reviews"`
+	// ReviewerMustContribute exige en plus que ces relecteurs soient auteurs d'au moins un commit du dépôt
+	// (défaut false : un autre compte suffit).
+	ReviewerMustContribute bool `mapstructure:"reviewer_must_contribute"`
+}
+
+// PRBodyRules renvoie les attentes PR5 tirées de ces réglages (liste copiée).
+func (c ConventionsConfig) PRBodyRules() conventions.PRBodyRules {
+	return conventions.PRBodyRules{Sections: slices.Clone(c.PR.BodySections), RequireCloses: c.PR.RequireCloses}
+}
+
+// ReviewRules renvoie les attentes PR4 tirées de ces réglages.
+func (c ConventionsConfig) ReviewRules() conventions.ReviewRules {
+	return conventions.ReviewRules{MinReviews: c.PR.MinReviews, ReviewerMustContribute: c.PR.ReviewerMustContribute}
+}
+
+// ConventionsTagsConfig regroupe les jalons et les formes de pré-version des tags (clés conventions.tags.*).
+type ConventionsTagsConfig struct {
+	// Milestones liste les jalons, « vX.Y.Z » ou « vX.Y.Z@AAAA-MM-JJ » pour une échéance (version
+	// finale conforme, date valide, chaque version une seule fois) ; défaut : conventions.DefaultMilestones.
+	Milestones []string `mapstructure:"milestones"`
+	// PrereleaseForms liste les formes de pré-version conformes « -<forme>.N » (SV4, phase 8.4) : au moins
+	// une, chacune un mot de lettres minuscules (conventions.ValidPrereleaseForm), une seule fois ; défaut :
+	// conventions.DefaultPrereleaseForms (rc, beta, alpha). Les autres formes donnent un avertissement.
+	PrereleaseForms []string `mapstructure:"prerelease_forms"`
+}
+
+// ConventionsChangelogConfig regroupe les règles du CHANGELOG (clés conventions.changelog.*).
+type ConventionsChangelogConfig struct {
+	// CategoriesFR admet les libellés français (Ajouté, Modifié… et [Non publié]) avec un simple
+	// avertissement (défaut true) ; false : ces libellés sont des écarts.
+	CategoriesFR bool `mapstructure:"categories_fr"`
+}
+
+// ConventionsReadmeConfig regroupe les règles du README (clés conventions.readme.*).
+type ConventionsReadmeConfig struct {
+	// Sections liste les clés des sections attendues (RD2), parmi conventions.AllReadmeSections :
+	// presentation, group, stack, install, run, env, tree, license ; défaut : toutes. Vide : RD2 n'attend
+	// aucune section.
+	Sections []string `mapstructure:"sections"`
+	// MinWords est le nombre de mots en deçà duquel le README est jugé trop court (RD4, défaut 150, au
+	// moins 1).
+	MinWords int `mapstructure:"min_words"`
+}
+
+// ConventionsDocsConfig regroupe les règles du dossier de documentation (clés conventions.docs.*).
+type ConventionsDocsConfig struct {
+	// Dir est le dossier de la documentation, relatif à la racine du dépôt (défaut « documentation »).
+	Dir string `mapstructure:"dir"`
+	// MediaDir est le dossier des médias, un seul segment sous Dir (défaut « Media »).
+	MediaDir string `mapstructure:"media_dir"`
+	// ArchivesScope est la portée de l'interdiction des archives (DOC8) : « repository » (défaut, tout le
+	// dépôt) ou « documentation » (sous Dir seulement).
+	ArchivesScope string `mapstructure:"archives_scope"`
+}
+
+// FileRules renvoie les règles des critères de fichiers (CL, RD, DOC) tirées de ces réglages (listes
+// copiées).
+func (c ConventionsConfig) FileRules() conventions.FileRules {
+	return conventions.FileRules{
+		CategoriesFR:   c.Changelog.CategoriesFR,
+		ReadmeSections: slices.Clone(c.Readme.Sections),
+		ReadmeMinWords: c.Readme.MinWords,
+		DocsDir:        c.Docs.Dir,
+		MediaDir:       c.Docs.MediaDir,
+		ArchivesScope:  c.Docs.ArchivesScope,
+	}
+}
+
+// BranchRules renvoie les règles BR1 tirées de ces réglages (listes copiées) : types de
+// conventions.commit.types, motif et exclusions de conventions.branch.*.
+func (c ConventionsConfig) BranchRules() conventions.BranchRules {
+	return conventions.BranchRules{
+		Types:   slices.Clone(c.Commit.Types),
+		Pattern: c.Branch.Pattern,
+		Exclude: slices.Clone(c.Branch.Exclude),
+	}
+}
+
+// Milestones renvoie les jalons de conventions.tags.milestones, lus par conventions.ParseMilestones.
+// La configuration validée (Validate) n'en contient pas d'invalide ; une erreur ne se produit que sur une
+// configuration non validée.
+func (c ConventionsConfig) Milestones() ([]conventions.Milestone, error) {
+	return conventions.ParseMilestones(c.Tags.Milestones)
+}
+
+// Rules renvoie les règles du parseur de internal/conventions tirées de ces réglages (listes copiées).
+func (c ConventionsConfig) Rules() conventions.Rules {
+	return conventions.Rules{
+		Types:          slices.Clone(c.Commit.Types),
+		Scopes:         slices.Clone(c.Commit.Scopes),
+		MaxSubjectSoft: c.Commit.MaxSubjectSoft,
+		MaxSubjectHard: c.Commit.MaxSubjectHard,
+		Forbidden:      slices.Clone(c.Commit.Forbidden),
+	}
+}
+
+// BuildOptions renvoie les options du rapport des conventions (conventions.Build) tirées de ces réglages,
+// la date de début et les échéances étant lues dans le fuseau loc de l'espace (listes copiées). Les jalons
+// d'une configuration non validée qui ne se lisent pas sont ignorés. LocalOnly (espace en clone seul)
+// reste à fixer par l'appelant, qui connaît le mode de synchro.
+func (c ConventionsConfig) BuildOptions(loc *time.Location) conventions.BuildOptions {
+	ms, err := c.Milestones()
+	if err != nil {
+		ms = nil
+	}
+	return conventions.BuildOptions{
+		Rules:            c.Rules(),
+		Since:            c.Since,
+		ExcludedAccounts: slices.Clone(c.ExcludedAccounts),
+		Location:         loc,
+		Branch:           c.BranchRules(),
+		Milestones:       ms,
+		PrereleaseForms:  slices.Clone(c.Tags.PrereleaseForms),
+		Language:         c.Commit.Language,
+		Files:            c.FileRules(),
+		PRBody:           c.PRBodyRules(),
+		Review:           c.ReviewRules(),
+	}
 }
 
 // DiagnosticConfig regroupe les réglages du diagnostic (clés diagnostic.*).
@@ -188,6 +394,16 @@ type GitConfig struct {
 //	github: {user: "", gh_path: "gh"}
 //	git: {protocol: "ssh"}
 //	diagnostic: {enabled: false, exclude: diagnostic.DefaultExclude, retention_days: 365, speed_signal: false}
+//	conventions: {enabled: false, since: "", commit: {types: conventions.DefaultTypes, scopes: [],
+//	              max_subject_soft: 50, max_subject_hard: 72, forbidden: conventions.DefaultForbidden,
+//	              language: "any"}, branch: {pattern: "", exclude: conventions.DefaultBranchExclude},
+//	              pr: {body_sections: conventions.DefaultPRBodySections, require_closes: true,
+//	              min_reviews: 1, reviewer_must_contribute: false},
+//	              tags: {milestones: conventions.DefaultMilestones,
+//	              prerelease_forms: conventions.DefaultPrereleaseForms}, changelog: {categories_fr: true},
+//	              readme: {sections: conventions.AllReadmeSections, min_words: 150},
+//	              docs: {dir: "documentation", media_dir: "Media", archives_scope: "repository"},
+//	              excluded_accounts: []}
 func DefaultConfig(name string) Config {
 	return Config{
 		Name: name,
@@ -211,6 +427,43 @@ func DefaultConfig(name string) Config {
 			Exclude:       slices.Clone(diagnostic.DefaultExclude),
 			RetentionDays: DefaultDiagnosticRetentionDays,
 		},
+		Conventions: ConventionsConfig{
+			Enabled: false,
+			Since:   "",
+			Commit: ConventionsCommitConfig{
+				Types:          conventions.DefaultTypes(),
+				Scopes:         []string{},
+				MaxSubjectSoft: conventions.DefaultMaxSubjectSoft,
+				MaxSubjectHard: conventions.DefaultMaxSubjectHard,
+				Forbidden:      conventions.DefaultForbidden(),
+				Language:       DefaultConventionsLanguage,
+			},
+			Branch: ConventionsBranchConfig{
+				Pattern: "",
+				Exclude: conventions.DefaultBranchExclude(),
+			},
+			PR: ConventionsPRConfig{
+				BodySections:           conventions.DefaultPRBodySections(),
+				RequireCloses:          true,
+				MinReviews:             conventions.DefaultMinReviews,
+				ReviewerMustContribute: false,
+			},
+			Tags: ConventionsTagsConfig{
+				Milestones:      conventions.DefaultMilestones(),
+				PrereleaseForms: conventions.DefaultPrereleaseForms(),
+			},
+			Changelog: ConventionsChangelogConfig{CategoriesFR: true},
+			Readme: ConventionsReadmeConfig{
+				Sections: conventions.AllReadmeSections(),
+				MinWords: conventions.DefaultReadmeMinWords,
+			},
+			Docs: ConventionsDocsConfig{
+				Dir:           conventions.DefaultDocsDir,
+				MediaDir:      conventions.DefaultMediaDir,
+				ArchivesScope: conventions.ArchivesScopeRepository,
+			},
+			ExcludedAccounts: []string{},
+		},
 	}
 }
 
@@ -230,7 +483,28 @@ func DefaultConfig(name string) Config {
 //   - lang : « en » ou « fr » (i18n.Valid) ;
 //   - github.gh_path non vide, et soit absolu, soit un simple nom sans séparateur (cherché dans le
 //     PATH) : un chemin relatif comme « .watchoo/gh » dépendrait du répertoire courant ;
-//   - git.protocol : GitProtocolSSH ou GitProtocolHTTPS.
+//   - git.protocol : GitProtocolSSH ou GitProtocolHTTPS ;
+//   - diagnostic.exclude : motifs non vides et valides ; diagnostic.retention_days entre 1 et
+//     MaxDiagnosticRetentionDays ;
+//   - conventions.since vide ou de la forme AAAA-MM-JJ (date du calendrier valide) ;
+//   - conventions.commit.types : au moins un type, chacun en lettres minuscules ;
+//     conventions.commit.scopes : chaque scope de la forme admise par le parseur ([a-z0-9][a-z0-9._/-]*) ;
+//   - conventions.commit.max_subject_soft >= 1 et max_subject_hard > max_subject_soft ;
+//   - conventions.commit.forbidden et conventions.excluded_accounts : aucune entrée vide ;
+//   - conventions.commit.language : « fr », « en » ou « any » ;
+//   - conventions.branch.pattern vide ou expression RE2 valide ; conventions.branch.exclude : chaque
+//     motif non vide et valide pour path.Match ;
+//   - conventions.pr.body_sections : chaque clé parmi conventions.AllPRBodySections, une seule fois ;
+//     conventions.pr.min_reviews >= 1 ;
+//   - conventions.tags.milestones : chaque entrée « vX.Y.Z » (version finale conforme, sans pré-version
+//     ni build) suivie au besoin de « @AAAA-MM-JJ » (date valide), chaque version une seule fois ;
+//   - conventions.tags.prerelease_forms : au moins une forme, chacune un mot de 1 à 32 lettres
+//     minuscules (conventions.ValidPrereleaseForm), une seule fois ;
+//   - conventions.readme.sections : chaque clé parmi conventions.AllReadmeSections, une seule fois ;
+//     conventions.readme.min_words >= 1 ;
+//   - conventions.docs.dir : chemin relatif à la racine, sans « . » ni « .. » (conventions.ValidDocsDir) ;
+//     conventions.docs.media_dir : un seul segment (conventions.ValidMediaDir) ;
+//     conventions.docs.archives_scope : « repository » ou « documentation ».
 func (c Config) Validate() error {
 	var errs []error
 	add := func(key string, args ...any) {
@@ -318,7 +592,132 @@ func (c Config) Validate() error {
 		add("workspace.validate.retention_range", d, MaxDiagnosticRetentionDays)
 	}
 
+	errs = append(errs, c.Conventions.validate()...)
+
 	return errors.Join(errs...)
+}
+
+// validate vérifie les réglages conventions.* (voir Config.Validate) et renvoie un message par problème.
+func (c ConventionsConfig) validate() []error {
+	var errs []error
+	add := func(key string, args ...any) {
+		errs = append(errs, errors.New(i18n.T(key, args...)))
+	}
+	if c.Since != "" {
+		if _, err := time.Parse(conventions.SinceInputLayout, c.Since); err != nil {
+			add("workspace.validate.conv_since_invalid", c.Since)
+		}
+	}
+	if len(c.Commit.Types) == 0 {
+		add("workspace.validate.conv_types_empty")
+	}
+	for i, t := range c.Commit.Types {
+		if !conventions.ValidType(t) {
+			add("workspace.validate.conv_type_invalid", i+1, t)
+		}
+	}
+	for i, s := range c.Commit.Scopes {
+		if !conventions.ValidScope(s) {
+			add("workspace.validate.conv_scope_invalid", i+1, s)
+		}
+	}
+	soft, hard := c.Commit.MaxSubjectSoft, c.Commit.MaxSubjectHard
+	if soft < 1 {
+		add("workspace.validate.conv_soft_min", soft)
+	}
+	if hard <= soft {
+		add("workspace.validate.conv_hard_above_soft", hard, soft)
+	}
+	for i, f := range c.Commit.Forbidden {
+		if strings.TrimSpace(f) == "" {
+			add("workspace.validate.conv_forbidden_empty", i+1)
+		}
+	}
+	if !slices.Contains(ConventionsLanguages(), c.Commit.Language) {
+		add("workspace.validate.conv_language_unknown", c.Commit.Language)
+	}
+	if conventions.ValidBranchPattern(c.Branch.Pattern) != nil {
+		add("workspace.validate.conv_branch_pattern_invalid", c.Branch.Pattern)
+	}
+	for i, p := range c.Branch.Exclude {
+		if strings.TrimSpace(p) == "" {
+			add("workspace.validate.conv_branch_exclude_empty", i+1)
+		} else if conventions.ValidBranchExclude(p) != nil {
+			add("workspace.validate.conv_branch_exclude_invalid", i+1, p)
+		}
+	}
+	prSections := map[string]bool{}
+	for i, k := range c.PR.BodySections {
+		switch {
+		case !conventions.ValidPRBodySection(k):
+			add("workspace.validate.conv_pr_section_invalid", i+1, k, strings.Join(conventions.AllPRBodySections(), ", "))
+		case prSections[k]:
+			add("workspace.validate.conv_pr_section_duplicate", i+1, k)
+		default:
+			prSections[k] = true
+		}
+	}
+	if c.PR.MinReviews < 1 {
+		add("workspace.validate.conv_pr_min_reviews", c.PR.MinReviews)
+	}
+	seen := map[string]bool{}
+	for i, entry := range c.Tags.Milestones {
+		m, err := conventions.ParseMilestone(entry)
+		switch {
+		case errors.Is(err, conventions.ErrMilestoneDue):
+			add("workspace.validate.conv_milestone_due_invalid", i+1, entry)
+		case err != nil:
+			add("workspace.validate.conv_milestone_invalid", i+1, entry)
+		case seen[m.Name]:
+			add("workspace.validate.conv_milestone_duplicate", i+1, m.Name)
+		default:
+			seen[m.Name] = true
+		}
+	}
+	if len(c.Tags.PrereleaseForms) == 0 {
+		add("workspace.validate.conv_prerelease_forms_empty")
+	}
+	forms := map[string]bool{}
+	for i, f := range c.Tags.PrereleaseForms {
+		switch {
+		case !conventions.ValidPrereleaseForm(f):
+			add("workspace.validate.conv_prerelease_form_invalid", i+1, f)
+		case forms[f]:
+			add("workspace.validate.conv_prerelease_form_duplicate", i+1, f)
+		default:
+			forms[f] = true
+		}
+	}
+	sections := map[string]bool{}
+	for i, k := range c.Readme.Sections {
+		switch {
+		case !conventions.ValidReadmeSection(k):
+			add("workspace.validate.conv_readme_section_invalid", i+1, k, strings.Join(conventions.AllReadmeSections(), ", "))
+		case sections[k]:
+			add("workspace.validate.conv_readme_section_duplicate", i+1, k)
+		default:
+			sections[k] = true
+		}
+	}
+	if c.Readme.MinWords < 1 {
+		add("workspace.validate.conv_readme_min_words", c.Readme.MinWords)
+	}
+	if !conventions.ValidDocsDir(c.Docs.Dir) {
+		add("workspace.validate.conv_docs_dir_invalid", c.Docs.Dir)
+	}
+	if !conventions.ValidMediaDir(c.Docs.MediaDir) {
+		add("workspace.validate.conv_docs_media_invalid", c.Docs.MediaDir)
+	}
+	if !conventions.ValidArchivesScope(c.Docs.ArchivesScope) {
+		add("workspace.validate.conv_docs_archives_invalid", c.Docs.ArchivesScope,
+			conventions.ArchivesScopeRepository, conventions.ArchivesScopeDocumentation)
+	}
+	for i, a := range c.ExcludedAccounts {
+		if strings.TrimSpace(a) == "" {
+			add("workspace.validate.conv_account_empty", i+1)
+		}
+	}
+	return errs
 }
 
 // validHostName indique si h est un nom d'hôte (lettres, chiffres, « - » et « . », 253 caractères au
@@ -790,6 +1189,16 @@ func toString(raw any) (string, error) {
 		return strconv.FormatInt(v, 10), nil
 	case uint64:
 		return strconv.FormatUint(v, 10), nil
+	case time.Time:
+		// Une date YAML sans guillemets (« since: 2026-09-01 ») est lue comme un horodatage : elle
+		// redevient la date écrite (AAAA-MM-JJ), ou l'horodatage RFC 3339 s'il porte une heure. Le
+		// décodeur YAML (viper) ne distingue pas « 2026-09-01 » de « 2026-09-01T00:00:00Z » : un
+		// horodatage sans guillemets à minuit UTC pile est donc lu comme sa date (tolérance documentée,
+		// 13-conventions §8) ; tout autre horaire ou décalage reste refusé par la validation.
+		if v.Location() == time.UTC && v.Equal(time.Date(v.Year(), v.Month(), v.Day(), 0, 0, 0, 0, time.UTC)) {
+			return v.Format(time.DateOnly), nil
+		}
+		return v.Format(time.RFC3339), nil
 	}
 	return "", errors.New(i18n.T("workspace.decode.want_string", describe(raw)))
 }
@@ -1082,6 +1491,72 @@ func renderConfig(tr *i18n.Translator, defaultName string, active map[string]any
 	setting("  ", "diagnostic.retention_days",
 		tr.T("workspace.cfg.diagnostic_retention", MaxDiagnosticRetentionDays))
 	setting("  ", "diagnostic.speed_signal", tr.T("workspace.cfg.diagnostic_speed"))
+	text(
+		"",
+		"# "+tr.T("workspace.cfg.conventions_l1"),
+		"# "+tr.T("workspace.cfg.conventions_l2"),
+	)
+	section("", "conventions")
+	setting("  ", "conventions.enabled", tr.T("workspace.cfg.conventions_enabled"))
+	setting("  ", "conventions.since", tr.T("workspace.cfg.conventions_since"))
+	if sectionActive("conventions.commit") {
+		text("  commit:")
+	} else {
+		text("#   commit:")
+	}
+	setting("    ", "conventions.commit.types", tr.T("workspace.cfg.conventions_types"))
+	setting("    ", "conventions.commit.scopes", tr.T("workspace.cfg.conventions_scopes"))
+	setting("    ", "conventions.commit.max_subject_soft", tr.T("workspace.cfg.conventions_soft"))
+	setting("    ", "conventions.commit.max_subject_hard", tr.T("workspace.cfg.conventions_hard"))
+	setting("    ", "conventions.commit.forbidden", tr.T("workspace.cfg.conventions_forbidden"))
+	setting("    ", "conventions.commit.language", tr.T("workspace.cfg.conventions_language"))
+	if sectionActive("conventions.branch") {
+		text("  branch:")
+	} else {
+		text("#   branch:")
+	}
+	setting("    ", "conventions.branch.pattern", tr.T("workspace.cfg.conventions_branch_pattern"))
+	setting("    ", "conventions.branch.exclude", tr.T("workspace.cfg.conventions_branch_exclude"))
+	if sectionActive("conventions.pr") {
+		text("  pr:")
+	} else {
+		text("#   pr:")
+	}
+	setting("    ", "conventions.pr.body_sections",
+		tr.T("workspace.cfg.conventions_pr_body_sections", strings.Join(conventions.AllPRBodySections(), ", ")))
+	setting("    ", "conventions.pr.require_closes", tr.T("workspace.cfg.conventions_pr_require_closes"))
+	setting("    ", "conventions.pr.min_reviews", tr.T("workspace.cfg.conventions_pr_min_reviews"))
+	setting("    ", "conventions.pr.reviewer_must_contribute", tr.T("workspace.cfg.conventions_pr_reviewer_must_contribute"))
+	if sectionActive("conventions.tags") {
+		text("  tags:")
+	} else {
+		text("#   tags:")
+	}
+	setting("    ", "conventions.tags.milestones", tr.T("workspace.cfg.conventions_milestones"))
+	setting("    ", "conventions.tags.prerelease_forms", tr.T("workspace.cfg.conventions_prerelease_forms"))
+	if sectionActive("conventions.changelog") {
+		text("  changelog:")
+	} else {
+		text("#   changelog:")
+	}
+	setting("    ", "conventions.changelog.categories_fr", tr.T("workspace.cfg.conventions_categories_fr"))
+	if sectionActive("conventions.readme") {
+		text("  readme:")
+	} else {
+		text("#   readme:")
+	}
+	setting("    ", "conventions.readme.sections",
+		tr.T("workspace.cfg.conventions_readme_sections", strings.Join(conventions.AllReadmeSections(), ", ")))
+	setting("    ", "conventions.readme.min_words", tr.T("workspace.cfg.conventions_readme_min_words"))
+	if sectionActive("conventions.docs") {
+		text("  docs:")
+	} else {
+		text("#   docs:")
+	}
+	setting("    ", "conventions.docs.dir", tr.T("workspace.cfg.conventions_docs_dir"))
+	setting("    ", "conventions.docs.media_dir", tr.T("workspace.cfg.conventions_docs_media_dir"))
+	setting("    ", "conventions.docs.archives_scope", tr.T("workspace.cfg.conventions_docs_archives"))
+	setting("  ", "conventions.excluded_accounts", tr.T("workspace.cfg.conventions_excluded"))
 	return b.String()
 }
 

@@ -158,14 +158,20 @@ Two fakes, written in phase 2 and reused by the following phases:
 - **Pull requests, releases and tags** (V2): GitHub provider against `githubtest` (conversion, order,
   pagination and caps of 1,000, early stop `UpdatedSince` on a single page, `Limit`, free `304`s,
   empty repository, `409`, unusable response, `5xx`, `404`, invalid arguments without a request;
-  `pulls_test.go`), routes of `githubtest` (`state`, `sort`, `direction`, pagination) and fake
+  `pulls_test.go`; phase 8.5: `merge_commit_sha` of merged PRs only, fork origin from `head.repo` and
+  `base.repo`, merge methods returned only with the push right, `conventions_test.go`), routes of
+  `githubtest` (`state`, `sort`, `direction`, pagination; `merge_commit_sha`, `head.repo` of a fork or
+  null for a deleted fork, `allow_*` served with `Repo.Push`) and fake
   `providertest` (sorting, `UpdatedSince`, injected error `ErrUnsupported`, quota); schema `00003`
   (uniqueness, `CHECK`, cascades), writing by `ApplyRepoSync` (creation, update, replacement of the
   releases and tags, keeping when the list is not read again, refusal of invalid data without writing
   anything) and reads (state filters, tags dated by their commit, summary of the repositories); engine
   (`extras_test.go`: first pass then incremental, isolated failure as a warning with commits kept and
   resumption at the same point, `ErrUnsupported` without warning nor clearing, low and exhausted
-  quota, cancellation); CLI (`watchoo prs` and `watchoo releases` in text and in JSON, filters,
+  quota, cancellation; `pull_conventions_test.go`, phase 8.5: fields filled at insertion, single full
+  reread when the conventions are turned on then incremental again, marker not set after an interrupted
+  or truncated reread, merge methods back to unknown, body never in the database nor the logs, end to end
+  against `githubtest` without extra request); CLI (`watchoo prs` and `watchoo releases` in text and in JSON, filters,
   invalid options, trapped titles neutralized, warnings of `watchoo sync`); web (cards and
   `repo-pulls` fragment, escaping of a trapped title, empty states, open PRs on the dashboard); TUI
   ("Pull requests" line of the detail, warnings of the summary). The two end-to-end tests also read
@@ -529,6 +535,62 @@ See [Supervision and diagnosis](12-supervision-diagnostic.md). No external servi
   signal, same measures with or without collection; reading from an existing `gittest` clone only (line
   numbers, nothing cloned without a clone, no line in the logs); order of the blocks of the sheet and "Lines
   behind the signals" section.
+
+## Project conventions (phase 8.1)
+
+See [Project conventions](13-conventions.md).
+
+- `internal/workspace`: defaults of the charter (disabled, 11 types, 50 and 72, forbidden subjects),
+  validation of each rule (`YYYY-MM-DD` date, lowercase types, scopes, lengths, language, empty entries),
+  `WATCHOO_CONVENTIONS_*` variables, unquoted YAML date (`since: 2026-09-01`) read back as the written date,
+  uncommented `config.yaml` template equal to the defaults; `conventions.enabled` and
+  `conventions.excluded_accounts` kept by the rewrite of `config import` and never added by it; lists
+  copied (an import never changes the configuration in place).
+- `internal/configshare`: export of the `settings.conventions` block without `enabled` nor
+  `excluded_accounts`, reading and refusals (date, type, scope, empty entry or with a control character,
+  language, unknown key), preview (only different values; empty lists compared as such, a second import
+  changes nothing), refusal of inconsistent merged settings without writing anything; web preview and
+  number of settings exported by the CLI.
+- Conventions report (`internal/conventions`, `Build`): simulated database reader and clone; scope from
+  the clone (commits of the tracked branches, default branch alone, missing branch, no tracked branch),
+  database fallback (no clone, unreadable clone), start date of the workspace or of the repository,
+  author filter, contributors across the repositories, database errors and ended context;
+  `internal/provider/git` (`RevList`: tracked branches of the existing clone, without `fetch`);
+  `internal/sync` (`ConventionsClones`, with `gittest`: a branch rewritten by `push --force`, forgotten
+  by the clone and kept by the database fallback); `internal/store` (`ConventionCommits`: parents,
+  author, committer, tracked and default branches).
+- `watchoo conventions`: text (rates, exclusions, issues, contributors, `--commits`, `--failing`,
+  `--contributor`, French), `--json` (keys frozen by `json_schema_test.go`, same top-level keys with or
+  without `--commits`, empty workspace), conventions disabled, and a step of the CLI end-to-end scenario
+  (API mode: database fallback); no commit message in the outputs.
+- Web interface: `repo-conventions` section (rate, default branch, exclusions, issues, latest
+  non-conforming commits, repository never synced, no commit evaluated, HTMX fragment, disabled), line of
+  a contributor's page, labels of all the codes, reasons and severities in English and French, web
+  end-to-end scenario with a conforming commit and a merge; no commit message.
+- Phase 8.3 (file criteria): pure functions of `internal/conventions` (minimal Markdown reader, CL1 to CL9
+  with Watchoo's own `CHANGELOG.md` as the conforming case, RD1 to RD4, DOC1 to DOC5 and DOC8, TL1 to TL3;
+  a serialized result holds no path, content nor name); `TreePaths` and `ReadBlobs` of the git provider
+  with `gittest` (no clone, missing object, truncated tree, blob too large, invalid input, no fetch); the
+  `00017` migration and the `repository_conventions` queries (constraints, cascade, upsert, stale rows);
+  the computation in the sync (recomputed only when the commit, the rules or the fingerprint change, rows
+  of removed milestones deleted, no path nor tag name in the logs); the cache read by `Build` and the
+  milestone review (not computed, stale, filtered); `--json` keys frozen by `json_schema_test.go`; the
+  repository page and `/conventions` on a local clone.
+- Phase 8.5 (merges): pure functions of `internal/conventions`: `prbody_test.go` (PR5: headings and bold
+  labels, FR and EN synonyms, section empty or reduced to an HTML comment, closing keyword outside code,
+  mask and settings), `merges_test.go` (PR6; PR3 in API mode, list complete or not, sequence rebased by
+  GitHub recognised from its head even when `merged_at` differs by one second, non-consecutive sequence,
+  ±2 s fallback without `merge_commit_sha`, squash of a PR missing from the list kept undetermined, clone
+  only; BR2, BR5, identified squash for A1 and A2), `mergeflow_test.go` (`Build` with PR3, PR5, PR6, BR2,
+  BR5, forks set aside, degraded modes, PR3 criterion of the milestone review); `FirstParent` of the git
+  provider with `gittest`; fields read by the GitHub provider and the fake `githubtest` (`merge_commit_sha`,
+  `head.repo` fork or deleted, body, `allow_*`); the `00020` migration and the store writes (constraints,
+  `DownTo(19)`); the sync (`pull_conventions_test.go`: body never present in the database nor the WAL,
+  first pass, single full reread, interrupted or truncated without marker, merge methods);
+  `watchoo conventions` (`cli/conventions_merges_test.go`: text, `--json` with frozen keys, milestone review
+  on a local clone); web interface (`web/conventions_merges_test.go`, `web/e2e_merges_test.go`: PR badges,
+  merges block, commits outside PR, contributor page, EN and FR labels); no body, title nor commit message
+  in the outputs.
 
 ## In CI
 

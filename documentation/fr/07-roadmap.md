@@ -20,7 +20,8 @@ diagnostic (phases 7.1 à 7.5) sont publiés en **v1.4.0** ([7](#après-100--7--
 absolus et les contre-indicateurs du diagnostic (phase 7.7) en **v1.5.0** ; le sélecteur de langue EN / FR de
 l'interface web et les lignes en cause sur la fiche de revue du diagnostic (phase 7.8) et le score du diagnostic par dépôt et
 par contributeur en **v1.6.0** ; le lien vers la documentation dans la langue de l'interface web, les icônes du score IA et le score IA et les
-pistes des commits sur la page d'un contributeur en **v1.6.1**.
+pistes des commits sur la page d'un contributeur en **v1.6.1** ; les conventions de projet (phase 8, sauf BR3) et le tri
+et les filtres du tableau de bord en **v1.7.0**.
 
 ```mermaid
 flowchart LR
@@ -182,6 +183,26 @@ L'import d'une organisation entière et les alertes passent en V3 (voir
   sur la fiche de revue, extraites à l'affichage) est **publiée en v1.6.0** (voir
   [Supervision et diagnostic](12-supervision-diagnostic.md#96-phase-77--signaux-absolus-marqueurs-de-travail-et-contre-indicateurs-réalisée)). Contexte pédagogique tranché (apprenants, résultats réservés au formateur) ;
   l'information des apprenants (existence du diagnostic, finalité, critères) se fait avant de l'activer.
+
+### Après 1.6.1 — 8 : conventions de projet
+- Indicateurs de conformité à une charte de conventions (Conventional Commits, branches et pull requests,
+  SemVer, CHANGELOG Keep a Changelog, README, `documentation/INDEX.md`) et vue « revue de jalon ».
+  Constats objectifs, séparés du diagnostic, sans note globale, réservés au formateur, désactivés par défaut.
+- Sous-phases 8.0 à 8.7 : voir [Conventions de projet](13-conventions.md#10-plan-par-phases-proposition).
+- **Statut** : **décidée** (décisions du mainteneur du 8 novembre 2026) ; phase **8.1** (conventions de
+  commits, commande `watchoo conventions`, ajustements de A1, A2 et F4) et phase **8.2** (branches, titres
+  de PR, tags et jalons, releases en information, CC5 à CC7, CC1 par intervalle entre tags, tendance de CC3,
+  première revue de jalon `--milestone` et page `/conventions`) et phase **8.3** (CHANGELOG, README,
+  documentation et outillage lus dans l'arbre du clone et mis en cache, revue de jalon sur l'arbre des tags)
+  et phase **8.4** (historique : observations des tags et réécritures de la branche par défaut enregistrées
+  par la synchro, échéances des jalons, SV3 à SV5, SV7, fraîcheur du CHANGELOG, SV3 dans la revue de jalon)
+  et phase **8.5** (fusions lues sans requête de plus : SHA de fusion, origine fork, sections des
+  descriptions de PR, méthodes de fusion ; PR3, PR5, PR6, BR2, BR5, forks écartés de PR1, PR2, PR5, PR6, BR1 et BR2, PR3 dans la
+  revue de jalon) et phase **8.6** (relectures : une requête par pull request fusionnée, des compteurs
+  seulement ; PR4, fusionnées sans relecture, relectures reçues, PR4 dans la revue de jalon) et phase **8.7**
+  (pistes qui invitent à relire sans juger, hors grilles et hors taux : CL11, CL12, RD5, DOC6, DOC7, DOC9,
+  DOC10, TL4, TL5) **publiées en v1.7.0** : la phase 8 est réalisée, sauf la protection de branche (BR3),
+  reportée.
 
 ## Définition de « terminé » pour chaque phase
 

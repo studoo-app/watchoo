@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/studoo-app/watchoo/internal/aisignature"
 	"github.com/studoo-app/watchoo/internal/provider"
 )
 
@@ -57,7 +58,7 @@ func Compute(in Input, ex *Excluder) (s Signals, ok bool) {
 		s.DeletionsKept += f.Deletions
 	}
 	s.Tools = EncodeDeclarations(MessageDeclarations(in.Message))
-	s.BotAuthor = isBot(in.AuthorName) || isBot(in.AuthorLogin)
+	s.BotAuthor = aisignature.IsBot(in.AuthorName) || aisignature.IsBot(in.AuthorLogin)
 	s.Message = MeasureMessage(in.Message)
 	return s, true
 }
@@ -116,12 +117,6 @@ func AgentBranch(branch string) (tool string, ok bool) {
 		}
 	}
 	return "", false
-}
-
-// isBot indique si un nom ou un login désigne un compte bot connu (signal D3).
-func isBot(s string) bool {
-	s = strings.ToLower(strings.TrimSpace(s))
-	return s != "" && (strings.HasSuffix(s, "[bot]") || botLogins[s])
 }
 
 // isAgentConfig indique si le chemin p est un fichier de configuration d'agent (signal D4).

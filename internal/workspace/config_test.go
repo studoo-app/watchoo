@@ -16,6 +16,7 @@ import (
 
 	"github.com/spf13/viper"
 
+	"github.com/studoo-app/watchoo/internal/conventions"
 	"github.com/studoo-app/watchoo/internal/diagnostic"
 	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/logo"
@@ -37,9 +38,36 @@ func TestDefaultConfig(t *testing.T) {
 		Git:      GitConfig{Protocol: "ssh"},
 		Diagnostic: DiagnosticConfig{Enabled: false, Exclude: diagnostic.DefaultExclude,
 			RetentionDays: 365, SpeedSignal: false},
+		Conventions: ConventionsConfig{Enabled: false, Since: "",
+			Commit: ConventionsCommitConfig{
+				Types:          []string{"feat", "fix", "docs", "style", "refactor", "perf", "test", "build", "ci", "chore", "revert"},
+				Scopes:         []string{},
+				MaxSubjectSoft: 50, MaxSubjectHard: 72,
+				Forbidden: conventions.DefaultForbidden(),
+				Language:  "any",
+			},
+			Branch: ConventionsBranchConfig{Pattern: "", Exclude: []string{"gh-pages", "dependabot/*", "renovate/*"}},
+			PR: ConventionsPRConfig{BodySections: []string{"context", "changes", "testing", "screenshots"},
+				RequireCloses: true, MinReviews: 1, ReviewerMustContribute: false},
+			Tags: ConventionsTagsConfig{Milestones: []string{"v1.0.0", "v2.0.0", "v3.0.0"},
+				PrereleaseForms: []string{"rc", "beta", "alpha"}},
+			Changelog: ConventionsChangelogConfig{CategoriesFR: true},
+			Readme: ConventionsReadmeConfig{MinWords: 150, Sections: []string{"presentation", "group", "stack",
+				"install", "run", "env", "tree", "license"}},
+			Docs:             ConventionsDocsConfig{Dir: "documentation", MediaDir: "Media", ArchivesScope: "repository"},
+			ExcludedAccounts: []string{}},
 	}
 	if !reflect.DeepEqual(cfg, want) {
 		t.Errorf("DefaultConfig = %+v\nwant %+v", cfg, want)
+	}
+	for _, f := range []string{"update", "maj", "wip", "test", "modif", "fix", "dépôt 1", ".", "initial commit"} {
+		if !slices.Contains(cfg.Conventions.Commit.Forbidden, f) {
+			t.Errorf("conventions.commit.forbidden lacks %q from the charter", f)
+		}
+	}
+	cfg.Conventions.Commit.Types[0] = "changed"
+	if DefaultConfig("x").Conventions.Commit.Types[0] != "feat" {
+		t.Error("DefaultConfig shares its conventions.commit.types list")
 	}
 	cfg.Diagnostic.Exclude[0] = "changed"
 	if diagnostic.DefaultExclude[0] == "changed" {
@@ -66,7 +94,15 @@ func TestSettingKeys(t *testing.T) {
 		"activity.flemme_after_days", "activity.dead_after_days", "branches.exclude",
 		"web.addr", "web.auth.username", "web.trusted_proxy", "web.allowed_hosts", "timezone", "lang", "github.user", "github.gh_path",
 		"git.protocol", "diagnostic.enabled", "diagnostic.exclude", "diagnostic.retention_days",
-		"diagnostic.speed_signal",
+		"diagnostic.speed_signal", "conventions.enabled", "conventions.since", "conventions.commit.types",
+		"conventions.commit.scopes", "conventions.commit.max_subject_soft", "conventions.commit.max_subject_hard",
+		"conventions.commit.forbidden", "conventions.commit.language", "conventions.branch.pattern",
+		"conventions.branch.exclude", "conventions.pr.body_sections", "conventions.pr.require_closes",
+		"conventions.pr.min_reviews", "conventions.pr.reviewer_must_contribute",
+		"conventions.tags.milestones", "conventions.tags.prerelease_forms",
+		"conventions.changelog.categories_fr",
+		"conventions.readme.sections", "conventions.readme.min_words", "conventions.docs.dir",
+		"conventions.docs.media_dir", "conventions.docs.archives_scope", "conventions.excluded_accounts",
 	}
 	if !slices.Equal(keys, wantKeys) {
 		t.Errorf("keys = %v\nwant %v", keys, wantKeys)
@@ -77,6 +113,18 @@ func TestSettingKeys(t *testing.T) {
 		"WATCHOO_WEB_ADDR", "WATCHOO_WEB_AUTH_USERNAME", "WATCHOO_WEB_TRUSTED_PROXY", "WATCHOO_WEB_ALLOWED_HOSTS", "WATCHOO_TIMEZONE", "WATCHOO_LANG", "WATCHOO_GITHUB_USER", "WATCHOO_GITHUB_GH_PATH",
 		"WATCHOO_GIT_PROTOCOL", "WATCHOO_DIAGNOSTIC_ENABLED", "WATCHOO_DIAGNOSTIC_EXCLUDE",
 		"WATCHOO_DIAGNOSTIC_RETENTION_DAYS", "WATCHOO_DIAGNOSTIC_SPEED_SIGNAL",
+		"WATCHOO_CONVENTIONS_ENABLED", "WATCHOO_CONVENTIONS_SINCE", "WATCHOO_CONVENTIONS_COMMIT_TYPES",
+		"WATCHOO_CONVENTIONS_COMMIT_SCOPES", "WATCHOO_CONVENTIONS_COMMIT_MAX_SUBJECT_SOFT",
+		"WATCHOO_CONVENTIONS_COMMIT_MAX_SUBJECT_HARD", "WATCHOO_CONVENTIONS_COMMIT_FORBIDDEN",
+		"WATCHOO_CONVENTIONS_COMMIT_LANGUAGE", "WATCHOO_CONVENTIONS_BRANCH_PATTERN",
+		"WATCHOO_CONVENTIONS_BRANCH_EXCLUDE", "WATCHOO_CONVENTIONS_PR_BODY_SECTIONS",
+		"WATCHOO_CONVENTIONS_PR_REQUIRE_CLOSES", "WATCHOO_CONVENTIONS_PR_MIN_REVIEWS",
+		"WATCHOO_CONVENTIONS_PR_REVIEWER_MUST_CONTRIBUTE", "WATCHOO_CONVENTIONS_TAGS_MILESTONES",
+		"WATCHOO_CONVENTIONS_TAGS_PRERELEASE_FORMS",
+		"WATCHOO_CONVENTIONS_CHANGELOG_CATEGORIES_FR", "WATCHOO_CONVENTIONS_README_SECTIONS",
+		"WATCHOO_CONVENTIONS_README_MIN_WORDS", "WATCHOO_CONVENTIONS_DOCS_DIR",
+		"WATCHOO_CONVENTIONS_DOCS_MEDIA_DIR", "WATCHOO_CONVENTIONS_DOCS_ARCHIVES_SCOPE",
+		"WATCHOO_CONVENTIONS_EXCLUDED_ACCOUNTS",
 	}
 	if !slices.Equal(envs, wantEnvs) {
 		t.Errorf("variables = %v\nwant %v", envs, wantEnvs)
@@ -107,8 +155,38 @@ func TestValidateAcceptsBoundaries(t *testing.T) {
 		"diagnostic patterns": func(c *Config) {
 			c.Diagnostic.Exclude = []string{"vendor/", "*.pb.go", "web/static/*.js", "a/b/"}
 		},
-		"retention 1 day":    func(c *Config) { c.Diagnostic.RetentionDays = 1 },
-		"retention 10 years": func(c *Config) { c.Diagnostic.RetentionDays = 3650 },
+		"retention 1 day":     func(c *Config) { c.Diagnostic.RetentionDays = 1 },
+		"retention 10 years":  func(c *Config) { c.Diagnostic.RetentionDays = 3650 },
+		"conventions enabled": func(c *Config) { c.Conventions.Enabled = true },
+		"conventions since":   func(c *Config) { c.Conventions.Since = "2026-09-01" },
+		"leap day":            func(c *Config) { c.Conventions.Since = "2028-02-29" },
+		"own types and scopes": func(c *Config) {
+			c.Conventions.Commit.Types = []string{"feat", "fix", "wip"}
+			c.Conventions.Commit.Scopes = []string{"api", "web-ui", "docs/fr", "v1.2", "a_b", "0"}
+		},
+		"subject lengths 1 and 2": func(c *Config) {
+			c.Conventions.Commit.MaxSubjectSoft, c.Conventions.Commit.MaxSubjectHard = 1, 2
+		},
+		"no forbidden subject":  func(c *Config) { c.Conventions.Commit.Forbidden = []string{} },
+		"french subjects":       func(c *Config) { c.Conventions.Commit.Language = "fr" },
+		"english subjects":      func(c *Config) { c.Conventions.Commit.Language = "en" },
+		"excluded accounts":     func(c *Config) { c.Conventions.ExcludedAccounts = []string{"prof-dupont", "Jean Prof"} },
+		"no README section":     func(c *Config) { c.Conventions.Readme.Sections = []string{} },
+		"some README sections":  func(c *Config) { c.Conventions.Readme.Sections = []string{"license", "install"} },
+		"README min words 1":    func(c *Config) { c.Conventions.Readme.MinWords = 1 },
+		"no PR body section":    func(c *Config) { c.Conventions.PR.BodySections = []string{} },
+		"some PR body sections": func(c *Config) { c.Conventions.PR.BodySections = []string{"testing", "context"} },
+		"closes not required":   func(c *Config) { c.Conventions.PR.RequireCloses = false },
+		"two reviews required":  func(c *Config) { c.Conventions.PR.MinReviews = 2 },
+		"reviewer contributes":  func(c *Config) { c.Conventions.PR.ReviewerMustContribute = true },
+		"French labels refused": func(c *Config) { c.Conventions.Changelog.CategoriesFR = false },
+		"nested docs dir":       func(c *Config) { c.Conventions.Docs.Dir = "docs/projet" },
+		"own media dir":         func(c *Config) { c.Conventions.Docs.MediaDir = "images" },
+		"archives in the docs":  func(c *Config) { c.Conventions.Docs.ArchivesScope = "documentation" },
+		"own pre-release forms": func(c *Config) { c.Conventions.Tags.PrereleaseForms = []string{"rc", "preview"} },
+		"single pre-release form": func(c *Config) {
+			c.Conventions.Tags.PrereleaseForms = []string{strings.Repeat("a", conventions.MaxPrereleaseFormLength)}
+		},
 	}
 	for name, mutate := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -186,6 +264,103 @@ func TestValidateRejectsInvalidValues(t *testing.T) {
 			[]string{"github.gh_path", "relative"}},
 		{"unknown git protocol", func(c *Config) { c.Git.Protocol = "ftp" },
 			[]string{"git.protocol", `"ftp"`, "ssh", "https"}},
+		{"since in another form", func(c *Config) { c.Conventions.Since = "01/09/2026" },
+			[]string{"conventions.since", `"01/09/2026"`, "YYYY-MM-DD"}},
+		{"since with a time", func(c *Config) { c.Conventions.Since = "2026-09-01T00:00:00Z" },
+			[]string{"conventions.since", "YYYY-MM-DD"}},
+		{"impossible since", func(c *Config) { c.Conventions.Since = "2026-02-30" },
+			[]string{"conventions.since", `"2026-02-30"`}},
+		{"no type", func(c *Config) { c.Conventions.Commit.Types = []string{} },
+			[]string{"conventions.commit.types", "at least one type"}},
+		{"uppercase type", func(c *Config) { c.Conventions.Commit.Types = []string{"feat", "Fix"} },
+			[]string{"conventions.commit.types", "#2", `"Fix"`, "lowercase"}},
+		{"empty type", func(c *Config) { c.Conventions.Commit.Types = []string{""} },
+			[]string{"conventions.commit.types", "#1"}},
+		{"invalid scope", func(c *Config) { c.Conventions.Commit.Scopes = []string{"api", "API"} },
+			[]string{"conventions.commit.scopes", "#2", `"API"`}},
+		{"empty scope", func(c *Config) { c.Conventions.Commit.Scopes = []string{""} },
+			[]string{"conventions.commit.scopes", "#1"}},
+		{"zero soft length", func(c *Config) { c.Conventions.Commit.MaxSubjectSoft = 0 },
+			[]string{"conventions.commit.max_subject_soft: 0", "at least 1"}},
+		{"hard length equal to soft", func(c *Config) { c.Conventions.Commit.MaxSubjectHard = 50 },
+			[]string{"conventions.commit.max_subject_hard: 50", "strictly greater", "(50)"}},
+		{"empty forbidden subject", func(c *Config) { c.Conventions.Commit.Forbidden = []string{"wip", "  "} },
+			[]string{"conventions.commit.forbidden", "#2", "empty"}},
+		{"unknown subject language", func(c *Config) { c.Conventions.Commit.Language = "de" },
+			[]string{"conventions.commit.language", `"de"`, "any"}},
+		{"empty subject language", func(c *Config) { c.Conventions.Commit.Language = "" },
+			[]string{"conventions.commit.language", `""`}},
+		{"empty excluded account", func(c *Config) { c.Conventions.ExcludedAccounts = []string{""} },
+			[]string{"conventions.excluded_accounts", "#1", "empty"}},
+		{"invalid branch pattern", func(c *Config) { c.Conventions.Branch.Pattern = "^(feat/" },
+			[]string{"conventions.branch.pattern", `"^(feat/"`, "RE2"}},
+		{"Perl-only branch pattern", func(c *Config) { c.Conventions.Branch.Pattern = `^(?!main)` },
+			[]string{"conventions.branch.pattern", "RE2"}},
+		{"empty branch exclusion", func(c *Config) { c.Conventions.Branch.Exclude = []string{"gh-pages", " "} },
+			[]string{"conventions.branch.exclude", "#2", "empty"}},
+		{"invalid branch exclusion", func(c *Config) { c.Conventions.Branch.Exclude = []string{"release/["} },
+			[]string{"conventions.branch.exclude", "#1", `"release/["`, "invalid"}},
+		{"milestone without v", func(c *Config) { c.Conventions.Tags.Milestones = []string{"v1.0.0", "2.0.0"} },
+			[]string{"conventions.tags.milestones", "#2", `"2.0.0"`, "vX.Y.Z"}},
+		{"uppercase milestone", func(c *Config) { c.Conventions.Tags.Milestones = []string{"V1.0.0"} },
+			[]string{"conventions.tags.milestones", "#1", `"V1.0.0"`}},
+		{"incomplete milestone", func(c *Config) { c.Conventions.Tags.Milestones = []string{"v1.0"} },
+			[]string{"conventions.tags.milestones", "#1", `"v1.0"`}},
+		{"pre-release milestone", func(c *Config) { c.Conventions.Tags.Milestones = []string{"v1.0.0-rc.1"} },
+			[]string{"conventions.tags.milestones", "#1", "final"}},
+		{"milestone with build metadata", func(c *Config) { c.Conventions.Tags.Milestones = []string{"v1.0.0+build"} },
+			[]string{"conventions.tags.milestones", "#1", `"v1.0.0+build"`}},
+		{"empty milestone", func(c *Config) { c.Conventions.Tags.Milestones = []string{""} },
+			[]string{"conventions.tags.milestones", "#1"}},
+		{"impossible due date", func(c *Config) { c.Conventions.Tags.Milestones = []string{"v1.0.0@2026-02-30"} },
+			[]string{"conventions.tags.milestones", "#1", "due date", "vX.Y.Z@YYYY-MM-DD"}},
+		{"due date with a time", func(c *Config) { c.Conventions.Tags.Milestones = []string{"v1.0.0@2026-12-18T00:00"} },
+			[]string{"conventions.tags.milestones", "#1", "due date"}},
+		{"empty due date", func(c *Config) { c.Conventions.Tags.Milestones = []string{"v1.0.0@"} },
+			[]string{"conventions.tags.milestones", "#1", "due date"}},
+		{"repeated milestone", func(c *Config) {
+			c.Conventions.Tags.Milestones = []string{"v1.0.0", "v2.0.0", "v1.0.0@2026-12-18"}
+		}, []string{"conventions.tags.milestones", "#3", "v1.0.0"}},
+		{"no pre-release form", func(c *Config) { c.Conventions.Tags.PrereleaseForms = []string{} },
+			[]string{"conventions.tags.prerelease_forms", "at least one"}},
+		{"uppercase pre-release form", func(c *Config) { c.Conventions.Tags.PrereleaseForms = []string{"rc", "RC"} },
+			[]string{"conventions.tags.prerelease_forms", "#2", `"RC"`, "lowercase"}},
+		{"pre-release form with a digit", func(c *Config) { c.Conventions.Tags.PrereleaseForms = []string{"rc1"} },
+			[]string{"conventions.tags.prerelease_forms", "#1", `"rc1"`}},
+		{"pre-release form too long", func(c *Config) {
+			c.Conventions.Tags.PrereleaseForms = []string{strings.Repeat("a", conventions.MaxPrereleaseFormLength+1)}
+		}, []string{"conventions.tags.prerelease_forms", "#1", "invalid"}},
+		{"repeated pre-release form", func(c *Config) { c.Conventions.Tags.PrereleaseForms = []string{"rc", "beta", "rc"} },
+			[]string{"conventions.tags.prerelease_forms", "#3", `"rc"`}},
+		{"unknown PR body section", func(c *Config) { c.Conventions.PR.BodySections = []string{"context", "closes"} },
+			[]string{"conventions.pr.body_sections", "#2", `"closes"`, "context, changes, testing, screenshots"}},
+		{"PR body section with a capital", func(c *Config) { c.Conventions.PR.BodySections = []string{"Testing"} },
+			[]string{"conventions.pr.body_sections", "#1", `"Testing"`}},
+		{"repeated PR body section", func(c *Config) {
+			c.Conventions.PR.BodySections = []string{"testing", "changes", "testing"}
+		}, []string{"conventions.pr.body_sections", "#3", "testing"}},
+		{"unknown README section", func(c *Config) { c.Conventions.Readme.Sections = []string{"install", "Install"} },
+			[]string{"conventions.readme.sections", "#2", `"Install"`, "presentation, group"}},
+		{"repeated README section", func(c *Config) { c.Conventions.Readme.Sections = []string{"run", "env", "run"} },
+			[]string{"conventions.readme.sections", "#3", "run"}},
+		{"README min words 0", func(c *Config) { c.Conventions.Readme.MinWords = 0 },
+			[]string{"conventions.readme.min_words", "at least 1", "0"}},
+		{"PR min reviews 0", func(c *Config) { c.Conventions.PR.MinReviews = 0 },
+			[]string{"conventions.pr.min_reviews", "at least 1", "0"}},
+		{"PR min reviews negative", func(c *Config) { c.Conventions.PR.MinReviews = -2 },
+			[]string{"conventions.pr.min_reviews", "at least 1", "-2"}},
+		{"empty docs dir", func(c *Config) { c.Conventions.Docs.Dir = "" },
+			[]string{"conventions.docs.dir", `""`}},
+		{"absolute docs dir", func(c *Config) { c.Conventions.Docs.Dir = "/documentation" },
+			[]string{"conventions.docs.dir", `"/documentation"`}},
+		{"docs dir going up", func(c *Config) { c.Conventions.Docs.Dir = "docs/../.." },
+			[]string{"conventions.docs.dir", `"docs/../.."`}},
+		{"media dir with a slash", func(c *Config) { c.Conventions.Docs.MediaDir = "a/b" },
+			[]string{"conventions.docs.media_dir", `"a/b"`}},
+		{"empty media dir", func(c *Config) { c.Conventions.Docs.MediaDir = "" },
+			[]string{"conventions.docs.media_dir", `""`}},
+		{"unknown archives scope", func(c *Config) { c.Conventions.Docs.ArchivesScope = "docs" },
+			[]string{"conventions.docs.archives_scope", `"docs"`, `"repository"`, `"documentation"`}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -421,6 +596,30 @@ func TestLoadEnvironmentVariables(t *testing.T) {
 		"WATCHOO_DIAGNOSTIC_EXCLUDE":         "vendor/, *.lock",
 		"WATCHOO_DIAGNOSTIC_RETENTION_DAYS":  "30",
 		"WATCHOO_DIAGNOSTIC_SPEED_SIGNAL":    "true",
+
+		"WATCHOO_CONVENTIONS_ENABLED":                     "true",
+		"WATCHOO_CONVENTIONS_SINCE":                       "2026-09-01",
+		"WATCHOO_CONVENTIONS_COMMIT_TYPES":                "feat, fix",
+		"WATCHOO_CONVENTIONS_COMMIT_SCOPES":               "api,web",
+		"WATCHOO_CONVENTIONS_COMMIT_MAX_SUBJECT_SOFT":     "60",
+		"WATCHOO_CONVENTIONS_COMMIT_MAX_SUBJECT_HARD":     "100",
+		"WATCHOO_CONVENTIONS_COMMIT_FORBIDDEN":            "wip, maj",
+		"WATCHOO_CONVENTIONS_COMMIT_LANGUAGE":             "fr",
+		"WATCHOO_CONVENTIONS_BRANCH_PATTERN":              "^(feat|fix)/[a-z0-9-]{2,40}$",
+		"WATCHOO_CONVENTIONS_BRANCH_EXCLUDE":              "gh-pages, release/*",
+		"WATCHOO_CONVENTIONS_TAGS_MILESTONES":             "v1.0.0@2026-12-18, v2.0.0",
+		"WATCHOO_CONVENTIONS_TAGS_PRERELEASE_FORMS":       "rc, preview",
+		"WATCHOO_CONVENTIONS_PR_BODY_SECTIONS":            "testing, changes",
+		"WATCHOO_CONVENTIONS_PR_REQUIRE_CLOSES":           "false",
+		"WATCHOO_CONVENTIONS_PR_MIN_REVIEWS":              "2",
+		"WATCHOO_CONVENTIONS_PR_REVIEWER_MUST_CONTRIBUTE": "true",
+		"WATCHOO_CONVENTIONS_CHANGELOG_CATEGORIES_FR":     "false",
+		"WATCHOO_CONVENTIONS_README_SECTIONS":             "install, run",
+		"WATCHOO_CONVENTIONS_README_MIN_WORDS":            "80",
+		"WATCHOO_CONVENTIONS_DOCS_DIR":                    "docs/projet",
+		"WATCHOO_CONVENTIONS_DOCS_MEDIA_DIR":              "images",
+		"WATCHOO_CONVENTIONS_DOCS_ARCHIVES_SCOPE":         "documentation",
+		"WATCHOO_CONVENTIONS_EXCLUDED_ACCOUNTS":           "prof-dupont",
 	}
 	for k, v := range env {
 		t.Setenv(k, v)
@@ -440,6 +639,19 @@ func TestLoadEnvironmentVariables(t *testing.T) {
 		Git:      GitConfig{Protocol: "https"},
 		Diagnostic: DiagnosticConfig{Enabled: true, Exclude: []string{"vendor/", "*.lock"},
 			RetentionDays: 30, SpeedSignal: true},
+		Conventions: ConventionsConfig{Enabled: true, Since: "2026-09-01",
+			Commit: ConventionsCommitConfig{Types: []string{"feat", "fix"}, Scopes: []string{"api", "web"},
+				MaxSubjectSoft: 60, MaxSubjectHard: 100, Forbidden: []string{"wip", "maj"}, Language: "fr"},
+			Branch: ConventionsBranchConfig{Pattern: "^(feat|fix)/[a-z0-9-]{2,40}$",
+				Exclude: []string{"gh-pages", "release/*"}},
+			PR: ConventionsPRConfig{BodySections: []string{"testing", "changes"}, RequireCloses: false,
+				MinReviews: 2, ReviewerMustContribute: true},
+			Tags: ConventionsTagsConfig{Milestones: []string{"v1.0.0@2026-12-18", "v2.0.0"},
+				PrereleaseForms: []string{"rc", "preview"}},
+			Changelog:        ConventionsChangelogConfig{CategoriesFR: false},
+			Readme:           ConventionsReadmeConfig{Sections: []string{"install", "run"}, MinWords: 80},
+			Docs:             ConventionsDocsConfig{Dir: "docs/projet", MediaDir: "images", ArchivesScope: "documentation"},
+			ExcludedAccounts: []string{"prof-dupont"}},
 	}
 	if !reflect.DeepEqual(ws.Config, want) {
 		t.Errorf("Config = %+v\nwant  %+v", ws.Config, want)
@@ -520,6 +732,190 @@ branches:
 	if !reflect.DeepEqual(ws.Config, want) {
 		t.Errorf("Config = %+v\nwant  %+v", ws.Config, want)
 	}
+}
+
+// TestLoadConventions checks the conventions.* block read from config.yaml, including an unquoted
+// date (since: 2026-09-01), which YAML reads as a timestamp: it becomes the written date again.
+func TestLoadConventions(t *testing.T) {
+	t.Run("file with an unquoted date", func(t *testing.T) {
+		ws, _ := newLoadWorkspace(t)
+		writeFile(t, ws.ConfigPath(), `
+conventions:
+  enabled: true
+  since: 2026-09-01
+  commit:
+    types: [feat, fix, docs]
+    scopes: []
+    max_subject_soft: 60
+    max_subject_hard: 80
+    forbidden: ["wip", "."]
+    language: en
+  branch:
+    pattern: '^(feat|fix)/[a-z]+$'
+    exclude: [gh-pages]
+  pr:
+    body_sections: [context, testing]
+    require_closes: false
+    min_reviews: 3
+    reviewer_must_contribute: true
+  tags:
+    milestones: [v1.0.0@2026-12-18, "v2.0.0"]
+    prerelease_forms: [rc, beta]
+  changelog:
+    categories_fr: false
+  readme:
+    sections: [presentation, install]
+    min_words: 60
+  docs:
+    dir: docs
+    media_dir: img
+    archives_scope: documentation
+  excluded_accounts: [prof-dupont]
+`)
+		if err := Load(ws); err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+		want := DefaultConfig("licence-projet")
+		want.Conventions = ConventionsConfig{Enabled: true, Since: "2026-09-01",
+			Commit: ConventionsCommitConfig{Types: []string{"feat", "fix", "docs"}, Scopes: []string{},
+				MaxSubjectSoft: 60, MaxSubjectHard: 80, Forbidden: []string{"wip", "."}, Language: "en"},
+			Branch: ConventionsBranchConfig{Pattern: "^(feat|fix)/[a-z]+$", Exclude: []string{"gh-pages"}},
+			PR: ConventionsPRConfig{BodySections: []string{"context", "testing"}, RequireCloses: false,
+				MinReviews: 3, ReviewerMustContribute: true},
+			Tags: ConventionsTagsConfig{Milestones: []string{"v1.0.0@2026-12-18", "v2.0.0"},
+				PrereleaseForms: []string{"rc", "beta"}},
+			Changelog:        ConventionsChangelogConfig{CategoriesFR: false},
+			Readme:           ConventionsReadmeConfig{Sections: []string{"presentation", "install"}, MinWords: 60},
+			Docs:             ConventionsDocsConfig{Dir: "docs", MediaDir: "img", ArchivesScope: "documentation"},
+			ExcludedAccounts: []string{"prof-dupont"}}
+		if !reflect.DeepEqual(ws.Config, want) {
+			t.Errorf("Config = %+v\nwant  %+v", ws.Config.Conventions, want.Conventions)
+		}
+		rules := ws.Config.Conventions.Rules()
+		if !slices.Equal(rules.Types, []string{"feat", "fix", "docs"}) || rules.MaxSubjectSoft != 60 ||
+			rules.MaxSubjectHard != 80 || !slices.Equal(rules.Forbidden, []string{"wip", "."}) {
+			t.Errorf("Rules = %+v", rules)
+		}
+		rules.Types[0] = "changed"
+		if ws.Config.Conventions.Commit.Types[0] != "feat" {
+			t.Error("Rules shares its lists with the configuration")
+		}
+		paris, _ := time.LoadLocation("Europe/Paris")
+		bo := ws.Config.Conventions.BuildOptions(paris)
+		if bo.Since != "2026-09-01" || bo.Location != paris || !slices.Equal(bo.Rules.Types, []string{"feat", "fix", "docs"}) ||
+			!slices.Equal(bo.ExcludedAccounts, []string{"prof-dupont"}) || bo.Language != "en" ||
+			bo.Branch.Pattern != "^(feat|fix)/[a-z]+$" || !slices.Equal(bo.Branch.Exclude, []string{"gh-pages"}) ||
+			len(bo.Milestones) != 2 || bo.Milestones[0].Due != "2026-12-18" || bo.LocalOnly ||
+			!slices.Equal(bo.PrereleaseForms, []string{"rc", "beta"}) ||
+			!slices.Equal(bo.PRBody.Sections, []string{"context", "testing"}) || bo.PRBody.RequireCloses ||
+			bo.Review != (conventions.ReviewRules{MinReviews: 3, ReviewerMustContribute: true}) {
+			t.Errorf("BuildOptions = %+v", bo)
+		}
+		bo.PRBody.Sections[0] = "changed"
+		if ws.Config.Conventions.PR.BodySections[0] != "context" {
+			t.Error("PRBodyRules shares its list with the configuration")
+		}
+		if d := DefaultConfig("x").Conventions.ReviewRules(); d != conventions.DefaultReviewRules() {
+			t.Errorf("default ReviewRules = %+v\nwant the charter %+v", d, conventions.DefaultReviewRules())
+		}
+		if d := DefaultConfig("x").Conventions.PRBodyRules(); !reflect.DeepEqual(d, conventions.DefaultPRBodyRules()) {
+			t.Errorf("default PRBodyRules = %+v\nwant the charter %+v", d, conventions.DefaultPRBodyRules())
+		}
+		broken := ws.Config.Conventions
+		broken.Tags.Milestones = []string{"1.0"}
+		if got := broken.BuildOptions(paris).Milestones; got != nil {
+			t.Errorf("unreadable milestones: %+v, want none", got)
+		}
+		bo.ExcludedAccounts[0], bo.PrereleaseForms[0] = "changed", "changed"
+		if ws.Config.Conventions.ExcludedAccounts[0] != "prof-dupont" || ws.Config.Conventions.Tags.PrereleaseForms[0] != "rc" {
+			t.Error("BuildOptions shares its lists with the configuration")
+		}
+		wantFiles := conventions.FileRules{CategoriesFR: false, ReadmeSections: []string{"presentation", "install"},
+			ReadmeMinWords: 60, DocsDir: "docs", MediaDir: "img", ArchivesScope: "documentation"}
+		if !reflect.DeepEqual(bo.Files, wantFiles) {
+			t.Errorf("BuildOptions.Files = %+v\nwant %+v", bo.Files, wantFiles)
+		}
+		bo.Files.ReadmeSections[0] = "changed"
+		if ws.Config.Conventions.Readme.Sections[0] != "presentation" {
+			t.Error("FileRules shares its lists with the configuration")
+		}
+		if d := DefaultConfig("x").Conventions.FileRules(); !reflect.DeepEqual(d, conventions.DefaultFileRules()) {
+			t.Errorf("default FileRules = %+v\nwant the charter %+v", d, conventions.DefaultFileRules())
+		}
+		br := ws.Config.Conventions.BranchRules()
+		if br.Pattern != "^(feat|fix)/[a-z]+$" || !slices.Equal(br.Types, []string{"feat", "fix", "docs"}) ||
+			!slices.Equal(br.Exclude, []string{"gh-pages"}) {
+			t.Errorf("BranchRules = %+v", br)
+		}
+		br.Types[0], br.Exclude[0] = "changed", "changed"
+		if ws.Config.Conventions.Commit.Types[0] != "feat" || ws.Config.Conventions.Branch.Exclude[0] != "gh-pages" {
+			t.Error("BranchRules shares its lists with the configuration")
+		}
+		ms, err := ws.Config.Conventions.Milestones()
+		if err != nil || len(ms) != 2 || ms[0].Name != "v1.0.0" || ms[0].Due != "2026-12-18" ||
+			ms[1].Name != "v2.0.0" || ms[1].HasDue() {
+			t.Errorf("Milestones = %+v, %v", ms, err)
+		}
+	})
+	t.Run("quoted date", func(t *testing.T) {
+		ws, _ := newLoadWorkspace(t)
+		writeFile(t, ws.ConfigPath(), "conventions:\n  since: \"2026-09-01\"\n")
+		if err := Load(ws); err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+		if ws.Config.Conventions.Since != "2026-09-01" {
+			t.Errorf("Since = %q", ws.Config.Conventions.Since)
+		}
+	})
+	t.Run("WATCHOO_CONVENTIONS_SINCE overrides the file", func(t *testing.T) {
+		ws, _ := newLoadWorkspace(t)
+		writeFile(t, ws.ConfigPath(), "conventions:\n  since: 2026-09-01\n")
+		t.Setenv("WATCHOO_CONVENTIONS_SINCE", "2027-01-15")
+		if err := Load(ws); err != nil {
+			t.Fatalf("Load: %v", err)
+		}
+		if ws.Config.Conventions.Since != "2027-01-15" {
+			t.Errorf("Since = %q, want 2027-01-15", ws.Config.Conventions.Since)
+		}
+	})
+	t.Run("unquoted timestamp with a time is refused", func(t *testing.T) {
+		ws, _ := newLoadWorkspace(t)
+		writeFile(t, ws.ConfigPath(), "conventions:\n  since: 2026-09-01T08:00:00Z\n")
+		assertErrorContains(t, Load(ws), "conventions.since", `"2026-09-01T08:00:00Z"`, "YYYY-MM-DD")
+	})
+	t.Run("unquoted timestamp with an offset is refused", func(t *testing.T) {
+		ws, _ := newLoadWorkspace(t)
+		writeFile(t, ws.ConfigPath(), "conventions:\n  since: 2026-09-01T02:00:00+02:00\n")
+		assertErrorContains(t, Load(ws), "conventions.since", "YYYY-MM-DD")
+	})
+	t.Run("quoted timestamp at midnight is refused", func(t *testing.T) {
+		ws, _ := newLoadWorkspace(t)
+		writeFile(t, ws.ConfigPath(), "conventions:\n  since: \"2026-09-01T00:00:00Z\"\n")
+		assertErrorContains(t, Load(ws), "conventions.since", `"2026-09-01T00:00:00Z"`, "YYYY-MM-DD")
+	})
+	t.Run("unquoted timestamp at midnight UTC is read as its date", func(t *testing.T) {
+		// The YAML decoder gives the same value for 2026-09-01 and 2026-09-01T00:00:00Z: documented tolerance.
+		for _, raw := range []string{"2026-09-01T00:00:00Z", "2026-09-01 00:00:00"} {
+			ws, _ := newLoadWorkspace(t)
+			writeFile(t, ws.ConfigPath(), "conventions:\n  since: "+raw+"\n")
+			if err := Load(ws); err != nil {
+				t.Fatalf("Load(%s): %v", raw, err)
+			}
+			if ws.Config.Conventions.Since != "2026-09-01" {
+				t.Errorf("Since(%s) = %q, want 2026-09-01", raw, ws.Config.Conventions.Since)
+			}
+		}
+	})
+	t.Run("invalid date in WATCHOO_CONVENTIONS_SINCE", func(t *testing.T) {
+		ws, _ := newLoadWorkspace(t)
+		t.Setenv("WATCHOO_CONVENTIONS_SINCE", "septembre")
+		assertErrorContains(t, Load(ws), "conventions.since", `"septembre"`)
+	})
+	t.Run("unknown key in the block", func(t *testing.T) {
+		ws, _ := newLoadWorkspace(t)
+		writeFile(t, ws.ConfigPath(), "conventions:\n  commit:\n    type: [feat]\n")
+		assertErrorContains(t, Load(ws), "conventions.commit.type")
+	})
 }
 
 func TestLoadEmptyValuesIgnored(t *testing.T) {
@@ -878,6 +1274,26 @@ func TestDecodeSettingErrors(t *testing.T) {
 	}
 	if err := decodeSetting(new(float64), 1.0); err == nil {
 		t.Error("an unsupported field type must be reported")
+	}
+}
+
+// A YAML timestamp (unquoted date) decodes to a string: the written date, or RFC 3339 with a time.
+func TestDecodeSettingTimestamp(t *testing.T) {
+	cases := map[time.Time]string{
+		time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC):                  "2026-09-01",
+		time.Date(2026, 9, 1, 8, 30, 0, 0, time.UTC):                 "2026-09-01T08:30:00Z",
+		time.Date(2026, 9, 1, 0, 0, 0, 0, time.FixedZone("x", 3600)): "2026-09-01T00:00:00+01:00",
+	}
+	for raw, want := range cases {
+		var s string
+		if err := decodeSetting(&s, raw); err != nil || s != want {
+			t.Errorf("decodeSetting(%v) = %q, %v; want %q", raw, s, err, want)
+		}
+	}
+	var list []string
+	if err := decodeSetting(&list, []any{time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)}); err != nil ||
+		!slices.Equal(list, []string{"2026-09-01"}) {
+		t.Errorf("list of dates = %q, %v", list, err)
 	}
 }
 

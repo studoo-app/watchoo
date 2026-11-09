@@ -83,7 +83,9 @@ Preprocessing:
 5. Worked day: only days with at least one commit enter daily medians.
 
 Known limits: squash merges (trailers removed), rebases (dates rewritten), people who commit rarely (large
-commits are natural for them). Signal R2 must be read in light of the person's habits.
+commits are natural for them). Signal R2 must be read in light of the person's habits. Since phase 8.1, when
+the conventions are enabled (`conventions.enabled`, document 13), the identified squash commits are left out
+of A1 and A2 (section 9.6).
 
 ## 5. Signal catalogue
 
@@ -256,8 +258,8 @@ were missing.
 
 ```
 internal/diagnostic/       business package, no logs, no dependency on cli, tui, web
-  rules.go                 lists D1 (trailers), D2 (signatures), D3 (bots), D4 (agent files),
-                           default exclusion patterns
+  rules.go                 lists D1 (trailers), D2 (signatures), D4 (agent files), default
+                           exclusion patterns; D3 (bots): aisignature.IsBot since phase 8.1
   exclude.go               Excluder: "name/" patterns (directory), file name, full path
   compute.go               Compute: lines and files after exclusion, tools, bot, agent file
 internal/provider/         CommitStats.Files (path, lines, binary), filled by the local clone only
@@ -393,7 +395,7 @@ revisited only if calibration shows the need); F6 postponed (section 9).
 | F1 | Comment lines / source lines added (commits of at least 20 source lines) | z\* > 3.5 |
 | F2 | Documented definitions / definitions (comment just before, docstring just after in Python) | ≥ 3 definitions, share > 90%, personal median < 30% |
 | F3 | Lexical diversity of the identifiers (keywords and strings left out): MATTR, window of 50 identifiers (Covington and McFall, 2010) | z\* < −3.5 |
-| F4 | Message length (trailers and signatures left out) against the 20 previous messages | z\* > 3.5 **and** a novelty absent from the 20 messages: a list of at least 2 lines, or a Conventional Commits subject |
+| F4 | Message length (trailers and signatures left out) against the 20 previous messages | z\* > 3.5 **and** a novelty absent from the 20 messages: a list of at least 2 lines, or a Conventional Commits subject (criterion neutralised when the conventions are enabled, from their start date; phase 8.1) |
 | F5 | Test lines delivered with at least 20 lines of code (files `*_test.go`, `test_*.py`, `*.spec.ts`, `*Test.java`, directories `tests/`, `__tests__/`…) | ≥ 5 test lines, while fewer than 10% of the code commits of the history have some |
 
 - **Implementation choices** (the specification leaves them open): MATTR rather than the plain ratio
@@ -401,6 +403,13 @@ revisited only if calibration shows the need); F6 postponed (section 9).
   unusual length **and** a novelty of form, so that a learner who adopts Conventional Commits after a lesson
   is not flagged for that change alone; F5 compares with a share (not a median); a zero MAD gives no score,
   as for R1 to R6.
+- **Conventions enabled** (phase 8.1, `conventions.enabled`, document 13): the Conventional Commits format is
+  then required, so it is no longer a novelty. For the commits written from the effective start date (the
+  repository's `repositories.conventions_since`, otherwise the workspace's `conventions.since`, at midnight
+  in the workspace time zone; empty = from the start, so always), the "Conventional Commits subject"
+  criterion of F4 is neutralised; the "list of at least 2 lines" novelty stays. The compared history does
+  not change. Nothing is stored: the adjustment is made when reading, and disabling the conventions gives
+  back the behaviour from before phase 8.
 - **Levels** (section 6): "Probable" (`probable`) for at least 2 R signals and 1 F signal; "To review" for 1
   R signal or at least 2 F signals; **an F signal alone never raises a lead**. F signals are about a commit:
   they combine with R2 to R5 of the same commit, not with R1 and R6 (day leads). "Declared" keeps priority;
@@ -440,8 +449,8 @@ Added to the `FormMeter` (same reading of the added lines as F1 to F5) and to th
 
 | ID | Signal | Default trigger (reference) | Counts as |
 | --- | --- | --- | --- |
-| A1 | Massive commit | ≥ 500 source lines added (kept files) | R |
-| A2 | Repository delivered "in one go" | The author has at most 3 measured commits in the repository, and one of them brings ≥ 80% of their added source lines (and at least 200) | R |
+| A1 | Massive commit | ≥ 500 source lines added (kept files); not on a squash commit when the conventions are enabled (phase 8.1) | R |
+| A2 | Repository delivered "in one go" | The author has at most 3 measured commits in the repository, and one of them brings ≥ 80% of their added source lines (and at least 200); conventions enabled: squash commits not counted (phase 8.1) | R |
 | A3 | Push after a silence | ≥ 300 source lines added after at least 14 days without a commit of the author in the repository | R |
 | A4 | Revert then replacement | A `Revert "…"` commit followed, within the hour, by a commit of the author of at least 100 added source lines (files not checked: paths are not kept) | R |
 | A5 | Decorative comments | ≥ 3 decorative lines in the commit | F |
@@ -458,6 +467,18 @@ read, like R and F. Migration `00015` sets `form_known` back to 0: the commits m
 not have these measures yet, and the history backfill completes them. A1 to A7 only count the commits whose
 form is measured; A3 needs a previous commit of the author in the repository; H3 (skeleton) tempers all the
 leads of the author in the repository; H4 counts the fixes of the 14 days before the commit.
+
+**Squash commits** (phase 8.1): when the conventions are enabled (`conventions.enabled`), an identified squash
+commit (subject ending in "(#n)" **and** GitHub as committer: login `web-flow` in API mode, address
+`noreply@github.com` in a clone) raises no A1, and A2 only counts the author's non-squash commits (number of
+commits, total of lines and dominant commit). A squash merge gathers the work of a whole branch: its size
+tells the size of the pull request, not writing in one go. A7 (and its attachment to the biggest commit) is
+still computed on all the commits; A3 and A4 do not change. The detection is made when reading: the subject
+is read in memory for this test and is neither kept, shown nor logged. A lead already reviewed that loses A1
+or A2 may change level or disappear; its review sheet stays in the database. Since phase 8.5, a commit is
+also an identified squash when it is the merge SHA (`merge_commit_sha`) of a merged pull request, has a single
+parent and its subject ends with the "(#n)" of **that** pull request, even when its committer is not
+recognised as GitHub (read the same way, in memory).
 
 ### Family H: counter-indicators (traces of human work)
 

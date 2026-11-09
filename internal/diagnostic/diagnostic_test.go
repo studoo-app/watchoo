@@ -198,18 +198,7 @@ func TestCompute(t *testing.T) {
 }
 
 func TestBotAndAgentConfig(t *testing.T) {
-	for name, want := range map[string]bool{
-		"dependabot[bot]":   true,
-		"Copilot[BOT]":      true,
-		"copilot-swe-agent": true,
-		"Alice":             false,
-		"":                  false,
-		"robot":             false,
-	} {
-		if got := isBot(name); got != want {
-			t.Errorf("isBot(%q) = %v, want %v", name, got, want)
-		}
-	}
+	// La table des comptes bots est dans internal/aisignature (TestIsBot) ; ici, D3 de bout en bout.
 	if s, _ := Compute(Input{AuthorLogin: "renovate[bot]", Files: []provider.CommitFile{}}, nil); !s.BotAuthor {
 		t.Error("bot login not detected")
 	}

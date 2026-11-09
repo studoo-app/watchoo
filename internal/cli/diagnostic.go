@@ -140,7 +140,8 @@ func runDiagnostic(ctx context.Context, deps Deps, opts *options, f diagnosticFl
 	}
 
 	res, err := diagnostic.Build(ctx, s.store, filter, diagnostic.RhythmOptions{Location: s.loc,
-		SpeedSignal: s.ws.Config.Diagnostic.SpeedSignal, RetentionCutoff: retentionCutoff(s.now(), s.ws.Config.Diagnostic.RetentionDays)})
+		SpeedSignal: s.ws.Config.Diagnostic.SpeedSignal, RetentionCutoff: retentionCutoff(s.now(), s.ws.Config.Diagnostic.RetentionDays),
+		ConventionsEnabled: s.ws.Config.Conventions.Enabled, ConventionsSince: s.ws.Config.Conventions.Since})
 	if err != nil {
 		return err
 	}

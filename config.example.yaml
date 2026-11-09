@@ -77,3 +77,37 @@ name: "licence-projet"
 #   exclude: ["package-lock.json", "yarn.lock", "pnpm-lock.yaml", "go.sum", "poetry.lock", "Cargo.lock", "composer.lock", "Gemfile.lock", "vendor/", "node_modules/", "third_party/", "*.pb.go", "*_generated.*", "*.min.js", "dist/", "build/", "__snapshots__/", "*.snap"] # files left out of the measures ("vendor/": a directory; binaries always left out)
 #   retention_days: 365      # days the signals are kept, from the commit date (1 to 3650)
 #   speed_signal: false      # true: also the apparent speed signal (R4), fragile (legitimate copy-paste)
+
+# Project conventions: compliance with the charter (commits, branches, pull requests, tags). Disabled by
+# default. Shared by "watchoo config export", except enabled and excluded_accounts.
+# conventions:
+#   enabled: false           # true: conventions evaluated and displayed
+#   since: ""                # start date "YYYY-MM-DD" (workspace time zone); empty: from the beginning
+#   commit:
+#     types: ["feat", "fix", "docs", "style", "refactor", "perf", "test", "build", "ci", "chore", "revert"] # accepted types (lowercase)
+#     scopes: []             # accepted scopes; empty: any well-formed scope
+#     max_subject_soft: 50   # subject length beyond which a warning is given
+#     max_subject_hard: 72   # subject length beyond which the commit is not compliant
+#     forbidden: ["update", "updates", "maj", "mise à jour", "wip", "test", "tests", "modif", "modifs", "modification", "modifications", "fix", "fixes", "correction", "corrections", "commit", "save", "tmp", "temp", "misc", "dépôt 1", "depot 1", ".", "..", "...", "initial commit", "first commit", "premier commit"] # forbidden subjects (whole subject, case ignored)
+#     language: "any"        # expected language of the subjects, "fr", "en" or "any" (information only)
+#   branch:
+#     pattern: ""            # RE2 expression replacing the built-in rule "<type>/<words-with-dashes>"; empty: built-in rule
+#     exclude: ["gh-pages", "dependabot/*", "renovate/*"] # branches left out (glob, the name or one of its path prefixes: "dependabot/*")
+#   pr:
+#     body_sections: ["context", "changes", "testing", "screenshots"] # expected sections of a pull request body (PR5), among: context, changes, testing, screenshots
+#     require_closes: true   # a closing keyword followed by an issue number ("Closes #12") is expected in the pull request body
+#     min_reviews: 1         # distinct reviewers, other than the author and not excluded, whose approval is expected when a pull request is merged (at least 1)
+#     reviewer_must_contribute: false # these reviewers must also be authors of at least one commit of the repository (false: another account is enough)
+#   tags:
+#     milestones: ["v1.0.0", "v2.0.0", "v3.0.0"] # milestones "vX.Y.Z", or "vX.Y.Z@YYYY-MM-DD" with a due date
+#     prerelease_forms: ["rc", "beta", "alpha"] # compliant pre-releases "-<form>.N" (e.g. "v1.0.0-rc.1"); other forms give a warning
+#   changelog:
+#     categories_fr: true    # French CHANGELOG labels (Ajouté, [Non publié]…) accepted with a warning; false: deviations
+#   readme:
+#     sections: ["presentation", "group", "stack", "install", "run", "env", "tree", "license"] # expected README sections, among: presentation, group, stack, install, run, env, tree, license
+#     min_words: 150         # number of words below which the README is too short
+#   docs:
+#     dir: "documentation"   # documentation folder, relative to the repository root
+#     media_dir: "Media"     # media folder, under the documentation folder
+#     archives_scope: "repository" # where archives are forbidden: "repository" (anywhere) or "documentation" (documentation folder only)
+#   excluded_accounts: []    # accounts left out (trainer, bots…): login, name or e-mail

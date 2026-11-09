@@ -20,6 +20,7 @@ import (
 	"github.com/studoo-app/watchoo/internal/configshare"
 	"github.com/studoo-app/watchoo/internal/i18n"
 	"github.com/studoo-app/watchoo/internal/textclean"
+	"github.com/studoo-app/watchoo/internal/workspace"
 )
 
 // configFlags regroupe les options de « watchoo config export » et « watchoo config import ».
@@ -164,6 +165,43 @@ func sharedKeysOf(doc *configshare.Document) []string {
 	}
 	add(doc.Settings.Timezone != nil, "timezone")
 	add(doc.Settings.Lang != nil, "lang")
+	if c := doc.Settings.Conventions; c != nil {
+		add(c.Since != nil, workspace.KeyConventionsSince)
+		if cm := c.Commit; cm != nil {
+			add(cm.Types != nil, workspace.KeyConventionsTypes)
+			add(cm.Scopes != nil, workspace.KeyConventionsScopes)
+			add(cm.MaxSubjectSoft != nil, workspace.KeyConventionsMaxSubjectSoft)
+			add(cm.MaxSubjectHard != nil, workspace.KeyConventionsMaxSubjectHard)
+			add(cm.Forbidden != nil, workspace.KeyConventionsForbidden)
+			add(cm.Language != nil, workspace.KeyConventionsLanguage)
+		}
+		if br := c.Branch; br != nil {
+			add(br.Pattern != nil, workspace.KeyConventionsBranchPattern)
+			add(br.Exclude != nil, workspace.KeyConventionsBranchExclude)
+		}
+		if pr := c.PR; pr != nil {
+			add(pr.BodySections != nil, workspace.KeyConventionsPRBodySections)
+			add(pr.RequireCloses != nil, workspace.KeyConventionsPRRequireCloses)
+			add(pr.MinReviews != nil, workspace.KeyConventionsPRMinReviews)
+			add(pr.ReviewerMustContribute != nil, workspace.KeyConventionsPRReviewerMustContribute)
+		}
+		if tg := c.Tags; tg != nil {
+			add(tg.Milestones != nil, workspace.KeyConventionsMilestones)
+			add(tg.PrereleaseForms != nil, workspace.KeyConventionsPrereleaseForms)
+		}
+		if cl := c.Changelog; cl != nil {
+			add(cl.CategoriesFR != nil, workspace.KeyConventionsCategoriesFR)
+		}
+		if rd := c.Readme; rd != nil {
+			add(rd.Sections != nil, workspace.KeyConventionsReadmeSections)
+			add(rd.MinWords != nil, workspace.KeyConventionsReadmeMinWords)
+		}
+		if dc := c.Docs; dc != nil {
+			add(dc.Dir != nil, workspace.KeyConventionsDocsDir)
+			add(dc.MediaDir != nil, workspace.KeyConventionsDocsMediaDir)
+			add(dc.ArchivesScope != nil, workspace.KeyConventionsArchivesScope)
+		}
+	}
 	return keys
 }
 
@@ -274,7 +312,9 @@ type configRepoState struct {
 	// Seuils propres au dépôt ; null = seuil de l'espace.
 	FlemmeAfterDays *int `json:"flemme_after_days"`
 	DeadAfterDays   *int `json:"dead_after_days"`
-	Enabled         bool `json:"enabled"`
+	// Date de début des conventions propre au dépôt, AAAA-MM-JJ ; null = date de l'espace.
+	ConventionsSince *string `json:"conventions_since"`
+	Enabled          bool    `json:"enabled"`
 }
 
 type configSummaryJSON struct {
@@ -354,7 +394,8 @@ func newConfigRepoState(s configshare.RepoState) configRepoState {
 		branches = []string{}
 	}
 	return configRepoState{Label: s.Label, Branches: branches, Enabled: s.Enabled,
-		FlemmeAfterDays: s.FlemmeAfterDays, DeadAfterDays: s.DeadAfterDays}
+		FlemmeAfterDays: s.FlemmeAfterDays, DeadAfterDays: s.DeadAfterDays,
+		ConventionsSince: optionalString(s.ConventionsSince)}
 }
 
 // runConfigImport lit et valide le fichier, calcule l'aperçu, demande confirmation (sauf --yes) et
@@ -663,6 +704,10 @@ func repoChangeText(c configshare.RepoChange) string {
 		parts = append(parts, i18n.T("cli.repo.change.dead",
 			daysText(c.Before.DeadAfterDays), daysText(c.After.DeadAfterDays)))
 	}
+	if c.Before.ConventionsSince != c.After.ConventionsSince {
+		parts = append(parts, i18n.T("cli.repo.change.conventions_since",
+			sinceText(c.Before.ConventionsSince), sinceText(c.After.ConventionsSince)))
+	}
 	if len(parts) > 0 {
 		text += " (" + strings.Join(parts, i18n.T("cli.repo.sep.semicolon")) + ")"
 	}
@@ -675,6 +720,14 @@ func daysText(p *int) string {
 		return i18n.T("cli.repo.days.workspace")
 	}
 	return i18n.T("cli.repo.days.value", *p)
+}
+
+// sinceText écrit une date de début des conventions propre, ou « workspace » pour celle de l'espace ("").
+func sinceText(date string) string {
+	if date == "" {
+		return i18n.T("cli.repo.days.workspace")
+	}
+	return date
 }
 
 // sameDays compare deux seuils propres (nil = seuil de l'espace).

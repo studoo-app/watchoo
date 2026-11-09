@@ -125,12 +125,22 @@ type importRepo struct {
 	// Label et Branches : valeurs après l'import ; *Before : valeurs actuelles (dépôt déjà présent).
 	Label, LabelBefore       string
 	Branches, BranchesBefore string
-	// Thresholds : seuils propres après l'import (« Flemme 3 j · Dead espace », thresholdsText) ;
-	// *Before : actuels.
+	// Thresholds : seuils propres après l'import (« Flemme 3 j · Dead espace », thresholdsText), suivis
+	// de la date de début des conventions propre au dépôt s'il en a une ; *Before : actuels.
 	Thresholds, ThresholdsBefore string
 	LabelChanged                 bool
 	BranchesChanged              bool
 	ThresholdsChanged            bool
+}
+
+// importThresholdsText décrit les seuils propres d'un dépôt de l'aperçu (thresholdsText) et, s'il en a
+// une, sa date de début des conventions (« … · conventions depuis le 2026-09-01 »).
+func importThresholdsText(tr *i18n.Translator, st configshare.RepoState) string {
+	text := thresholdsText(tr, st.FlemmeAfterDays, st.DeadAfterDays)
+	if st.ConventionsSince != "" {
+		text += " · " + tr.T("web.import.conventions_since", st.ConventionsSince)
+	}
+	return text
 }
 
 // actionText est le libellé de l'action, dans la langue de tr (fonction de template importAction).
@@ -337,14 +347,14 @@ func fillPreview(tr *i18n.Translator, v *importView, p *configshare.Preview) {
 		row := importRepo{
 			Index: c.Index, Repo: truncate(maxImportText, c.Repo), Action: c.Action, Reenable: c.Reenable,
 			Label: truncate(maxImportText, c.After.Label), Branches: truncate(maxImportBranches, branchesText(tr, c.After.Branches)),
-			Thresholds: thresholdsText(tr, c.After.FlemmeAfterDays, c.After.DeadAfterDays),
+			Thresholds: importThresholdsText(tr, c.After),
 		}
 		if c.Before != nil {
 			row.LabelBefore = truncate(maxImportText, c.Before.Label)
 			row.BranchesBefore = truncate(maxImportBranches, branchesText(tr, c.Before.Branches))
 			row.LabelChanged = c.Before.Label != c.After.Label
 			row.BranchesChanged = row.BranchesBefore != row.Branches
-			row.ThresholdsBefore = thresholdsText(tr, c.Before.FlemmeAfterDays, c.Before.DeadAfterDays)
+			row.ThresholdsBefore = importThresholdsText(tr, *c.Before)
 			row.ThresholdsChanged = row.ThresholdsBefore != row.Thresholds
 		}
 		if c.Action == configshare.ActionUnchanged {

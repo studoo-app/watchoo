@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/studoo-app/watchoo/internal/conventions"
 	"github.com/studoo-app/watchoo/internal/i18n"
 )
 
@@ -35,6 +36,9 @@ git:
 diagnostic:
   enabled: true
   retention_days: 90
+conventions:
+  enabled: true
+  excluded_accounts: ["prof-dupont"]
 `
 
 // newCustomWorkspace creates a workspace whose config.yaml is customConfig.
@@ -73,6 +77,117 @@ func TestSharedSettingsFromAndValues(t *testing.T) {
 	if (*s.BranchesExclude)[0] != "a" {
 		t.Error("branches.exclude not copied")
 	}
+
+	// conventions.*: shared except enabled and excluded_accounts; lists copied and never nil.
+	for _, key := range []string{"conventions.enabled", "conventions.excluded_accounts"} {
+		if slices.Contains(SharedKeys, key) {
+			t.Errorf("%s must never be shared", key)
+		}
+	}
+	cfg = DefaultConfig("x")
+	cfg.Conventions.Since = "2026-09-01"
+	cfg.Conventions.Commit.Scopes = nil
+	s = SharedSettingsFrom(cfg)
+	v = s.Values()
+	if v[KeyConventionsSince] != "2026-09-01" || v[KeyConventionsMaxSubjectSoft] != 50 ||
+		v[KeyConventionsMaxSubjectHard] != 72 || v[KeyConventionsLanguage] != "any" {
+		t.Errorf("conventions values = %v", v)
+	}
+	if got := v[KeyConventionsScopes]; !reflect.DeepEqual(got, []string{}) {
+		t.Errorf("conventions.commit.scopes = %#v, empty list expected", got)
+	}
+	if !reflect.DeepEqual(v[KeyConventionsTypes], cfg.Conventions.Commit.Types) ||
+		!reflect.DeepEqual(v[KeyConventionsForbidden], cfg.Conventions.Commit.Forbidden) {
+		t.Errorf("conventions lists = %v / %v", v[KeyConventionsTypes], v[KeyConventionsForbidden])
+	}
+	cfg.Conventions.Commit.Types[0] = "changed"
+	cfg.Conventions.Commit.Forbidden[0] = "changed"
+	if (*s.ConventionsTypes)[0] != "feat" || (*s.ConventionsForbidden)[0] == "changed" {
+		t.Error("conventions lists not copied")
+	}
+	v[KeyConventionsTypes].([]string)[0] = "changed"
+	if (*s.ConventionsTypes)[0] != "feat" {
+		t.Error("Values does not copy the conventions lists")
+	}
+
+	// conventions.branch.* and conventions.tags.* (phase 8.2): shared, lists copied and never nil.
+	cfg = DefaultConfig("x")
+	cfg.Conventions.Branch.Pattern = "^feat/.+$"
+	cfg.Conventions.Tags.Milestones = nil
+	s = SharedSettingsFrom(cfg)
+	v = s.Values()
+	if v[KeyConventionsBranchPattern] != "^feat/.+$" ||
+		!reflect.DeepEqual(v[KeyConventionsBranchExclude], []string{"gh-pages", "dependabot/*", "renovate/*"}) {
+		t.Errorf("conventions.branch values = %v / %v", v[KeyConventionsBranchPattern], v[KeyConventionsBranchExclude])
+	}
+	if got := v[KeyConventionsMilestones]; !reflect.DeepEqual(got, []string{}) {
+		t.Errorf("conventions.tags.milestones = %#v, empty list expected", got)
+	}
+	if got := v[KeyConventionsPrereleaseForms]; !reflect.DeepEqual(got, []string{"rc", "beta", "alpha"}) {
+		t.Errorf("conventions.tags.prerelease_forms = %#v", got)
+	}
+	cfg.Conventions.Tags.PrereleaseForms[0] = "changed"
+	if (*s.ConventionsPrereleaseForms)[0] != "rc" {
+		t.Error("conventions.tags.prerelease_forms not copied")
+	}
+	cfg.Conventions.Branch.Exclude[0] = "changed"
+	if (*s.ConventionsBranchExclude)[0] != "gh-pages" {
+		t.Error("conventions.branch.exclude not copied")
+	}
+	v[KeyConventionsBranchExclude].([]string)[0] = "changed"
+	if (*s.ConventionsBranchExclude)[0] != "gh-pages" {
+		t.Error("Values does not copy conventions.branch.exclude")
+	}
+
+	// conventions.pr.* (phase 8.5): shared, list copied and never nil.
+	cfg = DefaultConfig("x")
+	cfg.Conventions.PR.BodySections = nil
+	v = SharedSettingsFrom(cfg).Values()
+	if got := v[KeyConventionsPRBodySections]; !reflect.DeepEqual(got, []string{}) {
+		t.Errorf("conventions.pr.body_sections = %#v, empty list expected", got)
+	}
+	if v[KeyConventionsPRRequireCloses] != true {
+		t.Errorf("conventions.pr.require_closes = %v", v[KeyConventionsPRRequireCloses])
+	}
+	// conventions.pr.min_reviews and reviewer_must_contribute (phase 8.6): shared, charter defaults.
+	if v[KeyConventionsPRMinReviews] != 1 || v[KeyConventionsPRReviewerMustContribute] != false {
+		t.Errorf("conventions.pr.min_reviews / reviewer_must_contribute = %v / %v",
+			v[KeyConventionsPRMinReviews], v[KeyConventionsPRReviewerMustContribute])
+	}
+	cfg = DefaultConfig("x")
+	s = SharedSettingsFrom(cfg)
+	cfg.Conventions.PR.BodySections[0] = "changed"
+	if (*s.ConventionsPRBodySections)[0] != "context" {
+		t.Error("conventions.pr.body_sections not copied")
+	}
+	s.Values()[KeyConventionsPRBodySections].([]string)[0] = "changed"
+	if (*s.ConventionsPRBodySections)[0] != "context" {
+		t.Error("Values does not copy conventions.pr.body_sections")
+	}
+
+	// conventions.changelog.*, readme.* and docs.* (phase 8.3): shared, lists copied and never nil.
+	cfg = DefaultConfig("x")
+	cfg.Conventions.Readme.Sections = nil
+	s = SharedSettingsFrom(cfg)
+	v = s.Values()
+	if v[KeyConventionsCategoriesFR] != true || v[KeyConventionsReadmeMinWords] != 150 ||
+		v[KeyConventionsDocsDir] != "documentation" || v[KeyConventionsDocsMediaDir] != "Media" ||
+		v[KeyConventionsArchivesScope] != "repository" {
+		t.Errorf("file conventions values = %v", v)
+	}
+	if got := v[KeyConventionsReadmeSections]; !reflect.DeepEqual(got, []string{}) {
+		t.Errorf("conventions.readme.sections = %#v, empty list expected", got)
+	}
+	cfg = DefaultConfig("x")
+	s = SharedSettingsFrom(cfg)
+	cfg.Conventions.Readme.Sections[0] = "changed"
+	if (*s.ConventionsReadmeSections)[0] != "presentation" {
+		t.Error("conventions.readme.sections not copied")
+	}
+	s.Values()[KeyConventionsReadmeSections].([]string)[0] = "changed"
+	if (*s.ConventionsReadmeSections)[0] != "presentation" {
+		t.Error("Values does not copy conventions.readme.sections")
+	}
 }
 
 func TestSharedSettingsApplyTo(t *testing.T) {
@@ -92,6 +207,78 @@ func TestSharedSettingsApplyTo(t *testing.T) {
 	}
 	if !slices.Equal(s.Keys(), []string{KeySyncInterval, KeyBranchesExclude, KeyTimezone, KeyLang}) {
 		t.Errorf("Keys = %v", s.Keys())
+	}
+}
+
+func TestSharedSettingsApplyToConventions(t *testing.T) {
+	cfg := DefaultConfig("x")
+	cfg.Conventions.Enabled = true
+	cfg.Conventions.ExcludedAccounts = []string{"prof"}
+	types := []string{"feat", "fix"}
+	s := SharedSettings{
+		ConventionsSince:                    ptr("2026-09-01"),
+		ConventionsTypes:                    &types,
+		ConventionsScopes:                   &[]string{"api"},
+		ConventionsMaxSubjectSoft:           ptr(60),
+		ConventionsMaxSubjectHard:           ptr(90),
+		ConventionsForbidden:                new([]string), // nil list: becomes an empty list
+		ConventionsLanguage:                 ptr("fr"),
+		ConventionsBranchPattern:            ptr("^feat/.+$"),
+		ConventionsBranchExclude:            &[]string{"gh-pages"},
+		ConventionsPRBodySections:           &[]string{"testing"},
+		ConventionsPRRequireCloses:          ptr(false),
+		ConventionsPRMinReviews:             ptr(2),
+		ConventionsPRReviewerMustContribute: ptr(true),
+		ConventionsMilestones:               &[]string{"v1.0.0@2026-12-18"},
+		ConventionsPrereleaseForms:          &[]string{"rc"},
+		ConventionsCategoriesFR:             ptr(false),
+		ConventionsReadmeSections:           &[]string{"install"},
+		ConventionsReadmeMinWords:           ptr(40),
+		ConventionsDocsDir:                  ptr("docs"),
+		ConventionsDocsMediaDir:             ptr("img"),
+		ConventionsArchivesScope:            ptr("documentation"),
+	}
+	got := s.ApplyTo(cfg)
+	want := ConventionsConfig{Enabled: true, Since: "2026-09-01",
+		Commit: ConventionsCommitConfig{Types: []string{"feat", "fix"}, Scopes: []string{"api"},
+			MaxSubjectSoft: 60, MaxSubjectHard: 90, Forbidden: []string{}, Language: "fr"},
+		Branch: ConventionsBranchConfig{Pattern: "^feat/.+$", Exclude: []string{"gh-pages"}},
+		PR: ConventionsPRConfig{BodySections: []string{"testing"}, RequireCloses: false,
+			MinReviews: 2, ReviewerMustContribute: true},
+		Tags:             ConventionsTagsConfig{Milestones: []string{"v1.0.0@2026-12-18"}, PrereleaseForms: []string{"rc"}},
+		Changelog:        ConventionsChangelogConfig{CategoriesFR: false},
+		Readme:           ConventionsReadmeConfig{Sections: []string{"install"}, MinWords: 40},
+		Docs:             ConventionsDocsConfig{Dir: "docs", MediaDir: "img", ArchivesScope: "documentation"},
+		ExcludedAccounts: []string{"prof"}}
+	if !reflect.DeepEqual(got.Conventions, want) {
+		t.Errorf("ApplyTo = %+v\nwant %+v", got.Conventions, want)
+	}
+	types[0] = "changed"
+	got.Conventions.ExcludedAccounts[0] = "changed"
+	got.Diagnostic.Exclude[0] = "changed"
+	(*s.ConventionsMilestones)[0] = "changed"
+	(*s.ConventionsPrereleaseForms)[0] = "changed"
+	(*s.ConventionsReadmeSections)[0] = "changed"
+	(*s.ConventionsPRBodySections)[0] = "changed"
+	if got.Conventions.PR.BodySections[0] != "testing" {
+		t.Error("ApplyTo does not copy conventions.pr.body_sections")
+	}
+	if got.Conventions.Commit.Types[0] != "feat" || got.Conventions.Tags.Milestones[0] != "v1.0.0@2026-12-18" ||
+		got.Conventions.Tags.PrereleaseForms[0] != "rc" ||
+		got.Conventions.Readme.Sections[0] != "install" {
+		t.Error("ApplyTo does not copy the provided list")
+	}
+	got.Conventions.Branch.Exclude[0] = "changed"
+	got.Conventions.Readme.Sections = append(got.Conventions.Readme.Sections[:0], "changed")
+	if cfg.Conventions.ExcludedAccounts[0] != "prof" || cfg.Diagnostic.Exclude[0] == "changed" ||
+		cfg.Conventions.Branch.Exclude[0] != "gh-pages" || cfg.Conventions.Readme.Sections[0] != "presentation" {
+		t.Error("ApplyTo shares the lists of the original configuration")
+	}
+	if cfg.Conventions.Since != "" || cfg.Conventions.Commit.MaxSubjectSoft != 50 {
+		t.Error("ApplyTo changed the original configuration")
+	}
+	if got := s.Keys(); !slices.Equal(got, SharedKeys[len(SharedKeys)-21:]) {
+		t.Errorf("Keys = %v", got)
 	}
 }
 
@@ -134,6 +321,10 @@ func TestFileConfigAndWithEnv(t *testing.T) {
 	if fileCfg.Sync.Parallelism != 2 {
 		t.Error("WithEnv changed its argument")
 	}
+	withEnv.Conventions.ExcludedAccounts[0] = "changed"
+	if fileCfg.Conventions.ExcludedAccounts[0] != "prof-dupont" {
+		t.Error("WithEnv shares the lists of its argument")
+	}
 	t.Setenv("WATCHOO_SYNC_PARALLELISM", "beaucoup")
 	if _, err := WithEnv(fileCfg); err == nil || !strings.Contains(err.Error(), "WATCHOO_SYNC_PARALLELISM") {
 		t.Errorf("WithEnv with an unreadable variable = %v", err)
@@ -175,6 +366,14 @@ func TestWriteSharedSettingsKeepsMachineKeys(t *testing.T) {
 		BranchesExclude: &[]string{"dependabot/*", "renovate/*"},
 		Timezone:        ptr("Europe/Paris"),
 		Lang:            ptr("fr"),
+
+		ConventionsSince:          ptr("2026-09-01"),
+		ConventionsTypes:          &[]string{"feat", "fix"},
+		ConventionsForbidden:      &[]string{"wip", "mise à jour", "."},
+		ConventionsMilestones:     &[]string{"v1.0.0@2026-12-18", "v2.0.0"},
+		ConventionsCategoriesFR:   ptr(false),
+		ConventionsReadmeSections: &[]string{"install", "run"},
+		ConventionsDocsDir:        ptr("docs"),
 	}
 	res, err := WriteSharedSettings(ws, s)
 	if err != nil {
@@ -210,6 +409,18 @@ func TestWriteSharedSettingsKeepsMachineKeys(t *testing.T) {
 	if !c.Diagnostic.Enabled || c.Diagnostic.RetentionDays != 90 {
 		t.Errorf("diagnostic.* settings (never shared) lost: %+v", c.Diagnostic)
 	}
+	if !c.Conventions.Enabled || !slices.Equal(c.Conventions.ExcludedAccounts, []string{"prof-dupont"}) {
+		t.Errorf("conventions.enabled / excluded_accounts (never shared) lost: %+v", c.Conventions)
+	}
+	if c.Conventions.Since != "2026-09-01" || !slices.Equal(c.Conventions.Commit.Types, []string{"feat", "fix"}) ||
+		!slices.Equal(c.Conventions.Commit.Forbidden, []string{"wip", "mise à jour", "."}) ||
+		c.Conventions.Commit.MaxSubjectSoft != 50 || c.Conventions.Commit.Language != "any" ||
+		!slices.Equal(c.Conventions.Tags.Milestones, []string{"v1.0.0@2026-12-18", "v2.0.0"}) ||
+		!slices.Equal(c.Conventions.Branch.Exclude, conventions.DefaultBranchExclude()) ||
+		c.Conventions.Changelog.CategoriesFR || !slices.Equal(c.Conventions.Readme.Sections, []string{"install", "run"}) ||
+		c.Conventions.Readme.MinWords != 150 || c.Conventions.Docs.Dir != "docs" || c.Conventions.Docs.MediaDir != "Media" {
+		t.Errorf("imported conventions settings missing: %+v", c.Conventions)
+	}
 	if c.Sync.Parallelism != 2 {
 		t.Errorf("sync.parallelism not imported lost: %d", c.Sync.Parallelism)
 	}
@@ -221,14 +432,19 @@ func TestWriteSharedSettingsKeepsMachineKeys(t *testing.T) {
 		t.Errorf("WriteResult.Config = %+v, read back %+v", res.Config, c)
 	}
 	// The settings not provided and absent from the file stay in comments.
-	for _, line := range []string{"#   auto: true", "#   flemme_after_days: 5"} {
+	for _, line := range []string{"#   auto: true", "#   flemme_after_days: 5", "#   branch:\n", `#     pattern: ""`,
+		"#     min_words: 150", `#     media_dir: "Media"`} {
 		if !strings.Contains(content, line) {
 			t.Errorf("commented line %q missing:\n%s", line, content)
 		}
 	}
 	for _, line := range []string{"sync:\n", "  interval: 1h ", "  parallelism: 2 ", "  dead_after_days: 21 ",
 		`  exclude: ["dependabot/*", "renovate/*"]`, `timezone: "Europe/Paris"`, `lang: "fr"`, "  auth:\n", `    username: "prof"`,
-		`  gh_path: "/opt/gh/bin/gh"`, "git:\n", `  protocol: "https"`} {
+		`  gh_path: "/opt/gh/bin/gh"`, "git:\n", `  protocol: "https"`, "conventions:\n", "  enabled: true ",
+		`  since: "2026-09-01"`, "  commit:\n", `    types: ["feat", "fix"]`, "  tags:\n",
+		`    milestones: ["v1.0.0@2026-12-18", "v2.0.0"]`, "  changelog:\n", "    categories_fr: false",
+		"  readme:\n", `    sections: ["install", "run"]`, "  docs:\n", `    dir: "docs"`,
+		`  excluded_accounts: ["prof-dupont"]`} {
 		if !strings.Contains(content, line) {
 			t.Errorf("active line %q missing:\n%s", line, content)
 		}
@@ -289,7 +505,7 @@ func TestWriteSharedSettingsNoYAMLInjection(t *testing.T) {
 	for key := range values {
 		if !slices.Contains([]string{"name", "sync.parallelism", "branches.exclude", "web.addr", "web.allowed_hosts",
 			"web.auth.username", "github.user", "github.gh_path", "git.protocol", "diagnostic.enabled",
-			"diagnostic.retention_days"}, key) {
+			"diagnostic.retention_days", "conventions.enabled", "conventions.excluded_accounts"}, key) {
 			t.Errorf("unexpected key %s in the rewritten file", key)
 		}
 	}
@@ -305,6 +521,10 @@ func TestWriteSharedSettingsInvalidChangesNothing(t *testing.T) {
 		"utf8":        {Timezone: ptr("\xff")},
 		"lang":        {Lang: ptr("de")},
 		"pattern":     {BranchesExclude: &[]string{"[a"}},
+		"since":       {ConventionsSince: ptr("1er septembre")},
+		"type":        {ConventionsTypes: &[]string{"Feat"}},
+		"lengths":     {ConventionsMaxSubjectSoft: ptr(80)},
+		"language":    {ConventionsLanguage: ptr("de")},
 	} {
 		t.Run(name, func(t *testing.T) {
 			ws := newCustomWorkspace(t)

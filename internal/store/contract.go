@@ -48,6 +48,9 @@ type CommitWrite struct {
 	// StatsKnown : Additions et Deletions ont été calculées (même à 0) ; faux = inconnues
 	// (commits.stats_known = 0, reprises plus tard par RepoSyncWrite.Stats).
 	StatsKnown bool
+	// ParentCount est le nombre de parents du commit (0 = racine, 2 ou plus = fusion ; 8.1) ; nil =
+	// inconnu (commits.parent_count NULL, rattrapé plus tard par RepoSyncWrite.ParentCounts).
+	ParentCount *int
 	// Languages : lignes ajoutées par langage (1.2.0), lues avec RepoSyncWrite.LanguagesVersion ; nil =
 	// inconnues (commits.languages_version = 0, reprises plus tard par RepoSyncWrite.Stats).
 	Languages map[string]int
@@ -65,6 +68,13 @@ type CommitStatsWrite struct {
 	// Languages : lignes ajoutées par langage (1.2.0), lues avec RepoSyncWrite.LanguagesVersion ; nil =
 	// non lues (langages inchangés).
 	Languages map[string]int
+}
+
+// CommitParentsWrite est le nombre de parents d'un commit déjà en base dont il était inconnu, lu dans le
+// clone Git local pendant une synchro (rattrapage des commits enregistrés avant la migration 00016).
+type CommitParentsWrite struct {
+	SHA     string // SHA complet
+	Parents int    // nombre de parents (>= 0)
 }
 
 // BranchState est une branche suivie après filtrage, avec sa tête actuelle sur la forge.
@@ -90,6 +100,21 @@ type RepositoryMetadata struct {
 	Stars         int    // étoiles
 	OpenIssues    int    // issues ouvertes
 	Archived      bool   // dépôt archivé
+	// AllowSquashMerge, AllowMergeCommit et AllowRebaseMerge sont les méthodes de fusion autorisées (BR5,
+	// phase 8.5) ; nil = inconnu (sans droit push), écrit NULL même sur une valeur connue. Ignorées si
+	// Partial.
+	AllowSquashMerge *bool
+	AllowMergeCommit *bool
+	AllowRebaseMerge *bool
+}
+
+// PullRequestConventionsWrite (phase 8.5) complète une pull request déjà en base lors de la relecture
+// complète de la liste des PR : commit de fusion, origine (fork) et masque des sections du corps.
+type PullRequestConventionsWrite struct {
+	Number         int    // numéro de la PR (> 0)
+	MergeCommitSHA string // commit de fusion ; vide = non fusionnée ou inconnu (écrit NULL)
+	FromFork       *bool  // nil = inconnu : la valeur connue est gardée
+	BodySections   *int64 // masque conventions.CheckPRBody (>= 0) ; nil = inconnu : la valeur connue est gardée
 }
 
 // RepoSyncWrite regroupe tout ce qu'une synchro réussie d'un dépôt écrit, appliqué par ApplyRepoSync
@@ -110,12 +135,24 @@ type RepoSyncWrite struct {
 	// Commits peut donc y figurer) : additions, deletions et stats_known = 1. Un SHA absent de la base
 	// est ignoré.
 	Stats []CommitStatsWrite
+	// ParentCounts sont les nombres de parents rattrapés pendant la synchro (8.1), écrits APRÈS les
+	// commits : parent_count des commits en base dont il est inconnu (un nombre connu n'est jamais
+	// réécrit) ; un SHA absent de la base est ignoré.
+	ParentCounts []CommitParentsWrite
 	// LanguagesVersion est la version des règles de langages (git.LanguageRulesVersion, > 0) avec
 	// laquelle les Languages des Commits et des Stats ont été lus ; obligatoire si l'un d'eux en a.
 	LanguagesVersion int64
 	// PullRequests sont les pull requests lues pendant la synchro (modifiées depuis la précédente) :
 	// chacune est créée ou mise à jour en entier (RepoID ignoré). Les autres PR du dépôt ne changent pas.
 	PullRequests []model.PullRequest
+	// PullRequestConventions (phase 8.5) sont les PR déjà en base, non modifiées depuis la synchro
+	// précédente, relues lors de la relecture complète unique : seuls merge_commit_sha, from_fork et
+	// body_sections sont écrits (tool_ids et le reste inchangés) ; une PR absente de la base est ignorée.
+	PullRequestConventions []PullRequestConventionsWrite
+	// PullRequestsVersion (phase 8.5) : > 0, la relecture complète des PR est terminée (réussie, non
+	// tronquée) pour cette version des règles de PR (conventions.PRRulesVersion), écrite dans
+	// repositories.conventions_prs_version ; 0 = marqueur inchangé.
+	PullRequestsVersion int64
 	// ReplaceReleases indique que la liste des releases a été lue : celles du dépôt sont alors
 	// remplacées par Releases (liste vide = aucune ; RepoID ignoré). Faux : releases inchangées (liste
 	// non lue, en échec, ou non disponible pour cette source).
@@ -124,6 +161,14 @@ type RepoSyncWrite struct {
 	// ReplaceTags et Tags : de même pour les tags.
 	ReplaceTags bool
 	Tags        []model.Tag
+	// ObserveTags (phase 8.4) met à jour les observations des tags (tag_observations) d'après Tags, à la
+	// date SyncedAt : couple revu, nom revu avec un autre SHA (réécrit), nom disparu (supprimé), couple
+	// nouveau. Exige ReplaceTags. L'appelant ne le pose que si conventions.enabled et si la lecture des
+	// tags est complète (réussie et non tronquée) : sinon aucune observation n'est fermée.
+	ObserveTags bool
+	// BranchRewrites (phase 8.4, BR4) sont les réécritures observées de la branche par défaut, enregistrées
+	// à la date SyncedAt (RepoID et ObservedAt ignorés). Seulement si conventions.enabled.
+	BranchRewrites []model.BranchRewrite
 	// ReplaceLanguages et Languages : de même pour les langages (clone lu ; RepoID ignoré).
 	ReplaceLanguages bool
 	Languages        []model.RepositoryLanguage

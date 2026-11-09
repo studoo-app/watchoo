@@ -154,3 +154,90 @@ outil est-il signé sur ce commit ? », jamais à « ce code a-t-il été écrit
 - **Objectif** : être en mesure de savoir quels outils sont déclarés, par qui et où, pas sanctionner. Pour
   en savoir plus, demander aux contributeurs de laisser activée l'attribution de leurs outils : Watchoo
   ne voit que ce que les commits déclarent.
+
+## Conventions de projet
+
+Phases 8.1 à 8.7 (non publiées) : Watchoo mesure la conformité des messages de commit à une charte
+Conventional Commits, puis celle des noms de branche, des titres de pull request et des tags, puis celle du
+CHANGELOG, du README, de la documentation et de l'outillage, puis l'historique des tags, les fusions et les
+relectures, et enfin des pistes à relire ; le détail est
+dans [Conventions de projet](13-conventions.md).
+
+- **Désactivé par défaut** (`conventions.enabled`) et **réservé au formateur** : ce sont des constats
+  objectifs, séparés du [diagnostic](12-supervision-diagnostic.md), **sans note ni score global**.
+- **CC1** : taux de commits conformes (commits sans écart bloquant / commits évalués), expliqué en `n/m`
+  par dépôt ; **CC2** : écarts par motif, bloquants ou avertissements ; **CC3** : taux par contributeur ;
+  **CC4** : exclusions comptées à part (fusions, bots, commit racine « Initial commit » créé par GitHub,
+  comptes de `conventions.excluded_accounts`).
+- **Périmètre** : toutes les branches suivies, depuis la date `conventions.since` (surchargeable par dépôt).
+- **Phase 8.2**, calculée à la lecture (sans migration ni requête de plus) :
+  - **BR1** : noms des branches du distant et des branches de tête des PR (`<type>/<mots-avec-tirets>` ou
+    `conventions.branch.pattern`, hors `conventions.branch.exclude` et branche par défaut) ;
+  - **PR1** et **PR2** : titres des PR ouvertes et fusionnées (même parseur, en-tête seulement), titres par
+    défaut ; mode API seulement, « inconnu » en clone seul ;
+  - **SV1** : tags `vX.Y.Z` conformes à SemVer 2.0.0 ; **SV2** : présence des jalons de
+    `conventions.tags.milestones` ; **SV6** : releases, en information seulement ;
+  - **CC5** (avertissements de formulation), **CC6** (footers, issues citées) et **CC7** (langue des sujets),
+    en information ;
+  - **CC1 par intervalle** entre tags finals et **tendance de CC3** (avant et depuis le dernier tag final) ;
+  - **revue de jalon** : critères (CC1 sur l'intervalle, BR1, SV1, SV2) conformes, non conformes ou inconnus
+    (`conform`, `nonconform`, `unknown` en `--json`), « k/n critères conformes, u inconnus », sans note ;
+    exige une date de début.
+- **Phase 8.3**, mesurée par la synchro sur l'arbre du clone local, par ses objets Git (sans requête à l'API
+  ni fetch de plus), et mise en cache (table `repository_conventions`, migration `00017`) :
+  - **fichiers** : CHANGELOG (CL1 à CL9), README (RD1 à RD4), documentation (DOC1 à DOC5, DOC8) et
+    outillage (TL1 à TL3), pour la tête de la branche par défaut et le tag de chaque jalon ; une grille par
+    famille (« k/n critères conformes, u inconnus »), listes de chemins dans le détail d'un dépôt seulement,
+    recalculées depuis le clone et jamais stockées ;
+  - **revue de jalon** : s'ajoutent CL9, CL8, RD1, RD2 (section installation), RD3, DOC1 et DOC3, sur
+    l'arbre du tag du jalon.
+- **Phase 8.4**, historique observé par la synchro quand les conventions sont activées (tables
+  `tag_observations` et `branch_rewrites`, migrations `00018` et `00019`), versions lues dans le clone :
+  - **BR4** : réécritures observées de la branche par défaut (événements datés, ancien et nouveau SHA),
+    jamais attribuées ;
+  - **SV3** : tags réécrits ou supprimés, « aucune réécriture observée depuis le … », jamais « jamais
+    réécrit » ; **SV2** : échéance d'un jalon comparée à la première observation de son tag (à l'heure, en
+    retard, indéterminé) ;
+  - **SV4** (formes de pré-version de `conventions.tags.prerelease_forms`, avertissements), **SV5** (saut
+    de version cohérent avec les commits déclarés, sous-versionnement seulement), **SV7** (précédence face à
+    l'historique) et **CL10** (`feat` et `fix` depuis la dernière modification du CHANGELOG, information) ;
+  - **revue de jalon** : SV3 s'ajoute après SV2, qui juge aussi l'échéance.
+- **Phase 8.5**, fusions lues sans requête de plus (migration `00020` : SHA de fusion, origine fork et
+  sections de la description d'une PR, la description elle-même n'étant lue qu'en mémoire et jamais
+  stockée ; méthodes de fusion autorisées, connues seulement avec le droit push) :
+  - **PR3** : commits arrivés sur la branche par défaut hors PR (premier parent de la branche par défaut du
+    clone local), rattachés à l'auteur du commit, jamais à qui l'a poussé ; par PR, hors PR ou
+    indéterminés ;
+  - **PR5** (sections attendues de la description, `conventions.pr.body_sections`, et mot-clé de fermeture
+    `Closes #n`, `conventions.pr.require_closes`), **PR6** (fusion squash au message conforme), **BR2**
+    (branche de tête fusionnée plus d'une fois) et **BR5** (squash seule méthode de fusion autorisée,
+    information) ; les PR issues d'un fork sont écartées de PR1, PR2, PR5, PR6, BR1 et BR2 ;
+  - **revue de jalon** : le critère **PR3 = 0** s'ajoute après BR1, sur l'intervalle du jalon.
+- **Phase 8.6**, relectures (migration `00021` : trois compteurs et la date de lecture par pull request, jamais le login d'un
+  relecteur ; une requête par pull request fusionnée, mode API seulement, au plus 100 par dépôt et par
+  synchro) :
+  - **PR4** : pull request fusionnée relue par un autre compte (au moins `conventions.pr.min_reviews`
+    relecteurs distincts, ni l'auteur, ni un bot, ni un compte exclu, dont la dernière relecture décisive
+    avant la fusion est une approbation ; contributeurs seulement avec `conventions.pr.reviewer_must_contribute`),
+    pull requests fusionnées sans relecture (numéro et auteur) et, par contributeur, relectures reçues sur
+    ses pull requests (les relectures données ne sont pas comptées) ;
+  - **revue de jalon** : le critère **PR4** s'ajoute après PR3, sur les pull requests fusionnées dans
+    l'intervalle du jalon.
+- **Phase 8.7**, pistes (sans migration, sans réglage, sans requête API) : elles invitent à relire et ne
+  jugent jamais, ne comptent dans aucune grille, aucun taux ni dans la revue de jalon ; affichées dans un
+  bloc « Pistes » séparé :
+  - sur l'arbre de la tête, en cache de la synchro : **CL11** (liens de comparaison), **CL12** (recopie
+    probable de `git log`, pourcentages seulement), **RD5** (bloc de commandes de l'installation,
+    `.env.example`), **DOC6** (en-têtes de document, compteurs par champ, jamais les valeurs), **DOC7**
+    (images, blocs `mermaid`, dossier des médias), **TL4** (CI qui vérifie les conventions) ;
+  - sur l'historique du clone, dans le détail d'un dépôt seulement : **DOC9** (fraîcheur de la
+    documentation par rapport au code), **DOC10** (dates déclarées dans l'INDEX) et **TL5** (CC1 avant et
+    après l'outillage, « n/a » sous 10 commits d'un côté).
+- **Restitution** : commande `watchoo conventions` (`--milestone vX.Y.Z` pour la revue de jalon), page
+  `/conventions`, section de la page d'un dépôt et page d'un contributeur ; jamais le message de commit ni le
+  titre d'une PR, seulement le SHA court, le numéro de PR, l'auteur, les noms de branche et de tag et les
+  codes. Les indicateurs de dépôt (branches sans PR, tags, jalons, fichiers) ne sont attribués à personne.
+- La charte (`since`, `commit.*`, `branch.*`, `tags.milestones`, depuis la phase 8.3 `changelog.*`,
+  `readme.*`, `docs.*`, depuis la phase 8.4 `tags.prerelease_forms`, depuis la phase 8.5 `pr.body_sections`
+  et `pr.require_closes`, et depuis la phase 8.6 `pr.min_reviews` et `pr.reviewer_must_contribute`) se partage par `watchoo config export` /
+  `import`.

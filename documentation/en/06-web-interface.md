@@ -38,6 +38,7 @@ forces the language everywhere, except in a browser that picked a language with 
 | Contributor page (0.5.0) | `/contributors/{id}` (`?page=`) | `/contributors/{id}/commits` |
 | Settings | `/settings` | `/fragments/quota` |
 | Diagnosis (7.4, diagnosis enabled) | `/diagnostic` (`?repo=`), `/diagnostic/lead` (`?repo=`, `?key=`) | — |
+| Conventions (1.8.0, conventions enabled) | `/conventions` (`?milestone=`) | — |
 
 ### Routes
 
@@ -71,6 +72,7 @@ changes anything; every `POST` goes through the CSRF check.
 | `GET` | `/diagnostic/lead` | Review sheet of a lead (404 if the diagnosis is disabled or the lead unknown) |
 | `POST` | `/diagnostic/review` | Saves the review of a lead |
 | `POST` | `/diagnostic/backfill` | Starts the history backfill in the background (one at a time) |
+| `GET` | `/conventions` | Conventions overview and milestone review (1.8.0; content only if the conventions are enabled; 400 for a milestone that is not configured) |
 | `POST` | `/lang` | Language of the browser (`lang`: `en` or `fr`; back to the local path `return`, without query, else `/`; 400 if unknown) |
 | `GET` | `/static/*`, `/favicon.ico`, `/apple-touch-icon.png`, `/manifest.webmanifest` | Embedded static files |
 
@@ -232,10 +234,92 @@ signatures, no address displayed. Rules: [AI signatures](02-features.md#ai-signa
   (identifier, description, number of leads that carry it, points); the 10 latest leads (date, author,
   item linked to its review sheet, level, signals, review status) and a link to all the leads of the
   repository (`/diagnostic?repo=`). Without lead: "No reflection lead." No commit message.
+- **Conventions** (1.7.0, `repo-conventions` fragment, only when the [conventions](13-conventions.md) are
+  enabled, a section separate from the diagnosis): reminder "rates, not a grade"; **Conforming commits**
+  `n/m` and percentage, all the tracked branches (CC1); the informative view of the default branch alone;
+  the commits excluded and counted apart, by reason (merges, bots, GitHub initial commit, excluded
+  accounts: CC4); the commits written before the start date, not evaluated; the effective start date and
+  its origin (workspace or own to the repository); the table of the issues by code (code, label, severity
+  "blocking" or "warning", number of commits: CC2); the 10 latest non-conforming commits (date, author,
+  short SHA, codes). A note gives the scope: local clone (all the tracked branches, each commit once) or,
+  without a readable clone, commits attached to the tracked branches in the database, with the mention
+  "may include rewritten commits"; and the number of commits with an unknown parent count (merges
+  recognized by their message). Repository never synced: "Unknown" (not 0%); no commit evaluated: a
+  dedicated text (not "0/0"). Computed when read, nothing is stored. **No commit message**, no ranking.
+  Since 1.8.0 (phase 8.2), the section adds: the **wording** warnings (CC5: past tense, "-ing" form, first
+  person), the commits with a valid footer and those that cite an issue (CC6) and the **language of the
+  subjects** (CC7: French, English, unknown; "mixed" badge; commits not in the language set by
+  `conventions.commit.language`), all for information; the **branch names** (BR1: `n/m` conforming, number
+  "to review", table of the non-conforming branches and branches to review with their codes and the
+  pull requests whose head branch they are, 20 at most; a note gives the source: remote branches of the
+  local clone, or the tracked branches of the database only, a partial list); the **pull request titles**
+  (PR1 and PR2: open and merged counted apart, the pull requests not evaluated by reason, and a table of
+  the non-conforming or default titles giving the **number**, author, head branch and codes, **never the
+  title**; "Unknown" when the workspace syncs from the clones only or the repository was never seen by the
+  API); the **tags** (SV1: one badge per tag, "conforming", "conforming, warning" or "not conforming",
+  with its codes), the configured **milestones** (SV2: "present", "nonconforming name" with the tag, or
+  "absent"; presence only) and the **releases** for information (SV6: milestone without release, release
+  without tag, inconsistent pre-release flag; "unknown" without API data); the **commits between tags**
+  (CC1 per interval between final tags, most recent first, and since the last final tag; "Unknown"
+  without a local clone or without a conforming final tag). Every badge carries a text next to its icon.
+  Since 1.9.0 (phase 8.3), the section ends with the **files** (`repo-conventions-files`): the revision
+  measured by the sync on the default branch (short SHA, date of the computation), then one grid per
+  family, **CHANGELOG** (CL1 to CL8), **README** (RD1 to RD4), **documentation** (DOC1 to DOC5, DOC8) and
+  **tooling** (TL1 to TL3), each "k/n criteria conform, u unknown" with, per criterion, a badge and its
+  text, the reason of an unknown criterion and the codes with their label (blocking or warning, number of
+  elements; sections found for RD2, words for RD4). Read from the cache of the sync: "unknown: not
+  computed yet, run watchoo sync", "to recompute" when the settings, the rules or the revision changed,
+  "no local clone". Below, folded (`details`), the **paths to look at**, recomputed from the local clone for
+  this page only and never stored: documents not referenced by the INDEX (DOC3), dead links `source →
+  target` (DOC4), badly named paths (DOC5), archives and office documents (DOC8); without a readable
+  clone, "Path lists unavailable". Never a cell of the INDEX nor a file content.
+  Since 1.10.0 (phase 8.4), each milestone also gets a badge for its **due date** (SV2: "on time", "late",
+  "undetermined") with the first observation of its tag, or "set between X and Y"; and the section adds
+  **History of the tags and of the default branch, versions** (`repo-conventions-history`), observed by the
+  syncs while the conventions are enabled and attributed to nobody: the **rewrites of the default branch**
+  (BR4: count, date of the last one, each event with its date and old and new short SHAs; otherwise "no
+  rewrite of the default branch observed"), the **tag history** (SV3: "n without rewrite observed since
+  <date>, r rewritten, d deleted, p deleted then set again on the same commit", the latter not conform,
+  one badge per tag, those that changed first; never "never rewritten"), the
+  **pre-releases** (SV4: warnings only), the **precedence** of the final versions (SV7; increment skipped as
+  information), the **version bumps** (SV5: counts, then each pair that is not consistent with the expected
+  bump or the reason) and the **CHANGELOG freshness** (CL10: `feat` and `fix` since the last commit that
+  touched the CHANGELOG, grayed out when the CHANGELOG of the last milestone is up to date). SV5 and CL10
+  are read from the local clone ("unknown (no local clone)" without one); without a clone, SV4 judges when
+  a pre-release was set by the first observation of the tags and SV7 only keeps the skipped increment
+  (information).
+  Since 1.11.0 (phase 8.5), the table of pull requests lists those whose title, **description** or
+  **merge** needs a look, with two badges: the description (PR5: "complete", "missing: …" with the expected
+  sections and "Closes #n", or "unknown") and, for a merged pull request, the merge (PR6: "squash",
+  "squash, nonconforming message", "merge commit", "rebase", "merge unknown"); pull requests from a fork
+  are set aside ("from a fork"). A **Merges** block (`repo-conventions-merges`) gives the commits that
+  reached the default branch outside a pull request (PR3: "n of m (by pull request p, undetermined u)",
+  then each commit as short SHA, **author of the commit** (link to their page) and reason, never "pushed
+  by"; clone only, or pull request list not read in full yet: a note), the pull request descriptions
+  (conforming out of those read), the merges squashed with a conforming message by method, the head
+  branches merged more than once (BR2) and the allowed merge methods (BR5: badge "squash only" or "not only
+  squash", "unknown" with its reason without push access). Neither a description, a title nor a commit
+  message is ever shown.
+  Since 1.12.0 (phase 8.6, API mode), the table of pull requests also lists the pull requests **merged
+  without review**, with a third badge, the review of a merged pull request (PR4: "reviewed", "merged
+  without review", "reviews not read yet"), and the **Merges** block gives, in `repo-conventions-reviews`,
+  "Merged pull requests reviewed by another account: r/k (u not read yet)." then "Merged without review
+  (n):" with the number and the author (link to their page) of each one, at most 20. Counters only: no
+  reviewer, no review body, no title.
+  Since 1.13.0 (phase 8.7), the section ends with a **folded block of leads** (`repo-conventions-leads`,
+  title "Leads: k to look at"), with a note that recalls that they invite to reread and do not judge: they
+  count in no grid, no rate and no milestone review. Each lead (CL11, CL12, RD5, DOC6, DOC7, DOC9, DOC10,
+  TL4, TL5, see [Project conventions](13-conventions.md#55-changelog-cl)) has a neutral badge ("nothing to
+  look at", "not applicable", "unknown" with its reason) or an information badge ("to look at"), never a
+  conform or not conform badge, then its codes with the number of items, its counters and, for DOC9 and
+  TL5, its dates. DOC9, DOC10 and TL5 and the list of **broken images** (DOC7, `source → target`) are
+  recomputed from the local clone for this page only, never stored. Neither a header value, an INDEX cell
+  nor a commit subject is shown. `/conventions` shows no lead.
 - Button **"Sync this repository"** (absent if tracking is stopped).
 - Fragments: `/repos/{id}/commits` (history); `/repos/{id}` with the `HX-Target` header
-  `repo-overview`, `repo-contributors`, `repo-languages`, `repo-pulls` or `repo-diagnostic` returns the
-  header, the contributors, the languages, the pull requests and releases or the diagnosis alone. All of them reload at the end of a sync.
+  `repo-overview`, `repo-contributors`, `repo-languages`, `repo-pulls`, `repo-diagnostic` or
+  `repo-conventions` (1.7.0) returns the header, the contributors, the languages, the pull requests and
+  releases, the diagnosis or the conventions alone. All of them reload at the end of a sync.
 
 ### 3. Contributors
 - Global ranking (commits, share of the total, lines added / removed; "—" if none of their commits has
@@ -279,6 +363,20 @@ nor the templates: the profile link is the address stored in the database (see
   it replaces the "AI signatures" card), first and last commit (relative dates). **Choice**: no Active / Slacking / Dead state for a person: these states are
   repository rules (per-repository thresholds); the page gives the age of the last commit, and the
   state of each of their repositories in the list below.
+  **Conventions** (1.7.0, only when they are enabled; absent otherwise): below the totals, the line
+  "Conforming commits 18/25 (72%)" (CC3: their commits, across all the repositories and tracked branches,
+  CC4 exclusions apart; "no commit evaluated" otherwise), followed by the issue codes received and their
+  count, and a note (number of excluded commits; "a rate, not a grade"). It is computed only for the full
+  page and the `contributor-overview` fragment, never for the paginated history. Since 1.8.0: the line
+  "Conforming pull request titles" (open and merged apart, pull requests whose author is this person's
+  forge account, matched by account; "no pull request evaluated" otherwise) and the CC3 **trend**: two
+  rates, before and since the last final tag of each repository, without an arrow ("unknown" without a
+  local clone or a final tag). Since 1.11.0 (`contributor-conventions-outside-pr`): the commits of the
+  default branch they wrote that arrived outside a pull request ("n of m", then each one as repository, short
+  SHA and reason, at most 20; "unknown" without a readable local clone). Since 1.12.0
+  (`contributor-conventions-reviews`): their merged pull requests reviewed by another account and the
+  reviews received on their pull requests ("r/k; …: n"; the reviews received alone, without "0/0", while no merged pull request has its reviews read; "none read" without any pull request read); the reviews they gave are
+  not counted, since no reviewer is kept.
 - **Activity over 90 days**: commits per day of the contributor, across all repositories (`daily`
   chart, like the dashboard and the repository page).
 - **Per-repository activity over 12 weeks**: the stacked `contributors-chart` chart (same template,
@@ -481,6 +579,42 @@ enabled (`diagnostic.enabled`). Details: [Supervision and diagnosis](12-supervis
   refused input is shown again with the error (400); a saved review returns to the sheet (303) with "Review
   saved" and the reviewer (web interface account, otherwise workspace name).
 
+### 7. Conventions (1.8.0, phase 8.2)
+
+For the trainer only; "Conventions" navigation entry only when the conventions are enabled
+(`conventions.enabled`). Disabled: the page explains how to enable them (`conventions.enabled`,
+`conventions.since`, restart) and shows no data. Details: [Project conventions](13-conventions.md#72-interfaces).
+
+- **By repository**: in the order of the workspace, never sorted by conformity: conforming commits (CC1),
+  conforming branches (BR1) and the number to review, conforming pull request titles (open and merged
+  apart, default titles; "unknown" without API data), conforming tags (SV1), a badge per configured
+  milestone (SV2) and the language of the subjects (CC7); since 1.9.0, a **Files** column, one badge per
+  family ("CHANGELOG 6/8 · 1 unknown"), or "unknown" with its reason (phase 8.3); since 1.10.0, the badge of
+  a milestone with a due date is followed by its due-date badge (on time, late, undetermined), and a
+  **History and versions** column gives the rewrites of the default branch, the tags rewritten or deleted,
+  the under-versioned bumps, the pre-release and precedence warnings and the `feat`/`fix` commits since the
+  CHANGELOG (phase 8.4); since 1.11.0, an **Outside PR, merge methods** column: commits outside a pull
+  request out of those of the first parent of the default branch (PR3) and the badge of the allowed merge
+  methods (BR5); since 1.12.0, a **Merged PRs reviewed** column: "r/k reviewed · u not read yet" (PR4).
+- **By contributor**: by name, never sorted by conformity: conforming commits (CC3), the trend (before /
+  since the last final tag), conforming pull request titles and branches (head branches of their pull
+  requests only), and since 1.11.0 the commits they wrote that arrived outside a pull request (PR3); since
+  1.12.0, **Reviews received**: "r/k reviewed · n received" (PR4 of their merged pull requests and reviews
+  received on their pull requests; "n received" alone without a merged pull request read, "—" without any pull request read; the reviews given are not counted). Tags, milestones and branches without a pull request are never attributed to a person.
+- **Milestone review** (`?milestone=vX.Y.Z`, first configured milestone by default; a milestone that is not
+  in `conventions.tags.milestones`: 400): a repository × criterion table (CC1 on the interval of the
+  milestone, BR1, SV1, SV2; since 1.9.0 CL9, CL8, RD1, RD2 installation section, RD3, DOC1 and DOC3, read on
+  the tree of the milestone tag; tag absent: "unknown" with the reason of SV1; since 1.10.0 SV3 after SV2,
+  and SV2 judges the due date; since 1.11.0 PR3 after BR1, with "PR3: n outside a pull request of m commits (u undetermined)"
+  under the result; since 1.12.0 PR4 after PR3, with "PR4: r/m merged pull requests reviewed (u not read
+  yet) (#n, …)" under the result), each cell "conforming", "not conforming" or "unknown" with its reason, then
+  "k/n criteria conforming, u unknown", the due date and the history of the tag (1.10.0) and the interval
+  read; no global grade. Without a start date:
+  "Not evaluable: missing start date". No milestone configured: a dedicated text.
+- The workspace syncs from the clones only: a note says that pull requests and releases are unknown.
+- No commit message, no pull request title or description; computed when read, nothing is stored, except the file
+  criteria, computed by the sync and kept in a cache (codes, states and counters only).
+
 ## Navigation
 
 ```mermaid
@@ -496,6 +630,9 @@ flowchart LR
     PERSON --> REPO
     DASH --> DIAG["Diagnosis (if enabled)"]
     DIAG --> LEAD["Review sheet"]
+    DASH --> CONV["Conventions (if enabled)"]
+    CONV --> REPO
+    CONV --> PERSON
 ```
 
 The footer of every page carries a **Documentation** link (1.6.1) to the contents of the online documentation

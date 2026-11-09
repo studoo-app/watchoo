@@ -22,7 +22,8 @@ counter-indicators of the diagnosis (phase 7.7) as **v1.5.0**; the EN / FR langu
 interface and the lines behind the signals on the review sheet of the diagnosis (phase 7.8) and the diagnosis score per
 repository and per contributor as **v1.6.0**; the link to the documentation in the language of the web
 interface, the icons of the AI score and the AI score and the leads of the commits on a contributor's page as
-**v1.6.1**.
+**v1.6.1**; the project conventions (phase 8, except BR3) and the sorting and filters of the dashboard as
+**v1.7.0**.
 
 ```mermaid
 flowchart LR
@@ -182,6 +183,26 @@ Importing a whole organization and the alerts move to V3 (see
   [Supervision and diagnosis](12-supervision-diagnostic.md#96-phase-77-absolute-signals-work-in-progress-markers-and-counter-indicators-done)). Educational context
   settled (learners, results reserved to the trainer); learners are informed (existence of the diagnosis,
   purpose, criteria) before it is enabled.
+
+### After 1.6.1 — 8: project conventions
+- Compliance indicators against a conventions charter (Conventional Commits, branches and pull requests,
+  SemVer, Keep a Changelog CHANGELOG, README, `documentation/INDEX.md`) and a "milestone review" view.
+  Objective findings, separate from the diagnosis, with no overall grade, for the trainer only, disabled by
+  default.
+- Sub-phases 8.0 to 8.7: see [Project conventions](13-conventions.md#10-phase-plan-proposal).
+- **Status**: **decided** (maintainer decisions of November 8, 2026); phase **8.1** (commit conventions,
+  `watchoo conventions` command, adjustments to A1, A2 and F4) and phase **8.2** (branches, pull request
+  titles, tags and milestones, releases as information, CC5 to CC7, CC1 per range between tags, CC3 trend,
+  first milestone review `--milestone` and `/conventions` page) and phase **8.3** (CHANGELOG, README,
+  documentation and tooling read from the tree of the clone and cached, milestone review on the tags' tree)
+  and phase **8.4** (history: tag observations and rewrites of the default branch recorded by the sync,
+  due dates of the milestones, SV3 to SV5, SV7, CHANGELOG freshness, SV3 in the milestone review)
+  and phase **8.5** (merges read with no extra request: merge SHA, fork origin, sections of the PR
+  descriptions, merge methods; PR3, PR5, PR6, BR2, BR5, forks set aside from PR1, PR2, PR5, PR6, BR1 and BR2, PR3 in the
+  milestone review) and phase **8.6** (reviews: one request per merged pull request, counters only; PR4,
+  merged without review, reviews received, PR4 in the milestone review) and phase **8.7** (leads that invite
+  a reread without judging, outside the grids and the rates: CL11, CL12, RD5, DOC6, DOC7, DOC9, DOC10, TL4,
+  TL5) **released in v1.7.0**: phase 8 is done, except branch protection (BR3), postponed.
 
 ## Definition of "done" for each phase
 

@@ -36,7 +36,7 @@ stars. The choice is made again at each sync (see
 | --- | --- | --- |
 | `watchoo init` | Makes the current directory a workspace: checks `gh` (without `gh`: `git`), then creates `.watchoo/` with the config and the SQLite database. Refuses if the workspace already exists | MVP (without `gh`: V2) |
 | `watchoo version` | Prints the Watchoo version, the compiled commit and its date, the Go version and the platform (`watchoo --version` does the same). Works outside a workspace and without `gh` | MVP |
-| `watchoo repo add owner/repo [--branch main,dev,release/*] [--label "Alice Martin"] [--flemme 3] [--dead 10]` | Adds a repository to watch (all its branches by default), with an optional display label and own activity thresholds | MVP (thresholds: V2) |
+| `watchoo repo add owner/repo [--branch main,dev,release/*] [--label "Alice Martin"] [--flemme 3] [--dead 10] [--conventions-since YYYY-MM-DD]` | Adds a repository to watch (all its branches by default), with an optional display label, own activity thresholds and own conventions start date | MVP (thresholds: V2; conventions date: 1.7.0) |
 | `watchoo repo import file.csv [--dry-run]` | Adds a list of repositories in one go (e.g. those of a class of students), checks access to each one and prints a summary | MVP |
 | `watchoo repo list` | Table: repository, last commit, author, state (Active / Slacking / Dead) | MVP |
 | `watchoo repo remove owner/repo [--keep-history] [--yes]` | Stops tracking and deletes the repository history (and its local Git clone) after confirmation (`--keep-history` to keep them) | MVP |
@@ -48,6 +48,7 @@ stars. The choice is made again at each sync (see
 | `watchoo languages [--repo X]` | Languages of the tracked repositories, with their percentage | 1.1.0 |
 | `watchoo diagnostic [--repo X] [--author Y] [--since 30d]` | Reflection leads of the diagnosis, **for the trainer only**: commits and pull requests that declare the use of an AI tool (level "declared": signals D1, D2, D3, D5), commits whose rhythm and form converge (level "probable": at least two R signals and one F signal), and commits or days with a rhythm or form unusual for the learner (level "to review": one signal R1 to R6, or two signals F1 to F5; an F signal alone raises nothing), absolute signals A1 to A7 for projects delivered in few commits and traces of human work H1 to H4 that lower "probable" (phase 7.7), with their signals, the D4 context of the repositories and the histories still too short. A lead is never a verdict. Diagnosis disabled: the command says so, without an error (see [Supervision and diagnosis](12-supervision-diagnostic.md)) | 7.2 (rhythm: 7.3; form: 7.5) |
 | `watchoo diagnostic backfill [--repo X]` | Measures on the local clones the history already stored without signals (commits synced before the diagnosis was enabled), and completes the form (F1 to F5) of the commits measured before phase 7.5, within the retention period, merges excluded | 7.3 |
+| `watchoo conventions [owner/repo] [--commits] [--failing] [--contributor X] [--milestone vX.Y.Z]` | Rates of commits conforming to the [project conventions](13-conventions.md) (CC1 to CC4), **for the trainer only**: per repository, per contributor and, with `--commits`, per commit (short SHA, author and issue codes, never the message); since 1.8.0, branch names, pull request titles (number and codes, never the title), tags, milestones, releases as information, wording, footers and language of the commits, CC1 per interval between tags, CC3 trend and, with `--milestone`, the milestone review. No overall grade. Conventions disabled: the command says so, without an error | 1.7.0 (`--milestone`, indicators of phase 8.2: 1.8.0; file criteria: 1.9.0; history and versions of phase 8.4: 1.10.0; merges of phase 8.5: 1.11.0; reviews of phase 8.6: 1.12.0; leads of phase 8.7: 1.13.0) |
 | `watchoo status` | Summary: up-to-date, inactive and in-error repositories, source of the syncs (GitHub API or local Git repositories), remaining API quota, the `gh` account in use and its scopes (without showing the token) | MVP (source: V2) |
 | `watchoo serve [--addr 127.0.0.1:8080] [--interval 30m]` | Starts the web interface and the periodic sync (30 min by default, 15 min minimum) | MVP |
 | `watchoo tui [--interval 30m]` | Opens the interactive mode in the terminal | MVP |
@@ -65,10 +66,16 @@ stars. The choice is made again at each sync (see
   the repository, in days without a commit, instead of the workspace ones
   (`activity.flemme_after_days`, `activity.dead_after_days`); each one is optional and independent,
   `0` means the workspace threshold. A threshold is at most 3,650 days and, when both are given,
-  `--dead` must be strictly greater than `--flemme` (otherwise refusal before any call to GitHub). An
-  already tracked repository is not added twice: its label, its branches and its thresholds are updated
-  if they are given, and tracking resumes if it had been stopped. The report quotes the own thresholds
-  ("thresholds: flemme 3 d, dead 10 d"). Access is checked with
+  `--dead` must be strictly greater than `--flemme` (otherwise refusal before any call to GitHub).
+  `--conventions-since YYYY-MM-DD` (1.7.0) sets the **start date of the [conventions](13-conventions.md)**
+  for this repository, instead of `conventions.since`: a calendar date, read at midnight in the time zone
+  of the workspace; `--conventions-since ""` goes back to the date of the workspace; another form or an
+  impossible date is refused before any call to GitHub. An
+  already tracked repository is not added twice: its label, its branches, its thresholds and its
+  conventions start date are updated if they are given, and tracking resumes if it had been stopped. The
+  report quotes the own thresholds ("thresholds: flemme 3 d, dead 10 d") and the own date ("conventions
+  since 2026-09-01"); `repo list` adds below the table one line per repository that has its own date.
+  The import file of `repo import` has no column for this date. Access is checked with
   GitHub (one request); `repo add` does not start a sync. Without `gh` (V2), access is checked with
   `git ls-remote`, cloning nothing: a failure gives "access denied: check the SSH key or the Git credentials of this machine"; the repository is
   recorded without a GitHub ID (`provider_id` unknown, resolved at the first sync through the API) and
@@ -153,6 +160,116 @@ stars. The choice is made again at each sync (see
   `share` in JSON), relative to the commits of the ranking: with `--repo`, those of the repository; with
   `--since` or `--weeks`, those of the period. A commit without a known author does not count. The table
   of `--weeks` has no such column, the JSON does. The TUI gives this share in the detail of a repository.
+- **`conventions`** (1.7.0) evaluates the commit messages with the strict parser of the charter
+  (`conventions.commit.*` settings, see [Project conventions](13-conventions.md#51-commits-cc)). **No
+  grade**: a table per repository gives the rate `n/m` (commits without blocking issue / commits evaluated)
+  and the percentage ("—" without evaluated commit: unknown, not 0%), the informative view of the default
+  branch alone, the number of excluded commits, the effective start date and the source of the scope;
+  then, per repository, the start date and its origin (workspace or own to the repository), the exclusions
+  by reason (merges, bots, GitHub initial commit, accounts of `conventions.excluded_accounts`), the commits
+  before the start date (counted apart) and the issues by code with their label and severity (blocking or
+  warning); finally a table of the contributors (rate and codes received, sorted by name, never ranked).
+  The scope is **all the tracked branches**, each commit once, read from the existing local Git clone
+  (`git rev-list` of the tracked `origin/<branch>`, without `fetch`); without a readable clone, it falls
+  back on the commits attached to the tracked branches in the database (source "database", marked with an
+  asterisk and the mention "may include rewritten commits"). A commit whose parent count is still unknown
+  is recognized as a merge by its default message (a line says so). `owner/repo` limits to one tracked
+  repository; `--contributor` to one author (exact login, name or e-mail); `--commits` adds the list of the
+  evaluated commits (date, repository, short SHA, author, "conform" or "not conform" and codes) and
+  `--failing` limits it to the commits that do not conform (it implies `--commits`). **The commit message
+  is never shown**, neither in text nor in JSON. The exit code is `0` whatever the rates (no `--strict`
+  option). Conventions disabled (`conventions.enabled: false`, the default): a message says so; in JSON,
+  `enabled: false` and empty lists.
+  Since 1.8.0 (phase 8.2, see [Project conventions](13-conventions.md#54-tags-and-semver-sv)),
+  the detail of each repository adds: the **branches** (BR1: count "n/m conform, k to review" and source,
+  `clone` or "database, tracked branches only", then the names by code with their label and severity, a
+  head branch followed by its pull request numbers); the **pull requests** (PR1 and PR2: conventional
+  titles of the open and the merged ones apart, default titles, those set aside, then each pull request that
+  does not conform as `#number author (head branch): codes`; **never the title**; "unknown" in clone-only
+  mode or for a repository the API has never seen); the **tags** (SV1, names by code), the **milestones**
+  of `conventions.tags.milestones` (SV2: present, nonconforming name, absent) and the **releases** (SV6,
+  information only); the **wording** of the subjects (CC5 warnings: past tense, "-ing" form, first
+  person), the **footers** and issue references (CC6), the **language** of the subjects (CC7: `fr`, `en`,
+  unknown, those outside `conventions.commit.language`, "mixed"); finally **CC1 between tags** (each
+  interval between conforming final tags, `start→v0.1.0`, `v0.1.0→v1.0.0`…, then since the last one; read
+  in the clone, "unknown" without a clone). The table of the contributors adds the two rates of the **CC3
+  trend** (up to and since the last final tag of each repository, "—" when not measured), the conforming
+  pull request titles and the conforming branches (those of their pull requests).
+  `--milestone vX.Y.Z` (1.8.0) shows, instead of the overview, the **milestone review** of a milestone of
+  `conventions.tags.milestones`: per repository, "k/n criteria conform, u unknown", then CC1 on the
+  milestone interval, BR1, SV1 and SV2, each conform, not conform or unknown with its reason, never an
+  overall grade; a repository without a start date is "not evaluable (missing start date)". The review is
+  about repositories: `--contributor` does not restrict it. A milestone that is not configured is a usage
+  error (exit code `1`) that lists the configured milestones.
+  Since 1.9.0 (phase 8.3, see [Project conventions](13-conventions.md#55-changelog-cl)), the detail of
+  each repository adds the **file criteria** measured by the sync on the tree of the head of the default
+  branch of the local clone and kept in a cache: the revision measured (short SHA, date of the
+  computation), then one grid per family, **CHANGELOG** (CL1 to CL8), **README** (RD1 to RD4),
+  **documentation** (DOC1 to DOC5, DOC8) and **tooling** (TL1 to TL3), as "k/n criteria conform, u
+  unknown", followed by each criterion not conform, unknown (with its reason) or carrying a warning, with its
+  codes and their label. Nothing computed yet: "unknown (not computed yet, run watchoo sync)"; settings,
+  rules or revision changed since: "to recompute"; no local clone: "no local clone". With a repository
+  (`watchoo conventions owner/repo`, detailed view), the **path lists** are recomputed from the clone, never
+  stored: documents not referenced by the INDEX (DOC3), dead links `source → target` (DOC4), badly named
+  folders and files (DOC5), archives and office documents (DOC8), at most 20 paths per list in text. The
+  milestone review adds CL9, CL8, RD1, RD2 (installation section only; the sections found are given for
+  information), RD3, DOC1 and DOC3, read on the tree of the milestone tag; tag absent: "unknown" with the
+  reason of SV1. Repository indicators, never credited to a person: `--contributor` gives them as
+  "unknown (report restricted to contributors)".
+  Since 1.10.0 (phase 8.4, see [Project conventions](13-conventions.md#54-tags-and-semver-sv)), the detail
+  of each repository ends with its **history**, observed by the syncs while the conventions are enabled and
+  never attributed to anyone: the **rewrites of the default branch** (BR4: count, date of the last one, then
+  each event as `branch on date: old → new` short SHAs; "no rewrite of the default branch observed"
+  otherwise, never "never rewritten"), the **tag history** (SV3: "n without rewrite observed since <first
+  observation>, r rewritten, d deleted, p deleted then set again on the same commit", then each tag that changed), the **due dates** of the milestones
+  (SV2: on time, late, or undetermined "set between X and Y"), the **pre-releases** (SV4 warnings: free form,
+  set after the final version, precedence against the history), the **precedence** of the final versions
+  (SV7: higher version set on an ancestor of a lower one; increment skipped as information), the **version
+  bumps** (SV5: consistent, under-versioned with the expected bump, undetermined, unknown) and the
+  **CHANGELOG freshness** (CL10, information: `feat` and `fix` commits since the last commit that touched
+  the CHANGELOG, grayed out when the CHANGELOG of the last milestone is up to date). SV5 and CL10 are read
+  from the local clone ("unknown (no local clone)" without one); without a clone, SV4 judges when a
+  pre-release was set by the first observation of the tags and SV7 only keeps the skipped increment
+  (information). With `--contributor`, this history
+  is not shown. The milestone review adds SV3 after SV2 (12 criteria) and judges the due date in SV2.
+  Since 1.11.0 (phase 8.5, see [Project conventions](13-conventions.md#53-pull-requests-pr)), the detail of
+  each repository adds the **merges**: the commits that reached the default branch outside a pull request
+  (PR3: "n of m (by PR p, undetermined u)", read on the first parent of the default branch of the local
+  clone since the start date, then each commit outside a PR as `short SHA author (author): reason`, credited
+  to the author of the commit, never to whoever pushed it; clone only: read on the messages of GitHub), the
+  pull request **descriptions** (PR5: conforming out of those read, then what each one misses), the
+  **merges** (PR6: squashed with a conforming message, by method), the **reused branches** (BR2) and the
+  **allowed merge methods** (BR5: conform when only squash is allowed; "unknown (merge methods not returned
+  …)" without push access). Pull requests from a fork are set aside ("from a fork"). The contributors table
+  adds "PR BODIES" and "OUTSIDE PR" (commits of the default branch they wrote that arrived outside a PR, out
+  of those classified). The milestone review adds PR3 after BR1 (13 criteria): no commit outside a pull
+  request on the milestone interval. Neither a description, a title nor a commit message is ever shown.
+  Since 1.12.0 (phase 8.6, API mode), the merges also give the **reviews** (PR4): "merged pull requests
+  reviewed by another account: r/k (u not read yet)", r reviewed out of the k merged pull requests whose
+  reviews were read after their merge, then "merged without review (n): #4 (author), …" (number and author,
+  never the title). The contributors table adds "PR REVIEWED" ("1/2, 3 review(s) received": their merged
+  pull requests reviewed, and the reviews received on their pull requests; "3 review(s) received" alone
+  while none of their merged pull requests has its reviews read, "-" without any pull request read; the
+  reviews given are not counted, since no reviewer is kept). The milestone review adds PR4 after PR3 (14 criteria): every pull
+  request merged in the milestone interval reviewed ("r/m merged pull requests reviewed (u not read yet)
+  (#n, …)"); unknown in clone only (`no_api`), without merged pull request (`no_merged_pr`), when reviews
+  are not read yet (`reviews_unchecked`) or when the date of a tag commit is not in the database
+  (`no_tag_date`). No reviewer login is ever shown.
+  Since 1.13.0 (phase 8.7, see [Project conventions](13-conventions.md#55-changelog-cl)), the detail of
+  each repository ends with the **leads**, under a title that recalls that they invite to reread and do not
+  judge, with the number of leads "to look at": CL11 (comparison links of the CHANGELOG), CL12 (copy of
+  `git log`), RD5 (installation in the README), DOC6 (document headers), DOC7 (diagrams and images), DOC9
+  (freshness of the documentation), DOC10 (dates declared in the INDEX), TL4 (CI checking the conventions)
+  and TL5 (effect of the tooling). Each lead is "nothing to look at", "to look at" (with its codes and the
+  number of items), "not applicable" (sample too small, no version heading, no tooling, no
+  date column) or "unknown" (with its
+  reason), followed by its counters and, for DOC9 and TL5, its dates. A lead counts in no grid, no rate and
+  no milestone review. Without a repository, only the leads to look at are listed, with the command that
+  gives the detail; DOC9, DOC10 and TL5 are not listed there and
+  are `unknown` (`detail_only`) in the `--json`. With
+  a repository (`watchoo conventions owner/repo`), every lead is listed, then the **broken images** (DOC7,
+  `source → target`, at most 20 in text), recomputed from the clone, never stored. With `--contributor`,
+  the leads are not shown.
 - **`status`**: `gh` account and its scopes, **source** of the syncs (V2: "Source: GitHub API (gh signed
   in)" or "Source: local Git clones (repos/ in the workspace), …", with the `gh auth login` reminder),
   remaining quota (reading it is free; "not applicable: local Git clones, no quota" with the local Git
@@ -222,6 +339,7 @@ Every setting of `config.yaml` can be overridden by a `WATCHOO_<SECTION>_<KEY>` 
 | `WATCHOO_GITHUB_USER`, `WATCHOO_GITHUB_GH_PATH` | `github.*` settings |
 | `WATCHOO_GIT_PROTOCOL` | `git.protocol` setting |
 | `WATCHOO_DIAGNOSTIC_ENABLED`, `WATCHOO_DIAGNOSTIC_EXCLUDE`, `WATCHOO_DIAGNOSTIC_RETENTION_DAYS`, `WATCHOO_DIAGNOSTIC_SPEED_SIGNAL` | `diagnostic.*` settings (`exclude`: list; see [Supervision and diagnosis](12-supervision-diagnostic.md)) |
+| `WATCHOO_CONVENTIONS_ENABLED`, `WATCHOO_CONVENTIONS_SINCE`, `WATCHOO_CONVENTIONS_COMMIT_TYPES`, `WATCHOO_CONVENTIONS_COMMIT_SCOPES`, `WATCHOO_CONVENTIONS_COMMIT_MAX_SUBJECT_SOFT`, `WATCHOO_CONVENTIONS_COMMIT_MAX_SUBJECT_HARD`, `WATCHOO_CONVENTIONS_COMMIT_FORBIDDEN`, `WATCHOO_CONVENTIONS_COMMIT_LANGUAGE`, `WATCHOO_CONVENTIONS_BRANCH_PATTERN`, `WATCHOO_CONVENTIONS_BRANCH_EXCLUDE`, `WATCHOO_CONVENTIONS_PR_BODY_SECTIONS`, `WATCHOO_CONVENTIONS_PR_REQUIRE_CLOSES`, `WATCHOO_CONVENTIONS_PR_MIN_REVIEWS`, `WATCHOO_CONVENTIONS_PR_REVIEWER_MUST_CONTRIBUTE`, `WATCHOO_CONVENTIONS_TAGS_MILESTONES`, `WATCHOO_CONVENTIONS_TAGS_PRERELEASE_FORMS`, `WATCHOO_CONVENTIONS_CHANGELOG_CATEGORIES_FR`, `WATCHOO_CONVENTIONS_README_SECTIONS`, `WATCHOO_CONVENTIONS_README_MIN_WORDS`, `WATCHOO_CONVENTIONS_DOCS_DIR`, `WATCHOO_CONVENTIONS_DOCS_MEDIA_DIR`, `WATCHOO_CONVENTIONS_DOCS_ARCHIVES_SCOPE`, `WATCHOO_CONVENTIONS_EXCLUDED_ACCOUNTS` | `conventions.*` settings (`types`, `scopes`, `forbidden`, `branch.exclude`, `tags.milestones`, `tags.prerelease_forms`, `pr.body_sections`, `readme.sections`, `excluded_accounts`: lists; `since`: `YYYY-MM-DD`; `branch.pattern`: RE2 expression, never split; `tags.milestones`: `vX.Y.Z` or `vX.Y.Z@YYYY-MM-DD`; `readme.sections`: keys among `presentation`, `group`, `stack`, `install`, `run`, `env`, `tree`, `license`; `readme.min_words`: at least 1; `docs.archives_scope`: `repository` or `documentation`; `tags.prerelease_forms`: at least one form, lowercase words; branch and tags settings: 1.8.0; changelog, README and documentation settings: 1.9.0; `pr.body_sections`: keys among `context`, `changes`, `testing`, `screenshots`; `tags.prerelease_forms`: 1.10.0; `pr.body_sections` and `pr.require_closes`: 1.11.0; `pr.min_reviews`: at least 1; `pr.min_reviews` and `pr.reviewer_must_contribute`: 1.12.0; see [Project conventions](13-conventions.md#8-configuration)) |
 | `WATCHOO_DIR` | Workspace to use (like `-C`) |
 | `WATCHOO_WEB_PASSWORD` | Password of the web interface (never in a file) |
 | `WATCHOO_LOG_LEVEL` | Log level (`debug`, `info`, `warn` by default, `error`) |
@@ -283,16 +401,19 @@ Top-level keys (the list is checked by a test, `internal/cli/json_schema_test.go
 | `watchoo status` | `workspace`, `github`, `source`, `rate_limit`, `rate_limit_error`, `quota_low`, `repositories`, `errors`, `last_synced_at`, `tracked_branches` | `workspace`: `name`, `root`; `github`: `ok`, `host`, `login`, `token_source`, `scopes`, `error`; `source` (V2): `kind` (`api`, `git`, or `""` if `gh` is down) and `reason` (why the local Git repositories, or the `gh` error); `repositories`: `total`, `active`, `flemme`, `dead`, `error`, `never_synced`, `archived`, `empty`, `stopped`; each error: `repo`, `message` |
 | `watchoo diagnostic` | `enabled`, `leads`, `contexts`, `histories`, `notice`, `filters` | `enabled`: `diagnostic.enabled` setting (false: empty lists); each lead: `kind` (`commit`, `pull_request` or `day`), `level` (`declared`, `probable` or `to_review`), `repository`, `sha`, `short_sha` (empty except for a commit), `number` (0 except for a PR), `title` (PR title, empty otherwise), `url`, `author` (`name`, `login`, `display_name`), `date` (commit author date, PR opening, or start of the day), `signals` (each signal: `id` among `D1`, `D2`, `D3`, `D5`, `R1` to `R6`, `F1` to `F5`, `A1` to `A7`, `H1` to `H4` (counter-indicators, phase 7.7); `value`: tool, bot account, branch or measure; `raw`, `median`, `z`: measure, personal median (F5: usual share of commits with tests) and modified z-score of the rhythm and form signals, `null` when there is none); each context: `repository`, `agent_config_since`; each history: `repository`, `author`, `commits`, `worked_days`, `sufficient`; `notice`: translated reminder; `filters`: `repository`, `author`, `since` |
 | `watchoo diagnostic backfill` | `repositories`, `measured` | Each repository: `repository`, `measured` (commits measured), `merges` (merges set aside), `missing` (missing from the clone), `error` (empty on success); exit code `1` if a repository failed |
+| `watchoo conventions` | `enabled`, `rules_version`, `repositories`, `contributors`, `commits`, `notice`, `filters`, `milestone` | 1.7.0 (`milestone` and the keys of phase 8.2: 1.8.0; `changelog`, `readme`, `docs`, `tooling` and `milestone.repositories[].files`: 1.9.0; the keys of phase 8.4: 1.10.0; the keys of phase 8.5: 1.11.0; the keys of phase 8.6: 1.12.0; `leads`: 1.13.0). `enabled`: `conventions.enabled` setting (false: empty lists); `rules_version`: version of the parser rules; each repository: `repository`, `source` (`clone` or `database`, a fallback that may include rewritten commits), `since` (effective start date `"YYYY-MM-DD"`, `null` = from the beginning), `since_origin` (`workspace`, `repository` or `null`), `commits` (`evaluated`, `conform`, `rate` (to the thousandth, `null` without evaluated commit), `excluded` (`merge`, `bot`, `initial_commit`, `excluded_account`), `issues` (each `code`, `severity`: `blocking` or `warning`, `count`, `shas`)), `before_since` (commits before the start date), `parents_unknown` (commits with an unknown parent count), `default_branch` (`name`, `evaluated`, `conform`, `rate`, informative view); each contributor: `author` (`name`, `login`, `display_name`), `commits` (same keys as for a repository); `commits` (`[]` without `--commits` or `--failing`): each `repository`, `sha`, `short_sha`, `author`, `date`, `conform`, `codes`, never the message; `notice`: translated reminder; `filters`: `repository`, `contributor`, `commits`, `failing`, `milestone` (`""` without `--milestone`). Since 1.8.0, each repository also has `traits` (`evaluated`, `wording` (`past_tense`, `progressive`, `first_person`), `footer`, `issue_reference`), `language` (`expected`, `fr`, `en`, `unknown`, `other`, `mixed`), `branches` (`source`, `checked`, `conform`, `review`, `items`: each `name`, `codes` (BR1; blocking `unknown_type`, `uppercase`, `underscore`, `space`, `accent`, `no_slash`, `pattern`; warning `single_segment`), `conform`, `review`, `in_source` (false: only known as a pull request head branch), `pull_requests` (numbers), `authors`), `pull_requests` (`known`, `reason` (`no_api` or `null`), `open` and `merged` (`evaluated`, `conform`, `default`), `skipped` (`closed`, `draft`, `bot`, `before_since`), `items`: each `number`, `category` (`open` or `merged`), `author`, `head_branch`, `codes` (CC2 codes of the header), `default_codes` (PR2: `forbidden`, `github_default`, `head_branch`), `conform`, never the title), `tags` (`checked`, `conform`, `items` (`name`, `codes` (SV1; blocking `no_v`, `upper_v`, `missing_component`, `leading_zero`, `empty_prerelease`, `invalid`; warning `build_metadata`), `conform`, `final` (conforming, without pre-release or build metadata: only a final tag bounds an interval)), `milestones` (`name`, `due`, `status`: `present`, `nonconforming_name` or `absent`, `tag`, `others`), `releases` (`known`, `reason` (`no_api` or `null`), `notes`: each `code` (SV6: `milestone_without_release`, `release_without_tag`, `prerelease_mismatch`), `tag`)), `intervals` (`known`, `reason` (`no_clone`, `clone_unreadable`, `filtered`, `no_final_tag` or `null`), `last_tag`, `items`: each `from` (`null` = from the beginning), `to`, `known`, `commits`, `before_since`, `missing`; `since_last_tag`); each contributor `traits`, `trend` (`known`, `repositories`, `unmeasured`, `before`, `since`, rates like `commits`), `pull_requests` (`open`, `merged`), `branches` (`checked`, `conform`, `review`); `milestone`: `null` without `--milestone`, otherwise `name`, `due`, `criteria` (`CC1`, `BR1`, `SV1`, `SV2`, then since 1.9.0 `CL9`, `CL8`, `RD1`, `RD2` (installation section only), `RD3`, `DOC1`, `DOC3`) and `repositories`: each `repository`, `evaluable`, `reason` (`no_since` or `null`), `since`, `status`, `tag`, `tag_codes`, `interval` (`from`, `to`, `due`, `commits`, `before_since`, `missing`; `null` when not measured), `branches`, `files` (1.9.0, `null` when not evaluable: `state` (`computed` or `unknown`), `reason` (`no_tag`, `not_due`, `tag_absent`, `not_computed`, `stale`, `no_clone` or `null`), `sha`, `computed_at`, `readme_expected` and `readme_found`, keys of the README sections, for information), `criteria` (each `id`, `status`: `conform`, `nonconform` or `unknown`, `reason` of an unknown criterion: `no_tag`, `not_due`, `tag_absent`, `no_clone`, `clone_unreadable`, `no_commits`, `partial`, `no_branch`, and for the file criteria `not_computed`, `stale`, `no_file`, `empty_repository`, `tree_truncated`, `blob_too_large`, `blob_unreadable`, `no_docs_dir`, `unread_documents`, `null` otherwise; see [Project conventions](13-conventions.md#71-milestone-review-rj)), `conform`, `unknown`, `total`. Since 1.9.0 (phase 8.3), each repository also has `changelog` (CL1 to CL8), `readme` (RD1 to RD4), `docs` (DOC1 to DOC5, DOC8) and `tooling` (TL1 to TL3), read from the cache of the sync: `state` (`computed` or `unknown`), `reason` (`not_computed`, `stale`, `no_clone`, `filtered` or `null`), `sha` and `computed_at` (revision measured, date of the computation; `null` when unknown), `conform`, `unknown`, `total`, `criteria` (each `id`, `status`, `reason` (the reason of the family, or `empty_repository`, `tree_truncated`, `no_file`, `blob_too_large`, `blob_unreadable`, `no_docs_dir`, `unread_documents`, `null` otherwise), `codes` (blocking: `absent`, `misnamed`, `elsewhere`, `no_h1`, `h1_title`, `no_keepachangelog`, `no_semver`, `unreleased_absent`, `unreleased_misplaced`, `unreleased_duplicate`, `unreleased_no_brackets`, `no_brackets`, `date_fr`, `no_date`, `invalid_date`, `future_date`, `invalid_version`, `version_order`, `date_order`, `unknown_category`, `duplicate_category`, `bullet_outside_category`, `empty_version`, `empty_category`, `empty_bullet`, `tag_without_section`, `section_without_tag`, `version_missing`, `missing_section`, `index_link_absent`, `index_link_dead`, `index_link_folder`, `changelog_link_absent`, `changelog_link_dead`, `too_short`, `no_table`, `missing_column`, `no_rows`, `unreferenced`, `duplicate_row`, `dead_link`, `case_mismatch`, `dir_name`, `file_name`, `archive`, `not_found`; warnings: `french_label`, `v_prefix`, `category_order`, `office_document`, `husky_no_prepare`, `translation_only`), `counts` (counters only: `versions`, `sections`, `tags`, `expected`, `found`, `expected_mask`, `found_mask`, `license_file`, `translations`, `words`, `min_words`, `tables`, `rows`, `columns`, `documents`, `links`, `sources`, `unread`, `dirs`, `files`, `configs`, `extends_conventional`, `tools_mask`, `templates`, and a counter per code), never a path, a file content or a cell of the INDEX; codes and counters by criterion, bit order of the masks: see [Project conventions](13-conventions.md#58-tooling-tl)); `docs` adds `lists` (`computed`, `reason` (`not_computed`, `stale`, `no_clone`, `clone_unreadable`, `tree_truncated` or `null`), `unreferenced`, `duplicate_rows`, `dead_links` (each `source`, `target`, `resolved`, `case_mismatch`), `bad_names`, `archives`, `office_documents`): filled only in the detailed view of a repository (`watchoo conventions owner/repo`), empty lists otherwise. Since 1.10.0 (phase 8.4), `tags.milestones` items also have `deadline` (`null` without a due date judged, otherwise `status`: `on_time`, `late` or `undetermined`, `due_end` (end of the due date, excluded), `first_seen_at` (first observation of the tag, `null` if never observed), `commit_at` (date of the target commit at the first observation of the tag, `null` if unknown or if the tag was rewritten since), `set_after` (lower bound of when it was set: the later of `commit_at` and the last complete read of the tags that did not see it, before its first observation; `null` if unknown)); each repository also has `rewrites` (BR4: `known` (always `true`), `reason` (always `null`, kept for symmetry), `count`, `last`, `events`: each `branch`, `old_sha`, `new_sha`, `observed_at`, most recent first, never an author), `tag_history` (SV3: `known`, `reason` (`not_observed` or `null`), `since` (first observation), `counts` (`stable`, `restored`, `rewritten`, `deleted`), `items`: each `name`, `status`, `sha` (`null` when deleted), `first_seen_at`, `rewrites`, `deletions`), `prereleases` (SV4, warnings: `known`, `reason` (`filtered` or `null`), `checked`, `conform`, `notes`: each `code` (`free_form`, `after_final`, `order`), `tag`, `other`), `bumps` (SV5: `known`, `reason` (`no_clone`, `filtered` or `null`), `counts` (`consistent`, `under`, `undetermined`, `unknown`), `items`: each `from`, `to`, `status`, `reason` (`no_base`, `clone_unreadable`, `partial`, `low_conform` or `null`), `actual` and `expected` (`patch`, `minor`, `major` or `null`), `evaluated`, `conform`, `breaking`, `features`, `missing`), `precedence` (SV7: `known`, `reason` (`no_clone`, `filtered` or `null`), `pairs`, `unknown`, `conform`, `notes`: each `code` (`precedence_ancestry`, `increment_skip` as information), `tag`, `other`) and `changelog_freshness` (CL10, information: `known`, `reason` (`no_clone`, `no_file`, `clone_unreadable`, `filtered` or `null`), `since` (SHA of the last commit that touched the CHANGELOG), `feat`, `fix`, `missing`, `grayed`); `milestone.criteria` gets `SV3` after `SV2`, and each repository of the review gets `deadline` (same keys) and `tag_history` (`status`, `first_seen_at`, `rewrites`, `deletions`; `null` when the tag is missing or never observed), with the reasons `deadline_undetermined` and `not_observed`. Since 1.11.0 (phase 8.5), `pull_requests.skipped` has `fork`, `pull_requests.open` and `pull_requests.merged` of each repository and of each contributor have `body_known`, `body_conform`, `merge_known`, `squash`, `merge_conform`, `pull_requests` has `methods` (`squash`, `merge`, `rebase`, `unknown`: merged pull requests by method), each pull request item has `body` (PR5: `known`, `found` and `missing` (keys `context`, `changes`, `testing`, `screenshots`), `closes`, `conform`; never the description) and `merge` (PR6: `method` (`squash`, `merge`, `rebase` or `unknown`), `message_conform`, `conform`; `null` for an open pull request); `branches` has `reused` (BR2: `known`, `reason` (`no_api` or `null`), `items`: each `name`, `pull_requests`); each repository has `arrivals` (PR3: `known`, `reason` (`no_clone`, `clone_unreadable` or `null`), `mode` (`api` or `clone`), `complete` (pull request list read in full), `by_pr`, `outside_pr`, `undetermined`, `reasons` (`merge_commit_sha`, `rebase_run`, `github_merge`, `squash_suffix`, `human_committer`, `local_merge`, `web_edit`, `not_in_db`, `committer_unknown`, `unmatched`, `clone_only`), `outside`: each `sha`, `short_sha`, `reason`, `author` (author of the commit)) and `merge_methods` (BR5: `known`, `reason` (`no_api`, `no_push_access` or `null`), `squash`, `merge`, `rebase` (`null` when unknown), `conform`); each contributor has `arrivals` (`by_pr`, `outside_pr`, `undetermined`); `milestone.criteria` gets `PR3` after `BR1`, and each repository of the review gets `arrivals` (same keys; `null` when the interval is not evaluable), with the reason `undetermined`. Since 1.12.0 (phase 8.6), `pull_requests.open` and `pull_requests.merged` of each repository and of each contributor have `review_known` (pull requests whose reviews were read; merged: after their merge), `reviewed` (merged: PR4 conform; open: approved at the last read, information) and `reviews_received` (reviews submitted by other accounts, every state except `PENDING`), each pull request item has `review` (PR4: `known`, `reviews`, `approvals` (approving reviewers retained: contributors only with `conventions.pr.reviewer_must_contribute`), `reviewed`; counters only, never a reviewer), `pull_requests` has `merged_without_review` (each `number`, `author`, highest number first, never the title); `milestone.criteria` gets `PR4` after `PR3`, and each repository of the review gets `reviews` (`merged`, `known`, `reviewed`, `unreviewed` (numbers); `null` when not evaluable), with the reasons `reviews_unchecked`, `no_merged_pr` and `no_tag_date`. Since 1.13.0 (phase 8.7), each repository also has `leads` (leads that invite to reread and do not judge, outside every grid, every rate and the milestone review: `to_review` (leads with the status `review`), `items`: the nine leads `CL11`, `CL12`, `RD5`, `DOC6`, `DOC7`, `DOC9`, `DOC10`, `TL4`, `TL5`, each `id`, `status` (`none`, `review`, `not_applicable` or `unknown`), `reason` (the reason of the file criteria, `detail_only`, `no_clone`, `clone_unreadable`, `filtered`, `no_file`, `no_docs_dir`, `blob_too_large`, `blob_unreadable`, `unread_documents`, `empty_repository`, `tree_truncated`, `too_few`, `no_tooling`, `introduction_unknown`, `no_date_column` or `null`), `codes` (`missing_link`, `copied_subjects`, `sha_or_merge`, `no_install_section`, `no_command_block`, `no_env_example`, `missing_headers`, `broken_image`, `external_image`, `docs_behind`, `declared_newer`, `declared_older`, `date_unreadable`, `not_found`, `no_gain`), `counts` (counters and percentages only, never a path, a header value, a bullet or a commit subject; keys by lead: see [Project conventions](13-conventions.md#58-tooling-tl)), `dates` (DOC9: `docs`, `index`, `changelog`, `code`; TL5: `introduced`; `{}` otherwise); `broken_images` (DOC7, each `source`, `target`, `resolved`, `case_mismatch`): filled only in the detailed view of a repository, like `docs.lists`; DOC9, DOC10 and TL5 are computed only in that view (`detail_only` otherwise)) |
 | `watchoo update` | `current`, `latest`, `update_available`, `release_url` | Only with `--check` (see [Self-update](#self-update-watchoo-update)); `watchoo update --json` without `--check` is refused |
 | `watchoo config export` | `format`, `version`, `exported_at`, `watchoo_version`, `workspace`, `settings`, `repositories` | The sharing document itself (see [Configuration sharing](#configuration-sharing-watchoo-config)), with or without `--json`; with `-o`, it goes to the file and standard output only receives one confirmation line in text (nothing with `--json`) |
-| `watchoo config import` | `file`, `dry_run`, `applied`, `source`, `settings`, `repositories`, `summary`, `warnings` | `source`: `workspace_name`, `watchoo_version`, `exported_at` (as written in the file); `settings`: `changes` (each `key`, `before`, `after`, `env_var`), `rewrite`, `written`, `backup_file`; each repository: `index`, `repo`, `action` (`add`, `update`, `unchanged`, `inaccessible`, `error`), `reenable`, `before` (`label`, `branches`, `flemme_after_days`, `dead_after_days` (`null` = workspace threshold), `enabled`; `null` for an addition), `after`, `outcome` (like `repo import`, `""` as long as nothing is applied), `error`; `summary`: `added`, `already_tracked`, `updated`, `reenabled` (among `updated`), `inaccessible`, `errors` (predicted with `--dry-run`, obtained otherwise); each warning: `code` (`env_override`, `comments_lost`), `key`, `message` |
+| `watchoo config import` | `file`, `dry_run`, `applied`, `source`, `settings`, `repositories`, `summary`, `warnings` | `source`: `workspace_name`, `watchoo_version`, `exported_at` (as written in the file); `settings`: `changes` (each `key`, `before`, `after`, `env_var`), `rewrite`, `written`, `backup_file`; each repository: `index`, `repo`, `action` (`add`, `update`, `unchanged`, `inaccessible`, `error`), `reenable`, `before` (`label`, `branches`, `flemme_after_days`, `dead_after_days` (`null` = workspace threshold), `conventions_since` (1.7.0, `"YYYY-MM-DD"`, `null` = date of the workspace), `enabled`; `null` for an addition), `after`, `outcome` (like `repo import`, `""` as long as nothing is applied), `error`; `summary`: `added`, `already_tracked`, `updated`, `reenabled` (among `updated`), `inaccessible`, `errors` (predicted with `--dry-run`, obtained otherwise); each warning: `code` (`env_override`, `comments_lost`), `key`, `message` |
 
 Shared objects:
 
 - **repository**: `id`, `full_name`, `owner`, `name`, `label`, `display_name`, `url`, `default_branch`,
   `branch_patterns` (`[]` = all branches), `flemme_after_days` and `dead_after_days` (own thresholds of
   the repository, `null` = workspace threshold; the applied thresholds are in the activity object),
-  `enabled`, `archived`, `stars`, `open_issues`, `last_synced_at`, `last_commit_at`;
+  `conventions_since` (1.7.0: own conventions start date of the repository, `"YYYY-MM-DD"`, `null` =
+  date of the workspace), `enabled`, `archived`, `stars`, `open_issues`, `last_synced_at`,
+  `last_commit_at`;
 - **commit**: `repository` (`id`, `full_name`, `display_name`), `sha`, `short_sha`, `message`, `url`,
   `author` (`name`, `login`, `display_name`), `authored_at`, `committed_at`, `additions`, `deletions`,
   `stats_known` (0.5.0: `true` if `additions` and `deletions` have been computed, even at 0; `false` if
@@ -589,7 +710,44 @@ sharing student data or a machine-specific setting.
       "exclude": []
     },
     "timezone": "",
-    "lang": "en"
+    "lang": "en",
+    "conventions": {
+      "since": "2026-09-01",
+      "commit": {
+        "types": ["feat", "fix", "docs", "style", "refactor", "perf", "test", "build", "ci", "chore", "revert"],
+        "scopes": [],
+        "max_subject_soft": 50,
+        "max_subject_hard": 72,
+        "forbidden": ["update", "maj", "wip", "test", "modif", "fix", "dépôt 1", "."],
+        "language": "any"
+      },
+      "branch": {
+        "pattern": "",
+        "exclude": ["gh-pages", "dependabot/*", "renovate/*"]
+      },
+      "pr": {
+        "body_sections": ["context", "changes", "testing", "screenshots"],
+        "require_closes": true,
+        "min_reviews": 1,
+        "reviewer_must_contribute": false
+      },
+      "tags": {
+        "milestones": ["v1.0.0", "v2.0.0", "v3.0.0"],
+        "prerelease_forms": ["rc", "beta", "alpha"]
+      },
+      "changelog": {
+        "categories_fr": true
+      },
+      "readme": {
+        "sections": ["presentation", "group", "stack", "install", "run", "env", "tree", "license"],
+        "min_words": 150
+      },
+      "docs": {
+        "dir": "documentation",
+        "media_dir": "Media",
+        "archives_scope": "repository"
+      }
+    }
   },
   "repositories": [
     {
@@ -608,13 +766,15 @@ sharing student data or a machine-specific setting.
 | `version` | Version of the format, `1` (required). A greater version is refused: "file created by a newer version of Watchoo" |
 | `exported_at`, `watchoo_version` | Export date (UTC, RFC 3339) and version of Watchoo that made it; informative, optional |
 | `workspace.name` | Name of the exported workspace; informative: the import never renames the workspace |
-| `settings` | Common settings, values **in effect** in the exported workspace (files and `WATCHOO_*` variables included): `sync.auto`, `sync.interval` (Go duration in quotes: `"30m"`, `"1h30m"`, `"0"`), `sync.parallelism`, `activity.flemme_after_days`, `activity.dead_after_days`, `branches.exclude`, `timezone`, `lang` (`"en"` or `"fr"`; optional key of version 1: a file without it remains valid) |
-| `repositories` | Repositories whose tracking is active (stopped repositories are not exported), sorted by `owner/repo`: `provider` (`github`), `repo` (`owner/repo`), `label` (display label, `""` without one), `branches` (tracked patterns, `[]` = all branches), and, **only for a repository that has them**, `flemme_after_days` and `dead_after_days` (own thresholds, in days). These two keys are optional in version 1 of the format: a file without own thresholds stays readable by the versions of Watchoo that do not know them |
+| `settings` | Common settings, values **in effect** in the exported workspace (files and `WATCHOO_*` variables included): `sync.auto`, `sync.interval` (Go duration in quotes: `"30m"`, `"1h30m"`, `"0"`), `sync.parallelism`, `activity.flemme_after_days`, `activity.dead_after_days`, `branches.exclude`, `timezone`, `lang` (`"en"` or `"fr"`; optional key of version 1: a file without it remains valid), `conventions` (charter of the [project conventions](13-conventions.md#8-configuration): `since`, `"YYYY-MM-DD"` or `""`, and `commit`: `types`, `scopes`, `max_subject_soft`, `max_subject_hard`, `forbidden`, `language`; optional key of version 1, added in 1.7.0: a file without it remains valid, but a file containing it is refused by earlier versions, which accept no unknown key; and, since 1.8.0, `branch`: `pattern` (RE2 expression, `""` = built-in rule), `exclude`, and `tags`: `milestones` (`"vX.Y.Z"` or `"vX.Y.Z@YYYY-MM-DD"`), optional keys refused by the versions before 1.8.0; and, since 1.9.0, `changelog`: `categories_fr` (boolean), `readme`: `sections` (keys among `presentation`, `group`, `stack`, `install`, `run`, `env`, `tree`, `license`; `[]` = no section expected), `min_words` (at least 1), and `docs`: `dir` (folder relative to the repository root, without `.` nor `..`), `media_dir` (a single folder name), `archives_scope` (`"repository"` or `"documentation"`), optional keys refused by the versions before 1.9.0; and, since 1.10.0, `tags`: `prerelease_forms` (compliant pre-release forms, at least one, lowercase words), optional key refused by the versions before 1.10.0; and, since 1.11.0, `pr`: `body_sections` (keys among `context`, `changes`, `testing`, `screenshots`; `[]` = no section expected), `require_closes` (boolean), optional keys refused by the versions before 1.11.0; and, since 1.12.0, `pr`: `min_reviews` (at least 1), `reviewer_must_contribute` (boolean), optional keys refused by the versions before 1.12.0) |
+| `repositories` | Repositories whose tracking is active (stopped repositories are not exported), sorted by `owner/repo`: `provider` (`github`), `repo` (`owner/repo`), `label` (display label, `""` without one), `branches` (tracked patterns, `[]` = all branches), and, **only for a repository that has them**, `flemme_after_days` and `dead_after_days` (own thresholds, in days) and `conventions_since` (1.7.0: own conventions start date, `"YYYY-MM-DD"`). These keys are optional in version 1 of the format: a file without own thresholds or date stays readable by the versions of Watchoo that do not know them; a file that contains `conventions_since` is refused by the versions before 1.7.0 |
 
 **Never exported**: the settings specific to the machine or to the person (`name` of the file,
 `github.*`: `gh` account and path of `gh`, which a file coming from elsewhere must never be able to
 change; `git.*`: protocol of the local Git repositories, which depends on the credentials of the machine;
-`web.*`: listen address, authentication, reverse proxy, accepted names), the token, the commits,
+`web.*`: listen address, authentication, reverse proxy, accepted names; `diagnostic.*`;
+`conventions.enabled`, a choice specific to the workspace, and `conventions.excluded_accounts`, which holds
+logins), the token, the commits,
 the contributors, the e-mails, the sync dates and any local path. The file therefore contains only
 repository names, display labels and settings; it can still reveal the list of tracked students: share
 it only with the people concerned.
@@ -638,7 +798,8 @@ The file comes from another person: it is **untrusted data**, fully validated be
    repository: `provider` absent or `github`, `repo` of the form `owner/repo` (or GitHub URL), present
    only once (case-insensitive), valid `label` (like `repo add --label`), valid branch patterns (like
    `--branch`, no comma), valid own thresholds (like `--flemme` and
-   `--dead`); settings valid once merged with those of the
+   `--dead`), valid conventions start date (like `--conventions-since`: `"YYYY-MM-DD"` or `""`);
+   settings valid once merged with those of the
    workspace (same rules as `config.yaml`, e.g. `dead_after_days` greater than `flemme_after_days`),
    including once the set `WATCHOO_*` variables are reapplied: the preview therefore refuses everything
    that the write would refuse (e.g. `WATCHOO_ACTIVITY_DEAD_AFTER_DAYS=10` and an import of
@@ -646,8 +807,9 @@ The file comes from another person: it is **untrusted data**, fully validated be
    `settings` and `repositories` are optional, each setting too: a file may contain only repositories,
    or only a time zone.
 2. **Preview**, always printed before applying:
-   - repositories **to add**, **to update** (display label, branches and own thresholds, before → after,
-     `workspace` for the workspace threshold; stopped repository **to resume**), **unchanged**;
+   - repositories **to add**, **to update** (display label, branches, own thresholds and conventions
+     start date, before → after,
+     `workspace` for the workspace threshold or date; stopped repository **to resume**), **unchanged**;
    - changed settings (key, current value → imported value); an identical setting is not listed. A
      setting masked by a set `WATCHOO_*` variable is compared with its value **in the files** (user file
      then `config.yaml`), not with the one of the variable: it is the one the import rewrites, and
@@ -666,7 +828,8 @@ The file comes from another person: it is **untrusted data**, fully validated be
 4. **Applying**, in this order:
    - **settings**: if at least one setting changes, `.watchoo/config.yaml` is **rewritten** from the
      commented template of `watchoo init`, imported settings uncommented. The machine-specific keys
-     already present in the file (`name`, `github.*`, `git.*`, `web.*`) and the common settings that the
+     already present in the file (`name`, `github.*`, `git.*`, `web.*`, `diagnostic.*`,
+     `conventions.enabled`, `conventions.excluded_accounts`) and the common settings that the
      imported file does not give are **kept as is**. The old file is copied to
      `.watchoo/config.yaml.bak` (`0600`, replaced at each import). The new file is written next to it
      (`0600`), read back and validated, and compared with the expected values before replacing the old
@@ -678,7 +841,8 @@ The file comes from another person: it is **untrusted data**, fully validated be
      tracking **resumes if it was stopped** (like `repo add`). An empty `label` keeps the existing
      display label; `branches` absent (or `null`) keeps the existing branches, `[]` means all branches;
      `flemme_after_days` or `dead_after_days` absent (or `null`) keeps the existing threshold, `0` goes
-     back to the workspace threshold.
+     back to the workspace threshold; `conventions_since` absent (or `null`) keeps the existing date,
+     `""` goes back to the date of the workspace.
      An inaccessible repository is reported without blocking the others. **No repository is ever
      removed** and no sync is started.
 5. **Summary**: settings written (and `.bak` copy), then repositories added, already tracked, updated,
