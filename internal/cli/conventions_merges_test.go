@@ -23,7 +23,7 @@ const mergeBody = "## Contexte\n\nLa page manque.\n\n## Ce qui change\n\nUn form
 // mergeWorkspace returns a synced workspace (API) with the conventions enabled: on alice/projet, PR #1
 // open with a complete body, #2 squashed ("(#2)", conforming message), #3 open from a fork whose head
 // branch is "Main", #4 merged with a merge commit from the same head branch as #2; only the squash is
-// allowed.
+// allowed. Phase 8.6: #2 approved by another account before its merge, #4 only approved by its author.
 func mergeWorkspace(t *testing.T) *harness {
 	t.Helper()
 	h := newWorkspace(t)
@@ -59,6 +59,12 @@ func mergeWorkspace(t *testing.T) *harness {
 		merged(pr(2, "fix: corrige le build", "fix/build", 30*time.Hour), squash, 90*time.Minute),
 		fork,
 		merged(pr(4, "fix: corrige encore le build", "fix/build", 3*time.Hour), merge.SHA, 30*time.Minute))
+	bob := provider.Account{Login: "bob-reviewer", ID: 2002}
+	f.SetPullRequestReviews(aliceRepoID, 2,
+		provider.PullRequestReview{ID: 1, Reviewer: bob, State: provider.ReviewCommented, SubmittedAt: testNow.Add(-3 * time.Hour)},
+		provider.PullRequestReview{ID: 2, Reviewer: bob, State: provider.ReviewApproved, SubmittedAt: testNow.Add(-2 * time.Hour)})
+	f.SetPullRequestReviews(aliceRepoID, 4,
+		provider.PullRequestReview{ID: 3, Reviewer: alice, State: provider.ReviewApproved, SubmittedAt: testNow.Add(-time.Hour)})
 	h.run("repo", "add", "alice/projet").mustSucceed(t)
 	h.run("sync").mustSucceed(t)
 	return h
@@ -77,18 +83,27 @@ func TestConventionsMergeFlow(t *testing.T) {
 		"reused branches (1): fix/build (#2, #4)",
 		"allowed merge methods: squash (conform)",
 		"commits outside PR: unknown (no local clone)",
-		"PR BODIES", "OUTSIDE PR")
+		"merged pull requests reviewed by another account: 1/2 (0 not read yet)",
+		"merged without review (1): #4 (",
+		"1/2, 2 review(s) received",
+		"PR BODIES", "OUTSIDE PR", "PR REVIEWED")
 	assertNotContains(t, "conventions (8.5)", out, never...)
+	// No reviewer login is kept, so none is shown.
+	assertNotContains(t, "conventions (8.6)", out, "bob-reviewer")
 	// The fork's head branch is not a branch of the repository.
 	assertNotContains(t, "conventions (8.5)", out, "Main (#3)")
 
 	js := h.run("conventions", "--json").mustSucceed(t).stdout
 	assertNotContains(t, "conventions --json (8.5)", js, never...)
-	assertJSONKeys(t, js, "repositories.0.pull_requests", "known", "reason", "open", "merged", "skipped", "items", "methods")
+	assertNotContains(t, "conventions --json (8.6)", js, "bob-reviewer")
+	assertJSONKeys(t, js, "repositories.0.pull_requests", "known", "reason", "open", "merged", "skipped", "items", "methods",
+		"merged_without_review")
 	assertJSONKeys(t, js, "repositories.0.pull_requests.merged", "evaluated", "conform", "default", "body_known",
-		"body_conform", "merge_known", "squash", "merge_conform")
+		"body_conform", "merge_known", "squash", "merge_conform", "review_known", "reviewed", "reviews_received")
 	assertJSONKeys(t, js, "repositories.0.pull_requests.items.0", "number", "category", "author", "head_branch", "codes",
-		"default_codes", "conform", "body", "merge")
+		"default_codes", "conform", "body", "merge", "review")
+	assertJSONKeys(t, js, "repositories.0.pull_requests.items.0.review", "known", "reviews", "approvals", "reviewed")
+	assertJSONKeys(t, js, "repositories.0.pull_requests.merged_without_review.0", "number", "author")
 	assertJSONKeys(t, js, "repositories.0.pull_requests.items.0.body", "known", "found", "missing", "closes", "conform")
 	assertJSONKeys(t, js, "repositories.0.pull_requests.items.0.merge", "method", "message_conform", "conform")
 	assertJSONKeys(t, js, "repositories.0.branches.reused", "known", "reason", "items")
@@ -98,7 +113,7 @@ func TestConventionsMergeFlow(t *testing.T) {
 		"undetermined", "reasons", "outside")
 	assertJSONKeys(t, js, "contributors.0.arrivals", "by_pr", "outside_pr", "undetermined")
 	assertJSONKeys(t, js, "contributors.0.pull_requests.merged", "evaluated", "conform", "default", "body_known",
-		"body_conform", "merge_known", "squash", "merge_conform")
+		"body_conform", "merge_known", "squash", "merge_conform", "review_known", "reviewed", "reviews_received")
 	var rep conventionsReport
 	decodeStrict(t, js, &rep)
 	a := rep.Repositories[0]
@@ -107,6 +122,11 @@ func TestConventionsMergeFlow(t *testing.T) {
 		p.Open.BodyKnown != 1 || p.Open.BodyConform != 1 || p.Methods["squash"] != 1 || p.Methods["merge"] != 1 {
 		t.Errorf("pull requests: %+v", p)
 	}
+	// PR4: #2 reviewed (bob approved after a comment), #4 approved by its author only.
+	if p.Merged.ReviewKnown != 2 || p.Merged.Reviewed != 1 || p.Merged.ReviewsReceived != 2 ||
+		len(p.MergedWithoutReview) != 1 || p.MergedWithoutReview[0].Number != 4 {
+		t.Errorf("reviews: %+v %+v", p.Merged, p.MergedWithoutReview)
+	}
 	for _, it := range p.Items {
 		switch it.Number {
 		case 1:
@@ -114,8 +134,13 @@ func TestConventionsMergeFlow(t *testing.T) {
 				t.Errorf("#1: %+v", it)
 			}
 		case 2:
-			if it.Merge == nil || it.Merge.Method != "squash" || !it.Merge.Conform || !it.Body.Known || it.Body.Conform {
+			if it.Merge == nil || it.Merge.Method != "squash" || !it.Merge.Conform || !it.Body.Known || it.Body.Conform ||
+				it.Review != (conventionsReviewJSON{Known: true, Reviews: 2, Approvals: 1, Reviewed: true}) {
 				t.Errorf("#2: %+v", it)
+			}
+		case 4:
+			if it.Review != (conventionsReviewJSON{Known: true}) {
+				t.Errorf("#4: %+v", it.Review)
 			}
 		case 3:
 			t.Errorf("fork evaluated: %+v", it)
@@ -131,13 +156,36 @@ func TestConventionsMergeFlow(t *testing.T) {
 		t.Errorf("arrivals: %+v", ar)
 	}
 
+	// Milestone review (phase 8.6): PR4 on the pull requests merged before the end of the due date (no tag v2.0.0).
+	t.Setenv("WATCHOO_CONVENTIONS_SINCE", "2020-01-01")
+	t.Setenv("WATCHOO_CONVENTIONS_TAGS_MILESTONES", "v2.0.0@2026-10-27")
+	ms := h.run("conventions", "--milestone", "v2.0.0").mustSucceed(t).stdout
+	assertContains(t, "--milestone (8.6)", ms,
+		"PR4  not conform — 1/2 merged pull requests reviewed (0 not read yet) (#4)")
+	assertNotContains(t, "--milestone (8.6)", ms, "bob-reviewer")
+	mjs := h.run("conventions", "--milestone", "v2.0.0", "--json").mustSucceed(t).stdout
+	assertJSONKeys(t, mjs, "milestone.repositories.0.reviews", "merged", "known", "reviewed", "unreviewed")
+	var mrep conventionsReport
+	decodeStrict(t, mjs, &mrep)
+	if m := mrep.Milestone.Repositories[0]; m.Reviews == nil || m.Reviews.Merged != 2 || m.Reviews.Known != 2 ||
+		m.Reviews.Reviewed != 1 || len(m.Reviews.Unreviewed) != 1 || m.Reviews.Unreviewed[0] != 4 || m.Criteria[3].ID != "PR4" ||
+		m.Criteria[3].Status != "nonconform" {
+		t.Errorf("milestone PR4: %+v", m)
+	}
+
 	defer i18n.SetProcessForTest(i18n.French)()
+	ms = h.run("conventions", "--milestone", "v2.0.0").mustSucceed(t).stdout
+	assertContains(t, "--milestone (8.6, fr)", ms, "1/2 pull requests fusionnées relues (0 pas encore lues) (#4)")
+	t.Setenv("WATCHOO_CONVENTIONS_TAGS_MILESTONES", "")
 	fr := h.run("conventions").mustSucceed(t).stdout
 	assertContains(t, "conventions (8.5, fr)", fr, "écartées : issues d'un fork 1",
 		"corps des pull requests : 1/3 conformes (0 inconnus)",
 		"fusions : 1/2 en squash au message conforme (squash 1, merge commit 1, rebase 0, inconnue 0)",
 		"branches réutilisées (1) : fix/build (#2, #4)", "méthodes de fusion autorisées : squash (conforme)",
-		"commits hors PR : inconnu (pas de clone local)", "CORPS DE PR", "HORS PR")
+		"commits hors PR : inconnu (pas de clone local)",
+		"pull requests fusionnées relues par un autre compte : 1/2 (0 pas encore lues)",
+		"fusionnées sans relecture (1) : #4 (", "1/2, 2 relecture(s) reçue(s)",
+		"CORPS DE PR", "HORS PR", "PR RELUES")
 	assertNotContains(t, "conventions (8.5, fr)", fr, never...)
 }
 

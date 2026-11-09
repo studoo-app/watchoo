@@ -286,7 +286,10 @@ func TestConventionsParseRejects(t *testing.T) {
 		`{"pr": {"body_sections": [""]}}`:                  "settings.conventions.pr.body_sections: entry #1 is empty",
 		`{"pr": {"body_sections": "testing"}}`:             "type",
 		`{"pr": {"require_closes": "yes"}}`:                "type",
-		`{"pr": {"min_reviews": 1}}`:                       "min_reviews",
+		`{"pr": {"min_reviews": "1"}}`:                     "type",
+		`{"pr": {"min_reviews": 1.5}}`:                     "min_reviews",
+		`{"pr": {"reviewer_must_contribute": "yes"}}`:      "type",
+		`{"pr": {"reviewers": 1}}`:                         "reviewers",
 
 		`{"readme": {"sections": ["install", "Install"]}}`: `settings.conventions.readme.sections: entry #2 "Install" is invalid`,
 		`{"readme": {"sections": [""]}}`:                   "settings.conventions.readme.sections: entry #1 is empty",
@@ -313,14 +316,16 @@ func TestConventionsPlanRejectsInvalidMerged(t *testing.T) {
 	e := newEnv(t, "licence")
 	before := readFile(t, e.ws.ConfigPath())
 	for name, settings := range map[string]string{
-		"no type":             `{"conventions": {"commit": {"types": []}}}`,
-		"soft above hard":     `{"conventions": {"commit": {"max_subject_soft": 80}}}`,
-		"zero soft length":    `{"conventions": {"commit": {"max_subject_soft": 0}}}`,
-		"zero min words":      `{"conventions": {"readme": {"min_words": 0}}}`,
-		"repeated section":    `{"conventions": {"readme": {"sections": ["run", "run"]}}}`,
-		"no prerelease form":  `{"conventions": {"tags": {"prerelease_forms": []}}}`,
-		"repeated form":       `{"conventions": {"tags": {"prerelease_forms": ["rc", "rc"]}}}`,
-		"repeated PR section": `{"conventions": {"pr": {"body_sections": ["testing", "testing"]}}}`,
+		"no type":              `{"conventions": {"commit": {"types": []}}}`,
+		"soft above hard":      `{"conventions": {"commit": {"max_subject_soft": 80}}}`,
+		"zero soft length":     `{"conventions": {"commit": {"max_subject_soft": 0}}}`,
+		"zero min words":       `{"conventions": {"readme": {"min_words": 0}}}`,
+		"repeated section":     `{"conventions": {"readme": {"sections": ["run", "run"]}}}`,
+		"no prerelease form":   `{"conventions": {"tags": {"prerelease_forms": []}}}`,
+		"repeated form":        `{"conventions": {"tags": {"prerelease_forms": ["rc", "rc"]}}}`,
+		"repeated PR section":  `{"conventions": {"pr": {"body_sections": ["testing", "testing"]}}}`,
+		"zero min reviews":     `{"conventions": {"pr": {"min_reviews": 0}}}`,
+		"negative min reviews": `{"conventions": {"pr": {"min_reviews": -1}}}`,
 	} {
 		t.Run(name, func(t *testing.T) {
 			f := mustParse(t, doc(settings, ""))
@@ -372,6 +377,47 @@ func TestConventionsPRBodyImport(t *testing.T) {
 	if s := back.Settings.ConventionsPRBodySections; s == nil || len(*s) != 0 ||
 		back.Settings.ConventionsPRRequireCloses == nil || *back.Settings.ConventionsPRRequireCloses {
 		t.Errorf("read back = %v / %v", s, back.Settings.ConventionsPRRequireCloses)
+	}
+}
+
+// The review expectations (settings.conventions.pr.min_reviews and reviewer_must_contribute, PR4), phase
+// 8.6, are read, previewed, applied and exported like the other scalars.
+func TestConventionsPRReviewsImport(t *testing.T) {
+	isolate(t)
+	e := newEnv(t, "licence")
+	f := mustParse(t, doc(`{"conventions": {"pr": {"min_reviews": 2, "reviewer_must_contribute": true}}}`, ""))
+	wantKeys := []string{workspace.KeyConventionsPRMinReviews, workspace.KeyConventionsPRReviewerMustContribute}
+	if keys := f.Settings.Keys(); !slices.Equal(keys, wantKeys) {
+		t.Errorf("keys = %v", keys)
+	}
+	p, err := configshare.Plan(t.Context(), e.ws, e.st, f, configshare.PlanOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(p.Settings.Changes) != 2 || p.Settings.Changes[0].Key != workspace.KeyConventionsPRMinReviews ||
+		p.Settings.Changes[0].Before != "1" || p.Settings.Changes[0].After != "2" ||
+		p.Settings.Changes[1].Before != "false" || p.Settings.Changes[1].After != "true" {
+		t.Errorf("changes = %+v", p.Settings.Changes)
+	}
+	if _, err := configshare.Apply(t.Context(), e.ws, e.st, nil, f, configshare.ApplyOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	e.ws.Config = e.reload()
+	if got := e.ws.Config.Conventions.PR; got.MinReviews != 2 || !got.ReviewerMustContribute || !got.RequireCloses {
+		t.Errorf("pr = %+v", got)
+	}
+	d, err := configshare.Export(t.Context(), e.ws, e.st, configshare.ExportOptions{Now: testNow})
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, _ := d.Marshal()
+	if !strings.Contains(string(data), `"min_reviews": 2`) || !strings.Contains(string(data), `"reviewer_must_contribute": true`) {
+		t.Errorf("export lacks the review settings:\n%s", data)
+	}
+	back := mustParse(t, string(data))
+	if m, c := back.Settings.ConventionsPRMinReviews, back.Settings.ConventionsPRReviewerMustContribute; m == nil || *m != 2 ||
+		c == nil || !*c {
+		t.Errorf("read back = %v / %v", m, c)
 	}
 }
 

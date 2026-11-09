@@ -48,7 +48,7 @@ type conventionsBranchItemJSON struct {
 	Authors      []authorJSON `json:"authors"`       // auteurs de ces PR (seule attribution d'une branche)
 }
 
-// conventionsPRCountJSON compte des PR évaluées (PR1, PR2 ; PR5 et PR6, phase 8.5).
+// conventionsPRCountJSON compte des PR évaluées (PR1, PR2 ; PR5 et PR6, phase 8.5 ; PR4, phase 8.6).
 type conventionsPRCountJSON struct {
 	Evaluated    int `json:"evaluated"`
 	Conform      int `json:"conform"`       // PR1 : titre conventionnel
@@ -58,6 +58,10 @@ type conventionsPRCountJSON struct {
 	MergeKnown   int `json:"merge_known"`   // PR6 : méthode de fusion déterminée (fusionnées)
 	Squash       int `json:"squash"`        // PR6 : fusionnées en squash
 	MergeConform int `json:"merge_conform"` // PR6 : squash et message conforme
+	// Phase 8.6 (PR4).
+	ReviewKnown     int `json:"review_known"`     // relectures lues (fusionnées : après la fusion)
+	Reviewed        int `json:"reviewed"`         // fusionnées : relues ; ouvertes : approuvées à la dernière lecture
+	ReviewsReceived int `json:"reviews_received"` // relectures déposées par d'autres comptes
 }
 
 // conventionsPullsJSON est PR1 et PR2 d'un dépôt.
@@ -69,6 +73,8 @@ type conventionsPullsJSON struct {
 	Skipped map[string]int            `json:"skipped"` // closed, draft, bot, fork, before_since
 	Items   []conventionsPullItemJSON `json:"items"`   // numéro décroissant
 	Methods map[string]int            `json:"methods"` // PR6 : fusionnées par méthode (squash, merge, rebase, unknown)
+	// Phase 8.6 : PR4, fusionnées sans relecture (numéro décroissant, jamais le titre).
+	MergedWithoutReview []conventionsUnreviewedJSON `json:"merged_without_review"`
 }
 
 // conventionsPullItemJSON est une PR évaluée, sans son titre.
@@ -83,6 +89,8 @@ type conventionsPullItemJSON struct {
 	// Phase 8.5.
 	Body  conventionsBodyJSON   `json:"body"`  // PR5 (jamais le corps)
 	Merge *conventionsMergeJSON `json:"merge"` // PR6 ; null pour une PR ouverte
+	// Phase 8.6.
+	Review conventionsReviewJSON `json:"review"` // PR4 : compteurs de relectures (jamais un relecteur)
 }
 
 // conventionsTagsJSON est SV1, SV2 et SV6 d'un dépôt.
@@ -190,6 +198,7 @@ type conventionsMilestoneRepoJSON struct {
 	Deadline   *conventionsDeadlineJSON          `json:"deadline"`    // échéance de SV2 (8.4) ; null sans échéance jugée
 	TagHistory *conventionsMilestoneHistoryJSON  `json:"tag_history"` // SV3 du tag (8.4) ; null s'il est absent ou jamais observé
 	Arrivals   *conventionsArrivalsJSON          `json:"arrivals"`    // PR3 sur l'intervalle (8.5) ; null si non évaluable
+	Reviews    *conventionsMilestoneReviewsJSON  `json:"reviews"`     // PR4 sur l'intervalle (8.6) ; null si non évaluable
 	Criteria   []conventionsCriterionJSON        `json:"criteria"`
 	Conform    int                               `json:"conform"`
 	Unknown    int                               `json:"unknown"`
@@ -245,14 +254,15 @@ func newConventionsBranchesJSON(b conventions.BranchReport) conventionsBranchesJ
 // newPRCountJSON convertit un compte de PR.
 func newPRCountJSON(c conventions.PRCount) conventionsPRCountJSON {
 	return conventionsPRCountJSON{Evaluated: c.Evaluated, Conform: c.Conform, Default: c.Default, BodyKnown: c.BodyKnown,
-		BodyConform: c.BodyConform, MergeKnown: c.MergeKnown, Squash: c.Squash, MergeConform: c.MergeConform}
+		BodyConform: c.BodyConform, MergeKnown: c.MergeKnown, Squash: c.Squash, MergeConform: c.MergeConform,
+		ReviewKnown: c.ReviewKnown, Reviewed: c.Reviewed, ReviewsReceived: c.ReviewsReceived}
 }
 
 // newConventionsPullsJSON convertit PR1 et PR2, sans aucun titre.
 func newConventionsPullsJSON(p conventions.PullReport) conventionsPullsJSON {
 	out := conventionsPullsJSON{Known: p.Known, Reason: optionalString(p.Reason), Open: newPRCountJSON(p.Open),
 		Merged: newPRCountJSON(p.Merged), Skipped: map[string]int{}, Items: make([]conventionsPullItemJSON, 0, len(p.Pulls)),
-		Methods: map[string]int{}}
+		Methods: map[string]int{}, MergedWithoutReview: newConventionsUnreviewedJSON(p)}
 	for _, s := range conventions.AllPRSkips {
 		out.Skipped[s] = p.Skipped[s]
 	}
@@ -263,7 +273,7 @@ func newConventionsPullsJSON(p conventions.PullReport) conventionsPullsJSON {
 		out.Items = append(out.Items, conventionsPullItemJSON{Number: l.Number, Category: l.Category,
 			Author: conventionsAuthor(l.AuthorName, l.AuthorLogin), HeadBranch: l.HeadBranch, Codes: nonNil(l.Codes),
 			DefaultCodes: nonNil(l.Default), Conform: l.Conform, Body: newConventionsBodyJSON(l.Body),
-			Merge: newConventionsMergeJSON(l)})
+			Merge: newConventionsMergeJSON(l), Review: newConventionsReviewJSON(l.Review)})
 	}
 	return out
 }
@@ -323,6 +333,7 @@ func newConventionsMilestoneJSON(rv conventions.MilestoneReview) *conventionsMil
 			Criteria: make([]conventionsCriterionJSON, 0, len(r.Criteria)), Conform: r.Conform, Unknown: r.Unknown,
 			Total: len(r.Criteria), Files: newConventionsMilestoneFilesJSON(r.Files),
 			Deadline: newConventionsDeadlineJSON(r.Milestone.Deadline), TagHistory: newConventionsMilestoneHistoryJSON(r.History),
+			Reviews: newConventionsMilestoneReviewsJSON(r.Reviews),
 		}
 		if r.Tag != nil {
 			item.TagCodes = nonNil(r.Tag.Codes)

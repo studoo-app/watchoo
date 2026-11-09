@@ -3,7 +3,7 @@
 [← Contents](README.md)
 
 **Status**: **maintainer decision** (phase 8, November 8, 2026); the choices are recorded in
-[section 11](#11-maintainer-decisions). Phases 8.1 to 8.5 done, not released; the next phases start after their
+[section 11](#11-maintainer-decisions). Phases 8.1 to 8.6 done, not released; the next phases start after their
 plan is approved. The scope exception is carried over into the [Vision](01-vision.md); the updates to
 [Features](02-features.md), [Data model](04-data-model.md), [CLI](05-cli.md) and
 [Web interface](06-web-interface.md) follow phase by phase.
@@ -60,10 +60,10 @@ Default values of the configuration ([section 8](#8-configuration)); each traine
 
 | Source | What is read | Mode |
 | --- | --- | --- |
-| Database (already synced) | `commits.message`, `commit_branches`, `branches`, `pull_requests` (title, branches, states, dates; since phase 8.5 `merge_commit_sha`, `from_fork`, `body_sections`), `repositories` (since phase 8.5 `allow_squash_merge`, `allow_merge_commit`, `allow_rebase_merge`, `conventions_prs_version`), `tags`, `releases` | both |
+| Database (already synced) | `commits.message`, `commit_branches`, `branches`, `pull_requests` (title, branches, states, dates; since phase 8.5 `merge_commit_sha`, `from_fork`, `body_sections`; since phase 8.6 the review counters `reviews_by_others`, `approvals_by_others`, `approvals_by_contributors` and `reviews_checked_at`), `repositories` (since phase 8.5 `allow_squash_merge`, `allow_merge_commit`, `allow_rebase_merge`, `conventions_prs_version`), `tags`, `releases` | both |
 | Local clone, **through git objects** | `git rev-list` (first parent, ranges between tags), `git for-each-ref refs/remotes/origin/` (all the remote's branches), `git ls-tree -r -l -z` on the full SHA of the head of the default branch (branch list of the sync source) or of a tag's commit (read from the database); never a branch or tag name, then `git cat-file --batch` on object ids (see [section 9](#9-technical-impact)), `git merge-base --is-ancestor` | both (the clone exists with or without `gh`) |
 | API, no extra request | `merge_commit_sha` (merged PRs only), PR body (in memory) and source repository in `GET /pulls`; `allow_squash_merge`, `allow_merge_commit`, `allow_rebase_merge` in `GET /repos` | API |
-| API, extra request | `GET /repos/{o}/{r}/pulls/{n}/reviews` | API |
+| API, extra request | `GET /repos/{o}/{r}/pulls/{n}/reviews` (phase 8.6, conventions enabled: login, identifier, state and date of each review, in memory; never the body; reduced to counters at the sync) | API |
 
 - The clone is **never** read through the file system of `repos/`: the working copy is reset at every sync
   and may have been modified by hand.
@@ -118,7 +118,7 @@ commit and a branch are never removed). The default branch alone forms a second,
 | PR1 | Conventional PR title | Shared parser on the title of non-draft, non-bot PRs; open and merged PRs counted separately | PR, repository, author | database | API | H | P1 |
 | PR2 | Forbidden or default title | Normalised title in the forbidden list, or equal (after normalisation: case, `-` and `_` as spaces) to the head branch name or to the subject of the PR's only commit (titles suggested by GitHub; comparison with the only commit **not measured**: it would take `GET /pulls/{n}/commits`, one request per PR). Codes (`default_codes`): `forbidden`, `github_default`, `head_branch` | PR | database | API | H | P1 |
 | PR3 | Commits that reached the default branch outside a PR | Walk of `git rev-list --first-parent origin/<default>` since `since`, without the root commit. **Through a PR**: SHA equal to the `merge_commit_sha` of a merged PR; sequence rebased by GitHub, recognised by a heuristic with no request (consecutive commits whose committer is GitHub, with the same `committed_at` as the most recent commit of the sequence, which is the `merge_commit_sha` of the PR that ends it; without a known `merge_commit_sha`, `merged_at` of the PR within ±2 s; maintainer decision); merge whose committer is GitHub. **Outside a PR**: human committer, local merge pushed, web edit without a PR. Otherwise: "undetermined". With a clone only, fallback on `^Merge pull request #\d+` and `\(#\d+\)$` with the GitHub committer recognised by its `noreply@github.com` e-mail (in memory) | commit; repository; "author of the commit that arrived outside a PR" (never "pushed") | clone + database | both (degraded with a clone) | H with the API, M with a clone | P1 |
-| PR4 | Reviewed by another member | New Provider method `PullRequestReviews` (login, identifier, state, date; never the body). Reviewed if, for at least one reviewer with an identifier other than the author's and not excluded (trainer, bots), the last state among `APPROVED`, `CHANGES_REQUESTED` and `DISMISSED` submitted no later than `merged_at` is `APPROVED`. Another account is enough; the `pr.reviewer_must_contribute` setting also requires a reviewer who authored at least one commit of the repository. Only counters are stored, not the reviewers. Derived view: "merged without review" | PR, repository; reviews received by the PR author | API, 1 request per PR | API | H | P1 |
+| PR4 | Reviewed by another member | New Provider method `PullRequestReviews` (login, identifier, state, date; never the body). Reviewed if, for at least `pr.min_reviews` (1 by default) distinct reviewers (by identifier), with an identifier other than the author's and not excluded (trainer, bots), the last state among `APPROVED`, `CHANGES_REQUESTED` and `DISMISSED` submitted no later than `merged_at` is `APPROVED`. Another account is enough; `pr.reviewer_must_contribute` also requires reviewers who authored at least one commit of the repository (recognized by login or by account identifier, among the commits in the database when the reviews are read). Approximation: on GitHub, dismissing a review does not create a review, the original `APPROVED` review becomes `DISMISSED` and keeps its submitted date; `DISMISSED` is therefore the current state of the review, dated from its submission and not from its dismissal: an approval dismissed after the merge no longer counts if the reviews are read after the dismissal, and still counts if they were read before. `COMMENTED` and `PENDING` do not change a reviewer's state; a reviewer without an account (deleted account) is never counted, since nothing tells them apart from the author. Only counters are stored, not the reviewers. Derived view: "merged without review" (number and author, never the title). Same exclusions as PR1 (closed without merge, draft, bot, fork, opened before the start date of the workspace or of the repository, by `created_at`: neither read nor evaluated, no request). A merged PR whose reviews were never read, or read before its merge (while open), is "unknown", counted apart ("not read yet"), until a following sync reads them; clone only: "unknown" (`no_api`). For an open PR, the counters are given as information ("approved at the last read"); PR4 only judges the merged PRs | PR, repository; reviews received by the PR author | API, 1 request per PR | API | H | P1 |
 | PR5 | Structured body and `Closes #n` | Body read in memory (as for D2): section headings, or bold text, among versioned FR and EN synonyms (context, what changes, how to test, screenshots); an empty section (or one reduced to an HTML comment) does not count. Closing keyword searched separately. Only a bit mask is stored (NULL while unknown). Known false negative: issue linked through the "Development" sidebar | PR, repository | API, 0 requests | API | M | P2 |
 | PR6 | Squash merge | Commit of `merge_commit_sha` with one parent and the "(#n)" suffix: squash; two parents: merge commit. Compliant if squash **and** message compliant with the parser | PR | database | API | M | P2 |
 | PR7 | PR template | See TL3 | repository | clone | both | H | P2 |
@@ -527,7 +527,7 @@ measured in 8.2 appear:
   "unknown".
 
 Without a start date (`conventions.since` of the workspace or of the repository), the repository is "not
-evaluable: missing start date". PR3 is added with phase 8.5 (below), PR4 with phase 8.6.
+evaluable: missing start date". PR3 is added with phase 8.5, PR4 with phase 8.6 (below).
 
 **Phase 8.4: SV2 deadline and SV3 in the review.** With a due date, **SV2** also judges when the tag with the
 exact name was set: "on time" conform, "late" not conform, "undetermined" unknown (`deadline_undetermined`).
@@ -543,6 +543,22 @@ authors. Conform when no commit arrived outside a PR and none is undetermined; n
 arrived outside a PR; "unknown" without a clone (`no_clone`), with an unreadable clone (`clone_unreadable`),
 without commits (`no_commits`), with commits of undetermined arrival (`undetermined`, frequent in clone-only
 mode), or in the `no_tag` and `not_due` cases of CC1. The review therefore counts thirteen criteria.
+
+**Phase 8.6: PR4 in the review.** The **PR4** criterion follows PR3 (same criterion "feature branches,
+reviewed PRs"): every pull request merged in the milestone interval is reviewed (rule of
+[5.3](#53-pull-requests-pr), settings applied at read time), on the evaluated merged PRs (neither closed
+without merge, draft, bot, fork, nor opened before the start date). The interval is bounded **by dates**,
+which works with the API alone: merge after the date of the commit targeted by the previous final tag and
+after the start date, up to the date of the commit targeted by the milestone tag (included), or, tag absent,
+before the end of the due date. Approximation: the date of the targeted commit (committer date, read from
+the database) stands for the date the tag was set; the PR whose merge produced the commit of the milestone
+tag is counted even when its `merged_at` follows that date by a few seconds, and the one whose merge
+produced the commit of the previous tag is left to the previous milestone. Not conform as soon as a merged PR
+of the interval is known and not reviewed (its numbers are given, never a title); "unknown" in clone only
+or for a repository never seen by the API (`no_api`), while reviews of PRs of the interval are not read yet
+(`reviews_unchecked`), without a merged PR (`no_merged_pr`), when the date of a tag commit is not in the
+database (`no_tag_date`), or in the `no_tag` and `not_due` cases of CC1. The review therefore counts
+fourteen criteria.
 
 **Phase 8.3: file criteria of the review.** Seven criteria follow SV2, read from the cache of the sync for
 the **tree of the tag** that designates the milestone (same rule as SV1: exact name, else the first
@@ -628,7 +644,7 @@ charter in [section 3](#3-reference-the-charter).
 | `branch.pattern` | empty (built-in rule `^(<types>)/[a-z0-9]+(-[a-z0-9]+)+$`, built from `commit.types`) | Branch naming (BR1): an RE2 expression, validated at load time, that replaces the built-in rule |
 | `branch.exclude` | `gh-pages`, `dependabot/*`, `renovate/*` | Branches left out (BR1): glob patterns (`*`, `?`, `[...]`, `path.Match` syntax), each one designating the name itself or one of its path prefixes (`dependabot/*` excludes `dependabot/npm_and_yarn/lodash-4.17.21`); the default branch is always left out |
 | `pr.body_sections`, `pr.require_closes` | `context`, `changes`, `testing`, `screenshots`, `true` | PR body (PR5, phase 8.5): expected sections, keys among `context`, `changes`, `testing`, `screenshots` (FR and EN synonyms built in and versioned; empty list: no section expected); closing keyword `Closes #n` required |
-| `pr.min_reviews`, `pr.reviewer_must_contribute` | 1, `false` | Reviews; another account is enough, unless the reviewer must be a contributor |
+| `pr.min_reviews`, `pr.reviewer_must_contribute` | 1, `false` | Reviews (PR4, phase 8.6): number of distinct reviewers, other than the author and not excluded, whose approval is required at the merge (at least 1); another account is enough, unless the reviewer must be a contributor (author of at least one commit of the repository) |
 | `tags.milestones` | `v1.0.0`, `v2.0.0`, `v3.0.0` (no deadline) | Milestones (SV2, milestone review): each entry `vX.Y.Z`, or `vX.Y.Z@YYYY-MM-DD` for a deadline |
 | `tags.prerelease_forms` | `rc`, `beta`, `alpha` | Compliant pre-release forms `-<form>.N` (SV4, phase 8.4); the other forms give a warning, never a deviation |
 | `changelog.categories_fr` | `true` | Allows French labels (categories, H1, `[Non publié]`) with a warning; `false`: they are deviations (CL2, CL3, CL5) |
@@ -755,8 +771,30 @@ test"…) cannot be set: they are built into the binary and versioned with the p
 settings only change the reading of the `body_sections` mask already computed at the sync: changing them
 does not require reading the pull requests again. In the sharing file, they are written
 `settings.conventions.pr` (`body_sections`, `require_closes`); a file that contains them is refused by the
-versions before 1.11.0 (as is a `config.yaml` that contains them). `pr.min_reviews` and
-`pr.reviewer_must_contribute` come with PR4 (phase 8.6).
+versions before 1.11.0 (as is a `config.yaml` that contains them).
+
+**Phase 8.6**: `pr.min_reviews` and `pr.reviewer_must_contribute` are added (1.12.0), shared like
+`commit.*`. Exact syntax:
+
+```yaml
+conventions:
+  pr:
+    min_reviews: 1 # distinct reviewers approving at the merge (PR4), at least 1
+    reviewer_must_contribute: false # true: the reviewer must have authored a commit of the repository
+```
+
+Environment variables: `WATCHOO_CONVENTIONS_PR_MIN_REVIEWS` and
+`WATCHOO_CONVENTIONS_PR_REVIEWER_MUST_CONTRIBUTE`. Rule checked at load time: `pr.min_reviews` is **at least
+1** (`0` and negative values are refused). The sync stores, per merged pull request, only counters, never a
+reviewer's login: the reviews submitted by other accounts, the distinct reviewers approving at the merge,
+and among them those who authored at least one commit of the repository (known to the database at the time
+of the computation, by login or identifier). `pr.min_reviews` and `pr.reviewer_must_contribute` are applied
+**at read time** from these counters: changing them requires no request and no new reading of the reviews.
+`excluded_accounts`, on the other hand, is applied **when the reviews are read**: changing it only affects
+the pull requests whose reviews are read afterwards (a pull request already read keeps its counters). In
+the sharing file, they are written `settings.conventions.pr` (`min_reviews`, `reviewer_must_contribute`);
+a file that contains them is refused by the versions before 1.12.0 (as is a `config.yaml` that contains
+them).
 
 ## 9. Technical impact
 
@@ -775,8 +813,9 @@ versions before 1.11.0 (as is a `config.yaml` that contains them). `pr.min_revie
   `LastTouch` (CL10, at read time), `RevList`), with no addition to the `Provider` interface. On the `Provider` side, done in phase 8.5:
   `PullRequest.MergeCommitSHA` (filled only if the PR is merged), `PullRequest.FromFork`,
   `PullRequest.BodySections` (mask computed in memory), `Repository.AllowSquashMerge`, `AllowMergeCommit` and
-  `AllowRebaseMerge` (nil = unknown; "unknown" with a clone); planned for phase 8.6: `PullRequestReviews`
-  (GET; `ErrUnsupported` with a clone). The computation is only rerun if the head of
+  `AllowRebaseMerge` (nil = unknown; "unknown" with a clone); done in phase 8.6: `PullRequestReviews`
+  (`GET /repos/{o}/{r}/pulls/{n}/reviews`, paginated, at most 1,000 reviews: reviewer login and identifier,
+  state, date, never the body; `ErrUnsupported` with a clone). The computation is only rerun if the head of
   the default branch, `RulesVersion` or the configuration fingerprint has changed. Failures logged at
   Debug level, without message or path.
 - **Sync, done in phase 8.3** (file criteria):
@@ -829,8 +868,12 @@ versions before 1.11.0 (as is a `config.yaml` that contains them). `pr.min_revie
   - done, migration `00020` (phase 8.5): `pull_requests.merge_commit_sha`, `from_fork`, `body_sections`
     and `repositories.allow_squash_merge`, `allow_merge_commit`, `allow_rebase_merge`,
     `conventions_prs_version` (NULL = unknown, or full reread not done yet);
-  - planned for phase 8.6: `pull_requests.reviews_by_others`, `approved_before_merge`,
-    `reviews_checked_at`: counters and flags, never the reviewers' logins (maintainer decision);
+  - done, migration `00021` (phase 8.6): `pull_requests.reviews_by_others`, `approvals_by_others`,
+    `approvals_by_contributors` and `reviews_checked_at` (NULL = reviews never read): counters only,
+    never the reviewers' logins (maintainer decision); `pr.min_reviews` and `pr.reviewer_must_contribute`
+    are applied when reading, from these counters, while `excluded_accounts` and the commit authors of the
+    repository are applied when the reviews are read, so changing the excluded accounts only applies to
+    the PRs whose reviews are read afterwards;
   - `branches.protected` is not added while BR3 is postponed;
   - that is 19 tables instead of 16.
   - CC, BR1, PR1, PR2, SV1, SV2 and SV6 are computed on the fly from the database: a charter change takes
@@ -853,10 +896,23 @@ versions before 1.11.0 (as is a `config.yaml` that contains them). `pr.min_revie
     conventions are on. Clone mode: no PR, everything "unknown". `from_fork` is unknown when the response
     does not give the base repository; the merge methods are only returned to an account with push
     rights (otherwise "unknown", written NULL even over a value known before);
-  - 8.6: one request per merged PR, only once, plus the open PRs whose `updated_at` changed; for example
-    30 repositories × 40 PRs = 1,200 requests on the first pass (24% of the hourly quota), capped per sync
-    and cut below the quota reserve. The ETag cache is shared in `watchoo serve` but empty for each CLI
-    process;
+  - 8.6, only with `conventions.enabled` and in API mode, after the sync write: one request (pagination
+    included, 100 reviews per page) per merged PR whose reviews were never read since its merge
+    (`reviews_checked_at` NULL or earlier than `merged_at`: a PR read while open is read again once after
+    its merge), only once, plus the open PRs (not drafts) whose `updated_at` changed since the last
+    reading (for the display; PR4 only judges the merged PRs); never a PR from a fork, by a bot, nor opened
+    before the start date of the conventions of the repository (`created_at`). An open PR is marked read at
+    its update date on the forge (`updated_at`, never the local clock): any later merge has it read again
+    once. Merged PRs first, the most recent merge first, then the open ones; at most 100 requests per repository and
+    per sync (`sync.MaxReviewsPerRepo`), and the pass stops as soon as the remaining quota falls below the
+    reserve (10%): the rest is read at the next syncs. An exhausted quota defers the next repositories; any
+    other failure is logged at Debug level (repository, PR number, error; never a login nor a content) and
+    never fails the sync of the repository. Estimate: 30 repositories × 40 merged PRs = 1,200 requests on
+    the first pass (24% of the hourly quota of 5,000), all within the cap of 100 per repository; then, in
+    steady state, one request per newly merged PR and per open PR updated since the last reading (for
+    example 30 repositories × 3 PRs per week = 90 requests a week). The ETag cache of the transport is used
+    (a 304 costs no quota) but it holds 1,024 entries: a first pass over 1,200 PRs evicts the first ones,
+    and it is empty for each CLI process (shared in `watchoo serve`);
   - releases are already reread in full at every sync: cost unchanged.
 - **Interaction with the diagnosis**: the squash merge imposed by the charter produces large single commits
   on the default branch, which feed A1 (massive commit) and A2 (repository delivered in one go) and erase
@@ -885,7 +941,7 @@ Each phase can be delivered alone; phases 8.1 to 8.4 are enough for a milestone 
 | 8.3 | Clone tree: `repository_conventions`, CL1 to CL9, RD1 to RD4, DOC1 to DOC8, TL1 to TL3; milestone review on the tags' tree. **Done, not released** (`[Unreleased]` of the CHANGELOG; migration `00017`; `changelog.categories_fr`, `readme.sections`, `readme.min_words`, `docs.dir`, `docs.media_dir`, `docs.archives_scope` settings; deviations: DOC6 and DOC7 postponed to 8.7, CL10 to 8.4; `FileRulesVersion` separate from `RulesVersion`; `config_hash` also covers the names of the version tags (CL8); category order (CL6) as a warning; date gap between tag and section (CL8) not measured; TL1 without introduction date; DOC4 reads at most 300 documents; path lists only on a repository's page and in `watchoo conventions owner/repo`, not in `/conventions`; in API mode, milestone tags read from the database, see [section 9](#9-technical-impact)) | 0 quota, 1 migration | 1.9.0 |
 | 8.4 | History: `tag_observations` (SV3, SV2 deadlines), `branch_rewrites` (BR4), SV4, SV5, SV7, CL10. **Done, not released** (`[Unreleased]` of the CHANGELOG; migrations `00018` and `00019`; setting `tags.prerelease_forms`; SV3 in the milestone review; approximations listed in [5.4](#54-tags-and-semver-sv): proof of a read of the tags by the dates of `tag_observations`, "late" only on a read made after the deadline, rewrite of an annotated tag on the same commit invisible, BR4 partial in API mode alone; SV4, SV5, SV7 and CL10 computed at read time, not stored) | 0 quota, 2 migrations | 1.10.0 |
 | 8.5 | API with no extra request: `merge_commit_sha`, `from_fork`, `body_sections`, merge methods; full PR3, PR5, PR6, BR2, BR5. **Done, not released** (`[Unreleased]` of the CHANGELOG; migration `00020`; settings `pr.body_sections` and `pr.require_closes`; PR3 in the milestone review; forks set aside from PR1, PR2, PR5, PR6, BR1 and BR2; approximations listed in [5.3](#53-pull-requests-pr): PR3 filtered on the committer date, `unmatched` until the PR list has been reread, PR6 "rebase" for a squash with a rewritten subject, BR5 unknown without push access, repository of 1,000 PRs or more reread at each sync; comparison of PR2 with the only commit not measured) | one reread of the PR lists | 1.11.0 |
-| 8.6 | Reviews: PR4, "merged without review", reviews received | 1 request per merged PR | 1.12.0 |
+| 8.6 | Reviews: PR4, "merged without review", reviews received. **Done, not released** (`[Unreleased]` of the CHANGELOG; migration `00021`; settings `pr.min_reviews` and `pr.reviewer_must_contribute`, applied at read time; PR4 in the milestone review; no reviewer login stored: counters only, `excluded_accounts` applied to the PRs read afterwards; approximations listed in [5.3](#53-pull-requests-pr) and [7.1](#71-milestone-review-rj): merged PR read before its merge "unknown" until the next read, reviewer without an account never counted, `DISMISSED` dated from the submission of the review and not from its dismissal, contributing reviewer recognized by login or by account identifier, milestone interval bounded by the dates of the commits targeted by the tags) | 1 request per merged PR | 1.12.0 |
 | 8.7 | Optional leads: CL11, CL12, RD5, DOC6, DOC7, DOC9, DOC10, TL4, TL5 | 0 quota | MINOR |
 
 ## 11. Maintainer decisions
@@ -915,7 +971,10 @@ Decisions of November 8, 2026.
 
 - **Thresholds** to validate on real repositories before display: 80% for SV5, 150 words for RD4, CL8 date
   gap, CL12 and DOC9 thresholds.
-- **Before phase 8.6**: does a review update the PR's `updated_at` (rereading the open PRs)?
+- **Phase 8.6**: does a review update the PR's `updated_at`? Still not verified on GitHub, and no longer
+  needed for the merged PRs: one read after the merge is enough (the reviews submitted after `merged_at` do
+  not count), and a PR read while open is read again once merged. It only matters for the display of the
+  open PRs, reread when their `updated_at` changes.
 - **If BR3 is taken up again**: does `protected` reflect rulesets? Which GitHub plan are the student
   repositories on (protection of a private repository does not exist on GitHub Free)?
 

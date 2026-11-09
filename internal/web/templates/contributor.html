@@ -104,6 +104,7 @@
       {{- if .Issues}} <span class="text-base-content/70">· {{range $i, $is := .Issues}}{{if $i}}, {{end}}<code>{{$is.Code}}</code> {{$is.Count}}{{end}}</span>{{end}}
     </p>
     <p class="text-sm" id="contributor-conventions-pulls">{{t "web.conv.contributor_pr_titles"}} {{if .Pulls.Evaluated}}{{template "conv-pr-counts" .Pulls}}{{else}}{{t "web.conv.contributor_pr_none"}}{{end}}</p>
+    <p class="text-sm" id="contributor-conventions-reviews">{{if not .Pulls.ReviewsRead}}{{t "web.conv.contributor_reviews_none"}}{{else if not .Pulls.ReviewKnown}}{{t "web.conv.contributor_reviews_open" .Pulls.ReviewsReceived}}{{else}}{{t "web.conv.contributor_reviews" .Pulls.Reviewed .Pulls.ReviewKnown .Pulls.ReviewsReceived}}{{end}}</p>
     <p class="text-sm" id="contributor-conventions-trend">{{t "web.conv.contributor_trend"}} {{template "conv-trend" .Trend}}</p>
     <div class="text-sm" id="contributor-conventions-outside-pr">
       {{- if not .Arrivals.Known}}{{t "web.conv.contributor_outside_unknown"}}

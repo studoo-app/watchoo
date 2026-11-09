@@ -5,6 +5,7 @@ package github
 // the merge methods of the repository (returned only to an account with the push right).
 
 import (
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -137,5 +138,74 @@ func TestOptionalBool(t *testing.T) {
 	}
 	if provider.KnownBool(true) != provider.True || provider.KnownBool(false) != provider.False {
 		t.Error("KnownBool")
+	}
+}
+
+// Phase 8.6: GET /pulls/{n}/reviews (reviewer, state, date; never the body), pagination, ETag cache,
+// validation of the number, unknown PR.
+func TestPullRequestReviews(t *testing.T) {
+	e := newScEnv(t)
+	const id, name = 2103, "projet-rev"
+	t0 := e.t0
+	path := e.repo(id, name) + "/pulls/7/reviews"
+	e.srv.SetPullRequests(id, githubtest.PullRequest{Number: 7, Author: "alice", CreatedAt: t0})
+	reviews := []githubtest.Review{
+		{ID: 1, Reviewer: "bob", State: "CHANGES_REQUESTED", SubmittedAt: t0.Add(time.Hour), Body: "secret"},
+		{ID: 2, Reviewer: "renovate[bot]", Bot: true, State: "COMMENTED", SubmittedAt: t0.Add(2 * time.Hour)},
+		{ID: 3, State: "APPROVED", SubmittedAt: t0.Add(3 * time.Hour)},
+		{ID: 4, Reviewer: "carol", State: "PENDING"},
+	}
+	for i := int64(5); i <= 104; i++ { // second page
+		reviews = append(reviews, githubtest.Review{ID: i, Reviewer: "bob", State: "COMMENTED", SubmittedAt: t0.Add(4 * time.Hour)})
+	}
+	e.srv.SetReviews(id, 7, reviews...)
+	p := e.provider(testToken)
+	got, err := p.PullRequestReviews(t.Context(), scOwner, name, 7)
+	if err != nil {
+		t.Fatalf("PullRequestReviews: %v", err)
+	}
+	if len(got) != 104 {
+		t.Fatalf("%d reviews, want 104", len(got))
+	}
+	if r := got[0]; r.ID != 1 || r.Reviewer.Login != "bob" || r.Reviewer.ID == 0 || r.State != provider.ReviewChangesRequested ||
+		!r.SubmittedAt.Equal(t0.Add(time.Hour)) || r.SubmittedAt.Location() != time.UTC {
+		t.Errorf("review 1 = %+v", r)
+	}
+	if r := got[1]; r.Reviewer.Login != "renovate[bot]" || r.State != provider.ReviewCommented {
+		t.Errorf("bot review = %+v", r)
+	}
+	if r := got[2]; r.Reviewer != (provider.Account{}) || r.State != provider.ReviewApproved {
+		t.Errorf("deleted account = %+v", r)
+	}
+	if r := got[3]; !r.SubmittedAt.IsZero() || r.State != provider.ReviewPending {
+		t.Errorf("pending = %+v", r)
+	}
+	if n := e.srv.Count(path); n != 2 {
+		t.Errorf("%d requests on %s, want 2 (two pages)", n, path)
+	}
+	// Second read: same result, both unchanged pages answered by the ETag cache (conditional requests
+	// served as 304s, no quota consumed).
+	before := len(e.srv.Requests())
+	again, err := p.PullRequestReviews(t.Context(), scOwner, name, 7)
+	if err != nil || len(again) != len(got) {
+		t.Fatalf("second PullRequestReviews: %d, %v", len(again), err)
+	}
+	var second []githubtest.Request
+	for _, r := range e.srv.Requests()[before:] {
+		if r.Path == path {
+			second = append(second, r)
+		}
+	}
+	scAll304(t, second, 2)
+
+	if _, err := p.PullRequestReviews(t.Context(), scOwner, name, 0); !errors.Is(err, provider.ErrInvalidRef) {
+		t.Errorf("number 0: %v, want ErrInvalidRef", err)
+	}
+	if _, err := p.PullRequestReviews(t.Context(), scOwner, name, 8); !errors.Is(err, provider.ErrNotFound) {
+		t.Errorf("unknown PR: %v, want ErrNotFound", err)
+	}
+	e.srv.Inject(path, githubtest.Response{Body: `[{"id":0,"state":"APPROVED"}]`, Times: 1})
+	if _, err := p.PullRequestReviews(t.Context(), scOwner, name, 7); !errors.Is(err, provider.ErrUnexpected) {
+		t.Errorf("review without identifier: %v, want ErrUnexpected", err)
 	}
 }

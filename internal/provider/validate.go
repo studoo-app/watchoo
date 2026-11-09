@@ -112,6 +112,15 @@ func ValidateID(id int64) error {
 	return nil
 }
 
+// ValidateNumber vérifie un numéro de pull request (strictement positif). Erreur enveloppant
+// ErrInvalidRef sinon.
+func ValidateNumber(number int) error {
+	if number <= 0 {
+		return errInvalidRef("provider.validate.number", number)
+	}
+	return nil
+}
+
 // errInvalidRef compose le message traduit de la clé key (formatée avec args) et la cause
 // ErrInvalidRef, avec la ponctuation de la langue.
 func errInvalidRef(key string, args ...any) error {

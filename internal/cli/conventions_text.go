@@ -284,6 +284,8 @@ func criterionDetail(r conventions.RepoMilestoneReview, id, dash string, loc *ti
 		return " — " + i18n.T("cli.conv.milestone_branches", r.Branches.Conform, r.Branches.Checked)
 	case conventions.CriterionPR3:
 		return milestoneArrivalsDetail(r)
+	case conventions.CriterionPR4:
+		return milestoneReviewsDetail(r)
 	case conventions.CriterionSV1:
 		if r.Tag == nil {
 			return ""

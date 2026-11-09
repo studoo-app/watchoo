@@ -34,6 +34,7 @@
         <th scope="col">{{t "web.conv.col_files"}}</th>
         <th scope="col">{{t "web.conv.col_history"}}</th>
         <th scope="col">{{t "web.conv.col_merges"}}</th>
+        <th scope="col">{{t "web.conv.col_reviews"}}</th>
       </tr></thead>
       <tbody>
         {{range $c.Repos}}
@@ -48,6 +49,7 @@
           <td class="text-sm">{{if .FilesReason}}<span class="text-base-content/60">{{t "web.conv.cell_unknown"}} ({{.FilesReason}})</span>{{else}}<div class="flex flex-wrap gap-1">{{range .Files}}<span class="badge badge-sm badge-ghost whitespace-nowrap">{{.Label}} {{.Conform}}/{{.Total}}{{if .Unknown}} · {{t "web.conv.family_unknown" .Unknown}}{{end}}</span>{{end}}</div>{{end}}</td>
           <td class="text-sm">{{template "conv-history-summary" .History}}</td>
           <td class="text-sm"><div class="flex flex-wrap gap-1">{{if .ArrivalsKnown}}<span class="whitespace-nowrap">{{t "web.conv.outside_pr_short" .OutsidePR .Arrivals}}</span>{{else}}<span class="text-base-content/60">{{t "web.conv.cell_unknown"}} ({{.ArrivalsReason}})</span>{{end}}{{with .MethodsStatus}}{{template "conv-status" (dict "Status" . "Text" "")}}{{end}}</div></td>
+          <td class="text-sm">{{if not .PullsKnown}}<span class="text-base-content/60">{{t "web.conv.cell_unknown"}} ({{.PullsReason}})</span>{{else if .Reviews.Merged}}<span class="whitespace-nowrap">{{t "web.conv.reviews_short" .Reviews.Reviewed .Reviews.Known}}</span>{{if .Reviews.Unread}} <span class="text-base-content/60">· {{t "web.conv.reviews_unread" .Reviews.Unread}}</span>{{end}}{{else}}—{{end}}</td>
         </tr>
         {{end}}
       </tbody>
@@ -72,6 +74,7 @@
         <th scope="col">{{t "web.conv.col_pr_titles"}}</th>
         <th scope="col">{{t "web.conv.col_branches"}}</th>
         <th scope="col">{{t "web.conv.col_outside_pr"}}</th>
+        <th scope="col">{{t "web.conv.col_reviews_received"}}</th>
       </tr></thead>
       <tbody>
         {{range $c.Contributors}}
@@ -82,6 +85,7 @@
           <td class="text-sm">{{if .Pulls.Evaluated}}{{template "conv-pr-counts" .Pulls}}{{else}}—{{end}}</td>
           <td class="tabular-nums whitespace-nowrap">{{if .BranchesChecked}}{{.BranchesConform}}/{{.BranchesChecked}}{{else}}—{{end}}</td>
           <td class="tabular-nums whitespace-nowrap">{{if .Arrivals}}{{t "web.conv.outside_pr_short" .OutsidePR .Arrivals}}{{else}}—{{end}}</td>
+          <td class="tabular-nums whitespace-nowrap">{{if not .Pulls.ReviewsRead}}—{{else if not .Pulls.ReviewKnown}}{{t "web.conv.reviews_received_only" .Pulls.ReviewsReceived}}{{else}}{{t "web.conv.reviews_received_short" .Pulls.Reviewed .Pulls.ReviewKnown .Pulls.ReviewsReceived}}{{end}}</td>
         </tr>
         {{end}}
       </tbody>
@@ -131,6 +135,7 @@
             {{if .Deadline}}<div class="text-xs text-base-content/60">{{t "web.conv.review_deadline" .Deadline .DeadlineDetail}}</div>{{end}}
             {{if .History}}<div class="text-xs text-base-content/60">{{t "web.conv.review_history" .History}}</div>{{end}}
             {{if .HasArrivals}}<div class="text-xs text-base-content/60">{{t "web.conv.review_arrivals" .OutsidePR .ArrivalsTotal .Undetermined}}</div>{{end}}
+            {{if .HasReviews}}<div class="text-xs text-base-content/60">{{t "web.conv.review_reviews" .Reviewed .ReviewsMerged (sub .ReviewsMerged .ReviewsRead)}}{{if .Unreviewed}} ({{range $i, $n := .Unreviewed}}{{if $i}}, {{end}}#{{$n}}{{end}}){{end}}</div>{{end}}
             {{if .HasInterval}}<div class="text-xs text-base-content/60">{{t "web.conv.interval_label"}} {{if .From}}{{truncate 30 (clean .From)}}{{else}}{{t "web.conv.interval_start"}}{{end}}..{{if .To}}{{truncate 30 (clean .To)}}{{else}}{{t "web.conv.due" .Due}}{{end}}{{if .Missing}} · {{t "web.conv.interval_missing" .Missing}}{{end}}</div>{{end}}
           </td>
           {{end}}

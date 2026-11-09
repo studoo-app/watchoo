@@ -39,6 +39,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -73,6 +74,7 @@ const (
 	MethodCompareCommits Method = "CompareCommits"
 	MethodCommitStats    Method = "CommitStats"
 	MethodPullRequests   Method = "PullRequests"
+	MethodPullReviews    Method = "PullRequestReviews"
 	MethodReleases       Method = "Releases"
 	MethodTags           Method = "Tags"
 	MethodRateLimit      Method = "RateLimit"
@@ -82,7 +84,7 @@ const (
 func (m Method) valid() bool {
 	switch m {
 	case MethodRepository, MethodRepositoryByID, MethodBranches, MethodListCommits, MethodCompareCommits,
-		MethodCommitStats, MethodPullRequests, MethodReleases, MethodTags, MethodRateLimit:
+		MethodCommitStats, MethodPullRequests, MethodPullReviews, MethodReleases, MethodTags, MethodRateLimit:
 		return true
 	}
 	return false
@@ -103,6 +105,7 @@ type Call struct {
 	SHA     string // CommitStats
 	// PullOpts holds the options of PullRequests.
 	PullOpts provider.PullRequestsOptions
+	Number   int // PullRequestReviews
 }
 
 // Fake is an in-memory provider.Provider. Build it with New.
@@ -128,9 +131,10 @@ type fakeRepo struct {
 	seq      int               // number of commits added since creation (order of addition)
 	branches map[string]string // name → head SHA
 	stats    map[string]provider.CommitStats
-	pulls    map[int]provider.PullRequest // number → pull request (SetPullRequests)
-	releases []provider.Release           // SetReleases
-	tags     []provider.Tag               // SetTags, in the given order
+	pulls    map[int]provider.PullRequest         // number → pull request (SetPullRequests)
+	reviews  map[int][]provider.PullRequestReview // number → reviews (SetPullRequestReviews)
+	releases []provider.Release                   // SetReleases
+	tags     []provider.Tag                       // SetTags, in the given order
 }
 
 // fakeCommit is an in-memory commit and its rank of addition. It is never modified after
@@ -198,6 +202,7 @@ func (f *Fake) AddRepository(r provider.Repository) {
 		branches: make(map[string]string),
 		stats:    make(map[string]provider.CommitStats),
 		pulls:    make(map[int]provider.PullRequest),
+		reviews:  make(map[int][]provider.PullRequestReview),
 	}
 	f.repos[r.ID] = repo
 	f.names[key] = r.ID
@@ -442,6 +447,31 @@ func (f *Fake) SetPullRequests(repoID int64, pulls ...provider.PullRequest) {
 	}
 }
 
+// SetPullRequestReviews replaces the reviews of the pull request number of the repository repoID, kept
+// in the given order (chronological, as on GitHub). The dates are converted to UTC and truncated to the
+// second. The pull request must have been set by SetPullRequests. Identifier <= 0, empty state, unknown
+// pull request or unknown repository: panic.
+func (f *Fake) SetPullRequestReviews(repoID int64, number int, reviews ...provider.PullRequestReview) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	repo := f.repoLocked("providertest.SetPullRequestReviews", repoID)
+	if _, ok := repo.pulls[number]; !ok {
+		panic(fmt.Sprintf("providertest.SetPullRequestReviews: unknown PR #%d", number))
+	}
+	out := make([]provider.PullRequestReview, 0, len(reviews))
+	for _, r := range reviews {
+		switch {
+		case r.ID <= 0:
+			panic(fmt.Sprintf("providertest.SetPullRequestReviews: invalid identifier %d", r.ID))
+		case r.State == "":
+			panic("providertest.SetPullRequestReviews: empty state")
+		}
+		r.SubmittedAt = utcSecond(r.SubmittedAt)
+		out = append(out, r)
+	}
+	repo.reviews[number] = out
+}
+
 // SetReleases replaces the releases of the repository repoID (dates in UTC to the second). Identifier
 // <= 0, empty tag or unknown repository: panic.
 func (f *Fake) SetReleases(repoID int64, releases ...provider.Release) {
@@ -562,7 +592,8 @@ func (f *Fake) ResetCalls() {
 // SetRateLimit enables the simulated quota with the state rl (Reset in UTC, truncated to the second;
 // zero = now + 1 h; zero or negative Limit = 5,000; Used = Limit - Remaining if Used is 0; negative
 // Remaining: panic). From then on, every call to Repository, RepositoryByID, Branches,
-// ListCommits, CompareCommits, CommitStats, PullRequests, Releases or Tags, after steps 1 to 5:
+// ListCommits, CompareCommits, CommitStats, PullRequests, PullRequestReviews, Releases or Tags, after
+// steps 1 to 5:
 //   - if now >= Reset: new window (Remaining = Limit, Used = 0, Reset moved forward hour by hour
 //     until it passes now);
 //   - if Remaining == 0: error *provider.RateLimitError{Reset} (errors.Is ErrRateLimited), in a
@@ -1068,6 +1099,45 @@ func (f *Fake) PullRequests(ctx context.Context, owner, name string, opts provid
 			break
 		}
 		out = append(out, pr)
+	}
+	return out, nil
+}
+
+// PullRequestReviews implements provider.Provider: reviews set by SetPullRequestReviews, in the given
+// order, at most provider.MaxPullRequestReviews (an empty list for a known pull request without
+// reviews); invalid number → provider.ErrInvalidRef; unknown repository or pull request →
+// provider.ErrNotFound.
+func (f *Fake) PullRequestReviews(ctx context.Context, owner, name string, number int) ([]provider.PullRequestReview, error) {
+	if err := f.begin(ctx, Call{Method: MethodPullReviews, Owner: owner, Name: name, Number: number}); err != nil {
+		return nil, err
+	}
+	if err := provider.ValidateRepo(owner, name); err != nil {
+		return nil, err
+	}
+	if err := provider.ValidateNumber(number); err != nil {
+		return nil, err
+	}
+	op := i18n.T("provider.github.op.reviews", number, owner, name)
+	path := repoPath(owner, name) + "/pulls/" + strconv.Itoa(number) + "/reviews"
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if err := f.prepare(MethodPullReviews, owner, name, op, path); err != nil {
+		return nil, err
+	}
+	repo := f.lookup(owner, name)
+	if repo == nil {
+		return nil, apiError(op, path, statusNotFound, provider.ErrNotFound)
+	}
+	if _, ok := repo.pulls[number]; !ok {
+		return nil, apiError(op, path, statusNotFound, provider.ErrNotFound)
+	}
+	list := repo.reviews[number]
+	out := make([]provider.PullRequestReview, 0, min(len(list), provider.MaxPullRequestReviews))
+	for _, r := range list {
+		if len(out) == provider.MaxPullRequestReviews {
+			break
+		}
+		out = append(out, r)
 	}
 	return out, nil
 }

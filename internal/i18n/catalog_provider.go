@@ -148,6 +148,10 @@ var providerTexts = map[string]entry{
 		"repository ID %d is invalid",
 		"identifiant de dépôt %d invalide",
 	},
+	"provider.validate.number": {
+		"pull request number %d is invalid",
+		"numéro de pull request %d invalide",
+	},
 
 	// Construction du client GitHub (internal/provider/github/client.go).
 	"provider.github.client.token": {
@@ -267,6 +271,10 @@ var providerTexts = map[string]entry{
 		"listing pull requests of %s/%s",
 		"liste des pull requests de %s/%s",
 	},
+	"provider.github.op.reviews": {
+		"listing reviews of pull request #%d of %s/%s",
+		"liste des relectures de la pull request n° %d de %s/%s",
+	},
 	"provider.github.op.releases": {
 		"listing releases of %s/%s",
 		"liste des releases de %s/%s",
@@ -300,6 +308,10 @@ var providerTexts = map[string]entry{
 	"provider.git.op.pulls": {
 		"listing pull requests of %s/%s",
 		"lecture des pull requests de %s/%s",
+	},
+	"provider.git.op.reviews": {
+		"listing reviews of pull request #%d of %s/%s",
+		"lecture des relectures de la pull request n° %d de %s/%s",
 	},
 	"provider.git.op.releases": {
 		"listing releases of %s/%s",

@@ -149,6 +149,11 @@ func TestSharedSettingsFromAndValues(t *testing.T) {
 	if v[KeyConventionsPRRequireCloses] != true {
 		t.Errorf("conventions.pr.require_closes = %v", v[KeyConventionsPRRequireCloses])
 	}
+	// conventions.pr.min_reviews and reviewer_must_contribute (phase 8.6): shared, charter defaults.
+	if v[KeyConventionsPRMinReviews] != 1 || v[KeyConventionsPRReviewerMustContribute] != false {
+		t.Errorf("conventions.pr.min_reviews / reviewer_must_contribute = %v / %v",
+			v[KeyConventionsPRMinReviews], v[KeyConventionsPRReviewerMustContribute])
+	}
 	cfg = DefaultConfig("x")
 	s = SharedSettingsFrom(cfg)
 	cfg.Conventions.PR.BodySections[0] = "changed"
@@ -211,32 +216,35 @@ func TestSharedSettingsApplyToConventions(t *testing.T) {
 	cfg.Conventions.ExcludedAccounts = []string{"prof"}
 	types := []string{"feat", "fix"}
 	s := SharedSettings{
-		ConventionsSince:           ptr("2026-09-01"),
-		ConventionsTypes:           &types,
-		ConventionsScopes:          &[]string{"api"},
-		ConventionsMaxSubjectSoft:  ptr(60),
-		ConventionsMaxSubjectHard:  ptr(90),
-		ConventionsForbidden:       new([]string), // nil list: becomes an empty list
-		ConventionsLanguage:        ptr("fr"),
-		ConventionsBranchPattern:   ptr("^feat/.+$"),
-		ConventionsBranchExclude:   &[]string{"gh-pages"},
-		ConventionsPRBodySections:  &[]string{"testing"},
-		ConventionsPRRequireCloses: ptr(false),
-		ConventionsMilestones:      &[]string{"v1.0.0@2026-12-18"},
-		ConventionsPrereleaseForms: &[]string{"rc"},
-		ConventionsCategoriesFR:    ptr(false),
-		ConventionsReadmeSections:  &[]string{"install"},
-		ConventionsReadmeMinWords:  ptr(40),
-		ConventionsDocsDir:         ptr("docs"),
-		ConventionsDocsMediaDir:    ptr("img"),
-		ConventionsArchivesScope:   ptr("documentation"),
+		ConventionsSince:                    ptr("2026-09-01"),
+		ConventionsTypes:                    &types,
+		ConventionsScopes:                   &[]string{"api"},
+		ConventionsMaxSubjectSoft:           ptr(60),
+		ConventionsMaxSubjectHard:           ptr(90),
+		ConventionsForbidden:                new([]string), // nil list: becomes an empty list
+		ConventionsLanguage:                 ptr("fr"),
+		ConventionsBranchPattern:            ptr("^feat/.+$"),
+		ConventionsBranchExclude:            &[]string{"gh-pages"},
+		ConventionsPRBodySections:           &[]string{"testing"},
+		ConventionsPRRequireCloses:          ptr(false),
+		ConventionsPRMinReviews:             ptr(2),
+		ConventionsPRReviewerMustContribute: ptr(true),
+		ConventionsMilestones:               &[]string{"v1.0.0@2026-12-18"},
+		ConventionsPrereleaseForms:          &[]string{"rc"},
+		ConventionsCategoriesFR:             ptr(false),
+		ConventionsReadmeSections:           &[]string{"install"},
+		ConventionsReadmeMinWords:           ptr(40),
+		ConventionsDocsDir:                  ptr("docs"),
+		ConventionsDocsMediaDir:             ptr("img"),
+		ConventionsArchivesScope:            ptr("documentation"),
 	}
 	got := s.ApplyTo(cfg)
 	want := ConventionsConfig{Enabled: true, Since: "2026-09-01",
 		Commit: ConventionsCommitConfig{Types: []string{"feat", "fix"}, Scopes: []string{"api"},
 			MaxSubjectSoft: 60, MaxSubjectHard: 90, Forbidden: []string{}, Language: "fr"},
-		Branch:           ConventionsBranchConfig{Pattern: "^feat/.+$", Exclude: []string{"gh-pages"}},
-		PR:               ConventionsPRConfig{BodySections: []string{"testing"}, RequireCloses: false},
+		Branch: ConventionsBranchConfig{Pattern: "^feat/.+$", Exclude: []string{"gh-pages"}},
+		PR: ConventionsPRConfig{BodySections: []string{"testing"}, RequireCloses: false,
+			MinReviews: 2, ReviewerMustContribute: true},
 		Tags:             ConventionsTagsConfig{Milestones: []string{"v1.0.0@2026-12-18"}, PrereleaseForms: []string{"rc"}},
 		Changelog:        ConventionsChangelogConfig{CategoriesFR: false},
 		Readme:           ConventionsReadmeConfig{Sections: []string{"install"}, MinWords: 40},
@@ -269,7 +277,7 @@ func TestSharedSettingsApplyToConventions(t *testing.T) {
 	if cfg.Conventions.Since != "" || cfg.Conventions.Commit.MaxSubjectSoft != 50 {
 		t.Error("ApplyTo changed the original configuration")
 	}
-	if got := s.Keys(); !slices.Equal(got, SharedKeys[len(SharedKeys)-19:]) {
+	if got := s.Keys(); !slices.Equal(got, SharedKeys[len(SharedKeys)-21:]) {
 		t.Errorf("Keys = %v", got)
 	}
 }

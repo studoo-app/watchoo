@@ -9,7 +9,7 @@ facultatif (dépôts suivis par clones Git locaux) ; la migration `00005` (0.5.0
 `contributors.profile_url` et la migration `00006` (0.5.0) `commits.stats_known` ; la migration `00007` (1.1.0) ajoute `repository_languages` ; la migration `00008` (1.2.0)
 ajoute `commits.ai_rules_version` et la table `commit_ai_signatures` ; la migration `00009` (1.2.0) ajoute
 `commits.languages_version` et la table `commit_languages`, soit **treize tables** ; la migration `00010` (1.3.0)
-ajoute `sync_runs.warnings`. La migration `00011` (phase 7.1) ajoute `commit_signals`, la migration `00012` (phase 7.2) `pull_requests.tool_ids` et `repository_signals`, la migration `00013` (phase 7.4) `diagnostic_reviews`, soit **seize tables**, la migration `00014` (phase 7.5) les colonnes de forme de `commit_signals`, et la migration `00015` (phase 7.7) ses mesures des signaux absolus et des contre-indicateurs (voir [Supervision et diagnostic](12-supervision-diagnostic.md)). La migration `00016` (phase 8.1) ajoute `commits.parent_count` et `repositories.conventions_since` (voir [Conventions de projet](13-conventions.md) et [Migration `00016`](#migration-00016--conventions-de-projet)), la migration `00017` (phase 8.3) le cache `repository_conventions` des critères de fichiers des conventions (voir [Migration `00017`](#migration-00017--cache-des-critères-de-fichiers)), puis les migrations `00018` et `00019` (phase 8.4) l'historique des tags `tag_observations` et les réécritures observées de la branche par défaut `branch_rewrites`, soit **dix-neuf tables** (voir [Migrations `00018` et `00019`](#migrations-00018-et-00019--historique-des-tags-et-de-la-branche-par-défaut)) ; la migration `00020` (phase 8.5) ajoute seulement des colonnes à `pull_requests` et `repositories` (voir [Migration `00020`](#migration-00020--fusions-et-corps-des-pull-requests)). Le stockage est un fichier SQLite versionné par des migrations
+ajoute `sync_runs.warnings`. La migration `00011` (phase 7.1) ajoute `commit_signals`, la migration `00012` (phase 7.2) `pull_requests.tool_ids` et `repository_signals`, la migration `00013` (phase 7.4) `diagnostic_reviews`, soit **seize tables**, la migration `00014` (phase 7.5) les colonnes de forme de `commit_signals`, et la migration `00015` (phase 7.7) ses mesures des signaux absolus et des contre-indicateurs (voir [Supervision et diagnostic](12-supervision-diagnostic.md)). La migration `00016` (phase 8.1) ajoute `commits.parent_count` et `repositories.conventions_since` (voir [Conventions de projet](13-conventions.md) et [Migration `00016`](#migration-00016--conventions-de-projet)), la migration `00017` (phase 8.3) le cache `repository_conventions` des critères de fichiers des conventions (voir [Migration `00017`](#migration-00017--cache-des-critères-de-fichiers)), puis les migrations `00018` et `00019` (phase 8.4) l'historique des tags `tag_observations` et les réécritures observées de la branche par défaut `branch_rewrites`, soit **dix-neuf tables** (voir [Migrations `00018` et `00019`](#migrations-00018-et-00019--historique-des-tags-et-de-la-branche-par-défaut)) ; la migration `00020` (phase 8.5) ajoute seulement des colonnes à `pull_requests` et `repositories` (voir [Migration `00020`](#migration-00020--fusions-et-corps-des-pull-requests)), et la migration `00021` (phase 8.6) seulement les compteurs de relectures de `pull_requests` (voir [Migration `00021`](#migration-00021--relectures-des-pull-requests)). Le stockage est un fichier SQLite versionné par des migrations
 `goose`, avec **une base par espace de supervision** (`.watchoo/watchoo.db`, voir
 [Espaces de supervision](10-espaces-de-supervision.md)). Les tables ne connaissent donc pas la notion
 d'espace : deux espaces ne partagent jamais de données.
@@ -243,6 +243,10 @@ supprimée, sauf avec son dépôt.
 | merge_commit_sha | Conventions (phase 8.5, migration `00020`) : commit créé par la fusion (squash, merge commit ou dernier commit rebasé), rempli seulement pour une PR fusionnée ; vide = non fusionnée ou inconnu |
 | from_fork | Conventions (phase 8.5, migration `00020`) : `1` si le dépôt de tête diffère du dépôt de base ou a été supprimé, `0` sinon ; vide = inconnu (PR lue avant la migration, ou réponse sans dépôt de base) |
 | body_sections | Conventions (PR5, phase 8.5, migration `00020`) : masque de bits des sections reconnues dans la description (contexte 1, changements 2, tests 4, captures 8) et du mot-clé de fermeture (16), calculé en mémoire à la synchro (`conventions.CheckPRBody`), même conventions désactivées ; vide = inconnu. La description n'est jamais gardée |
+| reviews_by_others | Conventions (PR4, phase 8.6, migration `00021`) : nombre de relectures déposées par d'autres comptes que l'auteur, ni bots ni exclus (`conventions.excluded_accounts`), tous états sauf `PENDING` ; vide = relectures jamais lues |
+| approvals_by_others | Conventions (PR4, phase 8.6, migration `00021`) : nombre de relecteurs distincts de ces comptes dont le dernier état parmi `APPROVED`, `CHANGES_REQUESTED` et `DISMISSED`, déposé au plus tard à `merged_at`, est `APPROVED` (PR ouverte : toutes les relectures comptent) ; vide = jamais lues |
+| approvals_by_contributors | Conventions (PR4, phase 8.6, migration `00021`) : parmi ces relecteurs approuvant, ceux qui sont auteurs d'au moins un commit du dépôt connu de la base au moment de la lecture (par identifiant de compte ou login) ; au plus `approvals_by_others` ; vide = jamais lues |
+| reviews_checked_at | Conventions (PR4, phase 8.6, migration `00021`) : date de la dernière lecture des relectures (au moins `merged_at` pour une PR fusionnée ; pour une ouverte, son `updated_at` de la forge, jamais l'horloge locale, pour qu'une fusion ultérieure la fasse relire) ; vide = jamais lues |
 
 - **Auteur** : gardé tel quel (login et identifiant de compte), **sans lien** vers `contributors` : un
   contributeur est l'auteur d'au moins un commit, et un auteur de PR sans commit ne doit pas apparaître
@@ -250,6 +254,9 @@ supprimée, sauf avec son dépôt.
   `contributors.provider_user_id`.
 - **État affiché** : « ouverte » (ou « brouillon »), « mergée » (`merged`) ou « fermée » (fermée sans
   merge).
+- **Relectures** (phase 8.6) : seuls les trois compteurs ci-dessus sont gardés, **jamais le login d'un
+  relecteur** ni le corps d'une relecture ; `conventions.pr.min_reviews` et
+  `conventions.pr.reviewer_must_contribute` sont appliqués à la lecture, à partir de ces compteurs.
 
 ### `releases` — releases (V2)
 
@@ -586,6 +593,27 @@ et la relecture complète n'écrit que ces trois colonnes (jamais `tool_ids`).
 Retour arrière (`Down`) : les sept colonnes sont retirées ; les lignes restent. Un test
 (`internal/store/pull_conventions_test.go`) applique la migration à une base au schéma `00019`, vérifie
 les valeurs inconnues et les contraintes, puis le retour arrière.
+
+## Migration `00021` : relectures des pull requests
+
+La phase 8.6 ([Conventions de projet](13-conventions.md), PR4) ajoute, par `ALTER TABLE … ADD COLUMN` et
+sans reconstruire de table, `pull_requests.reviews_by_others`, `approvals_by_others`,
+`approvals_by_contributors` et `reviews_checked_at` (voir plus haut) ; le nombre de tables ne change pas.
+Contraintes (`CHECK` de colonne) : les trois compteurs `>= 0`, `approvals_by_contributors <=
+approvals_by_others`, `reviews_checked_at` au format de date fixe ; toutes les colonnes acceptent `NULL`,
+qui veut dire relectures jamais lues. Les valeurs viennent de `GET /pulls/{n}/reviews`, lu seulement
+conventions activées et en mode API, après l'écriture de la synchro : une fois par PR fusionnée dont les
+relectures n'ont jamais été lues depuis sa fusion (`reviews_checked_at` vide ou antérieur à `merged_at`),
+et de nouveau pour une PR ouverte (hors brouillon) modifiée depuis la dernière lecture ; jamais une PR
+issue d'un fork ni d'un bot. Les relectures sont réduites en mémoire aux compteurs
+(`conventions.ReviewTally`) : aucun login de relecteur ni aucun corps n'est jamais stocké.
+`UpsertPullRequest` ne liste pas ces colonnes : une nouvelle synchro de la PR les garde.
+`conventions.excluded_accounts` et les auteurs de commits du dépôt sont appliqués à la lecture des
+relectures : changer les comptes exclus ne vaut que pour les PR dont les relectures sont lues ensuite.
+
+Retour arrière (`Down`) : les quatre colonnes sont retirées ; les lignes restent. Un test
+(`internal/store/reviews_test.go`) applique la migration à une base au schéma `00020`, vérifie les valeurs
+inconnues et les contraintes, puis le retour arrière.
 
 ## Renommages et changements de login
 

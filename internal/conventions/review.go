@@ -5,7 +5,8 @@ package conventions
 // courant), SV1 et SV2 du jalon ; phase 8.3 : critères de fichiers sur l'arbre du tag du jalon (CL9, CL8,
 // RD1, section installation de RD2, RD3, DOC1, DOC3), lus dans le cache de la synchro ; phase 8.4 :
 // échéance de SV2 et SV3 du tag du jalon ; phase 8.5 : PR3 = 0 sur l'intervalle du jalon (premier parent) ;
-// PR4 avec la phase 8.6. Indicateurs de dépôt : rien n'est attribué à une personne.
+// phase 8.6 : PR4, PR fusionnées dans l'intervalle du jalon toutes relues. Indicateurs de dépôt : rien
+// n'est attribué à une personne.
 
 import (
 	"context"
@@ -27,15 +28,16 @@ const (
 	CriterionSV1 = "SV1" // nom du tag du jalon conforme
 	CriterionSV2 = "SV2" // jalon présent (à l'heure si une échéance est configurée, phase 8.4)
 	CriterionPR3 = "PR3" // aucun commit arrivé hors PR sur l'intervalle du jalon (phase 8.5)
+	CriterionPR4 = "PR4" // PR fusionnées dans l'intervalle du jalon toutes relues (phase 8.6)
 )
 
 // AllCriteria liste les critères de la revue de jalon, dans leur ordre d'affichage : CC1, BR1 (phase 8.2),
-// PR3 (phase 8.5 : avec BR1, « branches par fonctionnalité, PR relues »), SV1 et SV2 (phase 8.2), SV3
-// (phase 8.4 : avec SV1 et SV2, « tags de jalon jamais réécrits »), puis les critères de fichiers mesurés
-// sur l'arbre du tag du jalon (phase 8.3). Dans la revue, RD2 ne juge que la section installation du
+// PR3 (phase 8.5) et PR4 (phase 8.6) : avec BR1, « branches par fonctionnalité, PR relues », SV1 et SV2
+// (phase 8.2), SV3 (phase 8.4 : avec SV1 et SV2, « tags de jalon jamais réécrits »), puis les critères de
+// fichiers mesurés sur l'arbre du tag du jalon (phase 8.3). Dans la revue, RD2 ne juge que la section installation du
 // README.
-var AllCriteria = []string{CriterionCC1, CriterionBR1, CriterionPR3, CriterionSV1, CriterionSV2, CriterionSV3, CriterionCL9,
-	CriterionCL8, CriterionRD1, CriterionRD2, CriterionRD3, CriterionDOC1, CriterionDOC3}
+var AllCriteria = []string{CriterionCC1, CriterionBR1, CriterionPR3, CriterionPR4, CriterionSV1, CriterionSV2, CriterionSV3,
+	CriterionCL9, CriterionCL8, CriterionRD1, CriterionRD2, CriterionRD3, CriterionDOC1, CriterionDOC3}
 
 // États d'un critère (clés --json).
 const (
@@ -87,6 +89,9 @@ type RepoMilestoneReview struct {
 	// Arrivals est PR3 sur l'intervalle du jalon (premier parent, tous auteurs) ; nil si l'intervalle n'est
 	// pas évaluable (tag absent sans échéance, ou avant la fin de l'échéance).
 	Arrivals *ArrivalReport
+	// Reviews est PR4 sur l'intervalle du jalon (phase 8.6) ; nil si non évaluable (intervalle, API ou date
+	// de tag).
+	Reviews  *MilestoneReviews
 	Files    *MilestoneFiles // critères de fichiers sur l'arbre du tag (phase 8.3) ; nil si non évaluable
 	Criteria []Criterion     // dans l'ordre d'AllCriteria ; vide non nil si non évaluable
 	Conform  int             // critères conformes
@@ -180,6 +185,10 @@ func reviewRepo(ctx context.Context, r Reader, clones CloneReader, repo model.Re
 	if err != nil {
 		return out, err
 	}
+	pr4, err := reviewPullReviews(ctx, r, repo, m, out.Milestone, tags, since, pulls, opts, now, &out)
+	if err != nil {
+		return out, err
+	}
 
 	sv1 := Criterion{ID: CriterionSV1, Status: CriterionUnknown, Reason: UnknownNoTag}
 	if end, ok := m.DueEnd(opts.Location); ok && out.Milestone.Tag == "" {
@@ -220,7 +229,7 @@ func reviewRepo(ctx context.Context, r Reader, clones CloneReader, repo model.Re
 		return out, err
 	}
 	out.Files = mf
-	out.Criteria = append([]Criterion{cc1, br1, pr3, sv1, sv2, sv3}, files...)
+	out.Criteria = append([]Criterion{cc1, br1, pr3, pr4, sv1, sv2, sv3}, files...)
 	for _, c := range out.Criteria {
 		switch c.Status {
 		case CriterionConform:

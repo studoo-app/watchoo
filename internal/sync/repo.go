@@ -202,6 +202,7 @@ func (e *Engine) syncRepository(ctx context.Context, prov provider.Provider, cl 
 	}
 	e.updateAgentContext(ctx, s, repo.ID)
 	e.updateConventionFiles(ctx, s, repo.ID, defaultHead(all, meta.DefaultBranch))
+	e.updatePullRequestReviews(ctx, s, h, src, repo)
 	display := repo.Label
 	if display == "" {
 		display = s.full

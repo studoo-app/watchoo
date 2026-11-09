@@ -27,7 +27,7 @@ const (
 // PRSkipBeforeSince sort de PR1 et PR2 une pull request ouverte avant la date de début.
 const PRSkipBeforeSince = "before_since"
 
-// AllPRSkips liste les motifs qui sortent une pull request de PR1, PR2, PR5 et PR6, dans leur ordre
+// AllPRSkips liste les motifs qui sortent une pull request de PR1, PR2, PR4, PR5 et PR6, dans leur ordre
 // d'affichage.
 var AllPRSkips = []string{PRSkipClosed, PRSkipDraft, PRSkipBot, PRSkipFork, PRSkipBeforeSince}
 
@@ -90,7 +90,7 @@ func (t *BranchTally) add(r BranchResult) {
 }
 
 // PRCount compte des pull requests évaluées : titres conventionnels (PR1), titres par défaut ou
-// interdits (PR2), corps structuré (PR5) et, pour les fusionnées, méthode de fusion (PR6).
+// interdits (PR2), corps structuré (PR5), relectures (PR4) et, pour les fusionnées, méthode de fusion (PR6).
 type PRCount struct {
 	Evaluated int
 	Conform   int // PR1
@@ -101,6 +101,14 @@ type PRCount struct {
 	MergeKnown   int // PR6 (fusionnées) : méthode de fusion déterminée
 	Squash       int // PR6 : fusionnées en squash
 	MergeConform int // PR6 : squash et message du commit conforme
+	// Phase 8.6 (PR4).
+	ReviewKnown int // relectures lues (fusionnées : après la fusion)
+	// Reviewed compte les PR relues : fusionnées, PR4 conforme ; ouvertes, approuvées à la dernière
+	// lecture (information). Les fusionnées sans relecture sont ReviewKnown - Reviewed.
+	Reviewed int
+	// ReviewsReceived additionne les relectures déposées par d'autres comptes sur les PR dont les
+	// relectures sont lues (les relectures données ne sont pas comptées : les relecteurs ne sont pas gardés).
+	ReviewsReceived int
 }
 
 // PRTally compte à part les PR ouvertes et fusionnées.
@@ -135,6 +143,13 @@ func (t *PRTally) add(p PullLine) {
 			c.MergeConform++
 		}
 	}
+	if p.Review.Known {
+		c.ReviewKnown++
+		c.ReviewsReceived += p.Review.ReviewsByOthers
+		if p.Review.Reviewed {
+			c.Reviewed++
+		}
+	}
 }
 
 // PullLine est une pull request évaluée, sans son titre : numéro, auteur, branche de tête et codes.
@@ -151,9 +166,16 @@ type PullLine struct {
 	// Phase 8.5.
 	Body  PRBodyResult // PR5 : sections du corps et mot-clé de fermeture (Known faux : masque inconnu)
 	Merge MergeResult  // PR6 : méthode de fusion d'une PR fusionnée ; Method vide pour une PR ouverte
+	// Phase 8.6.
+	Review ReviewResult // PR4 : relectures (Known faux : jamais lues, ou lues avant la fusion)
 }
 
-// PullReport est PR1, PR2, PR5 et PR6 d'un dépôt. Mesuré seulement si la base suit les PR par l'API.
+// MergedWithoutReview indique une PR fusionnée dont les relectures sont lues et qui n'est pas relue (PR4).
+func (p PullLine) MergedWithoutReview() bool {
+	return p.Category == PRCategoryMerged && p.Review.Known && !p.Review.Reviewed
+}
+
+// PullReport est PR1, PR2, PR4, PR5 et PR6 d'un dépôt. Mesuré seulement si la base suit les PR par l'API.
 type PullReport struct {
 	Known  bool
 	Reason string // UnknownNoAPI si inconnu
@@ -163,6 +185,18 @@ type PullReport struct {
 	// Methods compte les PR fusionnées évaluées par méthode de fusion (PR6, toutes les clés
 	// d'AllMergeMethods).
 	Methods map[string]int
+}
+
+// MergedWithoutReview renvoie les PR fusionnées sans relecture (PR4, vue dérivée), numéro décroissant ;
+// vide non nil si aucune.
+func (r PullReport) MergedWithoutReview() []PullLine {
+	out := []PullLine{}
+	for _, p := range r.Pulls {
+		if p.MergedWithoutReview() {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 // TagReport est SV1, SV2 et SV6 d'un dépôt.
@@ -224,7 +258,7 @@ func buildExtras(ctx context.Context, r Reader, clones CloneReader, repo model.R
 	if err != nil {
 		return err
 	}
-	rep.Pulls = buildPulls(mine, pullsKnown(repo, opts), rep.Since, env.parser, opts.PRBody, commits)
+	rep.Pulls = buildPulls(mine, pullsKnown(repo, opts), rep.Since, env.parser, opts.PRBody, opts.Review, commits)
 	if rep.Branches, err = buildBranches(ctx, r, clones, repo, pulls, env.branches); err != nil {
 		return err
 	}
@@ -320,10 +354,10 @@ func readPulls(ctx context.Context, r Reader, repo model.Repository, opts BuildO
 	return r.ConventionPullRequests(ctx, repo.ID)
 }
 
-// buildPulls calcule PR1, PR2, PR5 et PR6. Le titre et le message du commit de fusion ne sont lus qu'ici,
+// buildPulls calcule PR1, PR2, PR4, PR5 et PR6. Le titre et le message du commit de fusion ne sont lus qu'ici,
 // en mémoire ; le corps n'est connu que par son masque. commits donne les commits en base par SHA (PR6).
 func buildPulls(pulls []model.ConventionPullRequest, known bool, since time.Time, p *Parser, body PRBodyRules,
-	commits map[string]model.ConventionCommit) PullReport {
+	review ReviewRules, commits map[string]model.ConventionCommit) PullReport {
 	out := PullReport{Known: known, Skipped: map[string]int{}, Pulls: []PullLine{}, Methods: map[string]int{}}
 	for _, s := range AllPRSkips {
 		out.Skipped[s] = 0
@@ -349,6 +383,7 @@ func buildPulls(pulls []model.ConventionPullRequest, known bool, since time.Time
 			Number: pr.Number, Category: cat, AuthorID: pr.AuthorID, AuthorName: pr.AuthorName,
 			AuthorLogin: pr.AuthorLogin, HeadBranch: pr.HeadBranch, Codes: res.Codes, Default: res.Default,
 			Conform: res.Conform(), Body: EvalPRBody(pr.BodySections, body),
+			Review: EvalPullReview(pr.PullRequest, review),
 		}
 		if cat == PRCategoryMerged {
 			var c *model.ConventionCommit

@@ -60,9 +60,16 @@ request (PR6: squash with a conforming message), the head branches merged more t
 merge methods allowed on the repository (BR5: squash only; unknown without push access). Pull requests
 from a fork are set aside.
 
+Reviews (API mode, one request per merged pull request, read once): the merged pull requests reviewed by
+another account (PR4: at least conventions.pr.min_reviews distinct reviewers, neither the author, a bot
+nor an excluded account, whose last decisive review before the merge is an approval; with
+conventions.pr.reviewer_must_contribute, the reviewer has authored a commit of the repository), the
+merged pull requests without review (number and author), and per contributor the reviews received on
+their pull requests. Counters only: no reviewer login is kept.
+
 --milestone vX.Y.Z shows the review of a configured milestone, repository by repository: CC1 on the
-milestone interval, BR1, PR3 (no commit outside a pull request on the interval), SV1, SV2 (with its due
-date) and SV3, then CL9, CL8, RD1, RD2 (installation section), RD3, DOC1 and
+milestone interval, BR1, PR3 (no commit outside a pull request on the interval), PR4 (every pull request
+merged in the interval reviewed), SV1, SV2 (with its due date) and SV3, then CL9, CL8, RD1, RD2 (installation section), RD3, DOC1 and
 DOC3 on the tree of the milestone tag, each conform, not conform or unknown ("k/n criteria conform,
 u unknown"), never an overall grade. It requires a start date (conventions.since).
 
@@ -124,8 +131,16 @@ pull request fusionnée (PR6 : squash au message conforme), branches de tête fu
 (BR2) et méthodes de fusion autorisées sur le dépôt (BR5 : squash seul ; inconnu sans droit push). Les
 pull requests issues d'un fork sont écartées.
 
+Relectures (mode API, une requête par pull request fusionnée, lue une fois) : pull requests fusionnées
+relues par un autre compte (PR4 : au moins conventions.pr.min_reviews relecteurs distincts, ni l'auteur,
+ni un bot, ni un compte exclu, dont la dernière relecture décisive avant la fusion est une approbation ;
+avec conventions.pr.reviewer_must_contribute, le relecteur est auteur d'un commit du dépôt), pull
+requests fusionnées sans relecture (numéro et auteur) et, par contributeur, les relectures reçues sur
+ses pull requests. Des compteurs seulement : aucun login de relecteur n'est gardé.
+
 --milestone vX.Y.Z affiche la revue d'un jalon configuré, dépôt par dépôt : CC1 sur l'intervalle du
-jalon, BR1, PR3 (aucun commit hors pull request sur l'intervalle), SV1, SV2 (avec son échéance) et SV3, puis CL9, CL8, RD1, RD2 (section installation), RD3, DOC1 et DOC3 sur l'arbre
+jalon, BR1, PR3 (aucun commit hors pull request sur l'intervalle), PR4 (toutes les pull requests
+fusionnées dans l'intervalle relues), SV1, SV2 (avec son échéance) et SV3, puis CL9, CL8, RD1, RD2 (section installation), RD3, DOC1 et DOC3 sur l'arbre
 du tag du jalon, chacun conforme, non conforme ou inconnu (« k/n critères conformes, u inconnus »),
 jamais de note globale. Elle exige une date de début (conventions.since).
 
@@ -228,8 +243,8 @@ Options :
 	"cli.conv.header_pr_bodies":  {"PR bodies", "Corps de PR"},
 	"cli.conv.header_outside_pr": {"Outside PR", "Hors PR"},
 	"cli.conv.contributors_note": {
-		"Last tag: rates up to and since the last final tag of each repository (CC3 trend, \"—\" without clone or final tag); PR titles, PR bodies and branches: those of the contributor's pull requests; outside PR: commits of the default branch the contributor wrote that arrived outside a pull request, out of those classified.",
-		"Dernier tag : taux jusqu'au et depuis le dernier tag final de chaque dépôt (tendance de CC3, « — » sans clone ni tag final) ; titres de PR, corps de PR et branches : ceux des pull requests du contributeur ; hors PR : commits de la branche par défaut dont il est l'auteur arrivés hors pull request, sur ceux classés.",
+		"Last tag: rates up to and since the last final tag of each repository (CC3 trend, \"—\" without clone or final tag); PR titles, PR bodies and branches: those of the contributor's pull requests; outside PR: commits of the default branch the contributor wrote that arrived outside a pull request, out of those classified; PR reviewed: merged pull requests of the contributor reviewed by another account out of those whose reviews were read, and the reviews received on their pull requests (reviews given are not counted).",
+		"Dernier tag : taux jusqu'au et depuis le dernier tag final de chaque dépôt (tendance de CC3, « — » sans clone ni tag final) ; titres de PR, corps de PR et branches : ceux des pull requests du contributeur ; hors PR : commits de la branche par défaut dont il est l'auteur arrivés hors pull request, sur ceux classés ; PR relues : pull requests fusionnées du contributeur relues par un autre compte sur celles dont les relectures sont lues, et relectures reçues sur ses pull requests (les relectures données ne sont pas comptées).",
 	},
 
 	"cli.conv.branches_source.clone":    {"clone", "clone"},
@@ -463,6 +478,32 @@ Options :
 	"cli.conv.milestone_arrivals": {
 		"%d outside PR of %d commits (%d undetermined)",
 		"%d hors PR sur %d commits (%d indéterminés)",
+	},
+
+	// Phase 8.6 : PR4 (relectures).
+	"cli.conv.reviews_line": {
+		"merged pull requests reviewed by another account: %d/%d (%d not read yet)",
+		"pull requests fusionnées relues par un autre compte : %d/%d (%d pas encore lues)",
+	},
+	"cli.conv.reviews_missing": {
+		"merged without review (%d): %s",
+		"fusionnées sans relecture (%d) : %s",
+	},
+	"cli.conv.header_reviews":      {"PR reviewed", "PR relues"},
+	"cli.conv.author_reviews":      {"%d/%d, %d review(s) received", "%d/%d, %d relecture(s) reçue(s)"},
+	"cli.conv.author_reviews_open": {"%d review(s) received", "%d relecture(s) reçue(s)"},
+	"cli.conv.milestone_reviews": {
+		"%d/%d merged pull requests reviewed (%d not read yet)",
+		"%d/%d pull requests fusionnées relues (%d pas encore lues)",
+	},
+	"cli.conv.reason.reviews_unchecked": {
+		"reviews of merged pull requests not read yet, run watchoo sync",
+		"relectures de pull requests fusionnées pas encore lues, lancez watchoo sync",
+	},
+	"cli.conv.reason.no_merged_pr": {"no merged pull request", "aucune pull request fusionnée"},
+	"cli.conv.reason.no_tag_date": {
+		"date of a tag commit not in the database",
+		"date du commit d'un tag absente de la base",
 	},
 }
 

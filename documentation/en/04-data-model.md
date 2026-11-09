@@ -10,7 +10,7 @@ migration `00005` (0.5.0) adds `contributors.profile_url` and the migration `000
 `commits.stats_known`; the migration `00007` (1.1.0) adds `repository_languages`; the migration `00008` (1.2.0)
 adds `commits.ai_rules_version` and the `commit_ai_signatures` table; the migration `00009` (1.2.0) adds
 `commits.languages_version` and the `commit_languages` table, i.e. **thirteen tables**; the migration `00010` (1.3.0)
-adds `sync_runs.warnings`. The migration `00011` (phase 7.1) adds `commit_signals`, the migration `00012` (phase 7.2) `pull_requests.tool_ids` and `repository_signals`, the migration `00013` (phase 7.4) `diagnostic_reviews`, i.e. **sixteen tables**, the migration `00014` (phase 7.5) the form columns of `commit_signals`, and the migration `00015` (phase 7.7) its measures of the absolute signals and counter-indicators (see [Supervision and diagnosis](12-supervision-diagnostic.md)). The migration `00016` (phase 8.1) adds `commits.parent_count` and `repositories.conventions_since` (see [Project conventions](13-conventions.md) and [Migration `00016`](#migration-00016-project-conventions)), the migration `00017` (phase 8.3) the cache `repository_conventions` of the file criteria of the conventions (see [Migration `00017`](#migration-00017-cache-of-the-file-criteria)), then the migrations `00018` and `00019` (phase 8.4) the history of the tags `tag_observations` and the observed rewrites of the default branch `branch_rewrites`, i.e. **nineteen tables** (see [Migrations `00018` and `00019`](#migrations-00018-and-00019-history-of-the-tags-and-of-the-default-branch)); the migration `00020` (phase 8.5) only adds columns to `pull_requests` and `repositories` (see [Migration `00020`](#migration-00020-merges-and-pull-request-bodies)). The storage is a SQLite file versioned by `goose` migrations, with **one
+adds `sync_runs.warnings`. The migration `00011` (phase 7.1) adds `commit_signals`, the migration `00012` (phase 7.2) `pull_requests.tool_ids` and `repository_signals`, the migration `00013` (phase 7.4) `diagnostic_reviews`, i.e. **sixteen tables**, the migration `00014` (phase 7.5) the form columns of `commit_signals`, and the migration `00015` (phase 7.7) its measures of the absolute signals and counter-indicators (see [Supervision and diagnosis](12-supervision-diagnostic.md)). The migration `00016` (phase 8.1) adds `commits.parent_count` and `repositories.conventions_since` (see [Project conventions](13-conventions.md) and [Migration `00016`](#migration-00016-project-conventions)), the migration `00017` (phase 8.3) the cache `repository_conventions` of the file criteria of the conventions (see [Migration `00017`](#migration-00017-cache-of-the-file-criteria)), then the migrations `00018` and `00019` (phase 8.4) the history of the tags `tag_observations` and the observed rewrites of the default branch `branch_rewrites`, i.e. **nineteen tables** (see [Migrations `00018` and `00019`](#migrations-00018-and-00019-history-of-the-tags-and-of-the-default-branch)); the migration `00020` (phase 8.5) only adds columns to `pull_requests` and `repositories` (see [Migration `00020`](#migration-00020-merges-and-pull-request-bodies)), and the migration `00021` (phase 8.6) only the review counters of `pull_requests` (see [Migration `00021`](#migration-00021-pull-request-reviews)). The storage is a SQLite file versioned by `goose` migrations, with **one
 database per workspace** (`.watchoo/watchoo.db`, see [Workspaces](10-workspaces.md)). The tables
 therefore do not know the notion of workspace: two workspaces never share data.
 
@@ -243,6 +243,10 @@ removed, except with its repository.
 | merge_commit_sha | Conventions (phase 8.5, migration `00020`): commit created by the merge (squash, merge commit or last rebased commit), filled only for a merged PR; empty = not merged or unknown |
 | from_fork | Conventions (phase 8.5, migration `00020`): `1` if the head repository differs from the base repository or was deleted, `0` otherwise; empty = unknown (PR read before the migration, or answer without the base repository) |
 | body_sections | Conventions (PR5, phase 8.5, migration `00020`): bit mask of the sections recognized in the description (context 1, changes 2, testing 4, screenshots 8) and of the closing keyword (16), computed in memory at the sync (`conventions.CheckPRBody`), even with the conventions disabled; empty = unknown. The description is never kept |
+| reviews_by_others | Conventions (PR4, phase 8.6, migration `00021`): number of reviews submitted by accounts other than the author, neither bots nor excluded (`conventions.excluded_accounts`), every state except `PENDING`; empty = reviews never read |
+| approvals_by_others | Conventions (PR4, phase 8.6, migration `00021`): number of distinct reviewers among these accounts whose last state among `APPROVED`, `CHANGES_REQUESTED` and `DISMISSED`, submitted at the latest at `merged_at`, is `APPROVED` (open PR: every review counts); empty = never read |
+| approvals_by_contributors | Conventions (PR4, phase 8.6, migration `00021`): among these approving reviewers, those who are the author of at least one commit of the repository known to the database at the time of the reading (by account ID or login); at most `approvals_by_others`; empty = never read |
+| reviews_checked_at | Conventions (PR4, phase 8.6, migration `00021`): date of the last reading of the reviews (at least `merged_at` for a merged PR; for an open one, its `updated_at` from the forge, never the local clock, so that a later merge has it read again); empty = never read |
 
 - **Author**: kept as is (login and account ID), **without a link** to `contributors`: a
   contributor is the author of at least one commit, and an author of PRs without a commit must not
@@ -250,6 +254,9 @@ removed, except with its repository.
   `contributors.provider_user_id`.
 - **Displayed state**: "open" (or "draft"), "merged" (`merged`) or "closed" (closed
   without merge).
+- **Reviews** (phase 8.6): only the three counters above are kept, **never a reviewer's login** nor the
+  body of a review; `conventions.pr.min_reviews` and `conventions.pr.reviewer_must_contribute` are applied
+  when reading, from these counters.
 
 ### `releases` — releases (V2)
 
@@ -587,6 +594,26 @@ read only writes these three columns (never `tool_ids`).
 Rolling back (`Down`): the seven columns are removed; the rows remain. A test
 (`internal/store/pull_conventions_test.go`) applies the migration to a database at schema `00019`, checks
 the unknown values and the constraints, then the rollback.
+
+## Migration `00021`: pull request reviews
+
+Phase 8.6 ([Project conventions](13-conventions.md), PR4) adds, with `ALTER TABLE … ADD COLUMN` and
+without rebuilding any table, `pull_requests.reviews_by_others`, `approvals_by_others`,
+`approvals_by_contributors` and `reviews_checked_at` (see above); the number of tables does not change.
+Constraints (column `CHECK`): the three counters `>= 0`, `approvals_by_contributors <= approvals_by_others`,
+`reviews_checked_at` in the fixed date format; every column is nullable, `NULL` meaning reviews never
+read. The values come from `GET /pulls/{n}/reviews`, read only with the conventions enabled and in API
+mode, after the sync write: once per merged PR whose reviews were never read since its merge
+(`reviews_checked_at` empty or earlier than `merged_at`), and again for an open PR (not a draft) updated
+since the last reading; never a PR from a fork nor by a bot. The reviews are reduced in memory to the
+counters (`conventions.ReviewTally`): no reviewer's login and no body is ever stored. `UpsertPullRequest`
+does not list these columns: a new sync of the PR keeps them. `conventions.excluded_accounts` and the
+commit authors of the repository are applied when the reviews are read: changing the excluded accounts
+only applies to the PRs whose reviews are read afterwards.
+
+Rolling back (`Down`): the four columns are removed; the rows remain. A test
+(`internal/store/reviews_test.go`) applies the migration to a database at schema `00020`, checks the
+unknown values and the constraints, then the rollback.
 
 ## Renames and login changes
 

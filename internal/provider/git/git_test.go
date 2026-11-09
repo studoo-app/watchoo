@@ -216,6 +216,9 @@ func TestRepositoryAndHistory(t *testing.T) {
 	if _, err := p.PullRequests(ctx, "alice", "projet", provider.PullRequestsOptions{}); !errors.Is(err, provider.ErrUnsupported) {
 		t.Errorf("PullRequests: %v, want ErrUnsupported", err)
 	}
+	if _, err := p.PullRequestReviews(ctx, "alice", "projet", 1); !errors.Is(err, provider.ErrUnsupported) {
+		t.Errorf("PullRequestReviews: %v, want ErrUnsupported", err)
+	}
 	if _, err := p.Releases(ctx, "alice", "projet"); !errors.Is(err, provider.ErrUnsupported) {
 		t.Errorf("Releases: %v, want ErrUnsupported", err)
 	}
@@ -336,6 +339,7 @@ func TestInvalidRefsRunNothing(t *testing.T) {
 		"id":         func() error { _, err := p.RepositoryByID(ctx, 0); return err },
 		"pulls":      func() error { _, err := p.PullRequests(ctx, "a/b", "p", provider.PullRequestsOptions{}); return err },
 		"releases":   func() error { _, err := p.Releases(ctx, "alice", "a b"); return err },
+		"review nb":  func() error { _, err := p.PullRequestReviews(ctx, "alice", "p", 0); return err },
 		"clone path": func() error { _, err := git.NewLayout(t.TempDir(), nil).Path("alice", "../x"); return err },
 		"remove":     func() error { return git.RemoveClone(t.TempDir(), nil, "alice", "../x") },
 	}

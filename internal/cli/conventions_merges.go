@@ -141,7 +141,7 @@ func arrivalMode(a conventions.ArrivalReport) string {
 	return "clone"
 }
 
-// mergeFlowLines décrit PR3, PR5, PR6, BR2 et BR5 d'un dépôt.
+// mergeFlowLines décrit PR3, PR5, PR6, PR4 (phase 8.6), BR2 et BR5 d'un dépôt.
 func mergeFlowLines(r conventions.RepoReport) []string {
 	var lines []string
 	lines = append(lines, arrivalLines(r.Arrivals, "cli.conv.arrivals_line")...)
@@ -168,6 +168,7 @@ func mergeFlowLines(r conventions.RepoReport) []string {
 		}
 		lines = append(lines, i18n.T("cli.conv.merges_line", p.Merged.MergeConform, p.Merged.Evaluated, strings.Join(parts, ", ")))
 	}
+	lines = append(lines, reviewLines(p)...)
 	switch b := r.Branches; {
 	case !b.ReusedKnown:
 	case len(b.Reused) == 0:

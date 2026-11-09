@@ -3,7 +3,8 @@ package web
 // Conventions de la phase 8.5 sur la page d'un dépôt (bloc « fusions » du fragment « repo-conventions »),
 // sur « /conventions » et sur la page d'un contributeur : commits arrivés sur la branche par défaut hors
 // PR (PR3 : SHA court et auteur du commit, jamais « a poussé »), corps structuré des PR (PR5), méthode de
-// fusion (PR6), branches réutilisées (BR2) et méthodes de fusion autorisées (BR5). Ni corps ni titre de
+// fusion (PR6), branches réutilisées (BR2) et méthodes de fusion autorisées (BR5) ; phase 8.6 : PR4 dans
+// repo_conventions_reviews.go. Ni corps ni titre de
 // PR, ni message de commit : codes, numéros, SHA courts et auteurs seulement.
 
 import (
@@ -49,6 +50,8 @@ type convMergesView struct {
 	BodyEvaluated, BodyKnown, BodyConform int
 	MergedEvaluated, MergeConform         int
 	Methods                               []convCount // PR fusionnées par méthode, méthodes à au moins une PR
+	// PR4 (phase 8.6) : PR fusionnées relues et fusionnées sans relecture ; rien sans API.
+	Reviews convReviews
 	// BR2 ; ReusedKnown faux sans API.
 	ReusedKnown bool
 	Reused      []convReusedRow
@@ -100,6 +103,7 @@ func newConvMerges(tr *i18n.Translator, repo conventions.RepoReport) convMergesV
 		v.BodyKnown = p.Open.BodyKnown + p.Merged.BodyKnown
 		v.BodyConform = p.Open.BodyConform + p.Merged.BodyConform
 		v.MergedEvaluated, v.MergeConform = p.Merged.Evaluated, p.Merged.MergeConform
+		v.Reviews = newConvReviews(p)
 		for _, m := range conventions.AllMergeMethods {
 			if n := p.Methods[m]; n > 0 {
 				v.Methods = append(v.Methods, convCount{Code: m, Label: tr.T("web.conv.merge_method." + m), Count: n})
@@ -168,8 +172,9 @@ func mergeStatus(tr *i18n.Translator, m conventions.MergeResult) *convStatus {
 }
 
 // pullNeedsRow indique une PR à lister sur la page du dépôt : titre non conforme ou par défaut (PR1,
-// PR2), corps connu non conforme (PR5) ou fusion connue autre qu'un squash au message conforme (PR6).
+// PR2), corps connu non conforme (PR5), fusion connue autre qu'un squash au message conforme (PR6) ou,
+// phase 8.6, fusionnée sans relecture (PR4).
 func pullNeedsRow(l conventions.PullLine) bool {
 	return !l.Conform || len(l.Default) > 0 || (l.Body.Known && !l.Body.Conform) ||
-		(l.Merge.Method != "" && l.Merge.Known() && !l.Merge.Conform)
+		(l.Merge.Method != "" && l.Merge.Known() && !l.Merge.Conform) || l.MergedWithoutReview()
 }

@@ -34,6 +34,33 @@ SET merge_commit_sha = sqlc.narg(merge_commit_sha),
     body_sections = COALESCE(sqlc.narg(body_sections), body_sections)
 WHERE repo_id = sqlc.arg(repo_id) AND number = sqlc.arg(number);
 
+-- name: SetPullRequestReviews :execrows
+-- Relectures d'une PR deja en base (phase 8.6, PR4) : compteurs seulement, jamais de login de relecteur
+-- ni de corps ; reviews_checked_at = date de la lecture. 0 ligne : PR absente.
+UPDATE pull_requests
+SET reviews_by_others = sqlc.arg(reviews_by_others),
+    approvals_by_others = sqlc.arg(approvals_by_others),
+    approvals_by_contributors = sqlc.arg(approvals_by_contributors),
+    reviews_checked_at = sqlc.arg(reviews_checked_at)
+WHERE repo_id = sqlc.arg(repo_id) AND number = sqlc.arg(number);
+
+-- name: ListPullRequestsToReview :many
+-- PR dont les relectures sont a lire (phase 8.6) : fusionnees jamais relues depuis leur fusion
+-- (reviews_checked_at NULL ou anterieur a merged_at : une seule lecture apres la fusion suffit), puis
+-- ouvertes hors brouillons modifiees depuis la derniere lecture ; jamais les PR issues d'un fork
+-- (from_fork = 1). Fusionnees d'abord (fusion la plus recente d'abord), puis ouvertes (modification la
+-- plus recente d'abord). L'appelant ecarte les auteurs bots, les PR ouvertes avant la date de debut des
+-- conventions (created_at) et applique le plafond.
+SELECT p.number, p.merged, p.merged_at, p.created_at, p.updated_at, p.author_login, p.author_provider_id
+FROM pull_requests p
+WHERE p.repo_id = ?
+  AND (p.from_fork IS NULL OR p.from_fork = 0)
+  AND ((p.merged = 1 AND p.merged_at IS NOT NULL
+        AND (p.reviews_checked_at IS NULL OR p.reviews_checked_at < p.merged_at))
+    OR (p.merged = 0 AND p.state = 'open' AND p.draft = 0
+        AND (p.reviews_checked_at IS NULL OR p.reviews_checked_at < p.updated_at)))
+ORDER BY p.merged DESC, p.merged_at DESC, p.updated_at DESC, p.number DESC;
+
 -- name: MaxPullRequestUpdatedAt :one
 -- Date de modification la plus recente des pull requests du depot (chaine vide si aucune).
 SELECT CAST(COALESCE(max(updated_at), '') AS TEXT) AS updated_at
@@ -46,6 +73,7 @@ WHERE repo_id = ?;
 SELECT p.repo_id, p.number, p.title, p.state, p.merged, p.draft, p.author_login, p.author_provider_id,
        p.url, p.base_branch, p.head_branch, p.created_at, p.updated_at, p.closed_at, p.merged_at, p.tool_ids,
        p.merge_commit_sha, p.from_fork, p.body_sections,
+       p.reviews_by_others, p.approvals_by_others, p.approvals_by_contributors, p.reviews_checked_at,
        r.owner AS repo_owner, r.name AS repo_name, r.label AS repo_label
 FROM pull_requests p
 JOIN repositories r ON r.id = p.repo_id
@@ -141,6 +169,7 @@ LIMIT sqlc.arg(row_limit);
 SELECT p.repo_id, p.number, p.title, p.state, p.merged, p.draft, p.author_login, p.author_provider_id,
        p.url, p.base_branch, p.head_branch, p.created_at, p.updated_at, p.closed_at, p.merged_at, p.tool_ids,
        p.merge_commit_sha, p.from_fork, p.body_sections,
+       p.reviews_by_others, p.approvals_by_others, p.approvals_by_contributors, p.reviews_checked_at,
        CAST(COALESCE(c.id, 0) AS INTEGER) AS author_id,
        CAST(COALESCE(c.name, '') AS TEXT) AS author_name
 FROM pull_requests p

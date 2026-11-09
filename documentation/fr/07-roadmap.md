@@ -197,7 +197,9 @@ L'import d'une organisation entière et les alertes passent en V3 (voir
   par la synchro, échéances des jalons, SV3 à SV5, SV7, fraîcheur du CHANGELOG, SV3 dans la revue de jalon)
   et phase **8.5** (fusions lues sans requête de plus : SHA de fusion, origine fork, sections des
   descriptions de PR, méthodes de fusion ; PR3, PR5, PR6, BR2, BR5, forks écartés de PR1, PR2, PR5, PR6, BR1 et BR2, PR3 dans la
-  revue de jalon) **réalisées, non publiées** ; phases 8.6 et 8.7 à planifier. Protection de branche (BR3) reportée.
+  revue de jalon) et phase **8.6** (relectures : une requête par pull request fusionnée, des compteurs
+  seulement ; PR4, fusionnées sans relecture, relectures reçues, PR4 dans la revue de jalon) **réalisées, non
+  publiées** ; phase 8.7 à planifier. Protection de branche (BR3) reportée.
 
 ## Définition de « terminé » pour chaque phase
 

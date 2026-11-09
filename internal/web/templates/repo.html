@@ -456,6 +456,7 @@
             <th scope="col">{{t "web.conv.col_codes"}}</th>
             <th scope="col">{{t "web.conv.col_body"}}</th>
             <th scope="col">{{t "web.conv.col_merge"}}</th>
+            <th scope="col">{{t "web.conv.col_review"}}</th>
           </tr></thead>
           <tbody>
             {{range $c.PullRows}}
@@ -466,6 +467,7 @@
               <td><div class="flex flex-wrap gap-1">{{range .Codes}}{{template "conv-code" .}}{{end}}</div></td>
               <td>{{template "conv-status" (dict "Status" .Body "Text" "")}}</td>
               <td>{{with .Merge}}{{template "conv-status" (dict "Status" . "Text" "")}}{{else}}—{{end}}</td>
+              <td>{{with .Review}}{{template "conv-status" (dict "Status" . "Text" "")}}{{else}}—{{end}}</td>
             </tr>
             {{end}}
           </tbody>
@@ -510,6 +512,13 @@
       {{if .PullsKnown}}
       {{if .BodyEvaluated}}<p class="text-sm">{{t "web.conv.bodies_line" .BodyConform .BodyKnown (sub .BodyEvaluated .BodyKnown)}}</p>{{end}}
       {{if .MergedEvaluated}}<p class="text-sm">{{t "web.conv.merges_line" .MergeConform .MergedEvaluated}}{{if .Methods}} · {{range $i, $m := .Methods}}{{if $i}}, {{end}}{{$m.Label}} {{$m.Count}}{{end}}{{end}}</p>{{end}}
+      {{with .Reviews}}{{if .Merged}}
+      <div class="text-sm" id="repo-conventions-reviews">
+        <p>{{t "web.conv.reviews_line" .Reviewed .Known .Unread}}</p>
+        {{if .Rows}}<p>{{t "web.conv.reviews_missing" .RowsTotal}} {{range $i, $u := .Rows}}{{if $i}}, {{end}}#{{$u.Number}} ({{if $u.Author}}{{template "contributor-link" (dict "ID" $u.AuthorID "Name" (truncate 30 $u.Author) "Class" "")}}{{else}}-{{end}}){{end}}{{if gt .RowsTotal (len .Rows)}} …{{end}}</p>{{end}}
+        <p class="text-xs text-base-content/60">{{t "web.conv.reviews_note"}}</p>
+      </div>
+      {{end}}{{end}}
       {{end}}
       {{if .ReusedKnown}}
       <p class="text-sm">{{if .Reused}}{{t "web.conv.reused_line" (len .Reused)}} {{range $i, $b := .Reused}}{{if $i}}, {{end}}<span class="font-mono">{{truncate 40 (clean $b.Name)}}</span> ({{range $j, $n := $b.PRs}}{{if $j}}, {{end}}#{{$n}}{{end}}){{end}}{{else}}{{t "web.conv.reused_none"}}{{end}}</p>

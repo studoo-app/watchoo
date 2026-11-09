@@ -95,7 +95,7 @@ func TestRepoConventionsMerges(t *testing.T) {
 		"Head branches merged more than once (1):", "fix/build</span> (#2, #4)",
 		`id="repo-conventions-merge-methods"`, "squash only", "set aside", "from a fork 1",
 		// Badges of the pull requests: description and merge.
-		"Pull requests to look at: title, description or merge", "missing: context, changes, how to test, screenshots",
+		"Pull requests to look at: title, description, merge or review", "missing: context, changes, how to test, screenshots",
 		"PR description", "Merge", "merge commit", "attributed to the author of the commit only"} {
 		if !strings.Contains(section, want) {
 			t.Errorf("conventions section without %q", want)

@@ -70,3 +70,15 @@ ORDER BY id;
 UPDATE contributors
 SET profile_url = ?
 WHERE id = ? AND profile_url = '';
+
+-- name: ListRepoCommitAuthorAccounts :many
+-- Comptes de forge des auteurs d'au moins un commit du depot (phase 8.6, conventions.pr.reviewer_must_contribute) :
+-- identifiant (0 si inconnu, pour un contributeur d'une autre forge ou sans compte) et login en minuscules
+-- (vide si inconnu). Lus en memoire seulement, jamais journalises.
+SELECT DISTINCT
+       CAST(CASE WHEN c.provider = r.provider THEN COALESCE(c.provider_user_id, 0) ELSE 0 END AS INTEGER) AS provider_user_id,
+       CAST(lower(c.provider_login) AS TEXT) AS login
+FROM commits m
+JOIN repositories r ON r.id = m.repo_id
+JOIN contributors c ON c.id = m.author_id
+WHERE m.repo_id = ?;

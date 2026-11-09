@@ -120,13 +120,15 @@ func TestJSONSchemaAllCommands(t *testing.T) {
 	assertJSONKeys(t, outputs["conventions"], "repositories.0.branches.items.0", "name", "codes", "conform", "review",
 		"in_source", "pull_requests", "authors")
 	assertJSONKeys(t, outputs["conventions"], "repositories.0.pull_requests", "known", "reason", "open", "merged", "skipped", "items",
-		"methods")
+		"methods", "merged_without_review")
 	assertJSONKeys(t, outputs["conventions"], "repositories.0.pull_requests.open", "evaluated", "conform", "default",
-		"body_known", "body_conform", "merge_known", "squash", "merge_conform")
+		"body_known", "body_conform", "merge_known", "squash", "merge_conform", "review_known", "reviewed", "reviews_received")
 	assertJSONKeys(t, outputs["conventions"], "repositories.0.pull_requests.skipped", "closed", "draft", "bot", "fork", "before_since")
 	assertJSONKeys(t, outputs["conventions"], "repositories.0.pull_requests.methods", "squash", "merge", "rebase", "unknown")
 	assertJSONKeys(t, outputs["conventions"], "repositories.0.pull_requests.items.0", "number", "category", "author",
-		"head_branch", "codes", "default_codes", "conform", "body", "merge")
+		"head_branch", "codes", "default_codes", "conform", "body", "merge", "review")
+	assertJSONKeys(t, outputs["conventions"], "repositories.0.pull_requests.items.0.review", "known", "reviews", "approvals",
+		"reviewed")
 	assertJSONKeys(t, outputs["conventions"], "repositories.0.pull_requests.items.0.body", "known", "found", "missing",
 		"closes", "conform")
 	assertJSONKeys(t, outputs["conventions"], "repositories.0.tags", "checked", "conform", "items", "milestones", "releases")
@@ -174,7 +176,8 @@ func TestJSONSchemaAllCommands(t *testing.T) {
 	assertJSONKeys(t, outputs["conventions"], "contributors.0.pull_requests", "open", "merged")
 	for _, state := range []string{"open", "merged"} {
 		assertJSONKeys(t, outputs["conventions"], "contributors.0.pull_requests."+state, "evaluated", "conform", "default",
-			"body_known", "body_conform", "merge_known", "squash", "merge_conform")
+			"body_known", "body_conform", "merge_known", "squash", "merge_conform", "review_known", "reviewed",
+			"reviews_received")
 	}
 	assertJSONKeys(t, outputs["conventions"], "contributors.0.branches", "checked", "conform", "review")
 	t.Setenv("WATCHOO_CONVENTIONS_SINCE", "2020-01-01")
@@ -183,8 +186,8 @@ func TestJSONSchemaAllCommands(t *testing.T) {
 	assertJSONKeys(t, review, "", jsonTopLevelKeys["conventions"]...)
 	assertJSONKeys(t, review, "milestone", "name", "due", "criteria", "repositories")
 	assertJSONKeys(t, review, "milestone.repositories.0", "repository", "evaluable", "reason", "since", "status", "tag",
-		"tag_codes", "interval", "branches", "files", "deadline", "tag_history", "arrivals", "criteria", "conform", "unknown",
-		"total")
+		"tag_codes", "interval", "branches", "files", "deadline", "tag_history", "arrivals", "reviews", "criteria", "conform",
+		"unknown", "total")
 	assertJSONKeys(t, review, "milestone.repositories.0.criteria.0", "id", "status", "reason")
 	assertJSONKeys(t, review, "milestone.repositories.0.files", "state", "reason", "sha", "computed_at",
 		"readme_expected", "readme_found")

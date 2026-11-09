@@ -9,6 +9,12 @@ package githubtest
 //     updated_at, closed_at, merged_at; GitHub's list has no merged field). base.repo is the
 //     repository; head.repo is the same repository by default, a distinct fork repository
 //     (PullRequest.Fork) or null (PullRequest.HeadRepoDeleted: fork deleted), phase 8.5;
+//   - GET …/pulls/{number}/reviews?per_page&page (phase 8.6): reviews of the pull request in the order
+//     of SetReviews (chronological, like GitHub); unknown pull request or malformed number → 404. Body:
+//     id, node_id, user (null for a deleted account; "type": "Bot" for Review.Bot), body (served so
+//     that the tests check it is never kept), state, html_url, pull_request_url, commit_id,
+//     author_association and submitted_at (absent when Review.SubmittedAt is zero, like GitHub for
+//     PENDING);
 //   - GET …/releases?per_page&page: releases sorted by descending created_at (at equal dates,
 //     descending identifier), drafts included (the fake account always has write access);
 //   - GET …/tags?per_page&page: tags in the order of SetTags.
@@ -47,6 +53,16 @@ type PullRequest struct {
 	UpdatedAt       time.Time // last update; zero = CreatedAt
 	ClosedAt        time.Time // closing; zero = null (Closed requires a date: zero = UpdatedAt)
 	MergedAt        time.Time // merge; zero = null
+}
+
+// Review is a simulated pull request review (phase 8.6).
+type Review struct {
+	ID          int64     // identifier (> 0, unique in the pull request)
+	Reviewer    string    // reviewer's login; empty = "user": null (deleted account)
+	Bot         bool      // reviewer is an app account ("type": "Bot")
+	State       string    // APPROVED, CHANGES_REQUESTED, COMMENTED, DISMISSED or PENDING (served as is)
+	SubmittedAt time.Time // submission; zero = submitted_at absent (PENDING)
+	Body        string    // body; empty = ""
 }
 
 // Release is a simulated release.
@@ -91,6 +107,34 @@ func (s *Server) SetPullRequests(repoID int64, pulls ...PullRequest) {
 		}
 		repo.pulls[pr.Number] = pr
 	}
+}
+
+// SetReviews replaces the reviews of the pull request number of the repository repoID, served in that
+// order. Dates converted to UTC and truncated to the second. The pull request must have been set by
+// SetPullRequests. Identifier <= 0 or duplicated, empty state, unknown pull request or repository:
+// t.Fatalf.
+func (s *Server) SetReviews(repoID int64, number int, reviews ...Review) {
+	s.tb.Helper()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	repo := s.repoLocked("SetReviews", repoID)
+	if _, ok := repo.pulls[number]; !ok {
+		s.fatalf("SetReviews: unknown PR #%d", number)
+	}
+	seen := make(map[int64]bool, len(reviews))
+	out := make([]Review, 0, len(reviews))
+	for _, r := range reviews {
+		if r.ID <= 0 || seen[r.ID] || r.State == "" {
+			s.fatalf("SetReviews: invalid review %d (state %q)", r.ID, r.State)
+		}
+		seen[r.ID] = true
+		r.SubmittedAt = utcSecond(r.SubmittedAt)
+		out = append(out, r)
+	}
+	if repo.reviews == nil {
+		repo.reviews = make(map[int][]Review)
+	}
+	repo.reviews[number] = out
 }
 
 // SetReleases replaces the releases of the repository repoID. Identifier <= 0 or duplicated, empty
@@ -172,6 +216,27 @@ func (s *Server) pullsReply(repo *repoState, q url.Values, linkBase string, now 
 	items := make([]pullJSON, 0, p.end-p.start)
 	for _, pr := range list[p.start:p.end] {
 		items = append(items, s.pullJSON(repo, pr))
+	}
+	rep := s.jsonReply(now, http.StatusOK, items)
+	setLink(rep.header, linkBase, q, p)
+	return rep
+}
+
+// reviewsReply serves GET …/pulls/{number}/reviews.
+func (s *Server) reviewsReply(repo *repoState, num string, q url.Values, linkBase string, now time.Time) reply {
+	number, err := strconv.Atoi(num)
+	if err != nil || number <= 0 || strconv.Itoa(number) != num {
+		return s.notFound(now)
+	}
+	pr, ok := repo.pulls[number]
+	if !ok {
+		return s.notFound(now)
+	}
+	list := repo.reviews[number]
+	p := paginate(len(list), q)
+	items := make([]reviewJSON, 0, p.end-p.start)
+	for _, r := range list[p.start:p.end] {
+		items = append(items, s.reviewJSON(repo, pr, r))
 	}
 	rep := s.jsonReply(now, http.StatusOK, items)
 	setLink(rep.header, linkBase, q, p)
@@ -312,6 +377,49 @@ func (s *Server) pullJSON(repo *repoState, pr PullRequest) pullJSON {
 		Draft:       pr.Draft,
 		Head:        pullRefJSON{Label: repo.Owner + ":" + head, Ref: head, SHA: repo.branches[head], Repo: headRepo},
 		Base:        pullRefJSON{Label: repo.Owner + ":" + base, Ref: base, SHA: repo.branches[base], Repo: baseRepo},
+	}
+}
+
+// reviewJSON is a pull request review.
+type reviewJSON struct {
+	ID                int64     `json:"id"`
+	NodeID            string    `json:"node_id"`
+	User              *userJSON `json:"user"`
+	Body              string    `json:"body"`
+	State             string    `json:"state"`
+	HTMLURL           string    `json:"html_url"`
+	PullRequestURL    string    `json:"pull_request_url"`
+	CommitID          string    `json:"commit_id"`
+	AuthorAssociation string    `json:"author_association"`
+	SubmittedAt       *string   `json:"submitted_at,omitempty"`
+}
+
+// reviewJSON returns the review r of the pull request pr of repo.
+func (s *Server) reviewJSON(repo *repoState, pr PullRequest, r Review) reviewJSON {
+	full := repo.Owner + "/" + repo.Name
+	var user *userJSON
+	if r.Reviewer != "" {
+		u := s.user(r.Reviewer, 0, "")
+		if r.Bot {
+			u.Type = "Bot"
+		}
+		user = &u
+	}
+	head := pr.Head
+	if head == "" {
+		head = fmt.Sprintf("feature-%d", pr.Number)
+	}
+	return reviewJSON{
+		ID:                r.ID,
+		NodeID:            "PRR_fake" + strconv.FormatInt(r.ID, 10),
+		User:              user,
+		Body:              r.Body,
+		State:             r.State,
+		HTMLURL:           githubWeb + full + "/pull/" + strconv.Itoa(pr.Number) + "#pullrequestreview-" + strconv.FormatInt(r.ID, 10),
+		PullRequestURL:    s.URL() + "repos/" + full + "/pulls/" + strconv.Itoa(pr.Number),
+		CommitID:          repo.branches[head],
+		AuthorAssociation: "COLLABORATOR",
+		SubmittedAt:       nullableTime(r.SubmittedAt),
 	}
 }
 

@@ -130,8 +130,8 @@ var webConventionsTexts = map[string]entry{
 	"web.conv.no_contributors":      {"No evaluated commit yet.", "Aucun commit évalué pour l'instant."},
 	"web.conv.unknown_author":       {"unknown author", "auteur inconnu"},
 	"web.conv.contributors_note": {
-		"By name, never sorted by conformity. Branches: head branches of the person's pull requests only.",
-		"Par nom, jamais triés par conformité. Branches : seulement les branches de tête des pull requests de la personne.",
+		"By name, never sorted by conformity. Branches: head branches of the person's pull requests only. Reviews received: on the person's pull requests; the reviews given are not counted (reviewers are not kept).",
+		"Par nom, jamais triés par conformité. Branches : seulement les branches de tête des pull requests de la personne. Relectures reçues : sur les pull requests de la personne ; les relectures données ne sont pas comptées (les relecteurs ne sont pas gardés).",
 	},
 	"web.conv.review_title": {"Milestone review", "Revue de jalon"},
 	"web.conv.review_intro": {
@@ -152,6 +152,7 @@ var webConventionsTexts = map[string]entry{
 	"web.conv.criterion.SV2":   {"milestone present", "jalon présent"},
 	"web.conv.criterion.SV3":   {"milestone tag without rewrite observed", "tag du jalon sans réécriture observée"},
 	"web.conv.criterion.PR3":   {"no commit outside a pull request", "aucun commit hors pull request"},
+	"web.conv.criterion.PR4":   {"merged pull requests reviewed", "pull requests fusionnées relues"},
 	// Phase 8.3 : critères de fichiers de la revue, sur l'arbre du tag du jalon.
 	"web.conv.criterion.CL9":  {"CHANGELOG section of the milestone", "section du jalon dans le CHANGELOG"},
 	"web.conv.criterion.CL8":  {"tags and CHANGELOG sections", "tags et sections du CHANGELOG"},
@@ -169,8 +170,8 @@ var webConventionsTexts = map[string]entry{
 	"web.conv.interval_start":   {"start", "début"},
 	"web.conv.interval_missing": {"%d commits not in the database", "%d commits absents de la base"},
 	"web.conv.review_note": {
-		"The file criteria (CL, RD, DOC) are measured by the sync on the tree of the milestone tag; RD2 judges only the installation section here. SV2 compares the first observation of the tag to the due date and SV3 reports the observed rewrites of the tag, both since the conventions are enabled; PR3 reads the first parent of the default branch on the milestone interval; the pull request reviews arrive with phase 8.6.",
-		"Les critères de fichiers (CL, RD, DOC) sont mesurés par la synchro sur l'arbre du tag du jalon ; RD2 ne juge ici que la section installation. SV2 compare la première observation du tag à l'échéance et SV3 signale les réécritures observées du tag, toutes deux depuis l'activation des conventions ; PR3 lit le premier parent de la branche par défaut sur l'intervalle du jalon ; les relectures de pull request arrivent avec la phase 8.6.",
+		"The file criteria (CL, RD, DOC) are measured by the sync on the tree of the milestone tag; RD2 judges only the installation section here. SV2 compares the first observation of the tag to the due date and SV3 reports the observed rewrites of the tag, both since the conventions are enabled; PR3 reads the first parent of the default branch on the milestone interval; PR4 judges the pull requests merged in the interval (merge date between the commit dates of the previous final tag and of the milestone tag, or the end of the due date).",
+		"Les critères de fichiers (CL, RD, DOC) sont mesurés par la synchro sur l'arbre du tag du jalon ; RD2 ne juge ici que la section installation. SV2 compare la première observation du tag à l'échéance et SV3 signale les réécritures observées du tag, toutes deux depuis l'activation des conventions ; PR3 lit le premier parent de la branche par défaut sur l'intervalle du jalon ; PR4 juge les pull requests fusionnées dans l'intervalle (date de fusion entre les dates des commits du tag final précédent et du tag du jalon, ou la fin de l'échéance).",
 	},
 	"web.conv.bad_milestone": {
 		"Milestone %q is not configured (conventions.tags.milestones).",
@@ -219,8 +220,8 @@ var webConventionsTexts = map[string]entry{
 	"web.conv.pulls_none":    {"No pull request evaluated.", "Aucune pull request évaluée."},
 	"web.conv.pulls_skipped": {"Not evaluated:", "Non évaluées :"},
 	"web.conv.pulls_caption": {
-		"Pull requests to look at: title, description or merge (%d of %d)",
-		"Pull requests à regarder : titre, description ou fusion (%d sur %d)",
+		"Pull requests to look at: title, description, merge or review (%d of %d)",
+		"Pull requests à regarder : titre, description, fusion ou relecture (%d sur %d)",
 	},
 	"web.conv.col_pr":   {"Pull request", "Pull request"},
 	"web.conv.col_head": {"Head branch", "Branche de tête"},
@@ -474,6 +475,61 @@ var webConventionsTexts = map[string]entry{
 	"web.conv.contributor_outside_unknown": {
 		"Commits outside a pull request: unknown (no readable local clone).",
 		"Commits hors pull request : inconnu (aucun clone local lisible).",
+	},
+
+	// Phase 8.6 : relectures des pull requests (PR4), des compteurs seulement (jamais un relecteur).
+	"web.conv.col_review": {"Review", "Relecture"},
+	"web.conv.col_reviews": {
+		"Merged PRs reviewed",
+		"PR fusionnées relues",
+	},
+	"web.conv.col_reviews_received": {"Reviews received", "Relectures reçues"},
+	"web.conv.review_done":          {"reviewed", "relue"},
+	"web.conv.review_missing":       {"merged without review", "fusionnée sans relecture"},
+	"web.conv.review_unread":        {"reviews not read yet", "relectures pas encore lues"},
+	"web.conv.reviews_line": {
+		"Merged pull requests reviewed by another account: %d/%d (%d not read yet).",
+		"Pull requests fusionnées relues par un autre compte : %d/%d (%d pas encore lues).",
+	},
+	"web.conv.reviews_missing": {
+		"Merged without review (%d):",
+		"Fusionnées sans relecture (%d) :",
+	},
+	"web.conv.reviews_short":  {"%d/%d reviewed", "%d/%d relues"},
+	"web.conv.reviews_unread": {"%d not read yet", "%d pas encore lues"},
+	"web.conv.reviews_received_short": {
+		"%d/%d reviewed · %d received",
+		"%d/%d relues · %d reçues",
+	},
+	"web.conv.reviews_received_only": {"%d received", "%d reçues"},
+	"web.conv.reviews_note": {
+		"Reviews are read once per merged pull request (API mode): reviewers other than the author, bots and excluded accounts, whose last decisive review before the merge is an approval (conventions.pr.min_reviews, conventions.pr.reviewer_must_contribute). Only counters are kept, never a reviewer.",
+		"Les relectures sont lues une fois par pull request fusionnée (mode API) : relecteurs autres que l'auteur, les bots et les comptes exclus, dont la dernière relecture décisive avant la fusion est une approbation (conventions.pr.min_reviews, conventions.pr.reviewer_must_contribute). Seuls des compteurs sont gardés, jamais un relecteur.",
+	},
+	"web.conv.review_reviews": {
+		"PR4: %d/%d merged pull requests reviewed (%d not read yet)",
+		"PR4 : %d/%d pull requests fusionnées relues (%d pas encore lues)",
+	},
+	"web.conv.contributor_reviews": {
+		"Their merged pull requests reviewed by another account: %d/%d; reviews received on their pull requests: %d",
+		"Ses pull requests fusionnées relues par un autre compte : %d/%d ; relectures reçues sur ses pull requests : %d",
+	},
+	"web.conv.contributor_reviews_open": {
+		"Reviews received on their pull requests: %d (no merged pull request read yet)",
+		"Relectures reçues sur ses pull requests : %d (aucune pull request fusionnée lue)",
+	},
+	"web.conv.contributor_reviews_none": {
+		"Reviews of their pull requests: none read (API mode, conventions enabled).",
+		"Relectures de ses pull requests : aucune lue (mode API, conventions activées).",
+	},
+	"web.conv.reason.reviews_unchecked": {
+		"reviews of merged pull requests not read yet",
+		"relectures de pull requests fusionnées pas encore lues",
+	},
+	"web.conv.reason.no_merged_pr": {"no merged pull request", "aucune pull request fusionnée"},
+	"web.conv.reason.no_tag_date": {
+		"date of a tag commit not in the database",
+		"date du commit d'un tag absente de la base",
 	},
 }
 

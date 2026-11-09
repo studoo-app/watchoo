@@ -43,6 +43,11 @@ PATCH (see [Skills](documentation/en/11-skills.md#versions-and-changelogmd)).
   `Closes #n` is expected), validated at load time, with the `WATCHOO_CONVENTIONS_PR_BODY_SECTIONS` and
   `WATCHOO_CONVENTIONS_PR_REQUIRE_CLOSES` variables, and shared under `settings.conventions.pr` (refused by
   earlier versions).
+- **Review settings of the conventions** (phase 8.6): `conventions.pr.min_reviews` (default 1, at least 1:
+  distinct reviewers, other than the author and not excluded, approving at the merge) and
+  `conventions.pr.reviewer_must_contribute` (default `false`: another account is enough), validated at load
+  time, with the `WATCHOO_CONVENTIONS_PR_MIN_REVIEWS` and `WATCHOO_CONVENTIONS_PR_REVIEWER_MUST_CONTRIBUTE` variables, and
+  shared under `settings.conventions.pr` (refused by earlier versions).
 - **Merges and pull request bodies in the database** (phase 8.5, migration `00020`): the columns
   `pull_requests.merge_commit_sha`, `from_fork` and `body_sections` (bit mask of the recognized sections;
   the body itself is never stored) and `repositories.allow_squash_merge`, `allow_merge_commit`,
@@ -62,6 +67,25 @@ PATCH (see [Skills](documentation/en/11-skills.md#versions-and-changelogmd)).
   per pull request), `/conventions` (columns and the PR3 criterion of the milestone review, 13 criteria) and
   contributor page (their commits outside a pull request). No extra request; neither a description, a title
   nor a commit message is ever shown or logged.
+- **Pull request reviews in the database** (phase 8.6, migration `00021`): the columns
+  `pull_requests.reviews_by_others`, `approvals_by_others`, `approvals_by_contributors` and
+  `reviews_checked_at`, all nullable (`NULL` = reviews never read); still 19 tables, no reviewer login
+  stored. When the conventions are enabled in API mode, the sync reads `GET /pulls/{n}/reviews` once per
+  merged pull request (again if it was read before its merge) and for the open pull requests updated since
+  their last read, at most 100 pull requests per repository and per sync, stopped under the quota reserve
+  (the rest at the following sync); the reviews are reduced in memory to counters, their body is never read,
+  and a failure is logged at Debug level without login nor content, never failing the sync. A change of
+  `conventions.excluded_accounts` only applies to the pull requests read afterwards.
+- **Reviews in `watchoo conventions` and the web interface** (phase 8.6): merged pull requests reviewed by
+  another account (PR4: at least `conventions.pr.min_reviews` distinct reviewers, neither the author, a bot
+  nor an excluded account, whose last decisive review before the merge is an approval; contributors only
+  with `conventions.pr.reviewer_must_contribute`; both settings applied at read time), the merged pull
+  requests without review (number and author), the reviews received per contributor (the reviews given are
+  not counted), and PR4 in the milestone review (pull requests merged in the interval, 14 criteria). Text,
+  `--json` (additive keys `review`, `review_known`, `reviewed`, `reviews_received`, `merged_without_review`,
+  `milestone.repositories[].reviews`), repository page (review badge and lines of the "Merges" block),
+  `/conventions` (columns and the PR4 criterion) and contributor page. Counters only: no reviewer, no review
+  body and no title is ever shown or logged.
 - **Squash merges identified by their merge SHA in the diagnosis** (phase 8.5): with the conventions enabled,
   the merge commit of a merged pull request, with one parent and the `(#n)` of that pull request, is also
   excluded from A1 and A2, even without a recognized GitHub committer.

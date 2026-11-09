@@ -1,7 +1,8 @@
 package github
 
 // Appels d'API sur les dépôts et les branches. Règles communes aux trois fichiers :
-//   - valider les arguments (provider.ValidateRepo, ValidateSHA, ValidateBranch, ValidateID) AVANT
+//   - valider les arguments (provider.ValidateRepo, ValidateSHA, ValidateBranch, ValidateID,
+//     ValidateNumber) AVANT
 //     tout appel ; l'erreur de validation est renvoyée telle quelle (elle enveloppe ErrInvalidRef) ;
 //   - appeler go-github par p.client ; toute erreur de go-github passe par
 //     p.convertError(ctx, op, resp, err), avec le contexte de l'appelant (pas de classement local, sauf
@@ -9,8 +10,8 @@ package github
 //     CommitStats), une réponse inexploitable par p.unexpected(op, resp) ;
 //   - op : « lecture du dépôt alice/projet », « lecture du dépôt n° 123 », « liste des branches de
 //     alice/projet », « liste des commits de alice/projet », « comparaison 1a2b3c4...5d6e7f8 dans
-//     alice/projet », « statistiques du commit 1a2b3c4 de alice/projet », « lecture du quota de
-//     l'API » (SHA courts : provider.ShortSHA) ;
+//     alice/projet », « statistiques du commit 1a2b3c4 de alice/projet », « liste des relectures de la
+//     pull request n° 7 de alice/projet », « lecture du quota de l'API » (SHA courts : provider.ShortSHA) ;
 //   - pagination : ListOptions{PerPage: PerPage, Page: n}, page suivante = resp.NextPage ; arrêt quand
 //     NextPage vaut 0, quand NextPage <= page courante (garde-fou), au plafond (provider.MaxCommits,
 //     provider.MaxBranches), ou au plus tard après plafond/PerPage + 1 pages ;

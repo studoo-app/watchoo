@@ -160,9 +160,10 @@ signed on this commit?", never "was this code written by AI?".
 
 ## Project conventions
 
-Phases 8.1 to 8.5 (not released): Watchoo measures the compliance of commit messages with a Conventional
+Phases 8.1 to 8.6 (not released): Watchoo measures the compliance of commit messages with a Conventional
 Commits charter, then that of branch names, pull request titles and tags, then that of the CHANGELOG, the
-README, the documentation and the tooling, then the history of the tags and the merges; the details are in
+README, the documentation and the tooling, then the history of the tags, the merges and the reviews; the
+details are in
 [Project conventions](13-conventions.md).
 
 - **Off by default** (`conventions.enabled`) and **for the trainer only**: these are objective findings,
@@ -213,11 +214,20 @@ README, the documentation and the tooling, then the history of the tags and the 
     **BR2** (head branch merged more than once) and **BR5** (squash as the only allowed merge method,
     information); pull requests from a fork are set aside from PR1, PR2, PR5, PR6, BR1 and BR2;
   - **milestone review**: the **PR3 = 0** criterion is added after BR1, on the interval of the milestone.
+- **Phase 8.6**, reviews (migration `00021`: three counters and the read date per pull request, never a reviewer login; one
+  request per merged pull request, API mode only, at most 100 per repository and per sync):
+  - **PR4**: merged pull request reviewed by another account (at least `conventions.pr.min_reviews`
+    distinct reviewers, neither the author, a bot nor an excluded account, whose last decisive review before
+    the merge is an approval; contributors only with `conventions.pr.reviewer_must_contribute`), the merged
+    pull requests without review (number and author) and, per contributor, the reviews received on their
+    pull requests (the reviews given are not counted);
+  - **milestone review**: the **PR4** criterion is added after PR3, on the pull requests merged in the
+    interval of the milestone.
 - **Output**: `watchoo conventions` command (`--milestone vX.Y.Z` for the milestone review), `/conventions`
   page, section of a repository's page and contributor's page; never the commit message nor a pull request
   title, only the short SHA, the pull request number, the author, the branch and tag names and the codes.
   Repository indicators (branches without a pull request, tags, milestones, files) are attributed to no one.
 - The charter (`since`, `commit.*`, `branch.*`, `tags.milestones`, since phase 8.3 `changelog.*`,
-  `readme.*`, `docs.*`, since phase 8.4 `tags.prerelease_forms`, and since phase 8.5 `pr.body_sections`
-  and `pr.require_closes`) is shared through `watchoo config export` /
+  `readme.*`, `docs.*`, since phase 8.4 `tags.prerelease_forms`, since phase 8.5 `pr.body_sections`
+  and `pr.require_closes`, and since phase 8.6 `pr.min_reviews` and `pr.reviewer_must_contribute`) is shared through `watchoo config export` /
   `import`.

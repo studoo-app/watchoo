@@ -37,25 +37,27 @@ const (
 	KeyTimezone        = "timezone"
 	KeyLang            = "lang"
 
-	KeyConventionsSince           = "conventions.since"
-	KeyConventionsTypes           = "conventions.commit.types"
-	KeyConventionsScopes          = "conventions.commit.scopes"
-	KeyConventionsMaxSubjectSoft  = "conventions.commit.max_subject_soft"
-	KeyConventionsMaxSubjectHard  = "conventions.commit.max_subject_hard"
-	KeyConventionsForbidden       = "conventions.commit.forbidden"
-	KeyConventionsLanguage        = "conventions.commit.language"
-	KeyConventionsBranchPattern   = "conventions.branch.pattern"
-	KeyConventionsBranchExclude   = "conventions.branch.exclude"
-	KeyConventionsPRBodySections  = "conventions.pr.body_sections"
-	KeyConventionsPRRequireCloses = "conventions.pr.require_closes"
-	KeyConventionsMilestones      = "conventions.tags.milestones"
-	KeyConventionsPrereleaseForms = "conventions.tags.prerelease_forms"
-	KeyConventionsCategoriesFR    = "conventions.changelog.categories_fr"
-	KeyConventionsReadmeSections  = "conventions.readme.sections"
-	KeyConventionsReadmeMinWords  = "conventions.readme.min_words"
-	KeyConventionsDocsDir         = "conventions.docs.dir"
-	KeyConventionsDocsMediaDir    = "conventions.docs.media_dir"
-	KeyConventionsArchivesScope   = "conventions.docs.archives_scope"
+	KeyConventionsSince                    = "conventions.since"
+	KeyConventionsTypes                    = "conventions.commit.types"
+	KeyConventionsScopes                   = "conventions.commit.scopes"
+	KeyConventionsMaxSubjectSoft           = "conventions.commit.max_subject_soft"
+	KeyConventionsMaxSubjectHard           = "conventions.commit.max_subject_hard"
+	KeyConventionsForbidden                = "conventions.commit.forbidden"
+	KeyConventionsLanguage                 = "conventions.commit.language"
+	KeyConventionsBranchPattern            = "conventions.branch.pattern"
+	KeyConventionsBranchExclude            = "conventions.branch.exclude"
+	KeyConventionsPRBodySections           = "conventions.pr.body_sections"
+	KeyConventionsPRRequireCloses          = "conventions.pr.require_closes"
+	KeyConventionsPRMinReviews             = "conventions.pr.min_reviews"
+	KeyConventionsPRReviewerMustContribute = "conventions.pr.reviewer_must_contribute"
+	KeyConventionsMilestones               = "conventions.tags.milestones"
+	KeyConventionsPrereleaseForms          = "conventions.tags.prerelease_forms"
+	KeyConventionsCategoriesFR             = "conventions.changelog.categories_fr"
+	KeyConventionsReadmeSections           = "conventions.readme.sections"
+	KeyConventionsReadmeMinWords           = "conventions.readme.min_words"
+	KeyConventionsDocsDir                  = "conventions.docs.dir"
+	KeyConventionsDocsMediaDir             = "conventions.docs.media_dir"
+	KeyConventionsArchivesScope            = "conventions.docs.archives_scope"
 )
 
 // SharedKeys liste les clés des réglages communs, dans l'ordre du modèle de config.yaml.
@@ -68,6 +70,7 @@ var SharedKeys = []string{
 	KeyConventionsForbidden, KeyConventionsLanguage,
 	KeyConventionsBranchPattern, KeyConventionsBranchExclude,
 	KeyConventionsPRBodySections, KeyConventionsPRRequireCloses,
+	KeyConventionsPRMinReviews, KeyConventionsPRReviewerMustContribute,
 	KeyConventionsMilestones, KeyConventionsPrereleaseForms,
 	KeyConventionsCategoriesFR, KeyConventionsReadmeSections, KeyConventionsReadmeMinWords,
 	KeyConventionsDocsDir, KeyConventionsDocsMediaDir, KeyConventionsArchivesScope,
@@ -85,25 +88,27 @@ type SharedSettings struct {
 	Timezone        *string   // "" = fuseau du système
 	Lang            *string   // langue de l'interface web : « en » ou « fr »
 
-	ConventionsSince           *string   // "" = depuis le début ; sinon AAAA-MM-JJ
-	ConventionsTypes           *[]string // listes : vide (non nil) = aucune entrée
-	ConventionsScopes          *[]string // liste vide = tout scope bien formé
-	ConventionsMaxSubjectSoft  *int
-	ConventionsMaxSubjectHard  *int
-	ConventionsForbidden       *[]string
-	ConventionsLanguage        *string   // « fr », « en » ou « any »
-	ConventionsBranchPattern   *string   // "" = règle intégrée ; sinon RE2
-	ConventionsBranchExclude   *[]string // liste vide = aucune branche exclue (hors branche par défaut)
-	ConventionsPRBodySections  *[]string // sections attendues du corps de PR (PR5) ; vide = aucune
-	ConventionsPRRequireCloses *bool     // mot-clé de fermeture exigé dans le corps de PR (PR5)
-	ConventionsMilestones      *[]string // « vX.Y.Z » ou « vX.Y.Z@AAAA-MM-JJ » ; vide = aucun jalon
-	ConventionsPrereleaseForms *[]string // formes de pré-version conformes (SV4) ; au moins une
-	ConventionsCategoriesFR    *bool     // libellés français du CHANGELOG admis (avertissement)
-	ConventionsReadmeSections  *[]string // clés de sections attendues ; vide = aucune
-	ConventionsReadmeMinWords  *int
-	ConventionsDocsDir         *string // dossier de la documentation, relatif à la racine
-	ConventionsDocsMediaDir    *string // dossier des médias sous la documentation
-	ConventionsArchivesScope   *string // « repository » ou « documentation »
+	ConventionsSince                    *string   // "" = depuis le début ; sinon AAAA-MM-JJ
+	ConventionsTypes                    *[]string // listes : vide (non nil) = aucune entrée
+	ConventionsScopes                   *[]string // liste vide = tout scope bien formé
+	ConventionsMaxSubjectSoft           *int
+	ConventionsMaxSubjectHard           *int
+	ConventionsForbidden                *[]string
+	ConventionsLanguage                 *string   // « fr », « en » ou « any »
+	ConventionsBranchPattern            *string   // "" = règle intégrée ; sinon RE2
+	ConventionsBranchExclude            *[]string // liste vide = aucune branche exclue (hors branche par défaut)
+	ConventionsPRBodySections           *[]string // sections attendues du corps de PR (PR5) ; vide = aucune
+	ConventionsPRRequireCloses          *bool     // mot-clé de fermeture exigé dans le corps de PR (PR5)
+	ConventionsPRMinReviews             *int      // relecteurs approuvant exigés (PR4) ; au moins 1
+	ConventionsPRReviewerMustContribute *bool     // relecteur auteur d'au moins un commit du dépôt exigé (PR4)
+	ConventionsMilestones               *[]string // « vX.Y.Z » ou « vX.Y.Z@AAAA-MM-JJ » ; vide = aucun jalon
+	ConventionsPrereleaseForms          *[]string // formes de pré-version conformes (SV4) ; au moins une
+	ConventionsCategoriesFR             *bool     // libellés français du CHANGELOG admis (avertissement)
+	ConventionsReadmeSections           *[]string // clés de sections attendues ; vide = aucune
+	ConventionsReadmeMinWords           *int
+	ConventionsDocsDir                  *string // dossier de la documentation, relatif à la racine
+	ConventionsDocsMediaDir             *string // dossier des médias sous la documentation
+	ConventionsArchivesScope            *string // « repository » ou « documentation »
 }
 
 // cloneList copie une liste en la gardant non nil : nil et vide sont la même valeur pour un réglage, et
@@ -138,25 +143,27 @@ func SharedSettingsFrom(c Config) SharedSettings {
 		Timezone:        &c.Timezone,
 		Lang:            &c.Lang,
 
-		ConventionsSince:           &c.Conventions.Since,
-		ConventionsTypes:           &types,
-		ConventionsScopes:          &scopes,
-		ConventionsMaxSubjectSoft:  &c.Conventions.Commit.MaxSubjectSoft,
-		ConventionsMaxSubjectHard:  &c.Conventions.Commit.MaxSubjectHard,
-		ConventionsForbidden:       &forbidden,
-		ConventionsLanguage:        &c.Conventions.Commit.Language,
-		ConventionsBranchPattern:   &c.Conventions.Branch.Pattern,
-		ConventionsBranchExclude:   &branchExclude,
-		ConventionsPRBodySections:  &prSections,
-		ConventionsPRRequireCloses: &c.Conventions.PR.RequireCloses,
-		ConventionsMilestones:      &milestones,
-		ConventionsPrereleaseForms: &forms,
-		ConventionsCategoriesFR:    &c.Conventions.Changelog.CategoriesFR,
-		ConventionsReadmeSections:  &sections,
-		ConventionsReadmeMinWords:  &c.Conventions.Readme.MinWords,
-		ConventionsDocsDir:         &c.Conventions.Docs.Dir,
-		ConventionsDocsMediaDir:    &c.Conventions.Docs.MediaDir,
-		ConventionsArchivesScope:   &c.Conventions.Docs.ArchivesScope,
+		ConventionsSince:                    &c.Conventions.Since,
+		ConventionsTypes:                    &types,
+		ConventionsScopes:                   &scopes,
+		ConventionsMaxSubjectSoft:           &c.Conventions.Commit.MaxSubjectSoft,
+		ConventionsMaxSubjectHard:           &c.Conventions.Commit.MaxSubjectHard,
+		ConventionsForbidden:                &forbidden,
+		ConventionsLanguage:                 &c.Conventions.Commit.Language,
+		ConventionsBranchPattern:            &c.Conventions.Branch.Pattern,
+		ConventionsBranchExclude:            &branchExclude,
+		ConventionsPRBodySections:           &prSections,
+		ConventionsPRRequireCloses:          &c.Conventions.PR.RequireCloses,
+		ConventionsPRMinReviews:             &c.Conventions.PR.MinReviews,
+		ConventionsPRReviewerMustContribute: &c.Conventions.PR.ReviewerMustContribute,
+		ConventionsMilestones:               &milestones,
+		ConventionsPrereleaseForms:          &forms,
+		ConventionsCategoriesFR:             &c.Conventions.Changelog.CategoriesFR,
+		ConventionsReadmeSections:           &sections,
+		ConventionsReadmeMinWords:           &c.Conventions.Readme.MinWords,
+		ConventionsDocsDir:                  &c.Conventions.Docs.Dir,
+		ConventionsDocsMediaDir:             &c.Conventions.Docs.MediaDir,
+		ConventionsArchivesScope:            &c.Conventions.Docs.ArchivesScope,
 	}
 }
 
@@ -220,6 +227,12 @@ func (s SharedSettings) Values() map[string]any {
 	}
 	if s.ConventionsPRRequireCloses != nil {
 		out[KeyConventionsPRRequireCloses] = *s.ConventionsPRRequireCloses
+	}
+	if s.ConventionsPRMinReviews != nil {
+		out[KeyConventionsPRMinReviews] = *s.ConventionsPRMinReviews
+	}
+	if s.ConventionsPRReviewerMustContribute != nil {
+		out[KeyConventionsPRReviewerMustContribute] = *s.ConventionsPRReviewerMustContribute
 	}
 	if s.ConventionsMilestones != nil {
 		out[KeyConventionsMilestones] = cloneList(*s.ConventionsMilestones)
@@ -325,6 +338,12 @@ func (s SharedSettings) ApplyTo(c Config) Config {
 	}
 	if s.ConventionsPRRequireCloses != nil {
 		out.Conventions.PR.RequireCloses = *s.ConventionsPRRequireCloses
+	}
+	if s.ConventionsPRMinReviews != nil {
+		out.Conventions.PR.MinReviews = *s.ConventionsPRMinReviews
+	}
+	if s.ConventionsPRReviewerMustContribute != nil {
+		out.Conventions.PR.ReviewerMustContribute = *s.ConventionsPRReviewerMustContribute
 	}
 	if s.ConventionsMilestones != nil {
 		out.Conventions.Tags.Milestones = cloneList(*s.ConventionsMilestones)

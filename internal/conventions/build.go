@@ -96,6 +96,7 @@ type BuildOptions struct {
 	Language         string         // conventions.commit.language : fr, en ou any (CC7, information)
 	Files            FileRules      // conventions.changelog.*, readme.* et docs.* (CL, RD, DOC, phase 8.3)
 	PRBody           PRBodyRules    // conventions.pr.* (PR5, phase 8.5)
+	Review           ReviewRules    // conventions.pr.min_reviews et reviewer_must_contribute (PR4, phase 8.6)
 	// LocalOnly indique un espace synchronisé sans l'API (clone seul) : les pull requests et releases en
 	// base ne sont plus mises à jour, PR1, PR2 et SV6 sont « inconnus ».
 	LocalOnly bool

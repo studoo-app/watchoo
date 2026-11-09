@@ -19,6 +19,7 @@ const (
 	maxPullPages    = provider.MaxPullRequests/PerPage + 1
 	maxReleasePages = provider.MaxReleases/PerPage + 1
 	maxTagPages     = provider.MaxTags/PerPage + 1
+	maxReviewPages  = provider.MaxPullRequestReviews/PerPage + 1
 )
 
 // stopUpdatedBefore : raison d'arrêt de la liste des pull requests à la première PR modifiée avant
@@ -156,6 +157,59 @@ func fromFork(pr *gogithub.PullRequest) provider.OptionalBool {
 		return provider.Unknown
 	}
 	return provider.KnownBool(head.GetID() != baseID)
+}
+
+// PullRequestReviews implémente provider.Provider : GET /repos/{owner}/{name}/pulls/{number}/reviews
+// ?per_page=100&page=n (PullRequestsService.ListReviews), après provider.ValidateRepo et
+// provider.ValidateNumber, toutes les pages, au plus provider.MaxPullRequestReviews, dans l'ordre de
+// l'API (chronologique). Le cache ETag du transport s'applique (une réponse 304 ne consomme pas de
+// quota).
+//
+// Conversion : ID = id ; Reviewer = user.{login, id, avatar_url} (user null, compte supprimé : valeur
+// zéro) ; State = state ; SubmittedAt = submitted_at (absent pour PENDING : zéro). Le corps (body) n'est
+// jamais lu. Une relecture sans identifiant positif ou sans état → p.unexpected.
+func (p *Provider) PullRequestReviews(ctx context.Context, owner, name string, number int) ([]provider.PullRequestReview, error) {
+	if err := provider.ValidateRepo(owner, name); err != nil {
+		return nil, err
+	}
+	if err := provider.ValidateNumber(number); err != nil {
+		return nil, err
+	}
+	op := i18n.T("provider.github.op.reviews", number, owner, name)
+	lo := &gogithub.ListOptions{PerPage: PerPage, Page: 1}
+	reviews := make([]provider.PullRequestReview, 0)
+	pages, stop := 0, stopLastPage
+pagination:
+	for {
+		list, resp, err := p.client.PullRequests.ListReviews(ctx, owner, name, number, lo)
+		pages++
+		if err != nil {
+			return nil, p.convertError(ctx, op, resp, err)
+		}
+		for _, r := range list {
+			if r == nil || r.GetID() <= 0 || r.GetState() == "" {
+				return nil, p.unexpected(op, resp)
+			}
+			reviews = append(reviews, provider.PullRequestReview{
+				ID:          r.GetID(),
+				Reviewer:    toAccount(r.GetUser()),
+				State:       r.GetState(),
+				SubmittedAt: utc(r.GetSubmittedAt()),
+			})
+			if len(reviews) >= provider.MaxPullRequestReviews {
+				stop = stopCap
+				break pagination
+			}
+		}
+		next, reason := nextPage(resp, lo.Page, pages, len(list), maxReviewPages)
+		if next == 0 {
+			stop = reason
+			break
+		}
+		lo.Page = next
+	}
+	p.logList(ctx, "relectures listées", owner, name, pages, len(reviews), stop)
+	return reviews, nil
 }
 
 // toAccount convertit le compte d'un auteur (nil : compte inconnu, valeur zéro).

@@ -148,7 +148,8 @@ type ConventionsBranchConfig struct {
 	Exclude []string `mapstructure:"exclude"`
 }
 
-// ConventionsPRConfig regroupe les attentes du corps des pull requests (clés conventions.pr.*, PR5).
+// ConventionsPRConfig regroupe les attentes des pull requests (clés conventions.pr.*) : corps (PR5) et
+// relectures (PR4).
 type ConventionsPRConfig struct {
 	// BodySections liste les clés des sections attendues dans le corps d'une PR, parmi
 	// conventions.AllPRBodySections : context, changes, testing, screenshots ; défaut : toutes. Vide : PR5
@@ -157,11 +158,22 @@ type ConventionsPRConfig struct {
 	// RequireCloses exige un mot-clé de fermeture suivi d'un numéro d'issue (« Closes #12 ») dans le corps
 	// (défaut true).
 	RequireCloses bool `mapstructure:"require_closes"`
+	// MinReviews est le nombre de relecteurs distincts, autres que l'auteur et non exclus, dont
+	// l'approbation est exigée à la fusion (PR4, défaut conventions.DefaultMinReviews, au moins 1).
+	MinReviews int `mapstructure:"min_reviews"`
+	// ReviewerMustContribute exige en plus que ces relecteurs soient auteurs d'au moins un commit du dépôt
+	// (défaut false : un autre compte suffit).
+	ReviewerMustContribute bool `mapstructure:"reviewer_must_contribute"`
 }
 
 // PRBodyRules renvoie les attentes PR5 tirées de ces réglages (liste copiée).
 func (c ConventionsConfig) PRBodyRules() conventions.PRBodyRules {
 	return conventions.PRBodyRules{Sections: slices.Clone(c.PR.BodySections), RequireCloses: c.PR.RequireCloses}
+}
+
+// ReviewRules renvoie les attentes PR4 tirées de ces réglages.
+func (c ConventionsConfig) ReviewRules() conventions.ReviewRules {
+	return conventions.ReviewRules{MinReviews: c.PR.MinReviews, ReviewerMustContribute: c.PR.ReviewerMustContribute}
 }
 
 // ConventionsTagsConfig regroupe les jalons et les formes de pré-version des tags (clés conventions.tags.*).
@@ -265,6 +277,7 @@ func (c ConventionsConfig) BuildOptions(loc *time.Location) conventions.BuildOpt
 		Language:         c.Commit.Language,
 		Files:            c.FileRules(),
 		PRBody:           c.PRBodyRules(),
+		Review:           c.ReviewRules(),
 	}
 }
 
@@ -384,7 +397,8 @@ type GitConfig struct {
 //	conventions: {enabled: false, since: "", commit: {types: conventions.DefaultTypes, scopes: [],
 //	              max_subject_soft: 50, max_subject_hard: 72, forbidden: conventions.DefaultForbidden,
 //	              language: "any"}, branch: {pattern: "", exclude: conventions.DefaultBranchExclude},
-//	              pr: {body_sections: conventions.DefaultPRBodySections, require_closes: true},
+//	              pr: {body_sections: conventions.DefaultPRBodySections, require_closes: true,
+//	              min_reviews: 1, reviewer_must_contribute: false},
 //	              tags: {milestones: conventions.DefaultMilestones,
 //	              prerelease_forms: conventions.DefaultPrereleaseForms}, changelog: {categories_fr: true},
 //	              readme: {sections: conventions.AllReadmeSections, min_words: 150},
@@ -429,8 +443,10 @@ func DefaultConfig(name string) Config {
 				Exclude: conventions.DefaultBranchExclude(),
 			},
 			PR: ConventionsPRConfig{
-				BodySections:  conventions.DefaultPRBodySections(),
-				RequireCloses: true,
+				BodySections:           conventions.DefaultPRBodySections(),
+				RequireCloses:          true,
+				MinReviews:             conventions.DefaultMinReviews,
+				ReviewerMustContribute: false,
 			},
 			Tags: ConventionsTagsConfig{
 				Milestones:      conventions.DefaultMilestones(),
@@ -479,6 +495,7 @@ func DefaultConfig(name string) Config {
 //   - conventions.branch.pattern vide ou expression RE2 valide ; conventions.branch.exclude : chaque
 //     motif non vide et valide pour path.Match ;
 //   - conventions.pr.body_sections : chaque clé parmi conventions.AllPRBodySections, une seule fois ;
+//     conventions.pr.min_reviews >= 1 ;
 //   - conventions.tags.milestones : chaque entrée « vX.Y.Z » (version finale conforme, sans pré-version
 //     ni build) suivie au besoin de « @AAAA-MM-JJ » (date valide), chaque version une seule fois ;
 //   - conventions.tags.prerelease_forms : au moins une forme, chacune un mot de 1 à 32 lettres
@@ -639,6 +656,9 @@ func (c ConventionsConfig) validate() []error {
 		default:
 			prSections[k] = true
 		}
+	}
+	if c.PR.MinReviews < 1 {
+		add("workspace.validate.conv_pr_min_reviews", c.PR.MinReviews)
 	}
 	seen := map[string]bool{}
 	for i, entry := range c.Tags.Milestones {
@@ -1505,6 +1525,8 @@ func renderConfig(tr *i18n.Translator, defaultName string, active map[string]any
 	setting("    ", "conventions.pr.body_sections",
 		tr.T("workspace.cfg.conventions_pr_body_sections", strings.Join(conventions.AllPRBodySections(), ", ")))
 	setting("    ", "conventions.pr.require_closes", tr.T("workspace.cfg.conventions_pr_require_closes"))
+	setting("    ", "conventions.pr.min_reviews", tr.T("workspace.cfg.conventions_pr_min_reviews"))
+	setting("    ", "conventions.pr.reviewer_must_contribute", tr.T("workspace.cfg.conventions_pr_reviewer_must_contribute"))
 	if sectionActive("conventions.tags") {
 		text("  tags:")
 	} else {

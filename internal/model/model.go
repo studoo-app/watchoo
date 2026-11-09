@@ -416,6 +416,16 @@ type PullRequest struct {
 	// BodySections est le masque des sections reconnues dans la description (PR5, phase 8.5,
 	// conventions.CheckPRBody) ; nil = inconnu. La description n'est jamais gardée.
 	BodySections *int64
+	// Relectures (PR4, phase 8.6) : compteurs seulement, jamais le login d'un relecteur ni le corps d'une
+	// relecture ; nil = relectures jamais lues. ReviewsByOthers compte les relectures déposées par
+	// d'autres comptes (ni bots ni exclus), tous états sauf PENDING ; ApprovalsByOthers les relecteurs
+	// distincts de ces comptes approuvant au moment de la fusion (dernier état décisif APPROVED) ;
+	// ApprovalsByContributors, parmi eux, les auteurs d'au moins un commit du dépôt.
+	ReviewsByOthers         *int64
+	ApprovalsByOthers       *int64
+	ApprovalsByContributors *int64
+	// ReviewsCheckedAt est la date de la dernière lecture des relectures, UTC ; zéro si jamais lues.
+	ReviewsCheckedAt time.Time
 }
 
 // Status renvoie l'état affiché : mergée, fermée sans merge ou ouverte.

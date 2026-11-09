@@ -48,7 +48,7 @@ func TestDefaultConfig(t *testing.T) {
 			},
 			Branch: ConventionsBranchConfig{Pattern: "", Exclude: []string{"gh-pages", "dependabot/*", "renovate/*"}},
 			PR: ConventionsPRConfig{BodySections: []string{"context", "changes", "testing", "screenshots"},
-				RequireCloses: true},
+				RequireCloses: true, MinReviews: 1, ReviewerMustContribute: false},
 			Tags: ConventionsTagsConfig{Milestones: []string{"v1.0.0", "v2.0.0", "v3.0.0"},
 				PrereleaseForms: []string{"rc", "beta", "alpha"}},
 			Changelog: ConventionsChangelogConfig{CategoriesFR: true},
@@ -98,6 +98,7 @@ func TestSettingKeys(t *testing.T) {
 		"conventions.commit.scopes", "conventions.commit.max_subject_soft", "conventions.commit.max_subject_hard",
 		"conventions.commit.forbidden", "conventions.commit.language", "conventions.branch.pattern",
 		"conventions.branch.exclude", "conventions.pr.body_sections", "conventions.pr.require_closes",
+		"conventions.pr.min_reviews", "conventions.pr.reviewer_must_contribute",
 		"conventions.tags.milestones", "conventions.tags.prerelease_forms",
 		"conventions.changelog.categories_fr",
 		"conventions.readme.sections", "conventions.readme.min_words", "conventions.docs.dir",
@@ -117,7 +118,8 @@ func TestSettingKeys(t *testing.T) {
 		"WATCHOO_CONVENTIONS_COMMIT_MAX_SUBJECT_HARD", "WATCHOO_CONVENTIONS_COMMIT_FORBIDDEN",
 		"WATCHOO_CONVENTIONS_COMMIT_LANGUAGE", "WATCHOO_CONVENTIONS_BRANCH_PATTERN",
 		"WATCHOO_CONVENTIONS_BRANCH_EXCLUDE", "WATCHOO_CONVENTIONS_PR_BODY_SECTIONS",
-		"WATCHOO_CONVENTIONS_PR_REQUIRE_CLOSES", "WATCHOO_CONVENTIONS_TAGS_MILESTONES",
+		"WATCHOO_CONVENTIONS_PR_REQUIRE_CLOSES", "WATCHOO_CONVENTIONS_PR_MIN_REVIEWS",
+		"WATCHOO_CONVENTIONS_PR_REVIEWER_MUST_CONTRIBUTE", "WATCHOO_CONVENTIONS_TAGS_MILESTONES",
 		"WATCHOO_CONVENTIONS_TAGS_PRERELEASE_FORMS",
 		"WATCHOO_CONVENTIONS_CHANGELOG_CATEGORIES_FR", "WATCHOO_CONVENTIONS_README_SECTIONS",
 		"WATCHOO_CONVENTIONS_README_MIN_WORDS", "WATCHOO_CONVENTIONS_DOCS_DIR",
@@ -175,6 +177,8 @@ func TestValidateAcceptsBoundaries(t *testing.T) {
 		"no PR body section":    func(c *Config) { c.Conventions.PR.BodySections = []string{} },
 		"some PR body sections": func(c *Config) { c.Conventions.PR.BodySections = []string{"testing", "context"} },
 		"closes not required":   func(c *Config) { c.Conventions.PR.RequireCloses = false },
+		"two reviews required":  func(c *Config) { c.Conventions.PR.MinReviews = 2 },
+		"reviewer contributes":  func(c *Config) { c.Conventions.PR.ReviewerMustContribute = true },
 		"French labels refused": func(c *Config) { c.Conventions.Changelog.CategoriesFR = false },
 		"nested docs dir":       func(c *Config) { c.Conventions.Docs.Dir = "docs/projet" },
 		"own media dir":         func(c *Config) { c.Conventions.Docs.MediaDir = "images" },
@@ -341,6 +345,10 @@ func TestValidateRejectsInvalidValues(t *testing.T) {
 			[]string{"conventions.readme.sections", "#3", "run"}},
 		{"README min words 0", func(c *Config) { c.Conventions.Readme.MinWords = 0 },
 			[]string{"conventions.readme.min_words", "at least 1", "0"}},
+		{"PR min reviews 0", func(c *Config) { c.Conventions.PR.MinReviews = 0 },
+			[]string{"conventions.pr.min_reviews", "at least 1", "0"}},
+		{"PR min reviews negative", func(c *Config) { c.Conventions.PR.MinReviews = -2 },
+			[]string{"conventions.pr.min_reviews", "at least 1", "-2"}},
 		{"empty docs dir", func(c *Config) { c.Conventions.Docs.Dir = "" },
 			[]string{"conventions.docs.dir", `""`}},
 		{"absolute docs dir", func(c *Config) { c.Conventions.Docs.Dir = "/documentation" },
@@ -589,27 +597,29 @@ func TestLoadEnvironmentVariables(t *testing.T) {
 		"WATCHOO_DIAGNOSTIC_RETENTION_DAYS":  "30",
 		"WATCHOO_DIAGNOSTIC_SPEED_SIGNAL":    "true",
 
-		"WATCHOO_CONVENTIONS_ENABLED":                 "true",
-		"WATCHOO_CONVENTIONS_SINCE":                   "2026-09-01",
-		"WATCHOO_CONVENTIONS_COMMIT_TYPES":            "feat, fix",
-		"WATCHOO_CONVENTIONS_COMMIT_SCOPES":           "api,web",
-		"WATCHOO_CONVENTIONS_COMMIT_MAX_SUBJECT_SOFT": "60",
-		"WATCHOO_CONVENTIONS_COMMIT_MAX_SUBJECT_HARD": "100",
-		"WATCHOO_CONVENTIONS_COMMIT_FORBIDDEN":        "wip, maj",
-		"WATCHOO_CONVENTIONS_COMMIT_LANGUAGE":         "fr",
-		"WATCHOO_CONVENTIONS_BRANCH_PATTERN":          "^(feat|fix)/[a-z0-9-]{2,40}$",
-		"WATCHOO_CONVENTIONS_BRANCH_EXCLUDE":          "gh-pages, release/*",
-		"WATCHOO_CONVENTIONS_TAGS_MILESTONES":         "v1.0.0@2026-12-18, v2.0.0",
-		"WATCHOO_CONVENTIONS_TAGS_PRERELEASE_FORMS":   "rc, preview",
-		"WATCHOO_CONVENTIONS_PR_BODY_SECTIONS":        "testing, changes",
-		"WATCHOO_CONVENTIONS_PR_REQUIRE_CLOSES":       "false",
-		"WATCHOO_CONVENTIONS_CHANGELOG_CATEGORIES_FR": "false",
-		"WATCHOO_CONVENTIONS_README_SECTIONS":         "install, run",
-		"WATCHOO_CONVENTIONS_README_MIN_WORDS":        "80",
-		"WATCHOO_CONVENTIONS_DOCS_DIR":                "docs/projet",
-		"WATCHOO_CONVENTIONS_DOCS_MEDIA_DIR":          "images",
-		"WATCHOO_CONVENTIONS_DOCS_ARCHIVES_SCOPE":     "documentation",
-		"WATCHOO_CONVENTIONS_EXCLUDED_ACCOUNTS":       "prof-dupont",
+		"WATCHOO_CONVENTIONS_ENABLED":                     "true",
+		"WATCHOO_CONVENTIONS_SINCE":                       "2026-09-01",
+		"WATCHOO_CONVENTIONS_COMMIT_TYPES":                "feat, fix",
+		"WATCHOO_CONVENTIONS_COMMIT_SCOPES":               "api,web",
+		"WATCHOO_CONVENTIONS_COMMIT_MAX_SUBJECT_SOFT":     "60",
+		"WATCHOO_CONVENTIONS_COMMIT_MAX_SUBJECT_HARD":     "100",
+		"WATCHOO_CONVENTIONS_COMMIT_FORBIDDEN":            "wip, maj",
+		"WATCHOO_CONVENTIONS_COMMIT_LANGUAGE":             "fr",
+		"WATCHOO_CONVENTIONS_BRANCH_PATTERN":              "^(feat|fix)/[a-z0-9-]{2,40}$",
+		"WATCHOO_CONVENTIONS_BRANCH_EXCLUDE":              "gh-pages, release/*",
+		"WATCHOO_CONVENTIONS_TAGS_MILESTONES":             "v1.0.0@2026-12-18, v2.0.0",
+		"WATCHOO_CONVENTIONS_TAGS_PRERELEASE_FORMS":       "rc, preview",
+		"WATCHOO_CONVENTIONS_PR_BODY_SECTIONS":            "testing, changes",
+		"WATCHOO_CONVENTIONS_PR_REQUIRE_CLOSES":           "false",
+		"WATCHOO_CONVENTIONS_PR_MIN_REVIEWS":              "2",
+		"WATCHOO_CONVENTIONS_PR_REVIEWER_MUST_CONTRIBUTE": "true",
+		"WATCHOO_CONVENTIONS_CHANGELOG_CATEGORIES_FR":     "false",
+		"WATCHOO_CONVENTIONS_README_SECTIONS":             "install, run",
+		"WATCHOO_CONVENTIONS_README_MIN_WORDS":            "80",
+		"WATCHOO_CONVENTIONS_DOCS_DIR":                    "docs/projet",
+		"WATCHOO_CONVENTIONS_DOCS_MEDIA_DIR":              "images",
+		"WATCHOO_CONVENTIONS_DOCS_ARCHIVES_SCOPE":         "documentation",
+		"WATCHOO_CONVENTIONS_EXCLUDED_ACCOUNTS":           "prof-dupont",
 	}
 	for k, v := range env {
 		t.Setenv(k, v)
@@ -634,7 +644,8 @@ func TestLoadEnvironmentVariables(t *testing.T) {
 				MaxSubjectSoft: 60, MaxSubjectHard: 100, Forbidden: []string{"wip", "maj"}, Language: "fr"},
 			Branch: ConventionsBranchConfig{Pattern: "^(feat|fix)/[a-z0-9-]{2,40}$",
 				Exclude: []string{"gh-pages", "release/*"}},
-			PR: ConventionsPRConfig{BodySections: []string{"testing", "changes"}, RequireCloses: false},
+			PR: ConventionsPRConfig{BodySections: []string{"testing", "changes"}, RequireCloses: false,
+				MinReviews: 2, ReviewerMustContribute: true},
 			Tags: ConventionsTagsConfig{Milestones: []string{"v1.0.0@2026-12-18", "v2.0.0"},
 				PrereleaseForms: []string{"rc", "preview"}},
 			Changelog:        ConventionsChangelogConfig{CategoriesFR: false},
@@ -745,6 +756,8 @@ conventions:
   pr:
     body_sections: [context, testing]
     require_closes: false
+    min_reviews: 3
+    reviewer_must_contribute: true
   tags:
     milestones: [v1.0.0@2026-12-18, "v2.0.0"]
     prerelease_forms: [rc, beta]
@@ -767,7 +780,8 @@ conventions:
 			Commit: ConventionsCommitConfig{Types: []string{"feat", "fix", "docs"}, Scopes: []string{},
 				MaxSubjectSoft: 60, MaxSubjectHard: 80, Forbidden: []string{"wip", "."}, Language: "en"},
 			Branch: ConventionsBranchConfig{Pattern: "^(feat|fix)/[a-z]+$", Exclude: []string{"gh-pages"}},
-			PR:     ConventionsPRConfig{BodySections: []string{"context", "testing"}, RequireCloses: false},
+			PR: ConventionsPRConfig{BodySections: []string{"context", "testing"}, RequireCloses: false,
+				MinReviews: 3, ReviewerMustContribute: true},
 			Tags: ConventionsTagsConfig{Milestones: []string{"v1.0.0@2026-12-18", "v2.0.0"},
 				PrereleaseForms: []string{"rc", "beta"}},
 			Changelog:        ConventionsChangelogConfig{CategoriesFR: false},
@@ -793,12 +807,16 @@ conventions:
 			bo.Branch.Pattern != "^(feat|fix)/[a-z]+$" || !slices.Equal(bo.Branch.Exclude, []string{"gh-pages"}) ||
 			len(bo.Milestones) != 2 || bo.Milestones[0].Due != "2026-12-18" || bo.LocalOnly ||
 			!slices.Equal(bo.PrereleaseForms, []string{"rc", "beta"}) ||
-			!slices.Equal(bo.PRBody.Sections, []string{"context", "testing"}) || bo.PRBody.RequireCloses {
+			!slices.Equal(bo.PRBody.Sections, []string{"context", "testing"}) || bo.PRBody.RequireCloses ||
+			bo.Review != (conventions.ReviewRules{MinReviews: 3, ReviewerMustContribute: true}) {
 			t.Errorf("BuildOptions = %+v", bo)
 		}
 		bo.PRBody.Sections[0] = "changed"
 		if ws.Config.Conventions.PR.BodySections[0] != "context" {
 			t.Error("PRBodyRules shares its list with the configuration")
+		}
+		if d := DefaultConfig("x").Conventions.ReviewRules(); d != conventions.DefaultReviewRules() {
+			t.Errorf("default ReviewRules = %+v\nwant the charter %+v", d, conventions.DefaultReviewRules())
 		}
 		if d := DefaultConfig("x").Conventions.PRBodyRules(); !reflect.DeepEqual(d, conventions.DefaultPRBodyRules()) {
 			t.Errorf("default PRBodyRules = %+v\nwant the charter %+v", d, conventions.DefaultPRBodyRules())

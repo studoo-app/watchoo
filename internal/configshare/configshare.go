@@ -148,10 +148,13 @@ type ConventionsBranchSettings struct {
 	Exclude *[]string `json:"exclude,omitempty"`
 }
 
-// ConventionsPRSettings : conventions.pr.* (body_sections [] = aucune section attendue ; phase 8.5).
+// ConventionsPRSettings : conventions.pr.* (body_sections [] = aucune section attendue ; phase 8.5 ;
+// min_reviews, au moins 1, et reviewer_must_contribute : phase 8.6).
 type ConventionsPRSettings struct {
-	BodySections  *[]string `json:"body_sections,omitempty"`
-	RequireCloses *bool     `json:"require_closes,omitempty"`
+	BodySections           *[]string `json:"body_sections,omitempty"`
+	RequireCloses          *bool     `json:"require_closes,omitempty"`
+	MinReviews             *int      `json:"min_reviews,omitempty"`
+	ReviewerMustContribute *bool     `json:"reviewer_must_contribute,omitempty"`
 }
 
 // ConventionsTagsSettings : conventions.tags.* (milestones [] = aucun jalon).
@@ -327,8 +330,10 @@ func settingsFromConfig(c workspace.Config) *Settings {
 				Exclude: shared.ConventionsBranchExclude,
 			},
 			PR: &ConventionsPRSettings{
-				BodySections:  shared.ConventionsPRBodySections,
-				RequireCloses: shared.ConventionsPRRequireCloses,
+				BodySections:           shared.ConventionsPRBodySections,
+				RequireCloses:          shared.ConventionsPRRequireCloses,
+				MinReviews:             shared.ConventionsPRMinReviews,
+				ReviewerMustContribute: shared.ConventionsPRReviewerMustContribute,
 			},
 			Tags: &ConventionsTagsSettings{Milestones: shared.ConventionsMilestones,
 				PrereleaseForms: shared.ConventionsPrereleaseForms},

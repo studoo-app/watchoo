@@ -138,6 +138,7 @@ type repoState struct {
 	seq      int               // number of commits added since creation (order of addition)
 	branches map[string]string // name → head SHA
 	pulls    map[int]PullRequest
+	reviews  map[int][]Review // PR number → reviews (SetReviews), phase 8.6
 	releases []Release
 	tags     []Tag
 }

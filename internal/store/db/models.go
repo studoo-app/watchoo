@@ -126,25 +126,29 @@ type DiagnosticReview struct {
 }
 
 type PullRequest struct {
-	RepoID           int64
-	Number           int64
-	Title            string
-	State            string
-	Merged           bool
-	Draft            bool
-	AuthorLogin      string
-	AuthorProviderID int64
-	URL              string
-	BaseBranch       string
-	HeadBranch       string
-	CreatedAt        string
-	UpdatedAt        string
-	ClosedAt         sql.NullString
-	MergedAt         sql.NullString
-	ToolIds          string
-	MergeCommitSha   sql.NullString
-	FromFork         sql.NullInt64
-	BodySections     sql.NullInt64
+	RepoID                  int64
+	Number                  int64
+	Title                   string
+	State                   string
+	Merged                  bool
+	Draft                   bool
+	AuthorLogin             string
+	AuthorProviderID        int64
+	URL                     string
+	BaseBranch              string
+	HeadBranch              string
+	CreatedAt               string
+	UpdatedAt               string
+	ClosedAt                sql.NullString
+	MergedAt                sql.NullString
+	ToolIds                 string
+	MergeCommitSha          sql.NullString
+	FromFork                sql.NullInt64
+	BodySections            sql.NullInt64
+	ReviewsByOthers         sql.NullInt64
+	ApprovalsByOthers       sql.NullInt64
+	ApprovalsByContributors sql.NullInt64
+	ReviewsCheckedAt        sql.NullString
 }
 
 type Release struct {

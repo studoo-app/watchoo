@@ -140,7 +140,7 @@ func TestConventionsReviewFiles(t *testing.T) {
 	e, _ := conventionsPullsEnv(t, func(e *testEnv) { e.cfg.Conventions.Since = "2020-01-01" })
 	w := e.get("/conventions")
 	assertContains(t, w, "CL9 <span", "CHANGELOG section of the milestone", "RD2 <span", "installation section of the README",
-		"DOC3 <span", "INDEX exhaustive", "/13 criteria conforming")
+		"DOC3 <span", "INDEX exhaustive", "/14 criteria conforming")
 }
 
 // Every file code, file criterion and new reason has its label in both languages (keys built at run time).

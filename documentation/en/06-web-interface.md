@@ -277,6 +277,12 @@ signatures, no address displayed. Rules: [AI signatures](02-features.md#ai-signa
   branches merged more than once (BR2) and the allowed merge methods (BR5: badge "squash only" or "not only
   squash", "unknown" with its reason without push access). Neither a description, a title nor a commit
   message is ever shown.
+  Since 1.12.0 (phase 8.6, API mode), the table of pull requests also lists the pull requests **merged
+  without review**, with a third badge, the review of a merged pull request (PR4: "reviewed", "merged
+  without review", "reviews not read yet"), and the **Merges** block gives, in `repo-conventions-reviews`,
+  "Merged pull requests reviewed by another account: r/k (u not read yet)." then "Merged without review
+  (n):" with the number and the author (link to their page) of each one, at most 20. Counters only: no
+  reviewer, no review body, no title.
 - Button **"Sync this repository"** (absent if tracking is stopped).
 - Fragments: `/repos/{id}/commits` (history); `/repos/{id}` with the `HX-Target` header
   `repo-overview`, `repo-contributors`, `repo-languages`, `repo-pulls`, `repo-diagnostic` or
@@ -335,7 +341,10 @@ nor the templates: the profile link is the address stored in the database (see
   rates, before and since the last final tag of each repository, without an arrow ("unknown" without a
   local clone or a final tag). Since 1.11.0 (`contributor-conventions-outside-pr`): the commits of the
   default branch they wrote that arrived outside a pull request ("n of m", then each one as repository, short
-  SHA and reason, at most 20; "unknown" without a readable local clone).
+  SHA and reason, at most 20; "unknown" without a readable local clone). Since 1.12.0
+  (`contributor-conventions-reviews`): their merged pull requests reviewed by another account and the
+  reviews received on their pull requests ("r/k; …: n"; the reviews received alone, without "0/0", while no merged pull request has its reviews read; "none read" without any pull request read); the reviews they gave are
+  not counted, since no reviewer is kept.
 - **Activity over 90 days**: commits per day of the contributor, across all repositories (`daily`
   chart, like the dashboard and the repository page).
 - **Per-repository activity over 12 weeks**: the stacked `contributors-chart` chart (same template,
@@ -554,16 +563,19 @@ For the trainer only; "Conventions" navigation entry only when the conventions a
   the under-versioned bumps, the pre-release and precedence warnings and the `feat`/`fix` commits since the
   CHANGELOG (phase 8.4); since 1.11.0, an **Outside PR, merge methods** column: commits outside a pull
   request out of those of the first parent of the default branch (PR3) and the badge of the allowed merge
-  methods (BR5).
+  methods (BR5); since 1.12.0, a **Merged PRs reviewed** column: "r/k reviewed · u not read yet" (PR4).
 - **By contributor**: by name, never sorted by conformity: conforming commits (CC3), the trend (before /
   since the last final tag), conforming pull request titles and branches (head branches of their pull
-  requests only), and since 1.11.0 the commits they wrote that arrived outside a pull request (PR3). Tags, milestones and branches without a pull request are never attributed to a person.
+  requests only), and since 1.11.0 the commits they wrote that arrived outside a pull request (PR3); since
+  1.12.0, **Reviews received**: "r/k reviewed · n received" (PR4 of their merged pull requests and reviews
+  received on their pull requests; "n received" alone without a merged pull request read, "—" without any pull request read; the reviews given are not counted). Tags, milestones and branches without a pull request are never attributed to a person.
 - **Milestone review** (`?milestone=vX.Y.Z`, first configured milestone by default; a milestone that is not
   in `conventions.tags.milestones`: 400): a repository × criterion table (CC1 on the interval of the
   milestone, BR1, SV1, SV2; since 1.9.0 CL9, CL8, RD1, RD2 installation section, RD3, DOC1 and DOC3, read on
   the tree of the milestone tag; tag absent: "unknown" with the reason of SV1; since 1.10.0 SV3 after SV2,
   and SV2 judges the due date; since 1.11.0 PR3 after BR1, with "PR3: n outside a pull request of m commits (u undetermined)"
-  under the result), each cell "conforming", "not conforming" or "unknown" with its reason, then
+  under the result; since 1.12.0 PR4 after PR3, with "PR4: r/m merged pull requests reviewed (u not read
+  yet) (#n, …)" under the result), each cell "conforming", "not conforming" or "unknown" with its reason, then
   "k/n criteria conforming, u unknown", the due date and the history of the tag (1.10.0) and the interval
   read; no global grade. Without a start date:
   "Not evaluable: missing start date". No milestone configured: a dedicated text.

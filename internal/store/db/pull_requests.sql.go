@@ -174,6 +174,7 @@ const listConventionPullRequests = `-- name: ListConventionPullRequests :many
 SELECT p.repo_id, p.number, p.title, p.state, p.merged, p.draft, p.author_login, p.author_provider_id,
        p.url, p.base_branch, p.head_branch, p.created_at, p.updated_at, p.closed_at, p.merged_at, p.tool_ids,
        p.merge_commit_sha, p.from_fork, p.body_sections,
+       p.reviews_by_others, p.approvals_by_others, p.approvals_by_contributors, p.reviews_checked_at,
        CAST(COALESCE(c.id, 0) AS INTEGER) AS author_id,
        CAST(COALESCE(c.name, '') AS TEXT) AS author_name
 FROM pull_requests p
@@ -185,27 +186,31 @@ ORDER BY p.number DESC
 `
 
 type ListConventionPullRequestsRow struct {
-	RepoID           int64
-	Number           int64
-	Title            string
-	State            string
-	Merged           bool
-	Draft            bool
-	AuthorLogin      string
-	AuthorProviderID int64
-	URL              string
-	BaseBranch       string
-	HeadBranch       string
-	CreatedAt        string
-	UpdatedAt        string
-	ClosedAt         sql.NullString
-	MergedAt         sql.NullString
-	ToolIds          string
-	MergeCommitSha   sql.NullString
-	FromFork         sql.NullInt64
-	BodySections     sql.NullInt64
-	AuthorID         int64
-	AuthorName       string
+	RepoID                  int64
+	Number                  int64
+	Title                   string
+	State                   string
+	Merged                  bool
+	Draft                   bool
+	AuthorLogin             string
+	AuthorProviderID        int64
+	URL                     string
+	BaseBranch              string
+	HeadBranch              string
+	CreatedAt               string
+	UpdatedAt               string
+	ClosedAt                sql.NullString
+	MergedAt                sql.NullString
+	ToolIds                 string
+	MergeCommitSha          sql.NullString
+	FromFork                sql.NullInt64
+	BodySections            sql.NullInt64
+	ReviewsByOthers         sql.NullInt64
+	ApprovalsByOthers       sql.NullInt64
+	ApprovalsByContributors sql.NullInt64
+	ReviewsCheckedAt        sql.NullString
+	AuthorID                int64
+	AuthorName              string
 }
 
 // Pull requests du depot pour les conventions (phase 8.2), numero decroissant : titre (lu en memoire
@@ -241,6 +246,10 @@ func (q *Queries) ListConventionPullRequests(ctx context.Context, repoID int64) 
 			&i.MergeCommitSha,
 			&i.FromFork,
 			&i.BodySections,
+			&i.ReviewsByOthers,
+			&i.ApprovalsByOthers,
+			&i.ApprovalsByContributors,
+			&i.ReviewsCheckedAt,
 			&i.AuthorID,
 			&i.AuthorName,
 		); err != nil {
@@ -261,6 +270,7 @@ const listPullRequests = `-- name: ListPullRequests :many
 SELECT p.repo_id, p.number, p.title, p.state, p.merged, p.draft, p.author_login, p.author_provider_id,
        p.url, p.base_branch, p.head_branch, p.created_at, p.updated_at, p.closed_at, p.merged_at, p.tool_ids,
        p.merge_commit_sha, p.from_fork, p.body_sections,
+       p.reviews_by_others, p.approvals_by_others, p.approvals_by_contributors, p.reviews_checked_at,
        r.owner AS repo_owner, r.name AS repo_name, r.label AS repo_label
 FROM pull_requests p
 JOIN repositories r ON r.id = p.repo_id
@@ -281,28 +291,32 @@ type ListPullRequestsParams struct {
 }
 
 type ListPullRequestsRow struct {
-	RepoID           int64
-	Number           int64
-	Title            string
-	State            string
-	Merged           bool
-	Draft            bool
-	AuthorLogin      string
-	AuthorProviderID int64
-	URL              string
-	BaseBranch       string
-	HeadBranch       string
-	CreatedAt        string
-	UpdatedAt        string
-	ClosedAt         sql.NullString
-	MergedAt         sql.NullString
-	ToolIds          string
-	MergeCommitSha   sql.NullString
-	FromFork         sql.NullInt64
-	BodySections     sql.NullInt64
-	RepoOwner        string
-	RepoName         string
-	RepoLabel        string
+	RepoID                  int64
+	Number                  int64
+	Title                   string
+	State                   string
+	Merged                  bool
+	Draft                   bool
+	AuthorLogin             string
+	AuthorProviderID        int64
+	URL                     string
+	BaseBranch              string
+	HeadBranch              string
+	CreatedAt               string
+	UpdatedAt               string
+	ClosedAt                sql.NullString
+	MergedAt                sql.NullString
+	ToolIds                 string
+	MergeCommitSha          sql.NullString
+	FromFork                sql.NullInt64
+	BodySections            sql.NullInt64
+	ReviewsByOthers         sql.NullInt64
+	ApprovalsByOthers       sql.NullInt64
+	ApprovalsByContributors sql.NullInt64
+	ReviewsCheckedAt        sql.NullString
+	RepoOwner               string
+	RepoName                string
+	RepoLabel               string
 }
 
 // Pull requests filtrees (depot, etat, merge, compte de l'auteur), de la plus recemment modifiee a la plus ancienne.
@@ -342,9 +356,72 @@ func (q *Queries) ListPullRequests(ctx context.Context, arg ListPullRequestsPara
 			&i.MergeCommitSha,
 			&i.FromFork,
 			&i.BodySections,
+			&i.ReviewsByOthers,
+			&i.ApprovalsByOthers,
+			&i.ApprovalsByContributors,
+			&i.ReviewsCheckedAt,
 			&i.RepoOwner,
 			&i.RepoName,
 			&i.RepoLabel,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPullRequestsToReview = `-- name: ListPullRequestsToReview :many
+SELECT p.number, p.merged, p.merged_at, p.created_at, p.updated_at, p.author_login, p.author_provider_id
+FROM pull_requests p
+WHERE p.repo_id = ?
+  AND (p.from_fork IS NULL OR p.from_fork = 0)
+  AND ((p.merged = 1 AND p.merged_at IS NOT NULL
+        AND (p.reviews_checked_at IS NULL OR p.reviews_checked_at < p.merged_at))
+    OR (p.merged = 0 AND p.state = 'open' AND p.draft = 0
+        AND (p.reviews_checked_at IS NULL OR p.reviews_checked_at < p.updated_at)))
+ORDER BY p.merged DESC, p.merged_at DESC, p.updated_at DESC, p.number DESC
+`
+
+type ListPullRequestsToReviewRow struct {
+	Number           int64
+	Merged           bool
+	MergedAt         sql.NullString
+	CreatedAt        string
+	UpdatedAt        string
+	AuthorLogin      string
+	AuthorProviderID int64
+}
+
+// PR dont les relectures sont a lire (phase 8.6) : fusionnees jamais relues depuis leur fusion
+// (reviews_checked_at NULL ou anterieur a merged_at : une seule lecture apres la fusion suffit), puis
+// ouvertes hors brouillons modifiees depuis la derniere lecture ; jamais les PR issues d'un fork
+// (from_fork = 1). Fusionnees d'abord (fusion la plus recente d'abord), puis ouvertes (modification la
+// plus recente d'abord). L'appelant ecarte les auteurs bots, les PR ouvertes avant la date de debut des
+// conventions (created_at) et applique le plafond.
+func (q *Queries) ListPullRequestsToReview(ctx context.Context, repoID int64) ([]ListPullRequestsToReviewRow, error) {
+	rows, err := q.db.QueryContext(ctx, listPullRequestsToReview, repoID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListPullRequestsToReviewRow{}
+	for rows.Next() {
+		var i ListPullRequestsToReviewRow
+		if err := rows.Scan(
+			&i.Number,
+			&i.Merged,
+			&i.MergedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.AuthorLogin,
+			&i.AuthorProviderID,
 		); err != nil {
 			return nil, err
 		}
@@ -554,6 +631,41 @@ func (q *Queries) SetPullRequestConventions(ctx context.Context, arg SetPullRequ
 		arg.MergeCommitSha,
 		arg.FromFork,
 		arg.BodySections,
+		arg.RepoID,
+		arg.Number,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const setPullRequestReviews = `-- name: SetPullRequestReviews :execrows
+UPDATE pull_requests
+SET reviews_by_others = ?1,
+    approvals_by_others = ?2,
+    approvals_by_contributors = ?3,
+    reviews_checked_at = ?4
+WHERE repo_id = ?5 AND number = ?6
+`
+
+type SetPullRequestReviewsParams struct {
+	ReviewsByOthers         sql.NullInt64
+	ApprovalsByOthers       sql.NullInt64
+	ApprovalsByContributors sql.NullInt64
+	ReviewsCheckedAt        sql.NullString
+	RepoID                  int64
+	Number                  int64
+}
+
+// Relectures d'une PR deja en base (phase 8.6, PR4) : compteurs seulement, jamais de login de relecteur
+// ni de corps ; reviews_checked_at = date de la lecture. 0 ligne : PR absente.
+func (q *Queries) SetPullRequestReviews(ctx context.Context, arg SetPullRequestReviewsParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, setPullRequestReviews,
+		arg.ReviewsByOthers,
+		arg.ApprovalsByOthers,
+		arg.ApprovalsByContributors,
+		arg.ReviewsCheckedAt,
 		arg.RepoID,
 		arg.Number,
 	)

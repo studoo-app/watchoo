@@ -276,6 +276,12 @@ classement sur les signatures, aucune adresse affichée. Règles :
   en squash au message conforme par méthode, les branches de tête fusionnées plus d'une fois (BR2) et les
   méthodes de fusion autorisées (BR5 : pastille « squash seul » ou « pas seulement le squash », « inconnu »
   avec sa raison sans droit push). Ni description, ni titre, ni message de commit n'est jamais affiché.
+  Depuis 1.12.0 (phase 8.6, mode API), le tableau des pull requests liste aussi les pull requests
+  **fusionnées sans relecture**, avec une troisième pastille, la relecture d'une pull request fusionnée
+  (PR4 : « relue », « fusionnée sans relecture », « relectures pas encore lues »), et le bloc **Fusions**
+  donne, dans `repo-conventions-reviews`, « Pull requests fusionnées relues par un autre compte : r/k (u pas
+  encore lues). » puis « Fusionnées sans relecture (n) : » avec le numéro et l'auteur (lien vers sa page) de
+  chacune, au plus 20. Des compteurs seulement : aucun relecteur, aucun corps de relecture, aucun titre.
 - Bouton **« Synchroniser ce dépôt »** (absent si le suivi est arrêté).
 - Fragments : `/repos/{id}/commits` (historique) ; `/repos/{id}` avec l'en-tête `HX-Target`
   `repo-overview`, `repo-contributors`, `repo-languages`, `repo-pulls`, `repo-diagnostic` ou
@@ -334,6 +340,9 @@ lien de profil est l'adresse enregistrée en base (voir [Liens vers les profils]
   flèche (« inconnue » sans clone local ni tag final). Depuis 1.11.0 (`contributor-conventions-outside-pr`) :
   les commits de la branche par défaut dont la personne est l'auteur arrivés hors pull request (« n sur
   m », puis chacun par dépôt, SHA court et raison, au plus 20 ; « inconnu » sans clone local lisible).
+  Depuis 1.12.0 (`contributor-conventions-reviews`) : ses pull requests fusionnées relues par un autre compte
+  et les relectures reçues sur ses pull requests (« r/k ; … : n » ; les relectures reçues seules, sans « 0/0 », tant qu'aucune pull request fusionnée n'a ses relectures lues ; « aucune lue » sans aucune pull request lue) ; les relectures
+  qu'il a données ne sont pas comptées, faute de garder les relecteurs.
 - **Activité sur 90 jours** : commits par jour du contributeur, tous dépôts confondus (graphique
   `daily`, comme le tableau de bord et la page d'un dépôt).
 - **Activité par dépôt sur 12 semaines** : le graphique empilé `contributors-chart` (même template, même
@@ -556,17 +565,20 @@ activées (`conventions.enabled`). Désactivées : la page explique comment les 
   les tags réécrits ou supprimés, les sauts sous-versionnés, les avertissements de pré-version et de
   précédence et les commits `feat`/`fix` depuis le CHANGELOG (phase 8.4) ; depuis 1.11.0, une colonne
   **Hors PR, méthodes de fusion** : commits hors pull request sur ceux du premier parent de la branche par
-  défaut (PR3) et la pastille des méthodes de fusion autorisées (BR5).
+  défaut (PR3) et la pastille des méthodes de fusion autorisées (BR5) ; depuis 1.12.0, une colonne **PR
+  fusionnées relues** : « r/k relues · u pas encore lues » (PR4).
 - **Par contributeur** : par nom, jamais triés par conformité : commits conformes (CC3), tendance (avant /
   depuis le dernier tag final), titres de pull request et branches conformes (seulement les branches de tête
   de ses pull requests), et depuis 1.11.0 les commits dont la personne est l'auteur arrivés hors pull
-  request (PR3). Tags, jalons et branches sans pull request ne sont attribués à personne.
+  request (PR3) ; depuis 1.12.0, **Relectures reçues** : « r/k relues · n reçues » (PR4 de ses pull requests
+  fusionnées et relectures reçues sur ses pull requests ; « n reçues » seul sans pull request fusionnée lue, « — » sans aucune pull request lue ; les relectures données ne sont pas comptées). Tags, jalons et branches sans pull request ne sont attribués à personne.
 - **Revue de jalon** (`?milestone=vX.Y.Z`, premier jalon configuré par défaut ; jalon absent de
   `conventions.tags.milestones` : 400) : un tableau dépôt × critère (CC1 sur l'intervalle du jalon, BR1,
   SV1, SV2 ; depuis 1.9.0 CL9, CL8, RD1, RD2 section installation, RD3, DOC1 et DOC3, lus sur l'arbre du tag
   du jalon ; tag absent : « inconnu » avec la raison de SV1 ; depuis 1.10.0 SV3 après SV2, et SV2 juge
   l'échéance ; depuis 1.11.0 PR3 après BR1, avec « PR3 : n hors pull request sur m commits (u indéterminés) » sous le
-  résultat), chaque case « conforme », « non conforme » ou « inconnu » avec sa raison, puis « k/n critères
+  résultat ; depuis 1.12.0 PR4 après PR3, avec « PR4 : r/m pull requests fusionnées relues (u pas encore
+  lues) (#n, …) » sous le résultat), chaque case « conforme », « non conforme » ou « inconnu » avec sa raison, puis « k/n critères
   conformes, u inconnus », l'échéance et l'historique du tag (1.10.0) et l'intervalle lu ; aucune note
   globale. Sans date de début : « Non évaluable :
   date de début manquante ». Aucun jalon configuré : un texte dédié.

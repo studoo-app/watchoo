@@ -388,12 +388,13 @@ func (s *session) conventionsText(st textStyle, res conventions.BuildReport, rep
 			rows[i] = []string{cmpOr(cmpOr(c.AuthorName, c.AuthorLogin), i18n.T("cli.conv.unknown_author")),
 				ratioText(c.Tally), rateText(c.Tally, dash), trendText(c.Trend.Before, c.Trend, dash),
 				trendText(c.Trend.Since, c.Trend, dash), authorPullsText(c.Pulls, dash), authorBodiesText(c.Pulls, dash),
-				authorBranchesText(c.Branches, dash), authorArrivalsText(c.Arrivals, dash), issuesText(c.Issues)}
+				authorBranchesText(c.Branches, dash), authorArrivalsText(c.Arrivals, dash), authorReviewsText(c.Pulls, dash),
+				issuesText(c.Issues)}
 		}
 		b.WriteString(renderTable(st, []string{i18n.T("cli.sync.header_author"), i18n.T("cli.conv.header_conform"),
 			i18n.T("cli.conv.header_rate"), i18n.T("cli.conv.header_before_tag"), i18n.T("cli.conv.header_since_tag"),
 			i18n.T("cli.conv.header_pr_titles"), i18n.T("cli.conv.header_pr_bodies"), i18n.T("cli.conv.header_branches"),
-			i18n.T("cli.conv.header_outside_pr"),
+			i18n.T("cli.conv.header_outside_pr"), i18n.T("cli.conv.header_reviews"),
 			st.pick(i18n.T("cli.conv.header_issues"), i18n.T("cli.conv.header_issues_ascii"))},
 			rows, nil))
 		b.WriteString(st.gray(i18n.T("cli.conv.contributors_note")) + "\n")

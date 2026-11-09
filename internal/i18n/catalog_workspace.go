@@ -261,6 +261,10 @@ var workspaceTexts = map[string]entry{
 		"conventions.pr.body_sections: entry #%d repeats the section %s",
 		"conventions.pr.body_sections : l'entrée n° %d répète la section %s",
 	},
+	"workspace.validate.conv_pr_min_reviews": {
+		"conventions.pr.min_reviews: must be at least 1 (received %d)",
+		"conventions.pr.min_reviews : doit valoir au moins 1 (reçu %d)",
+	},
 	"workspace.validate.conv_prerelease_forms_empty": {
 		`conventions.tags.prerelease_forms: at least one form is required (e.g. "rc")`,
 		"conventions.tags.prerelease_forms : au moins une forme est requise (ex. « rc »)",
@@ -687,6 +691,14 @@ var workspaceTexts = map[string]entry{
 	"workspace.cfg.conventions_pr_require_closes": {
 		`a closing keyword followed by an issue number ("Closes #12") is expected in the pull request body`,
 		`un mot-clé de fermeture suivi d'un numéro d'issue (« Closes #12 ») est attendu dans le corps de la pull request`,
+	},
+	"workspace.cfg.conventions_pr_min_reviews": {
+		"distinct reviewers, other than the author and not excluded, whose approval is expected when a pull request is merged (at least 1)",
+		"relecteurs distincts, autres que l'auteur et non exclus, dont l'approbation est attendue à la fusion d'une pull request (au moins 1)",
+	},
+	"workspace.cfg.conventions_pr_reviewer_must_contribute": {
+		"these reviewers must also be authors of at least one commit of the repository (false: another account is enough)",
+		"ces relecteurs doivent aussi être auteurs d'au moins un commit du dépôt (false : un autre compte suffit)",
 	},
 	"workspace.cfg.conventions_prerelease_forms": {
 		`compliant pre-releases "-<form>.N" (e.g. "v1.0.0-rc.1"); other forms give a warning`,

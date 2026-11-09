@@ -185,3 +185,63 @@ func TestRepoMergeMethods(t *testing.T) {
 		t.Errorf("with push: %+v", got)
 	}
 }
+
+// Phase 8.6: GET …/pulls/{n}/reviews (order kept, deleted account, bot, PENDING without date, body
+// served, pagination, unknown PR).
+func TestReviewsRoute(t *testing.T) {
+	s := NewServer(t, Options{})
+	s.AddRepo(Repo{ID: 1, Owner: "alice", Name: "projet"})
+	s.SetPullRequests(1, PullRequest{Number: 4, Author: "alice", CreatedAt: t0})
+	s.SetReviews(1, 4,
+		Review{ID: 10, Reviewer: "bob", State: "CHANGES_REQUESTED", SubmittedAt: t0.Add(time.Hour), Body: "corps"},
+		Review{ID: 11, Reviewer: "renovate[bot]", Bot: true, State: "COMMENTED", SubmittedAt: t0.Add(2 * time.Hour)},
+		Review{ID: 12, State: "APPROVED", SubmittedAt: t0.Add(3 * time.Hour)},
+		Review{ID: 13, Reviewer: "carol", State: "PENDING"},
+	)
+	r := get(t, s, "/repos/alice/projet/pulls/4/reviews")
+	wantStatus(t, "reviews", r, http.StatusOK)
+	var list []struct {
+		ID   int64 `json:"id"`
+		User *struct {
+			Login string `json:"login"`
+			ID    int64  `json:"id"`
+			Type  string `json:"type"`
+		} `json:"user"`
+		Body        string  `json:"body"`
+		State       string  `json:"state"`
+		SubmittedAt *string `json:"submitted_at"`
+	}
+	decode(t, r, &list)
+	if len(list) != 4 {
+		t.Fatalf("reviews = %+v", list)
+	}
+	if list[0].ID != 10 || list[0].User == nil || list[0].User.Login != "bob" || list[0].User.ID != accountID("bob") ||
+		list[0].Body != "corps" || list[0].State != "CHANGES_REQUESTED" || list[0].SubmittedAt == nil {
+		t.Errorf("review 10 = %+v", list[0])
+	}
+	if list[1].User == nil || list[1].User.Type != "Bot" {
+		t.Errorf("bot review = %+v", list[1])
+	}
+	if list[2].User != nil {
+		t.Errorf("deleted account: user = %+v", list[2].User)
+	}
+	if list[3].SubmittedAt != nil || list[3].State != "PENDING" {
+		t.Errorf("pending review = %+v", list[3])
+	}
+	r = get(t, s, "/repos/alice/projet/pulls/4/reviews?per_page=1&page=2")
+	wantStatus(t, "reviews page 2", r, http.StatusOK)
+	decode(t, r, &list)
+	if len(list) != 1 || list[0].ID != 11 || r.header.Get("Link") == "" {
+		t.Errorf("page 2 = %+v (Link %q)", list, r.header.Get("Link"))
+	}
+	wantStatus(t, "unknown PR", get(t, s, "/repos/alice/projet/pulls/5/reviews"), http.StatusNotFound)
+	wantStatus(t, "malformed number", get(t, s, "/repos/alice/projet/pulls/x/reviews"), http.StatusNotFound)
+
+	rec := &recordTB{TB: t}
+	bad := NewServer(rec, Options{})
+	bad.AddRepo(Repo{ID: 1, Owner: "a", Name: "b"})
+	expectFatal(t, rec, "reviews of an unknown PR", func() { bad.SetReviews(1, 1, Review{ID: 1, State: "APPROVED"}) })
+	bad.SetPullRequests(1, PullRequest{Number: 1, CreatedAt: t0})
+	expectFatal(t, rec, "review without identifier", func() { bad.SetReviews(1, 1, Review{State: "APPROVED"}) })
+	expectFatal(t, rec, "review without state", func() { bad.SetReviews(1, 1, Review{ID: 1}) })
+}

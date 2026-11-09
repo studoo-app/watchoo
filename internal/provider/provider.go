@@ -39,6 +39,8 @@ const (
 	MaxReleases = 1000
 	// MaxTags est le nombre maximum de tags renvoyés par Tags.
 	MaxTags = 1000
+	// MaxPullRequestReviews est le nombre maximum de relectures renvoyées par PullRequestReviews.
+	MaxPullRequestReviews = 1000
 )
 
 // États d'une pull request (PullRequest.State), comme sur la forge. Une PR mergée est fermée
@@ -46,6 +48,15 @@ const (
 const (
 	PullRequestOpen   = "open"
 	PullRequestClosed = "closed"
+)
+
+// États d'une relecture de pull request (PullRequestReview.State), comme sur la forge.
+const (
+	ReviewApproved         = "APPROVED"
+	ReviewChangesRequested = "CHANGES_REQUESTED"
+	ReviewCommented        = "COMMENTED"
+	ReviewDismissed        = "DISMISSED"
+	ReviewPending          = "PENDING"
 )
 
 // Provider est l'accès en lecture seule à une forge. Les implémentations sont sûres pour un usage
@@ -67,8 +78,8 @@ const (
 //   - ErrUnavailable : forge injoignable, délai dépassé, erreur serveur (5xx) ;
 //   - ErrUnexpected : réponse illisible ou code HTTP imprévu ;
 //   - ErrWriteForbidden : une requête en écriture a été bloquée (ne doit jamais arriver) ;
-//   - ErrUnsupported : la source ne connaît pas cette notion (PullRequests, Releases, RepositoryByID
-//     ou RateLimit d'une source qui n'en a pas, comme un clone Git local) ; aucune requête n'est
+//   - ErrUnsupported : la source ne connaît pas cette notion (PullRequests, PullRequestReviews,
+//     Releases, RepositoryByID ou RateLimit d'une source qui n'en a pas, comme un clone Git local) ; aucune requête n'est
 //     partie. Le moteur de synchro la traite comme « non disponible », pas comme un échec ;
 //   - ErrAccessDenied : accès refusé par une source sans code HTTP (clone Git local : clé SSH ou
 //     identifiants Git absents ou refusés, dépôt introuvable).
@@ -137,6 +148,13 @@ type Provider interface {
 	// et la limite (Limit, au plus MaxPullRequests). Un dépôt vide renvoie une liste vide sans erreur.
 	// Une source sans pull requests renvoie une erreur enveloppant ErrUnsupported.
 	PullRequests(ctx context.Context, owner, name string, opts PullRequestsOptions) ([]PullRequest, error)
+
+	// PullRequestReviews renvoie les relectures de la pull request number (> 0, sinon ErrInvalidRef) du
+	// dépôt, dans l'ordre de la forge (chronologique), toutes les pages comprises (au plus
+	// MaxPullRequestReviews) : relecteur, état et date de dépôt, jamais le corps (phase 8.6, PR4 des
+	// conventions). PR inconnue : ErrNotFound. Une source sans pull requests renvoie une erreur
+	// enveloppant ErrUnsupported.
+	PullRequestReviews(ctx context.Context, owner, name string, number int) ([]PullRequestReview, error)
 
 	// Releases renvoie les releases du dépôt, de la plus récente à la plus ancienne (ordre de la
 	// forge), toutes les pages comprises (au plus MaxReleases). Sur GitHub, les brouillons ne sont
@@ -232,6 +250,15 @@ type PullRequest struct {
 	UpdatedAt time.Time // dernière modification, UTC
 	ClosedAt  time.Time // fermeture, UTC ; zéro si ouverte
 	MergedAt  time.Time // merge, UTC ; zéro si non mergée
+}
+
+// PullRequestReview est une relecture d'une pull request (phase 8.6). Le corps de la relecture n'est
+// jamais lu ; le login du relecteur n'est ni journalisé ni stocké (seuls des compteurs le sont).
+type PullRequestReview struct {
+	ID          int64     // identifiant de la relecture sur la forge (> 0)
+	Reviewer    Account   // relecteur ; valeur zéro si le compte a été supprimé
+	State       string    // l'un des états Review* (un autre état est transmis tel quel)
+	SubmittedAt time.Time // dépôt, UTC ; zéro pour une relecture en attente (PENDING)
 }
 
 // Release est une release d'un dépôt.

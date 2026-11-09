@@ -59,6 +59,8 @@ type convRepoRow struct {
 	ArrivalsReason      string
 	OutsidePR, Arrivals int
 	MethodsStatus       *convStatus
+	// Phase 8.6 : PR4 (fusionnées relues ; PullsKnown faux sans API).
+	Reviews convReviews
 }
 
 // convContributorRow est la ligne d'un contributeur dans la vue d'ensemble.
@@ -108,6 +110,11 @@ type convReviewRepo struct {
 	// Phase 8.5 : PR3 sur l'intervalle du jalon (HasArrivals faux si non lu).
 	HasArrivals                            bool
 	OutsidePR, ArrivalsTotal, Undetermined int
+	// Phase 8.6 : PR4 sur l'intervalle du jalon (HasReviews faux si non évaluable) ; Unreviewed, numéros des
+	// fusionnées sans relecture.
+	HasReviews                           bool
+	ReviewsMerged, ReviewsRead, Reviewed int
+	Unreviewed                           []int
 }
 
 // convReviewCell est l'état d'un critère.
@@ -158,6 +165,8 @@ func (s *server) handleConventions(w http.ResponseWriter, r *http.Request) {
 			Footer: repo.Traits.Footer, Issue: repo.Traits.Issue, Language: convLanguageOf(tr, repo.Language)}
 		if !repo.Pulls.Known {
 			row.PullsReason = tr.T("web.conv.reason." + repo.Pulls.Reason)
+		} else {
+			row.Reviews = newConvReviews(repo.Pulls)
 		}
 		row.Files, row.FilesReason = convFilesSummary(tr, repo.Files)
 		for _, m := range repo.Tags.Milestones {
@@ -209,6 +218,10 @@ func newConvReview(s *server, r *http.Request, rv conventions.MilestoneReview) *
 		}
 		if a := rr.Arrivals; a != nil && a.Known {
 			row.HasArrivals, row.OutsidePR, row.ArrivalsTotal, row.Undetermined = true, a.OutsidePR, a.Total(), a.Undetermined
+		}
+		if m := rr.Reviews; m != nil {
+			row.HasReviews, row.ReviewsMerged, row.ReviewsRead, row.Reviewed, row.Unreviewed = true, m.Merged, m.Known,
+				m.Reviewed, m.Unreviewed
 		}
 		if iv := rr.Interval; iv != nil {
 			row.HasInterval, row.From, row.To, row.Due, row.Missing = true, iv.From, iv.To, iv.Due, iv.Missing

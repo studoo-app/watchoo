@@ -267,8 +267,8 @@ func TestPullConventionsMergeMethods(t *testing.T) {
 }
 
 // End to end with the REAL GitHub provider against githubtest: conventions on, the phase 8.5 fields are
-// read in GET /repos and GET /pulls with no extra request, and the body never reaches the database nor
-// the logs.
+// read in GET /repos and GET /pulls with no extra request (only the reviews of the merged PR, phase 8.6,
+// once), and the body never reaches the database nor the logs.
 func TestPullConventionsGitHub(t *testing.T) {
 	clk := &clock{t: time.Date(2026, 10, 20, 10, 0, 0, 0, time.UTC)}
 	srv := githubtest.NewServer(t, githubtest.Options{Now: clk.Now})
@@ -304,6 +304,10 @@ func TestPullConventionsGitHub(t *testing.T) {
 		githubtest.PullRequest{Number: 3, Title: secretTitle, HeadRepoDeleted: true, Closed: true,
 			CreatedAt: epoch, UpdatedAt: epoch.Add(4 * time.Hour)},
 	)
+	// Phase 8.6: one approval by another account before the merge; neither the reviewer's login nor the
+	// review body reach the database or the logs.
+	srv.SetReviews(10, 1, githubtest.Review{ID: 1, Reviewer: secretReviewer, State: "APPROVED",
+		SubmittedAt: epoch.Add(time.Hour), Body: secretBody})
 	add, err := eng.AddRepositories(t.Context(), []wsync.AddRequest{{Ref: repoimport.Ref{Owner: testOwner, Name: "projet"}}},
 		wsync.AddOptions{})
 	if err != nil || add[0].Outcome != wsync.OutcomeAdded {
@@ -326,7 +330,9 @@ func TestPullConventionsGitHub(t *testing.T) {
 			if r.Method != "GET" {
 				t.Errorf("request %s %s", r.Method, r.Path)
 			}
-			if strings.Contains(r.Path, "/pulls/") {
+			// Phase 8.6: the reviews of the merged PR 1 are read once, on the first pass (PR 2 comes from
+			// a fork, PR 3 is closed without merge).
+			if strings.Contains(r.Path, "/pulls/") && (pass != 1 || r.Path != pullsPath+"/1/reviews") {
 				t.Errorf("sync %d: extra request %s", pass, r.Path)
 			}
 		}
@@ -352,6 +358,10 @@ func TestPullConventionsGitHub(t *testing.T) {
 		*m.BodySections == 0 {
 		t.Errorf("merged PR: %q %v %v", m.MergeCommitSHA, m.FromFork, m.BodySections)
 	}
+	if m := got[1]; m.ApprovalsByOthers == nil || *m.ApprovalsByOthers != 1 || m.ReviewsByOthers == nil ||
+		*m.ReviewsByOthers != 1 {
+		t.Errorf("merged PR reviews: %v %v", m.ReviewsByOthers, m.ApprovalsByOthers)
+	}
 	for _, n := range []int{2, 3} {
 		if f := got[n]; f.FromFork == nil || !*f.FromFork {
 			t.Errorf("PR %d: fork %v, want true", n, f.FromFork)
@@ -360,6 +370,9 @@ func TestPullConventionsGitHub(t *testing.T) {
 	for _, suffix := range []string{"", "-wal"} {
 		if b, err := os.ReadFile(dbPath + suffix); err == nil && strings.Contains(string(b), secretBody) {
 			t.Errorf("PR body found in %s", dbPath+suffix)
+		}
+		if b, err := os.ReadFile(dbPath + suffix); err == nil && strings.Contains(string(b), secretReviewer) {
+			t.Errorf("reviewer's login found in %s", dbPath+suffix)
 		}
 	}
 }

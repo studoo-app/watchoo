@@ -88,6 +88,8 @@ type convPullRow struct {
 	// fusionnée (nil si ouverte).
 	Body  convStatus
 	Merge *convStatus
+	// Phase 8.6 : pastille PR4 d'une PR fusionnée (nil si ouverte).
+	Review *convStatus
 }
 
 // convTagRow est la pastille d'un tag (SV1).
@@ -132,6 +134,10 @@ type convPRCounts struct {
 	MergedEvaluated, MergedConform, MergedDefault int
 	BodyKnown, BodyConform                        int
 	MergeConform                                  int
+	// Phase 8.6 (PR4) : fusionnées dont les relectures sont lues et relues ; relectures reçues (ouvertes et
+	// fusionnées) ; ReviewsRead compte les PR, ouvertes et fusionnées, dont les relectures sont lues (rien
+	// n'est affiché sans elles, comme dans la CLI).
+	ReviewKnown, Reviewed, ReviewsReceived, ReviewsRead int
 }
 
 func newConvPRCounts(t conventions.PRTally) convPRCounts {
@@ -140,6 +146,9 @@ func newConvPRCounts(t conventions.PRTally) convPRCounts {
 		MergedEvaluated: t.Merged.Evaluated, MergedConform: t.Merged.Conform, MergedDefault: t.Merged.Default,
 		BodyKnown: t.Open.BodyKnown + t.Merged.BodyKnown, BodyConform: t.Open.BodyConform + t.Merged.BodyConform,
 		MergeConform: t.Merged.MergeConform,
+		ReviewKnown:  t.Merged.ReviewKnown, Reviewed: t.Merged.Reviewed,
+		ReviewsReceived: t.Open.ReviewsReceived + t.Merged.ReviewsReceived,
+		ReviewsRead:     t.Open.ReviewKnown + t.Merged.ReviewKnown,
 	}
 }
 
@@ -474,7 +483,7 @@ func (s *server) repoConventionsPulls(tr *i18n.Translator, repo conventions.Repo
 		codes = append(codes, convCodesOf(tr, "web.conv.pr_default.", l.Default, prDefaultSeverity)...)
 		v.PullRows = append(v.PullRows, convPullRow{Number: l.Number, Merged: l.Category == conventions.PRCategoryMerged,
 			Author: cmp.Or(l.AuthorName, l.AuthorLogin), AuthorID: l.AuthorID, HeadBranch: l.HeadBranch, Codes: codes,
-			Body: bodyStatus(tr, l.Body), Merge: mergeStatus(tr, l.Merge)})
+			Body: bodyStatus(tr, l.Body), Merge: mergeStatus(tr, l.Merge), Review: reviewStatus(tr, l)})
 	}
 }
 
