@@ -6,7 +6,8 @@ package web
 // La page montre :
 //   - les compteurs par état (DaisyUI stat) : Actif, Flemme, Dead et états gris ;
 //   - une carte par dépôt : nom affiché, pastille d'état (activity.Evaluate, comme la CLI), dernier
-//     commit relatif et son auteur ; triées par sortDashboardRepos (Dead et Flemme d'abord) ;
+//     commit relatif et son auteur ; triées par sortDashboardRepos (Dead et Flemme d'abord) ou selon le
+//     tri choisi, filtrées par état, texte, avertissements et PR ouvertes (dashboard_filter.go, 1.7.0) ;
 //   - le fil des 20 derniers commits, tous dépôts confondus (jamais d'e-mail) ;
 //   - le graphique d'activité de l'espace : commits par jour sur activity.ChartDays jours, tous dépôts
 //     confondus (charts.go, dessiné par static/app.js).
@@ -35,8 +36,12 @@ const dashboardFeedSize = 20
 
 // DashboardView est le Content de la page et de ses fragments.
 type DashboardView struct {
-	Repos  []DashboardRepo    // cartes, dans l'ordre d'affichage (sortDashboardRepos)
-	Counts DashboardCounts    // compteurs par état
+	Repos  []DashboardRepo // cartes affichées (filtrées), dans l'ordre d'affichage (sortDashboardReposBy)
+	Counts DashboardCounts // compteurs par état, de tout l'espace (quels que soient les filtres)
+	// Filter : tri et filtres choisis (dashboard_filter.go) ; Sorts et States : choix des listes.
+	Filter DashboardFilter
+	Sorts  []filterOption
+	States []filterOption
 	Feed   []store.CommitView // derniers commits, du plus récent au plus ancien
 	// Thresholds sont les seuils de l'espace (activity.*), rappelés sous les compteurs ; un dépôt
 	// peut avoir les siens (repository_settings), appliqués par activity.Evaluate.
@@ -134,7 +139,28 @@ func (s *server) dashboardThresholds() activity.Thresholds {
 	return activity.ThresholdsFor(model.Repository{}, s.cfg.Activity)
 }
 
-// dashboardRepos lit les résumés des dépôts, calcule leur état et les trie.
+// dashboardView lit les cartes de l'espace et applique le tri et les filtres f : Counts porte sur tous
+// les dépôts, Repos sur ceux qui passent les filtres.
+func (s *server) dashboardView(r *http.Request, f DashboardFilter) (DashboardView, error) {
+	all, err := s.dashboardRepos(r.Context())
+	if err != nil {
+		return DashboardView{}, err
+	}
+	shown := filterDashboardRepos(all, f)
+	if f.Sort != "" {
+		shown = slices.Clone(shown)
+		sortDashboardReposBy(shown, f.Sort)
+	}
+	return DashboardView{Repos: shown, Counts: countStates(all), Thresholds: s.dashboardThresholds(),
+		Filter: f, Sorts: sortOptions(s.tr(r)), States: stateOptions(s.tr(r))}, nil
+}
+
+// dashboardFilter lit le tri et les filtres de la query string de r.
+func dashboardFilter(r *http.Request) DashboardFilter {
+	return parseDashboardFilter(func(name string) string { return queryValue(r, name) })
+}
+
+// dashboardRepos lit les résumés des dépôts, calcule leur état et les trie (ordre « à surveiller »).
 func (s *server) dashboardRepos(ctx context.Context) ([]DashboardRepo, error) {
 	summaries, err := s.store.RepositorySummaries(ctx)
 	if err != nil {
@@ -163,7 +189,7 @@ func (s *server) dashboardFeed(ctx context.Context) ([]store.CommitView, error) 
 
 // handleDashboard sert GET / (page complète, Nav navDashboard, titre « Dashboard » / « Tableau de bord »).
 func (s *server) handleDashboard(w http.ResponseWriter, r *http.Request) {
-	repos, err := s.dashboardRepos(r.Context())
+	view, err := s.dashboardView(r, dashboardFilter(r))
 	if err != nil {
 		s.serverError(w, r, err)
 		return
@@ -179,21 +205,28 @@ func (s *server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		s.serverError(w, r, fmt.Errorf("activité du tableau de bord : %w", err))
 		return
 	}
-	view := DashboardView{Repos: repos, Counts: countStates(repos), Feed: feed, Thresholds: s.dashboardThresholds(),
-		Activity: newDailyChart(s.tr(r), times, now, activity.ChartDays, s.loc)}
+	view.Feed = feed
+	view.Activity = newDailyChart(s.tr(r), times, now, activity.ChartDays, s.loc)
 	s.render(w, r, http.StatusOK, pageDashboard, s.page(r, s.t(r, "web.nav.dashboard"), navDashboard, view))
 }
 
 // handleDashboardRepos sert GET /fragments/dashboard/repos (fragment « dashboard-repos » : compteurs
-// et cartes).
+// et cartes, avec le tri et les filtres de la query string). Un changement du formulaire de filtres met
+// à jour l'adresse du navigateur (HX-Push-Url, vers la page complète).
 func (s *server) handleDashboardRepos(w http.ResponseWriter, r *http.Request) {
-	repos, err := s.dashboardRepos(r.Context())
+	view, err := s.dashboardView(r, dashboardFilter(r))
 	if err != nil {
 		s.serverError(w, r, err)
 		return
 	}
-	view := DashboardView{Repos: repos, Counts: countStates(repos), Thresholds: s.dashboardThresholds()}
-	s.renderFragment(w, r, http.StatusOK, pageDashboard, "dashboard-repos",
+	fragment := "dashboard-repos"
+	if isHTMX(r) && r.Header.Get("HX-Trigger") == dashboardFiltersID {
+		w.Header().Set("HX-Push-Url", view.Filter.PagePath())
+	}
+	if isHTMX(r) && r.Header.Get("HX-Target") == dashboardCardsID {
+		fragment = dashboardCardsID
+	}
+	s.renderFragment(w, r, http.StatusOK, pageDashboard, fragment,
 		s.page(r, s.t(r, "web.nav.dashboard"), navDashboard, view))
 }
 

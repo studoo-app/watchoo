@@ -177,6 +177,13 @@ PATCH (see [Skills](documentation/en/11-skills.md#versions-and-changelogmd)).
 - **Migration `00016`**: `commits.parent_count` (number of parents, written at insertion, backfilled for
   the existing commits by the local Git clone at every sync, whether the conventions are enabled or not)
   and `repositories.conventions_since`.
+- **Dashboard, sorting and filters**: a list chooses the order of the repository cards (needs attention, the
+  default and former order; name, with numbers compared as numbers, "GR2" before "GR10"; last commit; commits;
+  lines added), filters keep only a state (Active, Slacking, Dead, Other), the repositories whose label or
+  `owner/repo` contains a text, those with sync warnings or those with open pull requests. Clicking a state
+  counter filters on that state. The choices are in the page address (`/?sort=`, `?state=`, `?q=`,
+  `?warnings=`, `?prs=`), so a view can be bookmarked and survives the refresh at the end of a sync; the
+  counters still cover the whole workspace. No sorting by AI score: the score never ranks the repositories.
 
 ### Changed
 

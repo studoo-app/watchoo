@@ -32,7 +32,7 @@ forces the language everywhere, except in a browser that picked a language with 
 
 | Page | Address | HTMX fragments |
 | --- | --- | --- |
-| Dashboard | `/` | `/fragments/dashboard/repos`, `/fragments/dashboard/feed` |
+| Dashboard | `/` (`?sort=`, `?state=`, `?q=`, `?warnings=`, `?prs=`) | `/fragments/dashboard/repos`, `/fragments/dashboard/feed` |
 | Repository detail | `/repos/{id}` (`?page=`, `?branch=`, `?author=`) | `/repos/{id}/commits` |
 | Contributors | `/contributors` | `/fragments/contributors` |
 | Contributor page (0.5.0) | `/contributors/{id}` (`?page=`) | `/contributors/{id}/commits` |
@@ -123,12 +123,35 @@ signatures, no address displayed. Rules: [AI signatures](02-features.md#ai-signa
   last commit, the consequence of the first one ("Line statistics read through the API (limited)").
   The badge leads to the repository's page. A repository whose last sync failed (gray Error state)
   shows, in the same place, the first line of the error message in red.
-- **Sorting**: Dead first, then Slacking, then Active, the oldest last commit first within each group;
-  then the repositories in error (so that they get seen), then the other gray states; ties broken by
-  display label.
+- **Sorting** (1.7.0), chosen in a list above the cards:
+  - **Needs attention** (default): Dead first, then Slacking, then Active, the oldest last commit first
+    within each group; then the repositories in error (so that they get seen), then the other gray
+    states; ties broken by display label.
+  - **Name**: display label from A to Z, case-insensitive, numbers compared as numbers ("GR2" before
+    "GR10").
+  - **Last commit**: the most recent first; repositories without a commit last.
+  - **Commits**: the most commits first.
+  - **Lines added**: the most lines added first (repositories without known statistics last).
+  - Ties are always broken by display label. No sorting by AI score: the score never ranks the
+    repositories (see [Supervision and diagnosis](12-supervision-diagnostic.md)).
+- **Filters** (1.7.0), next to the sorting, combined with each other:
+  - **State**: Active, Slacking, Dead or Other (all the gray states); all by default.
+  - **Search**: text contained in the display label or in `owner/repo`, case-insensitive (e.g. "java",
+    "GR6").
+  - **With warnings**: only the repositories whose last sync left warnings or failed.
+  - **Open PRs**: only the repositories with at least one open pull request.
+  - A line gives "3 of 18 repositories shown" and a **Clear filters** link when a filter is active;
+    "No repository matches these filters." when none is left.
+  - The choices are in the page address (`/?sort=name&state=flemme&q=java`, values `attention`, `name`,
+    `recent`, `commits`, `lines`; `active`, `flemme`, `dead`, `other`; `warnings=1`, `prs=1`): the view
+    can be bookmarked, survives the refresh at the end of a sync and the back button. An unknown value
+    is ignored. Changing a choice redraws the cards (HTMX fragment) and updates the address; without
+    JavaScript, a button submits the form.
 - **Counters** per state (DaisyUI `stat`), with the workspace thresholds repeated under Slacking and
   Dead, and a **"Lines"** counter (0.5.0): lines added / removed of all the commits of the
-  workspace.
+  workspace. The counters always cover the whole workspace, whatever the filters; clicking the
+  Active, Slacking, Dead or Other counter filters on that state (1.7.0), clicking it again removes
+  the filter.
 - **Feed of the 20 latest commits**, across all repositories (author initial, message, repository,
   date, `+/-` lines of the commit; short SHA linked to the commit on GitHub).
 - **Workspace activity chart over 90 days**: commits per day, across all repositories (see

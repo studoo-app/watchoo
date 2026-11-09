@@ -31,7 +31,7 @@ définir impose la langue partout, sauf dans un navigateur qui a choisi une lang
 
 | Page | Adresse | Fragments HTMX |
 | --- | --- | --- |
-| Tableau de bord | `/` | `/fragments/dashboard/repos`, `/fragments/dashboard/feed` |
+| Tableau de bord | `/` (`?sort=`, `?state=`, `?q=`, `?warnings=`, `?prs=`) | `/fragments/dashboard/repos`, `/fragments/dashboard/feed` |
 | Détail d'un dépôt | `/repos/{id}` (`?page=`, `?branch=`, `?author=`) | `/repos/{id}/commits` |
 | Contributeurs | `/contributors` | `/fragments/contributors` |
 | Page d'un contributeur (0.5.0) | `/contributors/{id}` (`?page=`) | `/contributors/{id}/commits` |
@@ -122,11 +122,35 @@ classement sur les signatures, aucune adresse affichée. Règles :
   infobulle et, sous le dernier commit, la conséquence du premier (« Statistiques de lignes lues par
   l'API (limitées) »). La pastille mène à la page du dépôt. Un dépôt dont la dernière synchro a échoué
   (état gris « en erreur ») affiche au même endroit, en rouge, la première ligne du message d'erreur.
-- **Tri** : Dead, puis Flemme, puis Actif, le dernier commit le plus ancien d'abord dans chaque groupe ;
-  ensuite les dépôts en erreur (pour qu'ils se voient), puis les autres états gris ; égalités départagées
-  par nom affiché.
+- **Tri** (1.7.0), choisi dans une liste au-dessus des cartes :
+  - **À surveiller** (par défaut) : Dead, puis Flemme, puis Actif, le dernier commit le plus ancien
+    d'abord dans chaque groupe ; ensuite les dépôts en erreur (pour qu'ils se voient), puis les autres
+    états gris ; égalités départagées par nom affiché.
+  - **Nom** : nom affiché de A à Z, sans tenir compte de la casse, les nombres comparés comme des
+    nombres (« GR2 » avant « GR10 »).
+  - **Dernier commit** : le plus récent d'abord ; les dépôts sans commit à la fin.
+  - **Commits** : le plus de commits d'abord.
+  - **Lignes ajoutées** : le plus de lignes ajoutées d'abord (dépôts sans statistiques connues à la fin).
+  - Les égalités sont toujours départagées par nom affiché. Pas de tri par score IA : le score ne classe
+    jamais les dépôts (voir [Supervision et diagnostic](12-supervision-diagnostic.md)).
+- **Filtres** (1.7.0), à côté du tri, cumulables :
+  - **État** : Actif, Flemme, Dead ou Autres (tous les états gris) ; tous par défaut.
+  - **Recherche** : texte contenu dans le nom affiché ou dans `owner/repo`, sans tenir compte de la
+    casse (ex. « java », « GR6 »).
+  - **Avec avertissements** : seulement les dépôts dont la dernière synchro a laissé des avertissements
+    ou a échoué.
+  - **PR ouvertes** : seulement les dépôts qui ont au moins une pull request ouverte.
+  - Une ligne indique « 3 sur 18 dépôts affichés » et un lien **Effacer les filtres** quand un filtre
+    est actif ; « Aucun dépôt ne correspond à ces filtres. » quand il n'en reste aucun.
+  - Les choix sont dans l'adresse de la page (`/?sort=name&state=flemme&q=java`, valeurs `attention`,
+    `name`, `recent`, `commits`, `lines` ; `active`, `flemme`, `dead`, `other` ; `warnings=1`, `prs=1`) :
+    la vue se met en favori, survit au rafraîchissement de fin de synchro et au bouton retour. Une
+    valeur inconnue est ignorée. Changer un choix redessine les cartes (fragment HTMX) et met à jour
+    l'adresse ; sans JavaScript, un bouton envoie le formulaire.
 - **Compteurs** par état (DaisyUI `stat`), avec les seuils de l'espace rappelés sous Flemme et Dead,
-  et un compteur **Lignes** (0.5.0) : lignes ajoutées / supprimées de tous les commits de l'espace.
+  et un compteur **Lignes** (0.5.0) : lignes ajoutées / supprimées de tous les commits de l'espace. Les
+  compteurs portent toujours sur tout l'espace, quels que soient les filtres ; un clic sur le compteur
+  Actifs, Flemme, Dead ou Autres filtre sur cet état (1.7.0), un second clic retire le filtre.
 - **Fil des 20 derniers commits**, tous dépôts confondus (initiale de l'auteur, message, dépôt, date,
   lignes `+/-` du commit ; SHA court lié au commit sur GitHub).
 - **Graphique d'activité de l'espace sur 90 jours** : commits par jour, tous dépôts confondus (voir

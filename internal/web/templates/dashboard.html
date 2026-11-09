@@ -2,7 +2,10 @@
   Tableau de bord « / ». PROPRIÉTAIRE : agent dashboard. Donnée : PageData, Content de type
   DashboardView (dashboard.go).
   Fragments HTMX, rafraîchis à la fin d'une synchro (événement sync-finished, syncview.go) :
-    « dashboard-repos » : compteurs par état et cartes des dépôts (/fragments/dashboard/repos) ;
+    « dashboard-repos » : compteurs par état, tri et filtres, cartes des dépôts
+                          (/fragments/dashboard/repos, avec les valeurs du formulaire de filtres) ;
+    « dashboard-cards » : les cartes seules, redessinées par un changement du formulaire de filtres
+                          (même adresse, en-tête HX-Target « dashboard-cards ») ;
     « dashboard-feed »  : fil des 20 derniers commits (/fragments/dashboard/feed).
   Graphique d'activité de l'espace (Content.Activity, charts.go) : hors des fragments (HTMX retire
   leurs <script>) ; static/app.js le dessine et, à la fin d'une synchro, relit « / » pour ses données.
@@ -15,45 +18,104 @@
   </div>
   {{template "sync-all-button" .}}
 </div>
-{{if .Content.Repos}}{{template "dashboard-activity" .}}{{end}}
+{{if .Content.Counts.Total}}{{template "dashboard-activity" .}}{{end}}
 <div class="grid gap-6 xl:grid-cols-3">
   <div class="xl:col-span-2 min-w-0">{{template "dashboard-repos" .}}</div>
   <div class="min-w-0">{{template "dashboard-feed" .}}</div>
 </div>
 {{end}}
 
-{{/* Compteurs et cartes. Donnée : PageData (Content.Repos, Content.Counts). */}}
-{{define "dashboard-repos"}}{{$c := .Content.Counts}}
+{{/* Compteurs (liens de filtre par état), formulaire de tri et de filtres, cartes. Donnée : PageData
+   (Content.Repos, Content.Counts, Content.Filter, Content.Sorts, Content.States). */}}
+{{define "dashboard-repos"}}{{$c := .Content.Counts}}{{$f := .Content.Filter}}
 <section id="dashboard-repos" aria-labelledby="dashboard-repos-title"
-         hx-get="/fragments/dashboard/repos" hx-trigger="sync-finished from:body" hx-swap="outerHTML">
+         hx-get="/fragments/dashboard/repos" hx-include="#dashboard-filters" hx-trigger="sync-finished from:body" hx-swap="outerHTML">
   <h2 id="dashboard-repos-title" class="sr-only">{{t "web.dash.repos_title"}}</h2>
   <div class="stats stats-vertical sm:stats-horizontal w-full bg-base-100 shadow-sm mb-6">
-    <div class="stat">
+    <a href="{{$f.StatePath "active"}}" class="stat hover:bg-base-200{{if eq $f.State "active"}} bg-base-200{{end}}"
+       title="{{if eq $f.State "active"}}{{t "web.dash.stat_filter_remove"}}{{else}}{{t "web.dash.stat_filter" (t "web.dash.stat_active")}}{{end}}">
       <div class="stat-title">{{t "web.dash.stat_active"}}</div>
       <div class="stat-value text-success">{{$c.Active}}</div>
       <div class="stat-desc">{{t "web.dash.out_of" (tn "web.n.repo" $c.Total)}}</div>
-    </div>
-    <div class="stat">
+    </a>
+    <a href="{{$f.StatePath "flemme"}}" class="stat hover:bg-base-200{{if eq $f.State "flemme"}} bg-base-200{{end}}"
+       title="{{if eq $f.State "flemme"}}{{t "web.dash.stat_filter_remove"}}{{else}}{{t "web.dash.stat_filter" (stateLabel "flemme")}}{{end}}">
       <div class="stat-title">{{stateLabel "flemme"}}</div>
       <div class="stat-value text-warning">{{$c.Flemme}}</div>
       <div class="stat-desc">{{t "web.dash.more_than" (tn "web.n.day" .Content.Thresholds.FlemmeAfterDays)}}</div>
-    </div>
-    <div class="stat">
+    </a>
+    <a href="{{$f.StatePath "dead"}}" class="stat hover:bg-base-200{{if eq $f.State "dead"}} bg-base-200{{end}}"
+       title="{{if eq $f.State "dead"}}{{t "web.dash.stat_filter_remove"}}{{else}}{{t "web.dash.stat_filter" (stateLabel "dead")}}{{end}}">
       <div class="stat-title">{{stateLabel "dead"}}</div>
       <div class="stat-value text-error">{{$c.Dead}}</div>
       <div class="stat-desc">{{t "web.dash.more_than" (tn "web.n.day" .Content.Thresholds.DeadAfterDays)}}</div>
-    </div>
-    <div class="stat">
+    </a>
+    <a href="{{$f.StatePath "other"}}" class="stat hover:bg-base-200{{if eq $f.State "other"}} bg-base-200{{end}}"
+       title="{{if eq $f.State "other"}}{{t "web.dash.stat_filter_remove"}}{{else}}{{t "web.dash.stat_filter" (t "web.dash.stat_other")}}{{end}}">
       <div class="stat-title">{{t "web.dash.stat_other"}}</div>
       <div class="stat-value text-base-content/60">{{$c.Gray}}</div>
       <div class="stat-desc">{{t "web.dash.other_desc"}}</div>
-    </div>
+    </a>
     <div class="stat">
       <div class="stat-title">{{t "web.col.lines"}}</div>
       <div class="stat-value text-lg tabular-nums">{{template "line-totals" $c.Lines}}</div>
       <div class="stat-desc">{{t "web.dash.lines_desc" (tn "web.n.commit" $c.Lines.Commits)}}</div>
     </div>
   </div>
+  {{if $c.Total}}
+  <form id="dashboard-filters" method="get" action="/" role="search" class="flex flex-wrap items-end gap-2 mb-4"
+        hx-get="/fragments/dashboard/repos" hx-trigger="change, input changed delay:300ms from:#dashboard-q"
+        hx-target="#dashboard-cards" hx-swap="outerHTML">
+    <label class="flex flex-col gap-1">
+      <span class="text-xs text-base-content/70">{{t "web.dash.sort"}}</span>
+      <select name="sort" class="select select-sm w-44">
+        {{range .Content.Sorts}}<option value="{{.Value}}"{{if eq .Value $f.SortValue}} selected{{end}}>{{.Label}}</option>{{end}}
+      </select>
+    </label>
+    <label class="flex flex-col gap-1">
+      <span class="text-xs text-base-content/70">{{t "web.dash.filter_state"}}</span>
+      <select name="state" class="select select-sm w-36">
+        <option value="">{{t "web.dash.all_states"}}</option>
+        {{range .Content.States}}<option value="{{.Value}}"{{if eq .Value $f.State}} selected{{end}}>{{.Label}}</option>{{end}}
+      </select>
+    </label>
+    <label class="flex flex-col gap-1">
+      <span class="text-xs text-base-content/70">{{t "web.dash.search"}}</span>
+      <input id="dashboard-q" type="search" name="q" value="{{$f.Query}}" maxlength="200" autocomplete="off"
+             placeholder="{{t "web.dash.search_placeholder"}}" class="input input-sm w-52">
+    </label>
+    <label class="label cursor-pointer gap-2 h-8">
+      <input type="checkbox" name="warnings" value="1" class="checkbox checkbox-sm"{{if $f.Warnings}} checked{{end}}>
+      <span class="text-sm">{{t "web.dash.filter_warnings"}}</span>
+    </label>
+    <label class="label cursor-pointer gap-2 h-8">
+      <input type="checkbox" name="prs" value="1" class="checkbox checkbox-sm"{{if $f.PRs}} checked{{end}}>
+      <span class="text-sm">{{t "web.dash.filter_prs"}}</span>
+    </label>
+    <noscript><button type="submit" class="btn btn-sm">{{t "web.dash.filter_submit"}}</button></noscript>
+  </form>
+  {{template "dashboard-cards" .}}
+  {{else}}
+  <div class="card bg-base-100 shadow-sm">
+    <div class="card-body items-center text-center">
+      <h3 class="card-title">{{t "web.dash.empty_title"}}</h3>
+      <p class="text-base-content/70">{{t "web.dash.empty_text"}}</p>
+      <div class="card-actions"><a href="/settings" class="btn btn-primary btn-sm">{{t "web.settings.add_title"}}</a></div>
+    </div>
+  </div>
+  {{end}}
+</section>
+{{end}}
+
+{{/* Cartes affichées (filtrées et triées). Donnée : PageData (Content.Repos, Content.Counts, Content.Filter). */}}
+{{define "dashboard-cards"}}{{$c := .Content.Counts}}{{$f := .Content.Filter}}
+<div id="dashboard-cards">
+  {{if $f.Filtered}}
+  <p class="text-sm text-base-content/70 mb-3" role="status">
+    {{t "web.dash.shown" (len .Content.Repos) (tn "web.n.repo" $c.Total)}} ·
+    <a href="{{$f.ClearPath}}" class="link">{{t "web.dash.clear_filters"}}</a>
+  </p>
+  {{end}}
   {{if .Content.Repos}}
   <ul class="grid gap-4 sm:grid-cols-2 2xl:grid-cols-3" role="list">
     {{range .Content.Repos}}
@@ -91,15 +153,9 @@
     {{end}}
   </ul>
   {{else}}
-  <div class="card bg-base-100 shadow-sm">
-    <div class="card-body items-center text-center">
-      <h3 class="card-title">{{t "web.dash.empty_title"}}</h3>
-      <p class="text-base-content/70">{{t "web.dash.empty_text"}}</p>
-      <div class="card-actions"><a href="/settings" class="btn btn-primary btn-sm">{{t "web.settings.add_title"}}</a></div>
-    </div>
-  </div>
+  <p class="text-base-content/70">{{t "web.dash.no_match"}}</p>
   {{end}}
-</section>
+</div>
 {{end}}
 
 {{/* Fil des derniers commits. Donnée : PageData (Content.Feed). Aucun e-mail affiché. */}}
