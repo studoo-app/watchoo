@@ -81,7 +81,9 @@ changes anything; every `POST` goes through the CSRF check.
 All pages share the same navigation bar (DaisyUI `navbar`): logo, workspace name, links, sync status
 and the light/dark theme selector (the choice is kept in `localStorage`, key `watchoo-theme`; by
 default, the system's, `prefers-color-scheme`). Below 1024 px wide, the links then the sync status each
-move to their own line. Dates are relative ("2 h ago"), with the local time (display
+move to their own line. Since 1.7.1, the bar stays stuck at the top of the screen while scrolling (its
+height, which varies, is measured by `static/app.js` to stick the outlines right below it and stop the
+anchors under it). Dates are relative ("2 h ago"), with the local time (display
 timezone) as tooltip. Page not found (404) and errors (500…): pages in the workspace's language, with no internal detail
 (the detail is in the `serve` log).
 
@@ -315,6 +317,16 @@ signatures, no address displayed. Rules: [AI signatures](02-features.md#ai-signa
   TL5, its dates. DOC9, DOC10 and TL5 and the list of **broken images** (DOC7, `source → target`) are
   recomputed from the local clone for this page only, never stored. Neither a header value, an INDEX cell
   nor a commit subject is shown. `/conventions` shows no lead.
+  **Layout (1.7.1)**: below the rate of conforming commits and the exclusions, each family is a
+  **collapsible block** whose title carries the key figure, readable with the block closed ("Branch names —
+  10/44 branches conforming · 3 to review", PR titles, merges "n outside PR / m", tags, commits between
+  tags, history, files "CHANGELOG 8/8 · README 2/4 …", leads); only the **Issues and non-conforming
+  commits** block is open (issues by code and latest non-conforming commits side by side on a wide
+  screen). The pull requests table has only four columns left: the description, merge and review badges
+  join the codes, each one named. An **All the repositories** link leads to `/conventions`. A sync reloads
+  the section and closes the blocks. An **outline of the families** (Commits, Branches, Pull requests,
+  Merges, Tags, Between tags, History, Files, Leads) stays stuck below the navigation bar while the section
+  is on screen; a link opens its block and scrolls to it.
 - Button **"Sync this repository"** (absent if tracking is stopped).
 - Fragments: `/repos/{id}/commits` (history); `/repos/{id}` with the `HX-Target` header
   `repo-overview`, `repo-contributors`, `repo-languages`, `repo-pulls`, `repo-diagnostic` or
@@ -584,6 +596,17 @@ enabled (`diagnostic.enabled`). Details: [Supervision and diagnosis](12-supervis
 For the trainer only; "Conventions" navigation entry only when the conventions are enabled
 (`conventions.enabled`). Disabled: the page explains how to enable them (`conventions.enabled`,
 `conventions.since`, restart) and shows no data. Details: [Project conventions](13-conventions.md#72-interfaces).
+
+**Layout (1.7.1)**: the page reads without horizontal scrolling. Each repository is a **card** (two per row
+on a wide screen): the rate of conforming commits on top, with a bar, then an "indicator: value" list
+(branches, PR titles, tags, milestones, files, outside PR and merge methods, reviews, history, language)
+and a **Details** link to the Conventions section of the repository. The contributors table has only five
+columns left: the trend is written below the commit rate, the branches below the PR titles. The
+**milestone review** is a card per repository: the criteria to look at (not conforming, then unknown, with
+their reason) as a list, the conforming criteria grouped on one line ("Conforming: ✓ BR1 ✓ SV1…", label on
+hover and for screen readers), then the interval, the due date, the history of the tag, PR3 and PR4. The
+long explanatory notes are folded under "About these figures". An **outline** ("By repository", "By
+contributor", "Milestone review") stays stuck below the navigation bar while scrolling.
 
 - **By repository**: in the order of the workspace, never sorted by conformity: conforming commits (CC1),
   conforming branches (BR1) and the number to review, conforming pull request titles (open and merged

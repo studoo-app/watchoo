@@ -7,6 +7,7 @@ package web
 import (
 	"html"
 	"net/http"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -199,4 +200,52 @@ func TestConventionsLabelsPhase82(t *testing.T) {
 			}
 		}
 	}
+}
+
+// Lighter layout (1.7.1): one card per repository on /conventions, never a wide table; a card per
+// repository in the milestone review, the criteria to look at listed and the conforming ones grouped;
+// the long notes folded; on the repository page, one folded block per family with its key figure, the
+// commits open.
+func TestConventionsLayout(t *testing.T) {
+	s, ids := conventionsPullsEnv(t, func(e *testEnv) { e.cfg.Conventions.Since = "2000-01-01" })
+	w := s.get("/conventions?milestone=v1.0.0")
+	assertStatus(t, w, http.StatusOK)
+	body := w.Body.String()
+	assertContains(t, w,
+		// Cards per repository, each with a link to its details.
+		`id="conv-repo-`+strconv.FormatInt(ids.Alice, 10)+`"`, `href="`+repoPath(ids.Alice)+`#repo-conventions"`, "Details",
+		// The milestone review per repository: criteria to look at, then the conforming ones.
+		`id="conv-review-`+strconv.FormatInt(ids.Alice, 10)+`"`, `aria-label="Criteria to look at"`,
+		// Long notes folded.
+		"About these figures",
+		// Outline stuck below the sticky navigation bar.
+		`id="conventions-outline"`, `href="#conventions-repos"`, `href="#conventions-contributors"`,
+		`href="#conventions-milestone"`, "sticky top-0 z-30")
+	// No column per criterion nor per family any more: the only table left is the contributors one.
+	if n := strings.Count(body, "<table"); n != 1 {
+		t.Errorf("/conventions has %d tables; want 1 (contributors)", n)
+	}
+	assertNoConventionsLeak(t, "/conventions (layout)", body)
+
+	section := conventionsSection(t, s.get(repoPath(ids.Alice)).Body.String())
+	for _, want := range []string{
+		`id="repo-conventions-block-commits" open>`, `id="repo-conventions-block-branches">`,
+		`id="repo-conventions-block-pulls">`, `id="repo-conventions-block-tags">`,
+		"0/1 branches conforming", "All the repositories",
+		// Outline of the families: each link opens its block (data-open, static/app.js).
+		`id="repo-conventions-outline"`, `href="#repo-conventions-block-files" data-open>Files</a>`,
+		`href="#repo-conventions-leads" data-open>Leads</a>`,
+	} {
+		if !strings.Contains(section, want) {
+			t.Errorf("conventions section without %q", want)
+		}
+	}
+	// The pull requests table has four columns: the description, merge and review statuses join the codes.
+	if strings.Contains(section, `<th scope="col">PR description</th>`) {
+		t.Error("pull requests table still has a column per status")
+	}
+
+	fr, _ := conventionsPullsEnv(t, withLang("fr"), func(e *testEnv) { e.cfg.Conventions.Since = "2000-01-01" })
+	assertContains(t, fr.get("/conventions?milestone=v1.0.0"), "Détail", "À propos de ces chiffres",
+		`aria-label="Critères à regarder"`, `aria-label="Sections de la page"`)
 }

@@ -9,6 +9,22 @@ PATCH (see [Skills](documentation/en/11-skills.md#versions-and-changelogmd)).
 
 ## [Unreleased]
 
+### Changed
+
+- **Web interface, conventions easier to read**: the `/conventions` page no longer needs any horizontal
+  scrolling. Each repository is a card (two per row on a wide screen) with the rate of conforming commits
+  on top and an "indicator: value" list below, and a **Details** link to the repository; the contributors
+  table has five columns instead of seven; the milestone review is a card per repository that lists the
+  criteria to look at and groups the conforming ones on one line, instead of a table with a column per
+  criterion; the long notes are folded under "About these figures". On a repository's page, the
+  Conventions section keeps the rate on top and puts each family (branches, pull requests, merges, tags,
+  commits between tags, history, files, leads) in a collapsible block whose title gives its key figure;
+  the pull requests table has four columns instead of seven. Same figures, same routes, nothing stored.
+- **Web interface, sticky navigation**: the navigation bar stays at the top of every page while
+  scrolling; on `/conventions`, an outline of the page (by repository, by contributor, milestone review)
+  stays stuck below it, and on a repository's page an outline of the conventions families, whose links
+  open the matching block.
+
 ## [1.7.0] - 2026-11-09
 
 Project conventions (phase 8, sub-phases 8.1 to 8.7; branch protection BR3 postponed), off by default:

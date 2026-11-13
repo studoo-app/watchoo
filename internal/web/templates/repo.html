@@ -324,8 +324,11 @@
 <section id="repo-conventions" class="card bg-base-100 shadow-sm min-w-0" aria-labelledby="repo-conventions-title"
          hx-get="{{repoPath $.Content.Repo.ID}}" hx-trigger="sync-finished from:body" hx-swap="outerHTML">
   <div class="card-body p-4 md:p-6 space-y-4">
-    <h2 id="repo-conventions-title" class="card-title text-lg">{{t "web.conv.title"}}</h2>
-    <div role="note" class="alert alert-soft text-sm"><span>{{t "web.conv.notice"}}</span></div>
+    <div class="flex flex-wrap items-baseline justify-between gap-2">
+      <h2 id="repo-conventions-title" class="card-title text-lg">{{t "web.conv.title"}}</h2>
+      <a class="link link-hover text-sm" href="/conventions">{{t "web.conv.all_repos"}} <span aria-hidden="true">→</span></a>
+    </div>
+    <p role="note" class="text-sm text-base-content/70">{{t "web.conv.notice"}}</p>
     {{if $c.Unknown}}
     <p class="text-sm text-base-content/70">{{t "web.conv.unknown"}}</p>
     {{else}}
@@ -347,11 +350,39 @@
       {{end}}
     </div>
     {{end}}
-    <ul class="text-sm space-y-1">
+    <ul class="text-sm text-base-content/70 space-y-1">
       <li>{{t "web.conv.excluded" $c.Excluded}}{{if $c.Exclusions}} ({{range $i, $e := $c.Exclusions}}{{if $i}}, {{end}}{{$e.Label}} {{$e.Count}}{{end}}){{end}}</li>
       {{if $c.BeforeSince}}<li>{{t "web.conv.before_since" $c.BeforeSince}}</li>{{end}}
       {{if not $c.Since.IsZero}}<li>{{t "web.conv.since" (localDate $c.Since) $c.SinceOrigin}}</li>{{end}}
     </ul>
+
+    {{/* Sommaire des familles, collé sous la barre de navigation tant que la section est à l'écran
+         (1.7.1) ; un lien ouvre son bloc (data-open, static/app.js). */}}
+    <nav id="repo-conventions-outline" aria-label="{{t "web.conv.outline_repo_aria"}}"
+         class="sticky top-[var(--header-h,4rem)] z-20 -mx-4 md:-mx-6 px-4 md:px-6 py-2 bg-base-100/95 backdrop-blur-sm border-b border-base-200">
+      <ul class="menu menu-horizontal menu-sm flex-nowrap overflow-x-auto gap-1 p-0">
+        {{if or $c.Issues $c.Failing $c.Evaluated}}<li><a class="whitespace-nowrap" href="#repo-conventions-block-commits" data-open>{{t "web.conv.nav.commits"}}</a></li>{{end}}
+        <li><a class="whitespace-nowrap" href="#repo-conventions-block-branches" data-open>{{t "web.conv.nav.branches"}}</a></li>
+        <li><a class="whitespace-nowrap" href="#repo-conventions-block-pulls" data-open>{{t "web.conv.nav.pulls"}}</a></li>
+        {{if $c.Merges}}<li><a class="whitespace-nowrap" href="#repo-conventions-block-merges" data-open>{{t "web.conv.nav.merges"}}</a></li>{{end}}
+        <li><a class="whitespace-nowrap" href="#repo-conventions-block-tags" data-open>{{t "web.conv.nav.tags"}}</a></li>
+        <li><a class="whitespace-nowrap" href="#repo-conventions-block-intervals" data-open>{{t "web.conv.nav.intervals"}}</a></li>
+        <li><a class="whitespace-nowrap" href="#repo-conventions-block-history" data-open>{{t "web.conv.nav.history"}}</a></li>
+        <li><a class="whitespace-nowrap" href="#repo-conventions-block-files" data-open>{{t "web.conv.nav.files"}}</a></li>
+        {{if $c.Leads}}<li><a class="whitespace-nowrap" href="#repo-conventions-leads" data-open>{{t "web.conv.nav.leads"}}</a></li>{{end}}
+      </ul>
+    </nav>
+    {{/* Une famille par bloc repliable, son chiffre clé visible fermé ; les commits ouverts. Une synchro
+         recharge la section et referme les blocs. */}}
+    <div class="space-y-2">
+      {{if or $c.Issues $c.Failing $c.Evaluated}}
+      <details class="collapse collapse-arrow bg-base-200/40 rounded-box" id="repo-conventions-block-commits" open>
+        <summary class="collapse-title min-h-0 py-3 pe-10 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+          <h3 class="font-semibold">{{t "web.conv.commits_detail_title"}}</h3>{{if $c.FailingTotal}}
+          <span class="text-sm text-base-content/70">{{t "web.conv.failing_count" $c.FailingTotal}}</span>{{end}}
+        </summary>
+        <div class="collapse-content min-w-0 overflow-x-auto">
+    <div class="grid gap-x-8 gap-y-4 xl:grid-cols-2 items-start">
     {{if $c.Issues}}
     <div class="overflow-x-auto">
       <table class="table table-sm">
@@ -396,15 +427,24 @@
       </table>
     </div>
     {{end}}
+    </div>
     {{if $c.Evaluated}}
-    <ul class="text-sm space-y-1" id="repo-conventions-traits">
+    <ul class="text-sm text-base-content/70 space-y-1 mt-4" id="repo-conventions-traits">
       <li>{{t "web.conv.wording_title"}} {{if $c.Wording}}{{range $i, $w := $c.Wording}}{{if $i}}, {{end}}<code>{{$w.Code}}</code> {{$w.Label}} {{$w.Count}}{{end}}{{else}}{{t "web.conv.nothing"}}{{end}}</li>
       <li>{{t "web.conv.footers_line" $c.Footer $c.Evaluated $c.Issue}}</li>
       <li>{{t "web.conv.language_title"}} {{template "conv-language" $c.Language}}</li>
     </ul>
     {{end}}
 
-    <h3 class="font-semibold">{{t "web.conv.branches_title"}}</h3>
+        </div>
+      </details>
+      {{end}}
+      <details class="collapse collapse-arrow bg-base-200/40 rounded-box" id="repo-conventions-block-branches">
+        <summary class="collapse-title min-h-0 py-3 pe-10 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+          <h3 class="font-semibold">{{t "web.conv.branches_title"}}</h3>
+          <span class="text-sm text-base-content/70">{{if $c.BranchesChecked}}{{t "web.conv.branches_line" $c.BranchesConform $c.BranchesChecked}}{{if $c.BranchesReview}} · {{t "web.conv.to_review" $c.BranchesReview}}{{end}}{{else}}—{{end}}</span>
+        </summary>
+        <div class="collapse-content min-w-0 overflow-x-auto">
     <div id="repo-conventions-branches" class="space-y-2">
       {{if $c.BranchesChecked}}
       <p class="text-sm">{{t "web.conv.branches_line" $c.BranchesConform $c.BranchesChecked}}{{if $c.BranchesReview}} · {{t "web.conv.to_review" $c.BranchesReview}}{{end}}</p>
@@ -435,7 +475,14 @@
       <p class="text-xs text-base-content/60">{{if $c.BranchesDatabase}}{{t "web.conv.branches_database"}}{{else}}{{t "web.conv.branches_clone"}}{{end}}</p>
     </div>
 
-    <h3 class="font-semibold">{{t "web.conv.pulls_title"}}</h3>
+        </div>
+      </details>
+      <details class="collapse collapse-arrow bg-base-200/40 rounded-box" id="repo-conventions-block-pulls">
+        <summary class="collapse-title min-h-0 py-3 pe-10 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+          <h3 class="font-semibold">{{t "web.conv.pulls_title"}}</h3>
+          <span class="text-sm text-base-content/70">{{if not $c.PullsKnown}}{{t "web.conv.cell_unknown"}}{{else if $c.Pulls.Evaluated}}{{template "conv-pr-counts" $c.Pulls}}{{else}}—{{end}}</span>
+        </summary>
+        <div class="collapse-content min-w-0 overflow-x-auto">
     <div id="repo-conventions-pulls" class="space-y-2">
       {{if not $c.PullsKnown}}
       <p class="text-sm text-base-content/70">{{t "web.conv.pulls_unknown" $c.PullsReason}}</p>
@@ -454,9 +501,6 @@
             <th scope="col">{{t "web.col.contributor"}}</th>
             <th scope="col">{{t "web.conv.col_head"}}</th>
             <th scope="col">{{t "web.conv.col_codes"}}</th>
-            <th scope="col">{{t "web.conv.col_body"}}</th>
-            <th scope="col">{{t "web.conv.col_merge"}}</th>
-            <th scope="col">{{t "web.conv.col_review"}}</th>
           </tr></thead>
           <tbody>
             {{range $c.PullRows}}
@@ -464,10 +508,7 @@
               <td class="tabular-nums whitespace-nowrap">#{{.Number}} <span class="text-xs text-base-content/60">{{if .Merged}}{{t "web.conv.pr_merged_short"}}{{else}}{{t "web.conv.pr_open_short"}}{{end}}</span></td>
               <td>{{if .Author}}{{template "contributor-link" (dict "ID" .AuthorID "Name" (truncate 30 .Author) "Class" "")}}{{else}}-{{end}}</td>
               <td class="font-mono text-sm">{{if .HeadBranch}}{{truncate 40 (clean .HeadBranch)}}{{else}}-{{end}}</td>
-              <td><div class="flex flex-wrap gap-1">{{range .Codes}}{{template "conv-code" .}}{{end}}</div></td>
-              <td>{{template "conv-status" (dict "Status" .Body "Text" "")}}</td>
-              <td>{{with .Merge}}{{template "conv-status" (dict "Status" . "Text" "")}}{{else}}—{{end}}</td>
-              <td>{{with .Review}}{{template "conv-status" (dict "Status" . "Text" "")}}{{else}}—{{end}}</td>
+              <td><div class="flex flex-wrap gap-1">{{range .Codes}}{{template "conv-code" .}}{{end}}{{template "conv-status" (dict "Status" .Body "Text" (t "web.conv.col_body"))}}{{with .Merge}}{{template "conv-status" (dict "Status" . "Text" (t "web.conv.col_merge"))}}{{end}}{{with .Review}}{{template "conv-status" (dict "Status" . "Text" (t "web.conv.col_review"))}}{{end}}</div></td>
             </tr>
             {{end}}
           </tbody>
@@ -477,8 +518,15 @@
       <p class="text-xs text-base-content/60">{{t "web.conv.pulls_note"}}</p>
     </div>
 
-    {{with $c.Merges}}
-    <h3 class="font-semibold">{{t "web.conv.merges_title"}}</h3>
+        </div>
+      </details>
+      {{with $c.Merges}}
+      <details class="collapse collapse-arrow bg-base-200/40 rounded-box" id="repo-conventions-block-merges">
+        <summary class="collapse-title min-h-0 py-3 pe-10 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+          <h3 class="font-semibold">{{t "web.conv.merges_title"}}</h3>{{with .Arrivals}}{{if .Known}}
+          <span class="text-sm text-base-content/70">{{t "web.conv.outside_pr_short" .OutsidePR .Total}}</span>{{end}}{{end}}
+        </summary>
+        <div class="collapse-content min-w-0 overflow-x-auto">
     <div id="repo-conventions-merges" class="space-y-2">
       {{with .Arrivals}}
       {{if not .Known}}
@@ -527,9 +575,16 @@
         {{if .MethodsKnown}}{{template "conv-status" (dict "Status" .MethodsStatus "Text" "")}} {{if .Allowed}}{{range $i, $a := .Allowed}}{{if $i}}, {{end}}{{$a}}{{end}}{{else}}{{t "web.conv.methods_none"}}{{end}}{{else}}<span class="text-base-content/70">{{t "web.conv.cell_unknown"}} ({{.MethodsReason}})</span>{{end}}</p>
       <p class="text-xs text-base-content/60">{{t "web.conv.merges_note"}}</p>
     </div>
-    {{end}}
 
-    <h3 class="font-semibold">{{t "web.conv.tags_title"}}</h3>
+        </div>
+      </details>
+      {{end}}
+      <details class="collapse collapse-arrow bg-base-200/40 rounded-box" id="repo-conventions-block-tags">
+        <summary class="collapse-title min-h-0 py-3 pe-10 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+          <h3 class="font-semibold">{{t "web.conv.tags_title"}}</h3>
+          <span class="text-sm text-base-content/70">{{if $c.TagsChecked}}{{t "web.conv.tags_line" $c.TagsConform $c.TagsChecked}}{{else}}—{{end}}</span>
+        </summary>
+        <div class="collapse-content min-w-0 overflow-x-auto">
     <div id="repo-conventions-tags" class="space-y-2">
       {{if $c.TagsChecked}}
       <p class="text-sm">{{t "web.conv.tags_line" $c.TagsConform $c.TagsChecked}}</p>
@@ -550,7 +605,14 @@
       </p>
     </div>
 
-    <h3 class="font-semibold">{{t "web.conv.intervals_title"}}</h3>
+        </div>
+      </details>
+      <details class="collapse collapse-arrow bg-base-200/40 rounded-box" id="repo-conventions-block-intervals">
+        <summary class="collapse-title min-h-0 py-3 pe-10 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+          <h3 class="font-semibold">{{t "web.conv.intervals_title"}}</h3>{{if and $c.IntervalsKnown $c.SinceLastEval}}
+          <span class="text-sm text-base-content/70">{{t "web.conv.interval_since" (clean $c.LastTag)}} {{$c.SinceLastConform}}/{{$c.SinceLastEval}} ({{t "web.percent" $c.SinceLastPercent}})</span>{{end}}
+        </summary>
+        <div class="collapse-content min-w-0 overflow-x-auto">
     <div id="repo-conventions-intervals" class="space-y-2">
       {{if not $c.IntervalsKnown}}
       <p class="text-sm text-base-content/70">{{t "web.conv.intervals_unknown" $c.IntervalsReason}}</p>
@@ -576,9 +638,13 @@
       {{end}}
     </div>
 
-    {{/* Phase 8.4 : réécritures de la branche par défaut (BR4), historique des tags (SV3), pré-versions (SV4),
-         précédence (SV7), sauts de version (SV5), fraîcheur du CHANGELOG (CL10). Attribués à personne. */}}
-    <h3 class="font-semibold">{{t "web.conv.history_title"}}</h3>
+        </div>
+      </details>
+      <details class="collapse collapse-arrow bg-base-200/40 rounded-box" id="repo-conventions-block-history">
+        <summary class="collapse-title min-h-0 py-3 pe-10 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+          <h3 class="font-semibold">{{t "web.conv.history_title"}}</h3>
+        </summary>
+        <div class="collapse-content min-w-0 overflow-x-auto">
     <div id="repo-conventions-history" class="space-y-2">{{with $c.History}}
       <p class="text-sm" id="repo-conventions-rewrites">{{t "web.conv.hist_label" (t "conv.indicator.BR4")}}
         {{if not .RewritesKnown}}<span class="text-base-content/70">{{t "web.conv.cell_unknown"}} ({{.RewritesReason}})</span>
@@ -616,8 +682,14 @@
       <p class="text-xs text-base-content/60">{{t "web.conv.history_note"}}</p>
     {{end}}</div>
 
-    {{/* Phase 8.3 : critères de fichiers (cache de la synchro), listes de chemins repliées. */}}
-    <h3 class="font-semibold">{{t "web.conv.files_title"}}</h3>
+        </div>
+      </details>
+      <details class="collapse collapse-arrow bg-base-200/40 rounded-box" id="repo-conventions-block-files">
+        <summary class="collapse-title min-h-0 py-3 pe-10 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+          <h3 class="font-semibold">{{t "web.conv.files_title"}}</h3>{{with $c.Files}}{{if .Known}}
+          <span class="text-sm text-base-content/70">{{range $i, $f := .Families}}{{if $i}} · {{end}}{{$f.Label}} {{$f.Conform}}/{{$f.Total}}{{end}}</span>{{end}}{{end}}
+        </summary>
+        <div class="collapse-content min-w-0 overflow-x-auto">
     <div id="repo-conventions-files" class="space-y-2">
       {{with $c.Files}}
       {{if not .Known}}
@@ -659,7 +731,8 @@
       <p class="text-xs text-base-content/60">{{t "web.conv.files_note"}}</p>
     </div>
 
-    {{/* Phase 8.7 : pistes, repliées ; elles invitent à relire, elles ne jugent pas. */}}
+        </div>
+      </details>
     {{with $c.Leads}}
     <details class="collapse collapse-arrow bg-base-200/40 rounded-box" id="repo-conventions-leads">
       <summary class="collapse-title text-sm font-medium min-h-0 py-2">{{t "web.conv.leads_title" .ToReview}}</summary>
@@ -681,6 +754,7 @@
       </div>
     </details>
     {{end}}
+    </div>
     {{end}}
     <p class="text-xs text-base-content/60">{{if $c.Database}}{{t "web.conv.source_database"}}{{else}}{{t "web.conv.source_clone"}}{{end}}{{if $c.ParentsUnknown}} {{t "web.conv.parents_unknown" $c.ParentsUnknown}}{{end}}</p>
   </div>

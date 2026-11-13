@@ -86,7 +86,7 @@ func TestRepoConventionsHistory(t *testing.T) {
 	w = s.get("/conventions?milestone=v1.0.0")
 	assertStatus(t, w, http.StatusOK)
 	assertContains(t, w, "History and versions", "rewrites 1", "tags rewritten or deleted 1",
-		"SV3 <span", "milestone tag without rewrite observed", "Tag: rewritten (other commit)", "/14 criteria conforming")
+		"SV3", "milestone tag without rewrite observed", "Tag: rewritten (other commit)", "/14 criteria conforming")
 	assertNoConventionsLeak(t, "/conventions (history)", w.Body.String())
 
 	fr, ids3 := conventionsPullsEnv(t, withLang("fr"))
