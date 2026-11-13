@@ -109,8 +109,7 @@ func TestRepoConventionsMerges(t *testing.T) {
 
 	w = e.get("/conventions")
 	assertStatus(t, w, http.StatusOK)
-	assertContains(t, w, "Outside PR, merge methods", "Commits outside PR", "squash only", "unknown (no local clone)",
-		"no commit outside a pull request")
+	assertContains(t, w, "Outside PR, merge methods", "Commits outside PR", "squash only", "unknown (no local clone)")
 	assertNoMergeLeak(t, "/conventions", w.Body.String())
 
 	w = e.get(contributorPath(e.contributorIDs()["Alice Martin"]))

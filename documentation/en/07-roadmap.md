@@ -23,7 +23,7 @@ interface and the lines behind the signals on the review sheet of the diagnosis 
 repository and per contributor as **v1.6.0**; the link to the documentation in the language of the web
 interface, the icons of the AI score and the AI score and the leads of the commits on a contributor's page as
 **v1.6.1**; the project conventions (phase 8, except BR3) and the sorting and filters of the dashboard as
-**v1.7.0**.
+**v1.7.0**; the lighter conventions interface and the sticky navigation as **v1.7.1**.
 
 ```mermaid
 flowchart LR

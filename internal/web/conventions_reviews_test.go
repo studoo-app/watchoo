@@ -62,9 +62,9 @@ func TestRepoConventionsReviews(t *testing.T) {
 	assertStatus(t, w, http.StatusOK)
 	assertContains(t, w, "Merged PRs reviewed", "1/2 reviewed", "Reviews received", "1/2 reviewed · 3 received",
 		"the reviews given are not counted")
-	// Milestone review: PR4 column and result.
+	// Milestone review: PR4 on the card of the repository, and the result.
 	w = e.get("/conventions?milestone=v9.0.0")
-	assertContains(t, w, "PR4 <span", "merged pull requests reviewed",
+	assertContains(t, w, "PR4", "merged pull requests reviewed",
 		"PR4: 1/2 merged pull requests reviewed (0 not read yet) (#4)")
 	assertNoMergeLeak(t, "/conventions", w.Body.String())
 

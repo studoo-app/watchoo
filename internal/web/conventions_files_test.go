@@ -139,8 +139,11 @@ func TestRepoConventionsFilesStale(t *testing.T) {
 func TestConventionsReviewFiles(t *testing.T) {
 	e, _ := conventionsPullsEnv(t, func(e *testEnv) { e.cfg.Conventions.Since = "2020-01-01" })
 	w := e.get("/conventions")
-	assertContains(t, w, "CL9 <span", "CHANGELOG section of the milestone", "RD2 <span", "installation section of the README",
-		"DOC3 <span", "INDEX exhaustive", "/14 criteria conforming")
+	// One card per repository: each criterion with its identifier and its label (to look at, or among the
+	// conforming ones), never a column per criterion.
+	assertContains(t, w, "CL9", "CHANGELOG section of the milestone", "RD2", "installation section of the README",
+		"DOC3", "INDEX exhaustive", "no commit outside a pull request", "/14 criteria conforming")
+	assertNotContains(t, w, "<th scope=\"col\">CL9")
 }
 
 // Every file code, file criterion and new reason has its label in both languages (keys built at run time).

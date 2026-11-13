@@ -94,10 +94,14 @@ type convReviewRepo struct {
 	Evaluable bool
 	Reason    string // raison traduite d'un dépôt non évaluable
 	Cells     []convReviewCell
-	Conform   int
-	Unknown   int
-	Total     int
-	Tag       string // tag qui désigne le jalon ; vide si absent
+	// Attention : critères non conformes puis inconnus, à regarder ; Conforming : critères conformes,
+	// regroupés sur une ligne (carte du dépôt).
+	Attention  []convReviewCell
+	Conforming []convReviewCell
+	Conform    int
+	Unknown    int
+	Total      int
+	Tag        string // tag qui désigne le jalon ; vide si absent
 	// Interval : intervalle des commits de CC1 (From vide : depuis le début ; To vide : borné par Due).
 	HasInterval bool
 	From, To    string
@@ -120,6 +124,7 @@ type convReviewRepo struct {
 // convReviewCell est l'état d'un critère.
 type convReviewCell struct {
 	ID     string
+	Label  string // libellé traduit du critère
 	Status convStatus
 	Reason string // raison traduite d'un état inconnu ; vide sinon
 }
@@ -235,13 +240,25 @@ func newConvReview(s *server, r *http.Request, rv conventions.MilestoneReview) *
 				row.History = tr.T("conv.history.since", s.formatLocal(h.FirstSeenAt, tr.T("web.fmt.date")))
 			}
 		}
+		var unknown []convReviewCell
 		for _, c := range rr.Criteria {
-			cell := convReviewCell{ID: c.ID, Status: criterionStatus(tr, c.Status)}
+			cell := convReviewCell{ID: c.ID, Label: tr.T("web.conv.criterion." + c.ID),
+				Status: criterionStatus(tr, c.Status)}
 			if c.Reason != "" {
 				cell.Reason = tr.T("web.conv.reason." + c.Reason)
 			}
 			row.Cells = append(row.Cells, cell)
+			switch c.Status {
+			case conventions.CriterionConform:
+				row.Conforming = append(row.Conforming, cell)
+			case conventions.CriterionNonconform:
+				row.Attention = append(row.Attention, cell)
+			default:
+				unknown = append(unknown, cell)
+			}
 		}
+		// Les non conformes d'abord, puis les inconnus, chacun dans l'ordre des critères.
+		row.Attention = append(row.Attention, unknown...)
 		out.Repos = append(out.Repos, row)
 	}
 	return out

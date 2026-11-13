@@ -21,7 +21,8 @@ absolus et les contre-indicateurs du diagnostic (phase 7.7) en **v1.5.0** ; le s
 l'interface web et les lignes en cause sur la fiche de revue du diagnostic (phase 7.8) et le score du diagnostic par dépôt et
 par contributeur en **v1.6.0** ; le lien vers la documentation dans la langue de l'interface web, les icônes du score IA et le score IA et les
 pistes des commits sur la page d'un contributeur en **v1.6.1** ; les conventions de projet (phase 8, sauf BR3) et le tri
-et les filtres du tableau de bord en **v1.7.0**.
+et les filtres du tableau de bord en **v1.7.0** ; l'interface allégée des conventions et la navigation collée en
+**v1.7.1**.
 
 ```mermaid
 flowchart LR

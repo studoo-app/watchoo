@@ -60,7 +60,10 @@ func TestChangelogOfWatchoo(t *testing.T) {
 		t.Fatalf("versions lues = %q", tags)
 	}
 	opts := fileOpts()
-	opts.Now = time.Now()
+	// Une version est datée du jour local de son auteur, jusqu'à un jour d'avance sur la CI (UTC) : le
+	// jour « présent » est lu dans le fuseau le plus avancé (UTC+14), pour qu'une release publiée après
+	// minuit à Paris ne soit pas « future » pendant la nuit UTC.
+	opts.Now = time.Now().In(time.FixedZone("UTC+14", 14*3600))
 	opts.Tags = append(tags, "v9.9.9-rc.1", "pas-une-version")
 	opts.Version = tags[0]
 	checks := CheckChangelog(treeOf(map[string]string{"CHANGELOG.md": string(data), "README.md": "x"}), opts)

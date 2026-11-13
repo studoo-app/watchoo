@@ -475,3 +475,52 @@
     document.body.addEventListener("sync-finished", refresh);
   });
 })();
+
+// Navigation collée (1.7.1). La barre du haut reste visible au défilement (sticky) ; sa hauteur varie
+// avec la largeur (deux lignes sur un téléphone) : elle est écrite dans la variable CSS --header-h de
+// <html>, pour coller les sommaires juste dessous et décaler les ancres (scroll-padding). Un lien
+// [data-open] d'un sommaire ouvre le bloc <details> qu'il vise avant que le navigateur y défile ; à
+// l'arrivée sur une page avec une ancre, le bloc visé est ouvert aussi. Modification de style par le
+// CSSOM seulement (permise par la CSP), aucune donnée lue ni écrite.
+(function () {
+  "use strict";
+
+  var header = document.querySelector("body > header");
+  if (header) {
+    // L'ancre visée s'arrête sous la barre et sous un sommaire collé (3,75 rem au plus).
+    var setHeight = function () {
+      var root = document.documentElement;
+      root.style.setProperty("--header-h", header.offsetHeight + "px");
+      root.style.scrollPaddingTop = "calc(" + header.offsetHeight + "px + 3.75rem)";
+    };
+    setHeight();
+    if (window.ResizeObserver) {
+      new window.ResizeObserver(setHeight).observe(header);
+    } else {
+      window.addEventListener("resize", setHeight);
+    }
+  }
+
+  function openTarget(id) {
+    var el = id ? document.getElementById(id) : null;
+    if (el && el.tagName === "DETAILS") {
+      el.open = true;
+    }
+  }
+
+  document.addEventListener("click", function (ev) {
+    var a = ev.target && ev.target.closest ? ev.target.closest("a[data-open]") : null;
+    var href = a ? a.getAttribute("href") || "" : "";
+    if (href.charAt(0) === "#") {
+      openTarget(href.slice(1));
+    }
+  });
+
+  if (window.location.hash.length > 1) {
+    try {
+      openTarget(decodeURIComponent(window.location.hash.slice(1)));
+    } catch (e) {
+      // ancre mal formée : rien à ouvrir
+    }
+  }
+})();

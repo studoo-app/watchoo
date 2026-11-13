@@ -80,7 +80,9 @@ ne modifie quoi que ce soit ; tout `POST` passe par le contrôle CSRF.
 Toutes les pages ont la même barre de navigation (DaisyUI `navbar`) : logo, nom de l'espace, liens,
 état des synchros et sélecteur de thème clair / sombre (choix gardé dans `localStorage`, clé
 `watchoo-theme` ; par défaut, celui du système, `prefers-color-scheme`). Sous 1024 px de large, les
-liens puis l'état des synchros passent chacun sur leur propre ligne. Les dates sont relatives
+liens puis l'état des synchros passent chacun sur leur propre ligne. Depuis 1.7.1, la barre reste collée en
+haut de l'écran pendant le défilement (sa hauteur, variable, est mesurée par `static/app.js` pour coller
+les sommaires juste dessous et arrêter les ancres sous elle). Les dates sont relatives
 (« il y a 2 h »), avec l'heure locale (fuseau d'affichage) en infobulle. Page introuvable (404) et
 erreurs (500…) : pages dans la langue de l'espace, sans détail interne (le détail est dans le journal de `serve`).
 
@@ -316,6 +318,16 @@ classement sur les signatures, aucune adresse affichée. Règles :
   DOC10 et TL5 et la liste des **images cassées** (DOC7, `source → cible`) sont recalculées depuis le clone
   local pour cette page seulement, jamais stockées. Ni valeur d'en-tête, ni cellule de l'INDEX, ni sujet de
   commit n'est affiché. `/conventions` n'affiche aucune piste.
+  **Mise en page (1.7.1)** : sous le taux de commits conformes et les exclusions, chaque famille est un
+  **bloc repliable** dont le titre porte le chiffre clé, lisible bloc fermé (« Noms de branche — 10/44
+  branches conformes · 3 à revoir », titres de PR, fusions « n hors PR / m », tags, commits entre tags,
+  historique, fichiers « CHANGELOG 8/8 · README 2/4 … », pistes) ; seul le bloc **Écarts et commits non
+  conformes** est ouvert (écarts par code et derniers commits non conformes côte à côte sur un grand
+  écran). Le tableau des pull requests n'a plus que quatre colonnes : les pastilles de description, de
+  fusion et de relecture rejoignent les codes, chacune nommée. Un lien **Tous les dépôts** mène à
+  `/conventions`. Une synchro recharge la section et referme les blocs. Un **sommaire des familles**
+  (Commits, Branches, Pull requests, Fusions, Tags, Entre tags, Historique, Fichiers, Pistes) reste collé
+  sous la barre de navigation tant que la section est à l'écran ; un lien ouvre son bloc et y descend.
 - Bouton **« Synchroniser ce dépôt »** (absent si le suivi est arrêté).
 - Fragments : `/repos/{id}/commits` (historique) ; `/repos/{id}` avec l'en-tête `HX-Target`
   `repo-overview`, `repo-contributors`, `repo-languages`, `repo-pulls`, `repo-diagnostic` ou
@@ -588,6 +600,18 @@ Réservé au formateur ; entrée « Conventions » de la navigation seulement qu
 activées (`conventions.enabled`). Désactivées : la page explique comment les activer
 (`conventions.enabled`, `conventions.since`, relance) et n'affiche aucune donnée. Détail :
 [Conventions de projet](13-conventions.md#72-interfaces).
+
+**Mise en page (1.7.1)** : la page se lit sans défilement horizontal. Chaque dépôt est une **carte** (deux
+par ligne sur un grand écran) : le taux de commits conformes en tête, avec une barre, puis une liste
+« indicateur : valeur » (branches, titres de PR, tags, jalons, fichiers, hors PR et méthodes de fusion,
+relectures, historique, langue) et un lien **Détail** vers la section Conventions du dépôt. Le tableau des
+contributeurs n'a plus que cinq colonnes : la tendance s'écrit sous le taux de commits, les branches sous
+les titres de PR. La **revue de jalon** est une carte par dépôt : les critères à regarder (non conformes,
+puis inconnus, avec leur raison) en liste, les critères conformes regroupés sur une ligne (« Conformes :
+✓ BR1 ✓ SV1… », libellé au survol et pour les lecteurs d'écran), puis l'intervalle, l'échéance,
+l'historique du tag, PR3 et PR4. Les notes explicatives longues sont repliées sous « À propos de ces
+chiffres ». Un **sommaire** (« Par dépôt », « Par contributeur », « Revue de jalon ») reste collé sous la
+barre de navigation pendant le défilement.
 
 - **Par dépôt** : dans l'ordre de l'espace, jamais triés par conformité : commits conformes (CC1), branches
   conformes (BR1) et nombre à revoir, titres de pull request conformes (ouvertes et fusionnées à part,

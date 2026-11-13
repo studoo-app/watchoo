@@ -208,6 +208,13 @@ pistes par niveau dans l'infobulle. Donnée : diagnostic.Summary. Liste et page 
      Donnée : convTrend. */}}
 {{define "conv-trend"}}{{if .Known}}<span class="whitespace-nowrap">{{t "web.conv.trend_before" .BeforeConform .BeforeEvaluated}}{{if .BeforeEvaluated}} ({{t "web.percent" .BeforePercent}}){{end}}</span> · <span class="whitespace-nowrap">{{t "web.conv.trend_since" .SinceConform .SinceEvaluated}}{{if .SinceEvaluated}} ({{t "web.percent" .SincePercent}}){{end}}</span>{{else}}<span class="text-base-content/60">{{t "web.conv.trend_unknown"}}</span>{{end}}{{end}}
 
+{{/* Conventions (1.7.1) : note explicative repliée sous un bloc, pour alléger la page. Donnée : le texte
+     traduit de la note. */}}
+{{define "conv-about"}}<details class="mt-2 text-xs text-base-content/60 max-w-3xl">
+<summary class="cursor-pointer w-fit hover:text-base-content">{{t "web.conv.about"}}</summary>
+<p class="mt-1">{{.}}</p>
+</details>{{end}}
+
 {{/* Conventions : badge d'un code d'écart (bloquant ou avertissement), code et libellé. Donnée : convCode. */}}
 {{define "conv-code"}}<span class="badge badge-sm {{if .Blocking}}badge-error{{else}}badge-warning{{end}} whitespace-nowrap"><code>{{.Code}}</code> {{.Label}}</span>{{end}}
 
