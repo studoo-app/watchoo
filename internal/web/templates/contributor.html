@@ -68,6 +68,21 @@
         </p>
       </div>
     </div>
+    {{- with $v.Accounts}}
+    <div class="rounded-box bg-base-200/40 p-3" aria-labelledby="contributor-accounts-title">
+      <h2 id="contributor-accounts-title" class="font-semibold text-sm mb-1">{{t "web.groups.accounts_title"}} <span class="badge badge-ghost badge-sm align-middle">{{len .}}</span></h2>
+      <ul class="text-sm space-y-1">
+        {{- range .}}
+        <li class="flex flex-wrap items-center gap-x-2">
+          {{- if .ProviderLogin}}<span class="break-all">@{{clean .ProviderLogin}}</span>{{template "profile-link" (dict "URL" .ProfileURL "Login" .ProviderLogin)}}{{end}}
+          {{- if .Name}}<span class="text-base-content/70 break-words">{{clean .Name}}</span>{{end}}
+          <span class="text-base-content/60">{{tn "web.n.commit" .Commits}}</span>
+        </li>
+        {{- end}}
+      </ul>
+      <a href="/settings/contributors#contributor-{{$p.ID}}" class="link link-hover text-xs">{{t "web.groups.manage"}}</a>
+    </div>
+    {{- end}}
     <div class="stats stats-vertical sm:stats-horizontal bg-base-200/40 w-full">
       <div class="stat">
         <div class="stat-title">{{t "web.col.commits"}}</div>

@@ -329,6 +329,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.cdetail.loading = false
 		m.cdetail.profile, m.cdetail.repos, m.cdetail.commits = msg.profile, msg.repos, msg.commits
+		m.cdetail.accounts = msg.accounts
 		m.cdetail.weekly, m.cdetail.err = msg.weekly, msg.err
 		return m, nil
 	case syncProgressMsg:
@@ -585,11 +586,11 @@ func (m Model) searchText(v view, i int) string {
 	switch v {
 	case viewRepos:
 		r := m.repos[i]
-		return strings.Join([]string{r.DisplayName(), r.FullName(), r.LastCommit.AuthorLabel, r.LastCommit.AuthorName,
+		return strings.Join([]string{r.DisplayName(), r.FullName(), r.LastCommit.AuthorDisplayName(), r.LastCommit.AuthorName,
 			r.LastCommit.AuthorLogin, m.evaluate(r).State.Label()}, "\n")
 	case viewCommits:
 		c := m.commits[i]
-		return strings.Join([]string{c.RepoDisplayName(), c.RepoOwner + "/" + c.RepoName, c.AuthorLabel, c.AuthorName,
+		return strings.Join([]string{c.RepoDisplayName(), c.RepoOwner + "/" + c.RepoName, c.AuthorDisplayName(), c.AuthorName,
 			c.AuthorLogin, c.SHA, firstLine(c.Message)}, "\n")
 	default:
 		c := m.contribs[i]

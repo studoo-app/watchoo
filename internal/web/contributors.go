@@ -42,6 +42,8 @@ type contributorRow struct {
 	store.ContributorStats
 	Rank  int                          // rang (1 = le plus de commits)
 	Repos []store.ContributorRepoStats // ses commits par dépôt, du plus grand nombre au plus petit
+	// Accounts : comptes rattachés à ce contributeur principal (1.9.0), comptés avec lui ; vide si aucun.
+	Accounts []store.AttachedAccount
 	// Diag : score IA et pistes par niveau (1.6.0, diagnostic activé ; zéro sans piste).
 	Diag diagnostic.Summary
 }
@@ -90,6 +92,13 @@ func (s *server) contributorsData(r *http.Request, withChart bool) (contributors
 		return contributorsView{}, err
 	}
 	v := contributorsView{Rows: buildContributorRows(ranking, breakdown)}
+	accounts, err := s.store.AttachedAccounts(ctx)
+	if err != nil {
+		return contributorsView{}, err
+	}
+	for i := range v.Rows {
+		v.Rows[i].Accounts = accounts[v.Rows[i].ID]
+	}
 	repos := make(map[int64]bool)
 	for _, row := range v.Rows {
 		v.TotalCommits += row.Commits
@@ -126,6 +135,11 @@ func (s *server) contributorScores(r *http.Request, v *contributorsView) error {
 	for _, row := range v.Rows {
 		if row.ProviderLogin != "" {
 			logins[strings.ToLower(row.ProviderLogin)] = row.ID
+		}
+		for _, a := range row.Accounts { // comptes rattachés (1.9.0)
+			if a.ProviderLogin != "" {
+				logins[strings.ToLower(a.ProviderLogin)] = row.ID
+			}
 		}
 	}
 	scores := diagnostic.SummarizeByContributor(rep.Leads, logins)

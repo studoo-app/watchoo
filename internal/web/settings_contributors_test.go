@@ -29,7 +29,8 @@ func TestSettingsContributorsPage(t *testing.T) {
 	// Search: on the label, the name or the login, without case.
 	w = e.get("/settings/contributors?q=CAROL-G")
 	assertContains(t, w, "1 of 3 contributors", "Carol", `value="CAROL-G"`, "Show all")
-	assertNotContains(t, w, "Bob Durand")
+	// Bob's row is hidden (his name stays in the "attach to" list of Carol's row).
+	assertNotContains(t, w, `id="contributor-`+strconv.FormatInt(ids["Bob Durand"], 10)+`"`)
 	assertContains(t, e.get("/settings/contributors?q=zzz"), "No contributor matches.")
 }
 

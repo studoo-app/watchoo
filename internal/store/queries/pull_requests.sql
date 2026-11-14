@@ -170,7 +170,7 @@ SELECT p.repo_id, p.number, p.title, p.state, p.merged, p.draft, p.author_login,
        p.url, p.base_branch, p.head_branch, p.created_at, p.updated_at, p.closed_at, p.merged_at, p.tool_ids,
        p.merge_commit_sha, p.from_fork, p.body_sections,
        p.reviews_by_others, p.approvals_by_others, p.approvals_by_contributors, p.reviews_checked_at,
-       CAST(COALESCE(c.id, 0) AS INTEGER) AS author_id,
+       CAST(COALESCE(c.primary_id, c.id, 0) AS INTEGER) AS author_id,
        CAST(COALESCE(c.name, '') AS TEXT) AS author_name
 FROM pull_requests p
 JOIN repositories r ON r.id = p.repo_id

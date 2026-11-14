@@ -21,18 +21,20 @@ import (
 
 // contributorJSON est une ligne de la sortie JSON de « watchoo contributors ».
 type contributorJSON struct {
-	ID           int64      `json:"id"`
-	Name         string     `json:"name"`         // nom Git (ou du compte) ; vide si inconnu
-	Login        string     `json:"login"`        // login GitHub ; vide si aucun compte connu
-	Label        string     `json:"label"`        // nom donné dans l'interface web (1.8.0) ; vide si aucun
-	DisplayName  string     `json:"display_name"` // nom donné, sinon nom, sinon login, sinon « inconnu »
-	AvatarURL    string     `json:"avatar_url"`
-	Commits      int        `json:"commits"`      // commits dont il est l'auteur
-	Additions    int        `json:"additions"`    // lignes ajoutées (statistiques connues seulement)
-	Deletions    int        `json:"deletions"`    // lignes supprimées
-	Repositories int        `json:"repositories"` // dépôts distincts
-	Share        float64    `json:"share"`        // part des commits du classement, en %, une décimale
-	LastCommitAt *time.Time `json:"last_commit_at"`
+	ID          int64  `json:"id"`
+	Name        string `json:"name"`         // nom Git (ou du compte) ; vide si inconnu
+	Login       string `json:"login"`        // login GitHub ; vide si aucun compte connu
+	Label       string `json:"label"`        // nom donné dans l'interface web (1.8.0) ; vide si aucun
+	DisplayName string `json:"display_name"` // nom donné, sinon nom, sinon login, sinon « inconnu »
+	// Accounts : comptes rattachés à ce principal (1.9.0), comptés dans les totaux ; [] si aucun.
+	Accounts     []accountJSON `json:"accounts"`
+	AvatarURL    string        `json:"avatar_url"`
+	Commits      int           `json:"commits"`      // commits dont il est l'auteur
+	Additions    int           `json:"additions"`    // lignes ajoutées (statistiques connues seulement)
+	Deletions    int           `json:"deletions"`    // lignes supprimées
+	Repositories int           `json:"repositories"` // dépôts distincts
+	Share        float64       `json:"share"`        // part des commits du classement, en %, une décimale
+	LastCommitAt *time.Time    `json:"last_commit_at"`
 	// Signatures d'IA (1.2.0) : commits signés, commits analysés, outils ; 0 n'est jamais une preuve de
 	// travail sans IA.
 	AISignedCommits  int          `json:"ai_signed_commits"`
@@ -128,6 +130,10 @@ func runContributors(ctx context.Context, deps Deps, opts *options, repoRef, sin
 	if err != nil {
 		return err
 	}
+	accounts, err := s.store.AttachedAccounts(ctx)
+	if err != nil {
+		return err
+	}
 	var total int64
 	for _, c := range ranking {
 		total += int64(c.Commits)
@@ -145,6 +151,7 @@ func runContributors(ctx context.Context, deps Deps, opts *options, repoRef, sin
 				Login:                   c.ProviderLogin,
 				Label:                   c.Label,
 				DisplayName:             c.DisplayName(),
+				Accounts:                accountsJSON(accounts[c.ID]),
 				AvatarURL:               c.AvatarURL,
 				Commits:                 c.Commits,
 				Additions:               c.Additions,
@@ -184,6 +191,9 @@ func runContributors(ctx context.Context, deps Deps, opts *options, repoRef, sin
 		login := c.ProviderLogin
 		if login == "" {
 			login = "-"
+		}
+		if n := len(accounts[c.ID]); n > 0 { // comptes rattachés (1.9.0)
+			login += " " + i18n.T("cli.contrib.more_accounts", n)
 		}
 		rows[i] = []string{
 			c.DisplayName(),
@@ -275,4 +285,21 @@ func knownLines(known bool, sign string, n int) string {
 		return "-"
 	}
 	return sign + strconv.Itoa(n)
+}
+
+// accountJSON est un compte rattaché à un contributeur principal (1.9.0) ; jamais d'adresse.
+type accountJSON struct {
+	ID      int64  `json:"id"`
+	Name    string `json:"name"`
+	Login   string `json:"login"`
+	Commits int    `json:"commits"` // commits dont ce compte est l'auteur
+}
+
+// accountsJSON convertit les comptes rattachés ; [] si aucun.
+func accountsJSON(accounts []store.AttachedAccount) []accountJSON {
+	out := make([]accountJSON, 0, len(accounts))
+	for _, a := range accounts {
+		out = append(out, accountJSON{ID: a.ID, Name: a.Name, Login: a.ProviderLogin, Commits: a.Commits})
+	}
+	return out
 }

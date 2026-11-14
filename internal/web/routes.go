@@ -108,6 +108,8 @@ func (s *server) routes() http.Handler {
 	r.Post("/settings/repos/"+idPattern, s.handleRepoUpdate)
 	r.Post("/settings/repos/"+idPattern+"/remove", s.handleRepoRemove)
 	r.Post(settingsContributorsPath+"/"+idPattern, s.handleContributorLabel)
+	r.Post(settingsContributorsPath+"/"+idPattern+"/attach", s.handleContributorAttach)
+	r.Post(settingsContributorsPath+"/"+idPattern+"/detach", s.handleContributorDetach)
 	r.Post("/settings/interval", s.handleIntervalUpdate)
 	r.Post("/settings/import", s.handleSettingsImport)
 	r.Post("/settings/import/apply", s.handleSettingsImportApply)

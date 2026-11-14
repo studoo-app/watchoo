@@ -28,17 +28,33 @@ import (
 const (
 	msgLabelSaved   = "label_saved"
 	msgLabelRemoved = "label_removed"
+	// Groupes de contributeurs (1.9.0) : message sur la ligne du principal.
+	msgAttached = "attached"
+	msgDetached = "detached"
 )
+
+// fieldPrimary est le champ du principal choisi (rattachement, 1.9.0).
+const fieldPrimary = "primary"
 
 // fieldQuery est le champ de recherche de la page des noms donnés.
 const fieldQuery = "q"
 
 // contributorLabels est le contenu de la page des noms donnés.
 type contributorLabels struct {
-	Rows  []contributorLabelRow // triées par nom affiché, filtrées par Query
-	Total int                   // contributeurs avant le filtre
+	Rows  []contributorLabelRow // principaux, triés par nom affiché, filtrés par Query
+	Total int                   // contributeurs avant le filtre, comptes rattachés compris
 	Query string                // recherche (?q=) ; vide = tous
 	Max   int                   // longueur maximale d'un nom donné
+	// Principals sont les principaux possibles d'un rattachement (1.9.0) : tout contributeur non
+	// rattaché, trié par nom affiché.
+	Principals []principalOption
+	byID       map[int64]store.LabeledContributor // tous les contributeurs (messages)
+}
+
+// principalOption est un principal possible dans la liste « Rattacher à… ».
+type principalOption struct {
+	ID   int64
+	Name string
 }
 
 // contributorLabelRow est un contributeur de la page des noms donnés.
@@ -46,7 +62,15 @@ type contributorLabelRow struct {
 	store.LabeledContributor
 	Edit  string // saisie du champ : nom donné actuel, ou saisie refusée
 	Error string // message d'erreur de la ligne ; vide sinon
+	// Accounts sont les comptes rattachés à ce principal (1.9.0), triés par nom affiché.
+	Accounts    []contributorLabelRow
+	GroupError  string // erreur d'un rattachement ou d'un détachement ; vide sinon
+	matchedSelf bool
 }
+
+// CanAttach indique si ce contributeur peut être rattaché : il n'a pas de compte rattaché (un seul
+// niveau, 1.9.0).
+func (c contributorLabelRow) CanAttach() bool { return len(c.Accounts) == 0 }
 
 // Anchor renvoie l'ancre de la ligne (contributor-<id>).
 func (c contributorLabelRow) Anchor() string { return "contributor-" + strconv.FormatInt(c.ID, 10) }
@@ -78,14 +102,39 @@ func (s *server) settingsContributors(r *http.Request, v settingsView) (settings
 		return settingsView{}, err
 	}
 	q := truncate(100, queryValue(r, fieldQuery))
-	c := contributorLabels{Rows: []contributorLabelRow{}, Total: len(all), Query: q, Max: model.MaxContributorLabelRunes}
+	c := contributorLabels{Rows: []contributorLabelRow{}, Total: len(all), Query: q, Max: model.MaxContributorLabelRunes,
+		Principals: []principalOption{}, byID: make(map[int64]store.LabeledContributor, len(all))}
+	byPrimary := map[int64][]contributorLabelRow{}
 	for _, lc := range all {
-		if matchesQuery(lc.Contributor, q) {
-			c.Rows = append(c.Rows, contributorLabelRow{LabeledContributor: lc, Edit: lc.Label})
+		c.byID[lc.ID] = lc
+		row := contributorLabelRow{LabeledContributor: lc, Edit: lc.Label, matchedSelf: matchesQuery(lc.Contributor, q)}
+		if lc.PrimaryID != 0 {
+			byPrimary[lc.PrimaryID] = append(byPrimary[lc.PrimaryID], row)
+			continue
+		}
+		c.Principals = append(c.Principals, principalOption{ID: lc.ID, Name: lc.DisplayName()})
+		c.Rows = append(c.Rows, row)
+	}
+	byName := func(a, b contributorLabelRow) int {
+		return cmp.Or(cmp.Compare(strings.ToLower(a.DisplayName()), strings.ToLower(b.DisplayName())), cmp.Compare(a.ID, b.ID))
+	}
+	// Un groupe est montré si son principal ou l'un de ses comptes correspond à la recherche.
+	kept := c.Rows[:0]
+	for _, row := range c.Rows {
+		row.Accounts = byPrimary[row.ID]
+		slices.SortFunc(row.Accounts, byName)
+		match := row.matchedSelf
+		for _, a := range row.Accounts {
+			match = match || a.matchedSelf
+		}
+		if match {
+			kept = append(kept, row)
 		}
 	}
-	slices.SortFunc(c.Rows, func(a, b contributorLabelRow) int {
-		return cmp.Or(cmp.Compare(strings.ToLower(a.DisplayName()), strings.ToLower(b.DisplayName())), cmp.Compare(a.ID, b.ID))
+	c.Rows = kept
+	slices.SortFunc(c.Rows, byName)
+	slices.SortFunc(c.Principals, func(a, b principalOption) int {
+		return cmp.Or(cmp.Compare(strings.ToLower(a.Name), strings.ToLower(b.Name)), cmp.Compare(a.ID, b.ID))
 	})
 	v.Contributors = c
 	return v, nil
@@ -98,17 +147,20 @@ func (c contributorLabels) flash(tr *i18n.Translator, msg, id string) string {
 	if err != nil || n <= 0 {
 		return ""
 	}
-	for _, row := range c.Rows {
-		if row.ID != n {
-			continue
-		}
-		name := textclean.Clean(row.DisplayName())
-		if msg == msgLabelRemoved {
-			return tr.T("web.labels.removed", name)
-		}
-		return tr.T("web.labels.saved", name)
+	row, ok := c.byID[n]
+	if !ok {
+		return ""
 	}
-	return ""
+	name := textclean.Clean(row.DisplayName())
+	switch msg {
+	case msgLabelRemoved:
+		return tr.T("web.labels.removed", name)
+	case msgAttached:
+		return tr.T("web.groups.attached", name)
+	case msgDetached:
+		return tr.T("web.groups.detached", name)
+	}
+	return tr.T("web.labels.saved", name)
 }
 
 // labelError traduit une erreur de model.NormalizeContributorLabel dans la langue de tr.
@@ -163,4 +215,103 @@ func (s *server) handleContributorLabel(w http.ResponseWriter, r *http.Request) 
 	}
 	n := strconv.FormatInt(id, 10)
 	redirect(w, r, settingsContributorsPath+"?msg="+code+"&contributor="+n+"#contributor-"+n)
+}
+
+// groupError traduit une erreur d'un rattachement ou d'un détachement dans la langue de tr ; vide pour
+// une erreur qui n'est pas une saisie refusée.
+func groupError(tr *i18n.Translator, err error) string {
+	switch {
+	case errors.Is(err, store.ErrGroupSelf):
+		return tr.T("web.groups.err_self")
+	case errors.Is(err, store.ErrGroupAttached):
+		return tr.T("web.groups.err_attached")
+	case errors.Is(err, store.ErrGroupHasAccounts):
+		return tr.T("web.groups.err_has_accounts")
+	case errors.Is(err, store.ErrGroupNotPrimary):
+		return tr.T("web.groups.err_not_primary")
+	case errors.Is(err, store.ErrGroupNotAttached):
+		return tr.T("web.groups.err_not_attached")
+	}
+	return ""
+}
+
+// handleContributorAttach sert POST /settings/contributors/{id}/attach (champ primary) : rattache le
+// contributeur id au principal choisi (1.9.0).
+func (s *server) handleContributorAttach(w http.ResponseWriter, r *http.Request) {
+	id, ok := repoIDParam(r)
+	if !ok {
+		s.notFound(w, r)
+		return
+	}
+	primary, err := strconv.ParseInt(r.PostFormValue(fieldPrimary), 10, 64)
+	if err != nil || primary <= 0 {
+		s.groupRefused(w, r, id, s.t(r, "web.groups.err_choose"))
+		return
+	}
+	s.groupResult(w, r, id, primary, msgAttached, s.store.AttachContributor(r.Context(), id, primary))
+}
+
+// handleContributorDetach sert POST /settings/contributors/{id}/detach : détache le compte id de son
+// principal (1.9.0).
+func (s *server) handleContributorDetach(w http.ResponseWriter, r *http.Request) {
+	id, ok := repoIDParam(r)
+	if !ok {
+		s.notFound(w, r)
+		return
+	}
+	primary, err := s.store.PrimaryOf(r.Context(), id)
+	if err != nil {
+		s.repoLookupError(w, r, err)
+		return
+	}
+	s.groupResult(w, r, id, primary, msgDetached, s.store.DetachContributor(r.Context(), id))
+}
+
+// groupResult répond à un rattachement ou à un détachement : redirection vers la ligne du principal,
+// page réaffichée avec l'erreur (400), 404 ou 500.
+func (s *server) groupResult(w http.ResponseWriter, r *http.Request, id, primary int64, code string, err error) {
+	switch {
+	case errors.Is(err, store.ErrNotFound):
+		s.notFound(w, r)
+		return
+	case err != nil:
+		if msg := groupError(s.tr(r), err); msg != "" {
+			s.groupRefused(w, r, id, msg)
+			return
+		}
+		s.serverError(w, r, err)
+		return
+	}
+	n := strconv.FormatInt(primary, 10)
+	redirect(w, r, settingsContributorsPath+"?msg="+code+"&contributor="+n+"#contributor-"+n)
+}
+
+// groupRefused réaffiche la page des contributeurs (400) avec l'erreur msg sur la ligne de id (ou de
+// son principal).
+func (s *server) groupRefused(w http.ResponseWriter, r *http.Request, id int64, msg string) {
+	v, err := s.settingsData(r, sectionContributors)
+	if err != nil {
+		s.serverError(w, r, err)
+		return
+	}
+	found := false
+	for i := range v.Contributors.Rows {
+		row := &v.Contributors.Rows[i]
+		if row.ID == id {
+			row.GroupError, found = msg, true
+		}
+		for j := range row.Accounts {
+			if row.Accounts[j].ID == id {
+				row.Accounts[j].GroupError, found = msg, true
+			}
+		}
+	}
+	if !found {
+		if _, known := v.Contributors.byID[id]; !known {
+			s.notFound(w, r)
+			return
+		}
+	}
+	v.Flash, v.FlashError = msg, true
+	s.renderSettings(w, r, http.StatusBadRequest, v)
 }

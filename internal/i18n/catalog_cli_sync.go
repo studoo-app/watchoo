@@ -327,6 +327,7 @@ dépôt comptent, une fois chacun quelle que soit sa branche.`,
 	"cli.sync.contributors_none":       {"No contributor", "Aucun contributeur"},
 	"cli.sync.contributors_none_since": {" since %s", " depuis %s"},
 	"cli.sync.contributors_none_weeks": {" over the last %d weeks", " sur les %d dernières semaines"},
+	"cli.contrib.more_accounts":        {"(+%d)", "(+%d)"},
 	"cli.sync.contributors_none_hint": {
 		` (contributors come from synced commits: run "watchoo sync").` + "\n",
 		" (les contributeurs viennent des commits synchronisés : « watchoo sync »).\n",

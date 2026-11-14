@@ -377,7 +377,7 @@ func (s *server) serveSettings(w http.ResponseWriter, r *http.Request, section s
 			}
 		}
 		v.Flash = flashMessage(s.tr(r), msg, textclean.Clean(name))
-		if msg == msgLabelSaved || msg == msgLabelRemoved {
+		if msg == msgLabelSaved || msg == msgLabelRemoved || msg == msgAttached || msg == msgDetached {
 			v.Flash = v.Contributors.flash(s.tr(r), msg, queryValue(r, "contributor"))
 		}
 		if msg == msgImported {

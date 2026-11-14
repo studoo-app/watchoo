@@ -69,8 +69,8 @@ func TestAIScansAndViews(t *testing.T) {
 	alice := mustExec(t, s, `INSERT INTO contributors (provider_login, name) VALUES ('alice-gh', 'Alice')`)
 	mustExec(t, s, `INSERT INTO contributor_emails (email, contributor_id) VALUES ('alice@example.test', ?), ('alice@perso.example.test', ?)`, alice, alice)
 	for i, r := range []int64{repo, repo, repo, other} {
-		mustExec(t, s, `INSERT INTO commits (repo_id, sha, author_id, message, authored_at, committed_at) VALUES (?, ?, ?, 'msg', ?, ?)`,
-			r, sha(i+1), alice, testDate, testDate)
+		mustExec(t, s, `INSERT INTO commits (repo_id, sha, author_id, person_id, message, authored_at, committed_at) VALUES (?, ?, ?, ?, 'msg', ?, ?)`,
+			r, sha(i+1), alice, alice, testDate, testDate)
 	}
 
 	todo, err := s.CommitsToScanForAI(ctx, repo, 1, 2)

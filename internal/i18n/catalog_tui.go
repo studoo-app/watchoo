@@ -186,6 +186,7 @@ var tuiTexts = map[string]entry{
 	"tui.cdetail.title":        {"Contributor", "Contributeur"},
 	"tui.cdetail.no_account":   {"no known GitHub account (Git identity only)", "aucun compte GitHub connu (identité Git seule)"},
 	"tui.field.account":        {"Account", "Compte"},
+	"tui.field.accounts":       {"Attached accounts", "Comptes rattachés"},
 	"tui.field.identities":     {"Git identities", "Identités Git"},
 	"tui.field.commits":        {"Commits", "Commits"},
 	"tui.field.first_commit":   {"First commit", "Premier commit"},

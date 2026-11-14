@@ -40,9 +40,12 @@ WHERE id = ?;
 
 -- name: GetContributorProfile :one
 -- Contributeur et totaux de ses commits d'AUTEUR (zeros et chaines vides s'il n'en a aucun) ; le nombre
--- d'adresses e-mail rattachees, jamais les adresses. sql.ErrNoRows si le contributeur n'existe pas.
+-- d'adresses e-mail rattachees, jamais les adresses. Depuis la 1.9.0, totaux et adresses de tout son
+-- groupe (person_id). sql.ErrNoRows si le contributeur n'existe pas.
 SELECT ct.id, ct.provider, ct.provider_user_id, ct.provider_login, ct.name, ct.label, ct.avatar_url, ct.profile_url,
-       CAST((SELECT count(*) FROM contributor_emails e WHERE e.contributor_id = ct.id) AS INTEGER) AS emails,
+       CAST((SELECT count(*) FROM contributor_emails e
+             WHERE e.contributor_id IN (SELECT g.id FROM contributors g WHERE g.id = ct.id OR g.primary_id = ct.id))
+            AS INTEGER) AS emails,
        count(c.sha) AS commits,
        CAST(COALESCE(sum(c.additions), 0) AS INTEGER) AS additions,
        CAST(COALESCE(sum(c.deletions), 0) AS INTEGER) AS deletions,
@@ -55,7 +58,7 @@ SELECT ct.id, ct.provider, ct.provider_user_id, ct.provider_login, ct.name, ct.l
        CAST(COALESCE(min(c.committed_at), '') AS TEXT) AS first_commit_at,
        CAST(COALESCE(max(c.committed_at), '') AS TEXT) AS last_commit_at
 FROM contributors ct
-LEFT JOIN commits c ON c.author_id = ct.id
+LEFT JOIN commits c ON c.person_id = ct.id
 WHERE ct.id = sqlc.arg(id)
 GROUP BY ct.id;
 
@@ -100,6 +103,7 @@ WHERE contributors.id = sqlc.arg(to_id) AND contributors.label = ''
 -- Contributeurs auteurs d'au moins un commit (page /settings/contributors, 1.8.0) : identite, nom donne,
 -- nombre d'adresses e-mail rattachees (jamais les adresses) et nombre de commits.
 SELECT ct.id, ct.provider, ct.provider_user_id, ct.provider_login, ct.name, ct.label, ct.avatar_url, ct.profile_url,
+       ct.primary_id,
        CAST((SELECT count(*) FROM contributor_emails e WHERE e.contributor_id = ct.id) AS INTEGER) AS emails,
        count(*) AS commits
 FROM contributors ct
@@ -108,7 +112,65 @@ GROUP BY ct.id
 ORDER BY ct.id;
 
 -- name: ListContributorLabels :many
--- Noms donnes aux contributeurs (1.8.0), pour l'affichage des rapports du diagnostic et des conventions.
-SELECT id, label FROM contributors
-WHERE label <> ''
-ORDER BY id;
+-- Noms affiches qui remplacent le nom des commits dans les rapports du diagnostic et des conventions :
+-- le nom donne (1.8.0) ; pour un principal de groupe sans nom donne (1.9.0), son nom, sinon son login
+-- (ses lignes viennent aussi des commits de ses comptes rattaches).
+SELECT ct.id,
+       CAST(CASE WHEN ct.label <> '' THEN ct.label
+                 WHEN ct.name <> '' THEN ct.name
+                 ELSE ct.provider_login END AS TEXT) AS label
+FROM contributors ct
+WHERE ct.label <> '' OR EXISTS (SELECT 1 FROM contributors a WHERE a.primary_id = ct.id)
+ORDER BY ct.id;
+
+-- name: GetContributorGroup :one
+-- Groupe d'un contributeur (1.9.0) : son principal (NULL s'il est principal) et le nombre de comptes qui
+-- lui sont rattaches. sql.ErrNoRows si le contributeur n'existe pas.
+SELECT ct.id, ct.primary_id,
+       CAST((SELECT count(*) FROM contributors a WHERE a.primary_id = ct.id) AS INTEGER) AS attached
+FROM contributors ct
+WHERE ct.id = sqlc.arg(id);
+
+-- name: SetContributorPrimary :exec
+-- Rattache (primary_id) ou detache (NULL) un contributeur (1.9.0). Les regles sont verifiees par le store.
+UPDATE contributors
+SET primary_id = sqlc.narg(primary_id)
+WHERE id = sqlc.arg(id);
+
+-- name: MoveAttachedAccounts :exec
+-- Fusion de contributeurs (1.9.0) : les comptes rattaches a from_id sont rattaches a to_id (sauf to_id
+-- lui-meme, qui devient alors principal par ClearContributorPrimary).
+UPDATE contributors
+SET primary_id = sqlc.arg(to_id)
+WHERE primary_id = sqlc.arg(from_id) AND id <> sqlc.arg(to_id);
+
+-- name: RefreshCommitPersons :exec
+-- Recalcule commits.person_id (principal du groupe de l'auteur) pour les commits des contributeurs des
+-- groupes de a et b (1.9.0 : rattachement, detachement, fusion).
+UPDATE commits
+SET person_id = (SELECT COALESCE(ct.primary_id, ct.id) FROM contributors ct WHERE ct.id = commits.author_id)
+WHERE author_id IN (SELECT g.id FROM contributors g
+                    WHERE g.id IN (sqlc.arg(a), sqlc.arg(b)) OR g.primary_id IN (sqlc.arg(a), sqlc.arg(b)));
+
+-- name: RefreshSignalPersons :exec
+-- Recopie commits.person_id dans commit_signals pour les memes auteurs que RefreshCommitPersons.
+UPDATE commit_signals
+SET person_id = (SELECT c.person_id FROM commits c WHERE c.repo_id = commit_signals.repo_id AND c.sha = commit_signals.sha)
+WHERE author_id IN (SELECT g.id FROM contributors g
+                    WHERE g.id IN (sqlc.arg(a), sqlc.arg(b)) OR g.primary_id IN (sqlc.arg(a), sqlc.arg(b)));
+
+-- name: FillCommitPersons :exec
+-- Synchro (1.9.0) : person_id des commits du depot qui n'en ont pas encore (nouveaux commits), d'apres le
+-- groupe de leur auteur.
+UPDATE commits
+SET person_id = (SELECT COALESCE(ct.primary_id, ct.id) FROM contributors ct WHERE ct.id = commits.author_id)
+WHERE repo_id = sqlc.arg(repo_id) AND person_id IS NULL AND author_id IS NOT NULL;
+
+-- name: ListAttachedAccounts :many
+-- Comptes rattaches a un principal (1.9.0), avec leur nombre de commits d'auteur ; jamais d'adresse.
+SELECT ct.id, ct.provider, ct.provider_user_id, ct.provider_login, ct.name, ct.label, ct.avatar_url, ct.profile_url,
+       ct.primary_id,
+       CAST((SELECT count(*) FROM commits c WHERE c.author_id = ct.id) AS INTEGER) AS commits
+FROM contributors ct
+WHERE ct.primary_id IS NOT NULL
+ORDER BY ct.primary_id, ct.id;

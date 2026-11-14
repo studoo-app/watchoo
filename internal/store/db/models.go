@@ -40,6 +40,7 @@ type Commit struct {
 	AiRulesVersion   int64
 	LanguagesVersion int64
 	ParentCount      sql.NullInt64
+	PersonID         sql.NullInt64
 }
 
 type CommitAiSignature struct {
@@ -94,6 +95,7 @@ type CommitSignal struct {
 	PrivateDefs         int64
 	MessageRevert       bool
 	MessageFix          bool
+	PersonID            sql.NullInt64
 }
 
 type Contributor struct {
@@ -105,6 +107,7 @@ type Contributor struct {
 	AvatarURL      string
 	ProfileURL     string
 	Label          string
+	PrimaryID      sql.NullInt64
 }
 
 type ContributorEmail struct {

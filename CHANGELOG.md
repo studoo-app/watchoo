@@ -9,6 +9,30 @@ PATCH (see [Skills](documentation/en/11-skills.md#versions-and-changelogmd)).
 
 ## [Unreleased]
 
+### Added
+
+- **Contributor groups**: a person who uses several identities that nothing links (two GitHub
+  accounts, a Git name whose e-mail is not the one of their account) can now be shown as **one
+  contributor**. On the settings page **Contributors** (`/settings/contributors`), "Same person as…
+  (attach to)" attaches an account to a principal contributor, and "Detach" undoes it; one level only.
+  Everywhere, the group counts as one person: ranking ("+n accounts"), contributor page (with an
+  **Accounts** card; the page of an attached account redirects to its principal), charts, AI score,
+  diagnosis (histories and personal medians per person), conventions per contributor, the TUI and
+  `watchoo contributors` (one line per person). The `--author` and `--contributor` filters find the
+  group through any of its accounts. Groups are never exported.
+- **JSON output**: `watchoo contributors --json` gains the `accounts` key (attached accounts: `id`,
+  `name`, `login`, `commits`; `[]` if none).
+- **Routes**: `POST /settings/contributors/{id}/attach` and `POST /settings/contributors/{id}/detach`.
+
+### Changed
+
+- **Database** (migration `00023`, still 19 tables): `contributors.primary_id`, `commits.person_id` and
+  `commit_signals.person_id`. The grouping cost is paid once, when an account is attached or detached:
+  every count per contributor then reads `person_id` with no extra join. The sync fills it for the new
+  commits, and the automatic merge of identities keeps the groups.
+- **Diagnosis**: the key of a day lead now holds the person; a review made on a day lead of an account
+  before it was attached is no longer found (it is found again after detaching).
+
 ## [1.8.0] - 2026-11-14
 
 Names given to the contributors and settings split into four pages. One migration (`00022`, a column,

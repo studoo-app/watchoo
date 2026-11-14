@@ -11,9 +11,9 @@ import (
 )
 
 const authorCommitTimesSince = `-- name: AuthorCommitTimesSince :many
-SELECT author_id, committed_at
+SELECT CAST(person_id AS INTEGER) AS author_id, committed_at
 FROM commits
-WHERE author_id IS NOT NULL
+WHERE person_id IS NOT NULL
   AND (?1 IS NULL OR repo_id = ?1)
   AND committed_at >= ?2
 `
@@ -24,11 +24,11 @@ type AuthorCommitTimesSinceParams struct {
 }
 
 type AuthorCommitTimesSinceRow struct {
-	AuthorID    sql.NullInt64
+	AuthorID    int64
 	CommittedAt string
 }
 
-// Auteur (author_id) et date de commit (committed_at) des commits d'auteur connu du depot (repo_id NULL = tous)
+// Personne de l'auteur (person_id, 1.9.0 ; colonne author_id) et date de commit (committed_at) des commits d'auteur connu du depot (repo_id NULL = tous)
 // depuis since, sans ordre garanti.
 func (q *Queries) AuthorCommitTimesSince(ctx context.Context, arg AuthorCommitTimesSinceParams) ([]AuthorCommitTimesSinceRow, error) {
 	rows, err := q.db.QueryContext(ctx, authorCommitTimesSince, arg.RepoID, arg.Since)
@@ -90,15 +90,15 @@ func (q *Queries) CommitTimesSince(ctx context.Context, arg CommitTimesSincePara
 }
 
 const contributorAITools = `-- name: ContributorAITools :many
-SELECT c.author_id AS contributor_id, s.tool, count(DISTINCT c.repo_id || ':' || c.sha) AS commits
+SELECT c.person_id AS contributor_id, s.tool, count(DISTINCT c.repo_id || ':' || c.sha) AS commits
 FROM commit_ai_signatures s
 JOIN commits c ON c.repo_id = s.repo_id AND c.sha = s.sha
-WHERE c.author_id IS NOT NULL
-  AND (?1 IS NULL OR c.author_id = ?1)
+WHERE c.person_id IS NOT NULL
+  AND (?1 IS NULL OR c.person_id = ?1)
   AND (?2 IS NULL OR c.repo_id = ?2)
   AND (?3 IS NULL OR c.committed_at >= ?3)
-GROUP BY c.author_id, s.tool
-ORDER BY c.author_id, commits DESC, s.tool
+GROUP BY c.person_id, s.tool
+ORDER BY c.person_id, commits DESC, s.tool
 `
 
 type ContributorAIToolsParams struct {
@@ -141,7 +141,7 @@ func (q *Queries) ContributorAITools(ctx context.Context, arg ContributorAITools
 const contributorCommitTimesSince = `-- name: ContributorCommitTimesSince :many
 SELECT repo_id, committed_at
 FROM commits
-WHERE author_id = ?1
+WHERE person_id = ?1
   AND committed_at >= ?2
 `
 
@@ -181,16 +181,16 @@ func (q *Queries) ContributorCommitTimesSince(ctx context.Context, arg Contribut
 }
 
 const contributorLanguages = `-- name: ContributorLanguages :many
-SELECT c.author_id AS contributor_id, c.repo_id, l.language,
+SELECT c.person_id AS contributor_id, c.repo_id, l.language,
        CAST(sum(l.additions) AS INTEGER) AS additions
 FROM commit_languages l
 JOIN commits c ON c.repo_id = l.repo_id AND c.sha = l.sha
-WHERE c.author_id IS NOT NULL
-  AND (?1 IS NULL OR c.author_id = ?1)
+WHERE c.person_id IS NOT NULL
+  AND (?1 IS NULL OR c.person_id = ?1)
   AND (?2 IS NULL OR c.repo_id = ?2)
   AND (?3 IS NULL OR c.committed_at >= ?3)
-GROUP BY c.author_id, c.repo_id, l.language
-ORDER BY c.author_id, c.repo_id, additions DESC, l.language
+GROUP BY c.person_id, c.repo_id, l.language
+ORDER BY c.person_id, c.repo_id, additions DESC, l.language
 `
 
 type ContributorLanguagesParams struct {
@@ -249,7 +249,7 @@ SELECT ct.id, ct.provider, ct.provider_user_id, ct.provider_login, ct.name, ct.l
        count(DISTINCT c.repo_id) AS repos,
        CAST(max(c.committed_at) AS TEXT) AS last_commit_at
 FROM commits c
-JOIN contributors ct ON ct.id = c.author_id
+JOIN contributors ct ON ct.id = c.person_id
 WHERE (?1 IS NULL OR c.repo_id = ?1)
   AND (?2 IS NULL OR c.committed_at >= ?2)
 GROUP BY ct.id
@@ -327,7 +327,7 @@ func (q *Queries) ContributorRanking(ctx context.Context, arg ContributorRanking
 }
 
 const contributorRepoBreakdown = `-- name: ContributorRepoBreakdown :many
-SELECT c.author_id AS contributor_id, c.repo_id,
+SELECT c.person_id AS contributor_id, c.repo_id,
        r.owner AS repo_owner, r.name AS repo_name, r.label AS repo_label,
        count(*) AS commits,
        CAST(COALESCE(sum(c.additions), 0) AS INTEGER) AS additions,
@@ -336,10 +336,10 @@ SELECT c.author_id AS contributor_id, c.repo_id,
        CAST(max(c.committed_at) AS TEXT) AS last_commit_at
 FROM commits c
 JOIN repositories r ON r.id = c.repo_id
-WHERE c.author_id IS NOT NULL
-  AND (?1 IS NULL OR c.author_id = ?1)
-GROUP BY c.author_id, c.repo_id
-ORDER BY c.author_id, commits DESC, c.repo_id
+WHERE c.person_id IS NOT NULL
+  AND (?1 IS NULL OR c.person_id = ?1)
+GROUP BY c.person_id, c.repo_id
+ORDER BY c.person_id, commits DESC, c.repo_id
 `
 
 type ContributorRepoBreakdownRow struct {
@@ -444,20 +444,21 @@ const countRecentCommits = `-- name: CountRecentCommits :one
 SELECT count(*)
 FROM commits c
 LEFT JOIN contributors a ON a.id = c.author_id
+LEFT JOIN contributors p ON p.id = c.person_id
 WHERE (?1 IS NULL OR c.repo_id = ?1)
-  AND (?2 IS NULL OR c.author_id = ?2)
+  AND (?2 IS NULL OR c.person_id = ?2)
   AND (?3 IS NULL OR c.committed_at >= ?3)
   AND (?4 IS NULL OR EXISTS (
         SELECT 1 FROM commit_branches cb
         JOIN branches b ON b.id = cb.branch_id
         WHERE cb.repo_id = c.repo_id AND cb.sha = c.sha AND b.name = ?4))
-  AND (?5 IS NULL OR (c.author_id IS NOT NULL AND (
-        a.provider_login = ?5 COLLATE NOCASE
-        OR a.name = ?5 COLLATE NOCASE
-        OR (a.label <> '' AND a.label = ?5 COLLATE NOCASE)
-        OR EXISTS (
-          SELECT 1 FROM contributor_emails e
-          WHERE e.contributor_id = c.author_id AND e.email = ?6))))
+  AND (?5 IS NULL OR c.person_id IN (
+        SELECT COALESCE(g.primary_id, g.id) FROM contributors g
+        WHERE g.provider_login = ?5 COLLATE NOCASE
+           OR g.name = ?5 COLLATE NOCASE
+           OR (g.label <> '' AND g.label = ?5 COLLATE NOCASE)
+           OR EXISTS (SELECT 1 FROM contributor_emails e
+                      WHERE e.contributor_id = g.id AND e.email = ?6)))
 `
 
 type CountRecentCommitsParams struct {
@@ -526,7 +527,10 @@ SELECT c.repo_id, c.sha, c.author_id, c.committer_id, c.message, c.authored_at, 
        CAST(COALESCE((SELECT group_concat(s.tool || ':' || s.kind, ',') FROM commit_ai_signatures s
                       WHERE s.repo_id = c.repo_id AND s.sha = c.sha), '') AS TEXT) AS ai_signatures,
        CAST(COALESCE(a.name, '') AS TEXT) AS author_name,
-       CAST(COALESCE(a.label, '') AS TEXT) AS author_label,
+       CAST(COALESCE(c.person_id, 0) AS INTEGER) AS person_id,
+       CAST(COALESCE(p.label, '') AS TEXT) AS person_label,
+       CAST(COALESCE(p.name, '') AS TEXT) AS person_name,
+       CAST(COALESCE(p.provider_login, '') AS TEXT) AS person_login,
        CAST(COALESCE(a.provider_login, '') AS TEXT) AS author_login,
        CAST(COALESCE(a.profile_url, '') AS TEXT) AS author_profile_url
 FROM repositories r
@@ -539,6 +543,7 @@ JOIN commits c ON c.repo_id = r.id AND c.sha = (
     ORDER BY c2.committed_at DESC, c2.sha
     LIMIT 1)
 LEFT JOIN contributors a ON a.id = c.author_id
+LEFT JOIN contributors p ON p.id = c.person_id
 WHERE (?1 IS NULL OR r.id = ?1)
 `
 
@@ -558,7 +563,10 @@ type LastCommitByRepoRow struct {
 	ParentCount      sql.NullInt64
 	AiSignatures     string
 	AuthorName       string
-	AuthorLabel      string
+	PersonID         int64
+	PersonLabel      string
+	PersonName       string
+	PersonLogin      string
 	AuthorLogin      string
 	AuthorProfileURL string
 }
@@ -589,7 +597,10 @@ func (q *Queries) LastCommitByRepo(ctx context.Context, repoID interface{}) ([]L
 			&i.ParentCount,
 			&i.AiSignatures,
 			&i.AuthorName,
-			&i.AuthorLabel,
+			&i.PersonID,
+			&i.PersonLabel,
+			&i.PersonName,
+			&i.PersonLogin,
 			&i.AuthorLogin,
 			&i.AuthorProfileURL,
 		); err != nil {
@@ -671,26 +682,30 @@ SELECT c.repo_id, c.sha, c.author_id, c.committer_id, c.message, c.authored_at, 
                       WHERE s.repo_id = c.repo_id AND s.sha = c.sha), '') AS TEXT) AS ai_signatures,
        r.owner AS repo_owner, r.name AS repo_name, r.label AS repo_label,
        CAST(COALESCE(a.name, '') AS TEXT) AS author_name,
-       CAST(COALESCE(a.label, '') AS TEXT) AS author_label,
+       CAST(COALESCE(c.person_id, 0) AS INTEGER) AS person_id,
+       CAST(COALESCE(p.label, '') AS TEXT) AS person_label,
+       CAST(COALESCE(p.name, '') AS TEXT) AS person_name,
+       CAST(COALESCE(p.provider_login, '') AS TEXT) AS person_login,
        CAST(COALESCE(a.provider_login, '') AS TEXT) AS author_login,
        CAST(COALESCE(a.profile_url, '') AS TEXT) AS author_profile_url
 FROM commits c
 JOIN repositories r ON r.id = c.repo_id
 LEFT JOIN contributors a ON a.id = c.author_id
+LEFT JOIN contributors p ON p.id = c.person_id
 WHERE (?1 IS NULL OR c.repo_id = ?1)
-  AND (?2 IS NULL OR c.author_id = ?2)
+  AND (?2 IS NULL OR c.person_id = ?2)
   AND (?3 IS NULL OR c.committed_at >= ?3)
   AND (?4 IS NULL OR EXISTS (
         SELECT 1 FROM commit_branches cb
         JOIN branches b ON b.id = cb.branch_id
         WHERE cb.repo_id = c.repo_id AND cb.sha = c.sha AND b.name = ?4))
-  AND (?5 IS NULL OR (c.author_id IS NOT NULL AND (
-        a.provider_login = ?5 COLLATE NOCASE
-        OR a.name = ?5 COLLATE NOCASE
-        OR (a.label <> '' AND a.label = ?5 COLLATE NOCASE)
-        OR EXISTS (
-          SELECT 1 FROM contributor_emails e
-          WHERE e.contributor_id = c.author_id AND e.email = ?6))))
+  AND (?5 IS NULL OR c.person_id IN (
+        SELECT COALESCE(g.primary_id, g.id) FROM contributors g
+        WHERE g.provider_login = ?5 COLLATE NOCASE
+           OR g.name = ?5 COLLATE NOCASE
+           OR (g.label <> '' AND g.label = ?5 COLLATE NOCASE)
+           OR EXISTS (SELECT 1 FROM contributor_emails e
+                      WHERE e.contributor_id = g.id AND e.email = ?6)))
 ORDER BY c.committed_at DESC, c.sha
 LIMIT ?8 OFFSET ?7
 `
@@ -725,14 +740,18 @@ type ListRecentCommitsRow struct {
 	RepoName         string
 	RepoLabel        string
 	AuthorName       string
-	AuthorLabel      string
+	PersonID         int64
+	PersonLabel      string
+	PersonName       string
+	PersonLogin      string
 	AuthorLogin      string
 	AuthorProfileURL string
 }
 
 // Derniers commits filtres (depot, auteur, contributeur auteur, branche, periode), du plus recent au plus ancien.
 // author_email doit etre deja en minuscules ; author est compare sans casse (ASCII) au login, au nom et au
-// nom donne (label, 1.8.0).
+// nom donne (label, 1.8.0) de chaque compte : un compte d'un groupe (1.9.0) selectionne tout le groupe.
+// author_id (page d'un contributeur) designe une personne (person_id).
 // row_limit negatif = pas de limite.
 func (q *Queries) ListRecentCommits(ctx context.Context, arg ListRecentCommitsParams) ([]ListRecentCommitsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listRecentCommits,
@@ -771,7 +790,10 @@ func (q *Queries) ListRecentCommits(ctx context.Context, arg ListRecentCommitsPa
 			&i.RepoName,
 			&i.RepoLabel,
 			&i.AuthorName,
-			&i.AuthorLabel,
+			&i.PersonID,
+			&i.PersonLabel,
+			&i.PersonName,
+			&i.PersonLogin,
 			&i.AuthorLogin,
 			&i.AuthorProfileURL,
 		); err != nil {

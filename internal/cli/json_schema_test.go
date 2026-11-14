@@ -262,7 +262,7 @@ var (
 )
 
 // contributorKeys are the keys of an item of "contributors" (05-cli.md, JSON output).
-var contributorKeys = []string{"id", "name", "login", "label", "display_name", "avatar_url", "commits", "additions",
+var contributorKeys = []string{"id", "name", "login", "label", "display_name", "accounts", "avatar_url", "commits", "additions",
 	"deletions", "repositories", "share", "last_commit_at", "ai_signed_commits", "ai_scanned_commits", "ai_tools",
 	"languages_scanned_commits", "languages", "weekly"}
 

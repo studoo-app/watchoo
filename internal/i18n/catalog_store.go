@@ -23,6 +23,8 @@ var storeTexts = map[string]entry{
 	"store.contrib.link_email":         {"linking an address", "rattachement d'une adresse"},
 	"store.contrib.label":              {"naming contributor %d", "nom donné au contributeur %d"},
 	"store.contrib.labels":             {"reading the contributor names", "lecture des noms des contributeurs"},
+	"store.contrib.group":              {"grouping contributor %d", "regroupement du contributeur %d"},
+	"store.contrib.persons":            {"updating the persons of the commits", "mise à jour des personnes des commits"},
 	"store.contrib.merge_label":        {"merging contributors (name)", "fusion de contributeurs (nom donné)"},
 	"store.contrib.merge_authors":      {"merging contributors (authors)", "fusion de contributeurs (auteurs)"},
 	"store.contrib.merge_committers":   {"merging contributors (committers)", "fusion de contributeurs (committers)"},
