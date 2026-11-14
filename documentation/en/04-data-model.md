@@ -10,7 +10,7 @@ migration `00005` (0.5.0) adds `contributors.profile_url` and the migration `000
 `commits.stats_known`; the migration `00007` (1.1.0) adds `repository_languages`; the migration `00008` (1.2.0)
 adds `commits.ai_rules_version` and the `commit_ai_signatures` table; the migration `00009` (1.2.0) adds
 `commits.languages_version` and the `commit_languages` table, i.e. **thirteen tables**; the migration `00010` (1.3.0)
-adds `sync_runs.warnings`. The migration `00011` (phase 7.1) adds `commit_signals`, the migration `00012` (phase 7.2) `pull_requests.tool_ids` and `repository_signals`, the migration `00013` (phase 7.4) `diagnostic_reviews`, i.e. **sixteen tables**, the migration `00014` (phase 7.5) the form columns of `commit_signals`, and the migration `00015` (phase 7.7) its measures of the absolute signals and counter-indicators (see [Supervision and diagnosis](12-supervision-diagnostic.md)). The migration `00016` (phase 8.1) adds `commits.parent_count` and `repositories.conventions_since` (see [Project conventions](13-conventions.md) and [Migration `00016`](#migration-00016-project-conventions)), the migration `00017` (phase 8.3) the cache `repository_conventions` of the file criteria of the conventions (see [Migration `00017`](#migration-00017-cache-of-the-file-criteria)), then the migrations `00018` and `00019` (phase 8.4) the history of the tags `tag_observations` and the observed rewrites of the default branch `branch_rewrites`, i.e. **nineteen tables** (see [Migrations `00018` and `00019`](#migrations-00018-and-00019-history-of-the-tags-and-of-the-default-branch)); the migration `00020` (phase 8.5) only adds columns to `pull_requests` and `repositories` (see [Migration `00020`](#migration-00020-merges-and-pull-request-bodies)), and the migration `00021` (phase 8.6) only the review counters of `pull_requests` (see [Migration `00021`](#migration-00021-pull-request-reviews)); the migration `00022` (1.8.0) only adds `contributors.label`, the name given to a contributor by the supervisor (see [Migration `00022`](#migration-00022-labels-of-the-contributors)). The storage is a SQLite file versioned by `goose` migrations, with **one
+adds `sync_runs.warnings`. The migration `00011` (phase 7.1) adds `commit_signals`, the migration `00012` (phase 7.2) `pull_requests.tool_ids` and `repository_signals`, the migration `00013` (phase 7.4) `diagnostic_reviews`, i.e. **sixteen tables**, the migration `00014` (phase 7.5) the form columns of `commit_signals`, and the migration `00015` (phase 7.7) its measures of the absolute signals and counter-indicators (see [Supervision and diagnosis](12-supervision-diagnostic.md)). The migration `00016` (phase 8.1) adds `commits.parent_count` and `repositories.conventions_since` (see [Project conventions](13-conventions.md) and [Migration `00016`](#migration-00016-project-conventions)), the migration `00017` (phase 8.3) the cache `repository_conventions` of the file criteria of the conventions (see [Migration `00017`](#migration-00017-cache-of-the-file-criteria)), then the migrations `00018` and `00019` (phase 8.4) the history of the tags `tag_observations` and the observed rewrites of the default branch `branch_rewrites`, i.e. **nineteen tables** (see [Migrations `00018` and `00019`](#migrations-00018-and-00019-history-of-the-tags-and-of-the-default-branch)); the migration `00020` (phase 8.5) only adds columns to `pull_requests` and `repositories` (see [Migration `00020`](#migration-00020-merges-and-pull-request-bodies)), and the migration `00021` (phase 8.6) only the review counters of `pull_requests` (see [Migration `00021`](#migration-00021-pull-request-reviews)); the migration `00022` (1.8.0) only adds `contributors.label`, the name given to a contributor by the supervisor (see [Migration `00022`](#migration-00022-labels-of-the-contributors)); the migration `00023` (1.9.0) only adds `contributors.primary_id`, `commits.person_id` and `commit_signals.person_id`, the groups of contributors (see [Contributor groups](#contributor-groups-190)). The storage is a SQLite file versioned by `goose` migrations, with **one
 database per workspace** (`.watchoo/watchoo.db`, see [Workspaces](10-workspaces.md)). The tables
 therefore do not know the notion of workspace: two workspaces never share data.
 
@@ -96,6 +96,7 @@ by their Git email; SQLite accepts several empty values in a unique column.
 | provider_login | GitHub login (if known), updated if the person changes it |
 | name | Name known from the commits: name of the forge account, otherwise Git name; updated by the sync (see [Identity merging](#identity-merging)) |
 | label | Name given by the supervisor in the web interface (1.8.0, migration `00022`); empty = none. Never written by the sync |
+| primary_id | Contributor group (1.9.0, migration `00023`): the **principal** contributor this one is attached to; `NULL` = principal itself (alone or with attached accounts). See [Contributor groups](#contributor-groups-190) |
 | avatar_url | URL of the avatar |
 | profile_url | Profile page of the account on the forge (`html_url` of the GitHub account), given by the provider; empty if no login is known. Added by the migration `00005` (0.5.0); completed from the login for the contributors already in the database (0.6.1) |
 
@@ -146,7 +147,8 @@ number of branches that contain it.
 | --- | --- |
 | repo_id | Repository |
 | sha | Identifier of the commit |
-| author_id | Author (contributor) |
+| author_id | Author (contributor): the account of the commit, kept as is by a grouping |
+| person_id | Person of the author (1.9.0, migration `00023`): principal of the group of `author_id` (`author_id` itself if it is not attached); `NULL` exactly when `author_id` is. Every count per contributor goes through it |
 | committer_id | Committer (contributor) |
 | message | Commit message |
 | authored_at | Author date |
@@ -354,6 +356,7 @@ address, no file path, no line of code.
 | --- | --- |
 | repo_id, sha | Measured commit |
 | author_id | Author, copied from `commits` (`NULL` if the contributor is deleted) |
+| person_id | Person of the author, copied from `commits.person_id` (1.9.0) and kept equal to it |
 | authored_at | Author date, copied from `commits`: per-author windows (phase 7.3) and purge |
 | files_kept | Files kept (neither binary nor excluded by `diagnostic.exclude`) |
 | files_excluded | Binary files or files excluded by a pattern |
@@ -477,7 +480,8 @@ the sync on the old head serves as the signal (see 13, section 5.2). No attribut
 | Index | Usage |
 | --- | --- |
 | `commits(repo_id, committed_at DESC)` | "Latest commits" view of a repository |
-| `commits(author_id, committed_at DESC)` | "Activity of a contributor" view |
+| `commits(author_id, committed_at DESC)` | Commits of one account (detaching, merge of identities) |
+| `commits(person_id, committed_at DESC)` | "Activity of a contributor" view, counts per person (1.9.0) |
 | `commit_branches(branch_id)` | "Commits of a branch" filter |
 | `pull_requests(repo_id, updated_at DESC)` | Resume point of the PR sync, list of the PRs of a repository |
 | `contributor_emails(contributor_id)` | Technical: foreign key often walked (e-mails of a contributor) |
@@ -486,7 +490,8 @@ the sync on the old head serves as the signal (see 13, section 5.2). No attribut
 | `commits(repo_id, ai_rules_version)` | Commits still to analyze for the AI signatures (migration `00008`) |
 | `commits(repo_id, languages_version)` | Commits whose languages are still to read from the clone (migration `00009`) |
 | `commits(repo_id, sha) WHERE parent_count IS NULL` | Partial index: commits whose number of parents is still to be read in the clone (migration `00016`) |
-| `commit_signals(repo_id, author_id, authored_at)` | Per-author sliding windows of the rhythm signals (phase 7.3) |
+| `commit_signals(repo_id, person_id, authored_at)` | Per-person sliding windows of the rhythm signals (phase 7.3; per person since 1.9.0, replaces the index on `author_id`) |
+| `contributors(primary_id)` | Accounts attached to a principal (1.9.0) |
 | `commit_signals(authored_at)` | Purge by retention period |
 | `tag_observations(repo_id, name) WHERE ended_at IS NULL` | Partial unique index: at most one open period per tag (migration `00018`) |
 | `tag_observations(repo_id, name, first_seen_at)` | History of the tags of a repository (migration `00018`) |
@@ -519,6 +524,48 @@ Details:
 Without `gh` (local Git repositories, V2), no commit is linked to an account: only the rule "commit
 without an account" applies (attaching by email). A contributor created this way is merged later, as
 above, when a sync through the API attaches one of its emails to an account.
+
+## Contributor groups (1.9.0)
+
+A person may use several identities that nothing links: two GitHub accounts, or a Git name whose e-mail
+is not the one of their account. The automatic merge above only joins identities that share an e-mail:
+it is certain, so it is physical (commits reassigned, contributor deleted). Grouping other identities
+is a **human judgement**, made by the supervisor in the web interface
+([`/settings/contributors`](06-web-interface.md#52-contributors-settingscontributors)): it is
+**logical and reversible**.
+
+- **Principal and attached accounts**: a contributor attached to another has `primary_id` = the
+  principal. **One level only**: the principal is never attached itself, and a contributor that has
+  attached accounts cannot be attached (detach its accounts first). No chain, no cycle; a contributor is
+  never attached to itself. The group of a principal is the principal and its attached accounts.
+- **Person of a commit**: `commits.person_id` (and `commit_signals.person_id`) is the principal of the
+  group of `author_id`. It is a denormalized copy, so that **reading costs nothing more**: every count
+  per contributor (ranking, contributor page, charts, totals per repository, languages, AI score,
+  diagnosis, conventions) groups and filters on `person_id` instead of `author_id`, with the same kind of
+  index, without a join. `author_id` keeps the account of the commit, which makes detaching lossless.
+- **Cost paid when (de)attaching**: attaching account `A` to principal `P` sets `A.primary_id = P` and
+  `person_id = P` on the commits and signals whose `author_id = A`; detaching sets them back to `A`. One
+  transaction, two `UPDATE`s on indexed columns; nothing is recomputed in the clones.
+- **Sync**: a new commit gets `person_id` = principal of its author's group at insertion, in the same
+  transaction as the reading of `primary_id`. The sync never changes a group.
+- **Automatic merge** (`from` absorbed into `into`, above): the commits of `from` take `author_id =
+  into` and `person_id` = principal of `into`'s group. If accounts were attached to `from`, they are
+  attached to that principal (to `into` itself if `into` was one of them, which then becomes the
+  principal). If `from` was attached to a principal `Q` and `into` is in no group, `into` is attached to
+  `Q`: the supervisor had placed this identity with `Q`. Otherwise `into` keeps its group.
+- **Display**: a group is shown as **one contributor**, the principal: its displayed name (its label,
+  then its name, then its login), its avatar and its profile link; the contributor page lists the
+  attached accounts (login, Git name, number of commits; never an e-mail). The `--author` and
+  `--contributor` filters find the group through any of its accounts.
+- **Never exported** by the configuration sharing, like the labels; not written to the logs.
+
+### `primary_id` and the other identities
+
+`contributor_emails` is unchanged: each address stays attached to its account. Pull requests keep their
+author's account (`author_provider_id`); their counts per contributor go through the contributor of that
+account, then its principal. The excluded accounts and the bot accounts of the diagnosis and of the
+conventions stay judged **per account** (login, e-mail): grouping an account never excludes or includes
+the others.
 
 ## Migration `00004`: `provider_id` optional
 
@@ -642,6 +689,28 @@ displayed names do not change until the supervisor gives one. `UpdateContributor
 not list this column. Rolling back (`Down`): the column is removed; the labels are lost, the rows remain.
 A test (`internal/store/contributor_label_test.go`) applies the migration to a database at schema
 `00021`, checks the empty default value, the constraint, that a sync keeps the label, then the rollback.
+
+## Migration `00023`: contributor groups
+
+The version 1.9.0 adds, with `ALTER TABLE … ADD COLUMN` and without rebuilding any table:
+
+- `contributors.primary_id INTEGER REFERENCES contributors (id) ON DELETE SET NULL`, with
+  `CHECK (primary_id IS NULL OR primary_id <> id)`; the "one level" rule is checked by the store in the
+  transaction of the attachment (SQLite cannot express it with a `CHECK`);
+- `commits.person_id INTEGER REFERENCES contributors (id) ON DELETE SET NULL`, filled by
+  `UPDATE commits SET person_id = author_id`, then kept by the store (no `CHECK`): `NULL` exactly when
+  `author_id` is;
+- `commit_signals.person_id`, filled from `commits`;
+- the indexes `commits(person_id, committed_at DESC)`, `commit_signals(repo_id, person_id, authored_at)`
+  (which replaces `commit_signals(repo_id, author_id, authored_at)`) and `contributors(primary_id)`.
+
+The number of tables does not change. Every contributor is a principal after the migration: the
+displayed figures do not change until the supervisor attaches an account. Rolling back (`Down`): the
+columns and the indexes are removed, the old signal index is recreated; the groups are lost, the rows
+remain. A test (`internal/store/contributor_group_test.go`) applies the migration to a database at schema
+`00022`, checks `person_id = author_id`, the constraint, attaching and detaching (commits and signals),
+the refusals (self, chain, principal with accounts), a sync and an automatic merge with groups, then
+the rollback.
 
 ## Renames and login changes
 

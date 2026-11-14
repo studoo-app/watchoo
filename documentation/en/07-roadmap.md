@@ -24,7 +24,7 @@ repository and per contributor as **v1.6.0**; the link to the documentation in t
 interface, the icons of the AI score and the AI score and the leads of the commits on a contributor's page as
 **v1.6.1**; the project conventions (phase 8, except BR3) and the sorting and filters of the dashboard as
 **v1.7.0**; the lighter conventions interface and the sticky navigation as **v1.7.1**; the names given to the
-contributors, the settings pages and the Studoo Labs credit as **v1.8.0**.
+contributors, the settings pages and the Studoo Labs credit as **v1.8.0**; the contributor groups as **v1.9.0**.
 
 ```mermaid
 flowchart LR
@@ -217,6 +217,24 @@ Importing a whole organization and the alerts move to V3 (see
 - Order: documentation, then the split of the settings without any change of behavior, then the names
   (migration, core, CLI, TUI, web), each step with its tests.
 - **Status**: decided (maintainer decision of November 14, 2026); **released in v1.8.0**.
+
+### 1.9.0: contributor groups
+- **Several accounts, one person**: the supervisor attaches the accounts of one person (other GitHub
+  accounts, Git names whose e-mail is not the one of the account) to a **principal** contributor, from
+  `/settings/contributors`; one level, reversible ("Detach"). See
+  [Data model](04-data-model.md#contributor-groups-190).
+- **Computing cost paid at attachment**: `commits.person_id` and `commit_signals.person_id` (migration
+  `00023`) hold the principal; every count per contributor reads them instead of `author_id`, with no
+  extra join. The sync fills them for the new commits; the automatic merge of identities keeps the
+  groups.
+- **Everywhere one person**: ranking, contributor page (with its "Accounts" card), charts, AI score,
+  diagnosis (histories and medians per person, day leads keyed by the person), conventions per
+  contributor, `watchoo contributors` (one line per person, `accounts` key), TUI, filters. Never exported.
+- Additions only (columns, routes, one `--json` key): **MINOR** version.
+- Order: documentation, then the migration and the store (attach, detach, sync, merge), then the reads
+  per person (web, CLI, TUI, diagnosis, conventions), then the settings page, each step with its tests.
+- **Status**: decided (maintainer decisions of November 14, 2026, including the open points: diagnosis
+  per person, day leads keyed by the person, conventions per person); **released in v1.9.0**.
 
 ## Definition of "done" for each phase
 

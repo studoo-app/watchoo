@@ -104,7 +104,10 @@ func commitViewsFromRows(rows []db.ListRecentCommitsRow) ([]CommitView, error) {
 			RepoName:         row.RepoName,
 			RepoLabel:        row.RepoLabel,
 			AuthorName:       row.AuthorName,
-			AuthorLabel:      row.AuthorLabel,
+			PersonID:         row.PersonID,
+			PersonLabel:      row.PersonLabel,
+			PersonName:       row.PersonName,
+			PersonLogin:      row.PersonLogin,
 			AuthorLogin:      row.AuthorLogin,
 			AuthorProfileURL: row.AuthorProfileURL,
 			AISignatures:     parseAISignatures(row.AiSignatures),
@@ -155,7 +158,7 @@ func (s *Store) AuthorCommitTimes(ctx context.Context, repoID int64, since time.
 		if err != nil {
 			return nil, wrapErr(i18n.T("store.web.dates_author"), err)
 		}
-		out = append(out, model.AuthorCommitTime{ContributorID: row.AuthorID.Int64, CommittedAt: t})
+		out = append(out, model.AuthorCommitTime{ContributorID: row.AuthorID, CommittedAt: t})
 	}
 	return out, nil
 }

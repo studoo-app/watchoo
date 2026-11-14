@@ -25,13 +25,13 @@ func (q *Queries) CountCommitSignals(ctx context.Context, repoID int64) (int64, 
 
 const insertCommitSignals = `-- name: InsertCommitSignals :execrows
 INSERT INTO commit_signals (
-    repo_id, sha, author_id, authored_at, files_kept, files_excluded, additions_kept, deletions_kept,
+    repo_id, sha, author_id, person_id, authored_at, files_kept, files_excluded, additions_kept, deletions_kept,
     tool_ids, agent_config, bot_author, computed_at, form_known, source_lines, comment_lines, functions,
     documented_functions, identifiers, lexical_diversity, test_lines, message_length, message_bullets,
     message_conventional, decorative_lines, fr_words, fr_words_unaccented, wip_markers, short_identifiers,
     private_defs, message_revert, message_fix
 )
-SELECT c.repo_id, c.sha, c.author_id, c.authored_at,
+SELECT c.repo_id, c.sha, c.author_id, c.person_id, c.authored_at,
     ?1, ?2, ?3, ?4,
     ?5, ?6, ?7, ?8,
     ?9, ?10, ?11, ?12,
@@ -195,7 +195,7 @@ func (q *Queries) ListAgentConfigContexts(ctx context.Context, repoID interface{
 }
 
 const listCommitSignalViews = `-- name: ListCommitSignalViews :many
-SELECT cs.repo_id, cs.sha, c.author_id, cs.authored_at, cs.files_kept, cs.files_excluded,
+SELECT cs.repo_id, cs.sha, c.person_id AS author_id, cs.authored_at, cs.files_kept, cs.files_excluded,
        cs.additions_kept, cs.deletions_kept, cs.tool_ids, cs.agent_config, cs.bot_author, cs.computed_at,
        cs.form_known, cs.source_lines, cs.comment_lines, cs.functions, cs.documented_functions,
        cs.identifiers, cs.lexical_diversity, cs.test_lines, cs.message_length, cs.message_bullets,
@@ -360,7 +360,7 @@ func (q *Queries) ListCommitSignalViews(ctx context.Context, arg ListCommitSigna
 }
 
 const listCommitSignals = `-- name: ListCommitSignals :many
-SELECT cs.repo_id, cs.sha, c.author_id, cs.authored_at, cs.files_kept, cs.files_excluded, cs.additions_kept,
+SELECT cs.repo_id, cs.sha, c.person_id AS author_id, cs.authored_at, cs.files_kept, cs.files_excluded, cs.additions_kept,
     cs.deletions_kept, cs.tool_ids, cs.agent_config, cs.bot_author, cs.computed_at,
     cs.form_known, cs.source_lines, cs.comment_lines, cs.functions, cs.documented_functions,
     cs.identifiers, cs.lexical_diversity, cs.test_lines, cs.message_length, cs.message_bullets,
@@ -570,13 +570,13 @@ func (q *Queries) ListDiagnosticReviews(ctx context.Context, repoID interface{})
 }
 
 const matchingContributorIDs = `-- name: MatchingContributorIDs :many
-SELECT DISTINCT a.id
+SELECT DISTINCT CAST(COALESCE(a.primary_id, a.id) AS INTEGER) AS id
 FROM contributors a
 WHERE a.provider_login = ?1 COLLATE NOCASE
    OR a.name = ?1 COLLATE NOCASE
    OR (a.label <> '' AND a.label = ?1 COLLATE NOCASE)
    OR EXISTS (SELECT 1 FROM contributor_emails e WHERE e.contributor_id = a.id AND e.email = ?2)
-ORDER BY a.id
+ORDER BY 1
 `
 
 type MatchingContributorIDsParams struct {
@@ -584,8 +584,8 @@ type MatchingContributorIDsParams struct {
 	AuthorEmail string
 }
 
-// Contributeurs dont le login, le nom ou le nom donne (label, 1.8.0) vaut author (sans casse, ASCII), ou
-// qui ont l'e-mail author_email (deja en minuscules).
+// Personnes (principal du groupe, 1.9.0) des contributeurs dont le login, le nom ou le nom donne (label,
+// 1.8.0) vaut author (sans casse, ASCII), ou qui ont l'e-mail author_email (deja en minuscules).
 func (q *Queries) MatchingContributorIDs(ctx context.Context, arg MatchingContributorIDsParams) ([]int64, error) {
 	rows, err := q.db.QueryContext(ctx, matchingContributorIDs, arg.Author, arg.AuthorEmail)
 	if err != nil {

@@ -79,6 +79,12 @@ an incompatible change requires a major version. **Released in v1.0.0**.
 | Names of the contributors | The commits only give a pseudonym (login, Git name): the supervisor gives a contributor a name of their choice in the web settings (`/settings/contributors`, or the "Rename" link of their page), displayed everywhere instead of the pseudonym (web, CLI, TUI, `--json`), the login staying visible. Kept in the database of the workspace only: never written by the sync, never exported. See [Data model](04-data-model.md#contributors--identified-people) |
 | Settings pages | The web settings are split into four pages with a menu: repositories, contributors, synchronization (interval, sync, quota), sharing (export, import). See [Web interface](06-web-interface.md#5-settings) |
 
+## 1.9.0
+
+| Feature | Detail |
+| --- | --- |
+| Contributor groups | A person with several accounts (two GitHub accounts, a Git name with another e-mail) is shown as **one contributor**: the supervisor attaches the accounts to a principal in the web settings (`/settings/contributors`), one level, reversible. Every count (ranking, charts, AI score, diagnosis, conventions, `watchoo contributors`) is per person; the accounts stay listed on the contributor's page. Never exported. See [Data model](04-data-model.md#contributor-groups-190) |
+
 ## V3
 
 | Feature | Detail |

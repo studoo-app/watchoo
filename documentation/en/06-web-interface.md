@@ -61,6 +61,7 @@ changes anything; every `POST` goes through the CSRF check.
 | `GET` | `/settings` | Redirect (`302`) to the settings page of the topic (1.8.0, see [Settings](#5-settings)) |
 | `GET` | `/settings/repos`, `/settings/contributors`, `/settings/sync`, `/settings/share` | Settings pages (1.8.0): repositories, contributors, synchronization, sharing |
 | `POST` | `/settings/contributors/{id}` | Name given to a contributor (1.8.0; empty: removed) |
+| `POST` | `/settings/contributors/{id}/attach`, `/settings/contributors/{id}/detach` | Attach an account to a principal contributor, or detach it (1.9.0) |
 | `POST` | `/settings/repos` | Add a repository |
 | `POST` | `/settings/repos/{id}` | Edit a repository (label, branches) |
 | `GET`, `POST` | `/settings/repos/{id}/remove` | Remove a repository: confirmation page, then removal |
@@ -340,7 +341,9 @@ signatures, no address displayed. Rules: [AI signatures](02-features.md#ai-signa
   known statistics yet, see `commits.stats_known`), with three counters (contributors, commits,
   repositories). The name of each contributor leads to their page (0.5.0). Since 1.8.0, it is the displayed
   name: the label given in [the settings](#52-contributors-settingscontributors) if there is one, the
-  pseudonym of the commits then in small text below.
+  pseudonym of the commits then in small text below. Since 1.9.0, one row per person: the accounts
+  attached to a principal ([contributor groups](04-data-model.md#contributor-groups-190)) are counted
+  with it, and "+n accounts" follows its login.
 - **AI score** (1.6.0, in place of the "AI signatures" column): the [AI score of the
   contributor](12-supervision-diagnostic.md#6-levels-score-and-output): the icon of its tier
   (`static/score-not-ia.svg` at 0, `score-ia.svg` from 1 to 29, `score-ia-max.svg` from 30, copied from
@@ -364,7 +367,8 @@ signatures, no address displayed. Rules: [AI signatures](02-features.md#ai-signa
 
 ### 4. Contributor page (0.5.0)
 
-`GET /contributors/{id}` (internal identifier of the contributor, 1 to 18 digits; unknown: `404`).
+`GET /contributors/{id}` (internal identifier of the contributor, 1 to 18 digits; unknown: `404`; an
+account attached to a principal (1.9.0): `302` to the page of its principal, the query kept).
 Breadcrumb "Contributors › name". Nothing is GitHub-specific in the handler
 nor the templates: the profile link is the address stored in the database (see
 [Links to profiles](#links-to-profiles-050)).
@@ -504,6 +508,24 @@ pseudonym: web, CLI, TUI and `display_name` key of `--json`.
   configuration sharing, and the login and the name of the commits stay visible next to it.
 - The contributor page has a **"Rename"** link next to the name, to
   `/settings/contributors#contributor-{id}`.
+- **Accounts of a person** (1.9.0, [contributor groups](04-data-model.md#contributor-groups-190)): the
+  same page groups the identities of one person under a **principal**.
+  - Each row of a contributor who has no attached account and is not attached has an **"Attach to…"**
+    form: a list of the possible principals (every other contributor that is not attached), sorted by
+    displayed name, and a button. `POST /settings/contributors/{id}/attach` (CSRF, `primary` field).
+  - A principal's row lists its attached accounts (avatar, login, Git name, number of commits), each with
+    a **"Detach"** button: `POST /settings/contributors/{id}/detach` (CSRF). The list shows the accounts
+    under their principal; the search finds a group through any of its accounts.
+  - Refused (`400`, the page displayed again with the error on the row): attaching to oneself, to an
+    attached account, or attaching a principal that has accounts ("detach its accounts first");
+    detaching an account that is not attached. Unknown contributor: `404`. Responses: redirect (`303`)
+    to `/settings/contributors?msg=<code>&contributor=<id>#contributor-<id>` (`attached` or `detached`,
+    on the principal's row). Possible during a sync (one SQLite transaction).
+  - A note: the grouping changes every count per contributor (ranking, AI score, diagnosis histories,
+    conventions); detaching restores them exactly. Nothing is exported.
+- The contributor page of a principal shows an **"Accounts"** card: its attached accounts (login with
+  the "GitHub" link if known, Git name, number of commits, never an address) and a link to this settings
+  page.
 
 #### 5.3 Synchronization (`/settings/sync`)
 

@@ -178,7 +178,7 @@ pistes par niveau dans l'infobulle. Donnée : diagnostic.Summary. Liste et page 
     <p class="font-medium break-words">{{firstLine $c.Message}}</p>
     <p class="text-xs text-base-content/60">
       {{- if .ShowRepo}}<a href="{{repoPath $c.RepoID}}" class="link link-hover font-medium">{{clean $c.RepoDisplayName}}</a> · {{end -}}
-      {{- if .ShowAuthor}}{{template "contributor-link" (dict "ID" $c.AuthorID "Name" $c.AuthorDisplayName)}}{{with $c.AuthorProfileURL}} {{template "profile-link" (dict "URL" . "Login" $c.AuthorLogin)}}{{end}} · {{end -}}
+      {{- if .ShowAuthor}}{{template "contributor-link" (dict "ID" (or $c.PersonID $c.AuthorID) "Name" $c.AuthorDisplayName)}}{{with $c.AuthorProfileURL}} {{template "profile-link" (dict "URL" . "Login" $c.AuthorLogin)}}{{end}} · {{end -}}
       {{template "rel-time" $c.CommittedAt}}
       · {{template "commit-lines" $c.Commit}}{{template "commit-ai" $c}}
     </p>

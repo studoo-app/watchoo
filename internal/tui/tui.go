@@ -53,6 +53,8 @@ type DataSource interface {
 	AuthorCommitTimes(ctx context.Context, repoID int64, since time.Time) ([]model.AuthorCommitTime, error)
 	// Détail d'un contributeur (0.5.0).
 	ContributorProfile(ctx context.Context, id int64) (store.ContributorProfile, error)
+	// AttachedAccounts renvoie les comptes rattachés, par principal (groupes de contributeurs, 1.9.0).
+	AttachedAccounts(ctx context.Context) (map[int64][]store.AttachedAccount, error)
 	ContributorRepos(ctx context.Context, id int64) ([]store.ContributorRepoStats, error)
 	ContributorCommitTimes(ctx context.Context, id int64, since time.Time) ([]model.RepoCommitTime, error)
 }

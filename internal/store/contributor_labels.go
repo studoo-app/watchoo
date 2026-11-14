@@ -17,6 +17,8 @@ type LabeledContributor struct {
 	model.Contributor
 	Identities int
 	Commits    int
+	// PrimaryID est le principal auquel ce contributeur est rattaché (1.9.0) ; 0 s'il est principal.
+	PrimaryID int64
 }
 
 // SetContributorLabel donne le nom label au contributeur id (vide : retire le nom donné). label est
@@ -68,6 +70,7 @@ func (s *Store) LabeledContributors(ctx context.Context) ([]LabeledContributor, 
 			}),
 			Identities: int(r.Emails),
 			Commits:    int(r.Commits),
+			PrimaryID:  r.PrimaryID.Int64,
 		})
 	}
 	return out, nil

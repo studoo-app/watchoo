@@ -202,11 +202,16 @@ type CommitFilter struct {
 // CommitView est une ligne de la vue « derniers commits » : le commit, son dépôt et son auteur.
 type CommitView struct {
 	model.Commit
-	RepoOwner   string // propriétaire actuel du dépôt
-	RepoName    string // nom actuel du dépôt
-	RepoLabel   string // nom affiché du dépôt (vide = owner/name)
-	AuthorName  string // nom du contributeur auteur ; vide si inconnu
-	AuthorLabel string // nom donné à l'auteur dans l'interface web (1.8.0) ; vide si aucun
+	RepoOwner  string // propriétaire actuel du dépôt
+	RepoName   string // nom actuel du dépôt
+	RepoLabel  string // nom affiché du dépôt (vide = owner/name)
+	AuthorName string // nom du contributeur auteur ; vide si inconnu
+	// Personne de l'auteur (1.9.0) : principal de son groupe (le compte lui-même s'il n'est pas
+	// rattaché), avec son nom donné, son nom et son login ; PersonID vaut 0 si l'auteur est inconnu.
+	PersonID    int64
+	PersonLabel string
+	PersonName  string
+	PersonLogin string
 	AuthorLogin string // login de forge de l'auteur ; vide si inconnu
 	// AuthorProfileURL est la page de profil de l'auteur sur la forge ; vide si inconnue.
 	AuthorProfileURL string
@@ -222,10 +227,15 @@ func (c CommitView) RepoDisplayName() string {
 	return c.RepoOwner + "/" + c.RepoName
 }
 
-// AuthorDisplayName renvoie le nom affiché de l'auteur (AuthorLabel, sinon AuthorName, sinon
-// AuthorLogin, sinon « inconnu »).
+// AuthorDisplayName renvoie le nom affiché de l'auteur : celui de sa personne (nom donné, sinon nom,
+// sinon login ; 1.9.0), sinon celui du compte du commit, sinon « inconnu ».
 func (c CommitView) AuthorDisplayName() string {
-	return model.Contributor{Label: c.AuthorLabel, Name: c.AuthorName, ProviderLogin: c.AuthorLogin}.DisplayName()
+	if c.PersonID != 0 {
+		if p := (model.Contributor{Label: c.PersonLabel, Name: c.PersonName, ProviderLogin: c.PersonLogin}); p.Label != "" || p.Name != "" || p.ProviderLogin != "" {
+			return p.DisplayName()
+		}
+	}
+	return model.Contributor{Name: c.AuthorName, ProviderLogin: c.AuthorLogin}.DisplayName()
 }
 
 // ContributorFilter règle ContributorRanking. Sa valeur zéro classe tous les contributeurs.

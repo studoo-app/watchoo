@@ -177,8 +177,8 @@ func TestContributorLanguages(t *testing.T) {
 		{repoB, alice, recent, 0, nil}, // not analyzed yet
 		{repoA, bob, recent, 1, map[string]int{}},
 	} {
-		mustExec(t, s, `INSERT INTO commits (repo_id, sha, author_id, message, authored_at, committed_at, languages_version)
-			VALUES (?, ?, ?, 'msg', ?, ?, ?)`, c.repo, sha(i+1), c.author, c.at, c.at, c.version)
+		mustExec(t, s, `INSERT INTO commits (repo_id, sha, author_id, person_id, message, authored_at, committed_at, languages_version)
+			VALUES (?, ?, ?, ?, 'msg', ?, ?, ?)`, c.repo, sha(i+1), c.author, c.author, c.at, c.at, c.version)
 		for lang, n := range c.langs {
 			mustExec(t, s, `INSERT INTO commit_languages (repo_id, sha, language, additions) VALUES (?, ?, ?, ?)`,
 				c.repo, sha(i+1), lang, n)
@@ -237,7 +237,8 @@ func TestContributorLanguages(t *testing.T) {
 	}
 
 	// Merge of contributors: the languages follow the commits.
-	mustExec(t, s, `UPDATE commits SET author_id = ? WHERE author_id = ?`, alice, bob)
+	// Like the merge of the store: author and person (1.9.0) of the commits reassigned.
+	mustExec(t, s, `UPDATE commits SET author_id = ?, person_id = ? WHERE author_id = ?`, alice, alice, bob)
 	if p, err = s.ContributorProfile(ctx, alice); err != nil || p.Languages.Scanned != 4 {
 		t.Errorf("after the merge: %+v, %v", p.Languages, err)
 	}

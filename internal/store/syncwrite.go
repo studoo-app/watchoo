@@ -202,6 +202,11 @@ func (s *Store) ApplyRepoSync(ctx context.Context, w RepoSyncWrite) (RepoSyncRes
 			}
 		}
 
+		// Personne des nouveaux commits (1.9.0) : principal du groupe de leur auteur.
+		if err := q.FillCommitPersons(ctx, w.RepoID); err != nil {
+			return wrapErr(i18n.T("store.contrib.persons"), err)
+		}
+
 		for _, st := range w.Stats {
 			if _, err := q.SetCommitStats(ctx, db.SetCommitStatsParams{
 				Additions: int64(st.Additions), Deletions: int64(st.Deletions), RepoID: w.RepoID, SHA: st.SHA,
@@ -821,6 +826,9 @@ func (r *identityResolver) merge(ctx context.Context, from, into db.Contributor)
 	// Nom donné dans l'interface web (1.8.0) : into reprend celui de from s'il n'en a pas.
 	if err := r.q.KeepContributorLabel(ctx, db.KeepContributorLabelParams{FromID: from.ID, ToID: into.ID}); err != nil {
 		return wrapErr(i18n.T("store.contrib.merge_label"), err)
+	}
+	if err := mergeGroups(ctx, r.q, from, into); err != nil {
+		return err
 	}
 	if err := r.q.DeleteContributor(ctx, from.ID); err != nil {
 		return wrapErr(i18n.T("store.contrib.merge_delete"), err)

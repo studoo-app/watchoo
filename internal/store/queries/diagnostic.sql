@@ -3,13 +3,13 @@
 -- Une ligne deja presente n'est remplacee que si sa forme n'etait pas mesuree (form_known = 0, ligne
 -- d'avant la phase 7.5) ; sinon 0 ligne. Un SHA absent de la base est ignore.
 INSERT INTO commit_signals (
-    repo_id, sha, author_id, authored_at, files_kept, files_excluded, additions_kept, deletions_kept,
+    repo_id, sha, author_id, person_id, authored_at, files_kept, files_excluded, additions_kept, deletions_kept,
     tool_ids, agent_config, bot_author, computed_at, form_known, source_lines, comment_lines, functions,
     documented_functions, identifiers, lexical_diversity, test_lines, message_length, message_bullets,
     message_conventional, decorative_lines, fr_words, fr_words_unaccented, wip_markers, short_identifiers,
     private_defs, message_revert, message_fix
 )
-SELECT c.repo_id, c.sha, c.author_id, c.authored_at,
+SELECT c.repo_id, c.sha, c.author_id, c.person_id, c.authored_at,
     sqlc.arg(files_kept), sqlc.arg(files_excluded), sqlc.arg(additions_kept), sqlc.arg(deletions_kept),
     sqlc.arg(tool_ids), sqlc.arg(agent_config), sqlc.arg(bot_author), sqlc.arg(computed_at),
     sqlc.arg(form_known), sqlc.arg(source_lines), sqlc.arg(comment_lines), sqlc.arg(functions),
@@ -57,7 +57,7 @@ WHERE authored_at < sqlc.arg(before);
 
 -- name: ListCommitSignals :many
 -- Signaux des commits du depot, du plus recent au plus ancien (date d'ecriture, puis SHA) ; auteur du commit.
-SELECT cs.repo_id, cs.sha, c.author_id, cs.authored_at, cs.files_kept, cs.files_excluded, cs.additions_kept,
+SELECT cs.repo_id, cs.sha, c.person_id AS author_id, cs.authored_at, cs.files_kept, cs.files_excluded, cs.additions_kept,
     cs.deletions_kept, cs.tool_ids, cs.agent_config, cs.bot_author, cs.computed_at,
     cs.form_known, cs.source_lines, cs.comment_lines, cs.functions, cs.documented_functions,
     cs.identifiers, cs.lexical_diversity, cs.test_lines, cs.message_length, cs.message_bullets,
@@ -113,7 +113,7 @@ WHERE tool_ids <> '' AND created_at < sqlc.arg(before);
 -- (merge_pr_number, son numero ; 0 sinon), avec le nombre de parents du commit (parent_count, -1 si
 -- inconnu) et github_committer (committer GitHub reconnu) : un squash est alors reconnu meme sans committer
 -- GitHub identifie.
-SELECT cs.repo_id, cs.sha, c.author_id, cs.authored_at, cs.files_kept, cs.files_excluded,
+SELECT cs.repo_id, cs.sha, c.person_id AS author_id, cs.authored_at, cs.files_kept, cs.files_excluded,
        cs.additions_kept, cs.deletions_kept, cs.tool_ids, cs.agent_config, cs.bot_author, cs.computed_at,
        cs.form_known, cs.source_lines, cs.comment_lines, cs.functions, cs.documented_functions,
        cs.identifiers, cs.lexical_diversity, cs.test_lines, cs.message_length, cs.message_bullets,
@@ -150,15 +150,15 @@ WHERE (sqlc.narg(repo_id) IS NULL OR cs.repo_id = sqlc.narg(repo_id))
 ORDER BY cs.authored_at, cs.sha;
 
 -- name: MatchingContributorIDs :many
--- Contributeurs dont le login, le nom ou le nom donne (label, 1.8.0) vaut author (sans casse, ASCII), ou
--- qui ont l'e-mail author_email (deja en minuscules).
-SELECT DISTINCT a.id
+-- Personnes (principal du groupe, 1.9.0) des contributeurs dont le login, le nom ou le nom donne (label,
+-- 1.8.0) vaut author (sans casse, ASCII), ou qui ont l'e-mail author_email (deja en minuscules).
+SELECT DISTINCT CAST(COALESCE(a.primary_id, a.id) AS INTEGER) AS id
 FROM contributors a
 WHERE a.provider_login = sqlc.arg(author) COLLATE NOCASE
    OR a.name = sqlc.arg(author) COLLATE NOCASE
    OR (a.label <> '' AND a.label = sqlc.arg(author) COLLATE NOCASE)
    OR EXISTS (SELECT 1 FROM contributor_emails e WHERE e.contributor_id = a.id AND e.email = sqlc.arg(author_email))
-ORDER BY a.id;
+ORDER BY 1;
 
 -- name: ListCommitsWithoutSignals :many
 -- Commits du depot sans signaux, ou dont la forme n'est pas mesuree (form_known = 0), ecrits a partir de since, par SHA croissant apres after_sha (pagination ;

@@ -29,7 +29,7 @@ func TestContributorsWeeks(t *testing.T) {
 	r = h.run("contributors", "--weeks", "3", "--json").mustSucceed(t)
 	var rep contributorsReport
 	decodeStrict(t, r.stdout, &rep)
-	assertJSONKeys(t, r.stdout, "contributors.0", "id", "name", "login", "label", "display_name", "avatar_url", "commits",
+	assertJSONKeys(t, r.stdout, "contributors.0", "id", "name", "login", "label", "display_name", "accounts", "avatar_url", "commits",
 		"additions", "deletions", "repositories", "share", "last_commit_at", "ai_signed_commits", "ai_scanned_commits", "ai_tools",
 		"languages_scanned_commits", "languages", "weekly")
 	assertJSONKeys(t, r.stdout, "contributors.0.weekly.0", "week", "count")

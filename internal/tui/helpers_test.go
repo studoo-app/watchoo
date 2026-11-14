@@ -33,6 +33,7 @@ type fakeData struct {
 	commitFilters []store.CommitFilter
 	contribFilter []store.ContributorFilter
 	languages     []store.LanguageView
+	accounts      map[int64][]store.AttachedAccount
 	// authorTimes: author and date of the commits, per repository (AuthorCommitTimes).
 	authorTimes map[int64][]model.AuthorCommitTime
 	authorReads []int64 // repositories asked of AuthorCommitTimes
@@ -40,6 +41,12 @@ type fakeData struct {
 	profiles     map[int64]store.ContributorProfile
 	contribRepos map[int64][]store.ContributorRepoStats
 	repoTimes    map[int64][]model.RepoCommitTime
+}
+
+func (f *fakeData) AttachedAccounts(context.Context) (map[int64][]store.AttachedAccount, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.accounts, nil
 }
 
 func (f *fakeData) ContributorProfile(_ context.Context, id int64) (store.ContributorProfile, error) {

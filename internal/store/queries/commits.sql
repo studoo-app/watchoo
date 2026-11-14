@@ -133,9 +133,10 @@ WHERE repo_id = sqlc.arg(repo_id) AND sha = sqlc.arg(sha);
 -- Commits du depot pour les conventions (phase 8.1), du plus recent au plus ancien : message (lu en
 -- memoire seulement, jamais garde), nombre de parents (NULL = inconnu), auteur et committer (logins et
 -- adresses separees par des espaces), date du committer (phase 8.5, PR3), rattachement a une branche suivie et a la branche par defaut
--- (commit_branches, repli sans clone). author_id NULL = tous les auteurs.
+-- (commit_branches, repli sans clone). author_id NULL = tous les auteurs. author_id est la personne (person_id,
+-- 1.9.0) ; nom, login et adresses restent ceux du compte du commit (bots, comptes exclus).
 SELECT c.sha, c.message, c.parent_count, c.authored_at, c.committed_at,
-       CAST(COALESCE(c.author_id, 0) AS INTEGER) AS author_id,
+       CAST(COALESCE(c.person_id, 0) AS INTEGER) AS author_id,
        CAST(COALESCE(a.name, '') AS TEXT) AS author_name,
        CAST(COALESCE(a.provider_login, '') AS TEXT) AS author_login,
        CAST(COALESCE((SELECT group_concat(ae.email, ' ') FROM contributor_emails ae
@@ -152,5 +153,5 @@ FROM commits c
 LEFT JOIN contributors a ON a.id = c.author_id
 LEFT JOIN contributors cm ON cm.id = c.committer_id
 WHERE c.repo_id = sqlc.arg(repo_id)
-  AND (sqlc.narg(author_id) IS NULL OR c.author_id = sqlc.narg(author_id))
+  AND (sqlc.narg(author_id) IS NULL OR c.person_id = sqlc.narg(author_id))
 ORDER BY c.authored_at DESC, c.sha;

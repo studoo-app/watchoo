@@ -72,6 +72,7 @@
                   {{- with .CommitName}}<span>{{truncate 60 .}}</span>{{end}}
                   {{- if .ShowLogin}}<span>@{{truncate 60 .ProviderLogin}}</span>{{end}}
                   {{- template "profile-link" (dict "URL" .ProfileURL "Login" .ProviderLogin)}}
+                  {{- with .Accounts}}<span class="badge badge-ghost badge-sm" title="{{range $i, $a := .}}{{if $i}}, {{end}}{{or $a.ProviderLogin $a.Name}}{{end}}">{{tn "web.n.more_account" (len .)}}</span>{{end}}
                 </div>
               </div>
             </div>

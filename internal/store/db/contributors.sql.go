@@ -68,8 +68,21 @@ func (q *Queries) DeleteContributor(ctx context.Context, id int64) error {
 	return err
 }
 
+const fillCommitPersons = `-- name: FillCommitPersons :exec
+UPDATE commits
+SET person_id = (SELECT COALESCE(ct.primary_id, ct.id) FROM contributors ct WHERE ct.id = commits.author_id)
+WHERE repo_id = ?1 AND person_id IS NULL AND author_id IS NOT NULL
+`
+
+// Synchro (1.9.0) : person_id des commits du depot qui n'en ont pas encore (nouveaux commits), d'apres le
+// groupe de leur auteur.
+func (q *Queries) FillCommitPersons(ctx context.Context, repoID int64) error {
+	_, err := q.db.ExecContext(ctx, fillCommitPersons, repoID)
+	return err
+}
+
 const getContributorByAccount = `-- name: GetContributorByAccount :one
-SELECT id, provider, provider_user_id, provider_login, name, avatar_url, profile_url, label FROM contributors
+SELECT id, provider, provider_user_id, provider_login, name, avatar_url, profile_url, label, primary_id FROM contributors
 WHERE provider = ? AND provider_user_id = ?
 `
 
@@ -91,12 +104,13 @@ func (q *Queries) GetContributorByAccount(ctx context.Context, arg GetContributo
 		&i.AvatarURL,
 		&i.ProfileURL,
 		&i.Label,
+		&i.PrimaryID,
 	)
 	return i, err
 }
 
 const getContributorByEmail = `-- name: GetContributorByEmail :one
-SELECT c.id, c.provider, c.provider_user_id, c.provider_login, c.name, c.avatar_url, c.profile_url, c.label FROM contributors c
+SELECT c.id, c.provider, c.provider_user_id, c.provider_login, c.name, c.avatar_url, c.profile_url, c.label, c.primary_id FROM contributors c
 JOIN contributor_emails e ON e.contributor_id = c.id
 WHERE e.email = ?
 `
@@ -114,13 +128,38 @@ func (q *Queries) GetContributorByEmail(ctx context.Context, email string) (Cont
 		&i.AvatarURL,
 		&i.ProfileURL,
 		&i.Label,
+		&i.PrimaryID,
 	)
+	return i, err
+}
+
+const getContributorGroup = `-- name: GetContributorGroup :one
+SELECT ct.id, ct.primary_id,
+       CAST((SELECT count(*) FROM contributors a WHERE a.primary_id = ct.id) AS INTEGER) AS attached
+FROM contributors ct
+WHERE ct.id = ?1
+`
+
+type GetContributorGroupRow struct {
+	ID        int64
+	PrimaryID sql.NullInt64
+	Attached  int64
+}
+
+// Groupe d'un contributeur (1.9.0) : son principal (NULL s'il est principal) et le nombre de comptes qui
+// lui sont rattaches. sql.ErrNoRows si le contributeur n'existe pas.
+func (q *Queries) GetContributorGroup(ctx context.Context, id int64) (GetContributorGroupRow, error) {
+	row := q.db.QueryRowContext(ctx, getContributorGroup, id)
+	var i GetContributorGroupRow
+	err := row.Scan(&i.ID, &i.PrimaryID, &i.Attached)
 	return i, err
 }
 
 const getContributorProfile = `-- name: GetContributorProfile :one
 SELECT ct.id, ct.provider, ct.provider_user_id, ct.provider_login, ct.name, ct.label, ct.avatar_url, ct.profile_url,
-       CAST((SELECT count(*) FROM contributor_emails e WHERE e.contributor_id = ct.id) AS INTEGER) AS emails,
+       CAST((SELECT count(*) FROM contributor_emails e
+             WHERE e.contributor_id IN (SELECT g.id FROM contributors g WHERE g.id = ct.id OR g.primary_id = ct.id))
+            AS INTEGER) AS emails,
        count(c.sha) AS commits,
        CAST(COALESCE(sum(c.additions), 0) AS INTEGER) AS additions,
        CAST(COALESCE(sum(c.deletions), 0) AS INTEGER) AS deletions,
@@ -133,7 +172,7 @@ SELECT ct.id, ct.provider, ct.provider_user_id, ct.provider_login, ct.name, ct.l
        CAST(COALESCE(min(c.committed_at), '') AS TEXT) AS first_commit_at,
        CAST(COALESCE(max(c.committed_at), '') AS TEXT) AS last_commit_at
 FROM contributors ct
-LEFT JOIN commits c ON c.author_id = ct.id
+LEFT JOIN commits c ON c.person_id = ct.id
 WHERE ct.id = ?1
 GROUP BY ct.id
 `
@@ -161,7 +200,8 @@ type GetContributorProfileRow struct {
 }
 
 // Contributeur et totaux de ses commits d'AUTEUR (zeros et chaines vides s'il n'en a aucun) ; le nombre
-// d'adresses e-mail rattachees, jamais les adresses. sql.ErrNoRows si le contributeur n'existe pas.
+// d'adresses e-mail rattachees, jamais les adresses. Depuis la 1.9.0, totaux et adresses de tout son
+// groupe (person_id). sql.ErrNoRows si le contributeur n'existe pas.
 func (q *Queries) GetContributorProfile(ctx context.Context, id int64) (GetContributorProfileRow, error) {
 	row := q.db.QueryRowContext(ctx, getContributorProfile, id)
 	var i GetContributorProfileRow
@@ -207,10 +247,71 @@ func (q *Queries) KeepContributorLabel(ctx context.Context, arg KeepContributorL
 	return err
 }
 
+const listAttachedAccounts = `-- name: ListAttachedAccounts :many
+SELECT ct.id, ct.provider, ct.provider_user_id, ct.provider_login, ct.name, ct.label, ct.avatar_url, ct.profile_url,
+       ct.primary_id,
+       CAST((SELECT count(*) FROM commits c WHERE c.author_id = ct.id) AS INTEGER) AS commits
+FROM contributors ct
+WHERE ct.primary_id IS NOT NULL
+ORDER BY ct.primary_id, ct.id
+`
+
+type ListAttachedAccountsRow struct {
+	ID             int64
+	Provider       sql.NullString
+	ProviderUserID sql.NullInt64
+	ProviderLogin  string
+	Name           string
+	Label          string
+	AvatarURL      string
+	ProfileURL     string
+	PrimaryID      sql.NullInt64
+	Commits        int64
+}
+
+// Comptes rattaches a un principal (1.9.0), avec leur nombre de commits d'auteur ; jamais d'adresse.
+func (q *Queries) ListAttachedAccounts(ctx context.Context) ([]ListAttachedAccountsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listAttachedAccounts)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAttachedAccountsRow{}
+	for rows.Next() {
+		var i ListAttachedAccountsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Provider,
+			&i.ProviderUserID,
+			&i.ProviderLogin,
+			&i.Name,
+			&i.Label,
+			&i.AvatarURL,
+			&i.ProfileURL,
+			&i.PrimaryID,
+			&i.Commits,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listContributorLabels = `-- name: ListContributorLabels :many
-SELECT id, label FROM contributors
-WHERE label <> ''
-ORDER BY id
+SELECT ct.id,
+       CAST(CASE WHEN ct.label <> '' THEN ct.label
+                 WHEN ct.name <> '' THEN ct.name
+                 ELSE ct.provider_login END AS TEXT) AS label
+FROM contributors ct
+WHERE ct.label <> '' OR EXISTS (SELECT 1 FROM contributors a WHERE a.primary_id = ct.id)
+ORDER BY ct.id
 `
 
 type ListContributorLabelsRow struct {
@@ -218,7 +319,9 @@ type ListContributorLabelsRow struct {
 	Label string
 }
 
-// Noms donnes aux contributeurs (1.8.0), pour l'affichage des rapports du diagnostic et des conventions.
+// Noms affiches qui remplacent le nom des commits dans les rapports du diagnostic et des conventions :
+// le nom donne (1.8.0) ; pour un principal de groupe sans nom donne (1.9.0), son nom, sinon son login
+// (ses lignes viennent aussi des commits de ses comptes rattaches).
 func (q *Queries) ListContributorLabels(ctx context.Context) ([]ListContributorLabelsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listContributorLabels)
 	if err != nil {
@@ -244,6 +347,7 @@ func (q *Queries) ListContributorLabels(ctx context.Context) ([]ListContributorL
 
 const listContributorsForLabels = `-- name: ListContributorsForLabels :many
 SELECT ct.id, ct.provider, ct.provider_user_id, ct.provider_login, ct.name, ct.label, ct.avatar_url, ct.profile_url,
+       ct.primary_id,
        CAST((SELECT count(*) FROM contributor_emails e WHERE e.contributor_id = ct.id) AS INTEGER) AS emails,
        count(*) AS commits
 FROM contributors ct
@@ -261,6 +365,7 @@ type ListContributorsForLabelsRow struct {
 	Label          string
 	AvatarURL      string
 	ProfileURL     string
+	PrimaryID      sql.NullInt64
 	Emails         int64
 	Commits        int64
 }
@@ -285,6 +390,7 @@ func (q *Queries) ListContributorsForLabels(ctx context.Context) ([]ListContribu
 			&i.Label,
 			&i.AvatarURL,
 			&i.ProfileURL,
+			&i.PrimaryID,
 			&i.Emails,
 			&i.Commits,
 		); err != nil {
@@ -377,6 +483,24 @@ func (q *Queries) ListRepoCommitAuthorAccounts(ctx context.Context, repoID int64
 	return items, nil
 }
 
+const moveAttachedAccounts = `-- name: MoveAttachedAccounts :exec
+UPDATE contributors
+SET primary_id = ?1
+WHERE primary_id = ?2 AND id <> ?1
+`
+
+type MoveAttachedAccountsParams struct {
+	ToID   sql.NullInt64
+	FromID sql.NullInt64
+}
+
+// Fusion de contributeurs (1.9.0) : les comptes rattaches a from_id sont rattaches a to_id (sauf to_id
+// lui-meme, qui devient alors principal par ClearContributorPrimary).
+func (q *Queries) MoveAttachedAccounts(ctx context.Context, arg MoveAttachedAccountsParams) error {
+	_, err := q.db.ExecContext(ctx, moveAttachedAccounts, arg.ToID, arg.FromID)
+	return err
+}
+
 const moveContributorEmails = `-- name: MoveContributorEmails :exec
 UPDATE contributor_emails
 SET contributor_id = ?1
@@ -391,6 +515,43 @@ type MoveContributorEmailsParams struct {
 // Deplace toutes les adresses de from_id vers to_id (fusion de contributeurs).
 func (q *Queries) MoveContributorEmails(ctx context.Context, arg MoveContributorEmailsParams) error {
 	_, err := q.db.ExecContext(ctx, moveContributorEmails, arg.ToID, arg.FromID)
+	return err
+}
+
+const refreshCommitPersons = `-- name: RefreshCommitPersons :exec
+UPDATE commits
+SET person_id = (SELECT COALESCE(ct.primary_id, ct.id) FROM contributors ct WHERE ct.id = commits.author_id)
+WHERE author_id IN (SELECT g.id FROM contributors g
+                    WHERE g.id IN (?1, ?2) OR g.primary_id IN (?1, ?2))
+`
+
+type RefreshCommitPersonsParams struct {
+	A int64
+	B int64
+}
+
+// Recalcule commits.person_id (principal du groupe de l'auteur) pour les commits des contributeurs des
+// groupes de a et b (1.9.0 : rattachement, detachement, fusion).
+func (q *Queries) RefreshCommitPersons(ctx context.Context, arg RefreshCommitPersonsParams) error {
+	_, err := q.db.ExecContext(ctx, refreshCommitPersons, arg.A, arg.B)
+	return err
+}
+
+const refreshSignalPersons = `-- name: RefreshSignalPersons :exec
+UPDATE commit_signals
+SET person_id = (SELECT c.person_id FROM commits c WHERE c.repo_id = commit_signals.repo_id AND c.sha = commit_signals.sha)
+WHERE author_id IN (SELECT g.id FROM contributors g
+                    WHERE g.id IN (?1, ?2) OR g.primary_id IN (?1, ?2))
+`
+
+type RefreshSignalPersonsParams struct {
+	A int64
+	B int64
+}
+
+// Recopie commits.person_id dans commit_signals pour les memes auteurs que RefreshCommitPersons.
+func (q *Queries) RefreshSignalPersons(ctx context.Context, arg RefreshSignalPersonsParams) error {
+	_, err := q.db.ExecContext(ctx, refreshSignalPersons, arg.A, arg.B)
 	return err
 }
 
@@ -412,6 +573,23 @@ func (q *Queries) SetContributorLabel(ctx context.Context, arg SetContributorLab
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+const setContributorPrimary = `-- name: SetContributorPrimary :exec
+UPDATE contributors
+SET primary_id = ?1
+WHERE id = ?2
+`
+
+type SetContributorPrimaryParams struct {
+	PrimaryID sql.NullInt64
+	ID        int64
+}
+
+// Rattache (primary_id) ou detache (NULL) un contributeur (1.9.0). Les regles sont verifiees par le store.
+func (q *Queries) SetContributorPrimary(ctx context.Context, arg SetContributorPrimaryParams) error {
+	_, err := q.db.ExecContext(ctx, setContributorPrimary, arg.PrimaryID, arg.ID)
+	return err
 }
 
 const setContributorProfileURL = `-- name: SetContributorProfileURL :execrows

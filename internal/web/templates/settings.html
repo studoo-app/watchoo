@@ -181,9 +181,47 @@
           {{- if .Error}}<p class="text-sm text-error" role="alert">{{.Error}}</p>{{end}}
         </form>
       </div>
+      {{- /* Groupes de contributeurs (1.9.0) : comptes rattachés, ou « Rattacher à… ». */}}
+      {{- $row := .}}
+      <div class="border-t border-base-200 px-4 py-3 space-y-2">
+        {{- if .Accounts}}
+        <p class="text-sm font-medium">{{t "web.groups.accounts_title"}} <span class="badge badge-ghost badge-sm align-middle">{{len .Accounts}}</span></p>
+        <ul class="space-y-2">
+          {{- range .Accounts}}
+          <li class="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+            {{template "avatar" (dict "Name" .DisplayName "URL" .AvatarURL "Size" "size-6")}}
+            {{- if .ProviderLogin}}<span class="break-all">@{{truncate 60 .ProviderLogin}}</span>{{end}}
+            {{- if .Name}}<span class="text-base-content/70 break-words">{{truncate 60 .Name}}</span>{{end}}
+            <span class="text-base-content/60">{{tn "web.n.commit" .Commits}}</span>
+            <form method="post" action="/settings/contributors/{{.ID}}/detach" class="ml-auto">
+              {{template "csrf-field" $page}}
+              <button type="submit" class="btn btn-xs btn-ghost">{{t "web.groups.detach"}}</button>
+            </form>
+            {{- if .GroupError}}<p class="w-full text-sm text-error" role="alert">{{.GroupError}}</p>{{end}}
+          </li>
+          {{- end}}
+        </ul>
+        {{- else if gt (len $l.Principals) 1}}
+        <form method="post" action="/settings/contributors/{{.ID}}/attach" class="flex flex-wrap items-end gap-2">
+          {{template "csrf-field" $page}}
+          <label class="form-control grow block min-w-0">
+            <span class="label text-sm whitespace-normal mb-1">{{t "web.groups.attach_field"}}</span>
+            <select name="primary" class="select select-sm w-full" required>
+              <option value="">{{t "web.groups.choose"}}</option>
+              {{- range $l.Principals}}{{if ne .ID $row.ID}}
+              <option value="{{.ID}}">{{truncate 60 .Name}}</option>
+              {{- end}}{{end}}
+            </select>
+          </label>
+          <button type="submit" class="btn btn-sm">{{t "web.groups.attach"}}</button>
+        </form>
+        {{- end}}
+        {{- if .GroupError}}<p class="text-sm text-error" role="alert">{{.GroupError}}</p>{{end}}
+      </div>
     </li>
     {{- end}}
   </ul>
+  <p class="text-xs text-base-content/60">{{t "web.groups.note"}}</p>
 </section>
 {{end}}
 

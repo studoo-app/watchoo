@@ -9,7 +9,7 @@ facultatif (dépôts suivis par clones Git locaux) ; la migration `00005` (0.5.0
 `contributors.profile_url` et la migration `00006` (0.5.0) `commits.stats_known` ; la migration `00007` (1.1.0) ajoute `repository_languages` ; la migration `00008` (1.2.0)
 ajoute `commits.ai_rules_version` et la table `commit_ai_signatures` ; la migration `00009` (1.2.0) ajoute
 `commits.languages_version` et la table `commit_languages`, soit **treize tables** ; la migration `00010` (1.3.0)
-ajoute `sync_runs.warnings`. La migration `00011` (phase 7.1) ajoute `commit_signals`, la migration `00012` (phase 7.2) `pull_requests.tool_ids` et `repository_signals`, la migration `00013` (phase 7.4) `diagnostic_reviews`, soit **seize tables**, la migration `00014` (phase 7.5) les colonnes de forme de `commit_signals`, et la migration `00015` (phase 7.7) ses mesures des signaux absolus et des contre-indicateurs (voir [Supervision et diagnostic](12-supervision-diagnostic.md)). La migration `00016` (phase 8.1) ajoute `commits.parent_count` et `repositories.conventions_since` (voir [Conventions de projet](13-conventions.md) et [Migration `00016`](#migration-00016--conventions-de-projet)), la migration `00017` (phase 8.3) le cache `repository_conventions` des critères de fichiers des conventions (voir [Migration `00017`](#migration-00017--cache-des-critères-de-fichiers)), puis les migrations `00018` et `00019` (phase 8.4) l'historique des tags `tag_observations` et les réécritures observées de la branche par défaut `branch_rewrites`, soit **dix-neuf tables** (voir [Migrations `00018` et `00019`](#migrations-00018-et-00019--historique-des-tags-et-de-la-branche-par-défaut)) ; la migration `00020` (phase 8.5) ajoute seulement des colonnes à `pull_requests` et `repositories` (voir [Migration `00020`](#migration-00020--fusions-et-corps-des-pull-requests)), et la migration `00021` (phase 8.6) seulement les compteurs de relectures de `pull_requests` (voir [Migration `00021`](#migration-00021--relectures-des-pull-requests)) ; la migration `00022` (1.8.0) ajoute seulement `contributors.label`, le nom donné à un contributeur par le superviseur (voir [Migration `00022`](#migration-00022--noms-donnés-aux-contributeurs)). Le stockage est un fichier SQLite versionné par des migrations
+ajoute `sync_runs.warnings`. La migration `00011` (phase 7.1) ajoute `commit_signals`, la migration `00012` (phase 7.2) `pull_requests.tool_ids` et `repository_signals`, la migration `00013` (phase 7.4) `diagnostic_reviews`, soit **seize tables**, la migration `00014` (phase 7.5) les colonnes de forme de `commit_signals`, et la migration `00015` (phase 7.7) ses mesures des signaux absolus et des contre-indicateurs (voir [Supervision et diagnostic](12-supervision-diagnostic.md)). La migration `00016` (phase 8.1) ajoute `commits.parent_count` et `repositories.conventions_since` (voir [Conventions de projet](13-conventions.md) et [Migration `00016`](#migration-00016--conventions-de-projet)), la migration `00017` (phase 8.3) le cache `repository_conventions` des critères de fichiers des conventions (voir [Migration `00017`](#migration-00017--cache-des-critères-de-fichiers)), puis les migrations `00018` et `00019` (phase 8.4) l'historique des tags `tag_observations` et les réécritures observées de la branche par défaut `branch_rewrites`, soit **dix-neuf tables** (voir [Migrations `00018` et `00019`](#migrations-00018-et-00019--historique-des-tags-et-de-la-branche-par-défaut)) ; la migration `00020` (phase 8.5) ajoute seulement des colonnes à `pull_requests` et `repositories` (voir [Migration `00020`](#migration-00020--fusions-et-corps-des-pull-requests)), et la migration `00021` (phase 8.6) seulement les compteurs de relectures de `pull_requests` (voir [Migration `00021`](#migration-00021--relectures-des-pull-requests)) ; la migration `00022` (1.8.0) ajoute seulement `contributors.label`, le nom donné à un contributeur par le superviseur (voir [Migration `00022`](#migration-00022--noms-donnés-aux-contributeurs)) ; la migration `00023` (1.9.0) ajoute seulement `contributors.primary_id`, `commits.person_id` et `commit_signals.person_id`, les groupes de contributeurs (voir [Groupes de contributeurs](#groupes-de-contributeurs-190)). Le stockage est un fichier SQLite versionné par des migrations
 `goose`, avec **une base par espace de supervision** (`.watchoo/watchoo.db`, voir
 [Espaces de supervision](10-espaces-de-supervision.md)). Les tables ne connaissent donc pas la notion
 d'espace : deux espaces ne partagent jamais de données.
@@ -96,6 +96,7 @@ par son e-mail Git ; SQLite accepte plusieurs valeurs vides dans une colonne uni
 | provider_login | Login GitHub (si connu), mis à jour si la personne en change |
 | name | Nom connu par les commits : nom du compte de la forge, sinon nom Git ; mis à jour par la synchro (voir [Fusion des identités](#fusion-des-identités)) |
 | label | Nom donné par le superviseur dans l'interface web (1.8.0, migration `00022`) ; vide = aucun. Jamais écrit par la synchro |
+| primary_id | Groupe de contributeurs (1.9.0, migration `00023`) : le contributeur **principal** auquel celui-ci est rattaché ; `NULL` = principal lui-même (seul ou avec des comptes rattachés). Voir [Groupes de contributeurs](#groupes-de-contributeurs-190) |
 | avatar_url | URL de l'avatar |
 | profile_url | Page de profil du compte sur la forge (`html_url` du compte GitHub), donnée par le provider ; vide si aucun login n'est connu. Ajoutée par la migration `00005` (0.5.0) ; complétée à partir du login pour les contributeurs déjà en base (0.6.1) |
 
@@ -146,7 +147,8 @@ soit le nombre de branches qui le contiennent.
 | --- | --- |
 | repo_id | Dépôt |
 | sha | Identifiant du commit |
-| author_id | Auteur (contributeur) |
+| author_id | Auteur (contributeur) : le compte du commit, gardé tel quel par un regroupement |
+| person_id | Personne de l'auteur (1.9.0, migration `00023`) : principal du groupe de `author_id` (`author_id` lui-même s'il n'est pas rattaché) ; `NULL` exactement quand `author_id` l'est. Tout comptage par contributeur passe par elle |
 | committer_id | Committer (contributeur) |
 | message | Message de commit |
 | authored_at | Date d'écriture |
@@ -355,6 +357,7 @@ compléter une forme non mesurée (`form_known = 0`) par une forme mesurée (pha
 | --- | --- |
 | repo_id, sha | Commit mesuré |
 | author_id | Auteur, recopié de `commits` (`NULL` si le contributeur est supprimé) |
+| person_id | Personne de l'auteur, recopiée de `commits.person_id` (1.9.0) et tenue égale |
 | authored_at | Date d'écriture, recopiée de `commits` : fenêtres par auteur (phase 7.3) et purge |
 | files_kept | Fichiers retenus (ni binaires ni exclus par `diagnostic.exclude`) |
 | files_excluded | Fichiers binaires ou exclus par un motif |
@@ -480,7 +483,8 @@ attribution à une personne.
 | Index | Usage |
 | --- | --- |
 | `commits(repo_id, committed_at DESC)` | Vue « derniers commits » d'un dépôt |
-| `commits(author_id, committed_at DESC)` | Vue « activité d'un contributeur » |
+| `commits(author_id, committed_at DESC)` | Commits d'un compte (détachement, fusion des identités) |
+| `commits(person_id, committed_at DESC)` | Vue « activité d'un contributeur », comptages par personne (1.9.0) |
 | `commit_branches(branch_id)` | Filtre « commits d'une branche » |
 | `pull_requests(repo_id, updated_at DESC)` | Point de reprise de la synchro des PR, liste des PR d'un dépôt |
 | `contributor_emails(contributor_id)` | Technique : clé étrangère souvent parcourue (e-mails d'un contributeur) |
@@ -489,7 +493,8 @@ attribution à une personne.
 | `commits(repo_id, ai_rules_version)` | Commits restant à analyser pour les signatures d'IA (migration `00008`) |
 | `commits(repo_id, languages_version)` | Commits dont les langages restent à lire dans le clone (migration `00009`) |
 | `commits(repo_id, sha) WHERE parent_count IS NULL` | Index partiel : commits dont le nombre de parents reste à lire dans le clone (migration `00016`) |
-| `commit_signals(repo_id, author_id, authored_at)` | Fenêtres glissantes par auteur des signaux de rythme (phase 7.3) |
+| `commit_signals(repo_id, person_id, authored_at)` | Fenêtres glissantes par personne des signaux de rythme (phase 7.3 ; par personne depuis la 1.9.0, remplace l'index sur `author_id`) |
+| `contributors(primary_id)` | Comptes rattachés à un principal (1.9.0) |
 | `commit_signals(authored_at)` | Purge par durée de conservation |
 | `tag_observations(repo_id, name) WHERE ended_at IS NULL` | Index unique partiel : au plus une période ouverte par tag (migration `00018`) |
 | `tag_observations(repo_id, name, first_seen_at)` | Historique des tags d'un dépôt (migration `00018`) |
@@ -521,6 +526,52 @@ Précisions :
 Sans `gh` (clones Git locaux, V2), aucun commit n'est lié à un compte : seule la règle « commit sans
 compte » s'applique (rattachement par e-mail). Un contributeur créé ainsi est fusionné plus tard, comme
 ci-dessus, quand une synchro par l'API rattache un de ses e-mails à un compte.
+
+## Groupes de contributeurs (1.9.0)
+
+Une personne peut utiliser plusieurs identités que rien ne relie : deux comptes GitHub, ou un nom Git
+dont l'e-mail n'est pas celui de son compte. La fusion automatique ci-dessus ne réunit que des identités
+qui partagent un e-mail : elle est certaine, donc physique (commits réattribués, contributeur supprimé).
+Regrouper d'autres identités est un **jugement humain**, fait par le superviseur dans l'interface web
+([`/settings/contributors`](06-interface-web.md#52-contributeurs-settingscontributors)) : il est
+**logique et réversible**.
+
+- **Principal et comptes rattachés** : un contributeur rattaché à un autre a `primary_id` = le
+  principal. **Un seul niveau** : le principal n'est jamais rattaché lui-même, et un contributeur qui a
+  des comptes rattachés ne peut pas être rattaché (détacher d'abord ses comptes). Ni chaîne, ni boucle ;
+  un contributeur n'est jamais rattaché à lui-même. Le groupe d'un principal est le principal et ses
+  comptes rattachés.
+- **Personne d'un commit** : `commits.person_id` (et `commit_signals.person_id`) est le principal du
+  groupe de `author_id`. C'est une copie dénormalisée, pour que **la lecture ne coûte rien de plus** :
+  tout comptage par contributeur (classement, page d'un contributeur, graphiques, totaux par dépôt,
+  langues, score IA, diagnostic, conventions) regroupe et filtre sur `person_id` au lieu de `author_id`,
+  avec le même genre d'index, sans jointure. `author_id` garde le compte du commit, ce qui rend le
+  détachement sans perte.
+- **Coût payé au (dé)rattachement** : rattacher le compte `A` au principal `P` pose `A.primary_id = P`
+  et `person_id = P` sur les commits et les signaux dont `author_id = A` ; le détacher les remet à `A`.
+  Une transaction, deux `UPDATE` sur des colonnes indexées ; rien n'est recalculé dans les clones.
+- **Synchro** : un nouveau commit reçoit `person_id` = principal du groupe de son auteur à l'insertion,
+  dans la même transaction que la lecture de `primary_id`. La synchro ne modifie jamais un groupe.
+- **Fusion automatique** (`from` absorbé par `into`, ci-dessus) : les commits de `from` prennent
+  `author_id = into` et `person_id` = principal du groupe de `into`. Si des comptes étaient rattachés à
+  `from`, ils sont rattachés à ce principal (à `into` lui-même si `into` en faisait partie, qui devient
+  alors le principal). Si `from` était rattaché à un principal `Q` et que `into` n'est dans aucun
+  groupe, `into` est rattaché à `Q` : le superviseur avait placé cette identité avec `Q`. Sinon `into`
+  garde son groupe.
+- **Affichage** : un groupe est montré comme **un seul contributeur**, le principal : son nom affiché
+  (son nom donné, puis son nom, puis son login), son avatar et son lien de profil ; la page du
+  contributeur liste les comptes rattachés (login, nom Git, nombre de commits ; jamais d'e-mail). Les
+  filtres `--author` et `--contributor` trouvent le groupe par n'importe lequel de ses comptes.
+- **Jamais exporté** par le partage de la configuration, comme les noms donnés ; pas écrit dans les
+  journaux.
+
+### `primary_id` et les autres identités
+
+`contributor_emails` ne change pas : chaque adresse reste rattachée à son compte. Les pull requests
+gardent le compte de leur auteur (`author_provider_id`) ; leurs comptages par contributeur passent par le
+contributeur de ce compte, puis par son principal. Les comptes exclus et les comptes de bots du
+diagnostic et des conventions restent jugés **par compte** (login, e-mail) : rattacher un compte
+n'exclut ni n'inclut les autres.
 
 ## Migration `00004` : `provider_id` facultatif
 
@@ -644,6 +695,28 @@ vide : les noms affichés ne changent pas tant que le superviseur n'en donne pas
 donnés sont perdus, les lignes restent. Un test (`internal/store/contributor_label_test.go`) applique la
 migration à une base au schéma `00021`, vérifie la valeur vide par défaut, la contrainte, qu'une synchro
 garde le nom donné, puis le retour arrière.
+
+## Migration `00023` : groupes de contributeurs
+
+La version 1.9.0 ajoute, par `ALTER TABLE … ADD COLUMN` et sans reconstruire de table :
+
+- `contributors.primary_id INTEGER REFERENCES contributors (id) ON DELETE SET NULL`, avec
+  `CHECK (primary_id IS NULL OR primary_id <> id)` ; la règle « un seul niveau » est vérifiée par le
+  store dans la transaction du rattachement (SQLite ne sait pas l'exprimer par un `CHECK`) ;
+- `commits.person_id INTEGER REFERENCES contributors (id) ON DELETE SET NULL`, rempli par
+  `UPDATE commits SET person_id = author_id`, puis tenu par le store : `NULL` exactement quand
+  `author_id` l'est ;
+- `commit_signals.person_id`, rempli depuis `commits` ;
+- les index `commits(person_id, committed_at DESC)`, `commit_signals(repo_id, person_id, authored_at)`
+  (qui remplace `commit_signals(repo_id, author_id, authored_at)`) et `contributors(primary_id)`.
+
+Le nombre de tables ne change pas. Chaque contributeur est un principal après la migration : les
+chiffres affichés ne changent pas tant que le superviseur ne rattache pas de compte. Retour arrière
+(`Down`) : les colonnes et les index sont supprimés, l'ancien index des signaux est recréé ; les groupes
+sont perdus, les lignes restent. Un test (`internal/store/contributor_group_test.go`) applique la
+migration à une base au schéma `00022`, vérifie `person_id = author_id`, la contrainte, le rattachement et
+le détachement (commits et signaux), les refus (soi-même, chaîne, principal avec des comptes), une synchro
+et une fusion automatique avec des groupes, puis le retour arrière.
 
 ## Renommages et changements de login
 

@@ -109,7 +109,7 @@ func TestContributors(t *testing.T) {
 		t.Errorf("contributors --repo --json = %+v", rep)
 	}
 	assertJSONKeys(t, r.stdout, "", "contributors")
-	assertJSONKeys(t, r.stdout, "contributors.0", "id", "name", "login", "label", "display_name", "avatar_url", "commits",
+	assertJSONKeys(t, r.stdout, "contributors.0", "id", "name", "login", "label", "display_name", "accounts", "avatar_url", "commits",
 		"additions", "deletions", "repositories", "share", "last_commit_at", "ai_signed_commits", "ai_scanned_commits", "ai_tools",
 		"languages_scanned_commits", "languages", "weekly")
 

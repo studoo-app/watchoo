@@ -80,7 +80,10 @@ Les statistiques de productivité souvent citées sans source primaire doivent �
 
 Prétraitement :
 
-1. Identités : les contributeurs déjà unifiés par Watchoo (`contributors`) servent de référence.
+1. Identités : les contributeurs déjà unifiés par Watchoo (`contributors`) servent de référence. Depuis
+   la 1.9.0, la **personne** (`commits.person_id` : le principal d'un [groupe de contributeurs](04-modele-donnees.md#groupes-de-contributeurs-190))
+   est l'auteur des calculs : historiques, médianes personnelles, signaux R, F, A et H, score IA. Les
+   comptes de bots (D3) et les fichiers exclus restent jugés par compte et par commit.
 2. Commits de fusion exclus.
 3. Renommages détectés (`-M`).
 4. Fichiers exclus par motifs configurables : verrouillages (`package-lock.json`, `go.sum`…), dépendances
@@ -356,7 +359,12 @@ diagnostic, en 7.4) ; R4 désactivé par défaut.
   existant est lu tel quel, sans `git fetch` (la reprise peut tourner pendant la synchro de `watchoo serve`) ;
   un clone absent est d'abord créé.
 - **Auteur** : celui du commit, relu à chaque calcul (une fusion de contributeurs garde l'historique de
-  l'apprenant).
+  l'apprenant). Depuis la 1.9.0, la personne du commit : rattacher un compte à un principal (décision du
+  mainteneur du 14 novembre 2026) réunit les historiques, donc les médianes, les scores z et les pistes
+  du groupe peuvent changer, et le détachement les rétablit. La clé d'une piste **jour** porte
+  l'identifiant de la personne (`day/<personne>/<date>`) : une revue faite sur une piste jour d'un
+  compte avant son rattachement n'est plus retrouvée (la piste s'affiche « non revue » ; elle est
+  retrouvée après le détachement). Les pistes de commit et de pull request ne sont pas touchées.
 - **Conservation** : aucune piste n'est montrée au-delà de `diagnostic.retention_days`, pistes de PR
   comprises (leur branche, D5, reste en base avec la PR). Le filtre `--since` garde un jour à cheval sur la
   borne.

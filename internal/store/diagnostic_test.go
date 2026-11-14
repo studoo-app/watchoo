@@ -98,8 +98,9 @@ func TestMigrationCommitSignals(t *testing.T) {
 	repo := mustExec(t, s, `INSERT INTO repositories (provider, provider_id, owner, name) VALUES ('github', 1, 'promo', 'a')`)
 	mustExec(t, s, `INSERT INTO commits (repo_id, sha, authored_at, committed_at) VALUES (?, ?, ?, ?)`,
 		repo, sha(1), testDate, testDate)
-	if err := s.Migrate(ctx); err != nil {
-		t.Fatalf("Migrate: %v", err)
+	// Up to 00011 only: the migration 00023 (1.9.0) replaces commit_signals_author_date.
+	if _, err := p.UpTo(ctx, 11); err != nil {
+		t.Fatalf("UpTo(11): %v", err)
 	}
 	if c := count(t, s, "SELECT count(*) FROM commit_signals"); c != 0 {
 		t.Errorf("%d rows after the migration, want 0", c)
@@ -308,7 +309,8 @@ func TestCommitSignalsFollowCommitAuthor(t *testing.T) {
 	}
 	oldID := int64(count(t, s, "SELECT author_id FROM commits WHERE sha = ?", sha(1)))
 	newID := mustExec(t, s, insertCtb, "github", 777, "alice-gh")
-	mustExec(t, s, "UPDATE commits SET author_id = ? WHERE author_id = ?", newID, oldID)
+	// Like the merge of the store: author and person (1.9.0) of the commits reassigned.
+	mustExec(t, s, "UPDATE commits SET author_id = ?, person_id = ? WHERE author_id = ?", newID, newID, oldID)
 	mustExec(t, s, "DELETE FROM contributors WHERE id = ?", oldID)
 
 	views, err := s.CommitSignalViews(ctx, repoID)

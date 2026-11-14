@@ -22,7 +22,7 @@ l'interface web et les lignes en cause sur la fiche de revue du diagnostic (phas
 par contributeur en **v1.6.0** ; le lien vers la documentation dans la langue de l'interface web, les icônes du score IA et le score IA et les
 pistes des commits sur la page d'un contributeur en **v1.6.1** ; les conventions de projet (phase 8, sauf BR3) et le tri
 et les filtres du tableau de bord en **v1.7.0** ; l'interface allégée des conventions et la navigation collée en
-**v1.7.1** ; les noms donnés aux contributeurs, les pages de réglages et la mention Studoo Labs en **v1.8.0**.
+**v1.7.1** ; les noms donnés aux contributeurs, les pages de réglages et la mention Studoo Labs en **v1.8.0** ; les groupes de contributeurs en **v1.9.0**.
 
 ```mermaid
 flowchart LR
@@ -217,6 +217,26 @@ L'import d'une organisation entière et les alertes passent en V3 (voir
 - Ordre : documentation, puis le découpage des réglages sans changement de comportement, puis les noms
   (migration, cœur, CLI, TUI, web), chaque étape avec ses tests.
 - **État** : décidé (décision du mainteneur du 14 novembre 2026) ; **publié en v1.8.0**.
+
+### 1.9.0 : groupes de contributeurs
+- **Plusieurs comptes, une personne** : le superviseur rattache les comptes d'une personne (autres
+  comptes GitHub, noms Git dont l'e-mail n'est pas celui du compte) à un contributeur **principal**,
+  depuis `/settings/contributors` ; un seul niveau, réversible (« Détacher »). Voir
+  [Modèle de données](04-modele-donnees.md#groupes-de-contributeurs-190).
+- **Coût de calcul payé au rattachement** : `commits.person_id` et `commit_signals.person_id` (migration
+  `00023`) portent le principal ; tout comptage par contributeur les lit au lieu de `author_id`, sans
+  jointure de plus. La synchro les remplit pour les nouveaux commits ; la fusion automatique des
+  identités garde les groupes.
+- **Partout une personne** : classement, page d'un contributeur (avec sa carte « Comptes »), graphiques,
+  score IA, diagnostic (historiques et médianes par personne, pistes jour à la clé de la personne),
+  conventions par contributeur, `watchoo contributors` (une ligne par personne, clé `accounts`), TUI,
+  filtres. Jamais exporté.
+- Ajouts seulement (colonnes, routes, une clé `--json`) : version **MINEURE**.
+- Ordre : documentation, puis la migration et le store (rattacher, détacher, synchro, fusion), puis les
+  lectures par personne (web, CLI, TUI, diagnostic, conventions), puis la page de réglages, chaque étape
+  avec ses tests.
+- **État** : décidé (décisions du mainteneur du 14 novembre 2026, points ouverts compris : diagnostic par
+  personne, pistes jour à la clé de la personne, conventions par personne) ; **publié en v1.9.0**.
 
 ## Définition de « terminé » pour chaque phase
 

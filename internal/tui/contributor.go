@@ -33,6 +33,8 @@ type contribDetailState struct {
 	profile store.ContributorProfile
 	repos   []store.ContributorRepoStats
 	commits []store.CommitView
+	// accounts : comptes rattachés à ce principal (groupes de contributeurs, 1.9.0).
+	accounts []store.AttachedAccount
 	// weekly : ses commits par semaine et par dépôt sur activity.ContributorWeeks semaines
 	// (activity.CountRepoWeeks).
 	weekly activity.ContributorWeekCounts
@@ -47,7 +49,9 @@ type contribDetailMsg struct {
 	repos   []store.ContributorRepoStats
 	commits []store.CommitView
 	weekly  activity.ContributorWeekCounts
-	err     error
+	// accounts : comptes rattachés à ce principal (1.9.0).
+	accounts []store.AttachedAccount
+	err      error
 }
 
 // contribDetailCmd lit la fiche, les dépôts, les derniers commits et l'activité par semaine du
@@ -67,6 +71,12 @@ func (m Model) contribDetailCmd(id int64) tea.Cmd {
 		if msg.repos, msg.err = data.ContributorRepos(ctx, id); msg.err != nil {
 			return msg
 		}
+		accounts, err := data.AttachedAccounts(ctx)
+		if err != nil {
+			msg.err = err
+			return msg
+		}
+		msg.accounts = accounts[id]
 		if msg.commits, msg.err = data.ListRecentCommits(ctx,
 			store.CommitFilter{AuthorID: id, Limit: contribDetailCommits}); msg.err != nil {
 			return msg
@@ -126,6 +136,17 @@ func (m Model) contribDetailLines() []string {
 		account = "@" + clean(p.ProviderLogin)
 	}
 	lines = append(lines, field(i18n.T("tui.field.account"), account))
+	if len(m.cdetail.accounts) > 0 {
+		names := make([]string, 0, len(m.cdetail.accounts))
+		for _, a := range m.cdetail.accounts {
+			name := clean(a.Name)
+			if a.ProviderLogin != "" {
+				name = "@" + clean(a.ProviderLogin)
+			}
+			names = append(names, name)
+		}
+		lines = append(lines, field(i18n.T("tui.field.accounts"), strings.Join(names, ", ")))
+	}
 	lines = append(lines, field(i18n.T("tui.field.identities"),
 		plural(p.Identities, "tui.cdetail.address_one", "tui.cdetail.address_many")+
 			m.st.Muted.Render(i18n.T("tui.cdetail.not_shown"))))

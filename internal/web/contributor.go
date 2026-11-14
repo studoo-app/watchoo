@@ -23,6 +23,7 @@ package web
 
 import (
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -70,6 +71,8 @@ type ContributorView struct {
 	// pull_requests.author_provider_id).
 	HasAccount bool
 	Pulls      []store.PullRequestView
+	// Accounts : comptes rattachés à ce contributeur principal (1.9.0) ; vide si aucun.
+	Accounts []store.AttachedAccount
 	// Diagnostic : le diagnostic est activé ; Diag porte alors son score IA, le même que dans la
 	// liste des contributeurs : pistes de ses commits (auteur) et de ses pull requests (login).
 	Diagnostic bool
@@ -159,6 +162,9 @@ func (s *server) handleContributor(w http.ResponseWriter, r *http.Request) {
 		s.notFound(w, r)
 		return
 	}
+	if s.redirectToPrincipal(w, r, id) {
+		return
+	}
 	view, err := s.contributorView(r, id, true)
 	if err != nil {
 		s.repoLookupError(w, r, err)
@@ -187,6 +193,9 @@ func (s *server) handleContributorCommits(w http.ResponseWriter, r *http.Request
 		s.notFound(w, r)
 		return
 	}
+	if s.redirectToPrincipal(w, r, id) {
+		return
+	}
 	view, err := s.contributorView(r, id, false)
 	if err != nil {
 		s.repoLookupError(w, r, err)
@@ -207,6 +216,14 @@ func (s *server) contributorView(r *http.Request, id int64, full bool) (Contribu
 	}
 	view := ContributorView{Profile: profile, HasAccount: profile.ProviderUserID > 0,
 		Languages: newContributorLanguages(profile.Languages), Commits: ContributorCommitsView{ContributorID: id}}
+	accounts, err := s.store.AttachedAccounts(ctx)
+	if err != nil {
+		return ContributorView{}, err
+	}
+	view.Accounts = accounts[id]
+	for _, a := range view.Accounts {
+		view.HasAccount = view.HasAccount || a.ProviderUserID > 0
+	}
 	if view.Commits.Page, err = s.store.CommitPage(ctx, store.CommitFilter{AuthorID: id}, pageParam(r),
 		contributorCommitsPerPage); err != nil {
 		return ContributorView{}, err
@@ -249,8 +266,7 @@ func (s *server) contributorView(r *http.Request, id int64, full bool) (Contribu
 	view.Weekly = buildRepoChart(s.tr(r), repos, times, now, activity.ContributorWeeks, contributorChartTop, s.loc)
 
 	if view.HasAccount {
-		if view.Pulls, err = s.store.ListPullRequests(ctx, store.PullRequestFilter{
-			AuthorProviderID: profile.ProviderUserID, Limit: contributorPulls}); err != nil {
+		if view.Pulls, err = s.personPulls(r, profile.Contributor, view.Accounts); err != nil {
 			return ContributorView{}, err
 		}
 	}
@@ -271,6 +287,11 @@ func (s *server) contributorDiagnostic(r *http.Request, v *ContributorView) erro
 	logins := map[string]int64{}
 	if login := v.Profile.ProviderLogin; login != "" {
 		logins[strings.ToLower(login)] = v.Profile.ID
+	}
+	for _, a := range v.Accounts { // comptes rattachés (1.9.0) : leurs pull requests comptent pour la personne
+		if a.ProviderLogin != "" {
+			logins[strings.ToLower(a.ProviderLogin)] = v.Profile.ID
+		}
 	}
 	v.Diag = diagnostic.SummarizeByContributor(rep.Leads, logins)[v.Profile.ID]
 
@@ -306,4 +327,50 @@ func (s *server) contributorRepoRows(repos []store.ContributorRepoStats, summari
 		rows = append(rows, row)
 	}
 	return rows
+}
+
+// redirectToPrincipal redirige (302) la page d'un compte rattaché (1.9.0) vers celle de son principal,
+// la query gardée, et renvoie true ; false si id est un principal ou s'il est inconnu (la page répond
+// alors elle-même, 404 compris).
+func (s *server) redirectToPrincipal(w http.ResponseWriter, r *http.Request, id int64) bool {
+	primary, err := s.store.PrimaryOf(r.Context(), id)
+	if err != nil || primary == id {
+		return false
+	}
+	target := strings.Replace(r.URL.Path, contributorPath(id), contributorPath(primary), 1)
+	if r.URL.RawQuery != "" {
+		target += "?" + r.URL.RawQuery
+	}
+	http.Redirect(w, r, target, http.StatusFound)
+	return true
+}
+
+// personPulls renvoie les pull requests d'une personne (1.9.0) : celles du compte principal et de ses
+// comptes rattachés connus de la forge, de la plus récemment modifiée à la plus ancienne, au plus
+// contributorPulls.
+func (s *server) personPulls(r *http.Request, principal model.Contributor, accounts []store.AttachedAccount) ([]store.PullRequestView, error) {
+	ids := []int64{}
+	if principal.ProviderUserID > 0 {
+		ids = append(ids, principal.ProviderUserID)
+	}
+	for _, a := range accounts {
+		if a.ProviderUserID > 0 {
+			ids = append(ids, a.ProviderUserID)
+		}
+	}
+	var out []store.PullRequestView
+	for _, pid := range ids {
+		pulls, err := s.store.ListPullRequests(r.Context(), store.PullRequestFilter{AuthorProviderID: pid, Limit: contributorPulls})
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, pulls...)
+	}
+	if len(ids) > 1 {
+		slices.SortStableFunc(out, func(a, b store.PullRequestView) int { return b.UpdatedAt.Compare(a.UpdatedAt) })
+		if len(out) > contributorPulls {
+			out = out[:contributorPulls]
+		}
+	}
+	return out, nil
 }
