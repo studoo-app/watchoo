@@ -107,7 +107,7 @@ func TestSyncRepoRoutes(t *testing.T) {
 
 	w = e.post("/sync", nil, false)
 	assertStatus(t, w, http.StatusSeeOther)
-	if got := w.Header().Get("Location"); got != "/settings" {
+	if got := w.Header().Get("Location"); got != "/settings/sync" {
 		t.Errorf("Location = %q", got)
 	}
 	<-gate.started
@@ -194,7 +194,7 @@ func TestSyncButtonsNotDisabledDuringSync(t *testing.T) {
 	ids := e.seed()
 	assertStatus(t, e.post("/sync", nil, true), http.StatusOK)
 	<-gate.started
-	for _, target := range []string{"/", "/settings", repoPath(ids.Bob)} {
+	for _, target := range []string{"/", "/settings/sync", repoPath(ids.Bob)} {
 		w := e.get(target)
 		assertStatus(t, w, http.StatusOK)
 		assertNotContains(t, w, " disabled")

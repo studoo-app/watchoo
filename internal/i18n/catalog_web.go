@@ -495,8 +495,16 @@ var webTexts = map[string]entry{
 
 	// Réglages.
 	"web.settings.intro": {
-		"Tracked repositories, synchronization and GitHub API quota. Nothing is ever written to GitHub.",
-		"Dépôts suivis, synchronisation et quota de l'API GitHub. Rien n'est jamais écrit sur GitHub.",
+		"Tracked repositories, synchronization and configuration sharing. Nothing is ever written to GitHub.",
+		"Dépôts suivis, synchronisation et partage de la configuration. Rien n'est jamais écrit sur GitHub.",
+	},
+	"web.settings.menu.aria":  {"Settings pages", "Pages des réglages"},
+	"web.settings.menu.repos": {"Repositories", "Dépôts"},
+	"web.settings.menu.sync":  {"Synchronization", "Synchronisation"},
+	"web.settings.menu.share": {"Sharing", "Partage"},
+	"web.settings.sync_intro": {
+		"Automatic synchronization of this process and GitHub API quota.",
+		"Synchronisation automatique de ce processus et quota de l'API GitHub.",
 	},
 	"web.settings.empty": {
 		`No repository in this workspace. Add one with the "Add a repository" form.`,
@@ -553,8 +561,8 @@ var webTexts = map[string]entry{
 	},
 	"web.settings.apply": {"Apply", "Appliquer"},
 	"web.settings.interval_note": {
-		`The change lasts until "watchoo serve" stops: this form never rewrites config.yaml. For a lasting setting, change sync.interval in the file or import a shared configuration (below).`,
-		"Le changement vaut jusqu'à l'arrêt de « watchoo serve » : ce formulaire ne réécrit jamais config.yaml. Pour un réglage durable, modifiez sync.interval dans le fichier ou importez une configuration partagée (ci-dessous).",
+		`The change lasts until "watchoo serve" stops: this form never rewrites config.yaml. For a lasting setting, change sync.interval in the file or import a shared configuration (Sharing page).`,
+		"Le changement vaut jusqu'à l'arrêt de « watchoo serve » : ce formulaire ne réécrit jamais config.yaml. Pour un réglage durable, modifiez sync.interval dans le fichier ou importez une configuration partagée (page Partage).",
 	},
 	"web.settings.branches_prefix":   {"branches", "branches"},
 	"web.settings.change_impossible": {"Change not possible", "Changement impossible"},

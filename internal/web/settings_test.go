@@ -58,37 +58,84 @@ func TestSettingsPage(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	w := e.get("/settings")
+	w := e.get("/settings/repos")
 	assertStatus(t, w, http.StatusOK)
 	assertContains(t, w,
-		"<title>Settings · "+testWorkspace+" · Watchoo</title>",
-		`aria-current="page">Settings`,
+		"<title>Settings · Repositories · "+testWorkspace+" · Watchoo</title>",
+		`href="/settings/repos" class="whitespace-nowrap menu-active" aria-current="page">Settings`,
+		// Settings menu: the current page is marked.
+		`aria-label="Settings pages"`,
+		`href="/settings/repos" class="whitespace-nowrap menu-active" aria-current="page">Repositories`,
+		`href="/settings/sync" class="whitespace-nowrap">Synchronization`,
+		`href="/settings/share" class="whitespace-nowrap">Sharing`,
 		"Alice Martin", "promo/alice", "promo/dave", "all branches", "main, release/*",
 		"Active", "Dead · 40 d", "Never synced",
 		`action="/settings/repos/`+strconv.FormatInt(ids.Alice, 10)+`"`,
 		`href="/settings/repos/`+strconv.FormatInt(ids.Carol, 10)+`/remove"`,
-		`action="/settings/repos"`, `action="/settings/interval"`, `action="/sync"`,
-		`name="csrf_token"`, "Sync now",
+		`action="/settings/repos"`, `name="csrf_token"`,
+		"&lt;script&gt;bob&lt;/script&gt;",
+	)
+	assertNotContains(t, w, "<script>bob", "Resume tracking", `action="/settings/interval"`,
+		`hx-get="/fragments/quota"`, `action="/settings/import"`)
+
+	w = e.get("/settings/sync")
+	assertStatus(t, w, http.StatusOK)
+	assertContains(t, w,
+		"<title>Settings · Synchronization · "+testWorkspace+" · Watchoo</title>",
+		`href="/settings/sync" class="whitespace-nowrap menu-active" aria-current="page">Synchronization`,
+		`action="/settings/interval"`, `action="/sync"`, `name="csrf_token"`, "Sync now",
 		// Quota loaded after the page.
 		`hx-get="/fragments/quota" hx-trigger="load"`,
 		// Interval: manual only in the test environment, file at 30 min.
 		"Current interval: <strong>manual only</strong>", "this form never rewrites config.yaml",
-		"&lt;script&gt;bob&lt;/script&gt;",
 	)
-	assertNotContains(t, w, "<script>bob", "Resume tracking")
+	assertNotContains(t, w, "promo/alice", `action="/settings/repos"`, `action="/settings/import"`)
+}
+
+// TestSettingsRedirect checks that GET /settings (links from before 1.8.0) leads to the page of the
+// topic of its message code, the query kept, with a fixed address.
+func TestSettingsRedirect(t *testing.T) {
+	e := newTestEnv(t)
+	for target, want := range map[string]string{
+		"/settings":                          "/settings/repos",
+		"/settings?msg=saved&repo=1":         "/settings/repos?msg=saved&repo=1",
+		"/settings?msg=interval":             "/settings/sync?msg=interval",
+		"/settings?msg=imported&added=2":     "/settings/share?msg=imported&added=2",
+		"/settings?msg=%2F%2Fevil.example":   "/settings/repos?msg=%2F%2Fevil.example",
+		"/settings?msg=added&next=//evil.ex": "/settings/repos?msg=added&next=//evil.ex",
+	} {
+		w := e.get(target)
+		if w.Code != http.StatusFound {
+			t.Fatalf("GET %s: %d, want 302", target, w.Code)
+		}
+		if got := w.Header().Get("Location"); got != want {
+			t.Errorf("GET %s: Location %q, want %q", target, got, want)
+		}
+	}
+}
+
+func TestSettingsSectionPath(t *testing.T) {
+	for msg, want := range map[string]string{
+		"": settingsReposPath, msgAdded: settingsReposPath, msgDeleted: settingsReposPath, "other": settingsReposPath,
+		msgInterval: settingsSyncPath, msgImported: settingsSharePath,
+	} {
+		if got := settingsSectionPath(msg); got != want {
+			t.Errorf("settingsSectionPath(%q) = %q, want %q", msg, got, want)
+		}
+	}
 }
 
 func TestSettingsFlashMessages(t *testing.T) {
 	e := newTestEnv(t)
 	ids := e.seed()
-	w := e.get("/settings?msg=saved&repo=" + strconv.FormatInt(ids.Alice, 10))
+	w := e.get("/settings/repos?msg=saved&repo=" + strconv.FormatInt(ids.Alice, 10))
 	assertContains(t, w, "The repository &#34;Alice Martin&#34; is changed")
 	// Unknown code: no message, nothing from the request is copied.
-	w = e.get("/settings?msg=%3Cscript%3E&repo=abc")
+	w = e.get("/settings/repos?msg=%3Cscript%3E&repo=abc")
 	assertStatus(t, w, http.StatusOK)
 	assertNotContains(t, w, "alert-info", "&lt;script&gt;")
 	// Unknown repository: message without a name.
-	w = e.get("/settings?msg=added&repo=999")
+	w = e.get("/settings/repos?msg=added&repo=999")
 	assertContains(t, w, "The repository is tracked")
 }
 
@@ -105,7 +152,7 @@ func TestSettingsAddRepository(t *testing.T) {
 	if err != nil {
 		t.Fatalf("repository not created: %v", err)
 	}
-	assertRedirect(t, w, w.Code, "/settings?msg=added&repo="+strconv.FormatInt(repo.ID, 10))
+	assertRedirect(t, w, w.Code, "/settings/repos?msg=added&repo="+strconv.FormatInt(repo.ID, 10))
 	if repo.Label != "Ève" || strings.Join(repo.BranchPatterns, ",") != "main,dev" || !repo.Enabled {
 		t.Errorf("saved repository: %+v", repo)
 	}
@@ -118,10 +165,10 @@ func TestSettingsAddRepository(t *testing.T) {
 
 	// Already tracked, without change; then with a new label (HTMX: HX-Redirect).
 	w = e.post("/settings/repos", url.Values{"repo": {"promo/eve"}}, false)
-	assertRedirect(t, w, w.Code, "/settings?msg=already&repo="+strconv.FormatInt(repo.ID, 10))
+	assertRedirect(t, w, w.Code, "/settings/repos?msg=already&repo="+strconv.FormatInt(repo.ID, 10))
 	w = e.post("/settings/repos", url.Values{"repo": {"promo/eve"}, "label": {"Eve B."}}, true)
 	assertStatus(t, w, http.StatusOK)
-	if got := w.Header().Get("HX-Redirect"); got != "/settings?msg=updated&repo="+strconv.FormatInt(repo.ID, 10) {
+	if got := w.Header().Get("HX-Redirect"); got != "/settings/repos?msg=updated&repo="+strconv.FormatInt(repo.ID, 10) {
 		t.Errorf("HX-Redirect = %q", got)
 	}
 	if got := e.mustRepo(repo.ID); got.Label != "Eve B." || strings.Join(got.BranchPatterns, ",") != "main,dev" {
@@ -176,7 +223,7 @@ func TestSettingsUpdateRepository(t *testing.T) {
 	target := "/settings/repos/" + strconv.FormatInt(ids.Bob, 10)
 
 	w := e.post(target, url.Values{"label": {"Bob D."}, "branches": {"main, feature/*"}}, false)
-	assertRedirect(t, w, w.Code, "/settings?msg=saved&repo="+strconv.FormatInt(ids.Bob, 10))
+	assertRedirect(t, w, w.Code, "/settings/repos?msg=saved&repo="+strconv.FormatInt(ids.Bob, 10))
 	if got := e.mustRepo(ids.Bob); got.Label != "Bob D." || strings.Join(got.BranchPatterns, ",") != "main,feature/*" {
 		t.Errorf("repository after the change: %+v", got)
 	}
@@ -191,7 +238,7 @@ func TestSettingsUpdateRepository(t *testing.T) {
 
 	// Empty: no label any more, all branches.
 	w = e.post(target, url.Values{"label": {""}, "branches": {" "}}, false)
-	assertRedirect(t, w, w.Code, "/settings?msg=saved&repo="+strconv.FormatInt(ids.Bob, 10))
+	assertRedirect(t, w, w.Code, "/settings/repos?msg=saved&repo="+strconv.FormatInt(ids.Bob, 10))
 	if got := e.mustRepo(ids.Bob); got.Label != "" || len(got.BranchPatterns) != 0 {
 		t.Errorf("repository after the reset: %+v", got)
 	}
@@ -224,31 +271,31 @@ func TestSettingsRemoveRepository(t *testing.T) {
 
 	// Keep the history: tracking stopped.
 	w = e.post(confirm, url.Values{"keep_history": {"1"}}, false)
-	assertRedirect(t, w, w.Code, "/settings?msg=stopped&repo="+strconv.FormatInt(ids.Alice, 10))
+	assertRedirect(t, w, w.Code, "/settings/repos?msg=stopped&repo="+strconv.FormatInt(ids.Alice, 10))
 	if e.mustRepo(ids.Alice).Enabled {
 		t.Error("tracking not stopped")
 	}
 	w = e.post(confirm, url.Values{"keep_history": {"1"}}, false)
-	assertRedirect(t, w, w.Code, "/settings?msg=already_stopped&repo="+strconv.FormatInt(ids.Alice, 10))
-	w = e.get("/settings")
+	assertRedirect(t, w, w.Code, "/settings/repos?msg=already_stopped&repo="+strconv.FormatInt(ids.Alice, 10))
+	w = e.get("/settings/repos")
 	assertContains(t, w, "Tracking stopped", "Resume tracking", `name="repo" value="promo/alice"`)
 	assertContains(t, e.get(confirm), "tracking already stopped")
 
 	// Resume tracking: like "repo add".
 	w = e.post("/settings/repos", url.Values{"repo": {"promo/alice"}}, false)
-	assertRedirect(t, w, w.Code, "/settings?msg=updated&repo="+strconv.FormatInt(ids.Alice, 10))
+	assertRedirect(t, w, w.Code, "/settings/repos?msg=updated&repo="+strconv.FormatInt(ids.Alice, 10))
 	if !e.mustRepo(ids.Alice).Enabled {
 		t.Error("tracking not resumed")
 	}
 
 	// Delete with the history.
 	w = e.post(confirm, nil, false)
-	assertRedirect(t, w, w.Code, "/settings?msg=deleted")
+	assertRedirect(t, w, w.Code, "/settings/repos?msg=deleted")
 	if _, err := e.store.GetRepository(t.Context(), ids.Alice); !errors.Is(err, store.ErrNotFound) {
 		t.Errorf("repository still in the database: %v", err)
 	}
 	assertStatus(t, e.post(confirm, nil, false), http.StatusNotFound)
-	assertContains(t, e.get("/settings?msg=deleted"), "The repository and its history are deleted")
+	assertContains(t, e.get("/settings/repos?msg=deleted"), "The repository and its history are deleted")
 }
 
 func TestSettingsRemoveRefusedDuringSync(t *testing.T) {
@@ -269,12 +316,12 @@ func TestSettingsRemoveRefusedDuringSync(t *testing.T) {
 	e.mustRepo(ids.Bob)
 	// Stopping the tracking remains possible.
 	w = e.post(confirm, url.Values{"keep_history": {"1"}}, false)
-	assertRedirect(t, w, w.Code, "/settings?msg=stopped&repo="+strconv.FormatInt(ids.Bob, 10))
+	assertRedirect(t, w, w.Code, "/settings/repos?msg=stopped&repo="+strconv.FormatInt(ids.Bob, 10))
 
 	close(gate.release)
 	e.waitSyncIdle()
 	w = e.post(confirm, nil, false)
-	assertRedirect(t, w, w.Code, "/settings?msg=deleted")
+	assertRedirect(t, w, w.Code, "/settings/repos?msg=deleted")
 }
 
 func TestSettingsInterval(t *testing.T) {
@@ -290,14 +337,14 @@ func TestSettingsInterval(t *testing.T) {
 	}
 	for _, tc := range cases {
 		w := e.post("/settings/interval", url.Values{"interval": {tc.input}}, false)
-		assertRedirect(t, w, w.Code, "/settings?msg=interval")
+		assertRedirect(t, w, w.Code, "/settings/sync?msg=interval")
 		if got := e.coord.Interval(); got != tc.want {
 			t.Errorf("%q: interval %s, want %s", tc.input, got, tc.want)
 		}
 	}
 
 	assertStatus(t, e.post("/settings/interval", url.Values{"interval": {"2h"}}, false), http.StatusSeeOther)
-	w := e.get("/settings?msg=interval")
+	w := e.get("/settings/sync?msg=interval")
 	assertContains(t, w, "Current interval: <strong>2 h</strong>", "Next sync",
 		"changed for this process", "config.yaml is not changed")
 

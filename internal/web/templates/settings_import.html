@@ -5,7 +5,7 @@
   serveur le revalide entièrement.
 */}}
 {{define "content"}}{{$c := .Content}}
-<nav class="breadcrumbs text-sm mb-2" aria-label="{{t "web.breadcrumb"}}"><ul><li><a href="/settings">{{t "web.nav.settings"}}</a></li><li>{{t "web.import.title"}}</li></ul></nav>
+<nav class="breadcrumbs text-sm mb-2" aria-label="{{t "web.breadcrumb"}}"><ul><li><a href="/settings/repos">{{t "web.nav.settings"}}</a></li><li><a href="/settings/share">{{t "web.settings.menu.share"}}</a></li><li>{{t "web.import.title"}}</li></ul></nav>
 <div class="mb-4">
   <h1 class="text-2xl font-bold">{{t "web.import.title"}}</h1>
   {{- if $c.FileName}}<p class="text-sm text-base-content/70 break-all">{{t "web.import.file" $c.FileName}}</p>{{end}}
@@ -26,7 +26,7 @@
       </div>
     </div>
     {{template "settings-import-form" .}}
-    <div class="card-actions justify-end"><a href="/settings" class="btn btn-ghost">{{t "web.import.back"}}</a></div>
+    <div class="card-actions justify-end"><a href="/settings/share" class="btn btn-ghost">{{t "web.import.back"}}</a></div>
   </div>
 </section>
 {{- else}}
@@ -121,7 +121,7 @@
         {{- else}}
         <p class="text-sm text-base-content/70">{{t "web.import.nothing_to_apply"}}</p>
         {{- end}}
-        <a href="/settings" class="btn btn-ghost btn-sm w-full">{{t "web.cancel"}}</a>
+        <a href="/settings/share" class="btn btn-ghost btn-sm w-full">{{t "web.cancel"}}</a>
       </div>
     </section>
   </div>

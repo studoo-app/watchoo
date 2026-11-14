@@ -1,9 +1,14 @@
 package web
 
-// Réglages « /settings » (documentation/fr/06-interface-web.md, page 4). PROPRIÉTAIRE : agent
+// Réglages (documentation/fr/06-interface-web.md, section 5). PROPRIÉTAIRE : agent
 // contributors+settings (ce fichier, templates/settings.html, settings_test.go).
 //
-// Ce que la page permet, avec les mêmes vérifications que la CLI (internal/cli/repo.go) :
+// Depuis la 1.8.0, les réglages sont répartis sur des pages, une par sujet, reliées par un menu :
+// /settings/repos (dépôts), /settings/sync (intervalle, synchro, quota) et /settings/share (partage
+// de la configuration). GET /settings reste valide : il redirige (302) vers la page du sujet du code
+// msg, la query gardée (settingsSectionPath).
+//
+// Ce que les pages permettent, avec les mêmes vérifications que la CLI (internal/cli/repo.go) :
 //   - ajouter un dépôt (POST /settings/repos) : repoimport.ParseRef, ValidateLabel,
 //     ParseBranchPatterns, puis wsync.Engine.AddRepositories (accès vérifié auprès de GitHub, aucune
 //     synchro lancée) ; un dépôt arrêté est repris de la même façon ;
@@ -16,8 +21,8 @@ package web
 //     la page, GET /fragments/quota : requête gratuite /rate_limit, token redemandé à gh par le
 //     moteur, jamais transmis au navigateur).
 //
-// Toute action est un POST (CSRF vérifié par le socle) ; la réponse est une redirection 303 vers
-// /settings?msg=<code>[&repo=<id>] (codes fixes : pas de texte venu de la requête dans l'URL), ou la
+// Toute action est un POST (CSRF vérifié par le socle) ; la réponse est une redirection 303 vers la
+// page du sujet, ?msg=<code>[&repo=<id>] (codes fixes : pas de texte venu de la requête dans l'URL), ou la
 // page réaffichée avec le message d'erreur et la saisie (400, 404, 409, 422 ou 502).
 
 import (
@@ -40,8 +45,57 @@ import (
 	"github.com/studoo-app/watchoo/internal/workspace"
 )
 
-// settingsPath est l'adresse de la page des réglages (cible des redirections).
-const settingsPath = "/settings"
+// Adresses des réglages : settingsPath redirige vers la page du sujet (settingsSectionPath).
+const (
+	settingsPath      = "/settings"
+	settingsReposPath = "/settings/repos"
+	settingsSyncPath  = "/settings/sync"
+	settingsSharePath = "/settings/share"
+)
+
+// Pages des réglages (settingsView.Section), dans l'ordre du menu.
+const (
+	sectionRepos = "repos"
+	sectionSync  = "sync"
+	sectionShare = "share"
+)
+
+// settingsSection décrit une page des réglages : son code, son adresse et la clé de son titre.
+type settingsSection struct {
+	ID    string
+	Path  string
+	Title string // clé i18n
+}
+
+// settingsSections sont les pages des réglages, dans l'ordre du menu.
+var settingsSections = []settingsSection{
+	{sectionRepos, settingsReposPath, "web.settings.menu.repos"},
+	{sectionSync, settingsSyncPath, "web.settings.menu.sync"},
+	{sectionShare, settingsSharePath, "web.settings.menu.share"},
+}
+
+// sectionByID renvoie la page des réglages id (la page des dépôts si id est inconnu).
+func sectionByID(id string) settingsSection {
+	for _, sec := range settingsSections {
+		if sec.ID == id {
+			return sec
+		}
+	}
+	return settingsSections[0]
+}
+
+// settingsSectionPath renvoie l'adresse de la page des réglages qui affiche le message du code msg :
+// le bilan d'un import sur la page du partage, l'intervalle sur celle de la synchro, tout le reste sur
+// celle des dépôts. Fonction pure.
+func settingsSectionPath(msg string) string {
+	switch msg {
+	case msgImported:
+		return settingsSharePath
+	case msgInterval:
+		return settingsSyncPath
+	}
+	return settingsReposPath
+}
 
 // quotaTimeout borne la lecture du quota (gh auth token puis GET /rate_limit).
 const quotaTimeout = 10 * time.Second
@@ -67,8 +121,12 @@ const (
 	msgInterval       = "interval"
 )
 
-// settingsView est le Content de la page des réglages (et de la confirmation de retrait).
+// settingsView est le Content d'une page des réglages (et de la confirmation de retrait).
 type settingsView struct {
+	// Section est la page affichée (sectionRepos, sectionSync, sectionShare) ; Sections, le menu.
+	Section  string
+	Sections []settingsSection
+
 	Repos      []settingsRepo
 	Flash      string // message d'une action (résultat ou erreur) ; vide sinon
 	FlashError bool   // Flash signale un échec
@@ -173,22 +231,42 @@ func parseRepoForm(tr *i18n.Translator, label, branches string) (string, []strin
 	return label, patterns, nil
 }
 
-// settingsData lit la base et l'état des synchros, et construit le Content de la page.
-func (s *server) settingsData(r *http.Request) (settingsView, error) {
+// settingsData construit le Content de la page des réglages section : la liste des dépôts pour
+// sectionRepos, l'état des synchros pour sectionSync ; sectionShare ne lit rien.
+func (s *server) settingsData(r *http.Request, section string) (settingsView, error) {
+	v := settingsView{Section: section, Sections: settingsSections}
+	switch section {
+	case sectionRepos:
+		return s.settingsRepos(r, v)
+	case sectionSync:
+		return s.settingsSync(v), nil
+	}
+	return v, nil
+}
+
+// settingsRepos complète v avec la liste des dépôts suivis.
+func (s *server) settingsRepos(r *http.Request, v settingsView) (settingsView, error) {
 	summaries, err := s.store.RepositorySummaries(r.Context())
 	if err != nil {
 		return settingsView{}, err
 	}
 	now := s.now()
-	st := s.sync.State()
-	v := settingsView{
-		Repos:        make([]settingsRepo, 0, len(summaries)),
-		Interval:     s.sync.Interval(),
-		NextAuto:     st.NextAuto,
-		FileInterval: s.cfg.Sync.Interval,
-		FileAuto:     s.cfg.Sync.Auto,
-		MinInterval:  workspace.MinSyncInterval,
+	v.Repos = make([]settingsRepo, 0, len(summaries))
+	for _, sum := range summaries {
+		v.Repos = append(v.Repos, settingsRepo{
+			RepositorySummary: sum,
+			State:             activity.Evaluate(sum.Repository, sum.LastRun, s.cfg.Activity, now, s.loc),
+			Edit:              repoForm{Label: sum.Label, Branches: strings.Join(sum.BranchPatterns, ", ")},
+		})
 	}
+	return v, nil
+}
+
+// settingsSync complète v avec l'intervalle de synchro (en vigueur, et relu dans config.yaml).
+func (s *server) settingsSync(v settingsView) settingsView {
+	v.Interval, v.NextAuto = s.sync.Interval(), s.sync.State().NextAuto
+	v.FileInterval, v.FileAuto = s.cfg.Sync.Interval, s.cfg.Sync.Auto
+	v.MinInterval = workspace.MinSyncInterval
 	fileEffective := s.cfg.Sync.Interval
 	if !s.cfg.Sync.Auto {
 		fileEffective = 0
@@ -205,25 +283,21 @@ func (s *server) settingsData(r *http.Request) (settingsView, error) {
 			s.logger.Warn("relecture de config.yaml impossible", "erreur", err)
 		}
 	}
-	for _, sum := range summaries {
-		v.Repos = append(v.Repos, settingsRepo{
-			RepositorySummary: sum,
-			State:             activity.Evaluate(sum.Repository, sum.LastRun, s.cfg.Activity, now, s.loc),
-			Edit:              repoForm{Label: sum.Label, Branches: strings.Join(sum.BranchPatterns, ", ")},
-		})
-	}
-	return v, nil
+	return v
 }
 
-// renderSettings écrit la page des réglages avec v et le code status.
+// renderSettings écrit la page des réglages v.Section avec v et le code status. Titre : « Réglages ·
+// <page> ».
 func (s *server) renderSettings(w http.ResponseWriter, r *http.Request, status int, v settingsView) {
-	s.render(w, r, status, pageSettings, s.page(r, s.t(r, "web.nav.settings"), navSettings, v))
+	title := s.t(r, "web.nav.settings") + " · " + s.t(r, sectionByID(v.Section).Title)
+	s.render(w, r, status, pageSettings, s.page(r, title, navSettings, v))
 }
 
-// settingsRedirect redirige vers /settings avec le code de message code et, si id > 0, le dépôt
-// concerné. L'adresse est construite ici à partir de valeurs fixes (pas de redirection ouverte).
+// settingsRedirect redirige vers la page des réglages du code de message code
+// (settingsSectionPath) et, si id > 0, le dépôt concerné. L'adresse est construite ici à partir de
+// valeurs fixes (pas de redirection ouverte).
 func settingsRedirect(w http.ResponseWriter, r *http.Request, code string, id int64) {
-	target := settingsPath + "?msg=" + code
+	target := settingsSectionPath(code) + "?msg=" + code
 	if id > 0 {
 		target += "&repo=" + strconv.FormatInt(id, 10)
 	}
@@ -258,10 +332,26 @@ func flashMessage(tr *i18n.Translator, msg, repo string) string {
 	return ""
 }
 
-// handleSettings sert GET /settings (page complète, Nav navSettings, titre « Settings »). Les
-// paramètres msg et repo affichent le résultat de la dernière action.
+// handleSettings sert GET /settings : redirection (302) vers la page des réglages du code msg, la
+// query gardée (favoris et anciens liens, d'avant la 1.8.0). La cible est une adresse fixe : pas de
+// redirection ouverte.
 func (s *server) handleSettings(w http.ResponseWriter, r *http.Request) {
-	v, err := s.settingsData(r)
+	target := settingsSectionPath(queryValue(r, "msg"))
+	if r.URL.RawQuery != "" {
+		target += "?" + r.URL.RawQuery
+	}
+	http.Redirect(w, r, target, http.StatusFound)
+}
+
+// handleSettingsSection renvoie le handler de GET sur la page des réglages section (page complète,
+// Nav navSettings). Les paramètres msg et repo affichent le résultat de la dernière action.
+func (s *server) handleSettingsSection(section string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) { s.serveSettings(w, r, section) }
+}
+
+// serveSettings sert la page des réglages section.
+func (s *server) serveSettings(w http.ResponseWriter, r *http.Request, section string) {
+	v, err := s.settingsData(r, section)
 	if err != nil {
 		s.serverError(w, r, err)
 		return
@@ -288,7 +378,7 @@ func (s *server) handleSettings(w http.ResponseWriter, r *http.Request) {
 func (s *server) handleRepoAdd(w http.ResponseWriter, r *http.Request) {
 	form := repoForm{Repo: formValue(r, fieldRepo), Label: formValue(r, fieldLabel), Branches: formValue(r, fieldBranches)}
 	fail := func(status int, msg string) {
-		v, err := s.settingsData(r)
+		v, err := s.settingsData(r, sectionRepos)
 		if err != nil {
 			s.serverError(w, r, err)
 			return
@@ -350,7 +440,7 @@ func (s *server) handleRepoUpdate(w http.ResponseWriter, r *http.Request) {
 	form := repoForm{Label: formValue(r, fieldLabel), Branches: formValue(r, fieldBranches)}
 	label, patterns, err := parseRepoForm(s.tr(r), form.Label, form.Branches)
 	if err != nil {
-		v, lerr := s.settingsData(r)
+		v, lerr := s.settingsData(r, sectionRepos)
 		if lerr != nil {
 			s.serverError(w, r, lerr)
 			return
@@ -389,7 +479,7 @@ func (s *server) handleRepoRemoveConfirm(w http.ResponseWriter, r *http.Request)
 		s.repoLookupError(w, r, err)
 		return
 	}
-	v := settingsView{Confirm: &removeConfirm{Repo: sum.Repository, Commits: sum.Commits, Running: s.sync.State().Running}}
+	v := settingsView{Section: sectionRepos, Sections: settingsSections, Confirm: &removeConfirm{Repo: sum.Repository, Commits: sum.Commits, Running: s.sync.State().Running}}
 	s.render(w, r, http.StatusOK, pageSettings,
 		s.page(r, s.t(r, "web.remove.title", textclean.Clean(sum.DisplayName())), navSettings, v))
 }
@@ -450,7 +540,7 @@ func (s *server) handleIntervalUpdate(w http.ResponseWriter, r *http.Request) {
 			s.renderError(w, r, http.StatusConflict, s.t(r, "web.settings.change_impossible"), s.t(r, msgSyncClosed))
 			return
 		}
-		v, lerr := s.settingsData(r)
+		v, lerr := s.settingsData(r, sectionSync)
 		if lerr != nil {
 			s.serverError(w, r, lerr)
 			return

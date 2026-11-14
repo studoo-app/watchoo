@@ -1,166 +1,204 @@
 {{/*
-  Réglages « /settings ». PROPRIÉTAIRE : agent contributors+settings. Donnée : PageData, Content de
-  type settingsView (page et confirmation de retrait) ou quotaView (fragment « settings-quota »),
+  Réglages (1.8.0 : une page par sujet, /settings/repos, /settings/sync, /settings/share, reliées par
+  le menu « settings-menu »). PROPRIÉTAIRE : agent contributors+settings. Donnée : PageData, Content
+  de type settingsView (pages et confirmation de retrait) ou quotaView (fragment « settings-quota »),
   définis dans settings.go.
   Toutes les actions sont des formulaires POST classiques avec le champ CSRF : la réponse est une
-  redirection vers /settings (message selon le code msg) ou la page réaffichée avec l'erreur.
+  redirection vers la page du sujet (message selon le code msg) ou la page réaffichée avec l'erreur.
 */}}
 {{define "content"}}{{if .Content.Confirm}}{{template "settings-confirm" .}}{{else}}{{template "settings-main" .}}{{end}}{{end}}
 
-{{define "settings-main"}}{{$c := .Content}}{{$page := .}}
-<div class="flex flex-wrap items-end justify-between gap-3 mb-4">
-  <div>
-    <h1 class="text-2xl font-bold">{{t "web.nav.settings"}}</h1>
-    <p class="text-sm text-base-content/70">{{t "web.settings.intro"}}</p>
-  </div>
-  {{template "sync-all-button" .}}
+{{define "settings-main"}}{{$c := .Content}}
+<div class="mb-4">
+  <h1 class="text-2xl font-bold">{{t "web.nav.settings"}}</h1>
+  <p class="text-sm text-base-content/70">{{t "web.settings.intro"}}</p>
 </div>
-{{template "flash" (dict "Message" $c.Flash "Error" $c.FlashError)}}
+<div class="lg:grid lg:grid-cols-[12rem_minmax(0,1fr)] lg:items-start gap-6">
+  {{template "settings-menu" $c}}
+  <div class="min-w-0 space-y-4">
+    {{template "flash" (dict "Message" $c.Flash "Error" $c.FlashError)}}
+    {{- if eq $c.Section "sync"}}{{template "settings-sync" .}}
+    {{- else if eq $c.Section "share"}}{{template "settings-share" .}}
+    {{- else}}{{template "settings-repos" .}}{{end}}
+  </div>
+</div>
+{{end}}
 
-<div class="grid gap-6 lg:grid-cols-3">
-  <section class="lg:col-span-2 space-y-3" aria-labelledby="repos-heading">
-    <h2 id="repos-heading" class="text-lg font-semibold">{{t "web.dash.repos_title"}} <span class="badge badge-ghost align-middle">{{len $c.Repos}}</span></h2>
-    {{- if not $c.Repos}}
-    <div class="card bg-base-100 shadow-sm"><div class="card-body text-base-content/70">
-      <p>{{t "web.settings.empty"}}</p>
-    </div></div>
+{{/* Menu des pages des réglages : vertical à gauche à partir de 1024 px, onglets en rangée en dessous.
+  Donnée : settingsView (Sections, Section). */}}
+{{define "settings-menu"}}{{$c := .}}
+<nav class="mb-4 lg:mb-0 lg:sticky lg:top-[calc(var(--header-h,4rem)+1rem)]" aria-label="{{t "web.settings.menu.aria"}}">
+  <ul class="menu menu-horizontal lg:menu-vertical flex-nowrap overflow-x-auto w-full bg-base-100 rounded-box shadow-sm gap-1">
+    {{- range $c.Sections}}
+    <li><a href="{{.Path}}" class="whitespace-nowrap{{if eq .ID $c.Section}} menu-active{{end}}"{{if eq .ID $c.Section}} aria-current="page"{{end}}>{{t .Title}}</a></li>
     {{- end}}
-    <ul class="space-y-3">
-      {{- range $c.Repos}}
-      <li class="card bg-base-100 shadow-sm">
-        <div class="card-body p-4 gap-3">
-          <div class="flex flex-wrap items-start justify-between gap-2">
-            <div class="min-w-0">
-              <a href="{{repoPath .ID}}" class="link link-hover font-semibold text-base break-words">{{truncate 80 .DisplayName}}</a>
-              {{- if .Label}}<div class="text-sm text-base-content/60 break-all">{{.FullName}}</div>{{end}}
-            </div>
-            {{template "state-badge" .State}}
+  </ul>
+</nav>
+{{end}}
+
+{{/* Page des dépôts (/settings/repos) : liste et ajout. Donnée : PageData, Content settingsView. */}}
+{{define "settings-repos"}}{{$c := .Content}}{{$page := .}}
+<div class="grid gap-6 xl:grid-cols-3">
+<section class="xl:col-span-2 space-y-3" aria-labelledby="repos-heading">
+  <h2 id="repos-heading" class="text-lg font-semibold">{{t "web.dash.repos_title"}} <span class="badge badge-ghost align-middle">{{len $c.Repos}}</span></h2>
+  {{- if not $c.Repos}}
+  <div class="card bg-base-100 shadow-sm"><div class="card-body text-base-content/70">
+    <p>{{t "web.settings.empty"}}</p>
+  </div></div>
+  {{- end}}
+  <ul class="space-y-3">
+    {{- range $c.Repos}}
+    <li class="card bg-base-100 shadow-sm">
+      <div class="card-body p-4 gap-3">
+        <div class="flex flex-wrap items-start justify-between gap-2">
+          <div class="min-w-0">
+            <a href="{{repoPath .ID}}" class="link link-hover font-semibold text-base break-words">{{truncate 80 .DisplayName}}</a>
+            {{- if .Label}}<div class="text-sm text-base-content/60 break-all">{{.FullName}}</div>{{end}}
           </div>
-          <dl class="grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-1 text-sm">
-            <div><dt class="inline text-base-content/60">{{t "web.settings.branches_label"}}</dt> <dd class="inline break-words">{{truncate 120 (branchesText .BranchPatterns)}}</dd></div>
-            <div><dt class="inline text-base-content/60">{{t "web.settings.commits_label"}}</dt> <dd class="inline tabular-nums">{{.Commits}}</dd></div>
-            <div><dt class="inline text-base-content/60">{{t "web.settings.sync_label"}}</dt> <dd class="inline">{{template "rel-time" .LastSyncedAt}}</dd></div>
-          </dl>
-          <div class="flex flex-wrap items-start gap-2">
-            <details class="collapse collapse-arrow bg-base-200 flex-1 min-w-64"{{if .EditError}} open{{end}}>
-              <summary class="collapse-title text-sm font-medium min-h-0 py-2">{{t "web.settings.edit_summary"}}</summary>
-              <div class="collapse-content">
-                <form method="post" action="/settings/repos/{{.ID}}" class="space-y-2">
-                  {{template "csrf-field" $page}}
-                  {{- if .EditError}}{{template "flash" (dict "Message" .EditError "Error" true)}}{{end}}
-                  <label class="form-control w-full block">
-                    <span class="label text-sm whitespace-normal mb-1">{{t "web.settings.label_field_edit" .FullName}}</span>
-                    <input type="text" name="label" value="{{.Edit.Label}}" maxlength="200" class="input input-sm w-full" autocomplete="off">
-                  </label>
-                  <label class="form-control w-full block">
-                    <span class="label text-sm whitespace-normal mb-1">{{t "web.settings.branches_field_edit"}}</span>
-                    <input type="text" name="branches" value="{{.Edit.Branches}}" maxlength="1000" placeholder="main, dev, release/*" class="input input-sm w-full" autocomplete="off" spellcheck="false">
-                  </label>
-                  <button type="submit" class="btn btn-sm btn-primary">{{t "web.settings.save"}}</button>
-                </form>
-              </div>
-            </details>
-            <div class="flex flex-wrap gap-2">
-              {{- if not .Enabled}}
-              <form method="post" action="/settings/repos">
+          {{template "state-badge" .State}}
+        </div>
+        <dl class="grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-1 text-sm">
+          <div><dt class="inline text-base-content/60">{{t "web.settings.branches_label"}}</dt> <dd class="inline break-words">{{truncate 120 (branchesText .BranchPatterns)}}</dd></div>
+          <div><dt class="inline text-base-content/60">{{t "web.settings.commits_label"}}</dt> <dd class="inline tabular-nums">{{.Commits}}</dd></div>
+          <div><dt class="inline text-base-content/60">{{t "web.settings.sync_label"}}</dt> <dd class="inline">{{template "rel-time" .LastSyncedAt}}</dd></div>
+        </dl>
+        <div class="flex flex-wrap items-start gap-2">
+          <details class="collapse collapse-arrow bg-base-200 flex-1 min-w-64"{{if .EditError}} open{{end}}>
+            <summary class="collapse-title text-sm font-medium min-h-0 py-2">{{t "web.settings.edit_summary"}}</summary>
+            <div class="collapse-content">
+              <form method="post" action="/settings/repos/{{.ID}}" class="space-y-2">
                 {{template "csrf-field" $page}}
-                <input type="hidden" name="repo" value="{{.FullName}}">
-                <button type="submit" class="btn btn-sm btn-outline btn-success" title="{{t "web.settings.resume_title"}}">{{t "web.settings.resume"}}</button>
+                {{- if .EditError}}{{template "flash" (dict "Message" .EditError "Error" true)}}{{end}}
+                <label class="form-control w-full block">
+                  <span class="label text-sm whitespace-normal mb-1">{{t "web.settings.label_field_edit" .FullName}}</span>
+                  <input type="text" name="label" value="{{.Edit.Label}}" maxlength="200" class="input input-sm w-full" autocomplete="off">
+                </label>
+                <label class="form-control w-full block">
+                  <span class="label text-sm whitespace-normal mb-1">{{t "web.settings.branches_field_edit"}}</span>
+                  <input type="text" name="branches" value="{{.Edit.Branches}}" maxlength="1000" placeholder="main, dev, release/*" class="input input-sm w-full" autocomplete="off" spellcheck="false">
+                </label>
+                <button type="submit" class="btn btn-sm btn-primary">{{t "web.settings.save"}}</button>
               </form>
-              {{- end}}
-              <a href="/settings/repos/{{.ID}}/remove" class="btn btn-sm btn-ghost text-error">{{t "web.settings.remove_button"}}</a>
             </div>
+          </details>
+          <div class="flex flex-wrap gap-2">
+            {{- if not .Enabled}}
+            <form method="post" action="/settings/repos">
+              {{template "csrf-field" $page}}
+              <input type="hidden" name="repo" value="{{.FullName}}">
+              <button type="submit" class="btn btn-sm btn-outline btn-success" title="{{t "web.settings.resume_title"}}">{{t "web.settings.resume"}}</button>
+            </form>
+            {{- end}}
+            <a href="/settings/repos/{{.ID}}/remove" class="btn btn-sm btn-ghost text-error">{{t "web.settings.remove_button"}}</a>
           </div>
         </div>
-      </li>
-      {{- end}}
-    </ul>
-  </section>
+      </div>
+    </li>
+    {{- end}}
+  </ul>
+</section>
 
   <div class="space-y-6">
-    <section class="card bg-base-100 shadow-sm" aria-labelledby="add-heading">
-      <div class="card-body p-4">
-        <h2 id="add-heading" class="card-title text-lg">{{t "web.settings.add_title"}}</h2>
-        <p class="text-sm text-base-content/70">{{t "web.settings.add_help"}}</p>
-        {{template "flash" (dict "Message" $c.AddError "Error" true)}}
-        <form method="post" action="/settings/repos" class="space-y-2">
-          {{template "csrf-field" .}}
-          <label class="form-control w-full block">
-            <span class="label text-sm whitespace-normal mb-1">{{t "web.settings.repo_field"}}</span>
-            <input type="text" name="repo" value="{{$c.Add.Repo}}" required maxlength="300" placeholder="alice/projet-licence" class="input input-sm w-full" autocomplete="off" spellcheck="false">
-          </label>
-          <label class="form-control w-full block">
-            <span class="label text-sm whitespace-normal mb-1">{{t "web.settings.label_field"}}</span>
-            <input type="text" name="label" value="{{$c.Add.Label}}" maxlength="200" placeholder="Alice Martin" class="input input-sm w-full" autocomplete="off">
-          </label>
-          <label class="form-control w-full block">
-            <span class="label text-sm whitespace-normal mb-1">{{t "web.settings.branches_field"}}</span>
-            <input type="text" name="branches" value="{{$c.Add.Branches}}" maxlength="1000" placeholder="main, dev, release/*" class="input input-sm w-full" autocomplete="off" spellcheck="false">
-          </label>
-          <button type="submit" class="btn btn-primary btn-sm w-full">{{t "web.settings.add"}}</button>
-        </form>
-      </div>
-    </section>
-
-    <section class="card bg-base-100 shadow-sm" aria-labelledby="interval-heading">
-      <div class="card-body p-4">
-        <h2 id="interval-heading" class="card-title text-lg">{{t "web.settings.auto_title"}}</h2>
-        <p>{{t "web.settings.current_interval"}} <strong>{{interval $c.Interval}}</strong></p>
-        {{- if not $c.NextAuto.IsZero}}
-        <p class="text-sm">{{t "web.settings.next_sync"}} <time datetime="{{isoTime $c.NextAuto}}">{{localTime $c.NextAuto}}</time></p>
-        {{- end}}
-        <p class="text-sm text-base-content/70">{{t "web.settings.file_label"}} {{if $c.FileAuto}}{{interval $c.FileInterval}}{{else}}{{t "web.settings.auto_disabled"}}{{end}}.
-          {{- if $c.FileChanged}} {{t "web.settings.file_changed"}}{{end}}
-          {{- if $c.Overridden}} {{t "web.settings.overridden"}}{{end}}</p>
-        {{template "flash" (dict "Message" $c.IntervalError "Error" true)}}
-        <form method="post" action="/settings/interval" class="flex flex-wrap items-end gap-2">
-          {{template "csrf-field" .}}
-          <label class="form-control grow block min-w-0">
-            <span class="label text-sm whitespace-normal mb-1">{{t "web.settings.new_interval" (interval $c.MinInterval)}}</span>
-            <input type="text" name="interval" value="{{$c.IntervalInput}}" required maxlength="20" list="interval-presets" placeholder="30m, 1h, 0" class="input input-sm w-full" autocomplete="off" spellcheck="false">
-          </label>
-          <datalist id="interval-presets">
-            <option value="0">{{t "web.interval.manual"}}</option>
-            <option value="15m">15 min</option>
-            <option value="30m">30 min</option>
-            <option value="1h">1 h</option>
-            <option value="2h">2 h</option>
-            <option value="6h">6 h</option>
-            <option value="24h">24 h</option>
-          </datalist>
-          <button type="submit" class="btn btn-sm">{{t "web.settings.apply"}}</button>
-        </form>
-        <p class="text-xs text-base-content/60">{{t "web.settings.interval_note"}}</p>
-      </div>
-    </section>
-
-    <section class="card bg-base-100 shadow-sm" aria-labelledby="share-heading">
-      <div class="card-body p-4">
-        <h2 id="share-heading" class="card-title text-lg">{{t "web.share.title"}}</h2>
-        <p class="text-sm text-base-content/70">{{t "web.share.intro"}}</p>
-        <a href="/settings/export" class="btn btn-sm w-full" download>{{t "web.share.export"}}</a>
-        <form method="post" action="/settings/import" enctype="multipart/form-data" class="space-y-2">
-          {{template "csrf-field" .}}
-          <label class="form-control w-full block">
-            <span class="label text-sm whitespace-normal mb-1">{{t "web.share.import_field"}}</span>
-            <input type="file" name="file" accept="application/json,.json" required class="file-input file-input-sm w-full">
-          </label>
-          <button type="submit" class="btn btn-sm w-full">{{t "web.share.preview_button"}}</button>
-        </form>
-        <p class="text-xs text-base-content/60">{{t "web.share.note"}}</p>
-      </div>
-    </section>
-
-    <section class="card bg-base-100 shadow-sm" aria-labelledby="quota-heading">
-      <div class="card-body p-4">
-        <h2 id="quota-heading" class="card-title text-lg">{{t "web.quota.title"}}</h2>
-        <div id="settings-quota" hx-get="/fragments/quota" hx-trigger="load" hx-swap="outerHTML" aria-live="polite">
-          <p class="flex items-center gap-2 text-sm text-base-content/70"><span class="loading loading-dots loading-sm" aria-hidden="true"></span>{{t "web.quota.loading"}}</p>
-        </div>
-        <p class="text-xs text-base-content/60">{{t "web.quota.note"}}</p>
-      </div>
-    </section>
+<section class="card bg-base-100 shadow-sm" aria-labelledby="add-heading">
+  <div class="card-body p-4">
+    <h2 id="add-heading" class="card-title text-lg">{{t "web.settings.add_title"}}</h2>
+    <p class="text-sm text-base-content/70">{{t "web.settings.add_help"}}</p>
+    {{template "flash" (dict "Message" $c.AddError "Error" true)}}
+    <form method="post" action="/settings/repos" class="space-y-2">
+      {{template "csrf-field" .}}
+      <label class="form-control w-full block">
+        <span class="label text-sm whitespace-normal mb-1">{{t "web.settings.repo_field"}}</span>
+        <input type="text" name="repo" value="{{$c.Add.Repo}}" required maxlength="300" placeholder="alice/projet-licence" class="input input-sm w-full" autocomplete="off" spellcheck="false">
+      </label>
+      <label class="form-control w-full block">
+        <span class="label text-sm whitespace-normal mb-1">{{t "web.settings.label_field"}}</span>
+        <input type="text" name="label" value="{{$c.Add.Label}}" maxlength="200" placeholder="Alice Martin" class="input input-sm w-full" autocomplete="off">
+      </label>
+      <label class="form-control w-full block">
+        <span class="label text-sm whitespace-normal mb-1">{{t "web.settings.branches_field"}}</span>
+        <input type="text" name="branches" value="{{$c.Add.Branches}}" maxlength="1000" placeholder="main, dev, release/*" class="input input-sm w-full" autocomplete="off" spellcheck="false">
+      </label>
+      <button type="submit" class="btn btn-primary btn-sm w-full">{{t "web.settings.add"}}</button>
+    </form>
   </div>
+</section>
+
+  </div>
+</div>
+{{end}}
+
+{{/* Page de la synchronisation (/settings/sync) : intervalle, synchro, quota. Donnée : PageData,
+  Content settingsView. */}}
+{{define "settings-sync"}}{{$c := .Content}}
+<div class="flex flex-wrap items-center justify-between gap-3">
+  <p class="text-sm text-base-content/70">{{t "web.settings.sync_intro"}}</p>
+  {{template "sync-all-button" .}}
+</div>
+<div class="grid gap-6 xl:grid-cols-2 items-start">
+<section class="card bg-base-100 shadow-sm" aria-labelledby="interval-heading">
+  <div class="card-body p-4">
+    <h2 id="interval-heading" class="card-title text-lg">{{t "web.settings.auto_title"}}</h2>
+    <p>{{t "web.settings.current_interval"}} <strong>{{interval $c.Interval}}</strong></p>
+    {{- if not $c.NextAuto.IsZero}}
+    <p class="text-sm">{{t "web.settings.next_sync"}} <time datetime="{{isoTime $c.NextAuto}}">{{localTime $c.NextAuto}}</time></p>
+    {{- end}}
+    <p class="text-sm text-base-content/70">{{t "web.settings.file_label"}} {{if $c.FileAuto}}{{interval $c.FileInterval}}{{else}}{{t "web.settings.auto_disabled"}}{{end}}.
+      {{- if $c.FileChanged}} {{t "web.settings.file_changed"}}{{end}}
+      {{- if $c.Overridden}} {{t "web.settings.overridden"}}{{end}}</p>
+    {{template "flash" (dict "Message" $c.IntervalError "Error" true)}}
+    <form method="post" action="/settings/interval" class="flex flex-wrap items-end gap-2">
+      {{template "csrf-field" .}}
+      <label class="form-control grow block min-w-0">
+        <span class="label text-sm whitespace-normal mb-1">{{t "web.settings.new_interval" (interval $c.MinInterval)}}</span>
+        <input type="text" name="interval" value="{{$c.IntervalInput}}" required maxlength="20" list="interval-presets" placeholder="30m, 1h, 0" class="input input-sm w-full" autocomplete="off" spellcheck="false">
+      </label>
+      <datalist id="interval-presets">
+        <option value="0">{{t "web.interval.manual"}}</option>
+        <option value="15m">15 min</option>
+        <option value="30m">30 min</option>
+        <option value="1h">1 h</option>
+        <option value="2h">2 h</option>
+        <option value="6h">6 h</option>
+        <option value="24h">24 h</option>
+      </datalist>
+      <button type="submit" class="btn btn-sm">{{t "web.settings.apply"}}</button>
+    </form>
+    <p class="text-xs text-base-content/60">{{t "web.settings.interval_note"}}</p>
+  </div>
+</section>
+
+<section class="card bg-base-100 shadow-sm" aria-labelledby="quota-heading">
+  <div class="card-body p-4">
+    <h2 id="quota-heading" class="card-title text-lg">{{t "web.quota.title"}}</h2>
+    <div id="settings-quota" hx-get="/fragments/quota" hx-trigger="load" hx-swap="outerHTML" aria-live="polite">
+      <p class="flex items-center gap-2 text-sm text-base-content/70"><span class="loading loading-dots loading-sm" aria-hidden="true"></span>{{t "web.quota.loading"}}</p>
+    </div>
+    <p class="text-xs text-base-content/60">{{t "web.quota.note"}}</p>
+  </div>
+</section>
+</div>
+{{end}}
+
+{{/* Page du partage (/settings/share) : export et import de la configuration. Donnée : PageData. */}}
+{{define "settings-share"}}
+<div class="max-w-2xl">
+<section class="card bg-base-100 shadow-sm" aria-labelledby="share-heading">
+  <div class="card-body p-4">
+    <h2 id="share-heading" class="card-title text-lg">{{t "web.share.title"}}</h2>
+    <p class="text-sm text-base-content/70">{{t "web.share.intro"}}</p>
+    <a href="/settings/export" class="btn btn-sm w-full" download>{{t "web.share.export"}}</a>
+    <form method="post" action="/settings/import" enctype="multipart/form-data" class="space-y-2">
+      {{template "csrf-field" .}}
+      <label class="form-control w-full block">
+        <span class="label text-sm whitespace-normal mb-1">{{t "web.share.import_field"}}</span>
+        <input type="file" name="file" accept="application/json,.json" required class="file-input file-input-sm w-full">
+      </label>
+      <button type="submit" class="btn btn-sm w-full">{{t "web.share.preview_button"}}</button>
+    </form>
+    <p class="text-xs text-base-content/60">{{t "web.share.note"}}</p>
+  </div>
+</section>
+
 </div>
 {{end}}
 
@@ -186,7 +224,7 @@
 
 {{/* Confirmation du retrait d'un dépôt (GET, ne modifie rien). Donnée : PageData, Content.Confirm. */}}
 {{define "settings-confirm"}}{{$r := .Content.Confirm}}
-<nav class="breadcrumbs text-sm mb-2" aria-label="{{t "web.breadcrumb"}}"><ul><li><a href="/settings">{{t "web.nav.settings"}}</a></li><li>{{t "web.remove.crumb"}}</li></ul></nav>
+<nav class="breadcrumbs text-sm mb-2" aria-label="{{t "web.breadcrumb"}}"><ul><li><a href="/settings/repos">{{t "web.nav.settings"}}</a></li><li><a href="/settings/repos">{{t "web.settings.menu.repos"}}</a></li><li>{{t "web.remove.crumb"}}</li></ul></nav>
 <section class="card bg-base-100 shadow-sm max-w-2xl">
   <div class="card-body">
     <h1 class="card-title text-xl break-words">{{t "web.remove.question" (truncate 80 $r.Repo.DisplayName)}}</h1>
@@ -215,7 +253,7 @@
       </form>
     </div>
     <div class="card-actions justify-end mt-2">
-      <a href="/settings" class="btn btn-ghost">{{t "web.cancel"}}</a>
+      <a href="/settings/repos" class="btn btn-ghost">{{t "web.cancel"}}</a>
     </div>
   </div>
 </section>

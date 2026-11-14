@@ -23,7 +23,7 @@ var newVersion = selfupdate.Status{Current: "v0.5.0", Latest: "v0.6.0", UpdateAv
 func TestUpdateBannerShown(t *testing.T) {
 	e := newTestEnv(t, withUpdates(fixedUpdates{st: newVersion, ok: true}, false))
 	ids := e.seed()
-	for _, path := range []string{"/", "/contributors", "/settings", "/repos/" + strconv.FormatInt(ids.Alice, 10), "/not-found"} {
+	for _, path := range []string{"/", "/contributors", "/settings/repos", "/repos/" + strconv.FormatInt(ids.Alice, 10), "/not-found"} {
 		w := e.get(path)
 		assertContains(t, w, `id="update-banner"`, "v0.5.0 → v0.6.0", "watchoo update",
 			`href="https://github.com/studoo-app/watchoo/releases/tag/v0.6.0"`, "Release notes",

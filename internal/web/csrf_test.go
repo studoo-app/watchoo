@@ -94,7 +94,8 @@ func TestCSRFAcceptsTokenInHeader(t *testing.T) {
 func TestNoActionInGet(t *testing.T) {
 	e := newTestEnv(t)
 	ids := e.seed()
-	for _, target := range []string{"/sync", repoPath(ids.Alice) + "/sync", "/settings/repos",
+	// GET /settings/repos is the page of the repositories (1.8.0): only its POST adds one.
+	for _, target := range []string{"/sync", repoPath(ids.Alice) + "/sync",
 		"/settings/interval", repoPathSettings(ids.Alice), repoPath(ids.Alice) + "/thresholds"} {
 		w := e.get(target)
 		assertStatus(t, w, http.StatusMethodNotAllowed)

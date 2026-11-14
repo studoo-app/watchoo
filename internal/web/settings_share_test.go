@@ -138,9 +138,10 @@ func TestSettingsPageShareSection(t *testing.T) {
 	isolateShare(t)
 	e := newTestEnv(t)
 	e.withShareWorkspace()
-	w := e.get("/settings")
+	w := e.get("/settings/share")
 	assertStatus(t, w, http.StatusOK)
-	assertContains(t, w, "Share the configuration", `href="/settings/export"`,
+	assertContains(t, w, "Share the configuration",
+		`href="/settings/share" class="whitespace-nowrap menu-active" aria-current="page">Sharing`, `href="/settings/export"`,
 		`action="/settings/import" enctype="multipart/form-data"`, `name="file"`)
 	assertNotContains(t, w, "config.yaml changed since")
 }
@@ -366,7 +367,7 @@ func TestSettingsImportApply(t *testing.T) {
 	oldConfig := readFile(t, ws.ConfigPath())
 
 	w := e.postMultipart("/settings/import/apply", map[string]string{fieldImportDocument: shareDoc}, nil, true)
-	assertRedirect(t, w, w.Code, "/settings?added=1&already=1&msg=imported&reenabled=1&updated=3&written=1")
+	assertRedirect(t, w, w.Code, "/settings/share?added=1&already=1&msg=imported&reenabled=1&updated=3&written=1")
 
 	// Settings: config.yaml rewritten (0600), old file in .bak (0600), values read back.
 	info, err := os.Stat(ws.ConfigPath())
@@ -406,15 +407,15 @@ func TestSettingsImportApply(t *testing.T) {
 		t.Error("the tracking of Dave did not resume")
 	}
 
-	// Result shown on /settings.
+	// Result shown on /settings/share.
 	page := e.get(w.Header().Get("Location"))
 	assertStatus(t, page, http.StatusOK)
 	assertContains(t, page, "Configuration imported: 1 repository added, 3 repositories updated (including 1 resumed), 1 repository already tracked.",
 		"config.yaml is rewritten", "next start")
 	assertNotContains(t, page, "alert-error")
 	// The "config.yaml file" line shows the value read back from the disk (1h), not the one of the
-	// start (30m), and reports that it only applies at the next start.
-	assertContains(t, page, "config.yaml file: 1 h.",
+	// start (30m), and reports that it only applies at the next start, on the synchronization page.
+	assertContains(t, e.get("/settings/sync"), "config.yaml file: 1 h.",
 		"config.yaml changed since &#34;watchoo serve&#34; started: this value will apply at the next start.")
 
 	// A second import of the same file changes nothing any more (settings read back from the disk).
@@ -432,7 +433,7 @@ func TestSettingsImportApplyInaccessible(t *testing.T) {
 	doc := `{"format":"watchoo-config","version":1,"repositories":[
 	  {"repo":"promo/unknown","label":"Zoé"},{"repo":"promo/alice","label":"Alice B."}]}`
 	w := e.postMultipart("/settings/import/apply", map[string]string{fieldImportDocument: doc}, nil, true)
-	assertRedirect(t, w, w.Code, "/settings?inaccessible=1&msg=imported&updated=1")
+	assertRedirect(t, w, w.Code, "/settings/share?inaccessible=1&msg=imported&updated=1")
 	if r := e.mustRepo(ids.Alice); r.Label != "Alice B." {
 		t.Errorf("label of Alice = %q (an inaccessible repository does not block the others)", r.Label)
 	}
@@ -474,7 +475,7 @@ func TestSettingsImportApplyRevalidates(t *testing.T) {
 		URL: "https://github.com/promo/frank", Private: true})
 	other := `{"format":"watchoo-config","version":1,"repositories":[{"repo":"promo/frank","label":"Frank"}]}`
 	w = e.postMultipart("/settings/import/apply", map[string]string{fieldImportDocument: other}, nil, true)
-	assertRedirect(t, w, w.Code, "/settings?added=1&msg=imported")
+	assertRedirect(t, w, w.Code, "/settings/share?added=1&msg=imported")
 	if n := e.repoCount(); n != 5 {
 		t.Errorf("%d repositories, want 5", n)
 	}
@@ -525,12 +526,12 @@ func TestSettingsImportFlash(t *testing.T) {
 		{"msg=imported&added=99999999&updated=%3Cscript%3E&reenabled=-3", "1000 repositories added.", "&lt;script"},
 	}
 	for _, c := range cases {
-		w := e.get("/settings?" + c.query)
+		w := e.get("/settings/share?" + c.query)
 		assertStatus(t, w, http.StatusOK)
 		assertContains(t, w, c.want)
 		if c.absent != "" {
 			assertNotContains(t, w, c.absent)
 		}
 	}
-	assertContains(t, e.get("/settings?msg=imported&errors=1"), "alert-error", "1 repository in error")
+	assertContains(t, e.get("/settings/share?msg=imported&errors=1"), "alert-error", "1 repository in error")
 }

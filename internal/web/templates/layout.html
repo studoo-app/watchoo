@@ -51,7 +51,7 @@
         <li><a href="/contributors" class="whitespace-nowrap {{if eq .Nav "contributors"}}menu-active{{end}}"{{if eq .Nav "contributors"}} aria-current="page"{{end}}>{{t "web.nav.contributors"}}</a></li>
         {{if .Diagnostic}}<li><a href="/diagnostic" class="whitespace-nowrap {{if eq .Nav "diagnostic"}}menu-active{{end}}"{{if eq .Nav "diagnostic"}} aria-current="page"{{end}}>{{t "web.nav.diagnostic"}}</a></li>{{end}}
         {{if .Conventions}}<li><a href="/conventions" class="whitespace-nowrap {{if eq .Nav "conventions"}}menu-active{{end}}"{{if eq .Nav "conventions"}} aria-current="page"{{end}}>{{t "web.nav.conventions"}}</a></li>{{end}}
-        <li><a href="/settings" class="whitespace-nowrap {{if eq .Nav "settings"}}menu-active{{end}}"{{if eq .Nav "settings"}} aria-current="page"{{end}}>{{t "web.nav.settings"}}</a></li>
+        <li><a href="/settings/repos" class="whitespace-nowrap {{if eq .Nav "settings"}}menu-active{{end}}"{{if eq .Nav "settings"}} aria-current="page"{{end}}>{{t "web.nav.settings"}}</a></li>
       </ul>
     </nav>
     {{template "sync-status" .}}

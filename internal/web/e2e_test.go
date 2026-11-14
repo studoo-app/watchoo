@@ -61,7 +61,7 @@ func TestWebEndToEnd(t *testing.T) {
 	// 1. Empty workspace: the dashboard points to the settings.
 	w := e.get("/")
 	assertStatus(t, w, http.StatusOK)
-	assertContains(t, w, testWorkspace, `href="/settings"`)
+	assertContains(t, w, testWorkspace, `href="/settings/repos"`)
 
 	// 2. Adding the repositories from the settings (POST with CSRF); the hidden repository is refused.
 	addRepo := func(ref, label, branches string) int64 {
@@ -69,7 +69,7 @@ func TestWebEndToEnd(t *testing.T) {
 		w := e.post("/settings/repos", url.Values{"repo": {ref}, "label": {label}, "branches": {branches}}, false)
 		assertStatus(t, w, http.StatusSeeOther)
 		loc, err := url.Parse(w.Header().Get("Location"))
-		if err != nil || loc.Path != "/settings" || loc.Query().Get("msg") != msgAdded {
+		if err != nil || loc.Path != "/settings/repos" || loc.Query().Get("msg") != msgAdded {
 			t.Fatalf("adding %s: Location %q", ref, w.Header().Get("Location"))
 		}
 		id, err := strconv.ParseInt(loc.Query().Get("repo"), 10, 64)
@@ -183,7 +183,7 @@ func TestWebEndToEnd(t *testing.T) {
 	w = e.post("/settings/repos/"+strconv.FormatInt(bobID, 10)+"/remove", nil, false)
 	assertStatus(t, w, http.StatusSeeOther)
 	assertStatus(t, e.get(repoPath(bobID)), http.StatusNotFound)
-	w = e.get("/settings")
+	w = e.get("/settings/repos")
 	assertStatus(t, w, http.StatusOK)
 	assertContains(t, w, "Alice Martin", "carol/projet")
 	if main := w.Body.String()[strings.Index(w.Body.String(), `id="main"`):]; strings.Contains(main, "bob/projet") {

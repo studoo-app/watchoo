@@ -9,6 +9,21 @@ PATCH (see [Skills](documentation/en/11-skills.md#versions-and-changelogmd)).
 
 ## [Unreleased]
 
+### Added
+
+- **Web interface, settings pages**: the settings are split into three pages, one per topic, joined by a
+  settings menu: **Repositories** (`/settings/repos`: list, addition, edition, removal),
+  **Synchronization** (`/settings/sync`: interval, "Sync now", GitHub API quota) and **Sharing**
+  (`/settings/share`: export and import of the configuration). The "Settings" link of the navigation
+  bar leads to `/settings/repos`.
+
+### Changed
+
+- **Web interface**: `GET /settings` now redirects (`302`) to the settings page of the topic, its query
+  kept (`msg=imported` to `/settings/share`, the interval to `/settings/sync`, everything else to
+  `/settings/repos`): bookmarks and old links keep working. The `POST` routes are unchanged; their
+  redirects lead to the page of their topic, and "Sync now" without HTMX back to `/settings/sync`.
+
 ## [1.7.1] - 2026-11-14
 
 A lighter interface for the project conventions and a sticky navigation. Same figures, same routes, same
