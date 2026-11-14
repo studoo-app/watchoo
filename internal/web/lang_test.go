@@ -316,11 +316,11 @@ func TestDocsLinkFollowsLanguage(t *testing.T) {
 	assertStatus(t, w, http.StatusOK)
 	assertContains(t, w, en, ">Documentation</a>",
 		`href="https://github.com/studoo-app/watchoo" target="_blank" rel="noopener noreferrer" aria-label="Watchoo&#39;s repository on GitHub"`,
-		`<svg class="size-4" viewBox="0 0 16 16"`, ">GitHub</a>")
+		`<svg class="size-4" viewBox="0 0 16 16"`, ">GitHub</a>", "<p>Created by Studoo Labs</p>")
 	assertNotContains(t, w, fr)
 
 	w = newTestEnv(t, withLang("fr")).get("/page-inconnue")
-	assertContains(t, w, fr, `aria-label="Dépôt de Watchoo sur GitHub"`)
+	assertContains(t, w, fr, `aria-label="Dépôt de Watchoo sur GitHub"`, "<p>Créé par Studoo Labs</p>")
 	assertNotContains(t, w, en)
 
 	if got := docsURLFor(i18n.Lang("de")); !strings.HasSuffix(got, "/documentation/en/README.md") {

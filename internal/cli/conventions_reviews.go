@@ -45,7 +45,7 @@ func newConventionsUnreviewedJSON(p conventions.PullReport) []conventionsUnrevie
 	lines := p.MergedWithoutReview()
 	out := make([]conventionsUnreviewedJSON, 0, len(lines))
 	for _, l := range lines {
-		out = append(out, conventionsUnreviewedJSON{Number: l.Number, Author: conventionsAuthor(l.AuthorName, l.AuthorLogin)})
+		out = append(out, conventionsUnreviewedJSON{Number: l.Number, Author: conventionsAuthor(l.AuthorLabel, l.AuthorName, l.AuthorLogin)})
 	}
 	return out
 }
@@ -69,7 +69,7 @@ func reviewLines(p conventions.PullReport) []string {
 	lines := []string{i18n.T("cli.conv.reviews_line", m.Reviewed, m.ReviewKnown, m.Evaluated-m.ReviewKnown)}
 	var items []string
 	for _, l := range p.MergedWithoutReview() {
-		author := cmpOr(cmpOr(l.AuthorName, l.AuthorLogin), i18n.T("cli.conv.unknown_author"))
+		author := cmpOr(l.DisplayAuthor(), i18n.T("cli.conv.unknown_author"))
 		items = append(items, "#"+strconv.Itoa(l.Number)+" ("+textclean.Clean(author)+")")
 	}
 	if len(items) > 0 {

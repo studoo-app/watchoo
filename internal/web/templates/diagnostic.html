@@ -61,7 +61,7 @@
       <tr>
         <td class="whitespace-nowrap"><time datetime="{{isoTime .Date}}">{{localDate .Date}}</time></td>
         <td>{{truncate 40 .RepoDisplayName}}</td>
-        <td>{{if .AuthorName}}{{truncate 30 .AuthorName}}{{else if .AuthorLogin}}{{truncate 30 .AuthorLogin}}{{else}}-{{end}}</td>
+        <td>{{with .AuthorDisplayName}}{{truncate 30 .}}{{else}}-{{end}}</td>
         <td><a class="link" href="{{.Path}}">{{diagKind .Kind}}{{if .SHA}} {{shortSHA .SHA}}{{else if .Number}} #{{.Number}}{{end}}</a></td>
         <td>{{if .Review}}<span class="text-sm text-base-content/60">{{diagLevel .Level}}</span>{{else}}<span class="badge badge-sm {{diagLevelClass .Level}}">{{diagLevel .Level}}</span>{{end}}</td>
         <td class="text-sm">{{diagHits .Hits}}</td>

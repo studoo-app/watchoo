@@ -110,8 +110,11 @@ type Contributor struct {
 	Provider       string // forge du compte ; vide si aucun compte n'est connu
 	ProviderUserID int64  // identifiant numérique du compte sur la forge ; 0 si aucun compte n'est connu
 	ProviderLogin  string // login sur la forge, s'il est connu (mis à jour s'il change)
-	Name           string // nom affiché
-	AvatarURL      string // URL de l'avatar
+	Name           string // nom connu par les commits : nom du compte de la forge, sinon nom Git
+	// Label est le nom donné par le superviseur dans l'interface web (1.8.0) ; vide = aucun. Jamais
+	// écrit par la synchro.
+	Label     string
+	AvatarURL string // URL de l'avatar
 	// ProfileURL est la page de profil du compte sur la forge (html_url sur GitHub), donnée par le
 	// provider ; vide si aucun compte n'est connu ou si elle n'a pas encore été lue (0.5.0).
 	ProfileURL string
@@ -120,10 +123,12 @@ type Contributor struct {
 	Emails []string
 }
 
-// DisplayName renvoie le nom à afficher d'un contributeur : Name s'il est renseigné, sinon
-// ProviderLogin, sinon « inconnu » (« unknown » en anglais : langue du processus).
+// DisplayName renvoie le nom à afficher d'un contributeur : Label s'il est renseigné (1.8.0), sinon
+// Name, sinon ProviderLogin, sinon « inconnu » (« unknown » en anglais : langue du processus).
 func (c Contributor) DisplayName() string {
 	switch {
+	case c.Label != "":
+		return c.Label
 	case c.Name != "":
 		return c.Name
 	case c.ProviderLogin != "":

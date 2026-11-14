@@ -216,7 +216,7 @@ L'import d'une organisation entière et les alertes passent en V3 (voir
 - Ajouts seulement (une colonne, des routes, une clé `--json`) : version **MINEURE**.
 - Ordre : documentation, puis le découpage des réglages sans changement de comportement, puis les noms
   (migration, cœur, CLI, TUI, web), chaque étape avec ses tests.
-- **État** : décidé (décision du mainteneur du 14 novembre 2026) ; non commencé.
+- **État** : décidé (décision du mainteneur du 14 novembre 2026) ; réalisé, pas encore publié.
 
 ## Définition de « terminé » pour chaque phase
 

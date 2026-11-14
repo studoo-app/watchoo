@@ -215,7 +215,7 @@ Importing a whole organization and the alerts move to V3 (see
 - Additions only (one column, routes, one `--json` key): **MINOR** version.
 - Order: documentation, then the split of the settings without any change of behavior, then the names
   (migration, core, CLI, TUI, web), each step with its tests.
-- **Status**: decided (maintainer decision of November 14, 2026); not started.
+- **Status**: decided (maintainer decision of November 14, 2026); implemented, not released yet.
 
 ## Definition of "done" for each phase
 

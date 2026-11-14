@@ -206,6 +206,7 @@ type CommitView struct {
 	RepoName    string // nom actuel du dépôt
 	RepoLabel   string // nom affiché du dépôt (vide = owner/name)
 	AuthorName  string // nom du contributeur auteur ; vide si inconnu
+	AuthorLabel string // nom donné à l'auteur dans l'interface web (1.8.0) ; vide si aucun
 	AuthorLogin string // login de forge de l'auteur ; vide si inconnu
 	// AuthorProfileURL est la page de profil de l'auteur sur la forge ; vide si inconnue.
 	AuthorProfileURL string
@@ -221,10 +222,10 @@ func (c CommitView) RepoDisplayName() string {
 	return c.RepoOwner + "/" + c.RepoName
 }
 
-// AuthorDisplayName renvoie le nom affiché de l'auteur (AuthorName, sinon AuthorLogin, sinon
-// « inconnu »).
+// AuthorDisplayName renvoie le nom affiché de l'auteur (AuthorLabel, sinon AuthorName, sinon
+// AuthorLogin, sinon « inconnu »).
 func (c CommitView) AuthorDisplayName() string {
-	return model.Contributor{Name: c.AuthorName, ProviderLogin: c.AuthorLogin}.DisplayName()
+	return model.Contributor{Label: c.AuthorLabel, Name: c.AuthorName, ProviderLogin: c.AuthorLogin}.DisplayName()
 }
 
 // ContributorFilter règle ContributorRanking. Sa valeur zéro classe tous les contributeurs.

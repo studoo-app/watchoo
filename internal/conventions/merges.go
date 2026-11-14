@@ -141,6 +141,7 @@ type ArrivalLine struct {
 	PR          int    // PR d'arrivée ; 0 si inconnue ou hors PR
 	AuthorID    int64  // auteur du commit (contributeur) ; 0 = inconnu
 	AuthorName  string // nom de l'auteur ; vide si inconnu
+	AuthorLabel string // nom donné dans l'interface web (1.8.0) ; affichage seulement
 	AuthorLogin string // login de forge de l'auteur ; vide si inconnu
 }
 

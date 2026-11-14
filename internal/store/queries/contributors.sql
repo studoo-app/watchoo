@@ -41,7 +41,7 @@ WHERE id = ?;
 -- name: GetContributorProfile :one
 -- Contributeur et totaux de ses commits d'AUTEUR (zeros et chaines vides s'il n'en a aucun) ; le nombre
 -- d'adresses e-mail rattachees, jamais les adresses. sql.ErrNoRows si le contributeur n'existe pas.
-SELECT ct.id, ct.provider, ct.provider_user_id, ct.provider_login, ct.name, ct.avatar_url, ct.profile_url,
+SELECT ct.id, ct.provider, ct.provider_user_id, ct.provider_login, ct.name, ct.label, ct.avatar_url, ct.profile_url,
        CAST((SELECT count(*) FROM contributor_emails e WHERE e.contributor_id = ct.id) AS INTEGER) AS emails,
        count(c.sha) AS commits,
        CAST(COALESCE(sum(c.additions), 0) AS INTEGER) AS additions,
@@ -82,3 +82,33 @@ FROM commits m
 JOIN repositories r ON r.id = m.repo_id
 JOIN contributors c ON c.id = m.author_id
 WHERE m.repo_id = ?;
+
+-- name: SetContributorLabel :execrows
+-- Nom donne a un contributeur par le superviseur (1.8.0 ; vide = aucun). 0 ligne : contributeur inconnu.
+UPDATE contributors
+SET label = sqlc.arg(label)
+WHERE id = sqlc.arg(id);
+
+-- name: KeepContributorLabel :exec
+-- Fusion de contributeurs : to_id reprend le nom donne de from_id s'il n'en a pas (1.8.0).
+UPDATE contributors
+SET label = (SELECT f.label FROM contributors AS f WHERE f.id = sqlc.arg(from_id))
+WHERE contributors.id = sqlc.arg(to_id) AND contributors.label = ''
+  AND EXISTS (SELECT 1 FROM contributors AS g WHERE g.id = sqlc.arg(from_id) AND g.label <> '');
+
+-- name: ListContributorsForLabels :many
+-- Contributeurs auteurs d'au moins un commit (page /settings/contributors, 1.8.0) : identite, nom donne,
+-- nombre d'adresses e-mail rattachees (jamais les adresses) et nombre de commits.
+SELECT ct.id, ct.provider, ct.provider_user_id, ct.provider_login, ct.name, ct.label, ct.avatar_url, ct.profile_url,
+       CAST((SELECT count(*) FROM contributor_emails e WHERE e.contributor_id = ct.id) AS INTEGER) AS emails,
+       count(*) AS commits
+FROM contributors ct
+JOIN commits c ON c.author_id = ct.id
+GROUP BY ct.id
+ORDER BY ct.id;
+
+-- name: ListContributorLabels :many
+-- Noms donnes aux contributeurs (1.8.0), pour l'affichage des rapports du diagnostic et des conventions.
+SELECT id, label FROM contributors
+WHERE label <> ''
+ORDER BY id;

@@ -795,7 +795,7 @@ func (r *identityResolver) updateProfile(ctx context.Context, row db.Contributor
 
 // merge fusionne le contributeur sans compte from dans le contributeur avec compte into : commits
 // réattribués (auteur et committer), signaux de diagnostic aussi, adresses déplacées, from supprimé. into reprend le nom de from
-// s'il n'en a pas.
+// s'il n'en a pas, et son nom donné (label, 1.8.0) s'il n'en a pas.
 func (r *identityResolver) merge(ctx context.Context, from, into db.Contributor) error {
 	toID := sql.NullInt64{Int64: into.ID, Valid: true}
 	fromID := sql.NullInt64{Int64: from.ID, Valid: true}
@@ -817,6 +817,10 @@ func (r *identityResolver) merge(ctx context.Context, from, into db.Contributor)
 		if err := r.updateProfile(ctx, into, next); err != nil {
 			return err
 		}
+	}
+	// Nom donné dans l'interface web (1.8.0) : into reprend celui de from s'il n'en a pas.
+	if err := r.q.KeepContributorLabel(ctx, db.KeepContributorLabelParams{FromID: from.ID, ToID: into.ID}); err != nil {
+		return wrapErr(i18n.T("store.contrib.merge_label"), err)
 	}
 	if err := r.q.DeleteContributor(ctx, from.ID); err != nil {
 		return wrapErr(i18n.T("store.contrib.merge_delete"), err)

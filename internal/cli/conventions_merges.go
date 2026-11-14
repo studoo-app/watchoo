@@ -128,7 +128,7 @@ func newConventionsArrivalsJSON(a conventions.ArrivalReport) conventionsArrivals
 	}
 	for _, l := range a.Outside() {
 		out.Outside = append(out.Outside, conventionsArrivalOutsideJSON{SHA: l.SHA, ShortSHA: provider.ShortSHA(l.SHA),
-			Reason: l.Reason, Author: conventionsAuthor(l.AuthorName, l.AuthorLogin)})
+			Reason: l.Reason, Author: conventionsAuthor(l.AuthorLabel, l.AuthorName, l.AuthorLogin)})
 	}
 	return out
 }
@@ -197,7 +197,7 @@ func arrivalLines(a conventions.ArrivalReport, key string) []string {
 	}
 	lines := []string{line}
 	for _, l := range a.Outside() {
-		author := cmpOr(cmpOr(l.AuthorName, l.AuthorLogin), i18n.T("cli.conv.unknown_author"))
+		author := cmpOr(l.DisplayAuthor(), i18n.T("cli.conv.unknown_author"))
 		lines = append(lines, "  "+i18n.T("cli.conv.arrival_item", provider.ShortSHA(l.SHA), textclean.Clean(author),
 			i18n.T("cli.conv.arrival_reason."+l.Reason)))
 	}

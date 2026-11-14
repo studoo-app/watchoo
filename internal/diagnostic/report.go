@@ -52,6 +52,7 @@ type Lead struct {
 	Title       string    // titre de la PR ; vide pour un commit (son message n'est pas repris)
 	URL         string    // page du commit ou de la PR sur la forge
 	AuthorName  string    // nom Git de l'auteur (commit) ; vide si inconnu
+	AuthorLabel string    // nom donné à l'auteur dans l'interface web (1.8.0) ; vide si aucun
 	AuthorLogin string    // login de forge de l'auteur ; vide si inconnu
 	Date        time.Time // écriture du commit, ouverture de la PR, ou début du jour (KindDay)
 	Hits        []Hit     // signaux déclenchés, triés par signal
@@ -221,8 +222,23 @@ func Build(ctx context.Context, st *store.Store, f store.DiagnosticFilter, opts 
 			kept = append(kept, h)
 		}
 	}
+	// Noms donnés dans l'interface web (1.8.0) : affichage seulement, la détection lit le nom Git.
+	labels, err := st.ContributorLabels(ctx)
+	if err != nil {
+		return Report{}, err
+	}
+	for i := range leads {
+		leads[i].AuthorLabel = labels[leads[i].AuthorID]
+	}
+	for _, h := range kept {
+		h.AuthorLabel = labels[h.AuthorID]
+	}
 	return Report{Leads: leads, Contexts: contexts, Histories: kept}, nil
 }
+
+// AuthorDisplayName renvoie le nom affiché de l'auteur de la piste : nom donné, sinon nom Git, sinon
+// login ; vide si aucun n'est connu.
+func (l Lead) AuthorDisplayName() string { return cmp.Or(l.AuthorLabel, l.AuthorName, l.AuthorLogin) }
 
 // leadKey identifie un commit d'un dépôt.
 func leadKey(repoID int64, sha string) string { return strconv.FormatInt(repoID, 10) + "/" + sha }

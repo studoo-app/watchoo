@@ -11,11 +11,22 @@ PATCH (see [Skills](documentation/en/11-skills.md#versions-and-changelogmd)).
 
 ### Added
 
-- **Web interface, settings pages**: the settings are split into three pages, one per topic, joined by a
+- **Names of the contributors**: the commits only give a pseudonym (GitHub login, Git name). The new
+  settings page **Contributors** (`/settings/contributors`, or the **Rename** link of a contributor's
+  page) gives each contributor the name of your choice, displayed everywhere instead of the pseudonym:
+  web pages, `watchoo log`, `contributors`, `diagnostic`, `conventions`, the TUI and the `display_name`
+  key of `--json`; the login and the name of the commits stay visible next to it. The name is kept in
+  the database of the workspace only (migration `00022`, column `contributors.label`): the sync never
+  writes it, a merge of identities keeps it, and the configuration sharing never exports it. The
+  `--author` (`log`, `diagnostic`) and `--contributor` (`conventions`) filters accept it too.
+- **Web interface, footer**: every page now ends with the credit "Created by Studoo Labs" ("Créé par
+  Studoo Labs" in French), after the existing lines (version, Documentation and GitHub links).
+- **JSON output**: `watchoo contributors --json` gains the `label` key (name given, `""` if none).
+- **Web interface, settings pages**: the settings are split into four pages, one per topic, joined by a
   settings menu: **Repositories** (`/settings/repos`: list, addition, edition, removal),
-  **Synchronization** (`/settings/sync`: interval, "Sync now", GitHub API quota) and **Sharing**
-  (`/settings/share`: export and import of the configuration). The "Settings" link of the navigation
-  bar leads to `/settings/repos`.
+  **Contributors** (`/settings/contributors`: names), **Synchronization** (`/settings/sync`: interval,
+  "Sync now", GitHub API quota) and **Sharing** (`/settings/share`: export and import of the
+  configuration). The "Settings" link of the navigation bar leads to `/settings/repos`.
 
 ### Changed
 

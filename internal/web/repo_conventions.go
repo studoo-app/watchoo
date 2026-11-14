@@ -10,7 +10,6 @@ package web
 // Séparé du diagnostic : ni donnée, ni clé, ni fonction de template en commun.
 
 import (
-	"cmp"
 	"net/http"
 	"time"
 
@@ -413,7 +412,7 @@ func (s *server) repoConventions(r *http.Request, id int64) (*RepoConventionsVie
 		}
 		v.FailingTotal++
 		if len(v.Failing) < repoConventionsFailing {
-			v.Failing = append(v.Failing, convCommitRow{SHA: c.SHA, Author: cmp.Or(c.AuthorName, c.AuthorLogin),
+			v.Failing = append(v.Failing, convCommitRow{SHA: c.SHA, Author: c.DisplayAuthor(),
 				Date: c.AuthoredAt, Codes: c.Codes})
 		}
 	}
@@ -486,7 +485,7 @@ func (s *server) repoConventionsPulls(tr *i18n.Translator, repo conventions.Repo
 		codes := convCodesOf(tr, "web.conv.code.", l.Codes, conventions.SeverityOf)
 		codes = append(codes, convCodesOf(tr, "web.conv.pr_default.", l.Default, prDefaultSeverity)...)
 		v.PullRows = append(v.PullRows, convPullRow{Number: l.Number, Merged: l.Category == conventions.PRCategoryMerged,
-			Author: cmp.Or(l.AuthorName, l.AuthorLogin), AuthorID: l.AuthorID, HeadBranch: l.HeadBranch, Codes: codes,
+			Author: l.DisplayAuthor(), AuthorID: l.AuthorID, HeadBranch: l.HeadBranch, Codes: codes,
 			Body: bodyStatus(tr, l.Body), Merge: mergeStatus(tr, l.Merge), Review: reviewStatus(tr, l)})
 	}
 }

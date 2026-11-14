@@ -492,7 +492,8 @@ place du pseudo : web, CLI, TUI et clé `display_name` de `--json`.
 - Liste des contributeurs auteurs d'au moins un commit en base (les mêmes que la page
   [Contributeurs](#3-contributeurs)), triés par nom affiché : avatar (même règle que la page des
   contributeurs), nom affiché, nom connu par les commits, login avec le lien « GitHub » s'il est connu,
-  nombre d'identités Git rattachées (jamais les adresses), nombre de commits, et un **champ « Nom »**
+  nombre d'identités Git rattachées (jamais les adresses), nombre de commits, et un **champ de nom**
+  (« Nom pour … »)
   avec un bouton **« Enregistrer »** sur chaque ligne. Chaque ligne a l'ancre `#contributor-{id}`.
 - Champ de recherche `?q=` (formulaire `GET` classique) : garde les lignes dont le nom donné, le nom ou
   le login contient le texte, sans tenir compte de la casse ; liste vide : « Aucun contributeur ne
@@ -737,7 +738,8 @@ Le pied de chaque page porte un lien **Documentation** (1.6.1) vers le sommaire 
 ligne dans la langue de la page : `documentation/fr/README.md` en français, `documentation/en/README.md`
 en anglais (la langue choisie avec le sélecteur EN / FR, sinon celle de l'espace), suivi d'un lien
 **GitHub**, avec l'icône de GitHub (SVG en ligne), vers le dépôt de Watchoo. Les deux s'ouvrent dans un
-nouvel onglet, sans en-tête `Referer`.
+nouvel onglet, sans en-tête `Referer`. Depuis la 1.8.0, le pied se termine par la mention « Créé par
+Studoo Labs » (texte simple, sans lien).
 
 ## Logo et icônes
 

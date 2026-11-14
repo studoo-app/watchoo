@@ -6,8 +6,6 @@ package web
 // (il n'est pas gardé), ni le corps d'une relecture, ni le titre d'une PR.
 
 import (
-	"cmp"
-
 	"github.com/studoo-app/watchoo/internal/conventions"
 	"github.com/studoo-app/watchoo/internal/i18n"
 )
@@ -36,7 +34,7 @@ func newConvReviews(p conventions.PullReport) convReviews {
 	for _, l := range p.MergedWithoutReview() {
 		out.RowsTotal++
 		if len(out.Rows) < repoConventionsList {
-			out.Rows = append(out.Rows, convUnreviewedRow{Number: l.Number, Author: cmp.Or(l.AuthorName, l.AuthorLogin),
+			out.Rows = append(out.Rows, convUnreviewedRow{Number: l.Number, Author: l.DisplayAuthor(),
 				AuthorID: l.AuthorID})
 		}
 	}

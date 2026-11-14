@@ -489,8 +489,8 @@ pseudonym: web, CLI, TUI and `display_name` key of `--json`.
 - List of the contributors who are the author of at least one commit in the database (the same ones as
   the [Contributors](#3-contributors) page), sorted by displayed name: avatar (same rule as the
   contributors page), displayed name, name known from the commits, login with the "GitHub" link if known,
-  number of attached Git identities (never the addresses), number of commits, and a **"Label" field**
-  with a **"Save"** button on each row. Each row has the anchor `#contributor-{id}`.
+  number of attached Git identities (never the addresses), number of commits, and a **name field**
+  ("Name for …") with a **"Save"** button on each row. Each row has the anchor `#contributor-{id}`.
 - Search field `?q=` (plain `GET` form): keeps the rows whose label, name or login contains the text,
   ignoring case; empty list: "No contributor matches." No pagination.
 - `POST /settings/contributors/{id}` (CSRF, `label` field): the value is trimmed of its surrounding
@@ -728,6 +728,7 @@ The footer of every page carries a **Documentation** link (1.6.1) to the content
 in the page's language: `documentation/en/README.md` in English, `documentation/fr/README.md` in French
 (the language chosen with the EN / FR selector, else the workspace's), followed by a **GitHub** link, with the
 GitHub icon (inline SVG), to Watchoo's repository. Both open in a new tab, without a `Referer` header.
+Since 1.8.0, the footer ends with the credit "Created by Studoo Labs" (plain text, no link).
 
 ## Logo and icons
 

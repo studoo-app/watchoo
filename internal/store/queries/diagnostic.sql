@@ -150,12 +150,13 @@ WHERE (sqlc.narg(repo_id) IS NULL OR cs.repo_id = sqlc.narg(repo_id))
 ORDER BY cs.authored_at, cs.sha;
 
 -- name: MatchingContributorIDs :many
--- Contributeurs dont le login ou le nom vaut author (sans casse, ASCII), ou qui ont l'e-mail
--- author_email (deja en minuscules).
+-- Contributeurs dont le login, le nom ou le nom donne (label, 1.8.0) vaut author (sans casse, ASCII), ou
+-- qui ont l'e-mail author_email (deja en minuscules).
 SELECT DISTINCT a.id
 FROM contributors a
 WHERE a.provider_login = sqlc.arg(author) COLLATE NOCASE
    OR a.name = sqlc.arg(author) COLLATE NOCASE
+   OR (a.label <> '' AND a.label = sqlc.arg(author) COLLATE NOCASE)
    OR EXISTS (SELECT 1 FROM contributor_emails e WHERE e.contributor_id = a.id AND e.email = sqlc.arg(author_email))
 ORDER BY a.id;
 

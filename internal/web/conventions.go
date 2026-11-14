@@ -9,7 +9,6 @@ package web
 // branches sans PR) ne sont jamais attribués à une personne.
 
 import (
-	"cmp"
 	"net/http"
 
 	"github.com/studoo-app/watchoo/internal/conventions"
@@ -191,7 +190,7 @@ func (s *server) handleConventions(w http.ResponseWriter, r *http.Request) {
 	}
 	for _, c := range rep.Contributors {
 		view.Contributors = append(view.Contributors, convContributorRow{ID: c.AuthorID,
-			Name: cmp.Or(c.AuthorName, c.AuthorLogin), Evaluated: c.Evaluated, Conform: c.Conform,
+			Name: c.DisplayAuthor(), Evaluated: c.Evaluated, Conform: c.Conform,
 			Percent: percent(c.Conform, c.Evaluated), Trend: newConvTrend(c.Trend), Pulls: newConvPRCounts(c.Pulls),
 			BranchesChecked: c.Branches.Checked, BranchesConform: c.Branches.Conform,
 			OutsidePR: c.Arrivals.OutsidePR, Arrivals: c.Arrivals.Total()})

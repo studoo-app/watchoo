@@ -56,6 +56,9 @@ type BranchLine struct {
 	AuthorIDs    []int64
 	AuthorNames  []string
 	AuthorLogins []string
+	// AuthorLabels sont les noms donnés dans l'interface web (1.8.0), de pair avec AuthorIDs ; nil tant
+	// que le rapport n'a pas de noms donnés (affichage seulement).
+	AuthorLabels []string
 }
 
 // BranchReport est BR1 d'un dépôt : l'état courant des noms de branche, chaque nom une fois, hors
@@ -158,6 +161,7 @@ type PullLine struct {
 	Category    string // PRCategoryOpen ou PRCategoryMerged
 	AuthorID    int64  // contributeur du compte de l'auteur ; 0 si aucun
 	AuthorName  string
+	AuthorLabel string // nom donné dans l'interface web (1.8.0) ; affichage seulement
 	AuthorLogin string
 	HeadBranch  string
 	Codes       []string // PR1 : codes CC2 de l'en-tête

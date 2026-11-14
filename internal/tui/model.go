@@ -585,15 +585,15 @@ func (m Model) searchText(v view, i int) string {
 	switch v {
 	case viewRepos:
 		r := m.repos[i]
-		return strings.Join([]string{r.DisplayName(), r.FullName(), r.LastCommit.AuthorName,
+		return strings.Join([]string{r.DisplayName(), r.FullName(), r.LastCommit.AuthorLabel, r.LastCommit.AuthorName,
 			r.LastCommit.AuthorLogin, m.evaluate(r).State.Label()}, "\n")
 	case viewCommits:
 		c := m.commits[i]
-		return strings.Join([]string{c.RepoDisplayName(), c.RepoOwner + "/" + c.RepoName, c.AuthorName,
+		return strings.Join([]string{c.RepoDisplayName(), c.RepoOwner + "/" + c.RepoName, c.AuthorLabel, c.AuthorName,
 			c.AuthorLogin, c.SHA, firstLine(c.Message)}, "\n")
 	default:
 		c := m.contribs[i]
-		return strings.Join([]string{c.Name, c.ProviderLogin}, "\n")
+		return strings.Join([]string{c.Label, c.Name, c.ProviderLogin}, "\n")
 	}
 }
 

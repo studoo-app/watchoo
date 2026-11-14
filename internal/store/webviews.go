@@ -104,6 +104,7 @@ func commitViewsFromRows(rows []db.ListRecentCommitsRow) ([]CommitView, error) {
 			RepoName:         row.RepoName,
 			RepoLabel:        row.RepoLabel,
 			AuthorName:       row.AuthorName,
+			AuthorLabel:      row.AuthorLabel,
 			AuthorLogin:      row.AuthorLogin,
 			AuthorProfileURL: row.AuthorProfileURL,
 			AISignatures:     parseAISignatures(row.AiSignatures),
@@ -277,7 +278,8 @@ func (s *Store) ContributorProfile(ctx context.Context, id int64) (ContributorPr
 	p := ContributorProfile{
 		Contributor: contributorFromDB(db.Contributor{
 			ID: row.ID, Provider: row.Provider, ProviderUserID: row.ProviderUserID,
-			ProviderLogin: row.ProviderLogin, Name: row.Name, AvatarURL: row.AvatarURL, ProfileURL: row.ProfileURL,
+			ProviderLogin: row.ProviderLogin, Name: row.Name, Label: row.Label, AvatarURL: row.AvatarURL,
+			ProfileURL: row.ProfileURL,
 		}),
 		Identities:   int(row.Emails),
 		Commits:      int(row.Commits),

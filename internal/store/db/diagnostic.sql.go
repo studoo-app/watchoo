@@ -574,6 +574,7 @@ SELECT DISTINCT a.id
 FROM contributors a
 WHERE a.provider_login = ?1 COLLATE NOCASE
    OR a.name = ?1 COLLATE NOCASE
+   OR (a.label <> '' AND a.label = ?1 COLLATE NOCASE)
    OR EXISTS (SELECT 1 FROM contributor_emails e WHERE e.contributor_id = a.id AND e.email = ?2)
 ORDER BY a.id
 `
@@ -583,8 +584,8 @@ type MatchingContributorIDsParams struct {
 	AuthorEmail string
 }
 
-// Contributeurs dont le login ou le nom vaut author (sans casse, ASCII), ou qui ont l'e-mail
-// author_email (deja en minuscules).
+// Contributeurs dont le login, le nom ou le nom donne (label, 1.8.0) vaut author (sans casse, ASCII), ou
+// qui ont l'e-mail author_email (deja en minuscules).
 func (q *Queries) MatchingContributorIDs(ctx context.Context, arg MatchingContributorIDsParams) ([]int64, error) {
 	rows, err := q.db.QueryContext(ctx, matchingContributorIDs, arg.Author, arg.AuthorEmail)
 	if err != nil {

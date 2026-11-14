@@ -4,7 +4,8 @@ package web
 // contributors+settings (ce fichier, templates/settings.html, settings_test.go).
 //
 // Depuis la 1.8.0, les réglages sont répartis sur des pages, une par sujet, reliées par un menu :
-// /settings/repos (dépôts), /settings/sync (intervalle, synchro, quota) et /settings/share (partage
+// /settings/repos (dépôts), /settings/contributors (noms donnés aux contributeurs,
+// settings_contributors.go), /settings/sync (intervalle, synchro, quota) et /settings/share (partage
 // de la configuration). GET /settings reste valide : il redirige (302) vers la page du sujet du code
 // msg, la query gardée (settingsSectionPath).
 //
@@ -49,15 +50,18 @@ import (
 const (
 	settingsPath      = "/settings"
 	settingsReposPath = "/settings/repos"
-	settingsSyncPath  = "/settings/sync"
-	settingsSharePath = "/settings/share"
+	// settingsContributorsPath : noms donnés aux contributeurs (settings_contributors.go).
+	settingsContributorsPath = "/settings/contributors"
+	settingsSyncPath         = "/settings/sync"
+	settingsSharePath        = "/settings/share"
 )
 
 // Pages des réglages (settingsView.Section), dans l'ordre du menu.
 const (
-	sectionRepos = "repos"
-	sectionSync  = "sync"
-	sectionShare = "share"
+	sectionRepos        = "repos"
+	sectionContributors = "contributors"
+	sectionSync         = "sync"
+	sectionShare        = "share"
 )
 
 // settingsSection décrit une page des réglages : son code, son adresse et la clé de son titre.
@@ -70,6 +74,7 @@ type settingsSection struct {
 // settingsSections sont les pages des réglages, dans l'ordre du menu.
 var settingsSections = []settingsSection{
 	{sectionRepos, settingsReposPath, "web.settings.menu.repos"},
+	{sectionContributors, settingsContributorsPath, "web.settings.menu.contributors"},
 	{sectionSync, settingsSyncPath, "web.settings.menu.sync"},
 	{sectionShare, settingsSharePath, "web.settings.menu.share"},
 }
@@ -123,7 +128,8 @@ const (
 
 // settingsView est le Content d'une page des réglages (et de la confirmation de retrait).
 type settingsView struct {
-	// Section est la page affichée (sectionRepos, sectionSync, sectionShare) ; Sections, le menu.
+	// Section est la page affichée (sectionRepos, sectionContributors, sectionSync, sectionShare) ;
+	// Sections, le menu.
 	Section  string
 	Sections []settingsSection
 
@@ -145,6 +151,9 @@ type settingsView struct {
 	MinInterval   time.Duration // minimum accepté (hors 0)
 	IntervalInput string        // saisie réaffichée après une erreur
 	IntervalError string
+
+	// Page des noms donnés aux contributeurs (settings_contributors.go).
+	Contributors contributorLabels
 
 	// Confirm est la confirmation de retrait d'un dépôt (GET /settings/repos/{id}/remove) ; nil sur la
 	// page des réglages.
@@ -238,6 +247,8 @@ func (s *server) settingsData(r *http.Request, section string) (settingsView, er
 	switch section {
 	case sectionRepos:
 		return s.settingsRepos(r, v)
+	case sectionContributors:
+		return s.settingsContributors(r, v)
 	case sectionSync:
 		return s.settingsSync(v), nil
 	}
@@ -366,6 +377,9 @@ func (s *server) serveSettings(w http.ResponseWriter, r *http.Request, section s
 			}
 		}
 		v.Flash = flashMessage(s.tr(r), msg, textclean.Clean(name))
+		if msg == msgLabelSaved || msg == msgLabelRemoved {
+			v.Flash = v.Contributors.flash(s.tr(r), msg, queryValue(r, "contributor"))
+		}
 		if msg == msgImported {
 			v.Flash, v.FlashError = importFlash(s.tr(r), r) // bilan d'un import (settings_share.go)
 		}

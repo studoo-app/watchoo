@@ -86,6 +86,7 @@ type AuthorHistory struct {
 	store.RepoRef
 	AuthorID    int64
 	AuthorName  string
+	AuthorLabel string // nom donné dans l'interface web (1.8.0) ; vide si aucun
 	AuthorLogin string
 	Commits     int  // commits mesurés
 	WorkedDays  int  // jours avec au moins un commit mesuré

@@ -104,6 +104,7 @@ type Contributor struct {
 	Name           string
 	AvatarURL      string
 	ProfileURL     string
+	Label          string
 }
 
 type ContributorEmail struct {

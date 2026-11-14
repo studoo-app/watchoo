@@ -10,6 +10,7 @@ package cli
 // SHA court, numéro de PR, auteur, noms de branche et de tag, et codes d'écart seulement.
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"math"
@@ -273,14 +274,14 @@ func runConventions(ctx context.Context, deps Deps, opts *options, ref string, f
 			}
 			report.Commits = append(report.Commits, conventionsCommitJSON{
 				Repository: ref, SHA: c.SHA, ShortSHA: provider.ShortSHA(c.SHA),
-				Author: conventionsAuthor(c.AuthorName, c.AuthorLogin), Date: timeJSON(c.AuthoredAt),
+				Author: conventionsAuthor(c.AuthorLabel, c.AuthorName, c.AuthorLogin), Date: timeJSON(c.AuthoredAt),
 				Conform: c.Conform, Codes: c.Codes,
 			})
 		}
 	}
 	for _, c := range res.Contributors {
 		report.Contributors = append(report.Contributors, conventionsAuthorJSON{
-			Author: conventionsAuthor(c.AuthorName, c.AuthorLogin), Commits: newConventionsTallyJSON(c.Tally),
+			Author: conventionsAuthor(c.AuthorLabel, c.AuthorName, c.AuthorLogin), Commits: newConventionsTallyJSON(c.Tally),
 			Traits: newConventionsTraitsJSON(c.Traits), Trend: newConventionsTrendJSON(c.Trend),
 			PullRequests: conventionsAuthorPullsJSON{Open: newPRCountJSON(c.Pulls.Open), Merged: newPRCountJSON(c.Pulls.Merged)},
 			Branches:     conventionsAuthorBranchesJSON{Checked: c.Branches.Checked, Conform: c.Branches.Conform, Review: c.Branches.Review},
@@ -298,8 +299,10 @@ func runConventions(ctx context.Context, deps Deps, opts *options, ref string, f
 }
 
 // conventionsAuthor décrit un auteur (« inconnu » sans nom ni login).
-func conventionsAuthor(name, login string) authorJSON {
-	return authorJSON{Name: name, Login: login, DisplayName: cmpOr(cmpOr(name, login), i18n.T("cli.conv.unknown_author"))}
+// label est le nom donné dans l'interface web (1.8.0), prioritaire pour display_name.
+func conventionsAuthor(label, name, login string) authorJSON {
+	return authorJSON{Name: name, Login: login,
+		DisplayName: cmpOr(cmp.Or(label, name, login), i18n.T("cli.conv.unknown_author"))}
 }
 
 // rateJSON renvoie le taux de t au millième, nil sans commit évalué.
@@ -389,7 +392,7 @@ func (s *session) conventionsText(st textStyle, res conventions.BuildReport, rep
 		b.WriteString("\n" + i18n.T("cli.conv.contributors_title") + "\n")
 		rows := make([][]string, len(res.Contributors))
 		for i, c := range res.Contributors {
-			rows[i] = []string{cmpOr(cmpOr(c.AuthorName, c.AuthorLogin), i18n.T("cli.conv.unknown_author")),
+			rows[i] = []string{cmpOr(c.DisplayAuthor(), i18n.T("cli.conv.unknown_author")),
 				ratioText(c.Tally), rateText(c.Tally, dash), trendText(c.Trend.Before, c.Trend, dash),
 				trendText(c.Trend.Since, c.Trend, dash), authorPullsText(c.Pulls, dash), authorBodiesText(c.Pulls, dash),
 				authorBranchesText(c.Branches, dash), authorArrivalsText(c.Arrivals, dash), authorReviewsText(c.Pulls, dash),

@@ -17,7 +17,8 @@
   {{template "settings-menu" $c}}
   <div class="min-w-0 space-y-4">
     {{template "flash" (dict "Message" $c.Flash "Error" $c.FlashError)}}
-    {{- if eq $c.Section "sync"}}{{template "settings-sync" .}}
+    {{- if eq $c.Section "contributors"}}{{template "settings-contributors" .}}
+    {{- else if eq $c.Section "sync"}}{{template "settings-sync" .}}
     {{- else if eq $c.Section "share"}}{{template "settings-share" .}}
     {{- else}}{{template "settings-repos" .}}{{end}}
   </div>
@@ -125,6 +126,65 @@
 
   </div>
 </div>
+{{end}}
+
+{{/* Page des noms donnés aux contributeurs (/settings/contributors, 1.8.0). Donnée : PageData, Content
+  settingsView (Contributors). Un formulaire POST par contributeur ; ancre contributor-<id>. */}}
+{{define "settings-contributors"}}{{$l := .Content.Contributors}}{{$page := .}}
+<section class="space-y-3" aria-labelledby="labels-heading">
+  <div>
+    <h2 id="labels-heading" class="text-lg font-semibold">{{t "web.labels.title"}} <span class="badge badge-ghost align-middle">{{$l.Total}}</span></h2>
+    <p class="text-sm text-base-content/70">{{t "web.labels.intro"}}</p>
+    <p class="text-xs text-base-content/60 mt-1">{{t "web.labels.note"}}</p>
+  </div>
+  {{- if $l.Total}}
+  <form method="get" action="/settings/contributors" class="flex flex-wrap items-end gap-2" role="search">
+    <label class="form-control grow block min-w-0">
+      <span class="label text-sm whitespace-normal mb-1">{{t "web.labels.search_field"}}</span>
+      <input type="search" name="q" value="{{$l.Query}}" maxlength="100" class="input input-sm w-full" autocomplete="off" spellcheck="false">
+    </label>
+    <button type="submit" class="btn btn-sm">{{t "web.labels.search"}}</button>
+    {{- if $l.Query}}<a href="/settings/contributors" class="btn btn-sm btn-ghost">{{t "web.labels.clear"}}</a>{{end}}
+  </form>
+  {{- if $l.Query}}<p class="text-sm text-base-content/70">{{t "web.labels.count" (len $l.Rows) $l.Total}}</p>{{end}}
+  {{- end}}
+  {{- if not $l.Total}}
+  <div class="card bg-base-100 shadow-sm"><div class="card-body text-base-content/70"><p>{{t "web.labels.empty"}}</p></div></div>
+  {{- else if not $l.Rows}}
+  <div class="card bg-base-100 shadow-sm"><div class="card-body text-base-content/70"><p>{{t "web.labels.no_match"}}</p></div></div>
+  {{- end}}
+  <ul class="space-y-3">
+    {{- range $l.Rows}}
+    <li id="{{.Anchor}}" class="card bg-base-100 shadow-sm scroll-mt-[calc(var(--header-h,4rem)+1rem)]">
+      <div class="card-body p-4 gap-3 sm:flex-row sm:items-start">
+        <div class="flex items-center gap-3 min-w-0 sm:w-1/2">
+          {{template "avatar" (dict "Name" .DisplayName "URL" .AvatarURL "Size" "size-10")}}
+          <div class="min-w-0">
+            <a href="{{contribPath .ID}}" class="link link-hover font-semibold break-words">{{truncate 80 .DisplayName}}</a>
+            <div class="text-sm text-base-content/60 break-all flex flex-wrap items-center gap-x-2">
+              {{- with .CommitName}}<span>{{t "web.labels.commit_name"}} {{truncate 60 .}}</span>{{end}}
+              {{- if .ShowLogin}}<span>@{{truncate 60 .ProviderLogin}}</span>{{end}}
+              {{- template "profile-link" (dict "URL" .ProfileURL "Login" .ProviderLogin)}}
+            </div>
+            <div class="text-xs text-base-content/60">{{tn "web.n.commit" .Commits}} · {{tn "web.n.identity" .Identities}}</div>
+          </div>
+        </div>
+        <form method="post" action="/settings/contributors/{{.ID}}" class="grow min-w-0 space-y-1">
+          {{template "csrf-field" $page}}
+          <div class="flex items-end gap-2">
+          <label class="form-control grow block min-w-0">
+            <span class="label text-sm whitespace-normal mb-1">{{t "web.labels.field" (truncate 60 (or .Name .ProviderLogin))}}</span>
+            <input type="text" name="label" value="{{.Edit}}" maxlength="{{$l.Max}}" placeholder="{{truncate 60 (or .Name .ProviderLogin)}}" class="input input-sm w-full{{if .Error}} input-error{{end}}" autocomplete="off"{{if .Error}} aria-invalid="true"{{end}}>
+          </label>
+          <button type="submit" class="btn btn-sm btn-primary">{{t "web.labels.save"}}</button>
+          </div>
+          {{- if .Error}}<p class="text-sm text-error" role="alert">{{.Error}}</p>{{end}}
+        </form>
+      </div>
+    </li>
+    {{- end}}
+  </ul>
+</section>
 {{end}}
 
 {{/* Page de la synchronisation (/settings/sync) : intervalle, synchro, quota. Donnée : PageData,

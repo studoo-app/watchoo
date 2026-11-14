@@ -82,7 +82,7 @@ func (s *Store) ContributorRanking(ctx context.Context, f ContributorFilter) ([]
 		stats = append(stats, ContributorStats{
 			Contributor: contributorFromDB(db.Contributor{
 				ID: row.ID, Provider: row.Provider, ProviderUserID: row.ProviderUserID,
-				ProviderLogin: row.ProviderLogin, Name: row.Name, AvatarURL: row.AvatarURL,
+				ProviderLogin: row.ProviderLogin, Name: row.Name, Label: row.Label, AvatarURL: row.AvatarURL,
 				ProfileURL: row.ProfileURL,
 			}),
 			Commits:      int(row.Commits),
@@ -230,6 +230,7 @@ func (s *Store) repositorySummaries(ctx context.Context, id int64) ([]Repository
 					RepoName:         repo.Name,
 					RepoLabel:        repo.Label,
 					AuthorName:       c.AuthorName,
+					AuthorLabel:      c.AuthorLabel,
 					AuthorLogin:      c.AuthorLogin,
 					AuthorProfileURL: c.AuthorProfileURL,
 					AISignatures:     parseAISignatures(c.AiSignatures),
@@ -285,6 +286,7 @@ func contributorFromDB(row db.Contributor) model.Contributor {
 		ProviderUserID: row.ProviderUserID.Int64,
 		ProviderLogin:  row.ProviderLogin,
 		Name:           row.Name,
+		Label:          row.Label,
 		AvatarURL:      row.AvatarURL,
 		ProfileURL:     row.ProfileURL,
 	}
