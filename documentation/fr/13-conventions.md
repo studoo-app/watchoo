@@ -72,6 +72,14 @@ Valeurs par défaut de la configuration ([section 8](#8-configuration)) ; chaque
   qui échoue renvoie une erreur typée (« objet absent »), sans recopier son stderr (qui contiendrait le
   chemin ou le nom du tag) dans les logs.
 
+**Groupes de contributeurs** (1.9.0, décision du mainteneur du 14 novembre 2026, voir
+[Modèle de données](04-modele-donnees.md#groupes-de-contributeurs-190)) : les indicateurs par
+contributeur (CC3 et sa tendance, PR1 et PR2 de ses pull requests, BR1 de ses branches, PR3 hors pull
+request, PR4 et les relectures reçues) sont calculés par **personne** (`commits.person_id` ; pour une pull
+request, le contributeur du compte de l'auteur, puis son principal). `conventions.excluded_accounts`, les
+comptes de bots et `conventions.pr.reviewer_must_contribute` restent jugés par compte. Les indicateurs par
+dépôt ne changent pas.
+
 ## 5. Catalogue des indicateurs
 
 Les préfixes CC, BR, PR, SV, CL, RD, DOC et TL ne recoupent pas ceux du diagnostic (D, R, F, A, H).

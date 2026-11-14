@@ -79,6 +79,12 @@ Aucune fonctionnalité nouvelle : la surface publique (commandes, options, codes
 | Noms des contributeurs | Les commits ne donnent qu'un pseudo (login, nom Git) : le superviseur donne à un contributeur le nom de son choix dans les réglages web (`/settings/contributors`, ou le lien « Renommer » de sa page), affiché partout à la place du pseudo (web, CLI, TUI, `--json`), le login restant visible. Gardé dans la base de l'espace seulement : jamais écrit par la synchro, jamais exporté. Voir [Modèle de données](04-modele-donnees.md#contributors--personnes-identifiées) |
 | Pages de réglages | Les réglages web sont répartis sur quatre pages avec un menu : dépôts, contributeurs, synchronisation (intervalle, synchro, quota), partage (export, import). Voir [Interface web](06-interface-web.md#5-réglages) |
 
+## 1.9.0
+
+| Fonctionnalité | Détail |
+| --- | --- |
+| Groupes de contributeurs | Une personne qui a plusieurs comptes (deux comptes GitHub, un nom Git avec un autre e-mail) est montrée comme **un seul contributeur** : le superviseur rattache les comptes à un principal dans les réglages web (`/settings/contributors`), un seul niveau, réversible. Tout comptage (classement, graphiques, score IA, diagnostic, conventions, `watchoo contributors`) est par personne ; les comptes restent listés sur la page du contributeur. Jamais exporté. Voir [Modèle de données](04-modele-donnees.md#groupes-de-contributeurs-190) |
+
 ## V3
 
 | Fonctionnalité | Détail |

@@ -60,6 +60,7 @@ ne modifie quoi que ce soit ; tout `POST` passe par le contrôle CSRF.
 | `GET` | `/settings` | Redirection (`302`) vers la page de réglages du sujet (1.8.0, voir [Réglages](#5-réglages)) |
 | `GET` | `/settings/repos`, `/settings/contributors`, `/settings/sync`, `/settings/share` | Pages de réglages (1.8.0) : dépôts, contributeurs, synchronisation, partage |
 | `POST` | `/settings/contributors/{id}` | Nom donné à un contributeur (1.8.0 ; vide : retiré) |
+| `POST` | `/settings/contributors/{id}/attach`, `/settings/contributors/{id}/detach` | Rattacher un compte à un contributeur principal, ou le détacher (1.9.0) |
 | `POST` | `/settings/repos` | Ajout d'un dépôt |
 | `POST` | `/settings/repos/{id}` | Modification d'un dépôt (libellé, branches) |
 | `GET`, `POST` | `/settings/repos/{id}/remove` | Retrait d'un dépôt : page de confirmation, puis retrait |
@@ -341,7 +342,9 @@ classement sur les signatures, aucune adresse affichée. Règles :
   n'a encore de statistiques connues, voir `commits.stats_known`), avec trois compteurs (contributeurs, commits, dépôts). Le nom de chaque
   contributeur mène à sa page (0.5.0). Depuis la 1.8.0, c'est le nom affiché : le nom donné dans
   [les réglages](#52-contributeurs-settingscontributors) s'il y en a un, le pseudo des commits alors en
-  petit en dessous.
+  petit en dessous. Depuis la 1.9.0, une ligne par personne : les comptes rattachés à un principal
+  ([groupes de contributeurs](04-modele-donnees.md#groupes-de-contributeurs-190)) sont comptés avec lui,
+  et « +n comptes » suit son login.
 - **Score IA** (1.6.0, à la place de la colonne « Signatures d'IA ») : le [score IA du
   contributeur](12-supervision-diagnostic.md#6-niveaux-score-et-sortie) : l'icône de son palier
   (`static/score-not-ia.svg` à 0, `score-ia.svg` de 1 à 29, `score-ia-max.svg` dès 30, copiées de
@@ -365,7 +368,8 @@ classement sur les signatures, aucune adresse affichée. Règles :
 
 ### 4. Page d'un contributeur (0.5.0)
 
-`GET /contributors/{id}` (identifiant interne du contributeur, 1 à 18 chiffres ; inconnu : `404`).
+`GET /contributors/{id}` (identifiant interne du contributeur, 1 à 18 chiffres ; inconnu : `404` ; un
+compte rattaché à un principal (1.9.0) : `302` vers la page de son principal, la query gardée).
 Fil d'Ariane « Contributeurs › nom ». Rien n'est propre à GitHub dans le handler ni les templates : le
 lien de profil est l'adresse enregistrée en base (voir [Liens vers les profils](#liens-vers-les-profils-050)).
 
@@ -510,6 +514,26 @@ place du pseudo : web, CLI, TUI et clé `display_name` de `--json`.
   partage de la configuration, et le login et le nom des commits restent visibles à côté.
 - La page d'un contributeur a un lien **« Renommer »** à côté du nom, vers
   `/settings/contributors#contributor-{id}`.
+- **Comptes d'une personne** (1.9.0, [groupes de contributeurs](04-modele-donnees.md#groupes-de-contributeurs-190)) :
+  la même page regroupe les identités d'une personne sous un **principal**.
+  - La ligne d'un contributeur qui n'a pas de compte rattaché et n'est pas rattaché a un formulaire
+    **« Rattacher à… »** : une liste des principaux possibles (tout autre contributeur non rattaché),
+    triée par nom affiché, et un bouton. `POST /settings/contributors/{id}/attach` (CSRF, champ
+    `primary`).
+  - La ligne d'un principal liste ses comptes rattachés (avatar, login, nom Git, nombre de commits),
+    chacun avec un bouton **« Détacher »** : `POST /settings/contributors/{id}/detach` (CSRF). La liste
+    montre les comptes sous leur principal ; la recherche trouve un groupe par n'importe lequel de ses
+    comptes.
+  - Refusé (`400`, la page réaffichée avec l'erreur sur la ligne) : se rattacher à soi-même, à un compte
+    rattaché, ou rattacher un principal qui a des comptes (« détachez d'abord ses comptes ») ; détacher
+    un compte qui n'est pas rattaché. Contributeur inconnu : `404`. Réponses : redirection (`303`) vers
+    `/settings/contributors?msg=<code>&contributor=<id>#contributor-<id>` (`attached` ou `detached`, sur
+    la ligne du principal). Possible pendant une synchro (une transaction SQLite).
+  - Une note : le regroupement change tous les comptages par contributeur (classement, score IA,
+    historiques du diagnostic, conventions) ; le détachement les rétablit exactement. Rien n'est exporté.
+- La page d'un principal montre une carte **« Comptes »** : ses comptes rattachés (login avec le lien
+  « GitHub » s'il est connu, nom Git, nombre de commits, jamais une adresse) et un lien vers cette page de
+  réglages.
 
 #### 5.3 Synchronisation (`/settings/sync`)
 

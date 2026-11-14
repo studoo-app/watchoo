@@ -73,6 +73,14 @@ Default values of the configuration ([section 8](#8-configuration)); each traine
   git command returns a typed error ("missing object"), without copying its stderr (which would contain the
   path or the tag name) into the logs.
 
+**Contributor groups** (1.9.0, maintainer decision of November 14, 2026, see
+[Data model](04-data-model.md#contributor-groups-190)): the indicators per contributor (CC3 and its
+trend, PR1 and PR2 of their pull requests, BR1 of their branches, PR3 outside a pull request, PR4 and the
+reviews received) are computed per **person** (`commits.person_id`; for a pull request, the contributor of
+the author's account, then its principal). `conventions.excluded_accounts`, the bot accounts and
+`conventions.pr.reviewer_must_contribute` stay judged per account. The indicators per repository do not
+change.
+
 ## 5. Indicator catalogue
 
 The prefixes CC, BR, PR, SV, CL, RD, DOC and TL do not overlap with those of the diagnosis (D, R, F, A, H).

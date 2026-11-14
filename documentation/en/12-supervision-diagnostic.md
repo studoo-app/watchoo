@@ -75,7 +75,10 @@ primary source must be treated with caution (Bossavit 2014).
 
 Preprocessing:
 
-1. Identities: contributors already unified by Watchoo (`contributors`) are the reference.
+1. Identities: contributors already unified by Watchoo (`contributors`) are the reference. Since 1.9.0,
+   the **person** (`commits.person_id`: the principal of a [contributor group](04-data-model.md#contributor-groups-190))
+   is the author of the computations: histories, personal medians, R, F, A and H signals, AI score. The
+   bot accounts (D3) and the excluded files stay judged per account and per commit.
 2. Merge commits excluded.
 3. Renames detected (`-M`).
 4. Files excluded by configurable patterns: lock files (`package-lock.json`, `go.sum`…), vendored dependencies
@@ -346,7 +349,12 @@ pages, in 7.4); R4 disabled by default.
   clone is read as is, without `git fetch` (the backfill can run during a `watchoo serve` sync); a missing
   clone is created first.
 - **Author**: the commit's, read again at each computation (a merge of contributors keeps the learner's
-  history).
+  history). Since 1.9.0, the person of the commit: attaching an account to a principal (maintainer
+  decision, November 14, 2026) merges the histories, so the medians, the z-scores and the leads of the
+  group may change, and detaching restores them. The key of a **day** lead holds the identifier of the
+  person (`day/<person>/<date>`): a review made on a day lead of an account before it was attached is no
+  longer found (the lead shows "not reviewed"; it is found again after detaching). Commit and pull
+  request leads are not affected.
 - **Retention**: no lead is shown beyond `diagnostic.retention_days`, PR leads included (their branch, D5,
   stays stored with the PR). The `--since` filter keeps a day that straddles the boundary.
 

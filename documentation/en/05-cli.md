@@ -119,7 +119,9 @@ stars. The choice is made again at each sync (see
 - **`log -n`** (or `--limit`) limits the number of commits printed (20 by default, `0` = all). A commit
   present on several branches appears only once.
 - **`log --author`** compares the GitHub login, the name, the label given in the web interface (1.8.0) or an e-mail of the author, **exactly** (no
-  substring), ignoring the case of ASCII letters ("ÉLODIE" does not find "élodie").
+  substring), ignoring the case of ASCII letters ("ÉLODIE" does not find "élodie"). Since 1.9.0, an
+  account of a [contributor group](04-data-model.md#contributor-groups-190) selects the commits of the
+  **whole group** (the same for `diagnostic --author` and `conventions --contributor`).
 - **`log --branch`** shows the commits **seen on that branch** during the syncs: those it shares with the
   reference branch (often `main`) are attached to it only if they were seen while comparing it
   (see [Architecture](03-architecture.md#incremental-sync)).
@@ -394,7 +396,7 @@ Top-level keys (the list is checked by a test, `internal/cli/json_schema_test.go
 | `watchoo repo remove` | `action`, `repository`, `deleted_commits` | `action`: `deleted`, `stopped` or `already_stopped` |
 | `watchoo sync` | `started_at`, `finished_at`, `summary`, `repositories`, `rate_limit`, `source` | `source`: `api`, `git` (local Git repositories, V2; `rate_limit` is then `null`) or `""` if the sync did not start; `summary`: `repositories`, `success`, `error`, `locked`, `deferred`, `new_commits`; each repository: `id`, `full_name`, `display_name`, `status` (`success`, `error`, `locked`: already being synced, `skipped` in text; `deferred`: low quota; `success` is `ok` in text), `new_commits`, `tracked_branches`, `stats_fetched`, `duration_ms`, `error`, `resume_at`, `warnings` (messages in the selected language: pull requests, releases or tags not synced, or local Git clone unavailable with `gh`, while the repository succeeded; `[]` otherwise); `stats_fetched`: commit stats computed in the clone, or requested from the API as a fallback |
 | `watchoo log` | `commits` | From newest to oldest; commit objects |
-| `watchoo contributors` | `contributors` | Each element: `id`, `name`, `login`, `label` (1.8.0: name given in the web interface, `""` if none), `display_name`, `avatar_url`, `commits`, `additions`, `deletions`, `repositories`, `share` (1.1.0: share of the commits of the ranking, as a percentage with one decimal), `last_commit_at`, `ai_signed_commits`, `ai_scanned_commits`, `ai_tools` (1.2.0: commits with a signature, commits analyzed, each tool with `tool` and `commits`; `0` is not evidence of work done without AI), `languages_scanned_commits`, `languages` (1.2.0: commits whose languages are read; each language with `name`, `lines` (lines added) and `percent` (share of their lines, one decimal), from the one with the most to the least; `[]` if none), `weekly` (with `--weeks N`: N `week` objects (Monday, `YYYY-MM-DD`, display time zone) and `count`, from the oldest to the newest; `[]` without `--weeks`) |
+| `watchoo contributors` | `contributors` | Each element: `id`, `name`, `login`, `label` (1.8.0: name given in the web interface, `""` if none), `display_name`, `accounts` (1.9.0: accounts attached to this contributor, each `id`, `name`, `login`, `commits`; `[]` if none; the other keys are those of the principal, and the totals cover the whole group), `avatar_url`, `commits`, `additions`, `deletions`, `repositories`, `share` (1.1.0: share of the commits of the ranking, as a percentage with one decimal), `last_commit_at`, `ai_signed_commits`, `ai_scanned_commits`, `ai_tools` (1.2.0: commits with a signature, commits analyzed, each tool with `tool` and `commits`; `0` is not evidence of work done without AI), `languages_scanned_commits`, `languages` (1.2.0: commits whose languages are read; each language with `name`, `lines` (lines added) and `percent` (share of their lines, one decimal), from the one with the most to the least; `[]` if none), `weekly` (with `--weeks N`: N `week` objects (Monday, `YYYY-MM-DD`, display time zone) and `count`, from the oldest to the newest; `[]` without `--weeks`) |
 | `watchoo prs` | `pull_requests` | From the most recently updated to the oldest; pull request objects |
 | `watchoo releases` | `releases`, `tags` | Release objects (from the newest to the oldest) and tag; `-n` limits each list |
 | `watchoo languages` | `languages` | From one repository to the next, largest language first. Each element: `repository`, `name`, `bytes`, `percent` (share of the repository, one decimal) |
@@ -438,7 +440,10 @@ Shared objects:
 The `display_name` of a contributor (`contributors` element, `author` objects) is its displayed name:
 since 1.8.0, the label given in the web interface if there is one, otherwise the name, otherwise the
 login (see [Data model](04-data-model.md#contributors--identified-people)); `name` and `login` keep
-the values known from the commits.
+the values known from the commits. Since 1.9.0, `contributors` has one element per person: an account
+attached to a principal ([contributor groups](04-data-model.md#contributor-groups-190)) appears only in
+the `accounts` of its principal. In an `author` object (commit, lead, conventions), `name` and `login`
+stay those of the account of the commit, and `display_name` is the displayed name of its principal.
 
 ### Version
 
@@ -904,7 +909,8 @@ sync or add a repository to track from there. See
   like an extra argument; the command also stops if standard input or standard output is not a terminal.
 - **Views**: Repositories (repository, last commit, author, branches, state), Commits (when,
   repository, author, short SHA, `+/-` of the commit, first line of the message; the last 200) and
-  Contributors (displayed name, login, commits, `+/-` totals, repositories, last commit). The
+  Contributors (displayed name, login, commits, `+/-` totals, repositories, last commit; one line per
+  person since 1.9.0, the attached accounts counted with their principal). The
   **detail of a repository** shows the URL, the state and its thresholds, the last commit, the branches,
   the number of commits and their `+/-` lines, the last sync (or its error), stars and issues, the open
   pull requests and the last published release (V2), the last 15 commits (with their `+/-`) and the top
@@ -912,7 +918,7 @@ sync or add a repository to track from there. See
   ("12 WK" column) and a one-character curve per week, the most recent on the right ("PER
   WEEK": `▁` to `█`, or `.` `-` `=` `#` without Unicode; `▁` or `.` = no commit).
 - **Detail of a contributor** (0.5.0, `enter` in the Contributors view; `esc` goes back to the
-  list): displayed name (since 1.8.0, the label given in the web interface if there is one), login (the TUI displays no address, nor the one of the profile), number of attached Git
+  list): displayed name (since 1.8.0, the label given in the web interface if there is one), login, attached accounts (1.9.0: login and Git name of each, never an address) (the TUI displays no address, nor the one of the profile), number of attached Git
   identities (never the addresses); totals (commits, `+/-` lines or `-` if unknown, repositories, first
   and last commit); activity over 12 weeks (total and one-character curve per week, as
   above); its repositories (commits, `+/-`, curve per week, last commit, state of the repository); its
