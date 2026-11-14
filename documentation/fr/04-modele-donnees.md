@@ -9,7 +9,7 @@ facultatif (dépôts suivis par clones Git locaux) ; la migration `00005` (0.5.0
 `contributors.profile_url` et la migration `00006` (0.5.0) `commits.stats_known` ; la migration `00007` (1.1.0) ajoute `repository_languages` ; la migration `00008` (1.2.0)
 ajoute `commits.ai_rules_version` et la table `commit_ai_signatures` ; la migration `00009` (1.2.0) ajoute
 `commits.languages_version` et la table `commit_languages`, soit **treize tables** ; la migration `00010` (1.3.0)
-ajoute `sync_runs.warnings`. La migration `00011` (phase 7.1) ajoute `commit_signals`, la migration `00012` (phase 7.2) `pull_requests.tool_ids` et `repository_signals`, la migration `00013` (phase 7.4) `diagnostic_reviews`, soit **seize tables**, la migration `00014` (phase 7.5) les colonnes de forme de `commit_signals`, et la migration `00015` (phase 7.7) ses mesures des signaux absolus et des contre-indicateurs (voir [Supervision et diagnostic](12-supervision-diagnostic.md)). La migration `00016` (phase 8.1) ajoute `commits.parent_count` et `repositories.conventions_since` (voir [Conventions de projet](13-conventions.md) et [Migration `00016`](#migration-00016--conventions-de-projet)), la migration `00017` (phase 8.3) le cache `repository_conventions` des critères de fichiers des conventions (voir [Migration `00017`](#migration-00017--cache-des-critères-de-fichiers)), puis les migrations `00018` et `00019` (phase 8.4) l'historique des tags `tag_observations` et les réécritures observées de la branche par défaut `branch_rewrites`, soit **dix-neuf tables** (voir [Migrations `00018` et `00019`](#migrations-00018-et-00019--historique-des-tags-et-de-la-branche-par-défaut)) ; la migration `00020` (phase 8.5) ajoute seulement des colonnes à `pull_requests` et `repositories` (voir [Migration `00020`](#migration-00020--fusions-et-corps-des-pull-requests)), et la migration `00021` (phase 8.6) seulement les compteurs de relectures de `pull_requests` (voir [Migration `00021`](#migration-00021--relectures-des-pull-requests)). Le stockage est un fichier SQLite versionné par des migrations
+ajoute `sync_runs.warnings`. La migration `00011` (phase 7.1) ajoute `commit_signals`, la migration `00012` (phase 7.2) `pull_requests.tool_ids` et `repository_signals`, la migration `00013` (phase 7.4) `diagnostic_reviews`, soit **seize tables**, la migration `00014` (phase 7.5) les colonnes de forme de `commit_signals`, et la migration `00015` (phase 7.7) ses mesures des signaux absolus et des contre-indicateurs (voir [Supervision et diagnostic](12-supervision-diagnostic.md)). La migration `00016` (phase 8.1) ajoute `commits.parent_count` et `repositories.conventions_since` (voir [Conventions de projet](13-conventions.md) et [Migration `00016`](#migration-00016--conventions-de-projet)), la migration `00017` (phase 8.3) le cache `repository_conventions` des critères de fichiers des conventions (voir [Migration `00017`](#migration-00017--cache-des-critères-de-fichiers)), puis les migrations `00018` et `00019` (phase 8.4) l'historique des tags `tag_observations` et les réécritures observées de la branche par défaut `branch_rewrites`, soit **dix-neuf tables** (voir [Migrations `00018` et `00019`](#migrations-00018-et-00019--historique-des-tags-et-de-la-branche-par-défaut)) ; la migration `00020` (phase 8.5) ajoute seulement des colonnes à `pull_requests` et `repositories` (voir [Migration `00020`](#migration-00020--fusions-et-corps-des-pull-requests)), et la migration `00021` (phase 8.6) seulement les compteurs de relectures de `pull_requests` (voir [Migration `00021`](#migration-00021--relectures-des-pull-requests)) ; la migration `00022` (1.8.0) ajoute seulement `contributors.label`, le nom donné à un contributeur par le superviseur (voir [Migration `00022`](#migration-00022--noms-donnés-aux-contributeurs)). Le stockage est un fichier SQLite versionné par des migrations
 `goose`, avec **une base par espace de supervision** (`.watchoo/watchoo.db`, voir
 [Espaces de supervision](10-espaces-de-supervision.md)). Les tables ne connaissent donc pas la notion
 d'espace : deux espaces ne partagent jamais de données.
@@ -94,7 +94,8 @@ par son e-mail Git ; SQLite accepte plusieurs valeurs vides dans une colonne uni
 | provider | Forge du compte (`github` au MVP), vide si aucun compte n'est connu |
 | provider_user_id | Identifiant du compte sur la forge (identifiant numérique GitHub), qui ne change jamais |
 | provider_login | Login GitHub (si connu), mis à jour si la personne en change |
-| name | Nom affiché |
+| name | Nom connu par les commits : nom du compte de la forge, sinon nom Git ; mis à jour par la synchro (voir [Fusion des identités](#fusion-des-identités)) |
+| label | Nom donné par le superviseur dans l'interface web (1.8.0, migration `00022`) ; vide = aucun. Jamais écrit par la synchro |
 | avatar_url | URL de l'avatar |
 | profile_url | Page de profil du compte sur la forge (`html_url` du compte GitHub), donnée par le provider ; vide si aucun login n'est connu. Ajoutée par la migration `00005` (0.5.0) ; complétée à partir du login pour les contributeurs déjà en base (0.6.1) |
 
@@ -108,6 +109,22 @@ contributeur de la forge avec un `provider_login` et un `profile_url` vide, le m
 pas la forme d'un login de compte, comme `dependabot[bot]`). Comme le login et l'avatar, une adresse
 vide n'efface pas la valeur connue, et une adresse connue n'est jamais remplacée par ce complément. Un
 contributeur sans login (connu seulement par les clones Git locaux) n'a pas d'adresse.
+
+**Nom donné** (1.8.0) : les commits donnent un pseudo (login, nom Git) qui souvent ne dit rien de la
+personne ; le superviseur peut donner à un contributeur le nom de son choix depuis l'interface web
+(`/settings/contributors`, voir [Interface web](06-interface-web.md#5-réglages)). Le **nom affiché**
+d'un contributeur est alors, partout (web, CLI, TUI, clé `display_name` de `--json`) : `label` s'il
+est renseigné, sinon `name`, sinon `provider_login`, sinon « inconnu » ; le login et le nom Git restent
+visibles à côté. Règles :
+
+- la synchro n'écrit **jamais** `label` : un nouveau commit, un changement de login ou de nom Git le
+  laisse tel quel ;
+- la valeur est débarrassée de ses espaces de bord, de 1 à 100 caractères, sans caractère de contrôle ;
+  une valeur vide retire le nom donné (retour au nom des commits) ;
+- elle reste dans la base de l'espace : elle n'est **jamais exportée** par le partage de configuration
+  (c'est une donnée personnelle, souvent le vrai nom d'un apprenant), ni écrite dans les journaux ;
+- les filtres `--author` (`watchoo log`, `watchoo diagnostic`) et `--contributor` (`watchoo conventions`)
+  l'acceptent aussi, à l'identique, comme le login et le nom.
 
 ### `contributor_emails` — rattachement des e-mails Git
 
@@ -497,7 +514,9 @@ Précisions :
 - le nom Git d'un commit sans compte met à jour le nom d'un contributeur **sans compte** trouvé par
   e-mail (le plus récent l'emporte), jamais celui d'un contributeur avec compte ; un login, un avatar ou
   une adresse de profil vide n'efface pas la valeur connue ; lors d'une fusion, le contributeur avec compte reprend le nom du
-  contributeur absorbé s'il n'en a pas.
+  contributeur absorbé s'il n'en a pas ;
+- lors d'une fusion, le contributeur avec compte reprend aussi le `label` du contributeur absorbé
+  s'il n'en a pas (1.8.0) ; si les deux en ont un, celui du contributeur avec compte est gardé.
 
 Sans `gh` (clones Git locaux, V2), aucun commit n'est lié à un compte : seule la règle « commit sans
 compte » s'applique (rattachement par e-mail). Un contributeur créé ainsi est fusionné plus tard, comme
@@ -614,6 +633,17 @@ relectures : changer les comptes exclus ne vaut que pour les PR dont les relectu
 Retour arrière (`Down`) : les quatre colonnes sont retirées ; les lignes restent. Un test
 (`internal/store/reviews_test.go`) applique la migration à une base au schéma `00020`, vérifie les valeurs
 inconnues et les contraintes, puis le retour arrière.
+
+## Migration `00022` : noms donnés aux contributeurs
+
+La version 1.8.0 ajoute, par `ALTER TABLE … ADD COLUMN` et sans reconstruire de table,
+`contributors.label TEXT NOT NULL DEFAULT ''` (voir plus haut) ; le nombre de tables ne change pas.
+Contrainte (`CHECK` de colonne) : `length(label) <= 100`. Les contributeurs existants reçoivent un nom
+vide : les noms affichés ne changent pas tant que le superviseur n'en donne pas. `UpdateContributorProfile`
+(synchro) ne liste pas cette colonne. Retour arrière (`Down`) : la colonne est supprimée ; les noms
+donnés sont perdus, les lignes restent. Un test (`internal/store/contributor_label_test.go`) applique la
+migration à une base au schéma `00021`, vérifie la valeur vide par défaut, la contrainte, qu'une synchro
+garde le nom donné, puis le retour arrière.
 
 ## Renommages et changements de login
 

@@ -10,7 +10,7 @@ migration `00005` (0.5.0) adds `contributors.profile_url` and the migration `000
 `commits.stats_known`; the migration `00007` (1.1.0) adds `repository_languages`; the migration `00008` (1.2.0)
 adds `commits.ai_rules_version` and the `commit_ai_signatures` table; the migration `00009` (1.2.0) adds
 `commits.languages_version` and the `commit_languages` table, i.e. **thirteen tables**; the migration `00010` (1.3.0)
-adds `sync_runs.warnings`. The migration `00011` (phase 7.1) adds `commit_signals`, the migration `00012` (phase 7.2) `pull_requests.tool_ids` and `repository_signals`, the migration `00013` (phase 7.4) `diagnostic_reviews`, i.e. **sixteen tables**, the migration `00014` (phase 7.5) the form columns of `commit_signals`, and the migration `00015` (phase 7.7) its measures of the absolute signals and counter-indicators (see [Supervision and diagnosis](12-supervision-diagnostic.md)). The migration `00016` (phase 8.1) adds `commits.parent_count` and `repositories.conventions_since` (see [Project conventions](13-conventions.md) and [Migration `00016`](#migration-00016-project-conventions)), the migration `00017` (phase 8.3) the cache `repository_conventions` of the file criteria of the conventions (see [Migration `00017`](#migration-00017-cache-of-the-file-criteria)), then the migrations `00018` and `00019` (phase 8.4) the history of the tags `tag_observations` and the observed rewrites of the default branch `branch_rewrites`, i.e. **nineteen tables** (see [Migrations `00018` and `00019`](#migrations-00018-and-00019-history-of-the-tags-and-of-the-default-branch)); the migration `00020` (phase 8.5) only adds columns to `pull_requests` and `repositories` (see [Migration `00020`](#migration-00020-merges-and-pull-request-bodies)), and the migration `00021` (phase 8.6) only the review counters of `pull_requests` (see [Migration `00021`](#migration-00021-pull-request-reviews)). The storage is a SQLite file versioned by `goose` migrations, with **one
+adds `sync_runs.warnings`. The migration `00011` (phase 7.1) adds `commit_signals`, the migration `00012` (phase 7.2) `pull_requests.tool_ids` and `repository_signals`, the migration `00013` (phase 7.4) `diagnostic_reviews`, i.e. **sixteen tables**, the migration `00014` (phase 7.5) the form columns of `commit_signals`, and the migration `00015` (phase 7.7) its measures of the absolute signals and counter-indicators (see [Supervision and diagnosis](12-supervision-diagnostic.md)). The migration `00016` (phase 8.1) adds `commits.parent_count` and `repositories.conventions_since` (see [Project conventions](13-conventions.md) and [Migration `00016`](#migration-00016-project-conventions)), the migration `00017` (phase 8.3) the cache `repository_conventions` of the file criteria of the conventions (see [Migration `00017`](#migration-00017-cache-of-the-file-criteria)), then the migrations `00018` and `00019` (phase 8.4) the history of the tags `tag_observations` and the observed rewrites of the default branch `branch_rewrites`, i.e. **nineteen tables** (see [Migrations `00018` and `00019`](#migrations-00018-and-00019-history-of-the-tags-and-of-the-default-branch)); the migration `00020` (phase 8.5) only adds columns to `pull_requests` and `repositories` (see [Migration `00020`](#migration-00020-merges-and-pull-request-bodies)), and the migration `00021` (phase 8.6) only the review counters of `pull_requests` (see [Migration `00021`](#migration-00021-pull-request-reviews)); the migration `00022` (1.8.0) only adds `contributors.label`, the name given to a contributor by the supervisor (see [Migration `00022`](#migration-00022-labels-of-the-contributors)). The storage is a SQLite file versioned by `goose` migrations, with **one
 database per workspace** (`.watchoo/watchoo.db`, see [Workspaces](10-workspaces.md)). The tables
 therefore do not know the notion of workspace: two workspaces never share data.
 
@@ -94,7 +94,8 @@ by their Git email; SQLite accepts several empty values in a unique column.
 | provider | Forge of the account (`github` for the MVP), empty if no account is known |
 | provider_user_id | ID of the account on the forge (GitHub numeric ID), which never changes |
 | provider_login | GitHub login (if known), updated if the person changes it |
-| name | Display label |
+| name | Name known from the commits: name of the forge account, otherwise Git name; updated by the sync (see [Identity merging](#identity-merging)) |
+| label | Name given by the supervisor in the web interface (1.8.0, migration `00022`); empty = none. Never written by the sync |
 | avatar_url | URL of the avatar |
 | profile_url | Profile page of the account on the forge (`html_url` of the GitHub account), given by the provider; empty if no login is known. Added by the migration `00005` (0.5.0); completed from the login for the contributors already in the database (0.6.1) |
 
@@ -109,6 +110,21 @@ and an empty `profile_url`, the engine writes
 does not have the shape of an account login, like `dependabot[bot]`). Like the login and the avatar, an
 empty address does not erase the known value, and a known address is never replaced by this complement. A
 contributor without a login (known only through the local Git repositories) has no address.
+
+**Label** (1.8.0): the commits give a pseudonym (login, Git name) that often says nothing about the
+person; the supervisor can give a contributor a name of their choice from the web interface
+(`/settings/contributors`, see [Web interface](06-web-interface.md#5-settings)). The **displayed
+name** of a contributor is then, everywhere (web, CLI, TUI, `display_name` key of `--json`): `label`
+if it is filled, otherwise `name`, otherwise `provider_login`, otherwise "unknown"; the login and the
+Git name remain visible next to it. Rules:
+
+- the sync **never** writes `label`: a new commit, a change of login or of Git name leaves it as is;
+- the value is trimmed of its surrounding spaces, 1 to 100 characters, without control characters;
+  an empty value removes the label (back to the name of the commits);
+- it stays in the database of the workspace: it is **never exported** by the configuration sharing
+  (it is personal data, often the real name of a learner), nor written to the logs;
+- the filters `--author` (`watchoo log`, `watchoo diagnostic`) and `--contributor` (`watchoo conventions`)
+  also accept it, exactly, like the login and the name.
 
 ### `contributor_emails` — attaching the Git emails
 
@@ -496,7 +512,9 @@ Details:
   found by email (the most recent wins), never that of a contributor with an account; an empty login,
   avatar or
   profile address does not erase the known value; during a merge, the contributor with an account takes the name of the
-  absorbed contributor if it has none.
+  absorbed contributor if it has none;
+- during a merge, the contributor with an account also takes the `label` of the absorbed contributor
+  if it has none (1.8.0); if both have one, the label of the contributor with an account is kept.
 
 Without `gh` (local Git repositories, V2), no commit is linked to an account: only the rule "commit
 without an account" applies (attaching by email). A contributor created this way is merged later, as
@@ -614,6 +632,16 @@ only applies to the PRs whose reviews are read afterwards.
 Rolling back (`Down`): the four columns are removed; the rows remain. A test
 (`internal/store/reviews_test.go`) applies the migration to a database at schema `00020`, checks the
 unknown values and the constraints, then the rollback.
+
+## Migration `00022`: labels of the contributors
+
+The version 1.8.0 adds, with `ALTER TABLE … ADD COLUMN` and without rebuilding any table,
+`contributors.label TEXT NOT NULL DEFAULT ''` (see above); the number of tables does not change.
+Constraint (column `CHECK`): `length(label) <= 100`. The existing contributors get an empty label: the
+displayed names do not change until the supervisor gives one. `UpdateContributorProfile` (sync) does
+not list this column. Rolling back (`Down`): the column is removed; the labels are lost, the rows remain.
+A test (`internal/store/contributor_label_test.go`) applies the migration to a database at schema
+`00021`, checks the empty default value, the constraint, that a sync keeps the label, then the rollback.
 
 ## Renames and login changes
 

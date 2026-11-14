@@ -205,6 +205,19 @@ L'import d'une organisation entière et les alertes passent en V3 (voir
   DOC10, TL4, TL5) **publiées en v1.7.0** : la phase 8 est réalisée, sauf la protection de branche (BR3),
   reportée.
 
+### 1.8.0 : noms des contributeurs et pages de réglages
+- **Noms donnés aux contributeurs** : le superviseur donne à un contributeur le nom de son choix
+  (`contributors.label`, migration `00022`), affiché partout à la place du pseudo des commits (web, CLI,
+  TUI, `display_name` de `--json`, nouvelle clé `label` de `watchoo contributors`) ; jamais écrit par la
+  synchro ni exporté. Voir [Modèle de données](04-modele-donnees.md#contributors--personnes-identifiées).
+- **Réglages répartis sur quatre pages** : dépôts, contributeurs, synchronisation, partage
+  (`/settings/repos`, `/settings/contributors`, `/settings/sync`, `/settings/share`), avec un menu des
+  réglages ; `/settings` redirige vers la page du sujet. Voir [Interface web](06-interface-web.md#5-réglages).
+- Ajouts seulement (une colonne, des routes, une clé `--json`) : version **MINEURE**.
+- Ordre : documentation, puis le découpage des réglages sans changement de comportement, puis les noms
+  (migration, cœur, CLI, TUI, web), chaque étape avec ses tests.
+- **État** : décidé (décision du mainteneur du 14 novembre 2026) ; non commencé.
+
 ## Définition de « terminé » pour chaque phase
 
 - Code écrit et relu.

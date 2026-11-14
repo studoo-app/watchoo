@@ -204,6 +204,19 @@ Importing a whole organization and the alerts move to V3 (see
   a reread without judging, outside the grids and the rates: CL11, CL12, RD5, DOC6, DOC7, DOC9, DOC10, TL4,
   TL5) **released in v1.7.0**: phase 8 is done, except branch protection (BR3), postponed.
 
+### 1.8.0: names of the contributors and settings pages
+- **Names given to the contributors**: the supervisor gives a contributor a name of their choice
+  (`contributors.label`, migration `00022`), displayed everywhere instead of the pseudonym of the commits
+  (web, CLI, TUI, `display_name` of `--json`, new `label` key of `watchoo contributors`); never written
+  by the sync nor exported. See [Data model](04-data-model.md#contributors--identified-people).
+- **Settings split into four pages**: repositories, contributors, synchronization, sharing
+  (`/settings/repos`, `/settings/contributors`, `/settings/sync`, `/settings/share`), with a settings
+  menu; `/settings` redirects to the page of the topic. See [Web interface](06-web-interface.md#5-settings).
+- Additions only (one column, routes, one `--json` key): **MINOR** version.
+- Order: documentation, then the split of the settings without any change of behavior, then the names
+  (migration, core, CLI, TUI, web), each step with its tests.
+- **Status**: decided (maintainer decision of November 14, 2026); not started.
+
 ## Definition of "done" for each phase
 
 - Code written and reviewed.
