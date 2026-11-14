@@ -9,6 +9,11 @@ PATCH (see [Skills](documentation/en/11-skills.md#versions-and-changelogmd)).
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-11-14
+
+Contributor groups: the accounts of one person counted as one contributor. One migration (`00023`,
+three columns, still 19 tables), two routes and one new `--json` key; nothing removed.
+
 ### Added
 
 - **Contributor groups**: a person who uses several identities that nothing links (two GitHub
@@ -821,7 +826,8 @@ First published release: the MVP (phases 1 to 5 of the [roadmap](documentation/e
   `gh` is the official binary verified by SHA-256; base images and GitHub actions pinned by
   digest.
 
-[Unreleased]: https://github.com/studoo-app/watchoo/compare/v1.8.0...HEAD
+[Unreleased]: https://github.com/studoo-app/watchoo/compare/v1.9.0...HEAD
+[1.9.0]: https://github.com/studoo-app/watchoo/compare/v1.8.0...v1.9.0
 [1.8.0]: https://github.com/studoo-app/watchoo/compare/v1.7.1...v1.8.0
 [1.7.1]: https://github.com/studoo-app/watchoo/compare/v1.7.0...v1.7.1
 [1.7.0]: https://github.com/studoo-app/watchoo/compare/v1.6.1...v1.7.0

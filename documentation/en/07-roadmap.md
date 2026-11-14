@@ -24,7 +24,7 @@ repository and per contributor as **v1.6.0**; the link to the documentation in t
 interface, the icons of the AI score and the AI score and the leads of the commits on a contributor's page as
 **v1.6.1**; the project conventions (phase 8, except BR3) and the sorting and filters of the dashboard as
 **v1.7.0**; the lighter conventions interface and the sticky navigation as **v1.7.1**; the names given to the
-contributors, the settings pages and the Studoo Labs credit as **v1.8.0**.
+contributors, the settings pages and the Studoo Labs credit as **v1.8.0**; the contributor groups as **v1.9.0**.
 
 ```mermaid
 flowchart LR
@@ -234,7 +234,7 @@ Importing a whole organization and the alerts move to V3 (see
 - Order: documentation, then the migration and the store (attach, detach, sync, merge), then the reads
   per person (web, CLI, TUI, diagnosis, conventions), then the settings page, each step with its tests.
 - **Status**: decided (maintainer decisions of November 14, 2026, including the open points: diagnosis
-  per person, day leads keyed by the person, conventions per person); not started.
+  per person, day leads keyed by the person, conventions per person); **released in v1.9.0**.
 
 ## Definition of "done" for each phase
 
