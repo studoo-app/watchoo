@@ -59,7 +59,7 @@ func TestContributorsEmpty(t *testing.T) {
 	e := newTestEnv(t)
 	w := e.get("/contributors")
 	assertStatus(t, w, http.StatusOK)
-	assertContains(t, w, "No contributor yet", `href="/settings"`)
+	assertContains(t, w, "No contributor yet", `href="/settings/repos"`)
 }
 
 func TestContributorsEscaping(t *testing.T) {

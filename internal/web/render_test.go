@@ -59,7 +59,7 @@ func TestLayoutBasics(t *testing.T) {
 		`"allowEval":false`,
 		`"includeIndicatorStyles":false`,
 		`"historyCacheSize":0`,
-		`href="/contributors"`, `href="/settings"`,
+		`href="/contributors"`, `href="/settings/repos"`,
 		`id="sync-status"`,
 		"v0.0.0-test",
 		`<script type="application/json" id="watchoo-texts">`, `"locale":"en-US"`,

@@ -13,7 +13,7 @@
 </div>
 <p class="text-sm text-base-content/70 mb-4">
   {{truncate 60 $l.RepoDisplayName}} ·
-  {{if $l.AuthorName}}{{truncate 40 $l.AuthorName}}{{else if $l.AuthorLogin}}{{truncate 40 $l.AuthorLogin}}{{else}}-{{end}} ·
+  {{with $l.AuthorDisplayName}}{{truncate 40 .}}{{else}}-{{end}} ·
   <time datetime="{{isoTime $l.Date}}">{{localDate $l.Date}}</time>
   {{if $l.Title}}· {{truncate 100 $l.Title}}{{end}}
   {{if $l.URL}}· <a class="link" href="{{$l.URL}}" target="_blank" rel="noopener noreferrer">{{t "web.diag.open_forge"}}</a>{{end}}

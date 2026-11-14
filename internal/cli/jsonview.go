@@ -87,7 +87,7 @@ type repoRefJSON struct {
 type authorJSON struct {
 	Name        string `json:"name"`
 	Login       string `json:"login"`
-	DisplayName string `json:"display_name"` // nom, sinon login, sinon « inconnu »
+	DisplayName string `json:"display_name"` // nom donné (1.8.0), sinon nom, sinon login, sinon « inconnu »
 }
 
 // commitJSON décrit un commit (watchoo log, dernier commit de repo list).

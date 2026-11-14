@@ -9,6 +9,32 @@ PATCH (see [Skills](documentation/en/11-skills.md#versions-and-changelogmd)).
 
 ## [Unreleased]
 
+### Added
+
+- **Names of the contributors**: the commits only give a pseudonym (GitHub login, Git name). The new
+  settings page **Contributors** (`/settings/contributors`, or the **Rename** link of a contributor's
+  page) gives each contributor the name of your choice, displayed everywhere instead of the pseudonym:
+  web pages, `watchoo log`, `contributors`, `diagnostic`, `conventions`, the TUI and the `display_name`
+  key of `--json`; the login and the name of the commits stay visible next to it. The name is kept in
+  the database of the workspace only (migration `00022`, column `contributors.label`): the sync never
+  writes it, a merge of identities keeps it, and the configuration sharing never exports it. The
+  `--author` (`log`, `diagnostic`) and `--contributor` (`conventions`) filters accept it too.
+- **Web interface, footer**: every page now ends with the credit "Created by Studoo Labs" ("Créé par
+  Studoo Labs" in French), after the existing lines (version, Documentation and GitHub links).
+- **JSON output**: `watchoo contributors --json` gains the `label` key (name given, `""` if none).
+- **Web interface, settings pages**: the settings are split into four pages, one per topic, joined by a
+  settings menu: **Repositories** (`/settings/repos`: list, addition, edition, removal),
+  **Contributors** (`/settings/contributors`: names), **Synchronization** (`/settings/sync`: interval,
+  "Sync now", GitHub API quota) and **Sharing** (`/settings/share`: export and import of the
+  configuration). The "Settings" link of the navigation bar leads to `/settings/repos`.
+
+### Changed
+
+- **Web interface**: `GET /settings` now redirects (`302`) to the settings page of the topic, its query
+  kept (`msg=imported` to `/settings/share`, the interval to `/settings/sync`, everything else to
+  `/settings/repos`): bookmarks and old links keep working. The `POST` routes are unchanged; their
+  redirects lead to the page of their topic, and "Sync now" without HTMX back to `/settings/sync`.
+
 ## [1.7.1] - 2026-11-14
 
 A lighter interface for the project conventions and a sticky navigation. Same figures, same routes, same

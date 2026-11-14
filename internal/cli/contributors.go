@@ -24,7 +24,8 @@ type contributorJSON struct {
 	ID           int64      `json:"id"`
 	Name         string     `json:"name"`         // nom Git (ou du compte) ; vide si inconnu
 	Login        string     `json:"login"`        // login GitHub ; vide si aucun compte connu
-	DisplayName  string     `json:"display_name"` // nom, sinon login, sinon « inconnu »
+	Label        string     `json:"label"`        // nom donné dans l'interface web (1.8.0) ; vide si aucun
+	DisplayName  string     `json:"display_name"` // nom donné, sinon nom, sinon login, sinon « inconnu »
 	AvatarURL    string     `json:"avatar_url"`
 	Commits      int        `json:"commits"`      // commits dont il est l'auteur
 	Additions    int        `json:"additions"`    // lignes ajoutées (statistiques connues seulement)
@@ -142,6 +143,7 @@ func runContributors(ctx context.Context, deps Deps, opts *options, repoRef, sin
 				ID:                      c.ID,
 				Name:                    c.Name,
 				Login:                   c.ProviderLogin,
+				Label:                   c.Label,
 				DisplayName:             c.DisplayName(),
 				AvatarURL:               c.AvatarURL,
 				Commits:                 c.Commits,

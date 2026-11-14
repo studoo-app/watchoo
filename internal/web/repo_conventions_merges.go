@@ -8,7 +8,6 @@ package web
 // PR, ni message de commit : codes, numéros, SHA courts et auteurs seulement.
 
 import (
-	"cmp"
 	"strings"
 
 	"github.com/studoo-app/watchoo/internal/conventions"
@@ -88,7 +87,7 @@ func (c *convArrivals) addArrivals(tr *i18n.Translator, a conventions.ArrivalRep
 	for _, l := range a.Outside() {
 		c.RowsTotal++
 		if len(c.Rows) < repoConventionsList {
-			c.Rows = append(c.Rows, convArrivalRow{SHA: l.SHA, Author: cmp.Or(l.AuthorName, l.AuthorLogin),
+			c.Rows = append(c.Rows, convArrivalRow{SHA: l.SHA, Author: l.DisplayAuthor(),
 				AuthorID: l.AuthorID, Reason: tr.T("web.conv.arrival_reason." + l.Reason), Repo: repo, RepoID: repoID})
 		}
 	}

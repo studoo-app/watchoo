@@ -1,6 +1,7 @@
 -- name: ListRecentCommits :many
 -- Derniers commits filtres (depot, auteur, contributeur auteur, branche, periode), du plus recent au plus ancien.
--- author_email doit etre deja en minuscules ; author est compare sans casse (ASCII) au login et au nom.
+-- author_email doit etre deja en minuscules ; author est compare sans casse (ASCII) au login, au nom et au
+-- nom donne (label, 1.8.0).
 -- row_limit negatif = pas de limite.
 SELECT c.repo_id, c.sha, c.author_id, c.committer_id, c.message, c.authored_at, c.committed_at,
        c.additions, c.deletions, c.stats_known, c.url, c.ai_rules_version, c.parent_count,
@@ -8,6 +9,7 @@ SELECT c.repo_id, c.sha, c.author_id, c.committer_id, c.message, c.authored_at, 
                       WHERE s.repo_id = c.repo_id AND s.sha = c.sha), '') AS TEXT) AS ai_signatures,
        r.owner AS repo_owner, r.name AS repo_name, r.label AS repo_label,
        CAST(COALESCE(a.name, '') AS TEXT) AS author_name,
+       CAST(COALESCE(a.label, '') AS TEXT) AS author_label,
        CAST(COALESCE(a.provider_login, '') AS TEXT) AS author_login,
        CAST(COALESCE(a.profile_url, '') AS TEXT) AS author_profile_url
 FROM commits c
@@ -23,6 +25,7 @@ WHERE (sqlc.narg(repo_id) IS NULL OR c.repo_id = sqlc.narg(repo_id))
   AND (sqlc.narg(author) IS NULL OR (c.author_id IS NOT NULL AND (
         a.provider_login = sqlc.narg(author) COLLATE NOCASE
         OR a.name = sqlc.narg(author) COLLATE NOCASE
+        OR (a.label <> '' AND a.label = sqlc.narg(author) COLLATE NOCASE)
         OR EXISTS (
           SELECT 1 FROM contributor_emails e
           WHERE e.contributor_id = c.author_id AND e.email = sqlc.narg(author_email)))))
@@ -44,6 +47,7 @@ WHERE (sqlc.narg(repo_id) IS NULL OR c.repo_id = sqlc.narg(repo_id))
   AND (sqlc.narg(author) IS NULL OR (c.author_id IS NOT NULL AND (
         a.provider_login = sqlc.narg(author) COLLATE NOCASE
         OR a.name = sqlc.narg(author) COLLATE NOCASE
+        OR (a.label <> '' AND a.label = sqlc.narg(author) COLLATE NOCASE)
         OR EXISTS (
           SELECT 1 FROM contributor_emails e
           WHERE e.contributor_id = c.author_id AND e.email = sqlc.narg(author_email)))));
@@ -51,7 +55,7 @@ WHERE (sqlc.narg(repo_id) IS NULL OR c.repo_id = sqlc.narg(repo_id))
 -- name: ContributorRanking :many
 -- Classement des auteurs : commits decroissants, puis dernier commit le plus recent, puis id.
 -- row_limit negatif = pas de limite.
-SELECT ct.id, ct.provider, ct.provider_user_id, ct.provider_login, ct.name, ct.avatar_url, ct.profile_url,
+SELECT ct.id, ct.provider, ct.provider_user_id, ct.provider_login, ct.name, ct.label, ct.avatar_url, ct.profile_url,
        count(*) AS commits,
        CAST(COALESCE(sum(c.additions), 0) AS INTEGER) AS additions,
        CAST(COALESCE(sum(c.deletions), 0) AS INTEGER) AS deletions,
@@ -95,6 +99,7 @@ SELECT c.repo_id, c.sha, c.author_id, c.committer_id, c.message, c.authored_at, 
        CAST(COALESCE((SELECT group_concat(s.tool || ':' || s.kind, ',') FROM commit_ai_signatures s
                       WHERE s.repo_id = c.repo_id AND s.sha = c.sha), '') AS TEXT) AS ai_signatures,
        CAST(COALESCE(a.name, '') AS TEXT) AS author_name,
+       CAST(COALESCE(a.label, '') AS TEXT) AS author_label,
        CAST(COALESCE(a.provider_login, '') AS TEXT) AS author_login,
        CAST(COALESCE(a.profile_url, '') AS TEXT) AS author_profile_url
 FROM repositories r

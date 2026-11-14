@@ -60,9 +60,11 @@
       <div class="min-w-0">
         <h1 id="contributor-title" class="text-2xl font-bold break-words">{{clean $p.DisplayName}}</h1>
         <p class="text-sm text-base-content/70 mt-1 flex flex-wrap items-center gap-2">
+          {{- with $p.CommitName}}<span class="break-words">{{t "web.labels.commit_name"}} {{clean .}}</span>{{end}}
           {{- if $v.ShowLogin}}<span class="break-all">@{{clean $p.ProviderLogin}}</span>{{end}}
           {{- template "profile-link" (dict "URL" $p.ProfileURL "Login" $p.ProviderLogin)}}
           <span>{{tn "web.n.identity" $p.Identities}}</span>
+          <a href="/settings/contributors#contributor-{{$p.ID}}" class="link link-hover">{{t "web.labels.rename"}}</a>
         </p>
       </div>
     </div>

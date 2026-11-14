@@ -48,11 +48,14 @@ func TestFrenchPages(t *testing.T) {
 	w = e.htmx("/page-inconnue")
 	assertContains(t, w, "<strong>Page introuvable</strong> : Cette page")
 
-	w = e.get("/settings?msg=saved&repo=1")
+	w = e.get("/settings/repos?msg=saved&repo=1")
 	assertStatus(t, w, http.StatusOK)
 	assertContains(t, w, `<html lang="fr">`, `aria-current="page">Réglages`, "Ajouter un dépôt",
-		"Intervalle en vigueur : <strong>manuelle seule</strong>", "Partager la configuration",
+		"<title>Réglages · Dépôts · ", `aria-label="Pages des réglages"`, ">Synchronisation</a>", ">Partage</a>",
 		"toutes les branches", "Le dépôt « Alice Martin » est modifié", "Flemme · 9 j")
+	assertContains(t, e.get("/settings/sync"), "Intervalle en vigueur : <strong>manuelle seule</strong>",
+		"Synchronisation automatique de ce processus")
+	assertContains(t, e.get("/settings/share"), "Partager la configuration")
 
 	w = e.get("/contributors")
 	// The series grouped in "Other contributors" only exists with more than 8 contributors: its
@@ -78,7 +81,7 @@ func TestFrenchFlashAndErrors(t *testing.T) {
 	assertContains(t, w, "intervalle &#34;abc&#34; illisible")
 	w = e.post(repoPath(ids.Bob)+"/thresholds", map[string][]string{"flemme": {"-3"}}, false)
 	assertContains(t, w, "Seuils refusés : Flemme : ")
-	assertContains(t, e.get("/settings?msg=imported&added=2&errors=1"), "Configuration importée : 2 dépôts ajoutés.",
+	assertContains(t, e.get("/settings/share?msg=imported&added=2&errors=1"), "Configuration importée : 2 dépôts ajoutés.",
 		"1 dépôt en erreur")
 	assertStatus(t, e.get("/sync"), http.StatusMethodNotAllowed)
 	assertContains(t, e.get("/sync"), "Action impossible")
@@ -127,7 +130,7 @@ func TestImportChangesLang(t *testing.T) {
 	assertContains(t, w, "lang", `&#34;en&#34;</span> → <strong>&#34;fr&#34;`, "Apply these changes")
 
 	w = e.postMultipart("/settings/import/apply", map[string]string{fieldImportDocument: doc}, nil, true)
-	assertRedirect(t, w, w.Code, "/settings?msg=imported&written=1")
+	assertRedirect(t, w, w.Code, "/settings/share?msg=imported&written=1")
 	page := e.get(w.Header().Get("Location"))
 	assertContains(t, page, `<html lang="fr">`, "Configuration importée.", "sauf la langue des pages")
 	assertContains(t, e.get("/"), `<html lang="fr">`, "Tableau de bord")
@@ -313,11 +316,11 @@ func TestDocsLinkFollowsLanguage(t *testing.T) {
 	assertStatus(t, w, http.StatusOK)
 	assertContains(t, w, en, ">Documentation</a>",
 		`href="https://github.com/studoo-app/watchoo" target="_blank" rel="noopener noreferrer" aria-label="Watchoo&#39;s repository on GitHub"`,
-		`<svg class="size-4" viewBox="0 0 16 16"`, ">GitHub</a>")
+		`<svg class="size-4" viewBox="0 0 16 16"`, ">GitHub</a>", "<p>Created by Studoo Labs</p>")
 	assertNotContains(t, w, fr)
 
 	w = newTestEnv(t, withLang("fr")).get("/page-inconnue")
-	assertContains(t, w, fr, `aria-label="Dépôt de Watchoo sur GitHub"`)
+	assertContains(t, w, fr, `aria-label="Dépôt de Watchoo sur GitHub"`, "<p>Créé par Studoo Labs</p>")
 	assertNotContains(t, w, en)
 
 	if got := docsURLFor(i18n.Lang("de")); !strings.HasSuffix(got, "/documentation/en/README.md") {

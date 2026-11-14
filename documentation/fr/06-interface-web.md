@@ -35,7 +35,7 @@ définir impose la langue partout, sauf dans un navigateur qui a choisi une lang
 | Détail d'un dépôt | `/repos/{id}` (`?page=`, `?branch=`, `?author=`) | `/repos/{id}/commits` |
 | Contributeurs | `/contributors` | `/fragments/contributors` |
 | Page d'un contributeur (0.5.0) | `/contributors/{id}` (`?page=`) | `/contributors/{id}/commits` |
-| Réglages | `/settings` | `/fragments/quota` |
+| Réglages (1.8.0 : quatre pages) | `/settings/repos`, `/settings/contributors` (`?q=`), `/settings/sync`, `/settings/share` ; `/settings` redirige | `/fragments/quota` (sur `/settings/sync`) |
 | Diagnostic (7.4, diagnostic activé) | `/diagnostic` (`?repo=`), `/diagnostic/lead` (`?repo=`, `?key=`) | — |
 | Conventions (1.8.0, conventions activées) | `/conventions` (`?milestone=`) | — |
 
@@ -57,7 +57,9 @@ ne modifie quoi que ce soit ; tout `POST` passe par le contrôle CSRF.
 | `GET` | `/fragments/contributors` | Fragment du tableau des contributeurs |
 | `GET` | `/contributors/{id}` | Page d'un contributeur |
 | `GET` | `/contributors/{id}/commits` | Fragment des commits d'un contributeur |
-| `GET` | `/settings` | Réglages |
+| `GET` | `/settings` | Redirection (`302`) vers la page de réglages du sujet (1.8.0, voir [Réglages](#5-réglages)) |
+| `GET` | `/settings/repos`, `/settings/contributors`, `/settings/sync`, `/settings/share` | Pages de réglages (1.8.0) : dépôts, contributeurs, synchronisation, partage |
+| `POST` | `/settings/contributors/{id}` | Nom donné à un contributeur (1.8.0 ; vide : retiré) |
 | `POST` | `/settings/repos` | Ajout d'un dépôt |
 | `POST` | `/settings/repos/{id}` | Modification d'un dépôt (libellé, branches) |
 | `GET`, `POST` | `/settings/repos/{id}/remove` | Retrait d'un dépôt : page de confirmation, puis retrait |
@@ -337,7 +339,9 @@ classement sur les signatures, aucune adresse affichée. Règles :
 ### 3. Contributeurs
 - Classement global (commits, part du total, lignes ajoutées / retirées ; « — » si aucun de ses commits
   n'a encore de statistiques connues, voir `commits.stats_known`), avec trois compteurs (contributeurs, commits, dépôts). Le nom de chaque
-  contributeur mène à sa page (0.5.0).
+  contributeur mène à sa page (0.5.0). Depuis la 1.8.0, c'est le nom affiché : le nom donné dans
+  [les réglages](#52-contributeurs-settingscontributors) s'il y en a un, le pseudo des commits alors en
+  petit en dessous.
 - **Score IA** (1.6.0, à la place de la colonne « Signatures d'IA ») : le [score IA du
   contributeur](12-supervision-diagnostic.md#6-niveaux-score-et-sortie) : l'icône de son palier
   (`static/score-not-ia.svg` à 0, `score-ia.svg` de 1 à 29, `score-ia-max.svg` dès 30, copiées de
@@ -366,7 +370,8 @@ Fil d'Ariane « Contributeurs › nom ». Rien n'est propre à GitHub dans le ha
 lien de profil est l'adresse enregistrée en base (voir [Liens vers les profils](#liens-vers-les-profils-050)).
 
 - **En-tête** (fragment `contributor-overview`) : avatar (même règle que la page des contributeurs),
-  nom affiché, login avec le lien « GitHub » vers son profil s'il est connu, nombre d'identités Git
+  nom affiché (depuis la 1.8.0, le nom donné dans les réglages s'il y en a un, puis le nom connu par les
+  commits en petit, et un lien « Renommer » vers [`/settings/contributors`](#52-contributeurs-settingscontributors)), login avec le lien « GitHub » vers son profil s'il est connu, nombre d'identités Git
   rattachées (« 2 identités Git connues » : le **nombre** d'adresses e-mail, **jamais les adresses**).
   Totaux : commits, lignes ajoutées / retirées (« — » si inconnues, comme le classement ; les lignes
   sont lues dans le clone Git local de chaque dépôt, pour tous les commits, ce que rappelle une note :
@@ -438,11 +443,32 @@ lien de profil est l'adresse enregistrée en base (voir [Liens vers les profils]
   le motif de route (`/contributors/{id}`), jamais l'identifiant, un nom ni un message.
 
 ### 5. Réglages
+
+Depuis la 1.8.0, les réglages sont répartis sur **quatre pages**, une par sujet, au lieu d'une seule.
+Elles partagent un menu des réglages : un `menu` DaisyUI vertical à gauche à partir de 1024 px de
+large, une rangée d'onglets au-dessus du contenu en dessous ; la page courante est marquée
+(`aria-current="page"`). Le lien « Réglages » de la barre de navigation mène à `/settings/repos`.
+
+| Page | Adresse | Contenu |
+| --- | --- | --- |
+| Dépôts | `/settings/repos` | Dépôts suivis : liste, ajout, modification, retrait |
+| Contributeurs | `/settings/contributors` (`?q=`) | Noms donnés aux contributeurs |
+| Synchronisation | `/settings/sync` | Intervalle, « Synchroniser maintenant », quota de l'API GitHub |
+| Partage | `/settings/share` | Export et import de la configuration |
+
+`GET /settings` reste valide (favoris, anciens liens) : il redirige (`302`) vers la page du sujet, la
+query gardée : `msg=imported` (et les autres codes de l'import) vers `/settings/share`, les codes de
+l'intervalle vers `/settings/sync`, toute autre requête vers `/settings/repos`. Les routes `POST` ne
+changent pas (mêmes adresses, mêmes champs, mêmes réponses) ; seules leurs redirections mènent à la
+page de leur sujet, et une erreur réaffiche cette page.
+
+#### 5.1 Dépôts (`/settings/repos`)
+
 - Liste des dépôts suivis (état, branches, commits, dernière synchro).
 - Ajouter un dépôt (`owner/repo` ou URL, label, branches : mêmes vérifications que `watchoo repo add`,
   accès vérifié auprès de GitHub, ou par `git ls-remote` sans `gh` (V2), aucune synchro lancée). Un champ branches vide veut dire « non
   précisé » : un nouveau dépôt suit toutes les branches, un dépôt déjà suivi garde ses motifs. Réponses :
-  redirection vers `/settings?msg=<code>&repo=<id>` (le message est construit par le serveur à partir
+  redirection vers `/settings/repos?msg=<code>&repo=<id>` (le message est construit par le serveur à partir
   d'une liste fixe de codes : rien de la requête n'est renvoyé tel quel), `400` avec le formulaire
   rempli en cas de saisie invalide, `422` si le dépôt est inaccessible, `502` avec un message générique
   si GitHub répond mal. Une saisie refusée qui contient « @ » (une URL avec identifiants) n'est pas
@@ -454,51 +480,90 @@ lien de profil est l'adresse enregistrée en base (voir [Liens vers les profils]
   suppression est refusée (`409`) pendant une synchro, pour que le moteur n'écrive pas dans un dépôt en
   cours de suppression ; l'arrêt du suivi reste possible. Un dépôt arrêté peut reprendre son suivi.
 - Import groupé depuis un fichier CSV : pas dans l'interface web ; utiliser `watchoo repo import`, ou
-  l'import de la configuration de cette page.
+  l'import de la configuration (`/settings/share`).
+
+#### 5.2 Contributeurs (`/settings/contributors`)
+
+Les commits ne donnent qu'un pseudo (login GitHub, nom Git), qui souvent ne dit rien de la personne.
+Cette page donne à un contributeur un **nom de son choix** (`contributors.label`, voir
+[Modèle de données](04-modele-donnees.md#contributors--personnes-identifiées)), affiché partout à la
+place du pseudo : web, CLI, TUI et clé `display_name` de `--json`.
+
+- Liste des contributeurs auteurs d'au moins un commit en base (les mêmes que la page
+  [Contributeurs](#3-contributeurs)), triés par nom affiché : avatar (même règle que la page des
+  contributeurs), nom affiché, nom connu par les commits, login avec le lien « GitHub » s'il est connu,
+  nombre d'identités Git rattachées (jamais les adresses), nombre de commits, et un **champ de nom**
+  (« Nom pour … »)
+  avec un bouton **« Enregistrer »** sur chaque ligne. Chaque ligne a l'ancre `#contributor-{id}`.
+- Champ de recherche `?q=` (formulaire `GET` classique) : garde les lignes dont le nom donné, le nom ou
+  le login contient le texte, sans tenir compte de la casse ; liste vide : « Aucun contributeur ne
+  correspond. » Pas de pagination.
+- `POST /settings/contributors/{id}` (CSRF, champ `label`) : la valeur est débarrassée de ses espaces
+  de bord ; de 1 à 100 caractères sans caractère de contrôle, ou vide pour retirer le nom donné (retour
+  au pseudo). Réponses : redirection (`303`) vers
+  `/settings/contributors?msg=<code>&contributor=<id>#contributor-<id>` (`label_saved` ou
+  `label_removed`, message construit par le serveur, qui nomme le contributeur par son nouveau nom
+  affiché), `400` avec la page réaffichée et le champ de la ligne rempli (trop long, caractères de
+  contrôle), `404` pour un contributeur inconnu. Possible pendant une synchro : la synchro n'écrit
+  jamais le nom donné.
+- Une note sous le titre : le nom donné n'est visible que dans cet espace, n'est jamais exporté par le
+  partage de la configuration, et le login et le nom des commits restent visibles à côté.
+- La page d'un contributeur a un lien **« Renommer »** à côté du nom, vers
+  `/settings/contributors#contributor-{id}`.
+
+#### 5.3 Synchronisation (`/settings/sync`)
+
 - Intervalle de synchronisation : valeur en vigueur, prochaine synchro et valeur de `config.yaml`,
   relue sur le disque à chaque affichage (si un import l'a changée depuis le lancement, la page dit
   qu'elle vaudra au prochain lancement). Il peut être changé **pour la durée du processus seulement** (durée Go comme `45m` ou `1h30m`, nombre
   entier de minutes, ou 0 ; 0 ou au moins 15 min) : ce réglage ne réécrit jamais `config.yaml` ;
   pour un changement durable, modifier `sync.interval` dans le fichier (ou importer une configuration
-  partagée, ci-dessous).
-- Bouton **« Synchroniser maintenant »**.
-- **Partager la configuration** (même fichier JSON et mêmes règles que `watchoo config export` et
-  `watchoo config import`, voir [Partage de la configuration](05-cli.md#partage-de-la-configuration--watchoo-config)) :
-  - lien **« Exporter »** : `GET /settings/export`, sans effet de bord, renvoie le document en pièce
-    jointe (`Content-Type: application/json`, `Content-Disposition: attachment`, nom de fichier sûr
-    tiré du nom de l'espace : `watchoo-config-<nom>.json`, lettres ASCII, chiffres, `-` et `_`
-    seulement ; `Cache-Control: no-store`) ;
-  - formulaire **« Importer »** : `POST /settings/import` (`multipart/form-data`, champ `file`, CSRF,
-    1 Mio au plus) **valide et affiche l'aperçu sans rien appliquer** : dépôts à ajouter, à mettre à
-    jour (avant → après : nom affiché, branches, seuils propres), à reprendre, inchangés ; réglages modifiés ; avertissements (variable
-    `WATCHOO_*` qui masque un réglage, commentaires de `config.yaml` perdus). L'aperçu ne vérifie pas
-    l'accès aux dépôts. Fichier invalide : `400` avec le message de validation ; trop gros : `413` ;
-  - bouton **« Appliquer »** : `POST /settings/import/apply` (CSRF) renvoie le contenu du fichier dans un
-    champ caché (`document`, formulaire `multipart/form-data`) ; le serveur le **revalide entièrement**
-    (l'aperçu n'est jamais pris pour acquis : un document modifié entre-temps est traité comme un
-    nouveau), l'applique comme la CLI (réglages, puis dépôts avec vérification d'accès), puis redirige
-    vers `/settings?msg=imported` avec un bilan construit par le serveur (nombres de dépôts ajoutés, mis
-    à jour, inaccessibles ; réglages écrits). Un document devenu invalide : `400`, rien n'est modifié ;
-  - **choix** : les réglages réécrits ne sont pris en compte par le `watchoo serve` en cours qu'**à son
-    prochain lancement** (le bilan le dit) : la configuration du processus n'est jamais changée à
-    chaud, l'intervalle compris (il reste modifiable pour la durée du processus, ci-dessus). Les
-    dépôts ajoutés sont, eux, visibles et synchronisés tout de suite. L'import reste possible pendant
-    une synchro, comme l'ajout d'un dépôt ;
-  - export, aperçu et application relisent `config.yaml` sur le disque à chaque requête (sans toucher
-    à la configuration du processus) : un export fait après un import reflète le nouveau fichier, et
-    réimporter le même fichier affiche « Rien à appliquer » ;
-  - **une seule application à la fois** par processus : une seconde, simultanée, reçoit `409` et ne
-    change rien ;
-  - le bilan donne le nombre de dépôts inaccessibles ou en erreur (bandeau rouge) ; leurs noms sont
-    écrits dans le journal du `serve` (`WARN`, `owner/repo` et l'erreur, jamais d'e-mail), et
-    `watchoo config import fichier --dry-run` les liste. Un fichier de plusieurs centaines de dépôts
-    peut dépasser le délai d'une requête (30 s) : les dépôts non traités sont comptés en erreur et
-    l'import se relance sans risque (ou se fait par la CLI).
+  partagée, [Partage](#54-partage-settingsshare)).
+- Bouton **« Synchroniser maintenant »** (`POST /sync`).
 - État du **quota API** GitHub (restant, limite, remise à zéro en heure locale, « quota bas » sous
   10 %), lu par une requête gratuite (`GET /rate_limit`) dans un fragment chargé après la page et
   rechargé à la fin d'une synchro ; « quota inconnu » si `gh` est en panne ou que la lecture échoue.
   Sans `gh` installé et connecté (V2), « sans objet » : les dépôts sont suivis par clones Git locaux,
   sans quota, et le fragment le dit (avec ce qui n'est alors pas lu et le rappel de `gh auth login`).
+
+#### 5.4 Partage (`/settings/share`)
+
+**Partager la configuration** : même fichier JSON et mêmes règles que `watchoo config export` et
+`watchoo config import`, voir [Partage de la configuration](05-cli.md#partage-de-la-configuration--watchoo-config).
+
+- lien **« Exporter »** : `GET /settings/export`, sans effet de bord, renvoie le document en pièce
+  jointe (`Content-Type: application/json`, `Content-Disposition: attachment`, nom de fichier sûr
+  tiré du nom de l'espace : `watchoo-config-<nom>.json`, lettres ASCII, chiffres, `-` et `_`
+  seulement ; `Cache-Control: no-store`) ;
+- formulaire **« Importer »** : `POST /settings/import` (`multipart/form-data`, champ `file`, CSRF,
+  1 Mio au plus) **valide et affiche l'aperçu sans rien appliquer** : dépôts à ajouter, à mettre à
+  jour (avant → après : nom affiché, branches, seuils propres), à reprendre, inchangés ; réglages modifiés ; avertissements (variable
+  `WATCHOO_*` qui masque un réglage, commentaires de `config.yaml` perdus). L'aperçu ne vérifie pas
+  l'accès aux dépôts. Fichier invalide : `400` avec le message de validation ; trop gros : `413` ;
+- bouton **« Appliquer »** : `POST /settings/import/apply` (CSRF) renvoie le contenu du fichier dans un
+  champ caché (`document`, formulaire `multipart/form-data`) ; le serveur le **revalide entièrement**
+  (l'aperçu n'est jamais pris pour acquis : un document modifié entre-temps est traité comme un
+  nouveau), l'applique comme la CLI (réglages, puis dépôts avec vérification d'accès), puis redirige
+  vers `/settings/share?msg=imported` avec un bilan construit par le serveur (nombres de dépôts ajoutés, mis
+  à jour, inaccessibles ; réglages écrits). Un document devenu invalide : `400`, rien n'est modifié ;
+- **choix** : les réglages réécrits ne sont pris en compte par le `watchoo serve` en cours qu'**à son
+  prochain lancement** (le bilan le dit) : la configuration du processus n'est jamais changée à
+  chaud, l'intervalle compris (il reste modifiable pour la durée du processus, [Synchronisation](#53-synchronisation-settingssync)). Les
+  dépôts ajoutés sont, eux, visibles et synchronisés tout de suite. L'import reste possible pendant
+  une synchro, comme l'ajout d'un dépôt ;
+- export, aperçu et application relisent `config.yaml` sur le disque à chaque requête (sans toucher
+  à la configuration du processus) : un export fait après un import reflète le nouveau fichier, et
+  réimporter le même fichier affiche « Rien à appliquer » ;
+- **une seule application à la fois** par processus : une seconde, simultanée, reçoit `409` et ne
+  change rien ;
+- le bilan donne le nombre de dépôts inaccessibles ou en erreur (bandeau rouge) ; leurs noms sont
+  écrits dans le journal du `serve` (`WARN`, `owner/repo` et l'erreur, jamais d'e-mail), et
+  `watchoo config import fichier --dry-run` les liste. Un fichier de plusieurs centaines de dépôts
+  peut dépasser le délai d'une requête (30 s) : les dépôts non traités sont comptés en erreur et
+  l'import se relance sans risque (ou se fait par la CLI).
+
+#### Règles communes
+
 - Les formulaires des réglages sont des `POST` classiques (redirection `303`, ou page réaffichée avec
   l'erreur), car HTMX ne remplace pas le contenu sur une réponse 4xx. La liste des dépôts n'est pas
   rechargée à la fin d'une synchro (seul le quota l'est).
@@ -651,7 +716,11 @@ barre de navigation pendant le défilement.
 flowchart LR
     DASH["Tableau de bord"] --> REPO["Détail d'un dépôt"]
     DASH --> CONTRIB["Contributeurs"]
-    DASH --> SET["Réglages"]
+    DASH --> SET["Réglages : dépôts"]
+    SET --> SETC["Réglages : contributeurs"]
+    SET --> SETS["Réglages : synchronisation"]
+    SET --> SETP["Réglages : partage"]
+    PERSON --> SETC
     REPO --> CONTRIB
     CONTRIB --> REPO
     CONTRIB --> PERSON["Page d'un contributeur"]
@@ -669,7 +738,8 @@ Le pied de chaque page porte un lien **Documentation** (1.6.1) vers le sommaire 
 ligne dans la langue de la page : `documentation/fr/README.md` en français, `documentation/en/README.md`
 en anglais (la langue choisie avec le sélecteur EN / FR, sinon celle de l'espace), suivi d'un lien
 **GitHub**, avec l'icône de GitHub (SVG en ligne), vers le dépôt de Watchoo. Les deux s'ouvrent dans un
-nouvel onglet, sans en-tête `Referer`.
+nouvel onglet, sans en-tête `Referer`. Depuis la 1.8.0, le pied se termine par la mention « Créé par
+Studoo Labs » (texte simple, sans lien).
 
 ## Logo et icônes
 

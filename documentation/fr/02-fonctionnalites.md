@@ -72,6 +72,13 @@ Aucune fonctionnalité nouvelle : la surface publique (commandes, options, codes
 | Langages d'un contributeur | Lignes ajoutées par langage dans les commits dont il est l'auteur, avec leur pourcentage, lues dans le clone Git local : carte « Langages » de la page d'un contributeur (et langage principal de chacun de ses dépôts), `watchoo contributors` (colonne LANGAGE, clé `languages` en JSON), détail d'un contributeur du TUI. Voir [Architecture](03-architecture.md#langages-dun-contributeur-120). **Publié en v1.2.0** |
 | Signatures d'IA | Outils déclarés dans les commits (co-auteur, pied de message, compte d'agent), par commit et par contributeur, dans `log`, `contributors`, le TUI et l'interface web. Voir [Signatures d'IA](#signatures-dia). **Publié en v1.2.0** |
 
+## 1.8.0
+
+| Fonctionnalité | Détail |
+| --- | --- |
+| Noms des contributeurs | Les commits ne donnent qu'un pseudo (login, nom Git) : le superviseur donne à un contributeur le nom de son choix dans les réglages web (`/settings/contributors`, ou le lien « Renommer » de sa page), affiché partout à la place du pseudo (web, CLI, TUI, `--json`), le login restant visible. Gardé dans la base de l'espace seulement : jamais écrit par la synchro, jamais exporté. Voir [Modèle de données](04-modele-donnees.md#contributors--personnes-identifiées) |
+| Pages de réglages | Les réglages web sont répartis sur quatre pages avec un menu : dépôts, contributeurs, synchronisation (intervalle, synchro, quota), partage (export, import). Voir [Interface web](06-interface-web.md#5-réglages) |
+
 ## V3
 
 | Fonctionnalité | Détail |
@@ -116,7 +123,8 @@ Aucune fonctionnalité nouvelle : la surface publique (commandes, options, codes
   système) : un commit d'hier à 23 h a 1 jour, quelle que soit l'heure.
 - **Incrémental** : un commit déjà présent en base n'est jamais re-téléchargé.
 - **Identité** : un contributeur peut utiliser plusieurs e-mails ; ils sont rattachés à son login GitHub
-  quand celui-ci est connu.
+  quand celui-ci est connu. Depuis la 1.8.0, le superviseur peut lui donner un nom, affiché à la place du
+  pseudo des commits.
 - **Lecture seule** : Watchoo n'écrit jamais sur GitHub.
 
 ## Signatures d'IA

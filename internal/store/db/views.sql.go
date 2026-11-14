@@ -237,7 +237,7 @@ func (q *Queries) ContributorLanguages(ctx context.Context, arg ContributorLangu
 }
 
 const contributorRanking = `-- name: ContributorRanking :many
-SELECT ct.id, ct.provider, ct.provider_user_id, ct.provider_login, ct.name, ct.avatar_url, ct.profile_url,
+SELECT ct.id, ct.provider, ct.provider_user_id, ct.provider_login, ct.name, ct.label, ct.avatar_url, ct.profile_url,
        count(*) AS commits,
        CAST(COALESCE(sum(c.additions), 0) AS INTEGER) AS additions,
        CAST(COALESCE(sum(c.deletions), 0) AS INTEGER) AS deletions,
@@ -269,6 +269,7 @@ type ContributorRankingRow struct {
 	ProviderUserID          sql.NullInt64
 	ProviderLogin           string
 	Name                    string
+	Label                   string
 	AvatarURL               string
 	ProfileURL              string
 	Commits                 int64
@@ -299,6 +300,7 @@ func (q *Queries) ContributorRanking(ctx context.Context, arg ContributorRanking
 			&i.ProviderUserID,
 			&i.ProviderLogin,
 			&i.Name,
+			&i.Label,
 			&i.AvatarURL,
 			&i.ProfileURL,
 			&i.Commits,
@@ -452,6 +454,7 @@ WHERE (?1 IS NULL OR c.repo_id = ?1)
   AND (?5 IS NULL OR (c.author_id IS NOT NULL AND (
         a.provider_login = ?5 COLLATE NOCASE
         OR a.name = ?5 COLLATE NOCASE
+        OR (a.label <> '' AND a.label = ?5 COLLATE NOCASE)
         OR EXISTS (
           SELECT 1 FROM contributor_emails e
           WHERE e.contributor_id = c.author_id AND e.email = ?6))))
@@ -523,6 +526,7 @@ SELECT c.repo_id, c.sha, c.author_id, c.committer_id, c.message, c.authored_at, 
        CAST(COALESCE((SELECT group_concat(s.tool || ':' || s.kind, ',') FROM commit_ai_signatures s
                       WHERE s.repo_id = c.repo_id AND s.sha = c.sha), '') AS TEXT) AS ai_signatures,
        CAST(COALESCE(a.name, '') AS TEXT) AS author_name,
+       CAST(COALESCE(a.label, '') AS TEXT) AS author_label,
        CAST(COALESCE(a.provider_login, '') AS TEXT) AS author_login,
        CAST(COALESCE(a.profile_url, '') AS TEXT) AS author_profile_url
 FROM repositories r
@@ -554,6 +558,7 @@ type LastCommitByRepoRow struct {
 	ParentCount      sql.NullInt64
 	AiSignatures     string
 	AuthorName       string
+	AuthorLabel      string
 	AuthorLogin      string
 	AuthorProfileURL string
 }
@@ -584,6 +589,7 @@ func (q *Queries) LastCommitByRepo(ctx context.Context, repoID interface{}) ([]L
 			&i.ParentCount,
 			&i.AiSignatures,
 			&i.AuthorName,
+			&i.AuthorLabel,
 			&i.AuthorLogin,
 			&i.AuthorProfileURL,
 		); err != nil {
@@ -665,6 +671,7 @@ SELECT c.repo_id, c.sha, c.author_id, c.committer_id, c.message, c.authored_at, 
                       WHERE s.repo_id = c.repo_id AND s.sha = c.sha), '') AS TEXT) AS ai_signatures,
        r.owner AS repo_owner, r.name AS repo_name, r.label AS repo_label,
        CAST(COALESCE(a.name, '') AS TEXT) AS author_name,
+       CAST(COALESCE(a.label, '') AS TEXT) AS author_label,
        CAST(COALESCE(a.provider_login, '') AS TEXT) AS author_login,
        CAST(COALESCE(a.profile_url, '') AS TEXT) AS author_profile_url
 FROM commits c
@@ -680,6 +687,7 @@ WHERE (?1 IS NULL OR c.repo_id = ?1)
   AND (?5 IS NULL OR (c.author_id IS NOT NULL AND (
         a.provider_login = ?5 COLLATE NOCASE
         OR a.name = ?5 COLLATE NOCASE
+        OR (a.label <> '' AND a.label = ?5 COLLATE NOCASE)
         OR EXISTS (
           SELECT 1 FROM contributor_emails e
           WHERE e.contributor_id = c.author_id AND e.email = ?6))))
@@ -717,12 +725,14 @@ type ListRecentCommitsRow struct {
 	RepoName         string
 	RepoLabel        string
 	AuthorName       string
+	AuthorLabel      string
 	AuthorLogin      string
 	AuthorProfileURL string
 }
 
 // Derniers commits filtres (depot, auteur, contributeur auteur, branche, periode), du plus recent au plus ancien.
-// author_email doit etre deja en minuscules ; author est compare sans casse (ASCII) au login et au nom.
+// author_email doit etre deja en minuscules ; author est compare sans casse (ASCII) au login, au nom et au
+// nom donne (label, 1.8.0).
 // row_limit negatif = pas de limite.
 func (q *Queries) ListRecentCommits(ctx context.Context, arg ListRecentCommitsParams) ([]ListRecentCommitsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listRecentCommits,
@@ -761,6 +771,7 @@ func (q *Queries) ListRecentCommits(ctx context.Context, arg ListRecentCommitsPa
 			&i.RepoName,
 			&i.RepoLabel,
 			&i.AuthorName,
+			&i.AuthorLabel,
 			&i.AuthorLogin,
 			&i.AuthorProfileURL,
 		); err != nil {

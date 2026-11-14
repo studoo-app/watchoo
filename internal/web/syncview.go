@@ -90,7 +90,7 @@ func (s *server) handleSyncStatus(w http.ResponseWriter, r *http.Request) {
 
 // handleSyncAll sert POST /sync : synchro de tous les dépôts.
 func (s *server) handleSyncAll(w http.ResponseWriter, r *http.Request) {
-	s.startSync(w, r, s.sync.SyncAll(), "/settings")
+	s.startSync(w, r, s.sync.SyncAll(), settingsSyncPath)
 }
 
 // handleSyncRepo sert POST /repos/{id}/sync : synchro d'un seul dépôt (404 s'il n'existe pas).

@@ -36,7 +36,7 @@ forces the language everywhere, except in a browser that picked a language with 
 | Repository detail | `/repos/{id}` (`?page=`, `?branch=`, `?author=`) | `/repos/{id}/commits` |
 | Contributors | `/contributors` | `/fragments/contributors` |
 | Contributor page (0.5.0) | `/contributors/{id}` (`?page=`) | `/contributors/{id}/commits` |
-| Settings | `/settings` | `/fragments/quota` |
+| Settings (1.8.0: four pages) | `/settings/repos`, `/settings/contributors` (`?q=`), `/settings/sync`, `/settings/share`; `/settings` redirects | `/fragments/quota` (on `/settings/sync`) |
 | Diagnosis (7.4, diagnosis enabled) | `/diagnostic` (`?repo=`), `/diagnostic/lead` (`?repo=`, `?key=`) | — |
 | Conventions (1.8.0, conventions enabled) | `/conventions` (`?milestone=`) | — |
 
@@ -58,7 +58,9 @@ changes anything; every `POST` goes through the CSRF check.
 | `GET` | `/fragments/contributors` | Contributor table fragment |
 | `GET` | `/contributors/{id}` | Contributor page |
 | `GET` | `/contributors/{id}/commits` | Commit fragment of a contributor |
-| `GET` | `/settings` | Settings |
+| `GET` | `/settings` | Redirect (`302`) to the settings page of the topic (1.8.0, see [Settings](#5-settings)) |
+| `GET` | `/settings/repos`, `/settings/contributors`, `/settings/sync`, `/settings/share` | Settings pages (1.8.0): repositories, contributors, synchronization, sharing |
+| `POST` | `/settings/contributors/{id}` | Name given to a contributor (1.8.0; empty: removed) |
 | `POST` | `/settings/repos` | Add a repository |
 | `POST` | `/settings/repos/{id}` | Edit a repository (label, branches) |
 | `GET`, `POST` | `/settings/repos/{id}/remove` | Remove a repository: confirmation page, then removal |
@@ -336,7 +338,9 @@ signatures, no address displayed. Rules: [AI signatures](02-features.md#ai-signa
 ### 3. Contributors
 - Global ranking (commits, share of the total, lines added / removed; "—" if none of their commits has
   known statistics yet, see `commits.stats_known`), with three counters (contributors, commits,
-  repositories). The name of each contributor leads to their page (0.5.0).
+  repositories). The name of each contributor leads to their page (0.5.0). Since 1.8.0, it is the displayed
+  name: the label given in [the settings](#52-contributors-settingscontributors) if there is one, the
+  pseudonym of the commits then in small text below.
 - **AI score** (1.6.0, in place of the "AI signatures" column): the [AI score of the
   contributor](12-supervision-diagnostic.md#6-levels-score-and-output): the icon of its tier
   (`static/score-not-ia.svg` at 0, `score-ia.svg` from 1 to 29, `score-ia-max.svg` from 30, copied from
@@ -365,8 +369,9 @@ Breadcrumb "Contributors › name". Nothing is GitHub-specific in the handler
 nor the templates: the profile link is the address stored in the database (see
 [Links to profiles](#links-to-profiles-050)).
 
-- **Header** (`contributor-overview` fragment): avatar (same rule as the contributors page), display
-  label, login with the "GitHub" link to their profile if known, number of attached Git identities
+- **Header** (`contributor-overview` fragment): avatar (same rule as the contributors page), displayed
+  name (since 1.8.0, the label given in the settings if there is one, then the name known from the commits
+  in small text, and a "Rename" link to [`/settings/contributors`](#52-contributors-settingscontributors)), login with the "GitHub" link to their profile if known, number of attached Git identities
   ("2 known Git identities": the **number** of email addresses, **never
   the addresses**). Totals: commits, lines added / removed ("—" if unknown, like the ranking; the
   lines are read from the local Git clone of each repository, for all the commits, which a note
@@ -435,11 +440,32 @@ nor the templates: the profile link is the address stored in the database (see
   (`/contributors/{id}`), never the identifier, a name nor a message.
 
 ### 5. Settings
+
+Since 1.8.0, the settings are split into **four pages**, one per topic, instead of a single page. They
+share a settings menu: a vertical DaisyUI `menu` on the left from 1024 px wide, a row of tabs above
+the content below; the current page is marked (`aria-current="page"`). The "Settings" link of the
+navigation bar leads to `/settings/repos`.
+
+| Page | Address | Content |
+| --- | --- | --- |
+| Repositories | `/settings/repos` | Tracked repositories: list, addition, edition, removal |
+| Contributors | `/settings/contributors` (`?q=`) | Names given to the contributors |
+| Synchronization | `/settings/sync` | Interval, "Sync now", GitHub API quota |
+| Sharing | `/settings/share` | Export and import of the configuration |
+
+`GET /settings` stays valid (bookmarks, old links): it redirects (`302`) to the page of the topic, the
+query kept: `msg=imported` (and the other codes of the import) to `/settings/share`, the codes of the
+interval to `/settings/sync`, every other request to `/settings/repos`. The `POST` routes do not
+change (same addresses, same fields, same responses); only their redirects lead to the page of their
+topic, and an error displays that page again.
+
+#### 5.1 Repositories (`/settings/repos`)
+
 - List of tracked repositories (state, branches, commits, last sync).
 - Add a repository (`owner/repo` or URL, label, branches: same checks as `watchoo repo add`, access
   verified against GitHub, or through `git ls-remote` without `gh` (V2), no sync started). An empty
   branches field means "not specified": a new repository tracks all branches, an already tracked
-  repository keeps its patterns. Responses: redirect to `/settings?msg=<code>&repo=<id>` (the message
+  repository keeps its patterns. Responses: redirect to `/settings/repos?msg=<code>&repo=<id>` (the message
   is built by the server from a fixed list of codes: nothing from the request is echoed back as is),
   `400` with the form refilled on invalid input, `422` if the repository is unreachable, `502` with a
   generic message if GitHub answers badly. Rejected input that contains "@" (a URL with credentials)
@@ -451,52 +477,88 @@ nor the templates: the profile link is the address stored in the database (see
   that the engine does not write to a repository being deleted; stopping tracking remains possible. A
   stopped repository can resume tracking.
 - Bulk import from a CSV file: not in the web interface; use `watchoo repo import`, or the
-  configuration import of this page.
+  configuration import (`/settings/share`).
+
+#### 5.2 Contributors (`/settings/contributors`)
+
+The commits only give a pseudonym (GitHub login, Git name), which often says nothing about the person.
+This page gives a contributor a **name of their choice** (`contributors.label`, see
+[Data model](04-data-model.md#contributors--identified-people)), displayed everywhere instead of the
+pseudonym: web, CLI, TUI and `display_name` key of `--json`.
+
+- List of the contributors who are the author of at least one commit in the database (the same ones as
+  the [Contributors](#3-contributors) page), sorted by displayed name: avatar (same rule as the
+  contributors page), displayed name, name known from the commits, login with the "GitHub" link if known,
+  number of attached Git identities (never the addresses), number of commits, and a **name field**
+  ("Name for …") with a **"Save"** button on each row. Each row has the anchor `#contributor-{id}`.
+- Search field `?q=` (plain `GET` form): keeps the rows whose label, name or login contains the text,
+  ignoring case; empty list: "No contributor matches." No pagination.
+- `POST /settings/contributors/{id}` (CSRF, `label` field): the value is trimmed of its surrounding
+  spaces; 1 to 100 characters without control characters, or empty to remove the label (back to the
+  pseudonym). Responses: redirect (`303`) to `/settings/contributors?msg=<code>&contributor=<id>#contributor-<id>`
+  (`label_saved` or `label_removed`, message built by the server, which names the contributor by their
+  new displayed name), `400` with the page displayed again and the row's field refilled (too long,
+  control characters), `404` for an unknown contributor. Possible during a sync: the sync never writes
+  the label.
+- A note under the title: the label is visible only in this workspace, is never exported by the
+  configuration sharing, and the login and the name of the commits stay visible next to it.
+- The contributor page has a **"Rename"** link next to the name, to
+  `/settings/contributors#contributor-{id}`.
+
+#### 5.3 Synchronization (`/settings/sync`)
+
 - Sync interval: value in effect, next sync and value from `config.yaml`, re-read from disk on every
   display (if an import changed it since startup, the page says it will apply at the next launch). It
   can be changed **for the lifetime of the process only** (a Go duration like `45m` or `1h30m`, a whole
   number of minutes, or 0; 0 or at least 15 min): this setting never rewrites `config.yaml`; for a
-  lasting change, edit `sync.interval` in the file (or import a shared configuration, below).
-- Button **"Sync now"**.
-- **Share the configuration** (same JSON file and same rules as `watchoo config export` and
-  `watchoo config import`, see [Configuration sharing](05-cli.md#configuration-sharing-watchoo-config)):
-  - **"Export"** link: `GET /settings/export`, no side effect, returns the document as an
-    attachment (`Content-Type: application/json`, `Content-Disposition: attachment`, safe file name
-    derived from the workspace name: `watchoo-config-<name>.json`, ASCII letters, digits, `-` and `_`
-    only; `Cache-Control: no-store`);
-  - **"Import a file"** form: `POST /settings/import` (`multipart/form-data`, `file` field, CSRF,
-    1 MiB at most) **validates and displays the preview without applying anything**: repositories to
-    add, to update (before → after: display label, branches, own thresholds), to resume, unchanged;
-    settings changed; warnings (`WATCHOO_*` variable masking a setting, `config.yaml` comments lost).
-    The preview does not check repository access. Invalid file: `400` with the validation message; too
-    large: `413`;
-  - **"Apply these changes"** button: `POST /settings/import/apply` (CSRF) sends the file content back
-    in a hidden field (`document`, `multipart/form-data` form); the server **revalidates it entirely**
-    (the preview is never taken for granted: a document modified in the meantime is treated as a new
-    one), applies it like the CLI (settings, then repositories with access verification), then
-    redirects to `/settings?msg=imported` with a summary built by the server (numbers of repositories
-    added, updated, unreachable; settings written). A document that has become invalid: `400`, nothing
-    is modified;
-  - **choice**: the rewritten settings are taken into account by the running `watchoo serve` only **at
-    its next launch** (the summary says so): the configuration of the process is never changed on the
-    fly, the interval included (it remains editable for the lifetime of the process, above). The added
-    repositories, on the other hand, are visible and synced right away. The import remains possible
-    during a sync, like adding a repository;
-  - export, preview and apply re-read `config.yaml` from disk on every request (without touching the
-    configuration of the process): an export made after an import reflects the new file, and
-    re-importing the same file displays "Nothing to apply: this workspace already has this configuration.";
-  - **one apply at a time** per process: a second, simultaneous one receives `409` and changes nothing;
-  - the summary gives the number of unreachable or failed repositories (red banner); their names are
-    written to the log of the `serve` (`WARN`, `owner/repo` and the error, never an email), and
-    `watchoo config import file --dry-run` lists them. A file with several hundred repositories can
-    exceed the request timeout (30 s): unprocessed repositories are counted as errors and the import is
-    safely run again (or done through the CLI).
+  lasting change, edit `sync.interval` in the file (or import a shared configuration, [Sharing](#54-sharing-settingsshare)).
+- Button **"Sync now"** (`POST /sync`).
 - State of the GitHub **API quota** (remaining, limit, reset in local time, "quota low"
   below 10%), read with a free request (`GET /rate_limit`) in a fragment loaded after the page and
   reloaded at the end of a sync; "quota unknown" if `gh` is down or the read fails.
   Without `gh` installed and signed in (V2), "not applicable": the repositories are
   tracked by local Git clones, without a quota, and the fragment says so (with what is then not read
   and the reminder of `gh auth login`).
+
+#### 5.4 Sharing (`/settings/share`)
+
+**Share the configuration**: same JSON file and same rules as `watchoo config export` and
+`watchoo config import`, see [Configuration sharing](05-cli.md#configuration-sharing-watchoo-config).
+
+- **"Export"** link: `GET /settings/export`, no side effect, returns the document as an
+  attachment (`Content-Type: application/json`, `Content-Disposition: attachment`, safe file name
+  derived from the workspace name: `watchoo-config-<name>.json`, ASCII letters, digits, `-` and `_`
+  only; `Cache-Control: no-store`);
+- **"Import a file"** form: `POST /settings/import` (`multipart/form-data`, `file` field, CSRF,
+  1 MiB at most) **validates and displays the preview without applying anything**: repositories to
+  add, to update (before → after: display label, branches, own thresholds), to resume, unchanged;
+  settings changed; warnings (`WATCHOO_*` variable masking a setting, `config.yaml` comments lost).
+  The preview does not check repository access. Invalid file: `400` with the validation message; too
+  large: `413`;
+- **"Apply these changes"** button: `POST /settings/import/apply` (CSRF) sends the file content back
+  in a hidden field (`document`, `multipart/form-data` form); the server **revalidates it entirely**
+  (the preview is never taken for granted: a document modified in the meantime is treated as a new
+  one), applies it like the CLI (settings, then repositories with access verification), then
+  redirects to `/settings/share?msg=imported` with a summary built by the server (numbers of repositories
+  added, updated, unreachable; settings written). A document that has become invalid: `400`, nothing
+  is modified;
+- **choice**: the rewritten settings are taken into account by the running `watchoo serve` only **at
+  its next launch** (the summary says so): the configuration of the process is never changed on the
+  fly, the interval included (it remains editable for the lifetime of the process, [Synchronization](#53-synchronization-settingssync)). The added
+  repositories, on the other hand, are visible and synced right away. The import remains possible
+  during a sync, like adding a repository;
+- export, preview and apply re-read `config.yaml` from disk on every request (without touching the
+  configuration of the process): an export made after an import reflects the new file, and
+  re-importing the same file displays "Nothing to apply: this workspace already has this configuration.";
+- **one apply at a time** per process: a second, simultaneous one receives `409` and changes nothing;
+- the summary gives the number of unreachable or failed repositories (red banner); their names are
+  written to the log of the `serve` (`WARN`, `owner/repo` and the error, never an email), and
+  `watchoo config import file --dry-run` lists them. A file with several hundred repositories can
+  exceed the request timeout (30 s): unprocessed repositories are counted as errors and the import is
+  safely run again (or done through the CLI).
+
+#### Common rules
+
 - The settings forms are plain `POST`s (a `303` redirect, or the page displayed again with the error),
   because HTMX does not replace the content on a 4xx response. The repository list is not reloaded at
   the end of a sync (only the quota is).
@@ -644,7 +706,11 @@ contributor", "Milestone review") stays stuck below the navigation bar while scr
 flowchart LR
     DASH["Dashboard"] --> REPO["Repository detail"]
     DASH --> CONTRIB["Contributors"]
-    DASH --> SET["Settings"]
+    DASH --> SET["Settings: repositories"]
+    SET --> SETC["Settings: contributors"]
+    SET --> SETS["Settings: synchronization"]
+    SET --> SETP["Settings: sharing"]
+    PERSON --> SETC
     REPO --> CONTRIB
     CONTRIB --> REPO
     CONTRIB --> PERSON["Contributor page"]
@@ -662,6 +728,7 @@ The footer of every page carries a **Documentation** link (1.6.1) to the content
 in the page's language: `documentation/en/README.md` in English, `documentation/fr/README.md` in French
 (the language chosen with the EN / FR selector, else the workspace's), followed by a **GitHub** link, with the
 GitHub icon (inline SVG), to Watchoo's repository. Both open in a new tab, without a `Referer` header.
+Since 1.8.0, the footer ends with the credit "Created by Studoo Labs" (plain text, no link).
 
 ## Logo and icons
 

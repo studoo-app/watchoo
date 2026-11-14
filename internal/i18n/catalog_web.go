@@ -120,6 +120,7 @@ var webTexts = map[string]entry{
 		"Watchoo %s · lecture seule : rien n'est jamais écrit sur GitHub · données gardées sur cette machine",
 	},
 	"web.footer.docs":        {"Documentation", "Documentation"},
+	"web.footer.credit":      {"Created by Studoo Labs", "Créé par Studoo Labs"},
 	"web.footer.github":      {"GitHub", "GitHub"},
 	"web.footer.github_aria": {"Watchoo's repository on GitHub", "Dépôt de Watchoo sur GitHub"},
 
@@ -495,9 +496,46 @@ var webTexts = map[string]entry{
 
 	// Réglages.
 	"web.settings.intro": {
-		"Tracked repositories, synchronization and GitHub API quota. Nothing is ever written to GitHub.",
-		"Dépôts suivis, synchronisation et quota de l'API GitHub. Rien n'est jamais écrit sur GitHub.",
+		"Tracked repositories, synchronization and configuration sharing. Nothing is ever written to GitHub.",
+		"Dépôts suivis, synchronisation et partage de la configuration. Rien n'est jamais écrit sur GitHub.",
 	},
+	"web.settings.menu.aria":         {"Settings pages", "Pages des réglages"},
+	"web.settings.menu.repos":        {"Repositories", "Dépôts"},
+	"web.settings.menu.contributors": {"Contributors", "Contributeurs"},
+	"web.settings.menu.sync":         {"Synchronization", "Synchronisation"},
+	"web.settings.menu.share":        {"Sharing", "Partage"},
+	"web.settings.sync_intro": {
+		"Automatic synchronization of this process and GitHub API quota.",
+		"Synchronisation automatique de ce processus et quota de l'API GitHub.",
+	},
+	// Noms donnés aux contributeurs (1.8.0, /settings/contributors).
+	"web.labels.title": {"Names of the contributors", "Noms des contributeurs"},
+	"web.labels.intro": {
+		"The commits only give a pseudonym (GitHub login, Git name). Give each contributor the name of your choice: it is displayed everywhere instead of the pseudonym (web, CLI, TUI).",
+		"Les commits ne donnent qu'un pseudo (login GitHub, nom Git). Donnez à chaque contributeur le nom de votre choix : il est affiché partout à la place du pseudo (web, CLI, TUI).",
+	},
+	"web.labels.note": {
+		"The name stays in this workspace: it is never exported by the configuration sharing, and the login and the name of the commits stay visible next to it. An empty field gives back the pseudonym.",
+		"Le nom reste dans cet espace : il n'est jamais exporté par le partage de la configuration, et le login et le nom des commits restent visibles à côté. Un champ vide rend le pseudo.",
+	},
+	"web.labels.search":       {"Search", "Rechercher"},
+	"web.labels.search_field": {"Name, pseudonym or login", "Nom, pseudo ou login"},
+	"web.labels.clear":        {"Show all", "Tout afficher"},
+	"web.labels.empty": {
+		"No contributor yet: they appear after the first sync of a repository.",
+		"Aucun contributeur pour l'instant : ils apparaissent après la première synchro d'un dépôt.",
+	},
+	"web.labels.no_match":    {"No contributor matches.", "Aucun contributeur ne correspond."},
+	"web.labels.count":       {"%d of %d contributors", "%d contributeurs sur %d"},
+	"web.labels.field":       {"Name for %s", "Nom pour %s"},
+	"web.labels.commit_name": {"Name in the commits:", "Nom dans les commits :"},
+	"web.labels.save":        {"Save", "Enregistrer"},
+	"web.labels.saved":       {"The name of the contributor is saved: %s.", "Le nom du contributeur est enregistré : %s."},
+	"web.labels.removed":     {"The name is removed: the contributor is shown again as %s.", "Le nom est retiré : le contributeur est de nouveau affiché comme %s."},
+	"web.labels.refused":     {"Name refused: see the form of the contributor.", "Nom refusé : voir le formulaire du contributeur."},
+	"web.labels.too_long":    {"Name too long: %d characters at most.", "Nom trop long : %d caractères au plus."},
+	"web.labels.invalid":     {"Name refused: control characters are not allowed.", "Nom refusé : les caractères de contrôle ne sont pas acceptés."},
+	"web.labels.rename":      {"Rename", "Renommer"},
 	"web.settings.empty": {
 		`No repository in this workspace. Add one with the "Add a repository" form.`,
 		"Aucun dépôt dans cet espace. Ajoutez-en un avec le formulaire « Ajouter un dépôt ».",
@@ -553,8 +591,8 @@ var webTexts = map[string]entry{
 	},
 	"web.settings.apply": {"Apply", "Appliquer"},
 	"web.settings.interval_note": {
-		`The change lasts until "watchoo serve" stops: this form never rewrites config.yaml. For a lasting setting, change sync.interval in the file or import a shared configuration (below).`,
-		"Le changement vaut jusqu'à l'arrêt de « watchoo serve » : ce formulaire ne réécrit jamais config.yaml. Pour un réglage durable, modifiez sync.interval dans le fichier ou importez une configuration partagée (ci-dessous).",
+		`The change lasts until "watchoo serve" stops: this form never rewrites config.yaml. For a lasting setting, change sync.interval in the file or import a shared configuration (Sharing page).`,
+		"Le changement vaut jusqu'à l'arrêt de « watchoo serve » : ce formulaire ne réécrit jamais config.yaml. Pour un réglage durable, modifiez sync.interval dans le fichier ou importez une configuration partagée (page Partage).",
 	},
 	"web.settings.branches_prefix":   {"branches", "branches"},
 	"web.settings.change_impossible": {"Change not possible", "Changement impossible"},

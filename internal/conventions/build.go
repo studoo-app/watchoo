@@ -111,6 +111,7 @@ type CommitLine struct {
 	SHA         string
 	AuthorID    int64 // 0 : inconnu
 	AuthorName  string
+	AuthorLabel string // nom donné dans l'interface web (1.8.0) ; affichage seulement
 	AuthorLogin string
 	AuthoredAt  time.Time
 	BeforeSince bool     // antérieur à la date de début : ni évalué ni exclu
@@ -174,6 +175,7 @@ type RepoReport struct {
 type ContributorReport struct {
 	AuthorID    int64 // 0 : auteur inconnu
 	AuthorName  string
+	AuthorLabel string // nom donné dans l'interface web (1.8.0) ; affichage seulement
 	AuthorLogin string
 	Tally
 
@@ -205,6 +207,20 @@ type BuildReport struct {
 	Repos        []RepoReport        // dans l'ordre de ListRepositories
 	Contributors []ContributorReport // par nom, login puis identifiant (aucun classement)
 	Total        Tally               // tous dépôts confondus
+	// Labels sont les noms donnés aux contributeurs dans l'interface web (1.8.0), par identifiant :
+	// affichage seulement (DisplayAuthor), jamais l'évaluation. nil si le Reader ne les connaît pas.
+	Labels map[int64]string
+}
+
+// LabelReader est implémenté par un Reader qui connaît les noms donnés aux contributeurs (1.8.0).
+type LabelReader interface {
+	ContributorLabels(ctx context.Context) (map[int64]string, error)
+}
+
+// DisplayAuthor renvoie le nom affiché d'un auteur du rapport : nom donné à id, sinon name, sinon
+// login ; vide si aucun n'est connu.
+func (b BuildReport) DisplayAuthor(id int64, name, login string) string {
+	return cmp.Or(b.Labels[id], name, login)
 }
 
 // Build calcule le rapport des conventions des dépôts qui satisfont f. clones peut être nil (aucun
@@ -294,9 +310,17 @@ func Build(ctx context.Context, r Reader, clones CloneReader, f Filter, opts Bui
 		a.Trend.Since.sortIssues()
 		out.Contributors = append(out.Contributors, *a)
 	}
+	if lr, ok := r.(LabelReader); ok {
+		if out.Labels, err = lr.ContributorLabels(ctx); err != nil {
+			return BuildReport{}, err
+		}
+		out.applyLabels()
+	}
+	// Par nom affiché (nom donné compris), puis login et identifiant.
+	shown := func(a ContributorReport) string { return strings.ToLower(cmp.Or(out.Labels[a.AuthorID], a.AuthorName)) }
 	slices.SortFunc(out.Contributors, func(a, b ContributorReport) int {
 		return cmp.Or(
-			cmp.Compare(strings.ToLower(a.AuthorName), strings.ToLower(b.AuthorName)),
+			cmp.Compare(shown(a), shown(b)),
 			cmp.Compare(strings.ToLower(a.AuthorLogin), strings.ToLower(b.AuthorLogin)),
 			cmp.Compare(a.AuthorID, b.AuthorID))
 	})

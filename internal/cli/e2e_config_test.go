@@ -140,7 +140,7 @@ func TestEndToEndConfigShare(t *testing.T) {
 		return http.ErrUseLastResponse
 	}}
 	base := "http://" + run.addr
-	page := e2eHTTP(t, client, http.MethodGet, base+"/settings", "", nil, http.StatusOK)
+	page := e2eHTTP(t, client, http.MethodGet, base+"/settings/share", "", nil, http.StatusOK)
 	token := e2eField(t, page, "csrf_token")
 	preview := e2eMultipart(t, client, base+"/settings/import", map[string]string{"csrf_token": token},
 		"file", "licence.json", edited, http.StatusOK)

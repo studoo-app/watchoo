@@ -69,7 +69,7 @@ func (q *Queries) DeleteContributor(ctx context.Context, id int64) error {
 }
 
 const getContributorByAccount = `-- name: GetContributorByAccount :one
-SELECT id, provider, provider_user_id, provider_login, name, avatar_url, profile_url FROM contributors
+SELECT id, provider, provider_user_id, provider_login, name, avatar_url, profile_url, label FROM contributors
 WHERE provider = ? AND provider_user_id = ?
 `
 
@@ -90,12 +90,13 @@ func (q *Queries) GetContributorByAccount(ctx context.Context, arg GetContributo
 		&i.Name,
 		&i.AvatarURL,
 		&i.ProfileURL,
+		&i.Label,
 	)
 	return i, err
 }
 
 const getContributorByEmail = `-- name: GetContributorByEmail :one
-SELECT c.id, c.provider, c.provider_user_id, c.provider_login, c.name, c.avatar_url, c.profile_url FROM contributors c
+SELECT c.id, c.provider, c.provider_user_id, c.provider_login, c.name, c.avatar_url, c.profile_url, c.label FROM contributors c
 JOIN contributor_emails e ON e.contributor_id = c.id
 WHERE e.email = ?
 `
@@ -112,12 +113,13 @@ func (q *Queries) GetContributorByEmail(ctx context.Context, email string) (Cont
 		&i.Name,
 		&i.AvatarURL,
 		&i.ProfileURL,
+		&i.Label,
 	)
 	return i, err
 }
 
 const getContributorProfile = `-- name: GetContributorProfile :one
-SELECT ct.id, ct.provider, ct.provider_user_id, ct.provider_login, ct.name, ct.avatar_url, ct.profile_url,
+SELECT ct.id, ct.provider, ct.provider_user_id, ct.provider_login, ct.name, ct.label, ct.avatar_url, ct.profile_url,
        CAST((SELECT count(*) FROM contributor_emails e WHERE e.contributor_id = ct.id) AS INTEGER) AS emails,
        count(c.sha) AS commits,
        CAST(COALESCE(sum(c.additions), 0) AS INTEGER) AS additions,
@@ -142,6 +144,7 @@ type GetContributorProfileRow struct {
 	ProviderUserID          sql.NullInt64
 	ProviderLogin           string
 	Name                    string
+	Label                   string
 	AvatarURL               string
 	ProfileURL              string
 	Emails                  int64
@@ -168,6 +171,7 @@ func (q *Queries) GetContributorProfile(ctx context.Context, id int64) (GetContr
 		&i.ProviderUserID,
 		&i.ProviderLogin,
 		&i.Name,
+		&i.Label,
 		&i.AvatarURL,
 		&i.ProfileURL,
 		&i.Emails,
@@ -183,6 +187,118 @@ func (q *Queries) GetContributorProfile(ctx context.Context, id int64) (GetContr
 		&i.LastCommitAt,
 	)
 	return i, err
+}
+
+const keepContributorLabel = `-- name: KeepContributorLabel :exec
+UPDATE contributors
+SET label = (SELECT f.label FROM contributors AS f WHERE f.id = ?1)
+WHERE contributors.id = ?2 AND contributors.label = ''
+  AND EXISTS (SELECT 1 FROM contributors AS g WHERE g.id = ?1 AND g.label <> '')
+`
+
+type KeepContributorLabelParams struct {
+	FromID int64
+	ToID   int64
+}
+
+// Fusion de contributeurs : to_id reprend le nom donne de from_id s'il n'en a pas (1.8.0).
+func (q *Queries) KeepContributorLabel(ctx context.Context, arg KeepContributorLabelParams) error {
+	_, err := q.db.ExecContext(ctx, keepContributorLabel, arg.FromID, arg.ToID)
+	return err
+}
+
+const listContributorLabels = `-- name: ListContributorLabels :many
+SELECT id, label FROM contributors
+WHERE label <> ''
+ORDER BY id
+`
+
+type ListContributorLabelsRow struct {
+	ID    int64
+	Label string
+}
+
+// Noms donnes aux contributeurs (1.8.0), pour l'affichage des rapports du diagnostic et des conventions.
+func (q *Queries) ListContributorLabels(ctx context.Context) ([]ListContributorLabelsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listContributorLabels)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListContributorLabelsRow{}
+	for rows.Next() {
+		var i ListContributorLabelsRow
+		if err := rows.Scan(&i.ID, &i.Label); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listContributorsForLabels = `-- name: ListContributorsForLabels :many
+SELECT ct.id, ct.provider, ct.provider_user_id, ct.provider_login, ct.name, ct.label, ct.avatar_url, ct.profile_url,
+       CAST((SELECT count(*) FROM contributor_emails e WHERE e.contributor_id = ct.id) AS INTEGER) AS emails,
+       count(*) AS commits
+FROM contributors ct
+JOIN commits c ON c.author_id = ct.id
+GROUP BY ct.id
+ORDER BY ct.id
+`
+
+type ListContributorsForLabelsRow struct {
+	ID             int64
+	Provider       sql.NullString
+	ProviderUserID sql.NullInt64
+	ProviderLogin  string
+	Name           string
+	Label          string
+	AvatarURL      string
+	ProfileURL     string
+	Emails         int64
+	Commits        int64
+}
+
+// Contributeurs auteurs d'au moins un commit (page /settings/contributors, 1.8.0) : identite, nom donne,
+// nombre d'adresses e-mail rattachees (jamais les adresses) et nombre de commits.
+func (q *Queries) ListContributorsForLabels(ctx context.Context) ([]ListContributorsForLabelsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listContributorsForLabels)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListContributorsForLabelsRow{}
+	for rows.Next() {
+		var i ListContributorsForLabelsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Provider,
+			&i.ProviderUserID,
+			&i.ProviderLogin,
+			&i.Name,
+			&i.Label,
+			&i.AvatarURL,
+			&i.ProfileURL,
+			&i.Emails,
+			&i.Commits,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listContributorsWithoutProfileURL = `-- name: ListContributorsWithoutProfileURL :many
@@ -276,6 +392,26 @@ type MoveContributorEmailsParams struct {
 func (q *Queries) MoveContributorEmails(ctx context.Context, arg MoveContributorEmailsParams) error {
 	_, err := q.db.ExecContext(ctx, moveContributorEmails, arg.ToID, arg.FromID)
 	return err
+}
+
+const setContributorLabel = `-- name: SetContributorLabel :execrows
+UPDATE contributors
+SET label = ?1
+WHERE id = ?2
+`
+
+type SetContributorLabelParams struct {
+	Label string
+	ID    int64
+}
+
+// Nom donne a un contributeur par le superviseur (1.8.0 ; vide = aucun). 0 ligne : contributeur inconnu.
+func (q *Queries) SetContributorLabel(ctx context.Context, arg SetContributorLabelParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, setContributorLabel, arg.Label, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const setContributorProfileURL = `-- name: SetContributorProfileURL :execrows

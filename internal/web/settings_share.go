@@ -455,7 +455,7 @@ func (s *server) handleSettingsImportApply(w http.ResponseWriter, r *http.Reques
 	redirect(w, r, importRedirectTarget(res))
 }
 
-// importRedirectTarget construit l'adresse du bilan : /settings?msg=imported suivi des nombres du
+// importRedirectTarget construit l'adresse du bilan : /settings/share?msg=imported suivi des nombres du
 // résultat (valeurs nulles omises).
 func importRedirectTarget(res *configshare.Result) string {
 	q := url.Values{}
@@ -475,7 +475,7 @@ func importRedirectTarget(res *configshare.Result) string {
 	if res.Settings.Written {
 		q.Set(paramWritten, "1")
 	}
-	return settingsPath + "?" + q.Encode()
+	return settingsSharePath + "?" + q.Encode()
 }
 
 // importFlash construit le message du bilan d'un import, dans la langue de tr, à partir des nombres

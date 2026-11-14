@@ -316,3 +316,21 @@ func TestDiagnosticDecisionClass(t *testing.T) {
 		}
 	}
 }
+
+// TestDiagnosticContributorLabel checks that the leads show the name given to the author (1.8.0) in
+// the list, on the review sheet and on the repository page, while the detection keeps the Git name.
+func TestDiagnosticContributorLabel(t *testing.T) {
+	e, ids, sha := diagnosticEnv(t)
+	if _, err := e.store.SetContributorLabel(t.Context(), e.contributorIDs()["Alice Martin"], "Alice M. (TP2)"); err != nil {
+		t.Fatal(err)
+	}
+	assertContains(t, e.get("/diagnostic"), "Alice M. (TP2)", shortSHA(sha))
+	assertContains(t, e.get(leadURL(ids.Alice, sha)), "Alice M. (TP2)")
+	assertContains(t, e.get(repoPath(ids.Alice)), "Alice M. (TP2)")
+	// The author filter accepts the label.
+	rep, err := diagnostic.Build(t.Context(), e.store, store.DiagnosticFilter{Author: "alice m. (tp2)"}, diagnostic.RhythmOptions{})
+	if err != nil || len(rep.Leads) != 1 || rep.Leads[0].AuthorLabel != "Alice M. (TP2)" ||
+		rep.Leads[0].AuthorName != "Alice Martin" || rep.Leads[0].AuthorDisplayName() != "Alice M. (TP2)" {
+		t.Errorf("leads by label: %+v, %v", rep.Leads, err)
+	}
+}

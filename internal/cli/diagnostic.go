@@ -6,6 +6,7 @@ package cli
 // jamais un verdict. « watchoo diagnostic backfill [--repo X] » reprend l'historique déjà cloné.
 
 import (
+	"cmp"
 	"context"
 	"math"
 	"strconv"
@@ -158,7 +159,7 @@ func runDiagnostic(ctx context.Context, deps Deps, opts *options, f diagnosticFl
 		report.Histories = append(report.Histories, authorHistoryJSON{
 			Repository: repoRefJSON{ID: h.RepoID, FullName: h.RepoFullName(), DisplayName: h.RepoDisplayName()},
 			Author: authorJSON{Name: h.AuthorName, Login: h.AuthorLogin,
-				DisplayName: cmpOr(cmpOr(h.AuthorName, h.AuthorLogin), i18n.T("cli.diag.unknown_author"))},
+				DisplayName: cmpOr(cmp.Or(h.AuthorLabel, h.AuthorName, h.AuthorLogin), i18n.T("cli.diag.unknown_author"))},
 			Commits: h.Commits, WorkedDays: h.WorkedDays, Sufficient: h.Sufficient,
 		})
 	}
@@ -179,7 +180,7 @@ func newDiagnosticLeadJSON(l diagnostic.Lead) diagnosticLeadJSON {
 		Title:      l.Title,
 		URL:        l.URL,
 		Author: authorJSON{Name: l.AuthorName, Login: l.AuthorLogin,
-			DisplayName: cmpOr(cmpOr(l.AuthorName, l.AuthorLogin), i18n.T("cli.diag.unknown_author"))},
+			DisplayName: cmpOr(l.AuthorDisplayName(), i18n.T("cli.diag.unknown_author"))},
 		Date:    timeJSON(l.Date),
 		Signals: make([]diagnosticHitJSON, 0, len(l.Hits)),
 	}
@@ -217,7 +218,7 @@ func (s *session) diagnosticText(st textStyle, res diagnostic.Report) string {
 			rows[i] = []string{
 				l.Date.In(s.loc).Format(i18n.T("cli.diag.fmt.date")),
 				l.RepoDisplayName(),
-				cmpOr(cmpOr(l.AuthorName, l.AuthorLogin), "-"),
+				cmpOr(l.AuthorDisplayName(), "-"),
 				item,
 				i18n.T("cli.diag.level." + l.Level),
 				hitsText(l.Hits),

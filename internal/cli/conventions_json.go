@@ -244,7 +244,7 @@ func newConventionsBranchesJSON(b conventions.BranchReport) conventionsBranchesJ
 		item := conventionsBranchItemJSON{Name: l.Name, Codes: nonNil(l.Codes), Conform: l.Conform(), Review: l.Review(),
 			InSource: l.InClone, PullRequests: append([]int{}, l.PRs...), Authors: make([]authorJSON, 0, len(l.AuthorIDs))}
 		for i := range l.AuthorIDs {
-			item.Authors = append(item.Authors, conventionsAuthor(l.AuthorNames[i], l.AuthorLogins[i]))
+			item.Authors = append(item.Authors, conventionsAuthor(l.AuthorLabel(i), l.AuthorNames[i], l.AuthorLogins[i]))
 		}
 		out.Items = append(out.Items, item)
 	}
@@ -271,7 +271,7 @@ func newConventionsPullsJSON(p conventions.PullReport) conventionsPullsJSON {
 	}
 	for _, l := range p.Pulls {
 		out.Items = append(out.Items, conventionsPullItemJSON{Number: l.Number, Category: l.Category,
-			Author: conventionsAuthor(l.AuthorName, l.AuthorLogin), HeadBranch: l.HeadBranch, Codes: nonNil(l.Codes),
+			Author: conventionsAuthor(l.AuthorLabel, l.AuthorName, l.AuthorLogin), HeadBranch: l.HeadBranch, Codes: nonNil(l.Codes),
 			DefaultCodes: nonNil(l.Default), Conform: l.Conform, Body: newConventionsBodyJSON(l.Body),
 			Merge: newConventionsMergeJSON(l), Review: newConventionsReviewJSON(l.Review)})
 	}

@@ -72,6 +72,13 @@ an incompatible change requires a major version. **Released in v1.0.0**.
 | Languages of a contributor | Lines added per language by the commits they authored, with their percentage, read from the local Git clone: "Languages" card on a contributor's page (and main language of each of their repositories), `watchoo contributors` (LANGUAGE column, `languages` key in JSON), contributor detail of the TUI. See [Architecture](03-architecture.md#languages-of-a-contributor-120). **Released in v1.2.0** |
 | AI signatures | Tools declared in the commits (co-author, footer, agent account), per commit and per contributor, in `log`, `contributors`, the TUI and the web interface. See [AI signatures](#ai-signatures). **Released in v1.2.0** |
 
+## 1.8.0
+
+| Feature | Detail |
+| --- | --- |
+| Names of the contributors | The commits only give a pseudonym (login, Git name): the supervisor gives a contributor a name of their choice in the web settings (`/settings/contributors`, or the "Rename" link of their page), displayed everywhere instead of the pseudonym (web, CLI, TUI, `--json`), the login staying visible. Kept in the database of the workspace only: never written by the sync, never exported. See [Data model](04-data-model.md#contributors--identified-people) |
+| Settings pages | The web settings are split into four pages with a menu: repositories, contributors, synchronization (interval, sync, quota), sharing (export, import). See [Web interface](06-web-interface.md#5-settings) |
+
 ## V3
 
 | Feature | Detail |
@@ -120,7 +127,8 @@ an incompatible change requires a major version. **Released in v1.0.0**.
   system's): a commit from yesterday at 11 p.m. is 1 day old, whatever the time.
 - **Incremental**: a commit already in the database is never downloaded again.
 - **Identity**: a contributor may use several e-mail addresses; they are attached to their GitHub
-  login when it is known.
+  login when it is known. Since 1.8.0, the supervisor can give them a name, displayed instead of the
+  pseudonym of the commits.
 - **Read-only**: Watchoo never writes to GitHub.
 
 ## AI signatures

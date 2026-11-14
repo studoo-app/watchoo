@@ -172,7 +172,7 @@ func TestDashboardEmpty(t *testing.T) {
 	e := newTestEnv(t)
 	w := e.get("/")
 	assertStatus(t, w, http.StatusOK)
-	assertContains(t, w, "No tracked repository", `href="/settings"`, "No commit yet", "out of 0 repositories<")
+	assertContains(t, w, "No tracked repository", `href="/settings/repos"`, "No commit yet", "out of 0 repositories<")
 }
 
 func TestDashboardFragments(t *testing.T) {

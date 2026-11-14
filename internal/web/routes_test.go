@@ -14,7 +14,7 @@ func TestHeadAcceptedWhereGetIs(t *testing.T) {
 		"/", "/fragments/dashboard/repos", "/fragments/dashboard/feed",
 		repoPath(ids.Alice), repoPath(ids.Alice) + "/commits",
 		"/contributors", "/fragments/contributors", "/contributors/1", "/contributors/1/commits",
-		"/settings", "/settings" + repoPath(ids.Alice) + "/remove", "/fragments/quota", "/fragments/sync",
+		"/settings/repos", "/settings/sync", "/settings/share", "/settings" + repoPath(ids.Alice) + "/remove", "/fragments/quota", "/fragments/sync",
 		"/conventions",
 		"/static/app.js", "/favicon.ico", "/apple-touch-icon.png", "/manifest.webmanifest",
 	}
@@ -28,6 +28,10 @@ func TestHeadAcceptedWhereGetIs(t *testing.T) {
 		if g, h := get.Header().Get("Content-Type"), head.Header().Get("Content-Type"); g != h {
 			t.Errorf("%s: Content-Type GET %q, HEAD %q", target, g, h)
 		}
+	}
+	// /settings redirects to the page of the topic (1.8.0), for HEAD too.
+	if get, head := e.get("/settings"), e.do(e.request(http.MethodHead, "/settings", nil)); get.Code != http.StatusFound || head.Code != http.StatusFound {
+		t.Errorf("/settings: GET %d, HEAD %d; want 302 for both", get.Code, head.Code)
 	}
 	for _, target := range []string{"/sync", "/settings/interval"} {
 		if w := e.do(e.request(http.MethodHead, target, nil)); w.Code != http.StatusMethodNotAllowed {

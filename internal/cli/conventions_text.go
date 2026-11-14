@@ -72,7 +72,7 @@ func pullLines(p conventions.PullReport) []string {
 			continue
 		}
 		codes := append(append([]string{}, l.Codes...), l.Default...)
-		author := cmpOr(cmpOr(l.AuthorName, l.AuthorLogin), i18n.T("cli.conv.unknown_author"))
+		author := cmpOr(l.DisplayAuthor(), i18n.T("cli.conv.unknown_author"))
 		lines = append(lines, "  "+i18n.T("cli.conv.pull_item", l.Number, textclean.Clean(author),
 			textclean.Clean(l.HeadBranch), strings.Join(codes, ", ")))
 	}
