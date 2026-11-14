@@ -22,7 +22,7 @@ l'interface web et les lignes en cause sur la fiche de revue du diagnostic (phas
 par contributeur en **v1.6.0** ; le lien vers la documentation dans la langue de l'interface web, les icônes du score IA et le score IA et les
 pistes des commits sur la page d'un contributeur en **v1.6.1** ; les conventions de projet (phase 8, sauf BR3) et le tri
 et les filtres du tableau de bord en **v1.7.0** ; l'interface allégée des conventions et la navigation collée en
-**v1.7.1**.
+**v1.7.1** ; les noms donnés aux contributeurs, les pages de réglages et la mention Studoo Labs en **v1.8.0**.
 
 ```mermaid
 flowchart LR
@@ -216,7 +216,7 @@ L'import d'une organisation entière et les alertes passent en V3 (voir
 - Ajouts seulement (une colonne, des routes, une clé `--json`) : version **MINEURE**.
 - Ordre : documentation, puis le découpage des réglages sans changement de comportement, puis les noms
   (migration, cœur, CLI, TUI, web), chaque étape avec ses tests.
-- **État** : décidé (décision du mainteneur du 14 novembre 2026) ; réalisé, pas encore publié.
+- **État** : décidé (décision du mainteneur du 14 novembre 2026) ; **publié en v1.8.0**.
 
 ## Définition de « terminé » pour chaque phase
 
